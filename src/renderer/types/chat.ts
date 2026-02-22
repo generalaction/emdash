@@ -23,6 +23,8 @@ export interface TaskMetadata {
   autoApprove?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  /** True if the task name was auto-generated and is eligible for rename from terminal input */
+  nameGenerated?: boolean | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

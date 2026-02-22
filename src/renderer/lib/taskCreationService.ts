@@ -17,6 +17,8 @@ export interface CreateTaskParams {
   autoApprove?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  /** True if the task name was auto-generated (not manually typed by user) */
+  nameGenerated?: boolean;
 }
 
 export interface CreateTaskCallbacks {
@@ -65,6 +67,7 @@ export async function createTask(
     autoApprove,
     useWorktree,
     baseRef,
+    nameGenerated,
   } = params;
   const {
     selectedProject,
@@ -96,13 +99,19 @@ export async function createTask(
       preparedPrompt = parts.join('\n');
     }
     const taskMetadata: TaskMetadata | null =
-      linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
+      linkedLinearIssue ||
+      linkedJiraIssue ||
+      linkedGithubIssue ||
+      preparedPrompt ||
+      autoApprove ||
+      nameGenerated
         ? {
             linearIssue: linkedLinearIssue ?? null,
             jiraIssue: linkedJiraIssue ?? null,
             githubIssue: linkedGithubIssue ?? null,
             initialPrompt: preparedPrompt ?? null,
             autoApprove: autoApprove ?? null,
+            nameGenerated: nameGenerated ?? null,
           }
         : null;
 
