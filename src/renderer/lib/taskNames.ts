@@ -177,6 +177,28 @@ const extractContextKeywords = (input: string, maxWords = 6): string[] => {
   return uniqueOrdered;
 };
 
+const buildIssuePrefix = (context: TaskNameInferenceContext): string => {
+  if (context.linearIssue?.identifier) {
+    return normalizeTaskName(context.linearIssue.identifier);
+  }
+  if (typeof context.githubIssue?.number === 'number') {
+    return normalizeTaskName(`gh-${context.githubIssue.number}`);
+  }
+  if (context.jiraIssue?.key) {
+    return normalizeTaskName(context.jiraIssue.key);
+  }
+  return '';
+};
+
+const buildContextText = (context: TaskNameInferenceContext): string => {
+  const parts: string[] = [];
+  if (context.linearIssue?.title) parts.push(context.linearIssue.title);
+  if (context.githubIssue?.title) parts.push(context.githubIssue.title);
+  if (context.jiraIssue?.summary) parts.push(context.jiraIssue.summary);
+  if (context.initialPrompt) parts.push(context.initialPrompt);
+  return parts.join(' ').trim();
+};
+
 export const ensureUniqueTaskName = (
   baseName: string,
   existingNames: Iterable<string>,
@@ -204,11 +226,18 @@ export const inferTaskNameFromContext = (
   existingNames: Iterable<string> = [],
   options?: { fallbackName?: string }
 ): string => {
-  const contextKeywords = extractContextKeywords(context.initialPrompt || '');
+  const issuePrefix = buildIssuePrefix(context);
+  const contextKeywords = extractContextKeywords(buildContextText(context));
   const contextName = normalizeTaskName(contextKeywords.join('-'));
 
+  if (issuePrefix && contextName) {
+    return ensureUniqueTaskName(`${issuePrefix}-${contextName}`, existingNames);
+  }
   if (contextName) {
     return ensureUniqueTaskName(contextName, existingNames);
+  }
+  if (issuePrefix) {
+    return ensureUniqueTaskName(issuePrefix, existingNames);
   }
 
   const fallback = normalizeTaskName(options?.fallbackName || '');
