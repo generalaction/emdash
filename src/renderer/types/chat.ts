@@ -50,7 +50,7 @@ export interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
   metadata?: TaskMetadata | null;
   useWorktree?: boolean;
   archivedAt?: string | null;

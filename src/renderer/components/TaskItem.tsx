@@ -44,7 +44,7 @@ interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
   agentId?: string;
   useWorktree?: boolean;
   updatedAt?: string;
@@ -177,34 +177,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   );
 
   const taskContent = (
-    <div className="flex min-w-0 items-center gap-1.5">
-      {/* Left icon slot — same width as the project folder icon */}
-      <div className="flex w-5 flex-shrink-0 items-center justify-center">
-        {onArchive && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 outline-none hover:bg-black/5 focus-visible:outline-none group-hover/task:opacity-100 dark:hover:bg-white/5"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onArchive();
-                  }}
-                  aria-label="Archive task"
-                >
-                  <Archive className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={4}>
-                Archive
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {(isRunning || task.status === 'running') && (
+    <div className="flex min-w-0 items-center justify-between">
+      <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
+        {(isRunning || task.status === 'running' || task.status === 'creating') && (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         {isEditing ? (
@@ -241,6 +216,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               />
             )}
             <span className="block truncate text-sm font-medium text-foreground">{task.name}</span>
+            {task.status === 'creating' && (
+              <span className="ml-1 animate-pulse text-xs text-muted-foreground">Creating...</span>
+            )}
           </>
         )}
         {showDirectBadge && task.useWorktree === false && (
