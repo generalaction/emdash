@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { subscribeToCheckRuns, refreshCheckRuns } from '../lib/checkRunsStore';
 import type { CheckRunsStatus } from '../lib/checkRunStatus';
 
-export function useCheckRuns(taskPath?: string) {
+const noopRefresh = async () => {};
+
+export function useCheckRuns(taskPath?: string, enabled = true) {
   const [status, setStatus] = useState<CheckRunsStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(!!taskPath);
+  const [isLoading, setIsLoading] = useState(!!taskPath && enabled);
 
   const refresh = async () => {
-    if (!taskPath) return;
+    if (!taskPath || !enabled) return;
     setIsLoading(true);
     try {
       const result = await refreshCheckRuns(taskPath);
@@ -18,7 +20,7 @@ export function useCheckRuns(taskPath?: string) {
   };
 
   useEffect(() => {
-    if (!taskPath) {
+    if (!enabled || !taskPath) {
       setStatus(null);
       setIsLoading(false);
       return;
@@ -30,7 +32,11 @@ export function useCheckRuns(taskPath?: string) {
       setStatus(newStatus);
       setIsLoading(false);
     });
-  }, [taskPath]);
+  }, [taskPath, enabled]);
+
+  if (!enabled) {
+    return { status: null, refresh: noopRefresh, isLoading: false };
+  }
 
   return { status, refresh, isLoading };
 }

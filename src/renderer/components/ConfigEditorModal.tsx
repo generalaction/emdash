@@ -22,6 +22,8 @@ interface ConfigEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectPath: string;
+  isRemote?: boolean;
+  sshConnectionId?: string | null;
 }
 
 const EMPTY_SCRIPTS: LifecycleScripts = {
@@ -101,6 +103,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
   projectPath,
+  isRemote,
+  sshConnectionId,
 }) => {
   const [config, setConfig] = useState<ConfigShape>({});
   const [scripts, setScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
@@ -158,12 +162,25 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     setError(null);
     setLoadFailed(false);
     try {
-      const result = await window.electronAPI.getProjectConfig(projectPath);
-      if (!result.success || !result.content) {
-        throw new Error(result.error || 'Failed to load config');
+      let content: string;
+
+      if (isRemote && sshConnectionId) {
+        const configPath = `${projectPath}/.emdash.json`;
+        try {
+          content = await window.electronAPI.sshReadFile(sshConnectionId, configPath);
+        } catch {
+          // File doesn't exist yet on remote — treat as empty config
+          content = '{}';
+        }
+      } else {
+        const result = await window.electronAPI.getProjectConfig(projectPath);
+        if (!result.success || !result.content) {
+          throw new Error(result.error || 'Failed to load config');
+        }
+        content = result.content;
       }
 
-      const parsed = ensureConfigObject(JSON.parse(result.content));
+      const parsed = ensureConfigObject(JSON.parse(content));
       const nextScripts = scriptsFromConfig(parsed);
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
       const nextShellSetup = typeof parsed.shellSetup === 'string' ? parsed.shellSetup : '';
@@ -187,7 +204,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [projectPath]);
+  }, [projectPath, isRemote, sshConnectionId]);
 
   useEffect(() => {
     if (!isOpen || !projectPath) return;
@@ -210,12 +227,17 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     setIsSaving(true);
     setError(null);
     try {
-      const result = await window.electronAPI.saveProjectConfig(
-        projectPath,
-        normalizedConfigContent
-      );
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save config');
+      if (isRemote && sshConnectionId) {
+        const configPath = `${projectPath}/.emdash.json`;
+        await window.electronAPI.sshWriteFile(sshConnectionId, configPath, normalizedConfigContent);
+      } else {
+        const result = await window.electronAPI.saveProjectConfig(
+          projectPath,
+          normalizedConfigContent
+        );
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to save config');
+        }
       }
 
       const nextConfig = applyScripts(
@@ -234,9 +256,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     }
   }, [
     config,
+    isRemote,
     normalizedConfigContent,
     onClose,
     shellSetup,
+    sshConnectionId,
     preservePatternsInput,
     preservePatterns,
     projectPath,
