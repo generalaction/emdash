@@ -441,7 +441,7 @@ const IntegrationsCard: React.FC = () => {
           const maxAttempts = 15;
 
           while (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 200));
             const status = await checkStatus();
 
             if (status?.authenticated) {
