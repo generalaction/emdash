@@ -4,7 +4,13 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
-import { getAppById, OPEN_IN_APPS, type OpenInAppId, type PlatformKey } from '@shared/openInApps';
+import {
+  getAppById,
+  getResolvedLabel,
+  OPEN_IN_APPS,
+  type OpenInAppId,
+  type PlatformKey,
+} from '@shared/openInApps';
 import { databaseService } from '../services/DatabaseService';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
 
@@ -241,8 +247,9 @@ export function registerAppIpc() {
         }
 
         const platformConfig = appConfig.platforms?.[platform];
+        const label = getResolvedLabel(appConfig, platform);
         if (!platformConfig && !appConfig.alwaysAvailable) {
-          return { success: false, error: `${appConfig.label} is not available on this platform.` };
+          return { success: false, error: `${label} is not available on this platform.` };
         }
 
         // Handle remote SSH connections for supported editors and terminals
@@ -315,7 +322,7 @@ export function registerAppIpc() {
               // App claims to support remote but we don't have a handler
               return {
                 success: false,
-                error: `Remote SSH not yet implemented for ${appConfig.label}`,
+                error: `Remote SSH not yet implemented for ${label}`,
               };
             }
           } catch (error) {
@@ -343,7 +350,7 @@ export function registerAppIpc() {
           }
           return {
             success: false,
-            error: `${appConfig.label} is not installed or its URI scheme is not registered on this platform.`,
+            error: `${label} is not installed or its URI scheme is not registered on this platform.`,
           };
         }
 
@@ -382,8 +389,10 @@ export function registerAppIpc() {
         return { success: true };
       } catch (error) {
         const appConfig = getAppById(appId);
-        const label = appConfig?.label || appId;
-        return { success: false, error: `Unable to open in ${label}` };
+        const catchLabel = appConfig
+          ? getResolvedLabel(appConfig, process.platform as PlatformKey)
+          : appId;
+        return { success: false, error: `Unable to open in ${catchLabel}` };
       }
     }
   );
