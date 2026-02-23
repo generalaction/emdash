@@ -37,7 +37,7 @@ Emdash lets you develop and test multiple features with multiple agents in paral
 
 **Develop on remote servers via SSH**
 
-Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development.
+Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development. [Learn more](https://www.emdash.sh/cloud)
 
 <div align="center" style="margin:24px 0;">
 
@@ -65,6 +65,8 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 ### Release Overview
 
 **[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
+
+<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
 
 # Providers
 
