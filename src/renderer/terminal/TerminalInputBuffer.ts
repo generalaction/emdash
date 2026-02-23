@@ -35,7 +35,8 @@ export class TerminalInputBuffer {
         if (
           (code >= 0x40 && code <= 0x5a) || // A-Z
           (code >= 0x61 && code <= 0x7a) || // a-z
-          char === '~'
+          char === '~' ||
+          code === 0x07
         ) {
           this.inEscape = false;
         }
