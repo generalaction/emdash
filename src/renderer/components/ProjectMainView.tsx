@@ -48,6 +48,7 @@ function TaskRow({
   isSelectMode,
   isSelected,
   onToggleSelect,
+  enablePrStatus = true,
 }: {
   ws: Task;
   active: boolean;
@@ -57,10 +58,11 @@ function TaskRow({
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  enablePrStatus?: boolean;
 }) {
   const isRunning = useTaskBusy(ws.id);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { pr } = usePrStatus(ws.path);
+  const { pr } = usePrStatus(ws.path, enablePrStatus);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
 
   const handleRowClick = () => {
@@ -402,7 +404,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
-            refreshPrStatus(ws.path),
+            project.isRemote
+              ? Promise.resolve(null)
+              : refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
@@ -649,6 +653,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         onClick={() => onSelectTask(ws)}
                         onDelete={() => onDeleteTask(project, ws)}
                         onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
+                        enablePrStatus={!project.isRemote}
                       />
                     ))}
                   </div>
@@ -796,6 +801,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         isOpen={showConfigEditor}
         onClose={() => setShowConfigEditor(false)}
         projectPath={project.path}
+        isRemote={project.isRemote}
+        sshConnectionId={project.sshConnectionId}
       />
     </div>
   );

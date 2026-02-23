@@ -668,15 +668,44 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     const loadBranches = async () => {
       setIsLoadingBranches(true);
       try {
-        const res = await window.electronAPI.listRemoteBranches({
-          projectPath: selectedProject.path,
-        });
-        if (cancelled) return;
-        if (res.success && res.branches) {
-          const options = res.branches.map((b) => ({
-            value: b.ref,
-            label: b.remote ? b.label : `${b.branch} (local)`,
-          }));
+        let options: { value: string; label: string }[];
+
+        if (selectedProject.isRemote && selectedProject.sshConnectionId) {
+          // Load branches over SSH for remote projects
+          const result = await window.electronAPI.sshExecuteCommand(
+            selectedProject.sshConnectionId,
+            'git branch -a --format="%(refname:short)"',
+            selectedProject.path
+          );
+          if (cancelled) return;
+          if (result.exitCode === 0 && result.stdout) {
+            const branches = result.stdout
+              .split('\n')
+              .map((b) => b.trim())
+              .filter((b) => b.length > 0 && !b.includes('HEAD'));
+            options = branches.map((b) => ({
+              value: b,
+              label: b,
+            }));
+          } else {
+            options = [];
+          }
+        } else {
+          const res = await window.electronAPI.listRemoteBranches({
+            projectPath: selectedProject.path,
+          });
+          if (cancelled) return;
+          if (res.success && res.branches) {
+            options = res.branches.map((b) => ({
+              value: b.ref,
+              label: b.remote ? b.label : `${b.branch} (local)`,
+            }));
+          } else {
+            options = [];
+          }
+        }
+
+        if (!cancelled && options.length > 0) {
           setProjectBranchOptions(options);
           const defaultBranch = pickDefaultBranch(options, currentRef);
           setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
