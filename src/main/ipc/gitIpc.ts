@@ -16,6 +16,7 @@ import {
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
+import { injectIssueFooter } from '../lib/prIssueFooter';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -264,6 +265,13 @@ export function registerGitIpc() {
         });
       try {
         const outputs: string[] = [];
+        let prBody = body;
+        try {
+          const task = await databaseService.getTaskByPath(taskPath);
+          prBody = injectIssueFooter(body, task?.metadata);
+        } catch (error) {
+          log.debug('Unable to enrich PR body with issue footer', { taskPath, error });
+        }
 
         // Stage and commit any pending changes
         try {
@@ -403,21 +411,21 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Use temp file for body to properly handle newlines and multiline content
         let bodyFile: string | null = null;
-        if (body) {
+        if (prBody) {
           try {
             bodyFile = path.join(
               os.tmpdir(),
               `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
             );
             // Write body with actual newlines preserved
-            fs.writeFileSync(bodyFile, body, 'utf8');
+            fs.writeFileSync(bodyFile, prBody, 'utf8');
             flags.push(`--body-file ${JSON.stringify(bodyFile)}`);
           } catch (writeError) {
             log.warn('Failed to write body to temp file, falling back to --body flag', {
               writeError,
             });
             // Fallback to direct --body flag if temp file creation fails
-            flags.push(`--body ${JSON.stringify(body)}`);
+            flags.push(`--body ${JSON.stringify(prBody)}`);
           }
         }
 
@@ -1219,12 +1227,44 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       // Create PR (or use existing)
       let prUrl = '';
       try {
-        const { stdout: prOut } = await execAsync(
-          `gh pr create --fill --base ${JSON.stringify(defaultBranch)}`,
-          { cwd: taskPath }
-        );
-        const urlMatch = prOut?.match(/https?:\/\/\S+/);
-        prUrl = urlMatch ? urlMatch[0] : '';
+        let footerBody: string | undefined;
+        try {
+          const task = await databaseService.getTaskByPath(taskPath);
+          footerBody = injectIssueFooter(undefined, task?.metadata);
+        } catch (error) {
+          log.debug('Unable to enrich merge-to-main PR body with issue footer', {
+            taskPath,
+            error,
+          });
+        }
+
+        let bodyFile: string | null = null;
+        try {
+          if (footerBody) {
+            bodyFile = path.join(
+              os.tmpdir(),
+              `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
+            );
+            fs.writeFileSync(bodyFile, footerBody, 'utf8');
+          }
+
+          const prCreateArgs = ['pr', 'create', '--fill', '--base', defaultBranch];
+          if (bodyFile) {
+            prCreateArgs.push('--body-file', bodyFile);
+          }
+
+          const { stdout: prOut } = await execFileAsync('gh', prCreateArgs, { cwd: taskPath });
+          const urlMatch = prOut?.match(/https?:\/\/\S+/);
+          prUrl = urlMatch ? urlMatch[0] : '';
+        } finally {
+          if (bodyFile && fs.existsSync(bodyFile)) {
+            try {
+              fs.unlinkSync(bodyFile);
+            } catch (unlinkError) {
+              log.debug('Failed to delete temp body file', { bodyFile, unlinkError });
+            }
+          }
+        }
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);
         if (!/already exists|already has.*pull request/i.test(errMsg)) {
