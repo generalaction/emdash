@@ -196,6 +196,7 @@ function buildRemoteProviderInvocation(args: {
     resume,
     resumeFlag: resolvedConfig?.resumeFlag ?? fallbackProvider?.resumeFlag,
     defaultArgs: resolvedConfig?.defaultArgs ?? fallbackProvider?.defaultArgs,
+    extraArgs: resolvedConfig?.extraArgs,
     autoApprove,
     autoApproveFlag: resolvedConfig?.autoApproveFlag ?? fallbackProvider?.autoApproveFlag,
     initialPrompt,
@@ -753,13 +754,16 @@ export function registerPtyIpc(): void {
             resume,
           });
 
+          const resolvedConfig = resolveProviderCommandConfig(providerId);
+          const mergedEnv = resolvedConfig?.env ? { ...resolvedConfig.env, ...env } : env;
+
           const proc = startSshPty({
             id,
             target: ssh.target,
             sshArgs: ssh.args,
             cols,
             rows,
-            env,
+            env: mergedEnv,
           });
 
           if (!listeners.has(id)) {
