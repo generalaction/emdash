@@ -6,6 +6,8 @@ export type PlatformConfig = {
   checkCommands?: string[];
   bundleIds?: string[];
   appNames?: string[];
+  label?: string;
+  iconPath?: string;
 };
 
 type OpenInAppConfigShape = {
@@ -22,6 +24,8 @@ type OpenInAppConfigShape = {
 
 const ICON_PATHS = {
   finder: 'finder.png',
+  explorer: 'explorer.svg',
+  files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
   terminal: 'terminal.png',
@@ -43,8 +47,16 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     alwaysAvailable: true,
     platforms: {
       darwin: { openCommands: ['open {{path}}'] },
-      win32: { openCommands: ['explorer {{path}}'] },
-      linux: { openCommands: ['xdg-open {{path}}'] },
+      win32: {
+        openCommands: ['explorer "{{path_raw}}"'],
+        label: 'Explorer',
+        iconPath: ICON_PATHS.explorer,
+      },
+      linux: {
+        openCommands: ['xdg-open {{path}}'],
+        label: 'Files',
+        iconPath: ICON_PATHS.files,
+      },
     },
   },
   {
@@ -282,4 +294,12 @@ export function getAppById(id: string): OpenInAppConfig | undefined {
 
 export function isValidOpenInAppId(value: unknown): value is OpenInAppId {
   return typeof value === 'string' && OPEN_IN_APPS.some((app) => app.id === value);
+}
+
+export function getResolvedLabel(app: OpenInAppConfigShape, platform: PlatformKey): string {
+  return app.platforms[platform]?.label || app.label;
+}
+
+export function getResolvedIconPath(app: OpenInAppConfigShape, platform: PlatformKey): string {
+  return app.platforms[platform]?.iconPath || app.iconPath;
 }

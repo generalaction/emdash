@@ -27,7 +27,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { icons, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
 
   // Fetch default app setting on mount and listen for changes
   React.useEffect(() => {
@@ -79,8 +79,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   }, []);
 
   const callOpen = async (appId: OpenInAppId) => {
-    const appConfig = getAppById(appId);
-    const label = appConfig?.label || appId;
+    const label = labels[appId] || appId;
 
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('toolbar_open_in_selected', { app: appId });
@@ -132,7 +131,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     return menuApps[0]?.id;
   }, [defaultApp, menuApps]);
 
-  const buttonAppLabel = buttonAppId ? (getAppById(buttonAppId)?.label ?? buttonAppId) : null;
+  const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
 
   return (
     <div ref={containerRef} className="relative">
@@ -152,7 +151,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
           {buttonAppId && icons[buttonAppId] && (
             <img
               src={icons[buttonAppId]}
-              alt={getAppById(buttonAppId)?.label}
+              alt={labels[buttonAppId] || buttonAppId}
               className={`h-4 w-4 rounded ${
                 getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
               }`}
@@ -224,11 +223,11 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   {icons[app.id] ? (
                     <img
                       src={icons[app.id]}
-                      alt={app.label}
+                      alt={labels[app.id] || app.label}
                       className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
                     />
                   ) : null}
-                  <span>{app.label}</span>
+                  <span>{labels[app.id] || app.label}</span>
                   {app.id === defaultApp && (
                     <span className="ml-auto text-xs text-muted-foreground">Selected</span>
                   )}
