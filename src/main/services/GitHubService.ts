@@ -685,11 +685,11 @@ export class GitHubService {
             'X-GitHub-Api-Version': '2022-11-28',
           },
         });
-        
+
         if (!response.ok) {
           throw new Error(`GitHub API error: ${response.statusText}`);
         }
-        
+
         userData = await response.json();
       } else {
         // Use gh CLI to get user info as fallback
