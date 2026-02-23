@@ -66,9 +66,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 **[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
-<p align="center">
-  <img src="./docs/public/media/product.jpeg" alt="Emdash" width="800" />
-</p>
+<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
 
 # Providers
 
