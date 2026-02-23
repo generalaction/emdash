@@ -17,6 +17,7 @@ import {
 } from './ui/dialog';
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
+import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -48,6 +49,7 @@ const IntegrationsCard: React.FC = () => {
   const [integrationSetupModal, setIntegrationSetupModal] = useState<null | 'linear' | 'jira'>(
     null
   );
+  const [showGithubModal, setShowGithubModal] = useState(false);
 
   // Linear state
   const [linearInput, setLinearInput] = useState('');
@@ -100,19 +102,20 @@ const IntegrationsCard: React.FC = () => {
           );
           return;
         }
-        await checkStatus(); // Refresh status
+        await checkStatus();
       }
 
-      // Authenticate
+      setShowGithubModal(true);
       const result = await login();
-      await checkStatus();
 
       if (!result?.success) {
         setGithubError(result?.error || 'Could not connect.');
+        setShowGithubModal(false);
       }
     } catch (error) {
       console.error('GitHub connect failed:', error);
       setGithubError('Could not connect.');
+      setShowGithubModal(false);
     }
   }, [checkStatus, login, installed]);
 
@@ -120,11 +123,12 @@ const IntegrationsCard: React.FC = () => {
     setGithubError(null);
     try {
       await logout();
+      await checkStatus();
     } catch (error) {
       console.error('GitHub logout failed:', error);
       setGithubError('Could not disconnect.');
     }
-  }, [logout]);
+  }, [logout, checkStatus]);
 
   // Linear handlers
   const handleLinearConnect = useCallback(async () => {
@@ -426,6 +430,31 @@ const IntegrationsCard: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* GitHub Device Flow Modal */}
+      <GithubDeviceFlowModal
+        open={showGithubModal}
+        onClose={() => setShowGithubModal(false)}
+        onSuccess={async () => {
+          // Poll for authentication status (gh CLI takes time to authenticate)
+          let attempts = 0;
+          const maxAttempts = 15;
+
+          while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            const status = await checkStatus();
+
+            if (status?.authenticated) {
+              break;
+            }
+            attempts++;
+          }
+        }}
+        onError={(error) => {
+          setGithubError(error);
+          setShowGithubModal(false);
+        }}
+      />
     </>
   );
 };
