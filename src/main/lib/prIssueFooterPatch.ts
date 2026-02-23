@@ -20,6 +20,10 @@ type PatchPrIssueFooterArgs = {
   prUrl?: string | null;
 };
 
+function normalizeBodyForComparison(body: string): string {
+  return body.replace(/\r\n/g, '\n').trimEnd();
+}
+
 export async function patchCurrentPrBodyWithIssueFooter({
   taskPath,
   metadata,
@@ -34,7 +38,7 @@ export async function patchCurrentPrBodyWithIssueFooter({
   if (!mergedBody) {
     return false;
   }
-  if (mergedBody === existingBodyText) {
+  if (normalizeBodyForComparison(mergedBody) === normalizeBodyForComparison(existingBodyText)) {
     return false;
   }
 

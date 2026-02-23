@@ -75,4 +75,25 @@ describe('patchCurrentPrBodyWithIssueFooter', () => {
     expect(didPatch).toBe(true);
     expect(execFile).toHaveBeenCalledTimes(2);
   });
+
+  it('does not edit when existing body already matches except trailing newline', async () => {
+    const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args[0] === 'pr' && args[1] === 'view') {
+        return {
+          stdout:
+            'Body text\n\n<!-- emdash-issue-footer:start -->\nFixes #42\n<!-- emdash-issue-footer:end -->\n',
+        };
+      }
+      throw new Error(`Unexpected command args: ${args.join(' ')}`);
+    });
+
+    const didPatch = await patchCurrentPrBodyWithIssueFooter({
+      taskPath: '/tmp/worktree',
+      metadata: { githubIssue: { number: 42 } },
+      execFile,
+    });
+
+    expect(didPatch).toBe(false);
+    expect(execFile).toHaveBeenCalledTimes(1);
+  });
 });
