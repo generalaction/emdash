@@ -233,6 +233,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     };
   }, [task?.id, refreshLifecycleState]);
 
+  // Auto-switch dropdown to Run when the run phase starts.
+  useEffect(() => {
+    if (runStatus === 'running' && selectedLifecycle !== 'run') {
+      setSelectedValue('lifecycle::run');
+    }
+  }, [runStatus, selectedLifecycle]);
+
   // Sync selection when store active terminal changes; don't override lifecycle selection.
   useEffect(() => {
     if (!taskTerminals.activeTerminalId) return;
@@ -657,7 +664,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 ? `Teardown status: ${teardownStatus}`
                 : `Run status: ${runStatus}`}
           </div>
-          <pre className="h-full overflow-auto p-3 text-xs leading-relaxed text-foreground">
+          <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
             {lifecycleLogs[selectedLifecycle].join('') || 'No lifecycle output yet.'}
           </pre>
         </div>
