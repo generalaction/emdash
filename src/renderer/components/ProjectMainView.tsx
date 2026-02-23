@@ -404,9 +404,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           const [statusRes, infoRes, rawPr] = await Promise.allSettled([
             window.electronAPI.getGitStatus(ws.path),
             window.electronAPI.getGitInfo(ws.path),
-            project.isRemote
-              ? Promise.resolve(null)
-              : refreshPrStatus(ws.path),
+            project.isRemote ? Promise.resolve(null) : refreshPrStatus(ws.path),
           ]);
 
           let staged = 0;
