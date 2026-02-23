@@ -18,6 +18,7 @@ import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
 import { injectIssueFooter } from '../lib/prIssueFooter';
 import { getCreatePrBodyPlan } from '../lib/prCreateBodyPlan';
+import { patchCurrentPrBodyWithIssueFooter } from '../lib/prIssueFooterPatch';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -480,38 +481,14 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         if (shouldPatchFilledBody) {
           try {
-            const { stdout: existingBodyOut } = await execFileAsync(
-              'gh',
-              ['pr', 'view', '--json', 'body', '-q', '.body'],
-              { cwd: taskPath }
-            );
-            const mergedBody = injectIssueFooter(existingBodyOut || '', taskMetadata);
-            if (mergedBody) {
-              const editBodyFile = path.join(
-                os.tmpdir(),
-                `gh-pr-edit-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
-              );
-              try {
-                fs.writeFileSync(editBodyFile, mergedBody, 'utf8');
-                const editArgs = ['pr', 'edit'];
-                if (url) {
-                  editArgs.push(url);
-                }
-                editArgs.push('--body-file', editBodyFile);
-                await execFileAsync('gh', editArgs, { cwd: taskPath });
-                outputs.push('gh pr edit --body-file: success');
-              } finally {
-                if (fs.existsSync(editBodyFile)) {
-                  try {
-                    fs.unlinkSync(editBodyFile);
-                  } catch (unlinkError) {
-                    log.debug('Failed to delete temp edit body file', {
-                      editBodyFile,
-                      unlinkError,
-                    });
-                  }
-                }
-              }
+            const didPatchBody = await patchCurrentPrBodyWithIssueFooter({
+              taskPath,
+              metadata: taskMetadata,
+              execFile: execFileAsync,
+              prUrl: url,
+            });
+            if (didPatchBody) {
+              outputs.push('gh pr edit --body-file: success');
             }
           } catch (editError) {
             log.warn('Failed to patch PR body with issue footer after --fill create', {
@@ -1306,37 +1283,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       if (prExists) {
         try {
-          const existingBody = await execFileAsync(
-            'gh',
-            ['pr', 'view', '--json', 'body', '-q', '.body'],
-            {
-              cwd: taskPath,
-            }
-          );
-          const mergedBody = injectIssueFooter(existingBody.stdout || '', taskMetadata);
-          if (mergedBody) {
-            const bodyFile = path.join(
-              os.tmpdir(),
-              `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
-            );
-            try {
-              fs.writeFileSync(bodyFile, mergedBody, 'utf8');
-              const editArgs = ['pr', 'edit'];
-              if (prUrl) {
-                editArgs.push(prUrl);
-              }
-              editArgs.push('--body-file', bodyFile);
-              await execFileAsync('gh', editArgs, { cwd: taskPath });
-            } finally {
-              if (fs.existsSync(bodyFile)) {
-                try {
-                  fs.unlinkSync(bodyFile);
-                } catch (unlinkError) {
-                  log.debug('Failed to delete temp edit body file', { bodyFile, unlinkError });
-                }
-              }
-            }
-          }
+          await patchCurrentPrBodyWithIssueFooter({
+            taskPath,
+            metadata: taskMetadata,
+            execFile: execFileAsync,
+            prUrl,
+          });
         } catch (editError) {
           log.warn('Failed to patch merge-to-main PR body with issue footer', {
             taskPath,
