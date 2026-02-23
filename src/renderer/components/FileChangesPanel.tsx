@@ -583,7 +583,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                {fileChanges.some((f) => !f.isStaged) && fileChanges.some((f) => f.isStaged) && (
+                {fileChanges.some((f) => !f.isStaged) && (
                   <Button
                     variant="outline"
                     size="sm"
