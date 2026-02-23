@@ -91,6 +91,11 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Clean up pending close timer on unmount.
+  useEffect(() => {
+    return () => cancelClose();
+  }, []);
+
   if (!issue) return children;
 
   return (
