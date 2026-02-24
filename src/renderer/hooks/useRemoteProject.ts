@@ -141,11 +141,6 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
     await connect();
   }, [connectionId, connect, updateConnectionState]);
 
-  // Keep a ref to reconnect so the health-check effect can call it
-  // without depending on it (avoids interval teardown/recreation loops).
-  const reconnectRef = useRef(reconnect);
-  reconnectRef.current = reconnect;
-
   // Fetch connection details (host)
   useEffect(() => {
     if (!isRemote || !connectionId) {
@@ -195,9 +190,10 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
     };
   }, [isRemote, connectionId, connect, connectionState]);
 
-  // Health check - poll connection state
-  // Note: `reconnect` is accessed via reconnectRef to avoid re-creating the
-  // interval every time the callback identity changes.
+  // Health check - poll connection state from the main process monitor.
+  // Reconnection is handled exclusively by the main-process
+  // SshConnectionMonitor (via ssh2 keepalive + exponential backoff).
+  // This effect only syncs the UI state.
   useEffect(() => {
     if (!isRemote || !connectionId) return;
 
@@ -207,18 +203,6 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
         const state = (await window.electronAPI.sshGetState(connectionId)) as ConnectionState;
         if (isMountedRef.current && state !== connectionState) {
           updateConnectionState(state);
-
-          // Auto-reconnect if disconnected unexpectedly
-          if (
-            state === 'disconnected' &&
-            connectionState === 'connected' &&
-            !connectingIds.has(connectionId)
-          ) {
-            const attempts = connectionAttempts.get(connectionId) || 0;
-            if (attempts < MAX_RETRY_ATTEMPTS) {
-              reconnectRef.current();
-            }
-          }
         }
       } catch (err) {
         // Silently ignore health check errors

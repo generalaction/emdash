@@ -23,7 +23,14 @@ import type {
 const credentialService = new SshCredentialService();
 // Host key service initialized for future use (host key verification)
 const _hostKeyService = new SshHostKeyService();
-const monitor = new SshConnectionMonitor();
+const monitor = new SshConnectionMonitor((id) => sshService.isConnected(id));
+
+// When ssh2 detects a dead connection (via keepalive) and emits `close`,
+// SshService removes it from the pool and emits `disconnected`.
+// The monitor reacts by triggering reconnect with exponential backoff.
+sshService.on('disconnected', (connectionId: string) => {
+  monitor.handleDisconnect(connectionId);
+});
 
 /**
  * Maps a database row to SshConfig
@@ -337,11 +344,12 @@ export function registerSshIpc() {
     SSH_IPC_CHANNELS.DELETE_CONNECTION,
     async (_, id: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        // Disconnect active connection first to avoid orphaned sessions (HIGH #8)
+        // Stop monitoring BEFORE disconnecting so the monitor's
+        // handleDisconnect listener doesn't trigger a reconnect.
+        monitor.stopMonitoring(id);
         if (sshService.isConnected(id)) {
           try {
             await sshService.disconnect(id);
-            monitor.stopMonitoring(id);
           } catch {
             // Best-effort: continue with deletion even if disconnect fails
           }
@@ -401,7 +409,11 @@ export function registerSshIpc() {
 
           const loadedConfig = mapRowToConfig(row);
           const connectionId = await sshService.connect(loadedConfig);
+          // startMonitoring is a no-op if already tracked; updateState
+          // is a no-op if not tracked. Call both to handle fresh connects
+          // and re-connects after the monitor gave up (state = disconnected).
           monitor.startMonitoring(connectionId, loadedConfig);
+          monitor.updateState(connectionId, 'connected');
           void import('../telemetry').then(({ capture }) => {
             void capture('ssh_connect_success', { type: loadedConfig.authType });
           });
@@ -447,6 +459,7 @@ export function registerSshIpc() {
 
         const connectionId = await sshService.connect(fullConfig as any);
         monitor.startMonitoring(connectionId, fullConfig as any);
+        monitor.updateState(connectionId, 'connected');
         void import('../telemetry').then(({ capture }) => {
           void capture('ssh_connect_success', { type: config.authType });
         });
@@ -466,8 +479,11 @@ export function registerSshIpc() {
     SSH_IPC_CHANNELS.DISCONNECT,
     async (_, connectionId: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        await sshService.disconnect(connectionId);
+        // Stop monitoring BEFORE disconnecting so the monitor's
+        // handleDisconnect listener doesn't trigger a reconnect
+        // for an intentional disconnect.
         monitor.stopMonitoring(connectionId);
+        await sshService.disconnect(connectionId);
         void import('../telemetry').then(({ capture }) => {
           void capture('ssh_disconnected');
         });
