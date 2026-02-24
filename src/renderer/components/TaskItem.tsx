@@ -134,23 +134,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const hasChanges = !isLoading && (totalAdditions > 0 || totalDeletions > 0);
 
-  // Right-side content: hover archive > code changes > PR > compact date
-  const rightContent = (() => {
-    if (isHovered && onArchive) {
-      return (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchive();
-          }}
-          aria-label="Archive task"
-        >
-          <Archive className="h-3.5 w-3.5" />
-        </Button>
-      );
-    }
+  // Right-side content: badge (changes > PR > date) + archive on hover
+  const badgeContent = (() => {
     if (hasChanges) {
       return <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />;
     }
@@ -163,7 +148,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               e.stopPropagation();
               if (pr.url) window.electronAPI.openExternal(pr.url);
             }}
-            className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             title={`${pr.title || 'Pull Request'} (#${pr.number})`}
           >
             {pr.isDraft
@@ -171,7 +156,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               : String(pr.state).toUpperCase() === 'OPEN'
                 ? 'View PR'
                 : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-            <ArrowUpRight className="size-3" />
           </button>
         </PrPreviewTooltip>
       );
@@ -182,6 +166,29 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
     return null;
   })();
+
+  const archiveButton =
+    isHovered && onArchive ? (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onArchive();
+        }}
+        aria-label="Archive task"
+      >
+        <Archive className="h-3.5 w-3.5" />
+      </Button>
+    ) : null;
+
+  const rightContent =
+    badgeContent || archiveButton ? (
+      <div className="flex items-center gap-1">
+        {badgeContent}
+        {archiveButton}
+      </div>
+    ) : null;
 
   const taskContent = (
     <div
@@ -217,7 +224,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           )}
           {showDirectBadge && task.useWorktree === false && (
             <span
-              className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
+              className="inline-flex items-center gap-0.5 rounded bg-muted px-0.5 py-0.5 text-xs font-medium text-muted-foreground"
               title="Running directly on branch (no worktree isolation)"
             >
               <AlertCircle className="h-2.5 w-2.5" />
