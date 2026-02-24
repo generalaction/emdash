@@ -243,8 +243,6 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
-    const isAgentSession = Boolean(options.providerId);
-
     // Custom key event handler: always attached so the dialog guard
     // runs for every terminal, plus optional copy/Shift+Enter handling.
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -256,10 +254,7 @@ export class TerminalSessionManager {
         return false;
       }
 
-      if (
-        isAgentSession &&
-        shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())
-      ) {
+      if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())) {
         event.preventDefault();
         event.stopImmediatePropagation();
         event.stopPropagation();
