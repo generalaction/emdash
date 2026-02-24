@@ -145,6 +145,7 @@ let userOptOut: boolean | undefined;
 let onboardingSeen: boolean = false;
 let sessionStartMs: number = Date.now();
 let lastActiveDate: string | undefined;
+let cachedGithubUsername: string | null = null;
 
 const libName = 'emdash';
 
@@ -229,7 +230,8 @@ function getBaseProps() {
     is_dev: !app.isPackaged,
     install_source: installSource ?? (app.isPackaged ? 'dmg' : 'dev'),
     $lib: libName,
-  } as const;
+    ...(cachedGithubUsername ? { github_username: cachedGithubUsername } : {}),
+  };
 }
 
 /**
@@ -390,21 +392,30 @@ export async function init(options?: InitOptions) {
   onboardingSeen = state.onboardingSeen === true;
   lastActiveDate = state.lastActiveDate;
 
-  // Fetch GitHub username if available
-  const githubUsername = await getGithubUsername();
+  // Fetch GitHub username if available and cache for all future events
+  cachedGithubUsername = await getGithubUsername();
 
   // If we have a GitHub username, identify the user in PostHog
-  if (githubUsername) {
-    void posthogIdentify(githubUsername);
+  if (cachedGithubUsername) {
+    void posthogIdentify(cachedGithubUsername);
   }
 
-  // Fire lifecycle start with GitHub username
-  void posthogCapture('app_started', {
-    github_username: githubUsername,
-  });
+  // Fire lifecycle start (github_username is now included via getBaseProps)
+  void posthogCapture('app_started');
 
   // Check for daily active user (fires event if it's a new day)
   checkDailyActiveUser();
+}
+
+/**
+ * Refresh the cached GitHub username. Call this when the user connects
+ * their GitHub account so all subsequent events include the username.
+ */
+export async function refreshGithubUsername(): Promise<void> {
+  cachedGithubUsername = await getGithubUsername();
+  if (cachedGithubUsername) {
+    void posthogIdentify(cachedGithubUsername);
+  }
 }
 
 export function capture(event: TelemetryEvent, properties?: Record<string, any>) {
@@ -539,14 +550,13 @@ async function checkDailyActiveUser(): Promise<void> {
 
     // If we haven't tracked a date yet or it's a new day, fire the event
     if (!lastActiveDate || lastActiveDate !== today) {
-      // Fetch GitHub username if available
-      const githubUsername = await getGithubUsername();
+      // Refresh cached GitHub username (user may have connected since init)
+      cachedGithubUsername = await getGithubUsername();
 
-      // Fire the daily active user event with GitHub username
+      // Fire the daily active user event (github_username included via getBaseProps)
       void posthogCapture('daily_active_user', {
         date: today,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
-        github_username: githubUsername,
       });
 
       // Update the last active date in memory
