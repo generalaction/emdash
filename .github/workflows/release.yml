@@ -205,7 +205,7 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y build-essential pkg-config libsecret-1-dev
 
       - name: Install dependencies (allow platform optional deps)
         env:
