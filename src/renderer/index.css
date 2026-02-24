@@ -189,9 +189,7 @@
   .logo-shimmer-overlay::before {
     content: '';
     position: absolute;
-    top: -20%;
-    bottom: -20%;
-    left: -65%;
+    inset: -20% 0;
     width: 70%;
     background: linear-gradient(
       120deg,
@@ -201,22 +199,40 @@
       rgba(255, 255, 255, 0.28) 70%,
       rgba(255, 255, 255, 0) 100%
     );
-    transform: skewX(-15deg) translateX(-125%);
+    transform: skewX(-15deg) translateX(-150%);
     animation: logo-shimmer-move 2.5s linear 5;
-    opacity: 1;
     will-change: transform;
   }
 
-  .dark .logo-shimmer-overlay {
-    mix-blend-mode: screen;
+  .dark .logo-shimmer-image,
+  .dark-black .logo-shimmer-image {
+    animation: logo-fade-in 12.5s linear forwards;
+  }
+
+  .dark .logo-shimmer-overlay::before,
+  .dark-black .logo-shimmer-overlay::before {
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.5) 30%,
+      rgba(255, 255, 255, 1) 50%,
+      rgba(255, 255, 255, 0.5) 70%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+
+  @keyframes logo-fade-in {
+    0% { opacity: 0.5; }
+    90% { opacity: 0.5; }
+    100% { opacity: 1; }
   }
 
   @keyframes logo-shimmer-move {
     0% {
-      transform: skewX(-15deg) translateX(-110%);
+      transform: skewX(-15deg) translateX(-150%);
     }
     100% {
-      transform: skewX(-15deg) translateX(210%);
+      transform: skewX(-15deg) translateX(250%);
     }
   }
 
