@@ -1065,12 +1065,22 @@ export class GitHubService {
    * Logout and clear stored token
    */
   async logout(): Promise<void> {
-    try {
-      const keytar = await import('keytar');
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
-    } catch (error) {
-      console.error('Failed to logout:', error);
-    }
+    // Run both operations in parallel since they're independent
+    await Promise.allSettled([
+      // Logout from gh CLI
+      execAsync('echo Y | gh auth logout --hostname github.com').catch((error) => {
+        console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
+      }),
+      // Clear keychain token
+      (async () => {
+        try {
+          const keytar = await import('keytar');
+          await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+        } catch (error) {
+          console.error('Failed to clear keychain token:', error);
+        }
+      })(),
+    ]);
   }
 
   /**

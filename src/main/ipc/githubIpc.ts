@@ -187,8 +187,10 @@ export function registerGithubIpc() {
   ipcMain.handle('github:logout', async () => {
     try {
       await githubService.logout();
+      return { success: true };
     } catch (error) {
       log.error('Failed to logout:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Logout failed' };
     }
   });
 

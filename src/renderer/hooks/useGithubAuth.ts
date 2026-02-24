@@ -21,11 +21,18 @@ export function useGithubAuth() {
 
   const syncCache = useCallback(
     (next: { installed: boolean; authenticated: boolean; user: GithubUser | null }) => {
+      const authChanged = cachedGithubStatus?.authenticated !== next.authenticated;
+
       cachedGithubStatus = next;
       setInstalled(next.installed);
       setAuthenticated(next.authenticated);
       setUser(next.user);
       setIsInitialized(true);
+
+      // Notify other components when auth status changes
+      if (authChanged) {
+        window.dispatchEvent(new Event('github-auth-changed'));
+      }
     },
     []
   );
@@ -81,6 +88,16 @@ export function useGithubAuth() {
     }
     // No cache - check status immediately
     void checkStatus();
+  }, [checkStatus]);
+
+  // Listen for auth status changes from other hook instances
+  useEffect(() => {
+    const handleAuthChange = () => {
+      void checkStatus();
+    };
+
+    window.addEventListener('github-auth-changed', handleAuthChange);
+    return () => window.removeEventListener('github-auth-changed', handleAuthChange);
   }, [checkStatus]);
 
   return {
