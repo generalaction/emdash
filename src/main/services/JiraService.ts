@@ -23,6 +23,7 @@ export default class JiraService {
   private readonly SERVICE = 'emdash-jira';
   private readonly ACCOUNT = 'api-token';
   private readonly CONF_FILE = join(app.getPath('userData'), 'jira.json');
+  private projectKeys: string[] = [];
 
   private readCreds(): JiraCreds | null {
     try {
@@ -95,6 +96,11 @@ export default class JiraService {
       const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
       if (!token) return { connected: false };
       const me = await this.getMyself(creds.siteUrl, creds.email, token);
+      this.fetchProjectKeys(creds.siteUrl, creds.email, token)
+        .then((keys) => {
+          this.projectKeys = keys;
+        })
+        .catch(() => {});
       return {
         connected: true,
         accountId: me?.accountId,
@@ -263,10 +269,26 @@ export default class JiraService {
     // Build JQL safely (escape quotes in term)
     const sanitized = term.replace(/"/g, '\\"');
     const extraKey = looksLikeKey ? ` OR issueKey = ${term.toUpperCase()}` : '';
-    const inner = `text ~ \"${sanitized}\"${extraKey}`;
-    const jql = inner;
+    const isNumeric = /^\d+$/.test(term);
+    const keyClause =
+      isNumeric && this.projectKeys.length
+        ? ` OR key IN (${this.projectKeys.map((p) => `"${p}-${term}"`).join(',')})`
+        : '';
+    const jql = `text ~ "${sanitized}"${extraKey}${keyClause}`;
     const data = await this.searchRaw(siteUrl, email, token, jql, limit);
     return this.normalizeIssues(siteUrl, data);
+  }
+
+  private async fetchProjectKeys(siteUrl: string, email: string, token: string): Promise<string[]> {
+    try {
+      const url = new URL('/rest/api/3/project', siteUrl);
+      const body = await this.doGet(url, email, token);
+      const data = JSON.parse(body || '[]');
+      if (!Array.isArray(data)) return [];
+      return data.map((p: any) => String(p?.key || '')).filter(Boolean);
+    } catch {
+      return [];
+    }
   }
 
   private async getIssueByKey(
