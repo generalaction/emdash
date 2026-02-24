@@ -238,6 +238,12 @@ jobs:
           sed -i "s#__PH_KEY__#${PH_KEY}#g" dist/main/appConfig.json
           echo "Wrote dist/main/appConfig.json"
 
+      - name: Rebuild native modules for Electron (x64)
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
+
       - name: Build Linux packages (AppImage and .deb)
         run: pnpm run package:linux
 
