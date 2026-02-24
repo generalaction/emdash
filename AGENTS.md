@@ -6,7 +6,7 @@ start_command: "pnpm run d"
 dev_command: "pnpm run dev"
 build_command: "pnpm run build"
 test_commands:
-  - "pnpm run format:check"
+  - "pnpm run format"
   - "pnpm run lint"
   - "pnpm run type-check"
   - "pnpm exec vitest run"
@@ -86,8 +86,7 @@ Tests use `vi.mock()` to stub `electron`, `DatabaseService`, `logger`, etc. Inte
 - **ALWAYS** run `pnpm run format`, `pnpm run lint`, `pnpm run type-check`, and `pnpm exec vitest run` before committing.
 - **NEVER** modify `drizzle/meta/` or numbered migration files — always use `drizzle-kit generate`.
 - **NEVER** modify `build/` entitlements or updater config without review.
-- **ALWAYS** use feature branches (never commit directly to `main`).
-- Do work on branches or worktrees; default branch is `main`, never push directly.
+- **ALWAYS** use feature branches or worktrees; never commit directly to `main`.
 - Do limit edits to `src/**`, `docs/**`, or config files you fully understand; keep `dist/`, `release/`, and `build/` untouched.
 - Don't modify telemetry defaults or updater logic unless intentional and reviewed.
 - Don't run commands that mutate global environments (global package installs, git pushes) from agent scripts.
