@@ -78,27 +78,27 @@ Emdash currently supports twenty-one CLI providers and we are adding new provide
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
-| [Amp](https://ampcode.com/manual) | ✅ Supported | `npm install -g @sourcegraph/amp@latest` |
-| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie` |
-| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | `npm install -g @charmland/crush` |
-| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | `curl -fsSL https://claude.ai/install.sh \| bash` |
-| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | `npm install -g cline` |
-| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | `npm install -g codebuff` |
-| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
-| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | `npm i -g @continuedev/cli` |
-| [Cursor](https://cursor.com/cli) | ✅ Supported | `curl https://cursor.com/install -fsS | bash` |
-| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | `curl -fsSL https://app.factory.ai/cli | sh` |
-| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | `npm install -g @google/gemini-cli` |
-| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | `npm install -g @github/copilot` |
-| [Goose](https://github.com/block/goose) | ✅ Supported | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash` |
-| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | `npm install -g @kilocode/cli` |
-| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | `uv tool install --python 3.13 kimi-cli` |
-| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
-| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash` |
-| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
-| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | `npm install -g @mariozechner/pi-coding-agent` |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
-| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
+| https://ampcode.com/manual | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
+| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
+| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
+| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
+| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | <code>npm install -g codebuff</code> |
+| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | <code>npm install -g @openai/codex</code> |
+| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
+| [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| https://docs.factory.ai/cli/getting-started/quickstart | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
+| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
+| [Goose](https://github.com/block/goose) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
+| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install --python 3.13 kimi-cli</code> |
+| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
+| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
+| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | <code>npm install -g @qwen-code/qwen-code</code> |
+| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | <code>acli rovodev auth login</code> |
 
 ### Issues
 
