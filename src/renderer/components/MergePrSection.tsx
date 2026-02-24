@@ -190,6 +190,8 @@ export function MergePrSection({
     (mergeState === 'BLOCKED' || mergeState === 'HAS_HOOKS' || mergeState === 'UNSTABLE');
 
   if (!activePr || !mergeUiState) return null;
+  const prStateNormalized = typeof pr?.state === 'string' ? pr.state.toUpperCase() : '';
+  if (prStateNormalized === 'CLOSED') return null;
 
   const formatMergeError = (error: unknown): string => {
     if (typeof error !== 'string') return 'Failed to merge PR.';
