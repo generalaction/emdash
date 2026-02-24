@@ -90,8 +90,8 @@ export class WorktreePoolService {
    * potentially stale local branch.
    */
   private async resolveToRemoteRef(projectPath: string, baseRef: string): Promise<string> {
-    // Already a remote ref (e.g. origin/main) — use as-is
-    if (baseRef.includes('/')) return baseRef;
+    // Already a remote tracking ref — use as-is
+    if (baseRef.startsWith('origin/')) return baseRef;
 
     try {
       const branchName =
