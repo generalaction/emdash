@@ -381,7 +381,7 @@ export function registerAppIpc() {
         }
 
         await new Promise<void>((resolve, reject) => {
-          exec(command, { env: buildExternalToolEnv() }, (err) => {
+          exec(command, { cwd: target, env: buildExternalToolEnv() }, (err) => {
             if (err) return reject(err);
             resolve();
           });
