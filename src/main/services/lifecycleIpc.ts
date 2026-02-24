@@ -37,13 +37,15 @@ export function registerLifecycleIpc(): void {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }
     ) => {
       try {
         const result = await taskLifecycleService.runSetup(
           args.taskId,
           args.taskPath,
-          args.projectPath
+          args.projectPath,
+          args.taskName
         );
         return { success: result.ok, ...result };
       } catch (error) {
@@ -61,13 +63,15 @@ export function registerLifecycleIpc(): void {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }
     ) => {
       try {
         const result = await taskLifecycleService.startRun(
           args.taskId,
           args.taskPath,
-          args.projectPath
+          args.projectPath,
+          args.taskName
         );
         return { success: result.ok, ...result };
       } catch (error) {
@@ -95,13 +99,15 @@ export function registerLifecycleIpc(): void {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }
     ) => {
       try {
         const result = await taskLifecycleService.runTeardown(
           args.taskId,
           args.taskPath,
-          args.projectPath
+          args.projectPath,
+          args.taskName
         );
         return { success: result.ok, ...result };
       } catch (error) {
