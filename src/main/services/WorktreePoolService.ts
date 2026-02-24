@@ -83,6 +83,36 @@ export class WorktreePoolService {
     }
   }
 
+  /**
+   * Resolve HEAD or bare branch names to their remote tracking counterpart.
+   * After `refreshRefsForReserveCreation` fetches all refs, this ensures the
+   * worktree is created from the freshly-fetched remote ref rather than a
+   * potentially stale local branch.
+   */
+  private async resolveToRemoteRef(projectPath: string, baseRef: string): Promise<string> {
+    // Already a remote ref (e.g. origin/main) — use as-is
+    if (baseRef.includes('/')) return baseRef;
+
+    try {
+      const branchName =
+        baseRef === 'HEAD'
+          ? (
+              await execFileAsync('git', ['symbolic-ref', '--short', 'HEAD'], {
+                cwd: projectPath,
+              })
+            ).stdout.trim()
+          : baseRef;
+
+      // Verify the remote tracking ref exists (it should after fetch --all)
+      await execFileAsync('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
+        cwd: projectPath,
+      });
+      return `origin/${branchName}`;
+    } catch {
+      return baseRef; // Fallback to original if resolution fails
+    }
+  }
+
   /** Generate stable ID from path */
   private stableIdFromPath(worktreePath: string): string {
     const abs = path.resolve(worktreePath);
@@ -180,8 +210,12 @@ export class WorktreePoolService {
     // Keep reserve refs fresh in the background so claim remains instant.
     await this.refreshRefsForReserveCreation(projectPath, projectId);
 
+    // Resolve HEAD/local refs to remote tracking refs (freshly fetched)
+    // so the worktree is created from up-to-date code, not a stale local branch.
+    const resolvedRef = await this.resolveToRemoteRef(projectPath, baseRef);
+
     // Create the worktree
-    await execFileAsync('git', ['worktree', 'add', '-b', reserveBranch, reservePath, baseRef], {
+    await execFileAsync('git', ['worktree', 'add', '-b', reserveBranch, reservePath, resolvedRef], {
       cwd: projectPath,
     });
 
