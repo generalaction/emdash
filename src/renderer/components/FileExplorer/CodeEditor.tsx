@@ -310,6 +310,7 @@ export default function CodeEditor({
             onEditorChange={handleEditorChange}
             isPreviewActive={isPreviewActive}
             modelRootPath={modelRootPath}
+            taskPath={taskPath}
           />
         </div>
       </div>
@@ -402,6 +403,7 @@ interface EditorContentProps {
   onEditorChange: (value: string | undefined) => void;
   isPreviewActive: boolean;
   modelRootPath: string;
+  taskPath: string;
 }
 
 const EditorContent: React.FC<EditorContentProps> = ({
@@ -411,6 +413,7 @@ const EditorContent: React.FC<EditorContentProps> = ({
   onEditorChange,
   isPreviewActive,
   modelRootPath,
+  taskPath,
 }) => {
   if (!activeFile) {
     return <NoFileOpen />;
@@ -425,7 +428,10 @@ const EditorContent: React.FC<EditorContentProps> = ({
   }
 
   if (isPreviewActive) {
-    return <MarkdownPreview content={activeFile.content} />;
+    const fileDir = activeFile.path.includes('/')
+      ? activeFile.path.substring(0, activeFile.path.lastIndexOf('/'))
+      : '';
+    return <MarkdownPreview content={activeFile.content} rootPath={taskPath} fileDir={fileDir} />;
   }
 
   return (
