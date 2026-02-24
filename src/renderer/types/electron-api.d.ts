@@ -481,11 +481,13 @@ declare global {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleRunStart: (args: {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleRunStop: (args: {
         taskId: string;
@@ -494,6 +496,7 @@ declare global {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleGetState: (args: { taskId: string }) => Promise<{
         success: boolean;
@@ -1460,11 +1463,13 @@ export interface ElectronAPI {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleRunStart: (args: {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleRunStop: (args: {
     taskId: string;
@@ -1473,6 +1478,7 @@ export interface ElectronAPI {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleGetState: (args: { taskId: string }) => Promise<{
     success: boolean;

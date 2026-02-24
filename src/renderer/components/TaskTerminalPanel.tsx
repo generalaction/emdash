@@ -315,11 +315,26 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     setRunActionBusy(true);
     try {
       if (selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleSetup?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       } else if (selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleTeardown?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       } else {
-        await api.lifecycleRunStart?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleRunStart?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       }
     } catch (error) {
       console.error('Failed lifecycle play action:', error);
