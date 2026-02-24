@@ -72,6 +72,7 @@ export default class JiraService {
   async clearCredentials(): Promise<{ success: boolean; error?: string }> {
     try {
       const keytar = await import('keytar');
+      this.projectKeys = [];
       try {
         await keytar.deletePassword(this.SERVICE, this.ACCOUNT);
       } catch {}
