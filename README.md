@@ -55,7 +55,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 > macOS users can also: `brew install --cask emdash`
 
 ### Windows
-- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe
+- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
 - Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
 
 ### Linux
