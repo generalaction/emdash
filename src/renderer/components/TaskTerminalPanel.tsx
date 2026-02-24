@@ -342,7 +342,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [task?.id, task?.path, projectPath, selectedLifecycle, refreshLifecycleState]);
+  }, [task?.id, task?.name, task?.path, projectPath, selectedLifecycle, refreshLifecycleState]);
 
   const handleStop = useCallback(async () => {
     if (!task) return;
