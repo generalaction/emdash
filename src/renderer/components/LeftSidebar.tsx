@@ -28,6 +28,7 @@ import {
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import { RemoteProjectIndicator } from './ssh/RemoteProjectIndicator';
+import { useRemoteProject } from '../hooks/useRemoteProject';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 import type { ConnectionState } from './ssh';
@@ -80,6 +81,23 @@ const isRemoteProject = (project: Project): boolean => {
 // Get connection ID from project
 const getConnectionId = (project: Project): string | null => {
   return (project as any).sshConnectionId || null;
+};
+
+// Wrapper component so the useRemoteProject hook can be called per-project
+// (the ReorderList render callback is not a React component).
+const RemoteIndicator: React.FC<{ project: Project }> = ({ project }) => {
+  const remote = useRemoteProject(project);
+  const connectionId = getConnectionId(project);
+  if (!connectionId) return null;
+  return (
+    <RemoteProjectIndicator
+      host={remote.host || undefined}
+      connectionState={remote.connectionState as ConnectionState}
+      size="md"
+      onReconnect={remote.reconnect}
+      disabled={remote.isLoading}
+    />
+  );
 };
 
 const MenuItemButton: React.FC<MenuItemButtonProps> = ({
@@ -297,7 +315,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     const typedProject = project as Project;
                     const isProjectActive = selectedProject?.id === typedProject.id && !activeTask;
                     const projectIsRemote = isRemoteProject(typedProject);
-                    const connectionId = getConnectionId(typedProject);
                     return (
                       <SidebarMenuItem>
                         <Collapsible
@@ -343,14 +360,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             >
                               {typedProject.name}
                             </button>
-                            {projectIsRemote && connectionId && (
-                              <RemoteProjectIndicator
-                                host={undefined}
-                                connectionState={'disconnected' as ConnectionState}
-                                size="md"
-                                disabled
-                              />
-                            )}
+                            {projectIsRemote && <RemoteIndicator project={typedProject} />}
                             <div className="flex min-w-7 flex-shrink-0 items-center justify-end">
                               {onCreateTaskForProject && (
                                 <button
