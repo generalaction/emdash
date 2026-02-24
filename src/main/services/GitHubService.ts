@@ -1068,7 +1068,7 @@ export class GitHubService {
     // Run both operations in parallel since they're independent
     await Promise.allSettled([
       // Logout from gh CLI
-      execAsync('echo "" | gh auth logout --hostname github.com').catch((error) => {
+      execAsync('echo Y | gh auth logout --hostname github.com').catch((error) => {
         console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
       }),
       // Clear keychain token
