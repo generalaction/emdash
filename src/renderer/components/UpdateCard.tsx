@@ -84,7 +84,7 @@ export function UpdateCard(): JSX.Element {
           {renderStatusMessage()}
         </div>
         <div className="flex items-center gap-2">
-          {updater.state.status !== 'downloaded' && (
+          {updater.state.status !== 'downloaded' && updater.state.status !== 'installing' && (
             <Button
               type="button"
               variant="outline"
@@ -155,6 +155,14 @@ export function UpdateCard(): JSX.Element {
           </p>
         );
 
+      case 'installing':
+        return (
+          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Installing update. Emdash will close when ready.
+          </p>
+        );
+
       case 'error':
         return (
           <Badge
@@ -206,6 +214,14 @@ export function UpdateCard(): JSX.Element {
           <Button size="sm" variant="default" onClick={handleInstall} className="h-7 text-xs">
             <RefreshCw className="mr-1.5 h-3 w-3" />
             Restart
+          </Button>
+        );
+
+      case 'installing':
+        return (
+          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            Installing
           </Button>
         );
 
