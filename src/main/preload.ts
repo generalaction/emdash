@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ['update:downloading', 'downloading'],
       ['update:download-progress', 'download-progress'],
       ['update:downloaded', 'downloaded'],
+      ['update:installing', 'installing'],
     ];
     const handlers: Array<() => void> = [];
     for (const [channel, type] of pairs) {
