@@ -10,10 +10,15 @@ interface MonitoredConnection {
   state: ConnectionState;
   config: SshConfig;
   metrics: ConnectionMetrics;
-  lastPingAt: Date;
   reconnectAttempts: number;
   lastError?: string;
 }
+
+/**
+ * Callback that checks whether a connection is still alive in the real
+ * connection pool (e.g. SshService.isConnected).
+ */
+export type ConnectionChecker = (connectionId: string) => boolean;
 
 /**
  * Events emitted by SshConnectionMonitor:
@@ -26,17 +31,32 @@ interface MonitoredConnection {
 
 /**
  * Service for monitoring SSH connection health and metrics.
- * Emits events for connection state changes, performs periodic health checks,
- * and handles automatic reconnection with exponential backoff.
+ *
+ * Instead of maintaining its own ping timer (which was never wired up and
+ * caused phantom reconnect loops), the monitor now delegates liveness
+ * checks to a `connectionChecker` callback — typically
+ * `SshService.isConnected()`. ssh2's built-in keepalive
+ * (`keepaliveInterval` / `keepaliveCountMax`) handles the actual TCP
+ * liveness; when the connection drops, ssh2 emits `close` which removes
+ * the connection from the pool and SshService emits `disconnected`.
+ *
+ * The monitor reacts to that signal (via `handleDisconnect`) and triggers
+ * reconnect with exponential backoff. The periodic health check is now a
+ * safety net that detects pool removal the monitor didn't hear about.
  */
 export class SshConnectionMonitor extends EventEmitter {
   private connections: Map<string, MonitoredConnection> = new Map();
   private checkInterval?: NodeJS.Timeout;
   private readonly DEFAULT_INTERVAL_MS = 30000; // 30 seconds
-  private readonly PING_TIMEOUT_MS = 10000; // 10 seconds for ping response
-  private readonly CONNECTION_TIMEOUT_MS = 60000; // 60 seconds without ping = timeout
   private readonly MAX_RECONNECT_ATTEMPTS = 3;
   private readonly RECONNECT_BACKOFF_MS = [1000, 5000, 15000]; // Exponential backoff delays
+  private connectionChecker: ConnectionChecker;
+
+  constructor(connectionChecker?: ConnectionChecker) {
+    super();
+    // Default: always report alive (no-op). Caller should provide a real checker.
+    this.connectionChecker = connectionChecker ?? (() => true);
+  }
 
   /**
    * Starts monitoring a connection.
@@ -61,7 +81,6 @@ export class SshConnectionMonitor extends EventEmitter {
         latencyMs: 0,
         lastPingAt: now,
       },
-      lastPingAt: now,
       reconnectAttempts: 0,
     };
 
@@ -98,6 +117,25 @@ export class SshConnectionMonitor extends EventEmitter {
   }
 
   /**
+   * Called when SshService reports a real disconnect (ssh2 `close` event).
+   * Triggers reconnect with backoff if the connection is still being monitored.
+   */
+  handleDisconnect(connectionId: string): void {
+    const monitored = this.connections.get(connectionId);
+    if (!monitored) {
+      return;
+    }
+
+    // Ignore if already reconnecting or disconnected
+    if (monitored.state === 'connecting' || monitored.state === 'disconnected') {
+      return;
+    }
+
+    this.updateState(connectionId, 'error', 'Connection lost');
+    this.attemptReconnect(connectionId);
+  }
+
+  /**
    * Updates the connection state.
    * @param connectionId - ID of the connection
    * @param state - New connection state
@@ -119,7 +157,6 @@ export class SshConnectionMonitor extends EventEmitter {
     // Reset reconnect attempts on successful connection
     if (state === 'connected' && previousState !== 'connected') {
       monitored.reconnectAttempts = 0;
-      monitored.lastPingAt = new Date();
       monitored.lastError = undefined;
     }
 
@@ -164,35 +201,6 @@ export class SshConnectionMonitor extends EventEmitter {
   }
 
   /**
-   * Records a successful ping response.
-   * Updates lastPingAt timestamp and resets reconnect attempts.
-   * @param connectionId - ID of the connection
-   * @param latencyMs - Optional ping latency in milliseconds
-   */
-  recordPing(connectionId: string, latencyMs?: number): void {
-    const monitored = this.connections.get(connectionId);
-    if (!monitored) {
-      return;
-    }
-
-    const now = new Date();
-    monitored.lastPingAt = now;
-    monitored.metrics.lastPingAt = now;
-
-    if (latencyMs !== undefined) {
-      monitored.metrics.latencyMs = latencyMs;
-    }
-
-    // Reset reconnect attempts on successful ping
-    monitored.reconnectAttempts = 0;
-
-    // Clear any error state if we're connected
-    if (monitored.state === 'error') {
-      this.updateState(connectionId, 'connected');
-    }
-  }
-
-  /**
    * Starts periodic health checks for all monitored connections.
    * @param intervalMs - Check interval in milliseconds (default: 30 seconds)
    */
@@ -214,7 +222,7 @@ export class SshConnectionMonitor extends EventEmitter {
   }
 
   /**
-   * Checks if a connection is healthy based on last ping time.
+   * Checks if a connection is healthy by querying the real connection pool.
    * @param connectionId - ID of the connection
    * @returns True if connection is healthy
    */
@@ -224,13 +232,11 @@ export class SshConnectionMonitor extends EventEmitter {
       return false;
     }
 
-    // Only connected connections can be healthy
     if (monitored.state !== 'connected') {
       return false;
     }
 
-    const timeSinceLastPing = Date.now() - monitored.lastPingAt.getTime();
-    return timeSinceLastPing < this.CONNECTION_TIMEOUT_MS;
+    return this.connectionChecker(connectionId);
   }
 
   /**
@@ -300,10 +306,13 @@ export class SshConnectionMonitor extends EventEmitter {
   /**
    * Performs health checks on all monitored connections.
    * Called periodically by the health check interval.
+   *
+   * Instead of relying on a lastPingAt timer (which was never updated),
+   * this now queries the real connection pool via connectionChecker.
+   * ssh2's keepalive handles TCP liveness; we just verify the connection
+   * is still in the pool.
    */
   private performHealthChecks(): void {
-    const now = Date.now();
-
     for (const [connectionId, monitored] of this.connections) {
       // Skip connections that are already connecting or reconnecting
       if (monitored.state === 'connecting') {
@@ -315,35 +324,17 @@ export class SshConnectionMonitor extends EventEmitter {
         continue;
       }
 
-      const timeSinceLastPing = now - monitored.lastPingAt.getTime();
+      const isAlive = this.connectionChecker(connectionId);
+      this.emit('healthCheck', connectionId, isAlive, monitored.metrics.latencyMs);
 
-      // Check if connection has timed out (no ping for too long)
-      if (timeSinceLastPing > this.CONNECTION_TIMEOUT_MS) {
-        this.handleConnectionTimeout(connectionId);
-        continue;
+      // If the monitor thinks it's connected but the pool says otherwise,
+      // the connection was dropped (e.g. ssh2 close event happened but
+      // the monitor's handleDisconnect was somehow missed). Trigger reconnect.
+      if (!isAlive && monitored.state === 'connected') {
+        this.updateState(connectionId, 'error', 'Connection no longer in pool');
+        this.attemptReconnect(connectionId);
       }
-
-      // Emit health check event for active monitoring
-      const isHealthy = timeSinceLastPing < this.PING_TIMEOUT_MS * 2;
-      this.emit('healthCheck', connectionId, isHealthy, monitored.metrics.latencyMs);
     }
-  }
-
-  /**
-   * Handles a connection timeout by marking it as error and attempting reconnect.
-   * @param connectionId - ID of the timed out connection
-   */
-  private handleConnectionTimeout(connectionId: string): void {
-    const monitored = this.connections.get(connectionId);
-    if (!monitored) {
-      return;
-    }
-
-    // Update state to error
-    this.updateState(connectionId, 'error', 'Connection timeout - no response to health checks');
-
-    // Attempt to reconnect if not exceeded max attempts
-    this.attemptReconnect(connectionId);
   }
 
   /**
