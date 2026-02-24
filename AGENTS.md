@@ -6,7 +6,7 @@ start_command: "pnpm run d"
 dev_command: "pnpm run dev"
 build_command: "pnpm run build"
 test_commands:
-  - "pnpm run format"
+  - "pnpm run format:check"
   - "pnpm run lint"
   - "pnpm run type-check"
   - "pnpm exec vitest run"
