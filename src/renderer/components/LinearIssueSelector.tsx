@@ -279,7 +279,14 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                   alt="Linear"
                   className="h-3.5 w-3.5 text-foreground"
                 />
-                <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
+                {isLoadingIssues ? (
+                  <>
+                    <span className="truncate text-muted-foreground">Loading Linear issues</span>
+                    <Spinner size="sm" />
+                  </>
+                ) : (
+                  <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
+                )}
               </>
             )}
           </div>

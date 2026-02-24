@@ -220,7 +220,14 @@ const JiraIssueSelector: React.FC<Props> = ({
             ) : (
               <>
                 <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
-                <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
+                {isLoadingIssues ? (
+                  <>
+                    <span className="truncate text-muted-foreground">Loading Jira issues</span>
+                    <Spinner size="sm" />
+                  </>
+                ) : (
+                  <span className="truncate text-muted-foreground">{issuePlaceholder}</span>
+                )}
               </>
             )}
           </div>
