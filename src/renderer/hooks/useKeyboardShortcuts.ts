@@ -21,7 +21,8 @@ export type ShortcutSettingsKey =
   | 'prevProject'
   | 'newTask'
   | 'nextAgent'
-  | 'prevAgent';
+  | 'prevAgent'
+  | 'openInEditor';
 
 export interface AppShortcut {
   key: string;
@@ -198,6 +199,15 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     category: 'Navigation',
     settingsKey: 'prevAgent',
   },
+
+  OPEN_IN_EDITOR: {
+    key: 'o',
+    modifier: 'cmd',
+    label: 'Open in Editor',
+    description: 'Open the project in the default editor',
+    category: 'Navigation',
+    settingsKey: 'openInEditor',
+  },
 };
 
 /**
@@ -356,6 +366,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       newTask: getEffectiveConfig(APP_SHORTCUTS.NEW_TASK, custom),
       nextAgent: getEffectiveConfig(APP_SHORTCUTS.NEXT_AGENT, custom),
       prevAgent: getEffectiveConfig(APP_SHORTCUTS.PREV_AGENT, custom),
+      openInEditor: getEffectiveConfig(APP_SHORTCUTS.OPEN_IN_EDITOR, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -436,6 +447,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: effectiveShortcuts.prevAgent,
         handler: () => handlers.onPrevAgent?.(),
+        priority: 'global',
+        requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.openInEditor,
+        handler: () => handlers.onOpenInEditor?.(),
         priority: 'global',
         requiresClosed: true,
       },

@@ -11,6 +11,7 @@ interface OpenInMenuProps {
   align?: 'left' | 'right';
   isRemote?: boolean;
   sshConnectionId?: string | null;
+  isActive?: boolean;
 }
 
 const menuItemBase =
@@ -21,6 +22,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   align = 'right',
   isRemote = false,
   sshConnectionId = null,
+  isActive = true,
 }) => {
   const [open, setOpen] = React.useState(false);
   const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
@@ -78,35 +80,38 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     }
   }, []);
 
-  const callOpen = async (appId: OpenInAppId) => {
-    const label = labels[appId] || appId;
+  const callOpen = React.useCallback(
+    async (appId: OpenInAppId) => {
+      const label = labels[appId] || appId;
 
-    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('toolbar_open_in_selected', { app: appId });
-    });
-    try {
-      const res = await window.electronAPI?.openIn?.({
-        app: appId,
-        path,
-        isRemote,
-        sshConnectionId,
+      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('toolbar_open_in_selected', { app: appId });
       });
-      if (!res?.success) {
+      try {
+        const res = await window.electronAPI?.openIn?.({
+          app: appId,
+          path,
+          isRemote,
+          sshConnectionId,
+        });
+        if (!res?.success) {
+          toast({
+            title: `Open in ${label} failed`,
+            description: res?.error || 'Application not available.',
+            variant: 'destructive',
+          });
+        }
+      } catch (e: any) {
         toast({
           title: `Open in ${label} failed`,
-          description: res?.error || 'Application not available.',
+          description: e?.message || String(e),
           variant: 'destructive',
         });
       }
-    } catch (e: any) {
-      toast({
-        title: `Open in ${label} failed`,
-        description: e?.message || String(e),
-        variant: 'destructive',
-      });
-    }
-    setOpen(false);
-  };
+      setOpen(false);
+    },
+    [labels, path, isRemote, sshConnectionId, toast]
+  );
 
   // Sort installed apps with default first
   const sortedApps = React.useMemo(() => {
@@ -133,6 +138,17 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
   const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
 
+  React.useEffect(() => {
+    if (!isActive) return;
+    const handleOpenInEditorEvent = () => {
+      if (buttonAppId) {
+        void callOpen(buttonAppId);
+      }
+    };
+    window.addEventListener('emdash:open-in-editor', handleOpenInEditorEvent);
+    return () => window.removeEventListener('emdash:open-in-editor', handleOpenInEditorEvent);
+  }, [isActive, buttonAppId, callOpen]);
+
   return (
     <div ref={containerRef} className="relative">
       <div className="flex min-w-0">
@@ -147,6 +163,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
           }}
           disabled={!buttonAppId || loading}
           aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
+          title="Open in… ⌘O"
         >
           {buttonAppId && icons[buttonAppId] && (
             <img
