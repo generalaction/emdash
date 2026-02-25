@@ -6,6 +6,7 @@ import { Spinner } from './ui/spinner';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { ChevronDown, FileDiff } from 'lucide-react';
+import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 
 type PrMode = 'create' | 'draft' | 'merge';
 
@@ -37,6 +38,9 @@ export const ChangeSummary: React.FC<ChangeSummaryProps> = ({ taskPath, onOpenCh
       prOptions: {
         draft: prMode === 'draft',
         fill: true,
+      },
+      onSuccess: () => {
+        dispatchFileChangeEvent(taskPath);
       },
     });
   };
