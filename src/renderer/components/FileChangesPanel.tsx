@@ -5,8 +5,6 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
-import ChangesDiffModal from './ChangesDiffModal';
-import AllChangesDiffModal from './AllChangesDiffModal';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { usePrStatus } from '../hooks/usePrStatus';
@@ -25,7 +23,6 @@ import {
   Minus,
   Undo2,
   ArrowUpRight,
-  FileDiff,
   ChevronDown,
   Loader2,
   CheckCircle2,
@@ -143,14 +140,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const safeTaskPath = resolvedTaskPath ?? '';
   const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
 
-  const [showDiffModal, setShowDiffModal] = useState(false);
-  const [showAllChangesModal, setShowAllChangesModal] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
-
-  // Reset selectedPath when task changes
-  useEffect(() => {
-    setSelectedPath(undefined);
-  }, [resolvedTaskPath]);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
@@ -588,16 +577,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     )}
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 px-2 text-xs"
-                  title="View all changes in a single scrollable view"
-                  onClick={() => setShowAllChangesModal(true)}
-                >
-                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Changes</span>
-                </Button>
                 <PrActionButton
                   mode={prMode}
                   onModeChange={selectPrMode}
@@ -748,17 +727,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             fileChanges.map((change, index) => (
               <div
                 key={index}
-                className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
+                className={`flex items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
                   change.isStaged ? 'bg-muted/50' : ''
                 }`}
-                onClick={() => {
-                  void (async () => {
-                    const { captureTelemetry } = await import('../lib/telemetryClient');
-                    captureTelemetry('changes_viewed');
-                  })();
-                  setSelectedPath(change.path);
-                  setShowDiffModal(true);
-                }}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="inline-flex items-center justify-center text-muted-foreground">
@@ -877,46 +848,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             ))
           )}
         </div>
-      )}
-      {showDiffModal && (
-        <ChangesDiffModal
-          open={showDiffModal}
-          onClose={() => setShowDiffModal(false)}
-          taskId={resolvedTaskId}
-          taskPath={resolvedTaskPath}
-          files={fileChanges}
-          initialFile={selectedPath}
-          onRefreshChanges={refreshChanges}
-          onToggleView={() => {
-            setShowDiffModal(false);
-            setShowAllChangesModal(true);
-          }}
-        />
-      )}
-      {showAllChangesModal && (
-        <AllChangesDiffModal
-          open={showAllChangesModal}
-          onClose={() => setShowAllChangesModal(false)}
-          taskPath={resolvedTaskPath}
-          files={fileChanges}
-          onRefreshChanges={refreshChanges}
-          onOpenFile={(filePath) => {
-            setShowAllChangesModal(false);
-            setSelectedPath(filePath);
-            setShowDiffModal(true);
-          }}
-          onToggleView={() => {
-            setShowAllChangesModal(false);
-            // If we have a selected path that exists in current changes, use it
-            // Otherwise default to the first file
-            const isValidSelection =
-              selectedPath && fileChanges.some((f) => f.path === selectedPath);
-            if (!isValidSelection && fileChanges.length > 0) {
-              setSelectedPath(fileChanges[0].path);
-            }
-            setShowDiffModal(true);
-          }}
-        />
       )}
       <AlertDialog open={showMergeConfirm} onOpenChange={setShowMergeConfirm}>
         <AlertDialogContent className="max-w-md">

@@ -91,9 +91,7 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
             onClick={() => onSelectFile(file.path)}
           >
             <div className="truncate text-sm font-medium">{filename}</div>
-            {directory && (
-              <div className="truncate text-xs text-muted-foreground">{directory}</div>
-            )}
+            {directory && <div className="truncate text-xs text-muted-foreground">{directory}</div>}
           </button>
         );
       })}
