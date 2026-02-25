@@ -25,6 +25,9 @@ const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
+const MAX_TERMINAL_WRITE_CHARS_PER_SLICE = 16_384;
+const SLOW_INPUT_HANDLER_MS = 16;
+const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -94,6 +97,12 @@ export class TerminalSessionManager {
   private lastSentResize: { cols: number; rows: number } | null = null;
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
+  private readonly pendingWriteQueue: string[] = [];
+  private queuedWriteChars = 0;
+  private writeDrainScheduled = false;
+  private writeInFlight = false;
+  private shouldScrollToBottomAfterWrites = false;
+  private lastSlowInputLogAt = 0;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -402,6 +411,11 @@ export class TerminalSessionManager {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.pendingWriteQueue.length = 0;
+    this.queuedWriteChars = 0;
+    this.writeDrainScheduled = false;
+    this.writeInFlight = false;
+    this.shouldScrollToBottomAfterWrites = false;
     this.detach();
     this.stopSnapshotTimer();
     this.cancelScheduledFit();
@@ -489,8 +503,12 @@ export class TerminalSessionManager {
   }
 
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
+    const startedAt = performance.now();
     this.emitActivity();
-    if (this.disposed) return;
+    if (this.disposed) {
+      this.logSlowInputHandler(startedAt);
+      return;
+    }
 
     // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out) only if PTY hasn't started yet.
     // This prevents raw escape sequences from appearing in the terminal before the CLI is ready,
@@ -500,7 +518,10 @@ export class TerminalSessionManager {
       filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
     }
 
-    if (!filtered) return;
+    if (!filtered) {
+      this.logSlowInputHandler(startedAt);
+      return;
+    }
 
     // Track command execution when Enter is pressed (but not for newline inserts)
     const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
@@ -520,10 +541,26 @@ export class TerminalSessionManager {
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
       pendingInjectionManager.markUsed();
+      this.logSlowInputHandler(startedAt);
       return;
     }
 
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
+    this.logSlowInputHandler(startedAt);
+  }
+
+  private logSlowInputHandler(startedAt: number) {
+    const elapsedMs = performance.now() - startedAt;
+    if (elapsedMs < SLOW_INPUT_HANDLER_MS) return;
+
+    const now = Date.now();
+    if (now - this.lastSlowInputLogAt < SLOW_INPUT_LOG_THROTTLE_MS) return;
+    this.lastSlowInputLogAt = now;
+
+    log.warn('terminalSession:slowInputHandler', {
+      id: this.id,
+      elapsedMs: Math.round(elapsedMs),
+    });
   }
 
   private cleanTerminalText(text: string): string {
@@ -987,29 +1024,8 @@ export class TerminalSessionManager {
       }
       const buffer = this.terminal.buffer?.active;
       const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
-
-      try {
-        this.terminal.write(chunk);
-      } catch (err) {
-        // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
-        // in 6.0.0). Log once and continue — the terminal session stays usable.
-        log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
-      }
-      if (!this.firstFrameRendered) {
-        this.firstFrameRendered = true;
-        const firstFrameTime = performance.now() - this.initStartTime;
-        log.info('terminalSession:firstFrame timing', {
-          id: this.id,
-          firstFrameMs: Math.round(firstFrameTime),
-        });
-        try {
-          this.terminal.refresh(0, this.terminal.rows - 1);
-        } catch {}
-      }
-
-      if (isAtBottom) {
-        this.terminal.scrollToBottom();
-      }
+      if (isAtBottom) this.shouldScrollToBottomAfterWrites = true;
+      this.enqueueTerminalWrite(chunk);
     });
 
     const offExit = window.electronAPI.onPtyExit(id, (info) => {
@@ -1020,6 +1036,90 @@ export class TerminalSessionManager {
     });
 
     this.disposables.push(offData, offExit);
+  }
+
+  private enqueueTerminalWrite(chunk: string) {
+    if (!chunk || this.disposed) return;
+    this.pendingWriteQueue.push(chunk);
+    this.queuedWriteChars += chunk.length;
+    this.scheduleWriteDrain();
+  }
+
+  private scheduleWriteDrain() {
+    if (this.writeDrainScheduled || this.disposed) return;
+    this.writeDrainScheduled = true;
+    requestAnimationFrame(() => {
+      this.writeDrainScheduled = false;
+      this.drainQueuedWrites();
+    });
+  }
+
+  private dequeueWriteSlice(maxChars: number): string {
+    if (!this.pendingWriteQueue.length) return '';
+    const first = this.pendingWriteQueue[0];
+    if (first.length <= maxChars) {
+      this.pendingWriteQueue.shift();
+      this.queuedWriteChars = Math.max(0, this.queuedWriteChars - first.length);
+      return first;
+    }
+
+    const slice = first.slice(0, maxChars);
+    this.pendingWriteQueue[0] = first.slice(maxChars);
+    this.queuedWriteChars = Math.max(0, this.queuedWriteChars - slice.length);
+    return slice;
+  }
+
+  private drainQueuedWrites() {
+    if (this.disposed || this.writeInFlight) return;
+
+    const slice = this.dequeueWriteSlice(MAX_TERMINAL_WRITE_CHARS_PER_SLICE);
+    if (!slice) {
+      if (this.shouldScrollToBottomAfterWrites) {
+        this.shouldScrollToBottomAfterWrites = false;
+        try {
+          this.terminal.scrollToBottom();
+        } catch {}
+      }
+      return;
+    }
+
+    this.writeInFlight = true;
+    try {
+      this.terminal.write(slice, () => {
+        this.writeInFlight = false;
+        if (this.disposed) return;
+        this.markFirstFrameRendered();
+        if (this.queuedWriteChars > 0) {
+          this.scheduleWriteDrain();
+          return;
+        }
+        if (this.shouldScrollToBottomAfterWrites) {
+          this.shouldScrollToBottomAfterWrites = false;
+          try {
+            this.terminal.scrollToBottom();
+          } catch {}
+        }
+      });
+    } catch (err) {
+      this.writeInFlight = false;
+      // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
+      // in 6.0.0). Log once and continue — the terminal session stays usable.
+      log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
+      if (this.queuedWriteChars > 0) this.scheduleWriteDrain();
+    }
+  }
+
+  private markFirstFrameRendered() {
+    if (this.firstFrameRendered) return;
+    this.firstFrameRendered = true;
+    const firstFrameTime = performance.now() - this.initStartTime;
+    log.info('terminalSession:firstFrame timing', {
+      id: this.id,
+      firstFrameMs: Math.round(firstFrameTime),
+    });
+    try {
+      this.terminal.refresh(0, this.terminal.rows - 1);
+    } catch {}
   }
 
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {
