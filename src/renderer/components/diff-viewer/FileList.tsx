@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Undo2 } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import type { FileChange } from '../../hooks/useFileChanges';
 
 interface FileListProps {
@@ -18,6 +28,8 @@ export const FileList: React.FC<FileListProps> = ({
   taskPath,
   onRefreshChanges,
 }) => {
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
+
   const tracked = fileChanges.filter((f) => f.status !== 'added');
   const untracked = fileChanges.filter((f) => f.status === 'added');
 
@@ -61,11 +73,10 @@ export const FileList: React.FC<FileListProps> = ({
     await onRefreshChanges?.();
   };
 
-  const handleRevert = async (filePath: string) => {
-    if (!taskPath) return;
-    const confirmed = window.confirm(`Discard changes to ${filePath.split('/').pop()}?`);
-    if (!confirmed) return;
-    await window.electronAPI.revertFile({ taskPath, filePath });
+  const executeRestore = async () => {
+    if (!taskPath || !restoreTarget) return;
+    await window.electronAPI.revertFile({ taskPath, filePath: restoreTarget });
+    setRestoreTarget(null);
     await onRefreshChanges?.();
   };
 
@@ -91,9 +102,9 @@ export const FileList: React.FC<FileListProps> = ({
           className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/file:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
-            void handleRevert(file.path);
+            setRestoreTarget(file.path);
           }}
-          title="Discard changes"
+          title="Restore file"
         >
           <Undo2 className="h-3.5 w-3.5" />
         </button>
@@ -118,49 +129,76 @@ export const FileList: React.FC<FileListProps> = ({
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Stage All */}
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Checkbox
-          checked={allStaged}
-          onCheckedChange={(checked) => void handleStageAll(checked === true)}
-        />
-        <span className="text-xs font-medium text-muted-foreground">Stage All</span>
+    <>
+      <div className="flex flex-col">
+        {/* Stage All */}
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Checkbox
+            checked={allStaged}
+            onCheckedChange={(checked) => void handleStageAll(checked === true)}
+          />
+          <span className="text-xs font-medium text-muted-foreground">Stage All</span>
+        </div>
+
+        {/* Tracked files */}
+        {tracked.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <Checkbox
+                checked={trackedAllStaged}
+                onCheckedChange={(checked) => void handleGroupStage(tracked, checked === true)}
+              />
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tracked
+              </span>
+              <span className="text-xs text-muted-foreground">({tracked.length})</span>
+            </div>
+            {tracked.map((file) => renderFileRow(file, 'bg-blue-500'))}
+          </div>
+        )}
+
+        {/* Untracked files */}
+        {untracked.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <Checkbox
+                checked={untrackedAllStaged}
+                onCheckedChange={(checked) => void handleGroupStage(untracked, checked === true)}
+              />
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Untracked
+              </span>
+              <span className="text-xs text-muted-foreground">({untracked.length})</span>
+            </div>
+            {untracked.map((file) => renderFileRow(file, 'bg-green-500'))}
+          </div>
+        )}
       </div>
 
-      {/* Tracked files */}
-      {tracked.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 px-3 py-1.5">
-            <Checkbox
-              checked={trackedAllStaged}
-              onCheckedChange={(checked) => void handleGroupStage(tracked, checked === true)}
-            />
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Tracked
-            </span>
-            <span className="text-xs text-muted-foreground">({tracked.length})</span>
-          </div>
-          {tracked.map((file) => renderFileRow(file, 'bg-blue-500'))}
-        </div>
-      )}
-
-      {/* Untracked files */}
-      {untracked.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 px-3 py-1.5">
-            <Checkbox
-              checked={untrackedAllStaged}
-              onCheckedChange={(checked) => void handleGroupStage(untracked, checked === true)}
-            />
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Untracked
-            </span>
-            <span className="text-xs text-muted-foreground">({untracked.length})</span>
-          </div>
-          {untracked.map((file) => renderFileRow(file, 'bg-green-500'))}
-        </div>
-      )}
-    </div>
+      <AlertDialog open={!!restoreTarget} onOpenChange={(open) => !open && setRestoreTarget(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg">Restore file?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogDescription className="text-sm">
+            This will discard all uncommitted changes to{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              {restoreTarget?.split('/').pop()}
+            </code>{' '}
+            and restore it to the last committed version. This action cannot be undone.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void executeRestore()}
+              className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
