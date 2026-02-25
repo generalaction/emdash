@@ -169,7 +169,7 @@ class ConnectionsService {
       return 'connected';
     }
 
-    if (result.status !== null && !result.timedOut) {
+    if (result.status !== null && !result.timedOut && (result.stdout || result.stderr)) {
       return 'connected';
     }
 
