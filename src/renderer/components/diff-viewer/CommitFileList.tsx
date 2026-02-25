@@ -48,6 +48,10 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
         const res = await window.electronAPI.gitGetCommitFiles({ taskPath, commitHash });
         if (!cancelled && res?.success && res.files) {
           setFiles(res.files);
+          // Auto-select the first file
+          if (res.files.length > 0) {
+            onSelectFile(res.files[0].path);
+          }
         }
       } catch {
         // ignore
