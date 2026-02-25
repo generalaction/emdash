@@ -11,6 +11,7 @@ import LeftSidebar from './components/LeftSidebar';
 import MainContentArea from './components/MainContentArea';
 import { NewProjectModal } from './components/NewProjectModal';
 import RightSidebar from './components/RightSidebar';
+import { DiffViewer } from './components/diff-viewer';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import TaskModal from './components/TaskModal';
 import { UpdateModal } from './components/UpdateModal';
@@ -141,6 +142,7 @@ const AppContent: React.FC = () => {
     handleWelcomeGetStarted,
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const [showDiffViewer, setShowDiffViewer] = useState(false);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -603,8 +605,15 @@ const AppContent: React.FC = () => {
                 />
               )}
               <div
-                className={`flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
+                className={`relative flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
               >
+                <DiffViewer
+                  open={showDiffViewer}
+                  onClose={() => setShowDiffViewer(false)}
+                  taskId={activeTask?.id}
+                  taskPath={activeTask?.path}
+                  projectPath={selectedProject?.path || undefined}
+                />
                 <ResizablePanelGroup
                   direction="horizontal"
                   className="flex-1 overflow-hidden"
@@ -718,6 +727,7 @@ const AppContent: React.FC = () => {
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
+                      onOpenChanges={() => setShowDiffViewer(true)}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>

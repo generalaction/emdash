@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
+import { ChangeSummary } from './ChangeSummary';
+import { useFileChanges } from '@/hooks/useFileChanges';
 import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { agentAssets } from '@/providers/assets';
@@ -29,6 +31,7 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   projectRemotePath?: string | null;
   projectDefaultBranch?: string | null;
   forceBorder?: boolean;
+  onOpenChanges?: () => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -39,6 +42,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   projectDefaultBranch,
   className,
   forceBorder = false,
+  onOpenChanges,
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
@@ -113,7 +117,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
-        'group/right-sidebar relative z-30 flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
+        'group/right-sidebar relative z-[51] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
         forceBorder
           ? 'bg-background'
           : 'border-l border-border bg-muted/10 data-[state=collapsed]:border-l-0',
@@ -263,32 +267,26 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   );
                 })()
               ) : task ? (
-                <ResizablePanelGroup
-                  direction="vertical"
-                  autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
-                >
-                  <ResizablePanel defaultSize={50} minSize={20}>
-                    <FileChangesPanel className="h-full min-h-0" />
-                  </ResizablePanel>
-                  <ResizableHandle />
-                  <ResizablePanel defaultSize={50} minSize={20}>
-                    <TaskTerminalPanel
-                      task={task}
-                      agent={task.agentId as Agent}
-                      projectPath={projectPath || task?.path}
-                      remote={
-                        projectRemoteConnectionId
-                          ? {
-                              connectionId: projectRemoteConnectionId,
-                              projectPath: projectRemotePath || projectPath || undefined,
-                            }
-                          : undefined
-                      }
-                      defaultBranch={projectDefaultBranch || undefined}
-                      className="h-full min-h-0"
-                    />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
+                <>
+                  {onOpenChanges && (
+                    <ChangeSummary taskPath={task.path} onOpenChanges={onOpenChanges} />
+                  )}
+                  <TaskTerminalPanel
+                    task={task}
+                    agent={task.agentId as Agent}
+                    projectPath={projectPath || task?.path}
+                    remote={
+                      projectRemoteConnectionId
+                        ? {
+                            connectionId: projectRemoteConnectionId,
+                            projectPath: projectRemotePath || projectPath || undefined,
+                          }
+                        : undefined
+                    }
+                    defaultBranch={projectDefaultBranch || undefined}
+                    className="min-h-0 flex-1"
+                  />
+                </>
               ) : (
                 <ResizablePanelGroup
                   direction="vertical"
