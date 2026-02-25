@@ -51,7 +51,7 @@ jobs:
         run: pnpm run type-check
 
   vitest:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
@@ -68,10 +68,13 @@ jobs:
           node-version: '22.20.0'
           cache: 'pnpm'
 
-      - name: Install Linux native deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libsecret-1-0 libsecret-1-dev
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install setuptools for distutils
+        run: pip install setuptools
 
       - name: Install dependencies
         # Tests import Electron/keytar paths, so lifecycle scripts must run.

@@ -26,6 +26,7 @@ export interface KeyboardSettings {
   newTask?: ShortcutBinding;
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
+  openInEditor?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -88,6 +89,9 @@ export interface GlobalShortcutHandlers {
   // Agent switching (within same task)
   onNextAgent?: () => void;
   onPrevAgent?: () => void;
+
+  // Open in editor
+  onOpenInEditor?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

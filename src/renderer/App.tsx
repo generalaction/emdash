@@ -512,6 +512,10 @@ const AppContent: React.FC = () => {
     handleToggleEditor,
   ]);
 
+  const handleOpenInEditor = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('emdash:open-in-editor'));
+  }, []);
+
   const handleToggleSettingsPage = useCallback(() => {
     if (showSettingsPage) {
       handleCloseSettingsPage();
@@ -541,6 +545,7 @@ const AppContent: React.FC = () => {
                 handleNextTask={taskMgmt.handleNextTask}
                 handlePrevTask={taskMgmt.handlePrevTask}
                 handleNewTask={taskMgmt.handleNewTask}
+                handleOpenInEditor={handleOpenInEditor}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}
