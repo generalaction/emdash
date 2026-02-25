@@ -10,6 +10,7 @@ interface DiffToolbarProps {
   onPushComplete?: () => void;
   hideViewModeToggle?: boolean;
   hidePushButton?: boolean;
+  closeButton?: React.ReactNode;
 }
 
 export const DiffToolbar: React.FC<DiffToolbarProps> = ({
@@ -21,6 +22,7 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
   onPushComplete,
   hideViewModeToggle,
   hidePushButton,
+  closeButton,
 }) => {
   const [aheadCount, setAheadCount] = useState(0);
   const [isPushing, setIsPushing] = useState(false);
@@ -98,26 +100,29 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
         </button>
       </div>
 
-      {/* Push button */}
-      {!hidePushButton && (
-        <button
-          className={`ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
-            aheadCount === 0 || isPushing
-              ? 'cursor-not-allowed text-muted-foreground opacity-50'
-              : 'text-foreground hover:bg-muted'
-          }`}
-          disabled={aheadCount === 0 || isPushing}
-          onClick={handlePush}
-          title={
-            aheadCount > 0
-              ? `Push ${aheadCount} commit${aheadCount > 1 ? 's' : ''}`
-              : 'No unpushed commits'
-          }
-        >
-          <ArrowUp className="h-3.5 w-3.5" />
-          {aheadCount > 0 && <span>{aheadCount}</span>}
-        </button>
-      )}
+      <div className="ml-auto flex items-center gap-2">
+        {/* Push button */}
+        {!hidePushButton && (
+          <button
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
+              aheadCount === 0 || isPushing
+                ? 'cursor-not-allowed text-muted-foreground opacity-50'
+                : 'text-foreground hover:bg-muted'
+            }`}
+            disabled={aheadCount === 0 || isPushing}
+            onClick={handlePush}
+            title={
+              aheadCount > 0
+                ? `Push ${aheadCount} commit${aheadCount > 1 ? 's' : ''}`
+                : 'No unpushed commits'
+            }
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+            {aheadCount > 0 && <span>{aheadCount}</span>}
+          </button>
+        )}
+        {closeButton}
+      </div>
     </div>
   );
 };

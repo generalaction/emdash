@@ -10,6 +10,10 @@ interface ChangesTabProps {
   taskPath?: string;
   fileChanges: FileChange[];
   onRefreshChanges?: () => Promise<void> | void;
+  header?: React.ReactNode;
+  closeButton?: React.ReactNode;
+  leftPanelSize?: number;
+  onLeftPanelResize?: (size: number) => void;
 }
 
 export const ChangesTab: React.FC<ChangesTabProps> = ({
@@ -17,6 +21,10 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
   taskPath,
   fileChanges,
   onRefreshChanges,
+  header,
+  closeButton,
+  leftPanelSize = 30,
+  onLeftPanelResize,
 }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -28,10 +36,16 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
   }, [fileChanges, selectedFile]);
 
   return (
-    <ResizablePanelGroup direction="horizontal">
-      {/* Left panel — file list + commit area */}
-      <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-        <div className="flex h-full flex-col">
+    <ResizablePanelGroup
+      direction="horizontal"
+      onLayout={(sizes) => {
+        if (sizes[0] !== undefined) onLeftPanelResize?.(sizes[0]);
+      }}
+    >
+      {/* Left panel — tabs + file list + commit area */}
+      <ResizablePanel defaultSize={leftPanelSize} minSize={20} maxSize={50}>
+        <div className="flex h-full flex-col border-r border-border">
+          {header}
           <div className="flex-1 overflow-y-auto">
             <FileList
               fileChanges={fileChanges}
@@ -52,13 +66,14 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
       <ResizableHandle />
 
       {/* Right panel — diff viewer */}
-      <ResizablePanel defaultSize={70} minSize={30}>
+      <ResizablePanel defaultSize={100 - leftPanelSize} minSize={30}>
         <DiffPanel
           taskId={taskId}
           taskPath={taskPath}
           fileChanges={fileChanges}
           selectedFile={selectedFile}
           onRefreshChanges={onRefreshChanges}
+          closeButton={closeButton}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

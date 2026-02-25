@@ -10,6 +10,7 @@ interface DiffPanelProps {
   fileChanges: FileChange[];
   selectedFile: string | null;
   onRefreshChanges?: () => Promise<void> | void;
+  closeButton?: React.ReactNode;
 }
 
 export const DiffPanel: React.FC<DiffPanelProps> = ({
@@ -18,6 +19,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
   fileChanges,
   selectedFile,
   onRefreshChanges,
+  closeButton,
 }) => {
   const [viewMode, setViewMode] = useState<'stacked' | 'file'>(
     () => (localStorage.getItem('diffViewer:viewMode') as 'stacked' | 'file') || 'stacked'
@@ -44,6 +46,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
         diffStyle={diffStyle}
         onDiffStyleChange={handleDiffStyleChange}
         taskPath={taskPath}
+        closeButton={closeButton}
       />
       <div className="flex-1 overflow-hidden">
         {viewMode === 'stacked' ? (
