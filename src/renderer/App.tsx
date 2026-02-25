@@ -185,10 +185,7 @@ const AppContent: React.FC = () => {
   const appInit = useAppInitialization({
     checkGithubStatus: () => github.checkStatus(),
     onProjectsLoaded: (projects) => projectMgmt.setProjects(projects),
-    onProjectSelected: (project) => projectMgmt.setSelectedProject(project),
     onShowHomeView: (show) => projectMgmt.setShowHomeView(show),
-    onTaskSelected: (task) => taskMgmt.setActiveTask(task),
-    onTaskAgentSelected: (agent) => taskMgmt.setActiveTaskAgent(agent),
     onInitialLoadComplete: () => {},
   });
 
@@ -214,7 +211,6 @@ const AppContent: React.FC = () => {
     setActiveTask: (task) => taskMgmt.setActiveTask(task),
     saveProjectOrder: appInit.saveProjectOrder,
     ToastAction,
-    storedActiveIds: appInit.storedActiveIds,
   });
 
   // Keep the selectedProject ref in sync for useModalState's kanban toggle guard

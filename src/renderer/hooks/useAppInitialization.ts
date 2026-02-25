@@ -1,24 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { Agent } from '../types';
-import type { Project, Task } from '../types/app';
-import { getStoredActiveIds, saveActiveIds } from '../constants/layout';
-import { getAgentForTask } from '../lib/getAgentForTask';
+import { useEffect, useState } from 'react';
+import type { Project } from '../types/app';
+import { saveActiveIds } from '../constants/layout';
 import { withRepoKey } from '../lib/projectUtils';
 
 interface UseAppInitializationOptions {
   checkGithubStatus: () => void;
   onProjectsLoaded: (projects: Project[]) => void;
-  onProjectSelected: (project: Project) => void;
   onShowHomeView: (show: boolean) => void;
-  onTaskSelected: (task: Task) => void;
-  onTaskAgentSelected: (agent: Agent | null) => void;
   onInitialLoadComplete: () => void;
 }
 
 interface UseAppInitializationReturn {
   platform: string;
   isInitialLoadComplete: boolean;
-  storedActiveIds: { projectId: string | null; taskId: string | null };
   applyProjectOrder: (list: Project[]) => Project[];
   saveProjectOrder: (list: Project[]) => void;
 }
@@ -51,20 +45,10 @@ const saveProjectOrder = (list: Project[]) => {
 export function useAppInitialization(
   options: UseAppInitializationOptions
 ): UseAppInitializationReturn {
-  const {
-    checkGithubStatus,
-    onProjectsLoaded,
-    onProjectSelected,
-    onShowHomeView,
-    onTaskSelected,
-    onTaskAgentSelected,
-    onInitialLoadComplete,
-  } = options;
+  const { checkGithubStatus, onProjectsLoaded, onShowHomeView, onInitialLoadComplete } = options;
 
   const [platform, setPlatform] = useState<string>('');
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
-
-  const storedActiveIds = useMemo(() => getStoredActiveIds(), []);
 
   useEffect(() => {
     const loadAppData = async () => {
@@ -90,26 +74,9 @@ export function useAppInitialization(
         const ordered = applyProjectOrder(projectsWithTasks);
         onProjectsLoaded(ordered);
 
-        const { projectId: storedProjectId, taskId: storedTaskId } = storedActiveIds;
-        if (storedProjectId) {
-          const project = ordered.find((p) => p.id === storedProjectId);
-          if (project) {
-            onProjectSelected(project);
-            onShowHomeView(false);
-            if (storedTaskId) {
-              const task = project.tasks?.find((t) => t.id === storedTaskId);
-              if (task) {
-                onTaskSelected(task);
-                onTaskAgentSelected(getAgentForTask(task));
-              } else {
-                saveActiveIds(storedProjectId, null);
-              }
-            }
-          } else {
-            onShowHomeView(true);
-            saveActiveIds(null, null);
-          }
-        }
+        // Always land on home view on app start (e.g. after restart/update)
+        onShowHomeView(true);
+        saveActiveIds(null, null);
         setIsInitialLoadComplete(true);
         onInitialLoadComplete();
       } catch (error) {
@@ -128,7 +95,6 @@ export function useAppInitialization(
   return {
     platform,
     isInitialLoadComplete,
-    storedActiveIds,
     applyProjectOrder,
     saveProjectOrder,
   };
