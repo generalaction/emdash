@@ -364,9 +364,10 @@ export class GitHubService {
       };
 
       if (data.access_token) {
-        // Return immediately - don't block on storage/auth/user fetching
-        // This allows UI to update instantly
+        // We get the token, now fetch user info immediately before returning success
+        // This ensures the UI has the correct username without a race condition
         const token = data.access_token;
+        const user = await this.getUserInfo(token);
 
         // Do heavy operations in background
         setImmediate(async () => {
@@ -379,8 +380,7 @@ export class GitHubService {
               // Silent fail - gh CLI might not be installed
             });
 
-            // Get user info and send update
-            const user = await this.getUserInfo(token);
+            // Send user update just in case it's needed later by listeners
             const mainWindow = getMainWindow();
             if (user && mainWindow) {
               mainWindow.webContents.send('github:auth:user-updated', {
@@ -395,7 +395,7 @@ export class GitHubService {
         return {
           success: true,
           token: token,
-          user: undefined, // Will be sent via user-updated event
+          user: user || undefined,
         };
       } else if (data.error) {
         // Return error to caller - they decide how to handle
@@ -672,13 +672,30 @@ export class GitHubService {
   }
 
   /**
-   * Get user information using GitHub CLI
+   * Get user information using GitHub API or CLI
    */
-  async getUserInfo(_token: string): Promise<GitHubUser | null> {
+  async getUserInfo(token: string): Promise<GitHubUser | null> {
     try {
-      // Use gh CLI to get user info
-      const { stdout } = await this.execGH('gh api user');
-      const userData = JSON.parse(stdout);
+      let userData;
+      if (token) {
+        const response = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.statusText}`);
+        }
+
+        userData = await response.json();
+      } else {
+        // Use gh CLI to get user info as fallback
+        const { stdout } = await this.execGH('gh api user');
+        userData = JSON.parse(stdout);
+      }
 
       return {
         id: userData.id,
