@@ -302,7 +302,7 @@ All optional:
 
 ## CI/CD
 
-- **`code-consistency-check.yml`** (every PR): format check, type check, vitest
+- **`code-consistency-check.yml`** (every PR): format check, type check, vitest (workflow name: "CI Check")
 - **`release.yml`** (on `v*` tags): per-platform builds. Mac builds each arch separately to prevent native module architecture mismatches. Mac release includes signing + notarization.
 
 ## Common Pitfalls
