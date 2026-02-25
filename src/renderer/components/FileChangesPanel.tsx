@@ -649,7 +649,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 px-2 text-xs"
-                  title="Commit all staged changes and push the branch"
+                  title="Commit all staged changes and push"
                   onClick={handleCommitAndPush}
                   disabled={isCommitting || !commitMessage.trim()}
                 >
@@ -693,7 +693,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   isLoading={isActionLoading || branchStatusLoading}
                 />
               ) : (
-                <span className="text-xs text-muted-foreground">No PR for this branch</span>
+                <span className="text-xs text-muted-foreground">No PR for this task</span>
               )}
             </div>
           </div>
