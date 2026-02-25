@@ -68,6 +68,14 @@ jobs:
           node-version: '22.20.0'
           cache: 'pnpm'
 
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install setuptools for distutils
+        run: pip install setuptools
+
       - name: Install dependencies
         # Tests import Electron/keytar paths, so lifecycle scripts must run.
         run: |
