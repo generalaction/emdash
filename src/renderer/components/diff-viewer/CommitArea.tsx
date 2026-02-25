@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Undo2 } from 'lucide-react';
+import { ArrowUp, Undo2 } from 'lucide-react';
 import type { FileChange } from '../../hooks/useFileChanges';
 
 interface CommitAreaProps {
@@ -25,6 +25,8 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
   const [branch, setBranch] = useState<string | null>(null);
   const [latestCommit, setLatestCommit] = useState<LatestCommit | null>(null);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
+  const [aheadCount, setAheadCount] = useState(0);
 
   const hasStagedFiles = fileChanges.some((f) => f.isStaged);
   const canCommit = hasStagedFiles && commitMessage.trim().length > 0 && !isCommitting;
@@ -32,8 +34,9 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
   const fetchBranch = useCallback(async () => {
     if (!taskPath) return;
     const result = await window.electronAPI.getBranchStatus({ taskPath });
-    if (result.success && result.branch) {
-      setBranch(result.branch);
+    if (result.success) {
+      if (result.branch) setBranch(result.branch);
+      if (typeof result.ahead === 'number') setAheadCount(result.ahead);
     }
   }, [taskPath]);
 
@@ -63,29 +66,22 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         setDescription('');
         await onRefreshChanges?.();
         await fetchLatestCommit();
+        await fetchBranch();
       }
     } finally {
       setIsCommitting(false);
     }
   };
 
-  const handleCommitAndPush = async () => {
-    if (!taskPath || !canCommit) return;
-    setIsCommitting(true);
+  const handlePush = async () => {
+    if (!taskPath || aheadCount === 0 || isPushing) return;
+    setIsPushing(true);
     try {
-      const message = description.trim()
-        ? `${commitMessage.trim()}\n\n${description.trim()}`
-        : commitMessage.trim();
-      const commitResult = await window.electronAPI.gitCommit({ taskPath, message });
-      if (commitResult.success) {
-        await window.electronAPI.gitPush({ taskPath });
-        setCommitMessage('');
-        setDescription('');
-        await onRefreshChanges?.();
-        await fetchLatestCommit();
-      }
+      await window.electronAPI.gitPush({ taskPath });
+      await fetchBranch();
+      await fetchLatestCommit();
     } finally {
-      setIsCommitting(false);
+      setIsPushing(false);
     }
   };
 
@@ -132,7 +128,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       />
 
-      {/* Commit buttons */}
+      {/* Commit & Push buttons */}
       <div className="flex gap-2">
         <button
           onClick={() => void handleCommit()}
@@ -142,16 +138,22 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
           Commit
         </button>
         <button
-          onClick={() => void handleCommitAndPush()}
-          disabled={!canCommit}
-          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => void handlePush()}
+          disabled={aheadCount === 0 || isPushing}
+          className="flex items-center justify-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          title={
+            aheadCount > 0
+              ? `Push ${aheadCount} commit${aheadCount > 1 ? 's' : ''}`
+              : 'No unpushed commits'
+          }
         >
-          Commit & Push
+          <ArrowUp className="h-3 w-3" />
+          Push{aheadCount > 0 ? ` (${aheadCount})` : ''}
         </button>
       </div>
 
-      {/* Separator */}
-      <hr className="border-border" />
+      {/* Separator — full width edge to edge */}
+      <hr className="-mx-3 border-border" />
 
       {/* Latest commit */}
       {latestCommit && (

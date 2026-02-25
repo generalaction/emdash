@@ -132,7 +132,7 @@ export const FileList: React.FC<FileListProps> = ({
     <>
       <div className="flex flex-col">
         {/* Stage All */}
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <div className="flex h-9 items-center gap-2 border-b border-border px-3">
           <Checkbox
             checked={allStaged}
             onCheckedChange={(checked) => void handleStageAll(checked === true)}
@@ -142,7 +142,7 @@ export const FileList: React.FC<FileListProps> = ({
 
         {/* Tracked files */}
         {tracked.length > 0 && (
-          <div>
+          <div className="mt-4">
             <div className="flex items-center gap-2 px-3 py-1.5">
               <Checkbox
                 checked={trackedAllStaged}
@@ -159,7 +159,7 @@ export const FileList: React.FC<FileListProps> = ({
 
         {/* Untracked files */}
         {untracked.length > 0 && (
-          <div>
+          <div className={tracked.length > 0 ? 'mt-3 pt-1' : ''}>
             <div className="flex items-center gap-2 px-3 py-1.5">
               <Checkbox
                 checked={untrackedAllStaged}

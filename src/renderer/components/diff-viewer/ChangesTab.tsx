@@ -28,9 +28,11 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  // Auto-select the first file when fileChanges arrive and nothing is selected
+  // Auto-select the first file, or clear selection when files disappear
   useEffect(() => {
-    if (fileChanges.length > 0 && selectedFile === null) {
+    if (fileChanges.length === 0) {
+      setSelectedFile(null);
+    } else if (selectedFile === null || !fileChanges.some((f) => f.path === selectedFile)) {
       setSelectedFile(fileChanges[0].path);
     }
   }, [fileChanges, selectedFile]);
