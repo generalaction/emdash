@@ -1,9 +1,14 @@
-import { classifyActivity } from './activityClassifier';
+import { classifyActivity, sampleActivityChunk } from './activityClassifier';
 import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
 import { type PtyIdKind, parsePtyId, makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 
 type Listener = (busy: boolean) => void;
+type DirectSubscription = {
+  refCount: number;
+  offData: Array<() => void>;
+  offExit: Array<() => void>;
+};
 
 class ActivityStore {
   private listeners = new Map<string, Set<Listener>>();
@@ -12,38 +17,81 @@ class ActivityStore {
   private busySince = new Map<string, number>();
   private subscribed = false;
   private subscribedIds = new Set<string>();
+  private directSubscriptions = new Map<string, DirectSubscription>();
+  private hasGlobalActivityFeed = false;
+
+  private normalizeKinds(kinds?: PtyIdKind[]): PtyIdKind[] {
+    if (!kinds?.length) return ['main'];
+    const uniqueKinds = Array.from(new Set(kinds));
+    uniqueKinds.sort();
+    return uniqueKinds as PtyIdKind[];
+  }
+
+  private makeDirectSubscriptionKey(wsId: string, kinds: readonly PtyIdKind[]): string {
+    return `${wsId}|${kinds.join(',')}`;
+  }
+
+  private resolveSubscribedTaskFromPtyId(id: string): { wsId: string; provider: string } | null {
+    const parsed = parsePtyId(id);
+    if (parsed && this.subscribedIds.has(parsed.suffix)) {
+      return { wsId: parsed.suffix, provider: parsed.providerId };
+    }
+
+    for (const wsId of this.subscribedIds) {
+      if (!id.endsWith(wsId)) continue;
+      return { wsId, provider: parsed?.providerId || '' };
+    }
+    return null;
+  }
+
+  private applyClassifiedSignal(wsId: string, provider: string, chunk: string) {
+    const sampledChunk = sampleActivityChunk((chunk || '').toString());
+    const signal = classifyActivity(provider, sampledChunk);
+    if (signal === 'busy') {
+      this.setBusy(wsId, true, true);
+    } else if (signal === 'idle') {
+      this.setBusy(wsId, false, true);
+    } else if (this.states.get(wsId)) {
+      // neutral: keep current but set soft clear timer
+      this.armTimer(wsId);
+    }
+  }
 
   private ensureSubscribed() {
     if (this.subscribed) return;
     this.subscribed = true;
     const api: any = (window as any).electronAPI;
-    api?.onPtyActivity?.((info: { id: string; chunk?: string }) => {
+    const offActivity = api?.onPtyActivity?.((info: { id: string; chunk?: string }) => {
       try {
         const id = String(info?.id || '');
-        // Match any subscribed task id by suffix
-        for (const wsId of this.subscribedIds) {
-          if (!id.endsWith(wsId)) continue;
-          const prov = parsePtyId(id)?.providerId || '';
-          const signal = classifyActivity(prov, info?.chunk || '');
-          if (signal === 'busy') {
-            this.setBusy(wsId, true, true);
-          } else if (signal === 'idle') {
-            this.setBusy(wsId, false, true);
-          } else {
-            // neutral: keep current but set soft clear timer
-            if (this.states.get(wsId)) this.armTimer(wsId);
-          }
-        }
+        const matched = this.resolveSubscribedTaskFromPtyId(id);
+        if (!matched) return;
+        this.applyClassifiedSignal(matched.wsId, matched.provider, info?.chunk || '');
       } catch {}
     });
-    api?.onPtyExitGlobal?.((info: { id: string }) => {
+    const offExit = api?.onPtyExitGlobal?.((info: { id: string }) => {
       try {
         const id = String(info?.id || '');
-        for (const wsId of this.subscribedIds) {
-          if (id.endsWith(wsId)) this.setBusy(wsId, false, true);
-        }
+        const matched = this.resolveSubscribedTaskFromPtyId(id);
+        if (!matched) return;
+        this.setBusy(matched.wsId, false, true);
       } catch {}
     });
+
+    const hasActivityFeed = typeof offActivity === 'function';
+    const hasExitFeed = typeof offExit === 'function';
+    this.hasGlobalActivityFeed = hasActivityFeed && hasExitFeed;
+
+    // If only one channel is available, disable it and rely on direct fallback
+    // so busy/idle transitions stay consistent.
+    if (!this.hasGlobalActivityFeed) {
+      try {
+        offActivity?.();
+      } catch {}
+      try {
+        offExit?.();
+      } catch {}
+    }
   }
 
   private armTimer(wsId: string) {
@@ -53,7 +101,7 @@ class ActivityStore {
     this.timers.set(wsId, t);
   }
 
-  private setBusy(wsId: string, busy: boolean, fromEvent = false) {
+  private setBusy(wsId: string, busy: boolean, _fromEvent = false) {
     const current = this.states.get(wsId) || false;
     // If setting busy: clear timers and record start
     if (busy) {
@@ -108,6 +156,57 @@ class ActivityStore {
     this.setBusy(wsId, busy, false);
   }
 
+  private retainDirectSubscription(wsId: string, kinds: readonly PtyIdKind[]): string {
+    const key = this.makeDirectSubscriptionKey(wsId, kinds);
+    const existing = this.directSubscriptions.get(key);
+    if (existing) {
+      existing.refCount += 1;
+      return key;
+    }
+
+    const offData: Array<() => void> = [];
+    const offExit: Array<() => void> = [];
+
+    try {
+      const api: any = (window as any).electronAPI;
+      for (const prov of PROVIDER_IDS) {
+        for (const kind of kinds) {
+          const ptyId = makePtyId(prov, kind, wsId);
+          const offChunk = api?.onPtyData?.(ptyId, (chunk: string) => {
+            try {
+              this.applyClassifiedSignal(wsId, prov, chunk || '');
+            } catch {}
+          });
+          if (offChunk) offData.push(offChunk);
+
+          const offPtyExit = api?.onPtyExit?.(ptyId, () => {
+            try {
+              this.setBusy(wsId, false, true);
+            } catch {}
+          });
+          if (offPtyExit) offExit.push(offPtyExit);
+        }
+      }
+    } catch {}
+
+    this.directSubscriptions.set(key, { refCount: 1, offData, offExit });
+    return key;
+  }
+
+  private releaseDirectSubscription(key: string) {
+    const existing = this.directSubscriptions.get(key);
+    if (!existing) return;
+
+    existing.refCount -= 1;
+    if (existing.refCount > 0) return;
+
+    try {
+      for (const off of existing.offData) off?.();
+      for (const off of existing.offExit) off?.();
+    } catch {}
+    this.directSubscriptions.delete(key);
+  }
+
   subscribe(wsId: string, fn: Listener, opts?: { kinds?: PtyIdKind[] }) {
     this.ensureSubscribed();
     this.subscribedIds.add(wsId);
@@ -116,48 +215,33 @@ class ActivityStore {
     this.listeners.set(wsId, set);
     // emit current
     fn(this.states.get(wsId) || false);
+
     // Fallback: also listen directly to PTY data in case global broadcast is missing.
     // `kinds` can be narrowed by callers for performance:
     // - task-level busy: { kinds: ['main'] } (default)
     // - conversation-level busy: { kinds: ['chat'] }
-    const offDirect: Array<() => void> = [];
-    const offExitDirect: Array<() => void> = [];
-    const kinds = opts?.kinds?.length ? opts.kinds : (['main'] as const);
-    try {
-      const api: any = (window as any).electronAPI;
-      for (const prov of PROVIDER_IDS) {
-        for (const kind of kinds) {
-          const ptyId = makePtyId(prov, kind, wsId);
-          const off = api?.onPtyData?.(ptyId, (chunk: string) => {
-            try {
-              const signal = classifyActivity(prov, chunk || '');
-              if (signal === 'busy') this.setBusy(wsId, true, true);
-              else if (signal === 'idle') this.setBusy(wsId, false, true);
-              else if (this.states.get(wsId)) this.armTimer(wsId);
-            } catch {}
-          });
-          if (off) offDirect.push(off);
-          const offExit = api?.onPtyExit?.(ptyId, () => {
-            try {
-              this.setBusy(wsId, false, true);
-            } catch {}
-          });
-          if (offExit) offExitDirect.push(offExit);
-        }
-      }
-    } catch {}
+    const kinds = this.normalizeKinds(opts?.kinds);
+    const directSubscriptionKey = this.hasGlobalActivityFeed
+      ? null
+      : this.retainDirectSubscription(wsId, kinds);
 
     return () => {
-      const s = this.listeners.get(wsId);
-      if (s) {
-        s.delete(fn);
-        if (s.size === 0) this.listeners.delete(wsId);
+      if (directSubscriptionKey) this.releaseDirectSubscription(directSubscriptionKey);
+
+      const listenersForTask = this.listeners.get(wsId);
+      if (listenersForTask) {
+        listenersForTask.delete(fn);
+        if (listenersForTask.size === 0) {
+          this.listeners.delete(wsId);
+          this.subscribedIds.delete(wsId);
+
+          const pendingTimer = this.timers.get(wsId);
+          if (pendingTimer) clearTimeout(pendingTimer);
+          this.timers.delete(wsId);
+          this.busySince.delete(wsId);
+          this.states.delete(wsId);
+        }
       }
-      try {
-        for (const off of offDirect) off?.();
-        for (const off of offExitDirect) off?.();
-      } catch {}
-      // keep subscribedIds to avoid thrash; optional cleanup could remove when no listeners
     };
   }
 }

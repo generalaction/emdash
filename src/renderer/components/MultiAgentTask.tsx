@@ -9,7 +9,7 @@ import { agentMeta } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
 import AgentLogo from './AgentLogo';
 import { useTheme } from '@/hooks/useTheme';
-import { classifyActivity } from '@/lib/activityClassifier';
+import { classifyActivity, sampleActivityChunk } from '@/lib/activityClassifier';
 import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
@@ -342,7 +342,8 @@ const MultiAgentTask: React.FC<Props> = ({
 
       const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
         try {
-          const signal = classifyActivity(variant.agent, chunk || '');
+          const sampledChunk = sampleActivityChunk(chunk || '');
+          const signal = classifyActivity(variant.agent, sampledChunk);
           if (signal === 'busy') setBusy(variantId, true);
           else if (signal === 'idle') setBusy(variantId, false);
           else armNeutral(variantId);

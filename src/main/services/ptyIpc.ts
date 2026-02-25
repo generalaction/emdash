@@ -50,6 +50,7 @@ type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kil
 const ptyDataBuffers = new Map<string, string>();
 const ptyDataTimers = new Map<string, NodeJS.Timeout>();
 const PTY_DATA_FLUSH_MS = 16;
+const PTY_ACTIVITY_SAMPLE_CHARS = 8_192;
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -69,11 +70,19 @@ function safeSendToOwner(id: string, channel: string, payload: unknown): boolean
   }
 }
 
+function sendPtyExitGlobal(id: string): void {
+  safeSendToOwner(id, 'pty:exit:global', { id });
+}
+
 function flushPtyData(id: string): void {
   const buf = ptyDataBuffers.get(id);
   if (!buf) return;
   ptyDataBuffers.delete(id);
   safeSendToOwner(id, `pty:data:${id}`, buf);
+  safeSendToOwner(id, 'pty:activity', {
+    id,
+    chunk: buf.length <= PTY_ACTIVITY_SAMPLE_CHARS ? buf : buf.slice(-PTY_ACTIVITY_SAMPLE_CHARS),
+  });
 }
 
 function clearPtyData(id: string): void {
@@ -286,6 +295,7 @@ export function registerPtyIpc(): void {
           flushPtyData(id);
           clearPtyData(id);
           safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+          sendPtyExitGlobal(id);
           owners.delete(id);
           listeners.delete(id);
           removePtyRecord(id);
@@ -364,6 +374,7 @@ export function registerPtyIpc(): void {
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              sendPtyExitGlobal(id);
               owners.delete(id);
               listeners.delete(id);
               removePtyRecord(id);
@@ -503,6 +514,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            sendPtyExitGlobal(id);
             maybeMarkProviderFinish(
               id,
               exitCode,
@@ -619,6 +631,7 @@ export function registerPtyIpc(): void {
     try {
       // Ensure telemetry timers are cleared even on manual kill
       maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
+      sendPtyExitGlobal(args.id);
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
@@ -774,6 +787,7 @@ export function registerPtyIpc(): void {
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              sendPtyExitGlobal(id);
               maybeMarkProviderFinish(id, exitCode, signal, 'process_exit');
               owners.delete(id);
               listeners.delete(id);
@@ -882,6 +896,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            sendPtyExitGlobal(id);
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {

@@ -131,6 +131,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => {
+    const channel = 'pty:activity';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string; chunk?: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => {
+    const channel = 'pty:exit:global';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // App settings
@@ -737,6 +750,9 @@ export interface ElectronAPI {
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
+  onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
