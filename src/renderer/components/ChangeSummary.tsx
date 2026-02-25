@@ -1,5 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFileChanges } from '../hooks/useFileChanges';
+import { useCreatePR } from '../hooks/useCreatePR';
+import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Close as PopoverClose } from '@radix-ui/react-popover';
+import { ChevronDown, FileDiff } from 'lucide-react';
+
+type PrMode = 'create' | 'draft' | 'merge';
+
+const PR_MODE_LABELS: Record<PrMode, string> = {
+  create: 'Create PR',
+  draft: 'Draft PR',
+  merge: 'Merge into Main',
+};
 
 interface ChangeSummaryProps {
   taskPath?: string;
@@ -8,25 +22,91 @@ interface ChangeSummaryProps {
 
 export const ChangeSummary: React.FC<ChangeSummaryProps> = ({ taskPath, onOpenChanges }) => {
   const { fileChanges } = useFileChanges(taskPath);
+  const { isCreating, createPR } = useCreatePR();
+  const [prMode, setPrMode] = useState<PrMode>('draft');
 
   const totalAdditions = fileChanges.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = fileChanges.reduce((sum, f) => sum + f.deletions, 0);
   const fileCount = fileChanges.length;
+  const hasChanges = fileCount > 0;
 
-  if (fileCount === 0) return null;
+  const handlePrAction = async () => {
+    if (!taskPath) return;
+    await createPR({
+      taskPath,
+      prOptions: {
+        draft: prMode === 'draft',
+        fill: true,
+      },
+    });
+  };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2">
-      <span className="text-sm font-medium">
-        <span className="text-green-500">+{totalAdditions}</span>{' '}
-        <span className="text-red-500">-{totalDeletions}</span>
-      </span>
-      <button
-        onClick={onOpenChanges}
-        className="rounded-md border border-border bg-background px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-      >
-        Changes
-      </button>
+    <div className="bg-muted px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          {hasChanges && (
+            <div className="flex shrink-0 items-center gap-1 text-xs">
+              <span className="font-medium text-green-600 dark:text-green-400">
+                +{totalAdditions}
+              </span>
+              <span className="text-muted-foreground">&middot;</span>
+              <span className="font-medium text-red-600 dark:text-red-400">-{totalDeletions}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 px-2 text-xs"
+            title="View all changes and history"
+            onClick={onOpenChanges}
+          >
+            <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Changes</span>
+          </Button>
+          {hasChanges && (
+            <div className="flex min-w-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 min-w-0 truncate rounded-r-none border-r-0 px-2 text-xs"
+                disabled={isCreating}
+                onClick={handlePrAction}
+              >
+                {isCreating ? <Spinner size="sm" /> : PR_MODE_LABELS[prMode]}
+              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-l-none px-1.5"
+                    disabled={isCreating}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
+                  {(['create', 'draft', 'merge'] as PrMode[])
+                    .filter((m) => m !== prMode)
+                    .map((m) => (
+                      <PopoverClose key={m} asChild>
+                        <button
+                          className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                          onClick={() => setPrMode(m)}
+                        >
+                          {PR_MODE_LABELS[m]}
+                        </button>
+                      </PopoverClose>
+                    ))}
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
