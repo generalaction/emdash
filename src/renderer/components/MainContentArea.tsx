@@ -38,6 +38,7 @@ interface MainContentAreaProps {
     task: Task,
     options?: { silent?: boolean }
   ) => Promise<boolean>;
+  handleRestoreTask?: (project: Project, task: Task) => Promise<void>;
   handleDeleteProject: (project: Project) => Promise<void>;
   handleOpenProject: () => void;
   handleNewProjectClick: () => void;
@@ -68,6 +69,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   handleSelectTask,
   handleDeleteTask,
   handleArchiveTask,
+  handleRestoreTask,
   handleDeleteProject,
   handleOpenProject,
   handleNewProjectClick,
@@ -155,6 +157,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
             onSelectTask={handleSelectTask}
             onDeleteTask={handleDeleteTask}
             onArchiveTask={handleArchiveTask}
+            onRestoreTask={handleRestoreTask}
             onDeleteProject={handleDeleteProject}
             branchOptions={projectBranchOptions}
             isLoadingBranches={isLoadingBranches}

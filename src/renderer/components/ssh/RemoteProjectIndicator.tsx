@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Globe, AlertCircle, RefreshCw, Loader2, GlobeX } from 'lucide-react';
+import { Globe, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '../../lib/utils';
 
@@ -40,7 +40,7 @@ const stateConfig: Record<
   },
   disconnected: {
     color: 'text-muted-foreground',
-    icon: <GlobeX className="h-full w-full" />,
+    icon: <Globe className="h-full w-full opacity-50" />,
     label: 'Disconnected',
   },
   error: {

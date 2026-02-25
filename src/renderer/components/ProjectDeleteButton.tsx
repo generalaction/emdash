@@ -81,9 +81,9 @@ export const ProjectDeleteButton: React.FC<Props> = ({
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
-                className={cn(className, isDeleting && 'opacity-100')}
+                className={cn('h-8 w-8', className, isDeleting && 'opacity-100')}
                 title="Delete project"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}

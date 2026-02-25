@@ -1,6 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
-import { GitBranch, Plus, Loader2, ArrowUpRight, Folder, Archive } from 'lucide-react';
+import { Input } from './ui/input';
+import {
+  Plus,
+  Loader2,
+  ArrowUpRight,
+  Folder,
+  Archive,
+  ArchiveRestore,
+  Search,
+  Github,
+  X,
+  Trash2,
+  Check,
+  ListFilter,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -28,9 +42,15 @@ import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
 import { useTaskBusy } from '../hooks/useTaskBusy';
+import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
+import AgentLogo from './AgentLogo';
+import { agentAssets } from '../providers/assets';
+import { getProvider } from '@shared/providers/registry';
+import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
@@ -45,6 +65,7 @@ function TaskRow({
   onClick,
   onDelete,
   onArchive,
+  onRestore,
   isSelectMode,
   isSelected,
   onToggleSelect,
@@ -55,53 +76,112 @@ function TaskRow({
   onClick: () => void;
   onDelete: () => void | Promise<void | boolean>;
   onArchive?: () => void | Promise<void | boolean>;
+  onRestore?: () => void | Promise<void>;
   isSelectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   enablePrStatus?: boolean;
 }) {
+  const isArchived = Boolean(ws.archivedAt);
   const isRunning = useTaskBusy(ws.id);
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path, enablePrStatus);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
+  const agentInfo = useTaskAgentNames(ws.id, ws.agentId);
 
   const handleRowClick = () => {
-    if (!isSelectMode) {
+    if (isSelectMode) {
+      onToggleSelect?.();
+    } else {
       onClick();
     }
   };
 
+  const contentClasses = [
+    'task-card relative flex flex-1 items-center gap-[2px] h-16 px-3 transition-all duration-150',
+    'before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-border before:transition-opacity',
+    'cursor-pointer',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    active
+      ? 'bg-muted rounded-xl before:opacity-0'
+      : isSelected
+        ? 'bg-accent rounded-xl before:opacity-0'
+        : 'hover:bg-accent hover:rounded-xl hover:before:opacity-0',
+  ].join(' ');
+
+  // Render agent icons + names
+  // 1 chat: show agent with icon
+  // 2 chats: show both unique providers with icons
+  // 3+ chats: show first provider + "+N"
+  const renderAgents = () => {
+    const { providerIds, additionalCount } = agentInfo;
+    if (providerIds.length === 0) return null;
+
+    const totalChats = additionalCount + 1;
+    const showIds = totalChats <= 2 ? providerIds : [providerIds[0]];
+
+    return (
+      <div className="flex items-center gap-2">
+        {showIds.map((id) => {
+          const asset = agentAssets[id as keyof typeof agentAssets];
+          const provider = getProvider(id as ProviderId);
+          if (!asset) return null;
+          return (
+            <div key={id} className="flex items-center gap-1">
+              <AgentLogo
+                logo={asset.logo}
+                alt={asset.alt}
+                isSvg={asset.isSvg}
+                invertInDark={asset.invertInDark}
+                className="h-4 w-4"
+              />
+              <span className="text-sm font-medium text-muted-foreground">
+                {provider?.name ?? id}
+              </span>
+            </div>
+          );
+        })}
+        {totalChats > 2 && (
+          <span className="text-sm font-medium text-muted-foreground">+{additionalCount}</span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
-      className={[
-        'overflow-hidden rounded-xl border bg-background',
-        active && !isSelectMode ? 'border-primary' : 'border-border',
-      ].join(' ')}
+      className="task-row group relative flex items-center gap-3"
+      data-active={active || undefined}
+      data-selected={isSelected || undefined}
     >
-      <div
-        onClick={handleRowClick}
-        role="button"
-        tabIndex={0}
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={() => onToggleSelect?.()}
+        aria-label={`Select ${ws.name}`}
         className={[
-          'group flex items-start justify-between gap-3 rounded-t-xl',
-          'px-4 py-3 transition-all hover:bg-muted/40 hover:shadow-sm',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+          'h-4 w-4 shrink-0 rounded border-muted-foreground/50 transition-opacity duration-150',
+
+          isSelectMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
         ].join(' ')}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-base font-medium leading-tight tracking-tight">{ws.name}</div>
-          </div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            {isRunning || ws.status === 'running' ? <Spinner size="sm" className="size-3" /> : null}
-            <GitBranch className="size-3" />
-            <span className="max-w-[24rem] truncate font-mono" title={`origin/${ws.branch}`}>
-              origin/{ws.branch}
+      />
+      <div onClick={handleRowClick} role="button" tabIndex={0} className={contentClasses}>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className={`text-sm font-medium ${isArchived ? 'text-muted-foreground' : ''}`}>
+            {ws.name}
+          </span>
+          {isArchived && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              Archived
             </span>
-          </div>
+          )}
+          {(isRunning || ws.status === 'running') && (
+            <Spinner size="sm" className="size-3 text-muted-foreground" />
+          )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-4">
+          {renderAgents()}
+
           {!isLoading && (totalAdditions > 0 || totalDeletions > 0) ? (
             <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />
           ) : null}
@@ -114,7 +194,7 @@ function TaskRow({
                   e.stopPropagation();
                   if (pr.url) window.electronAPI.openExternal(pr.url);
                 }}
-                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 title={`${pr.title || 'Pull Request'} (#${pr.number})`}
               >
                 {pr.isDraft
@@ -127,30 +207,45 @@ function TaskRow({
             </PrPreviewTooltip>
           ) : null}
 
-          {isSelectMode ? (
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect?.()}
-              aria-label={`Select ${ws.name}`}
-              className="h-4 w-4 rounded border-muted-foreground/50 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground"
-            />
-          ) : (
-            <>
-              {onArchive && (
+          {!isSelectMode && (
+            <div className="flex items-center gap-1">
+              {isArchived && onRestore ? (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
-                        className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+                        size="icon"
+                        className="text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRestore();
+                        }}
+                        aria-label={`Unarchive task ${ws.name}`}
+                      >
+                        <ArchiveRestore className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Unarchive Task
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : onArchive && !isArchived ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground"
                         onClick={(e) => {
                           e.stopPropagation();
                           onArchive();
                         }}
                         aria-label={`Archive task ${ws.name}`}
                       >
-                        <Archive className="h-3.5 w-3.5" />
+                        <Archive className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
@@ -158,7 +253,7 @@ function TaskRow({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              )}
+              ) : null}
               <TaskDeleteButton
                 taskName={ws.name}
                 taskId={ws.id}
@@ -174,9 +269,9 @@ function TaskRow({
                 }}
                 isDeleting={isDeleting}
                 aria-label={`Delete task ${ws.name}`}
-                className="inline-flex items-center justify-center rounded p-2 text-muted-foreground hover:bg-transparent focus-visible:ring-0"
+                className="text-muted-foreground"
               />
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -199,6 +294,7 @@ interface ProjectMainViewProps {
     task: Task,
     options?: { silent?: boolean }
   ) => void | Promise<void | boolean>;
+  onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
   onDeleteProject?: (project: Project) => void | Promise<void>;
   branchOptions: BranchOption[];
   isLoadingBranches: boolean;
@@ -212,6 +308,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onSelectTask,
   onDeleteTask,
   onArchiveTask,
+  onRestoreTask,
   onDeleteProject,
   branchOptions,
   isLoadingBranches,
@@ -232,8 +329,47 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [isArchiving, setIsArchiving] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
+  const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  const tasksInProject = project.tasks ?? [];
+  // Fetch archived tasks when filter is "all"
+  useEffect(() => {
+    if (showFilter !== 'all') {
+      setArchivedTasks([]);
+      return;
+    }
+    let cancelled = false;
+    async function fetchArchived() {
+      try {
+        const result = await window.electronAPI.getArchivedTasks(project.id);
+        if (!cancelled && Array.isArray(result)) {
+          setArchivedTasks(result);
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+    void fetchArchived();
+    return () => {
+      cancelled = true;
+    };
+  }, [showFilter, project.id]);
+
+  const activeTasks = project.tasks ?? [];
+  const tasksInProject = useMemo(
+    () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
+    [activeTasks, archivedTasks, showFilter]
+  );
+  const filteredTasks = useMemo(
+    () =>
+      searchFilter.trim()
+        ? tasksInProject.filter((ws) =>
+            ws.name.toLowerCase().includes(searchFilter.trim().toLowerCase())
+          )
+        : tasksInProject,
+    [tasksInProject, searchFilter]
+  );
   const selectedCount = selectedIds.size;
   const selectedTasks = useMemo(
     () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
@@ -298,6 +434,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         next.delete(id);
       } else {
         next.add(id);
+        if (!isSelectMode) setIsSelectMode(true);
       }
       return next;
     });
@@ -376,6 +513,24 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       });
     }
   };
+
+  const handleRestoreTask = useCallback(
+    async (task: Task) => {
+      try {
+        if (onRestoreTask) {
+          await onRestoreTask(project, task);
+        } else {
+          const result = await window.electronAPI.restoreTask(task.id);
+          if (!result?.success) throw new Error(result?.error);
+        }
+        setArchivedTasks((prev) => prev.filter((t) => t.id !== task.id));
+        toast({ title: 'Task restored', description: task.name });
+      } catch {
+        toast({ title: 'Failed to restore task', variant: 'destructive' });
+      }
+    },
+    [onRestoreTask, project, toast]
+  );
 
   // Reset select mode when project changes
   useEffect(() => {
@@ -520,127 +675,195 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-6xl p-6">
-          <div className="mx-auto w-full max-w-6xl space-y-4">
-            <div className="space-y-4">
-              <header className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-                    <div className="flex items-center gap-2 sm:self-start">
-                      {onDeleteProject ? (
-                        <ProjectDeleteButton
-                          projectName={project.name}
-                          tasks={project.tasks}
-                          onConfirm={() => onDeleteProject?.(project)}
-                          aria-label={`Delete project ${project.name}`}
-                        />
-                      ) : null}
-                      {project.githubInfo?.connected && project.githubInfo.repository ? (
-                        <motion.button
-                          whileTap={{ scale: 0.97 }}
-                          transition={{ duration: 0.1, ease: 'easeInOut' }}
-                          className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          onClick={() =>
-                            window.electronAPI.openExternal(
-                              `https://github.com/${project.githubInfo?.repository}`
-                            )
-                          }
-                        >
-                          View on GitHub
-                          <ArrowUpRight className="size-3" />
-                        </motion.button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <p className="break-all text-sm text-muted-foreground">{project.path}</p>
-                </div>
-                <BaseBranchControls
-                  baseBranch={baseBranch}
-                  branchOptions={branchOptions}
-                  isLoadingBranches={isLoadingBranches}
-                  isSavingBaseBranch={isSavingBaseBranch}
-                  onBaseBranchChange={handleBaseBranchChange}
-                  onOpenConfig={() => setShowConfigEditor(true)}
-                />
-              </header>
-              <Separator className="my-2" />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">Tasks</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Spin up a fresh, isolated task for this project.
-                  </p>
-                </div>
-                {!isSelectMode && (
-                  <div className="flex gap-2">
+        <div className="px-6 py-8">
+          <div className="mx-auto w-full max-w-6xl">
+            {/* Header */}
+            <div className="px-10">
+              <header className="flex items-center justify-between">
+                <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
+                <div className="flex items-center gap-2">
+                  <BaseBranchControls
+                    baseBranch={baseBranch}
+                    branchOptions={branchOptions}
+                    isLoadingBranches={isLoadingBranches}
+                    isSavingBaseBranch={isSavingBaseBranch}
+                    onBaseBranchChange={handleBaseBranchChange}
+                    onOpenConfig={() => setShowConfigEditor(true)}
+                  />
+                  {project.githubInfo?.connected && project.githubInfo.repository ? (
                     <motion.button
                       whileTap={{ scale: 0.97 }}
                       transition={{ duration: 0.1, ease: 'easeInOut' }}
-                      className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                      onClick={onCreateTask}
+                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() =>
+                        window.electronAPI.openExternal(
+                          `https://github.com/${project.githubInfo?.repository}`
+                        )
+                      }
                     >
-                      <Plus className="mr-2 size-4" />
-                      New Task
+                      <Github className="size-3.5" />
+                      View on GitHub
                     </motion.button>
-                  </div>
-                )}
+                  ) : null}
+                  {onDeleteProject ? (
+                    <ProjectDeleteButton
+                      projectName={project.name}
+                      tasks={project.tasks}
+                      onConfirm={() => onDeleteProject?.(project)}
+                      aria-label={`Delete project ${project.name}`}
+                    />
+                  ) : null}
+                </div>
+              </header>
+              <Separator className="mt-4" />
+            </div>
+
+            {/* Tasks Section */}
+            <div className="mt-6 flex flex-col gap-4 px-10">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold">Tasks</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Spin up a fresh, isolated task for this project.
+                  </p>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ duration: 0.1, ease: 'easeInOut' }}
+                  className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  onClick={onCreateTask}
+                >
+                  <Plus className="mr-2 size-4" />
+                  New Task
+                </motion.button>
               </div>
+
               {tasksInProject.length > 0 ? (
                 <>
-                  <div className="flex justify-end gap-2">
-                    {isSelectMode && selectedCount > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tasks..."
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      className="h-10 w-full pl-10"
+                    />
+                  </div>
+
+                  <div className="flex h-7 items-center gap-2 px-3">
+                    {isSelectMode ? (
                       <>
+                        <span className="text-sm text-muted-foreground">
+                          {selectedCount} selected
+                        </span>
                         {onArchiveTask && (
                           <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 px-3 text-xs font-medium"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground"
                             onClick={handleBulkArchive}
-                            disabled={isArchiving || isDeleting}
+                            disabled={isArchiving || isDeleting || selectedCount === 0}
+                            aria-label="Archive selected"
                           >
                             {isArchiving ? (
-                              <>
-                                <Loader2 className="mr-2 size-4 animate-spin" />
-                                Archiving…
-                              </>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              'Archive'
+                              <Archive className="h-3.5 w-3.5" />
                             )}
                           </Button>
                         )}
                         <Button
-                          variant="destructive"
-                          size="sm"
-                          className="h-8 px-3 text-xs font-medium"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
                           onClick={() => setShowDeleteDialog(true)}
-                          disabled={isDeleting || isArchiving}
+                          disabled={isDeleting || isArchiving || selectedCount === 0}
+                          aria-label="Delete selected"
                         >
                           {isDeleting ? (
-                            <>
-                              <Loader2 className="mr-2 size-4 animate-spin" />
-                              Deleting…
-                            </>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            'Delete'
+                            <Trash2 className="h-3.5 w-3.5" />
                           )}
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="ml-auto text-muted-foreground"
+                          onClick={exitSelectMode}
+                          aria-label="Exit select mode"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm text-muted-foreground">
+                          {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}{' '}
+                          with Emdash
+                        </span>
+                        <button
+                          type="button"
+                          className="cursor-pointer text-sm text-muted-foreground underline"
+                          onClick={() => setIsSelectMode(true)}
+                        >
+                          Select
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="ml-auto text-muted-foreground"
+                              aria-label="Filter tasks"
+                            >
+                              <ListFilter className="h-3.5 w-3.5" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-48 p-1">
+                            <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              Show
+                            </p>
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                              onClick={() => setShowFilter('all')}
+                            >
+                              All tasks
+                              {showFilter === 'all' && (
+                                <Check className="h-3.5 w-3.5 text-foreground" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                              onClick={() => setShowFilter('active')}
+                            >
+                              Hide archived
+                              {showFilter === 'active' && (
+                                <Check className="h-3.5 w-3.5 text-foreground" />
+                              )}
+                            </button>
+                          </PopoverContent>
+                        </Popover>
                       </>
                     )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => (isSelectMode ? exitSelectMode() : setIsSelectMode(true))}
-                      className="h-8 px-3 text-xs font-medium"
-                    >
-                      {isSelectMode ? 'Cancel' : 'Select'}
-                    </Button>
                   </div>
-                  <div className="flex flex-col gap-3">
-                    {tasksInProject.map((ws) => (
+
+                  <div className="task-list -ml-7 flex flex-col">
+                    <style>{`
+                      .task-list .task-row:first-child .task-card::before { opacity: 0; }
+                      .task-list .task-row:hover + .task-row .task-card::before,
+                      .task-list .task-row[data-active] + .task-row .task-card::before,
+                      .task-list .task-row[data-selected] + .task-row .task-card::before { opacity: 0; }
+                      .task-list .task-row:last-child .task-card::after {
+                        content: ''; position: absolute; inset: auto 0 0 0; height: 1px; background: hsl(var(--border));
+                      }
+                      .task-list .task-row:last-child:hover .task-card::after,
+                      .task-list .task-row:last-child[data-active] .task-card::after,
+                      .task-list .task-row:last-child[data-selected] .task-card::after { opacity: 0; }
+                    `}</style>
+                    {filteredTasks.map((ws) => (
                       <TaskRow
                         key={ws.id}
                         ws={ws}
@@ -652,6 +875,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         onDelete={() => onDeleteTask(project, ws)}
                         onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
                         enablePrStatus={!project.isRemote}
+                        onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
                       />
                     ))}
                   </div>

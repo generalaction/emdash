@@ -1,6 +1,7 @@
 import React from 'react';
 import BranchSelect, { type BranchOption } from './BranchSelect';
 import { Button } from './ui/button';
+import { GitBranch, Settings2 } from 'lucide-react';
 
 interface BaseBranchControlsProps {
   baseBranch?: string;
@@ -26,29 +27,28 @@ const BaseBranchControls: React.FC<BaseBranchControlsProps> = ({
       : 'Select a base branch';
 
   return (
-    <div className="space-y-2">
+    <div className="flex items-center gap-3">
+      <BranchSelect
+        value={baseBranch}
+        onValueChange={onBaseBranchChange}
+        options={branchOptions}
+        disabled={isSavingBaseBranch}
+        isLoading={isLoadingBranches}
+        placeholder={placeholder}
+        variant="default"
+        icon={<GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+      />
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="h-8 px-3 text-xs"
+        className="h-8 gap-1.5 px-3 text-xs"
         onClick={onOpenConfig}
         disabled={!onOpenConfig}
       >
-        Edit config
+        <Settings2 className="h-3.5 w-3.5" />
+        Configuration
       </Button>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <p className="text-sm font-medium text-foreground">Base branch</p>
-        <BranchSelect
-          value={baseBranch}
-          onValueChange={onBaseBranchChange}
-          options={branchOptions}
-          disabled={isSavingBaseBranch}
-          isLoading={isLoadingBranches}
-          placeholder={placeholder}
-          variant="default"
-        />
-      </div>
     </div>
   );
 };
