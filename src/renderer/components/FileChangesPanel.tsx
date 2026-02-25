@@ -226,7 +226,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!safeTaskPath || hasChanges) {
+      if (!safeTaskPath) {
         setBranchAhead(null);
         return;
       }
@@ -264,7 +264,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeTaskPath, hasChanges]);
+  }, [safeTaskPath]);
 
   const handleStageFile = async (filePath: string, event: React.MouseEvent) => {
     event.stopPropagation();
