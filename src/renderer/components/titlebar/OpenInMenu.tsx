@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
@@ -152,30 +153,38 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   return (
     <div ref={containerRef} className="relative">
       <div className="flex min-w-0">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="group h-7 min-w-0 gap-1.5 truncate rounded-r-none pl-2 pr-0.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
-          onClick={() => {
-            if (!buttonAppId) return;
-            void callOpen(buttonAppId);
-          }}
-          disabled={!buttonAppId || loading}
-          aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
-          title="Open in… ⌘O"
-        >
-          {buttonAppId && icons[buttonAppId] && (
-            <img
-              src={icons[buttonAppId]}
-              alt={labels[buttonAppId] || buttonAppId}
-              className={`h-4 w-4 rounded ${
-                getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
-              }`}
-            />
-          )}
-          <span>Open</span>
-        </Button>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="group h-7 min-w-0 gap-1.5 truncate rounded-r-none pl-2 pr-0.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+                onClick={() => {
+                  if (!buttonAppId) return;
+                  void callOpen(buttonAppId);
+                }}
+                disabled={!buttonAppId || loading}
+                aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
+              >
+                {buttonAppId && icons[buttonAppId] && (
+                  <img
+                    src={icons[buttonAppId]}
+                    alt={labels[buttonAppId] || buttonAppId}
+                    className={`h-4 w-4 rounded ${
+                      getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                    }`}
+                  />
+                )}
+                <span>Open</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs font-medium">
+              Open in {buttonAppLabel || 'editor'} ⌘O
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Button
           type="button"
           variant="ghost"
