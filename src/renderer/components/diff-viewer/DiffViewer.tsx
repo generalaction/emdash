@@ -25,10 +25,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   const leftPanelSizeRef = useRef(30);
 
   const tabHeader = (
-    <div className="flex border-b border-border bg-muted/50">
+    <div className="flex h-9 border-b border-border bg-muted/50">
       <button
         onClick={() => setActiveTab('changes')}
-        className={`flex-1 py-2 text-center text-sm font-medium transition-colors ${
+        className={`flex-1 text-center text-sm font-medium transition-colors ${
           activeTab === 'changes'
             ? 'border-b-2 border-foreground text-foreground'
             : 'text-muted-foreground hover:text-foreground'
@@ -38,7 +38,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
       </button>
       <button
         onClick={() => setActiveTab('history')}
-        className={`flex-1 py-2 text-center text-sm font-medium transition-colors ${
+        className={`flex-1 text-center text-sm font-medium transition-colors ${
           activeTab === 'history'
             ? 'border-b-2 border-foreground text-foreground'
             : 'text-muted-foreground hover:text-foreground'
