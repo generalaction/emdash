@@ -369,28 +369,29 @@ export class GitHubService {
         const token = data.access_token;
         const user = await this.getUserInfo(token);
 
-        // Do heavy operations in background
-        setImmediate(async () => {
-          try {
-            // Store token securely
-            await this.storeToken(token);
+        // Store token and authenticate gh CLI BEFORE returning success.
+        // This must complete synchronously (awaited) so that when the renderer
+        // receives the success event and checks `gh api user`, the CLI is
+        // already authenticated. Previously these were deferred via setImmediate,
+        // causing a race where the status check ran before gh CLI auth finished.
+        try {
+          await this.storeToken(token);
+        } catch (error) {
+          console.warn('Failed to store token:', error);
+        }
 
-            // Authenticate gh CLI with the token
-            await this.authenticateGHCLI(token).catch(() => {
-              // Silent fail - gh CLI might not be installed
-            });
+        try {
+          await this.authenticateGHCLI(token);
+        } catch {
+          // Silent fail - gh CLI might not be installed
+        }
 
-            // Send user update just in case it's needed later by listeners
-            const mainWindow = getMainWindow();
-            if (user && mainWindow) {
-              mainWindow.webContents.send('github:auth:user-updated', {
-                user: user,
-              });
-            }
-          } catch (error) {
-            console.warn('Background auth setup failed:', error);
-          }
-        });
+        const mainWindow = getMainWindow();
+        if (user && mainWindow) {
+          mainWindow.webContents.send('github:auth:user-updated', {
+            user: user,
+          });
+        }
 
         return {
           success: true,
