@@ -226,7 +226,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!safeTaskPath || hasChanges) {
+      if (!safeTaskPath) {
         setBranchAhead(null);
         return;
       }
