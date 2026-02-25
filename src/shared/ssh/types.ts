@@ -95,6 +95,9 @@ export const SSH_IPC_CHANNELS = {
   ON_STATE_CHANGE: 'ssh:onStateChange',
   GET_SSH_CONFIG: 'ssh:getSshConfig',
   GET_SSH_CONFIG_HOST: 'ssh:getSshConfigHost',
+  CHECK_IS_GIT_REPO: 'ssh:checkIsGitRepo',
+  INIT_REPO: 'ssh:initRepo',
+  CLONE_REPO: 'ssh:cloneRepo',
 } as const;
 
 /**

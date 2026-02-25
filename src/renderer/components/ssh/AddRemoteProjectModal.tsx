@@ -31,11 +31,15 @@ import {
   Loader2,
   Shield,
   Trash,
+  Plus,
+  GitBranch,
+  Download,
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
 type AuthType = 'password' | 'key' | 'agent';
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
+type RepoMode = 'pick' | 'create' | 'clone';
 
 interface AddRemoteProjectModalProps {
   isOpen: boolean;
@@ -95,6 +99,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
   const [connectionId, setConnectionId] = useState<string | null>(null);
+
+  // Repo mode state
+  const [repoMode, setRepoMode] = useState<RepoMode>('pick');
+  const [newRepoName, setNewRepoName] = useState('');
+  const [cloneUrl, setCloneUrl] = useState('');
+  const [cloneDirName, setCloneDirName] = useState('');
+  const [cloneDirManuallyEdited, setCloneDirManuallyEdited] = useState(false);
+  const [isCreatingRepo, setIsCreatingRepo] = useState(false);
+  const [isCloningRepo, setIsCloningRepo] = useState(false);
 
   // SSH config auto-detect state
   const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
@@ -157,6 +170,13 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setSavedConnections([]);
       setSelectedSavedConnection(null);
       setUseExistingConnection(false);
+      setRepoMode('pick');
+      setNewRepoName('');
+      setCloneUrl('');
+      setCloneDirName('');
+      setCloneDirManuallyEdited(false);
+      setIsCreatingRepo(false);
+      setIsCloningRepo(false);
 
       // Load SSH config hosts and saved connections
       void loadSshConfig();
@@ -306,10 +326,41 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           break;
 
         case 'path':
-          if (!formData.remotePath.trim()) {
-            newErrors.remotePath = 'Remote path is required';
-          } else if (!formData.remotePath.startsWith('/')) {
-            newErrors.remotePath = 'Path must be absolute (start with /)';
+          if (repoMode === 'pick') {
+            if (!formData.remotePath.trim()) {
+              newErrors.remotePath = 'Remote path is required';
+            } else if (!formData.remotePath.startsWith('/')) {
+              newErrors.remotePath = 'Path must be absolute (start with /)';
+            }
+          } else if (repoMode === 'create') {
+            if (!formData.remotePath.trim()) {
+              newErrors.remotePath = 'Parent directory is required';
+            } else if (!formData.remotePath.startsWith('/')) {
+              newErrors.remotePath = 'Path must be absolute (start with /)';
+            }
+            if (!newRepoName.trim()) {
+              newErrors.general = 'Repository name is required';
+            } else if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(newRepoName.trim())) {
+              newErrors.general =
+                'Invalid name. Use letters, numbers, hyphens, underscores, dots. Must start with a letter or number.';
+            }
+          } else if (repoMode === 'clone') {
+            if (!cloneUrl.trim()) {
+              newErrors.general = 'Repository URL is required';
+            } else {
+              const patterns = [/^https?:\/\/.+/i, /^git@.+:.+/i, /^ssh:\/\/.+/i];
+              if (!patterns.some((p) => p.test(cloneUrl.trim()))) {
+                newErrors.general = 'Invalid URL. Use https://, git@, or ssh:// format.';
+              }
+            }
+            if (!formData.remotePath.trim()) {
+              newErrors.remotePath = 'Parent directory is required';
+            } else if (!formData.remotePath.startsWith('/')) {
+              newErrors.remotePath = 'Path must be absolute (start with /)';
+            }
+            if (!cloneDirName.trim()) {
+              newErrors.general = newErrors.general || 'Directory name is required';
+            }
           }
           break;
       }
@@ -317,7 +368,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
     },
-    [formData]
+    [formData, repoMode, newRepoName, cloneUrl, cloneDirName]
   );
 
   // Test connection
@@ -504,6 +555,21 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [browseRemotePath, updateField]
   );
 
+  // Auto-extract directory name from clone URL (only if user hasn't manually edited it)
+  useEffect(() => {
+    if (cloneDirManuallyEdited) return;
+    if (!cloneUrl.trim()) {
+      setCloneDirName('');
+      return;
+    }
+    const cleaned = cloneUrl.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '');
+    // Try common URL patterns
+    const match = cleaned.match(/[/:]([^/]+?)(?:\.git)?\/?$/);
+    if (match) {
+      setCloneDirName(match[1]);
+    }
+  }, [cloneUrl, cloneDirManuallyEdited]);
+
   // Handle next step
   const handleNext = useCallback(async () => {
     if (!validateStep(currentStep)) return;
@@ -567,6 +633,46 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       }
     }
 
+    // Handle repo creation/cloning on the path step before advancing to confirm
+    if (currentStep === 'path' && connectionId) {
+      if (repoMode === 'create') {
+        setIsCreatingRepo(true);
+        setErrors({});
+        try {
+          const createdPath = await window.electronAPI.sshInitRepo(
+            connectionId,
+            formData.remotePath.replace(/\/+$/, ''),
+            newRepoName.trim()
+          );
+          updateField('remotePath', createdPath);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Failed to create repository';
+          setErrors({ general: msg });
+          setIsCreatingRepo(false);
+          return;
+        }
+        setIsCreatingRepo(false);
+      } else if (repoMode === 'clone') {
+        setIsCloningRepo(true);
+        setErrors({});
+        try {
+          const targetPath = `${formData.remotePath.replace(/\/+$/, '')}/${cloneDirName.trim()}`;
+          const clonedPath = await window.electronAPI.sshCloneRepo(
+            connectionId,
+            cloneUrl.trim(),
+            targetPath
+          );
+          updateField('remotePath', clonedPath);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Failed to clone repository';
+          setErrors({ general: msg });
+          setIsCloningRepo(false);
+          return;
+        }
+        setIsCloningRepo(false);
+      }
+    }
+
     const stepOrder: WizardStep[] = useExistingConnection
       ? ['connection', 'path', 'confirm']
       : ['connection', 'auth', 'path', 'confirm'];
@@ -582,6 +688,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     testConnection,
     updateField,
     useExistingConnection,
+    repoMode,
+    newRepoName,
+    cloneUrl,
+    cloneDirName,
   ]);
 
   // Handle previous step
@@ -1089,7 +1199,109 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       case 'path':
         return (
           <div className="space-y-4">
+            {/* Repo mode picker */}
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'pick' as RepoMode, label: 'Pick Existing', icon: FolderOpen },
+                  { id: 'create' as RepoMode, label: 'Create New', icon: Plus },
+                  { id: 'clone' as RepoMode, label: 'Clone', icon: Download },
+                ] as const
+              ).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setRepoMode(id);
+                    setErrors({});
+                  }}
+                  className={cn(
+                    'flex items-center justify-center gap-2 rounded-md border-2 px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                    repoMode === id
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-muted text-muted-foreground'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <Separator />
+
+            {/* Mode-specific form fields */}
+            {repoMode === 'create' && (
+              <div className="space-y-2">
+                <Label htmlFor="new-repo-name">
+                  Repository Name <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <GitBranch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="new-repo-name"
+                    value={newRepoName}
+                    onChange={(e) => {
+                      setNewRepoName(e.target.value);
+                      setErrors((prev) => ({ ...prev, general: undefined }));
+                    }}
+                    placeholder="my-new-project"
+                    className="pl-10"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A new git repository will be created at{' '}
+                  <span className="font-mono">
+                    {formData.remotePath.replace(/\/+$/, '')}/{newRepoName || '...'}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {repoMode === 'clone' && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="clone-url">
+                    Repository URL <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="clone-url"
+                      value={cloneUrl}
+                      onChange={(e) => {
+                        setCloneUrl(e.target.value);
+                        setErrors((prev) => ({ ...prev, general: undefined }));
+                      }}
+                      placeholder="https://github.com/owner/repo.git"
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clone-dir">Directory Name</Label>
+                  <Input
+                    id="clone-dir"
+                    value={cloneDirName}
+                    onChange={(e) => {
+                      setCloneDirName(e.target.value);
+                      setCloneDirManuallyEdited(true);
+                    }}
+                    placeholder="repo"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Will be cloned to{' '}
+                    <span className="font-mono">
+                      {formData.remotePath.replace(/\/+$/, '')}/{cloneDirName || '...'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Path browser header */}
             <div className="space-y-2">
+              <Label>{repoMode === 'pick' ? 'Project Path' : 'Parent Directory'}</Label>
               <div className="flex gap-2">
                 <div className="relative min-w-0 flex-1">
                   <FolderOpen className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1098,7 +1310,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                     value={formData.remotePath}
                     onChange={(e) => updateField('remotePath', e.target.value)}
                     onBlur={() => touchField('remotePath')}
-                    placeholder="/home/user/myproject"
+                    placeholder={repoMode === 'pick' ? '/home/user/myproject' : '/home/user'}
                     className={cn(
                       'pl-10',
                       errors.remotePath && touched.remotePath && 'border-destructive'
@@ -1187,7 +1399,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Select the directory containing your project. Click on a folder to navigate into it.
+              {repoMode === 'pick' &&
+                'Select the directory containing your project. Click on a folder to navigate into it.'}
+              {repoMode === 'create' && 'Navigate to where you want to create the new repository.'}
+              {repoMode === 'clone' && 'Navigate to where you want to clone the repository.'}
             </p>
           </div>
         );
@@ -1353,12 +1568,27 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             <Button
               type="button"
               onClick={() => void handleNext()}
-              disabled={isSubmitting || (currentStep === 'auth' && testStatus === 'testing')}
+              disabled={
+                isSubmitting ||
+                (currentStep === 'auth' && testStatus === 'testing') ||
+                isCreatingRepo ||
+                isCloningRepo
+              }
             >
               {currentStep === 'auth' && testStatus === 'testing' ? (
                 <>
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   Testing...
+                </>
+              ) : isCreatingRepo ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : isCloningRepo ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  Cloning...
                 </>
               ) : (
                 <>

@@ -11,6 +11,7 @@ import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { quoteShellArg } from '../utils/shellEscape';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -799,6 +800,164 @@ export function registerSshIpc() {
         return { success: true, host };
       } catch (err: any) {
         console.error('[sshIpc] Get SSH config host error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Check if a remote path is a git repository
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.CHECK_IS_GIT_REPO,
+    async (
+      _,
+      connectionId: string,
+      remotePath: string
+    ): Promise<{ success: boolean; isGitRepo?: boolean; error?: string }> => {
+      try {
+        if (!remotePath || !remotePath.startsWith('/')) {
+          return { success: false, error: 'An absolute remote path is required' };
+        }
+        if (!isPathSafe(remotePath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+
+        const result = await sshService.executeCommand(
+          connectionId,
+          `git -C ${quoteShellArg(remotePath)} rev-parse --is-inside-work-tree 2>/dev/null`
+        );
+        const isGitRepo = result.exitCode === 0 && result.stdout.trim() === 'true';
+        return { success: true, isGitRepo };
+      } catch (err: any) {
+        console.error('[sshIpc] Check git repo error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Initialize a new git repository on the remote machine
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.INIT_REPO,
+    async (
+      _,
+      connectionId: string,
+      parentPath: string,
+      repoName: string
+    ): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        if (!parentPath || !parentPath.startsWith('/')) {
+          return { success: false, error: 'An absolute parent path is required' };
+        }
+        if (!isPathSafe(parentPath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+        // Validate repo name: alphanumeric, hyphens, underscores, dots
+        if (!repoName || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(repoName)) {
+          return {
+            success: false,
+            error:
+              'Invalid repository name. Use letters, numbers, hyphens, underscores, and dots. Must start with a letter or number.',
+          };
+        }
+
+        const repoPath = `${parentPath.replace(/\/+$/, '')}/${repoName}`;
+        if (!isPathSafe(repoPath)) {
+          return { success: false, error: 'Access denied: target path is restricted' };
+        }
+
+        // Check if directory already exists
+        const checkResult = await sshService.executeCommand(
+          connectionId,
+          `test -d ${quoteShellArg(repoPath)} && echo exists || echo absent`
+        );
+        if (checkResult.stdout.trim() === 'exists') {
+          return { success: false, error: `Directory already exists: ${repoPath}` };
+        }
+
+        // Create directory and initialize git repo
+        const initResult = await sshService.executeCommand(
+          connectionId,
+          `mkdir -p ${quoteShellArg(repoPath)} && git -C ${quoteShellArg(repoPath)} init`
+        );
+        if (initResult.exitCode !== 0) {
+          return {
+            success: false,
+            error: `Failed to initialize repository: ${initResult.stderr || initResult.stdout}`,
+          };
+        }
+
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_repo_init');
+        });
+
+        return { success: true, path: repoPath };
+      } catch (err: any) {
+        console.error('[sshIpc] Init repo error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Clone a repository on the remote machine
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.CLONE_REPO,
+    async (
+      _,
+      connectionId: string,
+      repoUrl: string,
+      targetPath: string
+    ): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        if (!repoUrl || typeof repoUrl !== 'string') {
+          return { success: false, error: 'Repository URL is required' };
+        }
+        // Validate URL format
+        const urlPatterns = [/^https?:\/\/.+/i, /^git@.+:.+/i, /^ssh:\/\/.+/i];
+        if (!urlPatterns.some((p) => p.test(repoUrl.trim()))) {
+          return {
+            success: false,
+            error: 'Invalid repository URL. Use https://, git@, or ssh:// format.',
+          };
+        }
+
+        if (!targetPath || !targetPath.startsWith('/')) {
+          return { success: false, error: 'An absolute target path is required' };
+        }
+        if (!isPathSafe(targetPath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+
+        // Check if target already exists
+        const checkResult = await sshService.executeCommand(
+          connectionId,
+          `test -e ${quoteShellArg(targetPath)} && echo exists || echo absent`
+        );
+        if (checkResult.stdout.trim() === 'exists') {
+          return { success: false, error: `Target path already exists: ${targetPath}` };
+        }
+
+        // Ensure parent directory exists
+        const parentDir = targetPath.replace(/\/[^/]+\/?$/, '') || '/';
+        await sshService.executeCommand(connectionId, `mkdir -p ${quoteShellArg(parentDir)}`);
+
+        // Clone the repository
+        const cloneResult = await sshService.executeCommand(
+          connectionId,
+          `git clone ${quoteShellArg(repoUrl.trim())} ${quoteShellArg(targetPath)}`
+        );
+        if (cloneResult.exitCode !== 0) {
+          return {
+            success: false,
+            error: `Clone failed: ${cloneResult.stderr || cloneResult.stdout}`,
+          };
+        }
+
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_repo_clone');
+        });
+
+        return { success: true, path: targetPath };
+      } catch (err: any) {
+        console.error('[sshIpc] Clone repo error:', err);
         return { success: false, error: err.message };
       }
     }
