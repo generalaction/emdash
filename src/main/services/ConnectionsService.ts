@@ -157,12 +157,19 @@ class ConnectionsService {
       return def.statusResolver(result);
     }
 
-    if (result.timedOut && (result.resolvedPath || result.stdout)) {
-      // CLI responded or was found, but took too long (e.g., self-updating). Treat as present.
+    if (result.success) {
       return 'connected';
     }
 
-    if (result.success) {
+    if (result.resolvedPath) {
+      return 'connected';
+    }
+
+    if (result.timedOut && result.stdout) {
+      return 'connected';
+    }
+
+    if (result.status !== null && !result.timedOut) {
       return 'connected';
     }
 
@@ -216,12 +223,33 @@ class ConnectionsService {
       }
     }
 
-    // Return the last attempted command (or default) as missing
-    return this.runCommand(
-      def.commands[def.commands.length - 1],
-      def.args ?? ['--version'],
-      timeoutMs
-    );
+    const lastCommand = def.commands[def.commands.length - 1];
+    return this.runCommandViaShell(lastCommand, def.args ?? ['--version'], timeoutMs);
+  }
+
+  /** Run a command through the user's login shell as a fallback for detection. */
+  private async runCommandViaShell(
+    command: string,
+    args: string[],
+    timeoutMs: number
+  ): Promise<CommandResult> {
+    const shell = process.env.SHELL || (process.platform === 'win32' ? 'cmd.exe' : '/bin/sh');
+    const fullCmd = [command, ...args].join(' ');
+    const shellArgs = process.platform === 'win32' ? ['/c', fullCmd] : ['-lc', fullCmd];
+    const result = await this.runCommand(shell, shellArgs, timeoutMs);
+
+    if (result.status === 127) {
+      return {
+        ...result,
+        command,
+        success: false,
+        resolvedPath: null,
+        status: null,
+        error: new Error(`${command}: command not found (shell fallback)`),
+      };
+    }
+
+    return { ...result, command };
   }
 
   private async runCommand(
