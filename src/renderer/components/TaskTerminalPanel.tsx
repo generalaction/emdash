@@ -58,8 +58,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
-  // Also differentiate global terminals per variant so each agent has its own
-  const globalKey = task?.path ? `global::${task.path}` : 'global';
+  // Global terminals are scoped per variant (or project when no task) so each
+  // agent worktree gets its own global terminal and simultaneous variants don't conflict.
+  const globalKey = task?.path ? `global::${task.path}` : `global::${projectPath}`;
   const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
 
   const [selectedValue, setSelectedValue] = useState<string>(() => {
@@ -265,16 +266,23 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const p = parseValue(selectedValue);
     if (!p || p.mode === 'lifecycle') return;
 
+    // When there's no task, always prefer global terminal regardless of current mode
+    if (!task && p.mode === 'task') {
+      if (globalTerminals.terminals.length > 0) {
+        setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
+      }
+      return;
+    }
+
     const terminals = p.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
     const exists = terminals.some((t) => t.id === p.id);
     if (exists) return;
 
-    if (p.mode === 'task' && taskTerminals.terminals.length > 0) {
+    // When a task is active, prefer its worktree terminal
+    if (task && taskTerminals.terminals.length > 0) {
       setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
     } else if (globalTerminals.terminals.length > 0) {
       setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
-    } else if (taskTerminals.terminals.length > 0) {
-      setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
     } else {
       setSelectedValue('');
     }
