@@ -356,8 +356,9 @@ export async function getLog(
     }
   }
 
-  const SEP = '---COMMIT_SEP---';
-  const format = `%H${SEP}%s${SEP}%b${SEP}%an${SEP}%aI`;
+  const FIELD_SEP = '---FIELD_SEP---';
+  const RECORD_SEP = '---RECORD_SEP---';
+  const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI`;
   const { stdout } = await execFileAsync(
     'git',
     ['log', `--max-count=${maxCount}`, `--pretty=format:${format}`, '--'],
@@ -366,17 +367,20 @@ export async function getLog(
 
   if (!stdout.trim()) return [];
 
-  const commits = stdout.split('\n').map((line, index) => {
-    const parts = line.split(SEP);
-    return {
-      hash: parts[0] || '',
-      subject: parts[1] || '',
-      body: (parts[2] || '').trim(),
-      author: parts[3] || '',
-      date: parts[4] || '',
-      isPushed: index >= aheadCount,
-    };
-  });
+  const commits = stdout
+    .split(RECORD_SEP)
+    .filter((entry) => entry.trim())
+    .map((entry, index) => {
+      const parts = entry.trim().split(FIELD_SEP);
+      return {
+        hash: parts[0] || '',
+        subject: parts[1] || '',
+        body: '',
+        author: parts[2] || '',
+        date: parts[3] || '',
+        isPushed: index >= aheadCount,
+      };
+    });
 
   return commits;
 }
@@ -394,15 +398,35 @@ export async function getCommitFiles(
   taskPath: string,
   commitHash: string
 ): Promise<Array<{ path: string; status: string; additions: number; deletions: number }>> {
+  // Use --root to handle initial commits (no parent) and
+  // -m --first-parent to handle merge commits (compare against first parent only)
   const { stdout } = await execFileAsync(
     'git',
-    ['diff-tree', '--no-commit-id', '-r', '--numstat', commitHash],
+    [
+      'diff-tree',
+      '--root',
+      '--no-commit-id',
+      '-r',
+      '-m',
+      '--first-parent',
+      '--numstat',
+      commitHash,
+    ],
     { cwd: taskPath }
   );
 
   const { stdout: nameStatus } = await execFileAsync(
     'git',
-    ['diff-tree', '--no-commit-id', '-r', '--name-status', commitHash],
+    [
+      'diff-tree',
+      '--root',
+      '--no-commit-id',
+      '-r',
+      '-m',
+      '--first-parent',
+      '--name-status',
+      commitHash,
+    ],
     { cwd: taskPath }
   );
 
@@ -442,11 +466,37 @@ export async function getCommitFileDiff(
   commitHash: string,
   filePath: string
 ): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
-  const { stdout } = await execFileAsync(
-    'git',
-    ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
-    { cwd: taskPath }
-  );
+  // Check if this is a root commit (no parent)
+  let hasParent = true;
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', `${commitHash}~1`], { cwd: taskPath });
+  } catch {
+    hasParent = false;
+  }
+
+  const diffArgs = hasParent
+    ? ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath]
+    : ['diff', '--no-color', '--unified=2000', '--no-index', '/dev/null', filePath];
+
+  let stdout: string;
+  if (hasParent) {
+    ({ stdout } = await execFileAsync('git', diffArgs, { cwd: taskPath }));
+  } else {
+    // For root commits, show the file content at that commit as all additions
+    try {
+      const { stdout: content } = await execFileAsync(
+        'git',
+        ['show', `${commitHash}:${filePath}`],
+        { cwd: taskPath }
+      );
+      const lines = content.split('\n');
+      return {
+        lines: lines.map((l) => ({ right: l, type: 'add' as const })),
+      };
+    } catch {
+      return { lines: [] };
+    }
+  }
 
   const linesRaw = stdout.split('\n');
   const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
@@ -457,7 +507,14 @@ export async function getCommitFileDiff(
       line.startsWith('index ') ||
       line.startsWith('--- ') ||
       line.startsWith('+++ ') ||
-      line.startsWith('@@')
+      line.startsWith('@@') ||
+      line.startsWith('new file mode') ||
+      line.startsWith('old file mode') ||
+      line.startsWith('deleted file mode') ||
+      line.startsWith('similarity index') ||
+      line.startsWith('rename from') ||
+      line.startsWith('rename to') ||
+      line.startsWith('Binary files')
     )
       continue;
     const prefix = line[0];
