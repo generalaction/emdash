@@ -100,6 +100,7 @@ export interface AppSettings {
     fontFamily: string;
   };
   defaultOpenInApp?: OpenInAppId;
+  hiddenOpenInApps?: OpenInAppId[];
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -171,6 +172,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontFamily: '',
   },
   defaultOpenInApp: 'terminal',
+  hiddenOpenInApps: [],
 };
 
 function getSettingsPath(): string {
@@ -513,6 +515,15 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.defaultOpenInApp = isValidOpenInAppId(defaultOpenInApp)
     ? defaultOpenInApp
     : DEFAULT_SETTINGS.defaultOpenInApp!;
+
+  // Hidden Open In Apps
+  const rawHidden = (input as any)?.hiddenOpenInApps;
+  if (Array.isArray(rawHidden)) {
+    const validated = rawHidden.filter(isValidOpenInAppId);
+    out.hiddenOpenInApps = [...new Set(validated)];
+  } else {
+    out.hiddenOpenInApps = [];
+  }
 
   return out;
 }
