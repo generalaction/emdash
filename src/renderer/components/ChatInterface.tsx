@@ -74,6 +74,7 @@ const ChatInterface: React.FC<Props> = ({
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const lockedAgentWriteRef = useRef<string | null>(null);
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
@@ -262,6 +263,18 @@ const ChatInterface: React.FC<Props> = ({
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
+
+  const handleTerminalActivity = useCallback(() => {
+    const storageKey = `agent:locked:${task.id}`;
+    const writeToken = `${storageKey}:${agent}`;
+    if (lockedAgentWriteRef.current === writeToken) return;
+    lockedAgentWriteRef.current = writeToken;
+
+    try {
+      if (window.localStorage.getItem(storageKey) === agent) return;
+      window.localStorage.setItem(storageKey, agent);
+    } catch {}
+  }, [agent, task.id]);
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -1059,11 +1072,7 @@ const ChatInterface: React.FC<Props> = ({
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
                   disableSnapshots={false}
-                  onActivity={() => {
-                    try {
-                      window.localStorage.setItem(`agent:locked:${task.id}`, agent);
-                    } catch {}
-                  }}
+                  onActivity={handleTerminalActivity}
                   onStartError={(message) => {
                     setCliStartError(message);
                   }}
