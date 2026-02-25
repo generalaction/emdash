@@ -102,8 +102,10 @@ try {
 }
 
 import { createMainWindow } from './app/window';
+import { isQuitConfirmed, setQuitConfirmed } from './app/closeConfirmation';
 import { registerAppLifecycle } from './app/lifecycle';
 import { setupApplicationMenu } from './app/menu';
+import { getRunningAgentCount } from './services/ptyIpc';
 import { registerAllIpc } from './ipc';
 import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
@@ -322,21 +324,42 @@ app.whenReady().then(async () => {
 // App lifecycle handlers
 registerAppLifecycle();
 
-// Graceful shutdown telemetry event
-app.on('before-quit', () => {
-  // Session summary with duration (no identifiers)
+app.on('before-quit', (event) => {
+  const count = getRunningAgentCount();
+  if (count > 0 && !isQuitConfirmed()) {
+    event.preventDefault();
+    const win = BrowserWindow.getAllWindows()[0];
+    const msg =
+      count === 1
+        ? 'You have 1 running agent. Are you sure you want to quit?'
+        : `You have ${count} running agents. Are you sure you want to quit?`;
+    dialog
+      .showMessageBox(win || undefined, {
+        type: 'question',
+        title: 'Quit Emdash',
+        message: msg,
+        buttons: ['Cancel', 'Quit'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      .then((result) => {
+        if (result.response === 1) {
+          setQuitConfirmed();
+          app.quit();
+        }
+      });
+    return;
+  }
+});
+
+app.on('will-quit', () => {
   telemetry.capture('app_session');
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
-  // Cleanup auto-update service
   autoUpdateService.shutdown();
-  // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
 
-  // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});
-
-  // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});
 });

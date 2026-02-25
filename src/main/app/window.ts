@@ -1,8 +1,9 @@
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, app, dialog } from 'electron';
 import { join } from 'path';
 import { isDev } from '../utils/dev';
 import { registerExternalLinkHandlers } from '../utils/externalLinks';
 import { ensureRendererServer } from './staticServer';
+import { setQuitConfirmed } from './closeConfirmation';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -59,6 +60,33 @@ export function createMainWindow(): BrowserWindow {
   // Show when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on('close', (event) => {
+    const { getRunningAgentCount } = require('../services/ptyIpc');
+    const count = getRunningAgentCount();
+    if (count > 0) {
+      event.preventDefault();
+      const msg =
+        count === 1
+          ? 'You have 1 running agent. Are you sure you want to quit?'
+          : `You have ${count} running agents. Are you sure you want to quit?`;
+      dialog
+        .showMessageBox(mainWindow!, {
+          type: 'question',
+          title: 'Quit Emdash',
+          message: msg,
+          buttons: ['Cancel', 'Quit'],
+          defaultId: 0,
+          cancelId: 0,
+        })
+        .then((result) => {
+          if (result.response === 1) {
+            setQuitConfirmed();
+            mainWindow?.destroy();
+          }
+        });
+    }
   });
 
   // Track window focus for telemetry

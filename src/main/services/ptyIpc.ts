@@ -44,6 +44,10 @@ const finalizedPtys = new Set<string>();
 const wcDestroyedListeners = new Set<number>();
 let isAppQuitting = false;
 
+export function getRunningAgentCount(): number {
+  return owners.size;
+}
+
 type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
 
 // Buffer PTY output to reduce IPC overhead (helps SSH feel less laggy)
@@ -1054,13 +1058,12 @@ function showCompletionNotification(providerName: string) {
   }
 }
 
-// Kill all PTYs on app shutdown to prevent crash loop
+// Kill all PTYs on app shutdown (will-quit runs only when quit is not prevented)
 try {
-  app.on('before-quit', () => {
+  app.on('will-quit', () => {
     isAppQuitting = true;
     for (const id of Array.from(owners.keys())) {
       try {
-        // Ensure telemetry timers are cleared on app quit
         maybeMarkProviderFinish(id, null, undefined, 'app_quit');
         killPty(id);
       } catch {}

@@ -233,9 +233,9 @@ describe('ptyIpc notification lifecycle', () => {
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
 
-    const beforeQuit = appListeners.get('before-quit')?.[0];
-    expect(beforeQuit).toBeTypeOf('function');
-    beforeQuit!();
+    const willQuit = appListeners.get('will-quit')?.[0];
+    expect(willQuit).toBeTypeOf('function');
+    willQuit!();
 
     // Simulate late onExit callback firing after cleanup kill.
     proc!.emitExit(0, undefined);
