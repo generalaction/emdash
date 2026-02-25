@@ -156,7 +156,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     </PrPreviewTooltip>
   ) : (
     <div className="flex items-center gap-1.5">
-      {hasChanges && <ChangesBadge additions={totalAdditions} deletions={totalDeletions} className="text-xs" />}
+      {hasChanges && (
+        <ChangesBadge additions={totalAdditions} deletions={totalDeletions} className="text-xs" />
+      )}
       {compact && <span className="text-xs font-medium text-muted-foreground">{compact}</span>}
     </div>
   );
@@ -207,9 +209,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : (
           <>
             {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
-            <span className="block truncate text-sm font-medium text-foreground">
-              {task.name}
-            </span>
+            <span className="block truncate text-sm font-medium text-foreground">{task.name}</span>
           </>
         )}
         {showDirectBadge && task.useWorktree === false && (
