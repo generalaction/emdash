@@ -12,7 +12,14 @@ interface HistoryTabProps {
 export const HistoryTab: React.FC<HistoryTabProps> = ({ taskPath }) => {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
+  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
+    () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
+  );
+
+  const handleDiffStyleChange = (style: 'unified' | 'split') => {
+    setDiffStyle(style);
+    localStorage.setItem('diffViewer:diffStyle', style);
+  };
 
   const handleSelectCommit = (hash: string) => {
     setSelectedCommit(hash);
@@ -63,7 +70,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ taskPath }) => {
                 viewMode="file"
                 onViewModeChange={() => {}}
                 diffStyle={diffStyle}
-                onDiffStyleChange={setDiffStyle}
+                onDiffStyleChange={handleDiffStyleChange}
                 taskPath={taskPath}
                 hideViewModeToggle
                 hidePushButton

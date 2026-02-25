@@ -19,16 +19,30 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
   selectedFile,
   onRefreshChanges,
 }) => {
-  const [viewMode, setViewMode] = useState<'stacked' | 'file'>('stacked');
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
+  const [viewMode, setViewMode] = useState<'stacked' | 'file'>(
+    () => (localStorage.getItem('diffViewer:viewMode') as 'stacked' | 'file') || 'stacked'
+  );
+  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
+    () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
+  );
+
+  const handleViewModeChange = (mode: 'stacked' | 'file') => {
+    setViewMode(mode);
+    localStorage.setItem('diffViewer:viewMode', mode);
+  };
+
+  const handleDiffStyleChange = (style: 'unified' | 'split') => {
+    setDiffStyle(style);
+    localStorage.setItem('diffViewer:diffStyle', style);
+  };
 
   return (
     <div className="flex h-full flex-col">
       <DiffToolbar
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
         diffStyle={diffStyle}
-        onDiffStyleChange={setDiffStyle}
+        onDiffStyleChange={handleDiffStyleChange}
         taskPath={taskPath}
       />
       <div className="flex-1 overflow-hidden">
