@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowUpRight, AlertCircle, Pencil, Pin, PinOff, Archive } from 'lucide-react';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
-import { Button } from './ui/button';
+
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
-import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
+
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import {
@@ -15,6 +15,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from './ui/context-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();
@@ -73,11 +74,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
-  const agentInfo = useTaskAgentNames(task.id, task.agentId);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
-  const [isHovered, setIsHovered] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
 
@@ -133,111 +133,96 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [isEditing]);
 
   const hasChanges = !isLoading && (totalAdditions > 0 || totalDeletions > 0);
+  const compact = formatCompactDate(task.updatedAt);
 
-  // Right-side content: badge (changes > PR > date) + archive on hover
-  const badgeContent = (() => {
-    if (hasChanges) {
-      return <ChangesBadge additions={totalAdditions} deletions={totalDeletions} />;
-    }
-    if (pr) {
-      return (
-        <PrPreviewTooltip pr={pr} side="top">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (pr.url) window.electronAPI.openExternal(pr.url);
-            }}
-            className="inline-flex items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-          >
-            {pr.isDraft
-              ? 'Draft'
-              : String(pr.state).toUpperCase() === 'OPEN'
-                ? 'View PR'
-                : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-          </button>
-        </PrPreviewTooltip>
-      );
-    }
-    const compact = formatCompactDate(task.updatedAt);
-    if (compact) {
-      return <span className="text-sm text-muted-foreground">{compact}</span>;
-    }
-    return null;
-  })();
-
-  const archiveButton =
-    isHovered && onArchive ? (
-      <Button
-        variant="ghost"
-        size="icon-sm"
+  // Right side: PR badge only, OR changes + date, OR just date
+  const rightBadge = pr ? (
+    <PrPreviewTooltip pr={pr} side="top">
+      <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onArchive();
+          if (pr.url) window.electronAPI.openExternal(pr.url);
         }}
-        aria-label="Archive task"
+        className="inline-flex items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        title={`${pr.title || 'Pull Request'} (#${pr.number})`}
       >
-        <Archive className="h-3.5 w-3.5" />
-      </Button>
-    ) : null;
-
-  const rightContent =
-    badgeContent || archiveButton ? (
-      <div className="flex items-center gap-1">
-        {badgeContent}
-        {archiveButton}
-      </div>
-    ) : null;
+        {pr.isDraft
+          ? 'Draft'
+          : String(pr.state).toUpperCase() === 'OPEN'
+            ? 'View PR'
+            : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+      </button>
+    </PrPreviewTooltip>
+  ) : (
+    <div className="flex items-center gap-1.5">
+      {hasChanges && <ChangesBadge additions={totalAdditions} deletions={totalDeletions} className="text-xs" />}
+      {compact && <span className="text-xs font-medium text-muted-foreground">{compact}</span>}
+    </div>
+  );
 
   const taskContent = (
-    <div
-      className="flex min-w-0 items-center justify-between gap-2"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {/* Line 1: task name */}
-        <div className="flex min-w-0 items-center gap-1.5">
-          {(isRunning || task.status === 'running') && (
-            <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-          )}
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleConfirmEdit}
-              maxLength={MAX_TASK_NAME_LENGTH}
-              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
-              onClick={stopPropagation}
-            />
-          ) : (
-            <>
-              {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
-              <span className="block truncate text-sm font-medium text-foreground">
-                {task.name}
-              </span>
-            </>
-          )}
-          {showDirectBadge && task.useWorktree === false && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded bg-muted px-0.5 py-0.5 text-xs font-medium text-muted-foreground"
-              title="Running directly on branch (no worktree isolation)"
-            >
-              <AlertCircle className="h-2.5 w-2.5" />
-              Direct
-            </span>
-          )}
-        </div>
-        {/* Line 2: agent name */}
-        {agentInfo.displayLabel && (
-          <span className="truncate text-sm text-muted-foreground">{agentInfo.displayLabel}</span>
+    <div className="flex min-w-0 items-center gap-1.5">
+      {/* Left icon slot — same width as the project folder icon */}
+      <div className="flex w-5 flex-shrink-0 items-center justify-center">
+        {onArchive && (
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 outline-none hover:bg-black/5 focus-visible:outline-none group-hover/task:opacity-100 dark:hover:bg-white/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive();
+                  }}
+                  aria-label="Archive task"
+                >
+                  <Archive className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={4}>
+                Archive
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
-      <div className="flex min-w-7 flex-shrink-0 items-center justify-end">{rightContent}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {(isRunning || task.status === 'running') && (
+          <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+        )}
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleConfirmEdit}
+            maxLength={MAX_TASK_NAME_LENGTH}
+            className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+            onClick={stopPropagation}
+          />
+        ) : (
+          <>
+            {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
+            <span className="block truncate text-sm font-medium text-foreground">
+              {task.name}
+            </span>
+          </>
+        )}
+        {showDirectBadge && task.useWorktree === false && (
+          <span
+            className="inline-flex items-center gap-0.5 rounded bg-muted px-0.5 py-0.5 text-xs font-medium text-muted-foreground"
+            title="Running directly on branch (no worktree isolation)"
+          >
+            <AlertCircle className="h-2.5 w-2.5" />
+            Direct
+          </span>
+        )}
+      </div>
+      <div className="flex flex-shrink-0 items-center">{rightBadge}</div>
     </div>
   );
 
