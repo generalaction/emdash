@@ -17,6 +17,7 @@ interface CommitListProps {
 
 function formatRelativeDate(dateStr: string): string {
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr || '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
@@ -53,6 +54,10 @@ export const CommitList: React.FC<CommitListProps> = ({
         const res = await window.electronAPI.gitGetLog({ taskPath, maxCount: 50 });
         if (!cancelled && res?.success && res.commits) {
           setCommits(res.commits);
+          // Auto-select the latest commit if none is selected
+          if (res.commits.length > 0 && !selectedCommit) {
+            onSelectCommit(res.commits[0].hash);
+          }
         }
       } catch {
         // ignore
@@ -65,6 +70,7 @@ export const CommitList: React.FC<CommitListProps> = ({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath]);
 
   if (loading) {
@@ -93,7 +99,7 @@ export const CommitList: React.FC<CommitListProps> = ({
           }`}
           onClick={() => onSelectCommit(commit.hash)}
         >
-          <div className="truncate text-sm">{commit.subject}</div>
+          {commit.subject ? <div className="truncate text-sm">{commit.subject}</div> : null}
           <div className="text-xs text-muted-foreground">
             {commit.author} &middot; {formatRelativeDate(commit.date)}
           </div>

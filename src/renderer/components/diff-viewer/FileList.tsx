@@ -83,7 +83,7 @@ export const FileList: React.FC<FileListProps> = ({
         onClick={() => onSelectFile(file.path)}
       >
         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor}`} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 truncate">
           <span className="font-medium text-foreground">{filename}</span>
           {directory && <span className="ml-1 text-muted-foreground">{directory}</span>}
         </div>

@@ -3,6 +3,7 @@ import { CommitList } from './CommitList';
 import { CommitFileList } from './CommitFileList';
 import { CommitFileDiffView } from './CommitFileDiffView';
 import { DiffToolbar } from './DiffToolbar';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
 
 interface HistoryTabProps {
   taskPath?: string;
@@ -19,56 +20,70 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ taskPath }) => {
   };
 
   return (
-    <div className="flex h-full">
+    <ResizablePanelGroup direction="horizontal">
       {/* Left column: Commit list */}
-      <div className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-border">
-        <CommitList
-          taskPath={taskPath}
-          selectedCommit={selectedCommit}
-          onSelectCommit={handleSelectCommit}
-        />
-      </div>
-
-      {/* Middle column: File list for selected commit */}
-      {selectedCommit && (
-        <div className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-border">
-          <CommitFileList
+      <ResizablePanel defaultSize={20} minSize={12} maxSize={40}>
+        <div className="h-full overflow-y-auto">
+          <CommitList
             taskPath={taskPath}
-            commitHash={selectedCommit}
-            selectedFile={selectedFile}
-            onSelectFile={setSelectedFile}
+            selectedCommit={selectedCommit}
+            onSelectCommit={handleSelectCommit}
           />
         </div>
-      )}
+      </ResizablePanel>
+
+      <ResizableHandle />
+
+      {/* Middle column: File list for selected commit */}
+      <ResizablePanel defaultSize={15} minSize={10} maxSize={35}>
+        <div className="h-full overflow-y-auto">
+          {selectedCommit ? (
+            <CommitFileList
+              taskPath={taskPath}
+              commitHash={selectedCommit}
+              selectedFile={selectedFile}
+              onSelectFile={setSelectedFile}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select a commit
+            </div>
+          )}
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle />
 
       {/* Right column: Diff view */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {selectedCommit && selectedFile ? (
-          <>
-            <DiffToolbar
-              viewMode="file"
-              onViewModeChange={() => {}}
-              diffStyle={diffStyle}
-              onDiffStyleChange={setDiffStyle}
-              taskPath={taskPath}
-              hideViewModeToggle
-              hidePushButton
-            />
-            <div className="min-h-0 flex-1">
-              <CommitFileDiffView
-                taskPath={taskPath}
-                commitHash={selectedCommit}
-                filePath={selectedFile}
+      <ResizablePanel defaultSize={65} minSize={30}>
+        <div className="flex h-full flex-col">
+          {selectedCommit && selectedFile ? (
+            <>
+              <DiffToolbar
+                viewMode="file"
+                onViewModeChange={() => {}}
                 diffStyle={diffStyle}
+                onDiffStyleChange={setDiffStyle}
+                taskPath={taskPath}
+                hideViewModeToggle
+                hidePushButton
               />
+              <div className="min-h-0 flex-1">
+                <CommitFileDiffView
+                  taskPath={taskPath}
+                  commitHash={selectedCommit}
+                  filePath={selectedFile}
+                  diffStyle={diffStyle}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              {selectedCommit ? 'Select a file to view changes' : 'Select a commit to view changes'}
             </div>
-          </>
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            {selectedCommit ? 'Select a file to view changes' : 'Select a commit to view changes'}
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };

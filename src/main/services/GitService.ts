@@ -357,7 +357,7 @@ export async function getLog(
   }
 
   const SEP = '---COMMIT_SEP---';
-  const format = `%H${SEP}%s${SEP}%b${SEP}%an${SEP}%ar`;
+  const format = `%H${SEP}%s${SEP}%b${SEP}%an${SEP}%aI`;
   const { stdout } = await execFileAsync(
     'git',
     ['log', `--max-count=${maxCount}`, `--pretty=format:${format}`, '--'],

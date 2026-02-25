@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileList } from './FileList';
 import { CommitArea } from './CommitArea';
 import { DiffPanel } from './DiffPanel';
 import type { FileChange } from '../../hooks/useFileChanges';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
 
 interface ChangesTabProps {
   taskId?: string;
@@ -19,28 +20,39 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
+  // Auto-select the first file when fileChanges arrive and nothing is selected
+  useEffect(() => {
+    if (fileChanges.length > 0 && selectedFile === null) {
+      setSelectedFile(fileChanges[0].path);
+    }
+  }, [fileChanges, selectedFile]);
+
   return (
-    <div className="flex h-full">
+    <ResizablePanelGroup direction="horizontal">
       {/* Left panel — file list + commit area */}
-      <div className="flex w-[280px] flex-shrink-0 flex-col border-r border-border">
-        <div className="flex-1 overflow-y-auto">
-          <FileList
-            fileChanges={fileChanges}
-            selectedFile={selectedFile}
-            onSelectFile={setSelectedFile}
+      <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+        <div className="flex h-full flex-col">
+          <div className="flex-1 overflow-y-auto">
+            <FileList
+              fileChanges={fileChanges}
+              selectedFile={selectedFile}
+              onSelectFile={setSelectedFile}
+              taskPath={taskPath}
+              onRefreshChanges={onRefreshChanges}
+            />
+          </div>
+          <CommitArea
             taskPath={taskPath}
+            fileChanges={fileChanges}
             onRefreshChanges={onRefreshChanges}
           />
         </div>
-        <CommitArea
-          taskPath={taskPath}
-          fileChanges={fileChanges}
-          onRefreshChanges={onRefreshChanges}
-        />
-      </div>
+      </ResizablePanel>
+
+      <ResizableHandle />
 
       {/* Right panel — diff viewer */}
-      <div className="flex-1 overflow-hidden">
+      <ResizablePanel defaultSize={70} minSize={30}>
         <DiffPanel
           taskId={taskId}
           taskPath={taskPath}
@@ -48,7 +60,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
           selectedFile={selectedFile}
           onRefreshChanges={onRefreshChanges}
         />
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };
