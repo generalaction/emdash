@@ -84,6 +84,9 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
 
   return (
     <div className="overflow-y-auto">
+      <div className="flex h-9 items-center border-b border-border px-3 text-sm font-medium text-muted-foreground">
+        {files.length} changed file{files.length !== 1 ? 's' : ''}
+      </div>
       {files.map((file) => {
         const { filename, directory } = splitPath(file.path);
         return (

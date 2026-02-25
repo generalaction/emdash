@@ -216,6 +216,14 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
     );
   }
 
+  if (!data.original && !data.modified) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        File is empty
+      </div>
+    );
+  }
+
   return (
     <div className="h-full">
       <DiffEditor

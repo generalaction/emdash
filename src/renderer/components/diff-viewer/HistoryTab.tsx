@@ -32,6 +32,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   };
 
   const handleSelectCommit = (hash: string) => {
+    if (hash === selectedCommit) return;
     setSelectedCommit(hash);
     setSelectedFile(null);
   };

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ArrowUp } from 'lucide-react';
 
 interface Commit {
   hash: string;
@@ -26,10 +27,13 @@ function formatRelativeDate(dateStr: string): string {
   const diffDays = Math.floor(diffHr / 24);
 
   if (diffSec < 60) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDays < 30) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
 }
 
 export const CommitList: React.FC<CommitListProps> = ({
@@ -99,9 +103,16 @@ export const CommitList: React.FC<CommitListProps> = ({
           }`}
           onClick={() => onSelectCommit(commit.hash)}
         >
-          {commit.subject ? <div className="truncate text-sm">{commit.subject}</div> : null}
-          <div className="text-xs text-muted-foreground">
-            {commit.author} &middot; {formatRelativeDate(commit.date)}
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {commit.subject ? <div className="truncate text-sm">{commit.subject}</div> : null}
+              <div className="text-xs text-muted-foreground">
+                {commit.author} &middot; {formatRelativeDate(commit.date)}
+              </div>
+            </div>
+            {!commit.isPushed && (
+              <ArrowUp className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2.5} />
+            )}
           </div>
         </button>
       ))}
