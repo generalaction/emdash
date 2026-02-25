@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X } from 'lucide-react';
 import { useFileChanges } from '../../hooks/useFileChanges';
 import { ChangesTab } from './ChangesTab';
+import { HistoryTab } from './HistoryTab';
 
 interface DiffViewerProps {
   open: boolean;
@@ -79,9 +80,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                 onRefreshChanges={refreshChanges}
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                History tab placeholder
-              </div>
+              <HistoryTab taskPath={taskPath} />
             )}
           </div>
         </motion.div>

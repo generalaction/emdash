@@ -1,0 +1,102 @@
+import React, { useEffect, useState } from 'react';
+
+interface CommitFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+interface CommitFileListProps {
+  taskPath?: string;
+  commitHash: string;
+  selectedFile: string | null;
+  onSelectFile: (filePath: string) => void;
+}
+
+function splitPath(filePath: string): { filename: string; directory: string } {
+  const lastSlash = filePath.lastIndexOf('/');
+  if (lastSlash === -1) {
+    return { filename: filePath, directory: '' };
+  }
+  return {
+    filename: filePath.slice(lastSlash + 1),
+    directory: filePath.slice(0, lastSlash),
+  };
+}
+
+export const CommitFileList: React.FC<CommitFileListProps> = ({
+  taskPath,
+  commitHash,
+  selectedFile,
+  onSelectFile,
+}) => {
+  const [files, setFiles] = useState<CommitFile[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!taskPath || !commitHash) {
+      setFiles([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    const load = async () => {
+      try {
+        const res = await window.electronAPI.gitGetCommitFiles({ taskPath, commitHash });
+        if (!cancelled && res?.success && res.files) {
+          setFiles(res.files);
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskPath, commitHash]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        No files
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-y-auto">
+      {files.map((file) => {
+        const { filename, directory } = splitPath(file.path);
+        return (
+          <button
+            key={file.path}
+            className={`w-full cursor-pointer border-b border-border/50 px-3 py-2 text-left ${
+              selectedFile === file.path ? 'bg-accent' : 'hover:bg-muted/50'
+            }`}
+            onClick={() => onSelectFile(file.path)}
+          >
+            <div className="truncate text-sm font-medium">{filename}</div>
+            {directory && (
+              <div className="truncate text-xs text-muted-foreground">{directory}</div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
