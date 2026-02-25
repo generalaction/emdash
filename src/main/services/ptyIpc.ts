@@ -45,7 +45,7 @@ const wcDestroyedListeners = new Set<number>();
 let isAppQuitting = false;
 
 export function getRunningAgentCount(): number {
-  return owners.size;
+  return providerPtyTimers.size;
 }
 
 type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
