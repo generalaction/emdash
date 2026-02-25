@@ -105,6 +105,8 @@ type TelemetryEvent =
   | 'remote_project_connection_tested'
   | 'remote_project_created'
   | 'ssh_connection_saved'
+  | 'ssh_repo_init'
+  | 'ssh_repo_clone'
   | 'ssh_connection_deleted'
   | 'ssh_connect_success'
   | 'ssh_connect_failed'
