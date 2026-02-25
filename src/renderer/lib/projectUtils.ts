@@ -94,3 +94,30 @@ export function withRepoKey(project: Project, platform?: string): Project {
   }
   return { ...project, repoKey };
 }
+
+/**
+ * Determines the GitHub connection info for a project being added.
+ * Returns connected: true only when the user is authenticated, the remote
+ * is a GitHub URL, and connectToGitHub succeeds. Otherwise falls through
+ * to a disconnected local result so the project is never blocked from
+ * being added.
+ */
+export async function resolveProjectGithubInfo(
+  projectPath: string,
+  remoteUrl: string,
+  isAuthenticated: boolean,
+  connectToGitHub: (
+    path: string
+  ) => Promise<{ success: boolean; repository?: string; error?: string }>
+): Promise<{ connected: boolean; repository: string; source: 'github' | 'local' }> {
+  const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+
+  if (isAuthenticated && isGithubRemote) {
+    const result = await connectToGitHub(projectPath);
+    if (result.success) {
+      return { connected: true, repository: result.repository || '', source: 'github' };
+    }
+  }
+
+  return { connected: false, repository: '', source: 'local' };
+}
