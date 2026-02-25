@@ -23,7 +23,6 @@ interface UseProjectManagementOptions {
   setActiveTask: React.Dispatch<React.SetStateAction<Task | null>>;
   saveProjectOrder: (list: Project[]) => void;
   ToastAction: React.ComponentType<any>;
-  storedActiveIds: { projectId: string | null; taskId: string | null };
 }
 
 export const useProjectManagement = (options: UseProjectManagementOptions) => {
@@ -41,14 +40,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setActiveTask,
     saveProjectOrder,
     ToastAction,
-    storedActiveIds,
   } = options;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const hasPendingRestore = storedActiveIds.projectId !== null;
-  // Start with showHomeView=false if we have a pending restore to prevent flash
-  const [showHomeView, setShowHomeView] = useState<boolean>(!hasPendingRestore);
+  // Always start on home view (e.g. after app restart)
+  const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
   const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
