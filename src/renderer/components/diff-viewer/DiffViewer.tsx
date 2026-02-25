@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X } from 'lucide-react';
 import { useFileChanges } from '../../hooks/useFileChanges';
+import { ChangesTab } from './ChangesTab';
 
 interface DiffViewerProps {
   open: boolean;
@@ -22,7 +23,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('changes');
   const shouldReduceMotion = useReducedMotion();
-  const { fileChanges } = useFileChanges(taskPath);
+  const { fileChanges, refreshChanges } = useFileChanges(taskPath);
   const fileCount = fileChanges.length;
 
   return (
@@ -71,9 +72,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           {/* Tab content */}
           <div className="min-h-0 flex-1 overflow-auto">
             {activeTab === 'changes' ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Changes tab placeholder
-              </div>
+              <ChangesTab
+                taskId={taskId}
+                taskPath={taskPath}
+                fileChanges={fileChanges}
+                onRefreshChanges={refreshChanges}
+              />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 History tab placeholder
