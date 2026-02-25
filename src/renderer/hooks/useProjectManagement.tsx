@@ -159,7 +159,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           }
 
           const remoteUrl = gitInfo.remote || '';
-          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
           const projectName =
             selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
@@ -298,7 +297,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         }
 
         const remoteUrl = gitInfo.remote || '';
-        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
         const projectName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
