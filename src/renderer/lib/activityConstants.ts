@@ -6,3 +6,4 @@ export const CLEAR_BUSY_MS = 6_000;
 export const INJECT_ON_DATA_DELAY_MS = 150;
 export const INJECT_ON_STARTED_DELAY_MS = 250;
 export const INJECT_FALLBACK_MS = 2_000;
+export const INJECT_ENTER_DELAY_MS = 50;

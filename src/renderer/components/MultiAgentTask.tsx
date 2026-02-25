@@ -12,7 +12,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
 import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
-import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS, INJECT_ENTER_DELAY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
@@ -206,9 +206,17 @@ const MultiAgentTask: React.FC<Props> = ({
     let silenceTimer: any = null;
     const send = () => {
       if (sent) return;
+      sent = true;
       try {
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
-        sent = true;
+        const pty = (window as any).electronAPI?.ptyInput;
+        if (!pty) return;
+        // Send text + line endings first so the TUI displays the input,
+        // then send a bare \r after a short delay to submit.  Sending
+        // Enter separately prevents TUI "paste-detection" from swallowing it.
+        pty({ id: ptyId, data: trimmed + '\r\n' });
+        setTimeout(() => {
+          pty({ id: ptyId, data: '\r' });
+        }, INJECT_ENTER_DELAY_MS);
       } catch {}
     };
     const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
