@@ -10,6 +10,7 @@ import {
 
 export interface UsePanelLayoutOptions {
   showEditorMode: boolean;
+  showDiffViewer: boolean;
   isInitialLoadComplete: boolean;
   showHomeView: boolean;
   selectedProject: { id: string } | null;
@@ -17,7 +18,14 @@ export interface UsePanelLayoutOptions {
 }
 
 export function usePanelLayout(opts: UsePanelLayoutOptions) {
-  const { showEditorMode, isInitialLoadComplete, showHomeView, selectedProject, activeTask } = opts;
+  const {
+    showEditorMode,
+    showDiffViewer,
+    isInitialLoadComplete,
+    showHomeView,
+    selectedProject,
+    activeTask,
+  } = opts;
 
   const defaultPanelLayout = useMemo(() => {
     const stored = loadPanelSizes(PANEL_LAYOUT_STORAGE_KEY, DEFAULT_PANEL_LAYOUT);
@@ -40,6 +48,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
   const rightSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const lastLeftSidebarSizeRef = useRef<number>(defaultPanelLayout[0]);
   const leftSidebarWasCollapsedBeforeEditor = useRef<boolean>(false);
+  const leftSidebarWasCollapsedBeforeDiffViewer = useRef<boolean>(false);
   const lastRightSidebarSizeRef = useRef<number>(rightSidebarDefaultWidth);
   const leftSidebarSetOpenRef = useRef<((next: boolean) => void) | null>(null);
   const leftSidebarIsMobileRef = useRef<boolean>(false);
@@ -163,6 +172,23 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
       }
     }
   }, [showEditorMode]);
+
+  // Handle left sidebar visibility when Diff Viewer opens/closes
+  useEffect(() => {
+    const panel = leftSidebarPanelRef.current;
+    if (!panel) return;
+
+    if (showDiffViewer) {
+      leftSidebarWasCollapsedBeforeDiffViewer.current = panel.isCollapsed();
+      if (!panel.isCollapsed()) {
+        panel.collapse();
+      }
+    } else {
+      if (!leftSidebarWasCollapsedBeforeDiffViewer.current && panel.isCollapsed()) {
+        panel.expand();
+      }
+    }
+  }, [showDiffViewer]);
 
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {

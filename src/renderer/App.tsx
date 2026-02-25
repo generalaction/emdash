@@ -272,6 +272,7 @@ const AppContent: React.FC = () => {
     handleRightSidebarCollapsedChange,
   } = usePanelLayout({
     showEditorMode,
+    showDiffViewer,
     isInitialLoadComplete: appInit.isInitialLoadComplete,
     showHomeView: projectMgmt.showHomeView,
     selectedProject: projectMgmt.selectedProject,
@@ -622,7 +623,7 @@ const AppContent: React.FC = () => {
                     collapsible
                     order={1}
                     style={{
-                      display: showEditorMode || showDiffViewer ? 'none' : undefined,
+                      display: showEditorMode ? 'none' : undefined,
                     }}
                   >
                     <LeftSidebar
@@ -658,9 +659,6 @@ const AppContent: React.FC = () => {
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
                     className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
-                    style={{
-                      display: showDiffViewer ? 'none' : undefined,
-                    }}
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
