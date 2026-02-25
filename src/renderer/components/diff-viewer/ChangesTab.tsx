@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileList } from './FileList';
 import { CommitArea } from './CommitArea';
+import { DiffPanel } from './DiffPanel';
 import type { FileChange } from '../../hooks/useFileChanges';
 
 interface ChangesTabProps {
@@ -11,7 +12,7 @@ interface ChangesTabProps {
 }
 
 export const ChangesTab: React.FC<ChangesTabProps> = ({
-  taskId: _taskId,
+  taskId,
   taskPath,
   fileChanges,
   onRefreshChanges,
@@ -38,9 +39,15 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
         />
       </div>
 
-      {/* Right panel — diff content placeholder */}
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        {selectedFile ? `Diff for ${selectedFile}` : 'Select a file to view changes'}
+      {/* Right panel — diff viewer */}
+      <div className="flex-1 overflow-hidden">
+        <DiffPanel
+          taskId={taskId}
+          taskPath={taskPath}
+          fileChanges={fileChanges}
+          selectedFile={selectedFile}
+          onRefreshChanges={onRefreshChanges}
+        />
       </div>
     </div>
   );
