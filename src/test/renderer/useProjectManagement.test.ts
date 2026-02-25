@@ -53,6 +53,15 @@ describe('resolveProjectGithubInfo', () => {
     expect(result).toEqual({ connected: false, repository: '', source: 'local' });
   });
 
+  it('falls through to local when connectToGitHub throws', async () => {
+    const connectToGitHub = vi.fn().mockRejectedValue(new Error('network error'));
+
+    const result = await resolveProjectGithubInfo(projectPath, githubRemote, true, connectToGitHub);
+
+    expect(connectToGitHub).toHaveBeenCalledWith(projectPath);
+    expect(result).toEqual({ connected: false, repository: '', source: 'local' });
+  });
+
   it('handles SSH-style GitHub remotes', async () => {
     const connectToGitHub = vi.fn().mockResolvedValue({ success: true, repository: 'user/repo' });
 

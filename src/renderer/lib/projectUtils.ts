@@ -113,9 +113,13 @@ export async function resolveProjectGithubInfo(
   const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
 
   if (isAuthenticated && isGithubRemote) {
-    const result = await connectToGitHub(projectPath);
-    if (result.success) {
-      return { connected: true, repository: result.repository || '', source: 'github' };
+    try {
+      const result = await connectToGitHub(projectPath);
+      if (result.success) {
+        return { connected: true, repository: result.repository || '', source: 'github' };
+      }
+    } catch {
+      // Fall through — never block the project from being added.
     }
   }
 
