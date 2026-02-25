@@ -13,6 +13,13 @@ import {
   stageAllFiles as gitStageAllFiles,
   unstageFile as gitUnstageFile,
   revertFile as gitRevertFile,
+  commit as gitCommit,
+  push as gitPush,
+  getLog as gitGetLog,
+  getLatestCommit as gitGetLatestCommit,
+  getCommitFiles as gitGetCommitFiles,
+  getCommitFileDiff as gitGetCommitFileDiff,
+  softResetLastCommit as gitSoftResetLastCommit,
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
@@ -2189,4 +2196,76 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
     }
   );
+
+  ipcMain.handle('git:commit', async (_, args: { taskPath: string; message: string }) => {
+    try {
+      const result = await gitCommit(args.taskPath, args.message);
+      broadcastGitStatusChange(args.taskPath);
+      return { success: true, hash: result.hash };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
+    try {
+      const result = await gitPush(args.taskPath);
+      return { success: true, output: result.output };
+    } catch (error) {
+      const errObj = error as { stderr?: string; message?: string };
+      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('git:get-log', async (_, args: { taskPath: string; maxCount?: number }) => {
+    try {
+      const commits = await gitGetLog(args.taskPath, args.maxCount);
+      return { success: true, commits };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('git:get-latest-commit', async (_, args: { taskPath: string }) => {
+    try {
+      const commit = await gitGetLatestCommit(args.taskPath);
+      return { success: true, commit };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle(
+    'git:get-commit-files',
+    async (_, args: { taskPath: string; commitHash: string }) => {
+      try {
+        const files = await gitGetCommitFiles(args.taskPath, args.commitHash);
+        return { success: true, files };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'git:get-commit-file-diff',
+    async (_, args: { taskPath: string; commitHash: string; filePath: string }) => {
+      try {
+        const diff = await gitGetCommitFileDiff(args.taskPath, args.commitHash, args.filePath);
+        return { success: true, diff };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle('git:soft-reset', async (_, args: { taskPath: string }) => {
+    try {
+      const result = await gitSoftResetLastCommit(args.taskPath);
+      broadcastGitStatusChange(args.taskPath);
+      return { success: true, subject: result.subject, body: result.body };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }

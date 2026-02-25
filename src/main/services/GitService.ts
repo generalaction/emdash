@@ -290,3 +290,199 @@ export async function getFileDiff(
     }
   }
 }
+
+/** Commit staged files (no push). Returns the commit hash. */
+export async function commit(taskPath: string, message: string): Promise<{ hash: string }> {
+  await execFileAsync('git', ['commit', '-m', message], { cwd: taskPath });
+  const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: taskPath });
+  return { hash: stdout.trim() };
+}
+
+/** Push current branch to origin. Sets upstream if needed. */
+export async function push(taskPath: string): Promise<{ output: string }> {
+  try {
+    const { stdout } = await execFileAsync('git', ['push'], { cwd: taskPath });
+    return { output: stdout.trim() };
+  } catch {
+    const { stdout: branch } = await execFileAsync('git', ['branch', '--show-current'], {
+      cwd: taskPath,
+    });
+    const { stdout } = await execFileAsync(
+      'git',
+      ['push', '--set-upstream', 'origin', branch.trim()],
+      { cwd: taskPath }
+    );
+    return { output: stdout.trim() };
+  }
+}
+
+/** Get commit log for the current branch. */
+export async function getLog(
+  taskPath: string,
+  maxCount: number = 50
+): Promise<
+  Array<{
+    hash: string;
+    subject: string;
+    body: string;
+    author: string;
+    date: string;
+    isPushed: boolean;
+  }>
+> {
+  // Get ahead count to determine which commits are unpushed
+  let aheadCount = 0;
+  try {
+    const { stdout: defaultBranchOut } = await execFileAsync(
+      'git',
+      ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+      { cwd: taskPath }
+    );
+    const defaultBranch = defaultBranchOut.trim();
+    const { stdout: countOut } = await execFileAsync(
+      'git',
+      ['rev-list', '--count', `${defaultBranch}..HEAD`],
+      { cwd: taskPath }
+    );
+    aheadCount = parseInt(countOut.trim(), 10) || 0;
+  } catch {
+    try {
+      const { stdout: countOut } = await execFileAsync('git', ['rev-list', '--count', 'HEAD'], {
+        cwd: taskPath,
+      });
+      aheadCount = parseInt(countOut.trim(), 10) || 0;
+    } catch {
+      aheadCount = 0;
+    }
+  }
+
+  const SEP = '---COMMIT_SEP---';
+  const format = `%H${SEP}%s${SEP}%b${SEP}%an${SEP}%ar`;
+  const { stdout } = await execFileAsync(
+    'git',
+    ['log', `--max-count=${maxCount}`, `--pretty=format:${format}`, '--'],
+    { cwd: taskPath }
+  );
+
+  if (!stdout.trim()) return [];
+
+  const commits = stdout.split('\n').map((line, index) => {
+    const parts = line.split(SEP);
+    return {
+      hash: parts[0] || '',
+      subject: parts[1] || '',
+      body: (parts[2] || '').trim(),
+      author: parts[3] || '',
+      date: parts[4] || '',
+      isPushed: index >= aheadCount,
+    };
+  });
+
+  return commits;
+}
+
+/** Get the latest commit info (subject + body). */
+export async function getLatestCommit(
+  taskPath: string
+): Promise<{ hash: string; subject: string; body: string; isPushed: boolean } | null> {
+  const log = await getLog(taskPath, 1);
+  return log[0] || null;
+}
+
+/** Get files changed in a specific commit. */
+export async function getCommitFiles(
+  taskPath: string,
+  commitHash: string
+): Promise<Array<{ path: string; status: string; additions: number; deletions: number }>> {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['diff-tree', '--no-commit-id', '-r', '--numstat', commitHash],
+    { cwd: taskPath }
+  );
+
+  const { stdout: nameStatus } = await execFileAsync(
+    'git',
+    ['diff-tree', '--no-commit-id', '-r', '--name-status', commitHash],
+    { cwd: taskPath }
+  );
+
+  const statLines = stdout.trim().split('\n').filter(Boolean);
+  const statusLines = nameStatus.trim().split('\n').filter(Boolean);
+
+  const statusMap = new Map<string, string>();
+  for (const line of statusLines) {
+    const [code, ...pathParts] = line.split('\t');
+    const filePath = pathParts[pathParts.length - 1] || '';
+    const status =
+      code === 'A'
+        ? 'added'
+        : code === 'D'
+          ? 'deleted'
+          : code?.startsWith('R')
+            ? 'renamed'
+            : 'modified';
+    statusMap.set(filePath, status);
+  }
+
+  return statLines.map((line) => {
+    const [addStr, delStr, ...pathParts] = line.split('\t');
+    const filePath = pathParts.join('\t');
+    return {
+      path: filePath,
+      status: statusMap.get(filePath) || 'modified',
+      additions: addStr === '-' ? 0 : parseInt(addStr || '0', 10) || 0,
+      deletions: delStr === '-' ? 0 : parseInt(delStr || '0', 10) || 0,
+    };
+  });
+}
+
+/** Get diff for a specific file in a specific commit. */
+export async function getCommitFileDiff(
+  taskPath: string,
+  commitHash: string,
+  filePath: string
+): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
+    { cwd: taskPath }
+  );
+
+  const linesRaw = stdout.split('\n');
+  const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
+  for (const line of linesRaw) {
+    if (!line) continue;
+    if (
+      line.startsWith('diff ') ||
+      line.startsWith('index ') ||
+      line.startsWith('--- ') ||
+      line.startsWith('+++ ') ||
+      line.startsWith('@@')
+    )
+      continue;
+    const prefix = line[0];
+    const content = line.slice(1);
+    if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
+    else if (prefix === '-') result.push({ left: content, type: 'del' });
+    else if (prefix === '+') result.push({ right: content, type: 'add' });
+    else result.push({ left: line, right: line, type: 'context' });
+  }
+
+  return { lines: result };
+}
+
+/** Soft-reset the latest commit. Returns the commit message that was reset. */
+export async function softResetLastCommit(
+  taskPath: string
+): Promise<{ subject: string; body: string }> {
+  const { stdout: subject } = await execFileAsync('git', ['log', '-1', '--pretty=format:%s'], {
+    cwd: taskPath,
+  });
+  const { stdout: body } = await execFileAsync('git', ['log', '-1', '--pretty=format:%b'], {
+    cwd: taskPath,
+  });
+
+  await execFileAsync('git', ['reset', '--soft', 'HEAD~1'], { cwd: taskPath });
+
+  return { subject: subject.trim(), body: body.trim() };
+}
