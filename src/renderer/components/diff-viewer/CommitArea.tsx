@@ -73,13 +73,20 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     }
   };
 
+  const hasUnpushed = aheadCount > 0 || (latestCommit != null && !latestCommit.isPushed);
+
   const handlePush = async () => {
-    if (!taskPath || aheadCount === 0 || isPushing) return;
+    if (!taskPath || !hasUnpushed || isPushing) return;
     setIsPushing(true);
     try {
-      await window.electronAPI.gitPush({ taskPath });
+      const result = await window.electronAPI.gitPush({ taskPath });
+      if (!result?.success) {
+        console.error('Push failed:', result?.error);
+      }
       await fetchBranch();
       await fetchLatestCommit();
+    } catch (err) {
+      console.error('Push failed:', err);
     } finally {
       setIsPushing(false);
     }
@@ -139,11 +146,11 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         </button>
         <button
           onClick={() => void handlePush()}
-          disabled={aheadCount === 0 || isPushing}
+          disabled={!hasUnpushed || isPushing}
           className="flex items-center justify-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           title={
-            aheadCount > 0
-              ? `Push ${aheadCount} commit${aheadCount > 1 ? 's' : ''}`
+            hasUnpushed
+              ? `Push${aheadCount > 0 ? ` ${aheadCount} commit${aheadCount > 1 ? 's' : ''}` : ''}`
               : 'No unpushed commits'
           }
         >
