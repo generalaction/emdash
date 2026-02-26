@@ -442,16 +442,12 @@ const SidebarFileList: React.FC<{
             </div>
           </div>
           <div className="ml-3 flex items-center gap-2">
-            {change.additions > 0 && (
-              <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                +{change.additions}
-              </span>
-            )}
-            {change.deletions > 0 && (
-              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                -{change.deletions}
-              </span>
-            )}
+            <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+              +{change.additions}
+            </span>
+            <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+              -{change.deletions}
+            </span>
           </div>
         </div>
       ))}

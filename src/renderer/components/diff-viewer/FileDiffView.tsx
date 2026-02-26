@@ -125,8 +125,10 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         }
 
         // For added files, original should be empty
+        // Only treat as new file if there are no context lines and no deletions
         const hasDels = diffLines.some((l) => l.type === 'del');
-        if (!hasDels && diffLines.some((l) => l.type === 'add')) {
+        const hasContext = diffLines.some((l) => l.type === 'context');
+        if (!hasDels && !hasContext && diffLines.some((l) => l.type === 'add')) {
           originalContent = '';
         }
 
@@ -273,7 +275,9 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   const handleSave = async () => {
     if (!taskPath || !filePath || !fileData) return;
     try {
-      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, modifiedDraft, true);
+      // Ensure trailing newline (Monaco strips it, but POSIX files should end with one)
+      const content = modifiedDraft.endsWith('\n') ? modifiedDraft : modifiedDraft + '\n';
+      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, content, true);
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }

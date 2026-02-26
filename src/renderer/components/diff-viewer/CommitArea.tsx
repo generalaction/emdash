@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
 import type { FileChange } from '../../hooks/useFileChanges';
+import { subscribeToFileChanges } from '../../lib/fileChangeEvents';
 
 interface CommitAreaProps {
   taskPath?: string;
@@ -76,6 +77,17 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     void fetchBranch();
     void fetchLatestCommit();
   }, [fetchBranch, fetchLatestCommit]);
+
+  // Refresh branch status when file changes are detected (external git operations, watchers)
+  useEffect(() => {
+    if (!taskPath) return;
+    return subscribeToFileChanges((event) => {
+      if (event.detail.taskPath === taskPath) {
+        void fetchBranch();
+        void fetchLatestCommit();
+      }
+    });
+  }, [taskPath, fetchBranch, fetchLatestCommit]);
 
   const handleCommit = async () => {
     if (!taskPath || !canCommit) return;
