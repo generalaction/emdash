@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Tag } from 'lucide-react';
 
 interface Commit {
   hash: string;
@@ -8,6 +8,7 @@ interface Commit {
   author: string;
   date: string;
   isPushed: boolean;
+  tags: string[];
 }
 
 interface CommitListProps {
@@ -139,8 +140,23 @@ export const CommitList: React.FC<CommitListProps> = ({
                 {commit.author} &middot; {formatRelativeDate(commit.date)}
               </div>
             </div>
+            {commit.tags.length > 0 &&
+              commit.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex shrink-0 items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                >
+                  <Tag className="h-2.5 w-2.5" />
+                  {tag}
+                </span>
+              ))}
             {!commit.isPushed && (
-              <ArrowUp className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2.5} />
+              <span title="Not yet pushed to remote">
+                <ArrowUp
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  strokeWidth={2.5}
+                />
+              </span>
             )}
           </div>
         </button>

@@ -651,6 +651,11 @@ declare global {
         output?: string;
         error?: string;
       }>;
+      gitPull: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
       gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) => Promise<{
         success: boolean;
         commits?: Array<{
@@ -660,6 +665,7 @@ declare global {
           author: string;
           date: string;
           isPushed: boolean;
+          tags: string[];
         }>;
         error?: string;
       }>;
