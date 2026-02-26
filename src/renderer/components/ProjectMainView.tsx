@@ -333,12 +333,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  // Fetch archived tasks when filter is "all"
+  // Fetch archived tasks (always, to show controls when all tasks archived)
   useEffect(() => {
-    if (showFilter !== 'all') {
-      setArchivedTasks([]);
-      return;
-    }
     let cancelled = false;
     async function fetchArchived() {
       try {
@@ -354,13 +350,14 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [showFilter, project.id]);
+  }, [project.id]);
 
   const activeTasks = project.tasks ?? [];
   const tasksInProject = useMemo(
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
   );
+  const hasAnyTasks = activeTasks.length > 0 || archivedTasks.length > 0;
   const filteredTasks = useMemo(
     () =>
       searchFilter.trim()
@@ -738,7 +735,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </motion.button>
               </div>
 
-              {tasksInProject.length > 0 ? (
+              {hasAnyTasks ? (
                 <>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -850,35 +847,48 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     )}
                   </div>
 
-                  <div className="task-list -ml-7 flex flex-col">
-                    <style>{`
-                      .task-list .task-row:first-child .task-card::before { opacity: 0; }
-                      .task-list .task-row:hover + .task-row .task-card::before,
-                      .task-list .task-row[data-active] + .task-row .task-card::before,
-                      .task-list .task-row[data-selected] + .task-row .task-card::before { opacity: 0; }
-                      .task-list .task-row:last-child .task-card::after {
-                        content: ''; position: absolute; inset: auto 0 0 0; height: 1px; background: hsl(var(--border));
-                      }
-                      .task-list .task-row:last-child:hover .task-card::after,
-                      .task-list .task-row:last-child[data-active] .task-card::after,
-                      .task-list .task-row:last-child[data-selected] .task-card::after { opacity: 0; }
-                    `}</style>
-                    {filteredTasks.map((ws) => (
-                      <TaskRow
-                        key={ws.id}
-                        ws={ws}
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedIds.has(ws.id)}
-                        onToggleSelect={() => toggleSelect(ws.id)}
-                        active={activeTask?.id === ws.id}
-                        onClick={() => onSelectTask(ws)}
-                        onDelete={() => onDeleteTask(project, ws)}
-                        onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
-                        enablePrStatus={!project.isRemote}
-                        onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
-                      />
-                    ))}
-                  </div>
+                  {filteredTasks.length > 0 ? (
+                    <div className="task-list -ml-7 flex flex-col">
+                      <style>{`
+                        .task-list .task-row:first-child .task-card::before { opacity: 0; }
+                        .task-list .task-row:hover + .task-row .task-card::before,
+                        .task-list .task-row[data-active] + .task-row .task-card::before,
+                        .task-list .task-row[data-selected] + .task-row .task-card::before { opacity: 0; }
+                        .task-list .task-row:last-child .task-card::after {
+                          content: ''; position: absolute; inset: auto 0 0 0; height: 1px; background: hsl(var(--border));
+                        }
+                        .task-list .task-row:last-child:hover .task-card::after,
+                        .task-list .task-row:last-child[data-active] .task-card::after,
+                        .task-list .task-row:last-child[data-selected] .task-card::after { opacity: 0; }
+                      `}</style>
+                      {filteredTasks.map((ws) => (
+                        <TaskRow
+                          key={ws.id}
+                          ws={ws}
+                          isSelectMode={isSelectMode}
+                          isSelected={selectedIds.has(ws.id)}
+                          onToggleSelect={() => toggleSelect(ws.id)}
+                          active={activeTask?.id === ws.id}
+                          onClick={() => onSelectTask(ws)}
+                          onDelete={() => onDeleteTask(project, ws)}
+                          onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
+                          enablePrStatus={!project.isRemote}
+                          onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Archive className="mb-3 h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-sm text-muted-foreground">
+                        {searchFilter.trim()
+                          ? 'No tasks match your search.'
+                          : showFilter === 'active'
+                            ? 'All tasks are archived. Use the filter to view them.'
+                            : 'No tasks found.'}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <Alert>
