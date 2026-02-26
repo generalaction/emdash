@@ -102,8 +102,8 @@ export function CreateChatModal({
         <DialogHeader>
           <DialogTitle>Add Agent to Task</DialogTitle>
           <DialogDescription className="text-xs">
-            Add another agent to this chat. It will share the same worktree and appear as a
-            new tab alongside your existing chats.
+            Add another agent to this chat. It will share the same worktree and appear as a new tab
+            alongside your existing chats.
           </DialogDescription>
         </DialogHeader>
 
