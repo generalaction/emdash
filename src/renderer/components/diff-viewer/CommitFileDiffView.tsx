@@ -4,6 +4,7 @@ import type * as monaco from 'monaco-editor';
 import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
 import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
+import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 import { useTheme } from '../../hooks/useTheme';
 
 interface CommitFileDiffViewProps {
@@ -89,12 +90,10 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
   useEffect(() => {
     let cancelled = false;
     registerDiffThemes()
-      .then(() => {
+      .then(async () => {
         if (!cancelled) {
-          const monacoInstance = (window as any).monaco;
-          if (monacoInstance) {
-            monacoInstance.editor.setTheme(getDiffThemeName(effectiveTheme));
-          }
+          const monacoInstance = await loader.init();
+          monacoInstance.editor.setTheme(getDiffThemeName(effectiveTheme));
         }
       })
       .catch((err: unknown) => console.warn('Failed to register diff themes:', err));
@@ -135,12 +134,7 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
     };
   }, []);
 
-  const monacoTheme =
-    effectiveTheme === 'dark-black'
-      ? 'custom-diff-black'
-      : effectiveTheme === 'dark'
-        ? 'custom-diff-dark'
-        : 'custom-diff-light';
+  const monacoTheme = getDiffThemeName(effectiveTheme);
 
   if (!data) {
     return (
@@ -186,42 +180,10 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
         modified={data.modified}
         theme={monacoTheme}
         options={{
+          ...DIFF_EDITOR_BASE_OPTIONS,
           readOnly: true,
-          originalEditable: false,
           renderSideBySide: diffStyle === 'split',
-          fontSize: 13,
-          lineHeight: 20,
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          wordWrap: 'on',
-          lineNumbers: 'on',
-          lineNumbersMinChars: 2,
-          renderIndicators: false,
-          overviewRulerLanes: 3,
-          renderOverviewRuler: true,
-          overviewRulerBorder: false,
-          automaticLayout: true,
-          scrollbar: {
-            vertical: 'auto',
-            horizontal: 'auto',
-            useShadows: false,
-            verticalScrollbarSize: 4,
-            horizontalScrollbarSize: 4,
-            arrowSize: 0,
-            verticalHasArrows: false,
-            horizontalHasArrows: false,
-            alwaysConsumeMouseWheel: false,
-            verticalSliderSize: 4,
-            horizontalSliderSize: 4,
-          },
-          hideUnchangedRegions: { enabled: true },
-          diffWordWrap: 'on',
-          enableSplitViewResizing: false,
-          smoothScrolling: true,
-          cursorSmoothCaretAnimation: 'on',
-          padding: { top: 8, bottom: 8 },
           glyphMargin: false,
-          folding: false,
         }}
         onMount={handleEditorDidMount}
       />

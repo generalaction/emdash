@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useFileChanges } from '../../hooks/useFileChanges';
 import { ChangesTab } from './ChangesTab';
@@ -22,7 +22,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   const [activeTab, setActiveTab] = useState<Tab>('changes');
   const { fileChanges, refreshChanges } = useFileChanges(taskPath);
   const fileCount = fileChanges.length;
-  const leftPanelSizeRef = useRef(30);
+  const [leftPanelSize, setLeftPanelSize] = useState(30);
 
   const tabHeader = (
     <div className="flex h-9 border-b border-border bg-muted/50">
@@ -70,10 +70,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             onRefreshChanges={refreshChanges}
             header={tabHeader}
             closeButton={closeButton}
-            leftPanelSize={leftPanelSizeRef.current}
-            onLeftPanelResize={(size) => {
-              leftPanelSizeRef.current = size;
-            }}
+            leftPanelSize={leftPanelSize}
+            onLeftPanelResize={setLeftPanelSize}
             initialFile={initialFile}
           />
         ) : (
@@ -81,10 +79,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             taskPath={taskPath}
             header={tabHeader}
             closeButton={closeButton}
-            leftPanelSize={leftPanelSizeRef.current}
-            onLeftPanelResize={(size) => {
-              leftPanelSizeRef.current = size;
-            }}
+            leftPanelSize={leftPanelSize}
+            onLeftPanelResize={setLeftPanelSize}
           />
         )}
       </div>

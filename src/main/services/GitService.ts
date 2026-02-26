@@ -383,7 +383,9 @@ export async function getLog(
         );
         aheadCount = parseInt(countOut.trim(), 10) || 0;
       } catch {
-        // Cannot determine remote state — assume all pushed
+        // Cannot determine remote state (no remote, detached HEAD, offline, etc.)
+        // Default to 0 ahead so all commits show as pushed. This avoids false "unpushed"
+        // indicators when there's genuinely no remote to compare against.
         aheadCount = 0;
       }
     }
@@ -592,6 +594,12 @@ export async function softResetLastCommit(
     await execFileAsync('git', ['rev-parse', '--verify', 'HEAD~1'], { cwd: taskPath });
   } catch {
     throw new Error('Cannot undo the initial commit');
+  }
+
+  // Check if the commit has been pushed (safety guard — UI also hides the button)
+  const log = await getLog(taskPath, 1);
+  if (log[0]?.isPushed) {
+    throw new Error('Cannot undo a commit that has already been pushed');
   }
 
   const { stdout: subject } = await execFileAsync('git', ['log', '-1', '--pretty=format:%s'], {

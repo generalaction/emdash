@@ -2287,6 +2287,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
           return { success: false, error: 'Invalid commit hash' };
         }
+        if (args.filePath.includes('..')) {
+          return { success: false, error: 'Invalid file path' };
+        }
         const diff = await gitGetCommitFileDiff(args.taskPath, args.commitHash, args.filePath);
         return { success: true, diff };
       } catch (error) {
