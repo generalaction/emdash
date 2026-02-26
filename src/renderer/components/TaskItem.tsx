@@ -61,7 +61,7 @@ interface TaskItemProps {
   showDirectBadge?: boolean;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({
+const TaskItemBase: React.FC<TaskItemProps> = ({
   task,
   onDelete: _onDelete,
   onRename,
@@ -281,3 +281,5 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return taskContent;
 };
+
+export const TaskItem = React.memo(TaskItemBase);

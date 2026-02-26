@@ -39,7 +39,7 @@ interface FileTreeProps {
 }
 
 // Tree node component
-const TreeNode: React.FC<{
+interface TreeNodeProps {
   node: FileNode;
   level: number;
   selectedPath?: string | null;
@@ -48,8 +48,10 @@ const TreeNode: React.FC<{
   onSelect: (path: string) => void;
   onOpen?: (path: string) => void;
   onLoadChildren: (node: FileNode) => Promise<void>;
-  fileChanges: FileChange[];
-}> = ({
+  fileStatusMap: Map<string, string>;
+}
+
+const TreeNodeBase: React.FC<TreeNodeProps> = ({
   node,
   level,
   selectedPath,
@@ -58,13 +60,13 @@ const TreeNode: React.FC<{
   onSelect,
   onOpen,
   onLoadChildren,
-  fileChanges,
+  fileStatusMap,
 }) => {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
 
-  // Determine file status from git changes
-  const fileStatus = fileChanges.find((change) => change.path === node.path)?.status;
+  // Determine file status from git changes — O(1) Map lookup
+  const fileStatus = fileStatusMap.get(node.path);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,7 +143,7 @@ const TreeNode: React.FC<{
               onSelect={onSelect}
               onOpen={onOpen}
               onLoadChildren={onLoadChildren}
-              fileChanges={fileChanges}
+              fileStatusMap={fileStatusMap}
             />
           ))}
         </div>
@@ -149,6 +151,8 @@ const TreeNode: React.FC<{
     </div>
   );
 };
+
+const TreeNode = React.memo(TreeNodeBase);
 
 export const FileTree: React.FC<FileTreeProps> = ({
   rootPath,
@@ -225,29 +229,44 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [defaultExcludePatterns, excludePatterns]
   );
 
+  // Pre-compile exclude patterns so we don't create RegExp objects on every call
+  const compiledExcludePatterns = useMemo(
+    () =>
+      allExcludePatterns.map((pattern) => {
+        const lower = pattern.toLowerCase();
+        if (lower.includes('*')) {
+          const regexStr = '^' + lower.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
+          return { regex: new RegExp(regexStr), literal: null as string | null };
+        }
+        return { regex: null as RegExp | null, literal: lower };
+      }),
+    [allExcludePatterns]
+  );
+
+  // Build a Map from fileChanges for O(1) lookups in TreeNode
+  const fileStatusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const change of fileChanges) {
+      map.set(change.path, change.status);
+    }
+    return map;
+  }, [fileChanges]);
+
   // Check if an item should be excluded
   const shouldExclude = useCallback(
     (path: string): boolean => {
       const parts = path.split('/');
       return parts.some((part) => {
         const lowerPart = part.toLowerCase();
-        return allExcludePatterns.some((pattern) => {
-          const lowerPattern = pattern.toLowerCase();
-
-          // Handle glob patterns (simplistic version)
-          if (lowerPattern.includes('*')) {
-            // Convert glob to regex: . -> \., * -> .*
-            const regexStr = '^' + lowerPattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
-            return (
-              new RegExp(regexStr).test(lowerPart) || new RegExp(regexStr).test(path.toLowerCase())
-            );
+        return compiledExcludePatterns.some((compiled) => {
+          if (compiled.regex) {
+            return compiled.regex.test(lowerPart) || compiled.regex.test(path.toLowerCase());
           }
-
-          return lowerPart === lowerPattern;
+          return lowerPart === compiled.literal;
         });
       });
     },
-    [allExcludePatterns]
+    [compiledExcludePatterns]
   );
 
   // Build tree nodes from path
@@ -543,7 +562,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 onSelect={onSelectFile}
                 onOpen={onOpenFile}
                 onLoadChildren={loadChildren}
-                fileChanges={fileChanges}
+                fileStatusMap={fileStatusMap}
               />
             ))}
           </div>

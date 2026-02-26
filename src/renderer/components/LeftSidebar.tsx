@@ -1,5 +1,4 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import ReorderList from './ReorderList';
 import { Button } from './ui/button';
 import {
@@ -349,11 +348,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
                               </button>
                             </CollapsibleTrigger>
-                            <motion.button
+                            <button
                               type="button"
-                              className="min-w-0 flex-1 cursor-default truncate bg-transparent text-left text-foreground/60 outline-none focus-visible:outline-none"
-                              whileTap={{ scale: 0.97 }}
-                              transition={{ duration: 0.1, ease: 'easeInOut' }}
+                              className="min-w-0 flex-1 cursor-default truncate bg-transparent text-left text-foreground/60 outline-none transition-transform duration-100 ease-in-out focus-visible:outline-none active:scale-[0.97]"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleNavigationWithCloseSettings(() =>
@@ -362,7 +359,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               }}
                             >
                               {typedProject.name}
-                            </motion.button>
+                            </button>
                             {projectIsRemote && <RemoteIndicator project={typedProject} />}
                             <div className="flex min-w-7 flex-shrink-0 items-center justify-end">
                               {onCreateTaskForProject && (
@@ -404,10 +401,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   .map((task) => {
                                     const isActive = activeTask?.id === task.id;
                                     return (
-                                      <motion.div
+                                      <div
                                         key={task.id}
-                                        whileTap={{ scale: 0.97 }}
-                                        transition={{ duration: 0.1, ease: 'easeInOut' }}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleNavigationWithCloseSettings(() => {
@@ -420,7 +415,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                             onSelectTask && onSelectTask(task);
                                           });
                                         }}
-                                        className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${
+                                        className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 transition-transform duration-100 ease-in-out hover:bg-accent active:scale-[0.97] ${
                                           isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''
                                         }`}
                                         title={task.name}
@@ -443,7 +438,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                               : undefined
                                           }
                                         />
-                                      </motion.div>
+                                      </div>
                                     );
                                   })}
                               </div>
