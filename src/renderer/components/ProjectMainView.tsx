@@ -333,26 +333,25 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  // Fetch archived tasks (always, to show controls when all tasks archived)
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchArchived() {
+  const activeTasks = project.tasks ?? [];
+  const activeTasksLength = activeTasks.length;
+
+  const refetchArchivedTasks = useCallback(() => {
+    setTimeout(async () => {
       try {
         const result = await window.electronAPI.getArchivedTasks(project.id);
-        if (!cancelled && Array.isArray(result)) {
+        if (Array.isArray(result)) {
           setArchivedTasks(result);
         }
       } catch {
         // silently ignore
       }
-    }
-    void fetchArchived();
-    return () => {
-      cancelled = true;
-    };
+    }, 100);
   }, [project.id]);
 
-  const activeTasks = project.tasks ?? [];
+  useEffect(() => {
+    refetchArchivedTasks();
+  }, [project.id, activeTasksLength, refetchArchivedTasks]);
   const tasksInProject = useMemo(
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
@@ -500,6 +499,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     exitSelectMode();
 
     if (archivedNames.length > 0) {
+      refetchArchivedTasks();
+
       const maxNames = 3;
       const displayNames = archivedNames.slice(0, maxNames).join(', ');
       const remaining = archivedNames.length - maxNames;
