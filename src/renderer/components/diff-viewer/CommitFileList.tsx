@@ -97,8 +97,24 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
             }`}
             onClick={() => onSelectFile(file.path)}
           >
-            <div className="truncate text-sm font-medium">{filename}</div>
-            {directory && <div className="truncate text-xs text-muted-foreground">{directory}</div>}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{filename}</div>
+                {directory && (
+                  <div className="truncate text-xs text-muted-foreground">{directory}</div>
+                )}
+              </div>
+              <span
+                className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                  file.status === 'added'
+                    ? 'bg-green-500'
+                    : file.status === 'deleted'
+                      ? 'bg-red-500'
+                      : 'bg-blue-500'
+                }`}
+                title={file.status}
+              />
+            </div>
           </button>
         );
       })}

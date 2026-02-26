@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
+import { Checkbox } from '../ui/checkbox';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { isBinaryFile } from '../../lib/diffUtils';
 import { FileDiffView } from './FileDiffView';
@@ -13,6 +14,7 @@ interface StackedDiffViewProps {
 }
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
+const MIN_EDITOR_HEIGHT = 100;
 
 interface FileSectionProps {
   file: FileChange;
@@ -31,6 +33,7 @@ const FileSection: React.FC<FileSectionProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [forceLoad, setForceLoad] = useState(false);
+  const [contentHeight, setContentHeight] = useState<number | null>(null);
 
   const binary = isBinaryFile(file.path);
   const totalDiffLines = file.additions + file.deletions;
@@ -41,23 +44,57 @@ const FileSection: React.FC<FileSectionProps> = ({
 
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
 
+  const handleStage = useCallback(
+    async (checked: boolean) => {
+      if (!taskPath) return;
+      try {
+        if (checked) {
+          await window.electronAPI.stageFile({ taskPath, filePath: file.path });
+        } else {
+          await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+        }
+      } catch (err) {
+        console.error('Staging failed:', err);
+      }
+      await onRefreshChanges?.();
+    },
+    [taskPath, file.path, onRefreshChanges]
+  );
+
+  const editorHeight =
+    contentHeight != null ? Math.max(contentHeight, MIN_EDITOR_HEIGHT) : MIN_EDITOR_HEIGHT;
+
   return (
     <div className="border-b border-border">
-      <button
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-sm hover:bg-muted/50"
-        onClick={toggleExpanded}
-      >
-        {expanded ? (
-          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-        )}
-        <span className="font-medium text-foreground">{fileName}</span>
-        {dirPath && <span className="truncate text-muted-foreground">{dirPath}</span>}
-      </button>
+      <div className="flex w-full items-center gap-1.5 px-3 py-2 text-sm hover:bg-muted/50">
+        <button
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          onClick={toggleExpanded}
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          )}
+          <span className="font-medium text-foreground">{fileName}</span>
+          {dirPath && <span className="truncate text-muted-foreground">{dirPath}</span>}
+        </button>
+        <span className="shrink-0 text-xs">
+          <span className="text-green-500">+{file.additions}</span>{' '}
+          <span className="text-red-500">-{file.deletions}</span>
+        </span>
+        <Checkbox
+          checked={file.isStaged}
+          onCheckedChange={(checked) => {
+            void handleStage(checked === true);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="ml-1 flex-shrink-0"
+        />
+      </div>
 
       {expanded && (
-        <div className="h-[500px]">
+        <div style={{ height: binary || (isLarge && !forceLoad) ? 120 : editorHeight }}>
           {binary ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Binary file
@@ -79,6 +116,7 @@ const FileSection: React.FC<FileSectionProps> = ({
               filePath={file.path}
               diffStyle={diffStyle}
               onRefreshChanges={onRefreshChanges}
+              onContentHeightChange={setContentHeight}
             />
           )}
         </div>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { CommitList } from './CommitList';
+import type { CommitInfo } from './CommitList';
 import { CommitFileList } from './CommitFileList';
 import { CommitFileDiffView } from './CommitFileDiffView';
 import { DiffToolbar } from './DiffToolbar';
@@ -20,26 +22,40 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   leftPanelSize = 20,
   onLeftPanelResize,
 }) => {
-  const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
+  const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
     () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
   );
+  const [detailExpanded, setDetailExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleDiffStyleChange = (style: 'unified' | 'split') => {
     setDiffStyle(style);
     localStorage.setItem('diffViewer:diffStyle', style);
   };
 
-  const handleSelectCommit = (hash: string) => {
-    if (hash === selectedCommit) return;
-    setSelectedCommit(hash);
+  const handleSelectCommit = (commit: CommitInfo) => {
+    if (commit.hash === selectedCommit?.hash) return;
+    setSelectedCommit(commit);
     setSelectedFile(null);
+    setDetailExpanded(false);
+    setCopied(false);
   };
 
   // Compute middle and right panel sizes so all three sum to 100
   const middlePanelSize = Math.round((100 - leftPanelSize) * 0.2);
   const rightPanelSize = 100 - leftPanelSize - middlePanelSize;
+
+  const bodyTrimmed = selectedCommit?.body?.trim() || '';
+  const hasExpandableContent = bodyTrimmed.length > 0 || !!selectedCommit?.author;
+
+  const handleCopyHash = async () => {
+    if (!selectedCommit) return;
+    await navigator.clipboard.writeText(selectedCommit.hash);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <ResizablePanelGroup
@@ -55,7 +71,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
           <div className="flex-1 overflow-y-auto">
             <CommitList
               taskPath={taskPath}
-              selectedCommit={selectedCommit}
+              selectedCommit={selectedCommit?.hash ?? null}
               onSelectCommit={handleSelectCommit}
             />
           </div>
@@ -64,16 +80,65 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
 
       <ResizableHandle />
 
-      {/* Middle column: File list for selected commit */}
+      {/* Middle column: Commit detail + file list */}
       <ResizablePanel defaultSize={middlePanelSize} minSize={10} maxSize={35}>
-        <div className="h-full overflow-y-auto border-r border-border">
+        <div className="flex h-full flex-col border-r border-border">
           {selectedCommit ? (
-            <CommitFileList
-              taskPath={taskPath}
-              commitHash={selectedCommit}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
-            />
+            <>
+              {/* Commit message detail */}
+              <div className="border-b border-border px-3 py-2">
+                <div className="flex items-center gap-1">
+                  <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                    {selectedCommit.subject}
+                  </div>
+                  {hasExpandableContent && (
+                    <button
+                      className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => setDetailExpanded((prev) => !prev)}
+                    >
+                      {detailExpanded ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
+                {detailExpanded && (
+                  <div className="mt-1.5">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{selectedCommit.author}</span>
+                      <button
+                        className="flex items-center gap-1 rounded px-1 py-0.5 font-mono hover:bg-muted hover:text-foreground"
+                        onClick={() => void handleCopyHash()}
+                        title="Copy commit hash"
+                      >
+                        {selectedCommit.hash.slice(0, 7)}
+                        {copied ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                    </div>
+                    {bodyTrimmed && (
+                      <div className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                        {bodyTrimmed}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* File list */}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <CommitFileList
+                  taskPath={taskPath}
+                  commitHash={selectedCommit.hash}
+                  selectedFile={selectedFile}
+                  onSelectFile={setSelectedFile}
+                />
+              </div>
+            </>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Select a commit
@@ -102,7 +167,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
               <div className="min-h-0 flex-1">
                 <CommitFileDiffView
                   taskPath={taskPath}
-                  commitHash={selectedCommit}
+                  commitHash={selectedCommit.hash}
                   filePath={selectedFile}
                   diffStyle={diffStyle}
                 />

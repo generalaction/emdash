@@ -184,6 +184,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         if (result.body) setDescription(result.body);
         await onRefreshChanges?.();
         await fetchLatestCommit();
+        await fetchBranch();
       } else {
         toast({
           title: 'Undo failed',

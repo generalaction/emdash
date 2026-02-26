@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { DiffToolbar } from './DiffToolbar';
 import { FileDiffView } from './FileDiffView';
@@ -37,6 +37,15 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
     setDiffStyle(style);
     localStorage.setItem('diffViewer:diffStyle', style);
   };
+
+  // When user clicks a file in the sidebar while in stacked mode, switch to file view
+  const prevSelectedFileRef = useRef(selectedFile);
+  useEffect(() => {
+    if (selectedFile && selectedFile !== prevSelectedFileRef.current && viewMode === 'stacked') {
+      handleViewModeChange('file');
+    }
+    prevSelectedFileRef.current = selectedFile;
+  }, [selectedFile, viewMode]);
 
   return (
     <div className="flex h-full flex-col">

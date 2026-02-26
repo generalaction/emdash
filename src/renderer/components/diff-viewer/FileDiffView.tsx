@@ -20,6 +20,7 @@ interface FileDiffViewProps {
   filePath: string;
   diffStyle: 'unified' | 'split';
   onRefreshChanges?: () => Promise<void> | void;
+  onContentHeightChange?: (height: number) => void;
 }
 
 export const FileDiffView: React.FC<FileDiffViewProps> = ({
@@ -28,6 +29,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   filePath,
   diffStyle,
   onRefreshChanges,
+  onContentHeightChange,
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
@@ -47,8 +49,11 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   );
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const changeDisposableRef = useRef<monaco.IDisposable | null>(null);
+  const contentSizeDisposableRef = useRef<monaco.IDisposable | null>(null);
   const activeEditorCleanupRef = useRef<(() => void) | null>(null);
   const handleSaveRef = useRef<() => void>(() => {});
+  const onContentHeightChangeRef = useRef(onContentHeightChange);
+  onContentHeightChangeRef.current = onContentHeightChange;
 
   // Comment integration
   useDiffEditorComments({
@@ -334,6 +339,22 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     } catch {
       // best effort
     }
+
+    // Report content height changes for stacked view dynamic sizing
+    try {
+      const modifiedEditor = editor.getModifiedEditor();
+      const reportHeight = () => {
+        const h = modifiedEditor.getContentHeight();
+        onContentHeightChangeRef.current?.(h);
+      };
+      reportHeight();
+      contentSizeDisposableRef.current?.dispose();
+      contentSizeDisposableRef.current = modifiedEditor.onDidContentSizeChange(() => {
+        reportHeight();
+      });
+    } catch {
+      // best effort
+    }
   };
 
   // Cleanup
@@ -351,6 +372,12 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         // ignore
       }
       changeDisposableRef.current = null;
+      try {
+        contentSizeDisposableRef.current?.dispose();
+      } catch {
+        // ignore
+      }
+      contentSizeDisposableRef.current = null;
       try {
         activeEditorCleanupRef.current?.();
       } catch {

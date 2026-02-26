@@ -11,10 +11,17 @@ interface Commit {
   tags: string[];
 }
 
+export interface CommitInfo {
+  hash: string;
+  subject: string;
+  body: string;
+  author: string;
+}
+
 interface CommitListProps {
   taskPath?: string;
   selectedCommit: string | null;
-  onSelectCommit: (hash: string) => void;
+  onSelectCommit: (commit: CommitInfo) => void;
 }
 
 const PAGE_SIZE = 50;
@@ -67,7 +74,8 @@ export const CommitList: React.FC<CommitListProps> = ({
           setHasMore(res.commits.length >= PAGE_SIZE);
           // Auto-select the latest commit if none is selected
           if (res.commits.length > 0 && !selectedCommit) {
-            onSelectCommit(res.commits[0].hash);
+            const c = res.commits[0];
+            onSelectCommit({ hash: c.hash, subject: c.subject, body: c.body, author: c.author });
           }
         }
       } catch {
@@ -131,7 +139,14 @@ export const CommitList: React.FC<CommitListProps> = ({
           className={`w-full cursor-pointer border-b border-border/50 px-3 py-2 text-left ${
             selectedCommit === commit.hash ? 'bg-accent' : 'hover:bg-muted/50'
           }`}
-          onClick={() => onSelectCommit(commit.hash)}
+          onClick={() =>
+            onSelectCommit({
+              hash: commit.hash,
+              subject: commit.subject,
+              body: commit.body,
+              author: commit.author,
+            })
+          }
         >
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
