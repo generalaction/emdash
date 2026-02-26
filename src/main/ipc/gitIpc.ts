@@ -15,6 +15,7 @@ import {
   revertFile as gitRevertFile,
   commit as gitCommit,
   push as gitPush,
+  pull as gitPull,
   getLog as gitGetLog,
   getLatestCommit as gitGetLatestCommit,
   getCommitFiles as gitGetCommitFiles,
@@ -1827,30 +1828,45 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         } catch {}
       }
 
-      // Ahead/behind relative to upstream or origin/<default>
+      // Ahead/behind relative to upstream tracking branch
       let ahead = 0;
       let behind = 0;
       try {
-        // Try explicit compare with origin/default...HEAD
+        // Best case: compare against the upstream tracking branch (@{upstream})
         const { stdout } = await execFileAsync(
           GIT,
-          ['rev-list', '--left-right', '--count', `origin/${defaultBranch}...HEAD`],
+          ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
           { cwd: taskPath }
         );
         const parts = (stdout || '').trim().split(/\s+/);
         if (parts.length >= 2) {
-          behind = parseInt(parts[0] || '0', 10) || 0; // commits on left (origin/default)
-          ahead = parseInt(parts[1] || '0', 10) || 0; // commits on right (HEAD)
+          behind = parseInt(parts[0] || '0', 10) || 0;
+          ahead = parseInt(parts[1] || '0', 10) || 0;
         }
       } catch {
         try {
-          const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
-          const line = (stdout || '').split(/\n/)[0] || '';
-          const m = line.match(/ahead\s+(\d+)/i);
-          const n = line.match(/behind\s+(\d+)/i);
-          if (m) ahead = parseInt(m[1] || '0', 10) || 0;
-          if (n) behind = parseInt(n[1] || '0', 10) || 0;
-        } catch {}
+          // Fallback: compare against origin/<current-branch>
+          const { stdout } = await execFileAsync(
+            GIT,
+            ['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`],
+            { cwd: taskPath }
+          );
+          const parts = (stdout || '').trim().split(/\s+/);
+          if (parts.length >= 2) {
+            behind = parseInt(parts[0] || '0', 10) || 0;
+            ahead = parseInt(parts[1] || '0', 10) || 0;
+          }
+        } catch {
+          // No upstream — use git status as last resort
+          try {
+            const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
+            const line = (stdout || '').split(/\n/)[0] || '';
+            const m = line.match(/ahead\s+(\d+)/i);
+            const n = line.match(/behind\s+(\d+)/i);
+            if (m) ahead = parseInt(m[1] || '0', 10) || 0;
+            if (n) behind = parseInt(n[1] || '0', 10) || 0;
+          } catch {}
+        }
       }
 
       return { success: true, branch, defaultBranch, ahead, behind };
@@ -2211,6 +2227,16 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
     try {
       const result = await gitPush(args.taskPath);
+      return { success: true, output: result.output };
+    } catch (error) {
+      const errObj = error as { stderr?: string; message?: string };
+      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('git:pull', async (_, args: { taskPath: string }) => {
+    try {
+      const result = await gitPull(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
       const errObj = error as { stderr?: string; message?: string };
