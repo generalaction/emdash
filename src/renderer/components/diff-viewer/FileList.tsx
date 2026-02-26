@@ -114,7 +114,7 @@ export const FileList: React.FC<FileListProps> = ({
             void handleFileStage(file.path, checked === true);
           }}
           onClick={(e) => e.stopPropagation()}
-          className="flex-shrink-0"
+          className={`flex-shrink-0 transition-opacity ${file.isStaged ? '' : 'opacity-0 group-hover/file:opacity-100'}`}
         />
       </div>
     );
