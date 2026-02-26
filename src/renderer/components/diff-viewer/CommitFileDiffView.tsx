@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
-import { MONACO_DIFF_COLORS } from '../../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
+import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
 import { useTheme } from '../../hooks/useTheme';
 
 interface CommitFileDiffViewProps {
@@ -66,14 +66,14 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
             error: null,
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!cancelled) {
           setData({
             original: '',
             modified: '',
             language,
             loading: false,
-            error: error?.message || 'Failed to load commit diff',
+            error: (error as Error)?.message ?? String(error),
           });
         }
       }
@@ -85,70 +85,23 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
     };
   }, [taskPath, commitHash, filePath]);
 
-  // Define Monaco themes
+  // Register and apply Monaco diff themes
   useEffect(() => {
-    const defineThemes = async () => {
-      try {
-        const monacoInstance = await loader.init();
-        monacoInstance.editor.defineTheme('custom-diff-dark', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [],
-          colors: {
-            'editor.background': MONACO_DIFF_COLORS.dark.editorBackground,
-            'editorGutter.background': MONACO_DIFF_COLORS.dark.editorBackground,
-            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.dark.insertedTextBackground,
-            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
-            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
-            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#1a2332',
-          },
-        });
-        monacoInstance.editor.defineTheme('custom-diff-black', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [],
-          colors: {
-            'editor.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-            'editorGutter.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-            'diffEditor.insertedTextBackground':
-              MONACO_DIFF_COLORS['dark-black'].insertedTextBackground,
-            'diffEditor.insertedLineBackground':
-              MONACO_DIFF_COLORS['dark-black'].insertedLineBackground,
-            'diffEditor.removedTextBackground':
-              MONACO_DIFF_COLORS['dark-black'].removedTextBackground,
-            'diffEditor.removedLineBackground':
-              MONACO_DIFF_COLORS['dark-black'].removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#0a0a0a',
-          },
-        });
-        monacoInstance.editor.defineTheme('custom-diff-light', {
-          base: 'vs',
-          inherit: true,
-          rules: [],
-          colors: {
-            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
-            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
-            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
-            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#e2e8f0',
-          },
-        });
-
-        const currentTheme =
-          effectiveTheme === 'dark-black'
-            ? 'custom-diff-black'
-            : effectiveTheme === 'dark'
-              ? 'custom-diff-dark'
-              : 'custom-diff-light';
-        monacoInstance.editor.setTheme(currentTheme);
-      } catch (error) {
-        console.warn('Failed to define Monaco themes:', error);
-      }
+    let cancelled = false;
+    registerDiffThemes()
+      .then(() => {
+        if (!cancelled) {
+          const monacoInstance = (window as any).monaco;
+          if (monacoInstance) {
+            monacoInstance.editor.setTheme(getDiffThemeName(effectiveTheme));
+          }
+        }
+      })
+      .catch((err: unknown) => console.warn('Failed to register diff themes:', err));
+    return () => {
+      cancelled = true;
     };
-
-    defineThemes();
-  }, [isDark, effectiveTheme]);
+  }, [effectiveTheme]);
 
   // Editor mount handler
   const handleEditorDidMount = async (editor: monaco.editor.IStandaloneDiffEditor) => {

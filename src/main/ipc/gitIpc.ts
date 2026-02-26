@@ -2220,7 +2220,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       broadcastGitStatusChange(args.taskPath);
       return { success: true, hash: result.hash };
     } catch (error) {
-      return { success: false, error: (error as Error).message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -2251,7 +2251,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const commits = await gitGetLog(args.taskPath, args.maxCount, args.skip);
         return { success: true, commits };
       } catch (error) {
-        return { success: false, error: (error as Error).message };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -2261,7 +2261,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       const commit = await gitGetLatestCommit(args.taskPath);
       return { success: true, commit };
     } catch (error) {
-      return { success: false, error: (error as Error).message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -2269,10 +2269,13 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-files',
     async (_, args: { taskPath: string; commitHash: string }) => {
       try {
+        if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
+          return { success: false, error: 'Invalid commit hash' };
+        }
         const files = await gitGetCommitFiles(args.taskPath, args.commitHash);
         return { success: true, files };
       } catch (error) {
-        return { success: false, error: (error as Error).message };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -2281,10 +2284,13 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-file-diff',
     async (_, args: { taskPath: string; commitHash: string; filePath: string }) => {
       try {
+        if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
+          return { success: false, error: 'Invalid commit hash' };
+        }
         const diff = await gitGetCommitFileDiff(args.taskPath, args.commitHash, args.filePath);
         return { success: true, diff };
       } catch (error) {
-        return { success: false, error: (error as Error).message };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -2295,7 +2301,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       broadcastGitStatusChange(args.taskPath);
       return { success: true, subject: result.subject, body: result.body };
     } catch (error) {
-      return { success: false, error: (error as Error).message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 }

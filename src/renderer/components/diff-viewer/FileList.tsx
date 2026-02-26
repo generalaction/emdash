@@ -47,11 +47,11 @@ export const FileList: React.FC<FileListProps> = ({
       if (checked) {
         await window.electronAPI.stageAllFiles({ taskPath });
       } else {
-        for (const file of fileChanges) {
-          if (file.isStaged) {
-            await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
-          }
-        }
+        await Promise.all(
+          fileChanges
+            .filter((f) => f.isStaged)
+            .map((f) => window.electronAPI.unstageFile({ taskPath, filePath: f.path }))
+        );
       }
     } catch (err) {
       console.error('Staging failed:', err);
@@ -62,13 +62,16 @@ export const FileList: React.FC<FileListProps> = ({
   const handleGroupStage = async (files: FileChange[], checked: boolean) => {
     if (!taskPath) return;
     try {
-      for (const file of files) {
-        if (checked && !file.isStaged) {
-          await window.electronAPI.stageFile({ taskPath, filePath: file.path });
-        } else if (!checked && file.isStaged) {
-          await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
-        }
-      }
+      await Promise.all(
+        files.map((file) => {
+          if (checked && !file.isStaged) {
+            return window.electronAPI.stageFile({ taskPath, filePath: file.path });
+          } else if (!checked && file.isStaged) {
+            return window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+          }
+          return Promise.resolve();
+        })
+      );
     } catch (err) {
       console.error('Staging failed:', err);
     }

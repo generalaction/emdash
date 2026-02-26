@@ -212,6 +212,12 @@ export async function getFileDiff(
   lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
   isBinary?: boolean;
 }> {
+  const absPath = path.resolve(taskPath, filePath);
+  const resolvedTaskPath = path.resolve(taskPath);
+  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
+    throw new Error('File path is outside the worktree');
+  }
+
   try {
     const { stdout } = await execFileAsync(
       'git',
@@ -294,16 +300,21 @@ export async function push(taskPath: string): Promise<{ output: string }> {
   try {
     const { stdout } = await execFileAsync('git', ['push'], { cwd: taskPath });
     return { output: stdout.trim() };
-  } catch {
-    const { stdout: branch } = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: taskPath,
-    });
-    const { stdout } = await execFileAsync(
-      'git',
-      ['push', '--set-upstream', 'origin', branch.trim()],
-      { cwd: taskPath }
-    );
-    return { output: stdout.trim() };
+  } catch (error: unknown) {
+    const stderr = (error as { stderr?: string })?.stderr || '';
+    // Only fallback to --set-upstream if git tells us there's no upstream
+    if (stderr.includes('has no upstream branch') || stderr.includes('no upstream configured')) {
+      const { stdout: branch } = await execFileAsync('git', ['branch', '--show-current'], {
+        cwd: taskPath,
+      });
+      const { stdout } = await execFileAsync(
+        'git',
+        ['push', '--set-upstream', 'origin', branch.trim()],
+        { cwd: taskPath }
+      );
+      return { output: stdout.trim() };
+    }
+    throw error;
   }
 }
 
@@ -499,6 +510,12 @@ export async function getCommitFileDiff(
   lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
   isBinary?: boolean;
 }> {
+  const absPath = path.resolve(taskPath, filePath);
+  const resolvedTaskPath = path.resolve(taskPath);
+  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
+    throw new Error('File path is outside the worktree');
+  }
+
   // Check if this is a root commit (no parent)
   let hasParent = true;
   try {

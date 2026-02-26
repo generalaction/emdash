@@ -7,8 +7,8 @@ import {
   getMonacoLanguageId,
   isBinaryFile,
 } from '../../lib/diffUtils';
-import { MONACO_DIFF_COLORS } from '../../lib/monacoDiffColors';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
+import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
 import { dispatchFileChangeEvent } from '../../lib/fileChangeEvents';
 import { useDiffEditorComments } from '../../hooks/useDiffEditorComments';
 import { useTheme } from '../../hooks/useTheme';
@@ -148,7 +148,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
           });
           setModifiedDraft(modifiedContent);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!cancelled) {
           setFileData({
             original: '',
@@ -156,7 +156,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
             initialModified: '',
             language,
             loading: false,
-            error: error?.message || 'Failed to load file diff',
+            error: (error as Error)?.message ?? String(error),
           });
         }
       }
@@ -168,113 +168,70 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     };
   }, [taskPath, filePath]);
 
-  // Define Monaco themes & styles
+  // Inject diff panel styles (always update content so theme-dependent colors refresh)
   useEffect(() => {
     const styleId = 'diff-panel-styles';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
+    let style = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement('style');
       style.id = styleId;
-      style.textContent = `
-        .monaco-diff-editor .diffViewport { padding-left: 0 !important; }
-        .monaco-diff-editor .line-numbers { text-align: right !important; padding-right: 12px !important; padding-left: 4px !important; min-width: 40px !important; }
-        .monaco-diff-editor .monaco-editor .margin { padding-right: 8px !important; }
-        .monaco-diff-editor .original .line-numbers { display: none !important; }
-        .monaco-diff-editor .original .margin { display: none !important; }
-        .monaco-diff-editor .monaco-editor .overview-ruler { width: 3px !important; }
-        .monaco-diff-editor .margin-view-overlays .line-insert,
-        .monaco-diff-editor .margin-view-overlays .line-delete,
-        .monaco-diff-editor .margin-view-overlays .codicon-add,
-        .monaco-diff-editor .margin-view-overlays .codicon-remove,
-        .monaco-diff-editor .margin-view-overlays .codicon-diff-added,
-        .monaco-diff-editor .margin-view-overlays .codicon-diff-removed { display: none !important; visibility: hidden !important; opacity: 0 !important; }
-        .monaco-diff-editor .modified .margin-view-overlays { border-right: 1px solid ${isDark ? 'rgba(156,163,175,0.2)' : 'rgba(107,114,128,0.2)'} !important; }
-        .monaco-diff-editor .monaco-editor .margin { border-right: 1px solid ${isDark ? 'rgba(156,163,175,0.2)' : 'rgba(107,114,128,0.2)'} !important; }
-        .monaco-diff-editor .diffViewport { display: none !important; }
-        .monaco-diff-editor .monaco-scrollable-element { box-shadow: none !important; }
-        .monaco-diff-editor .overflow-guard { box-shadow: none !important; }
-        .comment-hover-icon { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin: 1px auto; border-radius: 6px; border: 1px solid transparent; background: transparent; cursor: pointer; pointer-events: auto; transition: background-color 0.15s ease, border-color 0.15s ease; }
-        .comment-hover-icon::before { content: ''; display: block; width: 12px; height: 12px; background-color: hsl(var(--muted-foreground)); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E"); mask-size: contain; mask-repeat: no-repeat; mask-position: center; }
-        .comment-hover-icon:hover, .comment-hover-icon.comment-hover-icon-pinned { background-color: hsl(var(--foreground) / 0.08); border-color: hsl(var(--border)); }
-        .comment-hover-icon:hover::before, .comment-hover-icon.comment-hover-icon-pinned::before { background-color: hsl(var(--foreground)); }
-        .monaco-editor .glyph-margin > div { border: none !important; outline: none !important; box-shadow: none !important; }
-        .monaco-diff-editor .margin-view-overlays .cgmr,
-        .monaco-diff-editor .margin-view-overlays .codicon,
-        .monaco-diff-editor .glyph-margin-widgets .codicon,
-        .monaco-diff-editor .line-decorations .codicon,
-        .monaco-diff-editor .margin-view-overlays [class*="codicon-"] { border: none !important; outline: none !important; box-shadow: none !important; }
-        .monaco-diff-editor .dirty-diff-deleted-indicator,
-        .monaco-diff-editor .dirty-diff-modified-indicator,
-        .monaco-diff-editor .dirty-diff-added-indicator { border: none !important; box-shadow: none !important; }
-        .monaco-diff-editor .glyph-margin .codicon-arrow-left,
-        .monaco-diff-editor .glyph-margin .codicon-discard { display: none !important; }
-        .monaco-editor .view-zones { pointer-events: auto !important; }
-        .monaco-editor .view-zone { pointer-events: auto !important; }
-      `;
       document.head.appendChild(style);
     }
+    style.textContent = `
+      .monaco-diff-editor .diffViewport { padding-left: 0 !important; }
+      .monaco-diff-editor .line-numbers { text-align: right !important; padding-right: 12px !important; padding-left: 4px !important; min-width: 40px !important; }
+      .monaco-diff-editor .monaco-editor .margin { padding-right: 8px !important; }
+      .monaco-diff-editor .original .line-numbers { display: none !important; }
+      .monaco-diff-editor .original .margin { display: none !important; }
+      .monaco-diff-editor .monaco-editor .overview-ruler { width: 3px !important; }
+      .monaco-diff-editor .margin-view-overlays .line-insert,
+      .monaco-diff-editor .margin-view-overlays .line-delete,
+      .monaco-diff-editor .margin-view-overlays .codicon-add,
+      .monaco-diff-editor .margin-view-overlays .codicon-remove,
+      .monaco-diff-editor .margin-view-overlays .codicon-diff-added,
+      .monaco-diff-editor .margin-view-overlays .codicon-diff-removed { display: none !important; visibility: hidden !important; opacity: 0 !important; }
+      .monaco-diff-editor .modified .margin-view-overlays { border-right: 1px solid ${isDark ? 'rgba(156,163,175,0.2)' : 'rgba(107,114,128,0.2)'} !important; }
+      .monaco-diff-editor .monaco-editor .margin { border-right: 1px solid ${isDark ? 'rgba(156,163,175,0.2)' : 'rgba(107,114,128,0.2)'} !important; }
+      .monaco-diff-editor .diffViewport { display: none !important; }
+      .monaco-diff-editor .monaco-scrollable-element { box-shadow: none !important; }
+      .monaco-diff-editor .overflow-guard { box-shadow: none !important; }
+      .comment-hover-icon { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin: 1px auto; border-radius: 6px; border: 1px solid transparent; background: transparent; cursor: pointer; pointer-events: auto; transition: background-color 0.15s ease, border-color 0.15s ease; }
+      .comment-hover-icon::before { content: ''; display: block; width: 12px; height: 12px; background-color: hsl(var(--muted-foreground)); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E"); mask-size: contain; mask-repeat: no-repeat; mask-position: center; }
+      .comment-hover-icon:hover, .comment-hover-icon.comment-hover-icon-pinned { background-color: hsl(var(--foreground) / 0.08); border-color: hsl(var(--border)); }
+      .comment-hover-icon:hover::before, .comment-hover-icon.comment-hover-icon-pinned::before { background-color: hsl(var(--foreground)); }
+      .monaco-editor .glyph-margin > div { border: none !important; outline: none !important; box-shadow: none !important; }
+      .monaco-diff-editor .margin-view-overlays .cgmr,
+      .monaco-diff-editor .margin-view-overlays .codicon,
+      .monaco-diff-editor .glyph-margin-widgets .codicon,
+      .monaco-diff-editor .line-decorations .codicon,
+      .monaco-diff-editor .margin-view-overlays [class*="codicon-"] { border: none !important; outline: none !important; box-shadow: none !important; }
+      .monaco-diff-editor .dirty-diff-deleted-indicator,
+      .monaco-diff-editor .dirty-diff-modified-indicator,
+      .monaco-diff-editor .dirty-diff-added-indicator { border: none !important; box-shadow: none !important; }
+      .monaco-diff-editor .glyph-margin .codicon-arrow-left,
+      .monaco-diff-editor .glyph-margin .codicon-discard { display: none !important; }
+      .monaco-editor .view-zones { pointer-events: auto !important; }
+      .monaco-editor .view-zone { pointer-events: auto !important; }
+    `;
+  }, [isDark]);
 
-    const defineThemes = async () => {
-      try {
-        const monacoInstance = await loader.init();
-        monacoInstance.editor.defineTheme('custom-diff-dark', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [],
-          colors: {
-            'editor.background': MONACO_DIFF_COLORS.dark.editorBackground,
-            'editorGutter.background': MONACO_DIFF_COLORS.dark.editorBackground,
-            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.dark.insertedTextBackground,
-            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
-            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
-            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#1a2332',
-          },
-        });
-        monacoInstance.editor.defineTheme('custom-diff-black', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [],
-          colors: {
-            'editor.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-            'editorGutter.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-            'diffEditor.insertedTextBackground':
-              MONACO_DIFF_COLORS['dark-black'].insertedTextBackground,
-            'diffEditor.insertedLineBackground':
-              MONACO_DIFF_COLORS['dark-black'].insertedLineBackground,
-            'diffEditor.removedTextBackground':
-              MONACO_DIFF_COLORS['dark-black'].removedTextBackground,
-            'diffEditor.removedLineBackground':
-              MONACO_DIFF_COLORS['dark-black'].removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#0a0a0a',
-          },
-        });
-        monacoInstance.editor.defineTheme('custom-diff-light', {
-          base: 'vs',
-          inherit: true,
-          rules: [],
-          colors: {
-            'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
-            'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
-            'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
-            'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#e2e8f0',
-          },
-        });
-
-        const currentTheme =
-          effectiveTheme === 'dark-black'
-            ? 'custom-diff-black'
-            : effectiveTheme === 'dark'
-              ? 'custom-diff-dark'
-              : 'custom-diff-light';
-        monacoInstance.editor.setTheme(currentTheme);
-      } catch (error) {
-        console.warn('Failed to define Monaco themes:', error);
-      }
+  // Register and apply Monaco diff themes
+  useEffect(() => {
+    let cancelled = false;
+    registerDiffThemes()
+      .then(() => {
+        if (!cancelled) {
+          const monacoInstance = (window as any).monaco;
+          if (monacoInstance) {
+            monacoInstance.editor.setTheme(getDiffThemeName(effectiveTheme));
+          }
+        }
+      })
+      .catch((err: unknown) => console.warn('Failed to register diff themes:', err));
+    return () => {
+      cancelled = true;
     };
-
-    defineThemes();
-  }, [isDark, effectiveTheme]);
+  }, [effectiveTheme]);
 
   // Save handler
   const handleSave = async () => {

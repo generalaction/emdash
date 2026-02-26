@@ -6,9 +6,7 @@ interface DiffToolbarProps {
   onViewModeChange: (mode: 'stacked' | 'file') => void;
   diffStyle: 'unified' | 'split';
   onDiffStyleChange: (style: 'unified' | 'split') => void;
-  taskPath?: string;
   hideViewModeToggle?: boolean;
-  hidePushButton?: boolean;
   closeButton?: React.ReactNode;
 }
 

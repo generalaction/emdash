@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { CommitList } from './CommitList';
 import type { CommitInfo } from './CommitList';
@@ -50,12 +50,23 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   const bodyTrimmed = selectedCommit?.body?.trim() || '';
   const hasExpandableContent = bodyTrimmed.length > 0 || !!selectedCommit?.author;
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   const handleCopyHash = async () => {
     if (!selectedCommit) return;
-    await navigator.clipboard.writeText(selectedCommit.hash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(selectedCommit.hash);
+      setCopied(true);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
   };
+
+  useEffect(() => {
+    return () => clearTimeout(copyTimerRef.current);
+  }, []);
 
   return (
     <ResizablePanelGroup
@@ -159,9 +170,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
                 onViewModeChange={() => {}}
                 diffStyle={diffStyle}
                 onDiffStyleChange={handleDiffStyleChange}
-                taskPath={taskPath}
                 hideViewModeToggle
-                hidePushButton
                 closeButton={closeButton}
               />
               <div className="min-h-0 flex-1">

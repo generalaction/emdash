@@ -676,7 +676,6 @@ const AppContent: React.FC = () => {
                           }}
                           taskId={activeTask?.id}
                           taskPath={activeTask?.path}
-                          projectPath={selectedProject?.path || undefined}
                           initialFile={diffViewerInitialFile}
                         />
                       ) : (

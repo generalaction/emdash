@@ -621,6 +621,7 @@ declare global {
             right?: string;
             type: 'context' | 'add' | 'del';
           }>;
+          isBinary?: boolean;
         };
         error?: string;
       }>;
@@ -697,6 +698,7 @@ declare global {
         success: boolean;
         diff?: {
           lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+          isBinary?: boolean;
         };
         error?: string;
       }>;

@@ -64,6 +64,9 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
     return () => {
       cancelled = true;
     };
+    // Intentionally only re-run on taskPath/commitHash change. onSelectFile is excluded
+    // to avoid re-fetching when the parent re-renders with a new callback reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath, commitHash]);
 
   if (loading) {

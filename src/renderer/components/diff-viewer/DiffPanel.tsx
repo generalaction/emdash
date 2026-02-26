@@ -54,8 +54,6 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
         onViewModeChange={handleViewModeChange}
         diffStyle={diffStyle}
         onDiffStyleChange={handleDiffStyleChange}
-        taskPath={taskPath}
-        hidePushButton
         closeButton={closeButton}
       />
       {viewMode === 'file' &&

@@ -89,6 +89,8 @@ export const CommitList: React.FC<CommitListProps> = ({
     return () => {
       cancelled = true;
     };
+    // Intentionally only re-run on taskPath change. onSelectCommit and selectedCommit
+    // are excluded to avoid re-fetching commits when the parent re-renders with new callbacks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath]);
 

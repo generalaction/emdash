@@ -8,7 +8,6 @@ interface DiffViewerProps {
   onClose: () => void;
   taskId?: string;
   taskPath?: string;
-  projectPath?: string;
   initialFile?: string | null;
 }
 
@@ -18,7 +17,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   onClose,
   taskId,
   taskPath,
-  projectPath,
   initialFile,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('changes');
