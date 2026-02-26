@@ -8,12 +8,11 @@ import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { ChevronDown, FileDiff } from 'lucide-react';
 import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 
-type PrMode = 'create' | 'draft' | 'merge';
+type PrMode = 'create' | 'draft';
 
 const PR_MODE_LABELS: Record<PrMode, string> = {
   create: 'Create PR',
   draft: 'Draft PR',
-  merge: 'Merge into Main',
 };
 
 interface ChangeSummaryProps {
@@ -93,7 +92,7 @@ export const ChangeSummary: React.FC<ChangeSummaryProps> = ({ taskPath, onOpenCh
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
-                  {(['create', 'draft', 'merge'] as PrMode[])
+                  {(['create', 'draft'] as PrMode[])
                     .filter((m) => m !== prMode)
                     .map((m) => (
                       <PopoverClose key={m} asChild>

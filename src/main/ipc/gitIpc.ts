@@ -641,7 +641,7 @@ export function registerGitIpc() {
       const changes = await gitGetStatus(taskPath);
       return { success: true, changes };
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -660,7 +660,7 @@ export function registerGitIpc() {
       const diff = await gitGetFileDiff(args.taskPath, args.filePath);
       return { success: true, diff };
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1227,7 +1227,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: false, error: msg || 'Failed to query PR status' };
       }
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1310,7 +1310,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: false, error: combined || 'Failed to merge PR' };
         }
       } catch (error) {
-        return { success: false, error: error as string };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -1433,7 +1433,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: false, error: msg || 'Failed to query check runs' };
       }
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1600,7 +1600,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: false, error: msg || 'Failed to query PR comments' };
         }
       } catch (error) {
-        return { success: false, error: error as string };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -1856,7 +1856,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: true, branch, defaultBranch, ahead, behind };
     } catch (error) {
       log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1893,11 +1893,11 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Check if remote exists before attempting to fetch
         let hasRemote = false;
         try {
-          await execAsync(`git remote get-url ${remote}`, { cwd: projectPath });
+          await execFileAsync('git', ['remote', 'get-url', remote], { cwd: projectPath });
           hasRemote = true;
           // Remote exists, try to fetch
           try {
-            await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+            await execFileAsync('git', ['fetch', '--prune', remote], { cwd: projectPath });
           } catch (fetchError) {
             log.warn('Failed to fetch remote before listing branches', fetchError);
           }
@@ -1910,8 +1910,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         if (hasRemote) {
           // List remote branches
-          const { stdout } = await execAsync(
-            `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
+          const { stdout } = await execFileAsync(
+            'git',
+            ['for-each-ref', '--format=%(refname:short)', `refs/remotes/${remote}`],
             { cwd: projectPath }
           );
 

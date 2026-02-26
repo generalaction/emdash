@@ -26,6 +26,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
   const [latestCommit, setLatestCommit] = useState<LatestCommit | null>(null);
   const [isCommitting, setIsCommitting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
   const [aheadCount, setAheadCount] = useState(0);
 
   const hasStagedFiles = fileChanges.some((f) => f.isStaged);
@@ -67,7 +68,11 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         await onRefreshChanges?.();
         await fetchLatestCommit();
         await fetchBranch();
+      } else {
+        console.error('Commit failed:', result?.error);
       }
+    } catch (err) {
+      console.error('Commit failed:', err);
     } finally {
       setIsCommitting(false);
     }
@@ -93,13 +98,22 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
   };
 
   const handleUndo = async () => {
-    if (!taskPath) return;
-    const result = await window.electronAPI.gitSoftReset({ taskPath });
-    if (result.success) {
-      if (result.subject) setCommitMessage(result.subject);
-      if (result.body) setDescription(result.body);
-      await onRefreshChanges?.();
-      await fetchLatestCommit();
+    if (!taskPath || isUndoing) return;
+    setIsUndoing(true);
+    try {
+      const result = await window.electronAPI.gitSoftReset({ taskPath });
+      if (result.success) {
+        if (result.subject) setCommitMessage(result.subject);
+        if (result.body) setDescription(result.body);
+        await onRefreshChanges?.();
+        await fetchLatestCommit();
+      } else {
+        console.error('Undo failed:', result?.error);
+      }
+    } catch (err) {
+      console.error('Undo failed:', err);
+    } finally {
+      setIsUndoing(false);
     }
   };
 
@@ -174,7 +188,8 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
           {!latestCommit.isPushed && (
             <button
               onClick={() => void handleUndo()}
-              className="flex flex-shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              disabled={isUndoing}
+              className="flex flex-shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               title="Undo last commit"
             >
               <Undo2 className="h-3 w-3" />

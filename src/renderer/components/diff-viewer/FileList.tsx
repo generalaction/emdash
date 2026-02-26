@@ -39,36 +39,48 @@ export const FileList: React.FC<FileListProps> = ({
 
   const handleStageAll = async (checked: boolean) => {
     if (!taskPath) return;
-    if (checked) {
-      await window.electronAPI.stageAllFiles({ taskPath });
-    } else {
-      for (const file of fileChanges) {
-        if (file.isStaged) {
-          await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+    try {
+      if (checked) {
+        await window.electronAPI.stageAllFiles({ taskPath });
+      } else {
+        for (const file of fileChanges) {
+          if (file.isStaged) {
+            await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+          }
         }
       }
+    } catch (err) {
+      console.error('Staging failed:', err);
     }
     await onRefreshChanges?.();
   };
 
   const handleGroupStage = async (files: FileChange[], checked: boolean) => {
     if (!taskPath) return;
-    for (const file of files) {
-      if (checked && !file.isStaged) {
-        await window.electronAPI.stageFile({ taskPath, filePath: file.path });
-      } else if (!checked && file.isStaged) {
-        await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+    try {
+      for (const file of files) {
+        if (checked && !file.isStaged) {
+          await window.electronAPI.stageFile({ taskPath, filePath: file.path });
+        } else if (!checked && file.isStaged) {
+          await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+        }
       }
+    } catch (err) {
+      console.error('Staging failed:', err);
     }
     await onRefreshChanges?.();
   };
 
   const handleFileStage = async (filePath: string, checked: boolean) => {
     if (!taskPath) return;
-    if (checked) {
-      await window.electronAPI.stageFile({ taskPath, filePath });
-    } else {
-      await window.electronAPI.unstageFile({ taskPath, filePath });
+    try {
+      if (checked) {
+        await window.electronAPI.stageFile({ taskPath, filePath });
+      } else {
+        await window.electronAPI.unstageFile({ taskPath, filePath });
+      }
+    } catch (err) {
+      console.error('Staging failed:', err);
     }
     await onRefreshChanges?.();
   };

@@ -159,13 +159,25 @@ export async function stageAllFiles(taskPath: string): Promise<void> {
 }
 
 export async function unstageFile(taskPath: string, filePath: string): Promise<void> {
-  await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
+  try {
+    await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
+  } catch {
+    // HEAD may not exist (no commits yet) — use rm --cached instead
+    await execFileAsync('git', ['rm', '--cached', '--', filePath], { cwd: taskPath });
+  }
 }
 
 export async function revertFile(
   taskPath: string,
   filePath: string
 ): Promise<{ action: 'unstaged' | 'reverted' }> {
+  // Validate filePath doesn't escape the worktree
+  const absPath = path.resolve(taskPath, filePath);
+  const resolvedTaskPath = path.resolve(taskPath);
+  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
+    throw new Error('File path is outside the worktree');
+  }
+
   // Check if file is tracked in git (exists in HEAD)
   let fileExistsInHead = false;
   try {
@@ -173,7 +185,6 @@ export async function revertFile(
     fileExistsInHead = true;
   } catch {
     // File doesn't exist in HEAD (it's a new/untracked file), delete it
-    const absPath = path.join(taskPath, filePath);
     if (fs.existsSync(absPath)) {
       fs.unlinkSync(absPath);
     }
@@ -197,7 +208,10 @@ export async function revertFile(
 export async function getFileDiff(
   taskPath: string,
   filePath: string
-): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
+): Promise<{
+  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+  isBinary?: boolean;
+}> {
   try {
     const { stdout } = await execFileAsync(
       'git',
@@ -225,6 +239,11 @@ export async function getFileDiff(
       else result.push({ left: line, right: line, type: 'context' });
     }
 
+    // Detect binary files: git outputs "Binary files ... differ" with no diff content
+    if (result.length === 0 && stdout.includes('Binary files')) {
+      return { lines: [], isBinary: true };
+    }
+
     if (result.length === 0) {
       try {
         const abs = path.join(taskPath, filePath);
@@ -243,48 +262,20 @@ export async function getFileDiff(
 
     return { lines: result };
   } catch {
+    // The git diff against HEAD failed (e.g., untracked file, no HEAD).
+    // Try reading the file directly as an all-additions diff.
     const abs = path.join(taskPath, filePath);
     const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
     if (content !== null) {
       const lines = content.split('\n');
       return { lines: lines.map((l) => ({ right: l, type: 'add' as const })) };
     }
+    // File unreadable — try to show the HEAD version as all-deletions
     try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-        { cwd: taskPath }
-      );
-      const linesRaw = stdout.split('\n');
-      const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
-      for (const line of linesRaw) {
-        if (!line) continue;
-        if (
-          line.startsWith('diff ') ||
-          line.startsWith('index ') ||
-          line.startsWith('--- ') ||
-          line.startsWith('+++ ') ||
-          line.startsWith('@@')
-        )
-          continue;
-        const prefix = line[0];
-        const content = line.slice(1);
-        if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-        else if (prefix === '-') result.push({ left: content, type: 'del' });
-        else if (prefix === '+') result.push({ right: content, type: 'add' });
-        else result.push({ left: line, right: line, type: 'context' });
-      }
-      if (result.length === 0) {
-        try {
-          const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-            cwd: taskPath,
-          });
-          return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
-        } catch {
-          return { lines: [] };
-        }
-      }
-      return { lines: result };
+      const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
+        cwd: taskPath,
+      });
+      return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
     } catch {
       return { lines: [] };
     }
@@ -331,29 +322,52 @@ export async function getLog(
     isPushed: boolean;
   }>
 > {
-  // Get ahead count to determine which commits are unpushed
+  // Get ahead count to determine which commits are unpushed.
+  // Strategy: try upstream tracking branch first, then origin/<branch>, then origin/HEAD.
+  // If none work, assume all commits are pushed (aheadCount = 0).
   let aheadCount = 0;
   try {
-    const { stdout: defaultBranchOut } = await execFileAsync(
-      'git',
-      ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
-      { cwd: taskPath }
-    );
-    const defaultBranch = defaultBranchOut.trim();
+    // Best case: branch has an upstream tracking ref
     const { stdout: countOut } = await execFileAsync(
       'git',
-      ['rev-list', '--count', `${defaultBranch}..HEAD`],
+      ['rev-list', '--count', '@{upstream}..HEAD'],
       { cwd: taskPath }
     );
     aheadCount = parseInt(countOut.trim(), 10) || 0;
   } catch {
     try {
-      const { stdout: countOut } = await execFileAsync('git', ['rev-list', '--count', 'HEAD'], {
-        cwd: taskPath,
-      });
+      // Fallback: compare against origin/<current-branch>
+      const { stdout: branchOut } = await execFileAsync(
+        'git',
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        { cwd: taskPath }
+      );
+      const currentBranch = branchOut.trim();
+      const { stdout: countOut } = await execFileAsync(
+        'git',
+        ['rev-list', '--count', `origin/${currentBranch}..HEAD`],
+        { cwd: taskPath }
+      );
       aheadCount = parseInt(countOut.trim(), 10) || 0;
     } catch {
-      aheadCount = 0;
+      try {
+        // Last resort: compare against origin/HEAD (default branch)
+        const { stdout: defaultBranchOut } = await execFileAsync(
+          'git',
+          ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+          { cwd: taskPath }
+        );
+        const defaultBranch = defaultBranchOut.trim();
+        const { stdout: countOut } = await execFileAsync(
+          'git',
+          ['rev-list', '--count', `${defaultBranch}..HEAD`],
+          { cwd: taskPath }
+        );
+        aheadCount = parseInt(countOut.trim(), 10) || 0;
+      } catch {
+        // Cannot determine remote state — assume all pushed
+        aheadCount = 0;
+      }
     }
   }
 
@@ -379,7 +393,7 @@ export async function getLog(
         body: '',
         author: parts[2] || '',
         date: parts[3] || '',
-        isPushed: index >= aheadCount,
+        isPushed: skip + index >= aheadCount,
       };
     });
 
@@ -466,7 +480,10 @@ export async function getCommitFileDiff(
   taskPath: string,
   commitHash: string,
   filePath: string
-): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
+): Promise<{
+  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+  isBinary?: boolean;
+}> {
   // Check if this is a root commit (no parent)
   let hasParent = true;
   try {
@@ -526,6 +543,11 @@ export async function getCommitFileDiff(
     else result.push({ left: line, right: line, type: 'context' });
   }
 
+  // Detect binary files: git outputs "Binary files ... differ" with no diff content
+  if (result.length === 0 && stdout.includes('Binary files')) {
+    return { lines: [], isBinary: true };
+  }
+
   return { lines: result };
 }
 
@@ -533,6 +555,13 @@ export async function getCommitFileDiff(
 export async function softResetLastCommit(
   taskPath: string
 ): Promise<{ subject: string; body: string }> {
+  // Check if HEAD~1 exists (i.e., this isn't the initial commit)
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', 'HEAD~1'], { cwd: taskPath });
+  } catch {
+    throw new Error('Cannot undo the initial commit');
+  }
+
   const { stdout: subject } = await execFileAsync('git', ['log', '-1', '--pretty=format:%s'], {
     cwd: taskPath,
   });
