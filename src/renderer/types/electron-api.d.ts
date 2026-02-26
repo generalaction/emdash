@@ -146,6 +146,7 @@ declare global {
             fontFamily: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         };
         error?: string;
       }>;
@@ -227,6 +228,7 @@ declare global {
             fontFamily?: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         }>
       ) => Promise<{
         success: boolean;
@@ -307,6 +309,7 @@ declare global {
             fontFamily: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         };
         error?: string;
       }>;
