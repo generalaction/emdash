@@ -816,13 +816,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}{' '}
                           with Emdash
                         </span>
-                        <button
-                          type="button"
-                          className="cursor-pointer text-sm text-muted-foreground underline"
-                          onClick={() => setIsSelectMode(true)}
-                        >
-                          Select
-                        </button>
+                        {filteredTasks.length > 0 && (
+                          <button
+                            type="button"
+                            className="cursor-pointer text-sm text-muted-foreground underline"
+                            onClick={() => setIsSelectMode(true)}
+                          >
+                            Select
+                          </button>
+                        )}
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button
