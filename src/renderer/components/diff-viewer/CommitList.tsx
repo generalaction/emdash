@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowUp } from 'lucide-react';
 
 interface Commit {
@@ -15,6 +15,8 @@ interface CommitListProps {
   selectedCommit: string | null;
   onSelectCommit: (hash: string) => void;
 }
+
+const PAGE_SIZE = 50;
 
 function formatRelativeDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -43,10 +45,13 @@ export const CommitList: React.FC<CommitListProps> = ({
 }) => {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     if (!taskPath) {
       setCommits([]);
+      setHasMore(false);
       return;
     }
 
@@ -55,9 +60,10 @@ export const CommitList: React.FC<CommitListProps> = ({
 
     const load = async () => {
       try {
-        const res = await window.electronAPI.gitGetLog({ taskPath, maxCount: 50 });
+        const res = await window.electronAPI.gitGetLog({ taskPath, maxCount: PAGE_SIZE });
         if (!cancelled && res?.success && res.commits) {
           setCommits(res.commits);
+          setHasMore(res.commits.length >= PAGE_SIZE);
           // Auto-select the latest commit if none is selected
           if (res.commits.length > 0 && !selectedCommit) {
             onSelectCommit(res.commits[0].hash);
@@ -76,6 +82,29 @@ export const CommitList: React.FC<CommitListProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath]);
+
+  const loadMore = useCallback(async () => {
+    if (!taskPath || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await window.electronAPI.gitGetLog({
+        taskPath,
+        maxCount: PAGE_SIZE,
+        skip: commits.length,
+      });
+      if (res?.success && res.commits && res.commits.length > 0) {
+        const newCommits = res.commits;
+        setCommits((prev) => [...prev, ...newCommits]);
+        setHasMore(newCommits.length >= PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [taskPath, loadingMore, hasMore, commits.length]);
 
   if (loading) {
     return (
@@ -116,6 +145,15 @@ export const CommitList: React.FC<CommitListProps> = ({
           </div>
         </button>
       ))}
+      {hasMore && (
+        <button
+          onClick={() => void loadMore()}
+          disabled={loadingMore}
+          className="w-full px-3 py-2.5 text-center text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          {loadingMore ? 'Loading...' : 'Load more'}
+        </button>
+      )}
     </div>
   );
 };

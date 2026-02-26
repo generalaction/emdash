@@ -329,7 +329,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gitCommit: (args: { taskPath: string; message: string }) =>
     ipcRenderer.invoke('git:commit', args),
   gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
-  gitGetLog: (args: { taskPath: string; maxCount?: number }) =>
+  gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) =>
     ipcRenderer.invoke('git:get-log', args),
   gitGetLatestCommit: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-latest-commit', args),

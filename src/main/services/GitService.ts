@@ -319,7 +319,8 @@ export async function push(taskPath: string): Promise<{ output: string }> {
 /** Get commit log for the current branch. */
 export async function getLog(
   taskPath: string,
-  maxCount: number = 50
+  maxCount: number = 50,
+  skip: number = 0
 ): Promise<
   Array<{
     hash: string;
@@ -361,7 +362,7 @@ export async function getLog(
   const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI`;
   const { stdout } = await execFileAsync(
     'git',
-    ['log', `--max-count=${maxCount}`, `--pretty=format:${format}`, '--'],
+    ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`, '--'],
     { cwd: taskPath }
   );
 

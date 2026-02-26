@@ -2217,14 +2217,17 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   });
 
-  ipcMain.handle('git:get-log', async (_, args: { taskPath: string; maxCount?: number }) => {
-    try {
-      const commits = await gitGetLog(args.taskPath, args.maxCount);
-      return { success: true, commits };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+  ipcMain.handle(
+    'git:get-log',
+    async (_, args: { taskPath: string; maxCount?: number; skip?: number }) => {
+      try {
+        const commits = await gitGetLog(args.taskPath, args.maxCount, args.skip);
+        return { success: true, commits };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
     }
-  });
+  );
 
   ipcMain.handle('git:get-latest-commit', async (_, args: { taskPath: string }) => {
     try {

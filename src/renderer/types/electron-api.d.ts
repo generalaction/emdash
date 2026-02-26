@@ -651,7 +651,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      gitGetLog: (args: { taskPath: string; maxCount?: number }) => Promise<{
+      gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) => Promise<{
         success: boolean;
         commits?: Array<{
           hash: string;
