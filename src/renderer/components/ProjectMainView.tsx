@@ -464,6 +464,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     exitSelectMode();
 
     if (deletedNames.length > 0) {
+      refetchArchivedTasks();
+
       const maxNames = 3;
       const displayNames = deletedNames.slice(0, maxNames).join(', ');
       const remaining = deletedNames.length - maxNames;
@@ -511,6 +513,20 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       });
     }
   };
+
+  const handleDeleteTask = useCallback(
+    async (task: Task) => {
+      const wasArchived = Boolean(task.archivedAt);
+      const result = await onDeleteTask(project, task);
+
+      if (wasArchived && result !== false) {
+        refetchArchivedTasks();
+      }
+
+      return result;
+    },
+    [onDeleteTask, project, refetchArchivedTasks]
+  );
 
   const handleRestoreTask = useCallback(
     async (task: Task) => {
@@ -871,7 +887,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           onToggleSelect={() => toggleSelect(ws.id)}
                           active={activeTask?.id === ws.id}
                           onClick={() => onSelectTask(ws)}
-                          onDelete={() => onDeleteTask(project, ws)}
+                          onDelete={() => handleDeleteTask(ws)}
                           onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
                           enablePrStatus={!project.isRemote}
                           onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
