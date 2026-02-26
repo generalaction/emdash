@@ -30,8 +30,12 @@ export const FileList: React.FC<FileListProps> = ({
 }) => {
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
-  const tracked = fileChanges.filter((f) => f.status !== 'added');
-  const untracked = fileChanges.filter((f) => f.status === 'added');
+  const tracked = fileChanges
+    .filter((f) => f.status !== 'added')
+    .sort((a, b) => a.path.localeCompare(b.path));
+  const untracked = fileChanges
+    .filter((f) => f.status === 'added')
+    .sort((a, b) => a.path.localeCompare(b.path));
 
   const allStaged = fileChanges.length > 0 && fileChanges.every((f) => f.isStaged);
   const trackedAllStaged = tracked.length > 0 && tracked.every((f) => f.isStaged);
@@ -160,7 +164,7 @@ export const FileList: React.FC<FileListProps> = ({
                 checked={trackedAllStaged}
                 onCheckedChange={(checked) => void handleGroupStage(tracked, checked === true)}
               />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-medium tracking-wide text-muted-foreground">
                 Tracked
               </span>
               <span className="text-xs text-muted-foreground">({tracked.length})</span>
@@ -177,7 +181,7 @@ export const FileList: React.FC<FileListProps> = ({
                 checked={untrackedAllStaged}
                 onCheckedChange={(checked) => void handleGroupStage(untracked, checked === true)}
               />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-medium tracking-wide text-muted-foreground">
                 Untracked
               </span>
               <span className="text-xs text-muted-foreground">({untracked.length})</span>
