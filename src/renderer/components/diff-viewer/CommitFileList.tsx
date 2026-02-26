@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { splitPath } from './pathUtils';
 
 interface CommitFile {
   path: string;
@@ -14,17 +15,6 @@ interface CommitFileListProps {
   onSelectFile: (filePath: string) => void;
 }
 
-function splitPath(filePath: string): { filename: string; directory: string } {
-  const lastSlash = filePath.lastIndexOf('/');
-  if (lastSlash === -1) {
-    return { filename: filePath, directory: '' };
-  }
-  return {
-    filename: filePath.slice(lastSlash + 1),
-    directory: filePath.slice(0, lastSlash),
-  };
-}
-
 export const CommitFileList: React.FC<CommitFileListProps> = ({
   taskPath,
   commitHash,
@@ -33,6 +23,9 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
 }) => {
   const [files, setFiles] = useState<CommitFile[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const onSelectFileRef = useRef(onSelectFile);
+  onSelectFileRef.current = onSelectFile;
 
   useEffect(() => {
     if (!taskPath || !commitHash) {
@@ -50,7 +43,7 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
           setFiles(res.files);
           // Auto-select the first file
           if (res.files.length > 0) {
-            onSelectFile(res.files[0].path);
+            onSelectFileRef.current(res.files[0].path);
           }
         }
       } catch {
@@ -66,7 +59,6 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
     };
     // Intentionally only re-run on taskPath/commitHash change. onSelectFile is excluded
     // to avoid re-fetching when the parent re-renders with a new callback reference.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath, commitHash]);
 
   if (loading) {

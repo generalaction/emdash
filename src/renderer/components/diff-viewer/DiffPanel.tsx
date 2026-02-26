@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { DiffToolbar } from './DiffToolbar';
 import { FileDiffView } from './FileDiffView';
+import { splitPath } from './pathUtils';
 import { StackedDiffView } from './StackedDiffView';
 
 interface DiffPanelProps {
@@ -60,9 +61,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
         selectedFile &&
         (() => {
           const fileChange = fileChanges.find((f) => f.path === selectedFile);
-          const lastSlash = selectedFile.lastIndexOf('/');
-          const filename = lastSlash === -1 ? selectedFile : selectedFile.slice(lastSlash + 1);
-          const directory = lastSlash === -1 ? '' : selectedFile.slice(0, lastSlash);
+          const { filename, directory } = splitPath(selectedFile);
           return (
             <div className="flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs">
               <span className="truncate font-medium">{filename}</span>

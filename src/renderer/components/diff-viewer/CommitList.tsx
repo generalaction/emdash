@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Tag } from 'lucide-react';
 
 interface Commit {
@@ -56,6 +56,9 @@ export const CommitList: React.FC<CommitListProps> = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
+  const onSelectCommitRef = useRef(onSelectCommit);
+  onSelectCommitRef.current = onSelectCommit;
+
   useEffect(() => {
     if (!taskPath) {
       setCommits([]);
@@ -75,7 +78,12 @@ export const CommitList: React.FC<CommitListProps> = ({
           // Auto-select the latest commit if none is selected
           if (res.commits.length > 0 && !selectedCommit) {
             const c = res.commits[0];
-            onSelectCommit({ hash: c.hash, subject: c.subject, body: c.body, author: c.author });
+            onSelectCommitRef.current({
+              hash: c.hash,
+              subject: c.subject,
+              body: c.body,
+              author: c.author,
+            });
           }
         }
       } catch {
@@ -91,7 +99,6 @@ export const CommitList: React.FC<CommitListProps> = ({
     };
     // Intentionally only re-run on taskPath change. onSelectCommit and selectedCommit
     // are excluded to avoid re-fetching commits when the parent re-renders with new callbacks.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskPath]);
 
   const loadMore = useCallback(async () => {

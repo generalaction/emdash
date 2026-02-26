@@ -4,6 +4,7 @@ import { Checkbox } from '../ui/checkbox';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { isBinaryFile } from '../../lib/diffUtils';
 import { FileDiffView } from './FileDiffView';
+import { splitPath } from './pathUtils';
 
 interface StackedDiffViewProps {
   taskPath?: string;
@@ -39,8 +40,7 @@ const FileSection: React.FC<FileSectionProps> = ({
   const totalDiffLines = file.additions + file.deletions;
   const isLarge = totalDiffLines > LARGE_DIFF_LINE_THRESHOLD;
 
-  const fileName = file.path.split('/').pop() || file.path;
-  const dirPath = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : '';
+  const { filename: fileName, directory: dirPath } = splitPath(file.path);
 
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
 

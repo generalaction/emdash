@@ -205,6 +205,42 @@ export async function revertFile(
   return { action: 'reverted' };
 }
 
+/** Headers emitted by `git diff` that should be skipped when parsing hunks. */
+const DIFF_HEADER_PREFIXES = [
+  'diff ',
+  'index ',
+  '--- ',
+  '+++ ',
+  '@@',
+  'new file mode',
+  'old file mode',
+  'deleted file mode',
+  'similarity index',
+  'rename from',
+  'rename to',
+  'Binary files',
+];
+
+type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
+
+/** Parse raw `git diff` output into structured diff lines, skipping headers. */
+function parseDiffLines(stdout: string): { lines: DiffLine[]; isBinary: boolean } {
+  const linesRaw = stdout.split('\n');
+  const result: DiffLine[] = [];
+  for (const line of linesRaw) {
+    if (!line) continue;
+    if (DIFF_HEADER_PREFIXES.some((p) => line.startsWith(p))) continue;
+    const prefix = line[0];
+    const content = line.slice(1);
+    if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
+    else if (prefix === '-') result.push({ left: content, type: 'del' });
+    else if (prefix === '+') result.push({ right: content, type: 'add' });
+    else result.push({ left: line, right: line, type: 'context' });
+  }
+  const isBinary = result.length === 0 && stdout.includes('Binary files');
+  return { lines: result, isBinary };
+}
+
 export async function getFileDiff(
   taskPath: string,
   filePath: string
@@ -225,28 +261,9 @@ export async function getFileDiff(
       { cwd: taskPath }
     );
 
-    const linesRaw = stdout.split('\n');
-    const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
-    for (const line of linesRaw) {
-      if (!line) continue;
-      if (
-        line.startsWith('diff ') ||
-        line.startsWith('index ') ||
-        line.startsWith('--- ') ||
-        line.startsWith('+++ ') ||
-        line.startsWith('@@')
-      )
-        continue;
-      const prefix = line[0];
-      const content = line.slice(1);
-      if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-      else if (prefix === '-') result.push({ left: content, type: 'del' });
-      else if (prefix === '+') result.push({ right: content, type: 'add' });
-      else result.push({ left: line, right: line, type: 'context' });
-    }
+    const { lines: result, isBinary } = parseDiffLines(stdout);
 
-    // Detect binary files: git outputs "Binary files ... differ" with no diff content
-    if (result.length === 0 && stdout.includes('Binary files')) {
+    if (isBinary) {
       return { lines: [], isBinary: true };
     }
 
@@ -550,35 +567,9 @@ export async function getCommitFileDiff(
     }
   }
 
-  const linesRaw = stdout.split('\n');
-  const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
-  for (const line of linesRaw) {
-    if (!line) continue;
-    if (
-      line.startsWith('diff ') ||
-      line.startsWith('index ') ||
-      line.startsWith('--- ') ||
-      line.startsWith('+++ ') ||
-      line.startsWith('@@') ||
-      line.startsWith('new file mode') ||
-      line.startsWith('old file mode') ||
-      line.startsWith('deleted file mode') ||
-      line.startsWith('similarity index') ||
-      line.startsWith('rename from') ||
-      line.startsWith('rename to') ||
-      line.startsWith('Binary files')
-    )
-      continue;
-    const prefix = line[0];
-    const content = line.slice(1);
-    if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-    else if (prefix === '-') result.push({ left: content, type: 'del' });
-    else if (prefix === '+') result.push({ right: content, type: 'add' });
-    else result.push({ left: line, right: line, type: 'context' });
-  }
+  const { lines: result, isBinary } = parseDiffLines(stdout);
 
-  // Detect binary files: git outputs "Binary files ... differ" with no diff content
-  if (result.length === 0 && stdout.includes('Binary files')) {
+  if (isBinary) {
     return { lines: [], isBinary: true };
   }
 

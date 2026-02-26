@@ -94,9 +94,14 @@ export const FileList: React.FC<FileListProps> = ({
 
   const executeRestore = async () => {
     if (!taskPath || !restoreTarget) return;
-    await window.electronAPI.revertFile({ taskPath, filePath: restoreTarget });
-    setRestoreTarget(null);
-    await onRefreshChanges?.();
+    try {
+      await window.electronAPI.revertFile({ taskPath, filePath: restoreTarget });
+      setRestoreTarget(null);
+      await onRefreshChanges?.();
+    } catch (err) {
+      console.error('Restore failed:', err);
+      setRestoreTarget(null);
+    }
   };
 
   const renderFileRow = (file: FileChange, dotColor: string) => {

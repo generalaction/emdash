@@ -2216,6 +2216,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:commit', async (_, args: { taskPath: string; message: string }) => {
     try {
+      if (!args.taskPath) {
+        return { success: false, error: 'Missing taskPath' };
+      }
       const result = await gitCommit(args.taskPath, args.message);
       broadcastGitStatusChange(args.taskPath);
       return { success: true, hash: result.hash };
@@ -2226,6 +2229,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
     try {
+      if (!args.taskPath) {
+        return { success: false, error: 'Missing taskPath' };
+      }
       const result = await gitPush(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
@@ -2236,6 +2242,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:pull', async (_, args: { taskPath: string }) => {
     try {
+      if (!args.taskPath) {
+        return { success: false, error: 'Missing taskPath' };
+      }
       const result = await gitPull(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
@@ -2248,6 +2257,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-log',
     async (_, args: { taskPath: string; maxCount?: number; skip?: number }) => {
       try {
+        if (!args.taskPath) {
+          return { success: false, error: 'Missing taskPath' };
+        }
         const commits = await gitGetLog(args.taskPath, args.maxCount, args.skip);
         return { success: true, commits };
       } catch (error) {
@@ -2258,6 +2270,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:get-latest-commit', async (_, args: { taskPath: string }) => {
     try {
+      if (!args.taskPath) {
+        return { success: false, error: 'Missing taskPath' };
+      }
       const commit = await gitGetLatestCommit(args.taskPath);
       return { success: true, commit };
     } catch (error) {
@@ -2269,6 +2284,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-files',
     async (_, args: { taskPath: string; commitHash: string }) => {
       try {
+        if (!args.taskPath) {
+          return { success: false, error: 'Missing taskPath' };
+        }
         if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
           return { success: false, error: 'Invalid commit hash' };
         }
@@ -2284,6 +2302,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-file-diff',
     async (_, args: { taskPath: string; commitHash: string; filePath: string }) => {
       try {
+        if (!args.taskPath) {
+          return { success: false, error: 'Missing taskPath' };
+        }
         if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
           return { success: false, error: 'Invalid commit hash' };
         }
@@ -2300,6 +2321,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:soft-reset', async (_, args: { taskPath: string }) => {
     try {
+      if (!args.taskPath) {
+        return { success: false, error: 'Missing taskPath' };
+      }
       const result = await gitSoftResetLastCommit(args.taskPath);
       broadcastGitStatusChange(args.taskPath);
       return { success: true, subject: result.subject, body: result.body };
