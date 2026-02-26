@@ -143,6 +143,7 @@ const AppContent: React.FC = () => {
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
   const [showDiffViewer, setShowDiffViewer] = useState(false);
+  const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -669,10 +670,14 @@ const AppContent: React.FC = () => {
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
                       {showDiffViewer ? (
                         <DiffViewer
-                          onClose={() => setShowDiffViewer(false)}
+                          onClose={() => {
+                            setShowDiffViewer(false);
+                            setDiffViewerInitialFile(null);
+                          }}
                           taskId={activeTask?.id}
                           taskPath={activeTask?.path}
                           projectPath={selectedProject?.path || undefined}
+                          initialFile={diffViewerInitialFile}
                         />
                       ) : (
                         <MainContentArea
@@ -732,7 +737,10 @@ const AppContent: React.FC = () => {
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
-                      onOpenChanges={() => setShowDiffViewer(true)}
+                      onOpenChanges={(filePath?: string) => {
+                        setDiffViewerInitialFile(filePath ?? null);
+                        setShowDiffViewer(true);
+                      }}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>

@@ -49,6 +49,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
   const lastLeftSidebarSizeRef = useRef<number>(defaultPanelLayout[0]);
   const leftSidebarWasCollapsedBeforeEditor = useRef<boolean>(false);
   const leftSidebarWasCollapsedBeforeDiffViewer = useRef<boolean>(false);
+  const rightSidebarWasCollapsedBeforeDiffViewer = useRef<boolean>(false);
   const lastRightSidebarSizeRef = useRef<number>(rightSidebarDefaultWidth);
   const leftSidebarSetOpenRef = useRef<((next: boolean) => void) | null>(null);
   const leftSidebarIsMobileRef = useRef<boolean>(false);
@@ -173,19 +174,46 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     }
   }, [showEditorMode]);
 
-  // Handle left sidebar visibility when Diff Viewer opens/closes
+  // Handle both sidebars visibility when Diff Viewer opens/closes
   useEffect(() => {
-    const panel = leftSidebarPanelRef.current;
-    if (!panel) return;
+    const leftPanel = leftSidebarPanelRef.current;
+    const rightPanel = rightSidebarPanelRef.current;
 
     if (showDiffViewer) {
-      leftSidebarWasCollapsedBeforeDiffViewer.current = panel.isCollapsed();
-      if (!panel.isCollapsed()) {
-        panel.collapse();
+      // Save and collapse left sidebar
+      if (leftPanel) {
+        leftSidebarWasCollapsedBeforeDiffViewer.current = leftPanel.isCollapsed();
+        if (!leftPanel.isCollapsed()) {
+          leftPanel.collapse();
+        }
+      }
+      // Save and collapse right sidebar
+      if (rightPanel) {
+        rightSidebarWasCollapsedBeforeDiffViewer.current = rightPanel.isCollapsed();
+        if (!rightPanel.isCollapsed()) {
+          rightPanel.collapse();
+        }
       }
     } else {
-      if (!leftSidebarWasCollapsedBeforeDiffViewer.current && panel.isCollapsed()) {
-        panel.expand();
+      // Restore left sidebar
+      if (
+        leftPanel &&
+        !leftSidebarWasCollapsedBeforeDiffViewer.current &&
+        leftPanel.isCollapsed()
+      ) {
+        leftPanel.expand();
+      }
+      // Restore right sidebar
+      if (
+        rightPanel &&
+        !rightSidebarWasCollapsedBeforeDiffViewer.current &&
+        rightPanel.isCollapsed()
+      ) {
+        const targetRight = clampRightSidebarSize(
+          lastRightSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[2]
+        );
+        rightPanel.expand();
+        rightPanel.resize(targetRight);
       }
     }
   }, [showDiffViewer]);

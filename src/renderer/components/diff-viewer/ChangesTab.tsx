@@ -14,6 +14,7 @@ interface ChangesTabProps {
   closeButton?: React.ReactNode;
   leftPanelSize?: number;
   onLeftPanelResize?: (size: number) => void;
+  initialFile?: string | null;
 }
 
 export const ChangesTab: React.FC<ChangesTabProps> = ({
@@ -25,17 +26,33 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
   closeButton,
   leftPanelSize = 30,
   onLeftPanelResize,
+  initialFile,
 }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const initialFileConsumed = React.useRef(false);
 
-  // Auto-select the first file, or clear selection when files disappear
+  // Auto-select the initial file or the first file, or clear selection when files disappear
   useEffect(() => {
     if (fileChanges.length === 0) {
       setSelectedFile(null);
-    } else if (selectedFile === null || !fileChanges.some((f) => f.path === selectedFile)) {
+      return;
+    }
+
+    // If we have an initial file that hasn't been consumed yet, select it
+    if (
+      initialFile &&
+      !initialFileConsumed.current &&
+      fileChanges.some((f) => f.path === initialFile)
+    ) {
+      initialFileConsumed.current = true;
+      setSelectedFile(initialFile);
+      return;
+    }
+
+    if (selectedFile === null || !fileChanges.some((f) => f.path === selectedFile)) {
       setSelectedFile(fileChanges[0].path);
     }
-  }, [fileChanges, selectedFile]);
+  }, [fileChanges, selectedFile, initialFile]);
 
   return (
     <ResizablePanelGroup

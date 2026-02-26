@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useFileChanges } from '../hooks/useFileChanges';
 import { useCreatePR } from '../hooks/useCreatePR';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
@@ -7,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { ChevronDown, FileDiff } from 'lucide-react';
 import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
+import type { FileChange } from '../hooks/useFileChanges';
 
 type PrMode = 'create' | 'draft';
 
@@ -17,11 +17,15 @@ const PR_MODE_LABELS: Record<PrMode, string> = {
 
 interface ChangeSummaryProps {
   taskPath?: string;
-  onOpenChanges: () => void;
+  fileChanges: FileChange[];
+  onOpenChanges: (filePath?: string) => void;
 }
 
-export const ChangeSummary: React.FC<ChangeSummaryProps> = ({ taskPath, onOpenChanges }) => {
-  const { fileChanges } = useFileChanges(taskPath);
+export const ChangeSummary: React.FC<ChangeSummaryProps> = ({
+  taskPath,
+  fileChanges,
+  onOpenChanges,
+}) => {
   const { isCreating, createPR } = useCreatePR();
   const [prMode, setPrMode] = useState<PrMode>('draft');
 
@@ -64,7 +68,7 @@ export const ChangeSummary: React.FC<ChangeSummaryProps> = ({ taskPath, onOpenCh
             size="sm"
             className="h-8 shrink-0 px-2 text-xs"
             title="View all changes and history"
-            onClick={onOpenChanges}
+            onClick={() => onOpenChanges()}
           >
             <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
             <span className="hidden sm:inline">Changes</span>

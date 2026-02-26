@@ -9,6 +9,7 @@ interface DiffViewerProps {
   taskId?: string;
   taskPath?: string;
   projectPath?: string;
+  initialFile?: string | null;
 }
 
 type Tab = 'changes' | 'history';
@@ -18,6 +19,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   taskId,
   taskPath,
   projectPath,
+  initialFile,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('changes');
   const { fileChanges, refreshChanges } = useFileChanges(taskPath);
@@ -74,6 +76,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             onLeftPanelResize={(size) => {
               leftPanelSizeRef.current = size;
             }}
+            initialFile={initialFile}
           />
         ) : (
           <HistoryTab

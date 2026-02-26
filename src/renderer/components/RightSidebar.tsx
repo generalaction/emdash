@@ -13,6 +13,8 @@ import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
+import { FileIcon } from './FileExplorer/FileIcons';
+import type { FileChange } from '../hooks/useFileChanges';
 
 export interface RightSidebarTask {
   id: string;
@@ -31,7 +33,7 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   projectRemotePath?: string | null;
   projectDefaultBranch?: string | null;
   forceBorder?: boolean;
-  onOpenChanges?: () => void;
+  onOpenChanges?: (filePath?: string) => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -267,26 +269,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   );
                 })()
               ) : task ? (
-                <>
-                  {onOpenChanges && (
-                    <ChangeSummary taskPath={task.path} onOpenChanges={onOpenChanges} />
-                  )}
-                  <TaskTerminalPanel
-                    task={task}
-                    agent={task.agentId as Agent}
-                    projectPath={projectPath || task?.path}
-                    remote={
-                      projectRemoteConnectionId
-                        ? {
-                            connectionId: projectRemoteConnectionId,
-                            projectPath: projectRemotePath || projectPath || undefined,
-                          }
-                        : undefined
-                    }
-                    defaultBranch={projectDefaultBranch || undefined}
-                    className="min-h-0 flex-1"
-                  />
-                </>
+                <SingleTaskSidebar
+                  task={task}
+                  projectPath={projectPath}
+                  projectRemoteConnectionId={projectRemoteConnectionId}
+                  projectRemotePath={projectRemotePath}
+                  projectDefaultBranch={projectDefaultBranch}
+                  onOpenChanges={onOpenChanges}
+                />
               ) : (
                 <ResizablePanelGroup
                   direction="vertical"
@@ -365,6 +355,109 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 };
 
 export default RightSidebar;
+
+/** Single-task sidebar: lifts useFileChanges so both ChangeSummary and SidebarFileList share it */
+const SingleTaskSidebar: React.FC<{
+  task: RightSidebarTask;
+  projectPath?: string | null;
+  projectRemoteConnectionId?: string | null;
+  projectRemotePath?: string | null;
+  projectDefaultBranch?: string | null;
+  onOpenChanges?: (filePath?: string) => void;
+}> = ({
+  task,
+  projectPath,
+  projectRemoteConnectionId,
+  projectRemotePath,
+  projectDefaultBranch,
+  onOpenChanges,
+}) => {
+  const { fileChanges } = useFileChanges(task.path);
+
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 flex-col border-b border-border bg-card shadow-sm">
+        {onOpenChanges && (
+          <ChangeSummary
+            taskPath={task.path}
+            fileChanges={fileChanges}
+            onOpenChanges={onOpenChanges}
+          />
+        )}
+        <SidebarFileList
+          fileChanges={fileChanges}
+          onOpenFile={onOpenChanges ? (filePath) => onOpenChanges(filePath) : undefined}
+        />
+      </div>
+      <TaskTerminalPanel
+        task={task}
+        agent={task.agentId as Agent}
+        projectPath={projectPath || task?.path}
+        remote={
+          projectRemoteConnectionId
+            ? {
+                connectionId: projectRemoteConnectionId,
+                projectPath: projectRemotePath || projectPath || undefined,
+              }
+            : undefined
+        }
+        defaultBranch={projectDefaultBranch || undefined}
+        className="min-h-0 flex-1"
+      />
+    </>
+  );
+};
+
+/** Read-only file list for the right sidebar — matches original FileChangesPanel row layout */
+const SidebarFileList: React.FC<{
+  fileChanges: FileChange[];
+  onOpenFile?: (filePath: string) => void;
+}> = ({ fileChanges, onOpenFile }) => {
+  const renderPath = (p: string) => {
+    const last = p.lastIndexOf('/');
+    const dir = last >= 0 ? p.slice(0, last + 1) : '';
+    const base = last >= 0 ? p.slice(last + 1) : p;
+    return (
+      <span className="truncate">
+        <span className="font-medium text-foreground">{base}</span>
+        {dir && <span className="ml-1 text-muted-foreground">{dir}</span>}
+      </span>
+    );
+  };
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {fileChanges.map((change, index) => (
+        <div
+          key={index}
+          className="flex min-h-[40px] cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50"
+          onClick={() => onOpenFile?.(change.path)}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="inline-flex items-center justify-center text-muted-foreground">
+              <FileIcon filename={change.path} isDirectory={false} size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm">{renderPath(change.path)}</div>
+            </div>
+          </div>
+          <div className="ml-3 flex items-center gap-2">
+            {change.additions > 0 && (
+              <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                +{change.additions}
+              </span>
+            )}
+            {change.deletions > 0 && (
+              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                -{change.deletions}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: string }> = ({
   path,

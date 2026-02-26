@@ -152,10 +152,7 @@ export const CommitList: React.FC<CommitListProps> = ({
               ))}
             {!commit.isPushed && (
               <span title="Not yet pushed to remote">
-                <ArrowUp
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
-                  strokeWidth={2.5}
-                />
+                <ArrowUp className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2.5} />
               </span>
             )}
           </div>
