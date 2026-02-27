@@ -171,7 +171,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       return 'create';
     }
   });
-  const { isCreating: isCreatingPR, createPR } = useCreatePR();
+  // NEW CODE: Rename the hook result and call it with the current path
+  const { isCreating: getIsCreatingPR, createPR } = useCreatePR();
+  const isCreatingPR = getIsCreatingPR(safeTaskPath);
 
   const selectPrMode = (mode: PrMode) => {
     setPrMode(mode);
@@ -616,7 +618,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   mode={prMode}
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
-                  isLoading={isActionLoading}
+                  isLoading={isActionLoading || isCreatingPR}
                 />
               </div>
             </div>

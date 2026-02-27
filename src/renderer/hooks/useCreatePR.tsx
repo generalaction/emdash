@@ -3,6 +3,7 @@ import { useToast } from './use-toast';
 import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
+
 type CreatePROptions = {
   taskPath: string;
   commitMessage?: string;
@@ -22,7 +23,8 @@ type CreatePROptions = {
 
 export function useCreatePR() {
   const { toast } = useToast();
-  const [isCreating, setIsCreating] = useState(false);
+  // TRACK LOADING PER PATH INSTEAD OF A GLOBAL BOOLEAN
+  const [loadingPaths, setLoadingPaths] = useState<Record<string, boolean>>({});
 
   const createPR = async (opts: CreatePROptions) => {
     const {
@@ -34,9 +36,10 @@ export function useCreatePR() {
       onSuccess,
     } = opts;
 
-    setIsCreating(true);
+    // SET LOADING FOR THIS SPECIFIC PATH
+    setLoadingPaths((prev) => ({ ...prev, [taskPath]: true }));
+
     try {
-      // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
       const api: any = (window as any).electronAPI;
       if (!api?.gitCommitAndPush || !api?.createPullRequest) {
         const msg = 'PR creation is only available in the Electron app. Start via "pnpm run d".';
@@ -44,12 +47,10 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      // Auto-generate PR title and description if not provided
       const finalPrOptions = { ...(prOptions || {}) };
 
       if (!finalPrOptions.title || !finalPrOptions.body) {
         try {
-          // Get default branch for comparison
           let defaultBranch = 'main';
           try {
             const branchStatus = await api.getBranchStatus?.({ taskPath });
@@ -58,7 +59,6 @@ export function useCreatePR() {
             }
           } catch {}
 
-          // Generate PR content
           if (api.generatePrContent) {
             const generated = await api.generatePrContent({
               taskPath,
@@ -70,13 +70,9 @@ export function useCreatePR() {
               finalPrOptions.body = finalPrOptions.body || generated.description || '';
             }
           }
-        } catch (error) {
-          // Non-fatal: continue with fallback title
-          // Silently fail - fallback title will be used
-        }
+        } catch (error) {}
       }
 
-      // Fallback to inferred title if still not set
       if (!finalPrOptions.title) {
         finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
       }
@@ -134,11 +130,8 @@ export function useCreatePR() {
         });
         try {
           await onSuccess?.();
-        } catch {
-          // ignore onSuccess errors
-        }
+        } catch {}
       } else {
-        // Check if PR creation failed because a PR already exists
         const errorText = (res?.error || '').toLowerCase();
         const outputText = (res?.output || '').toLowerCase();
         const isPrAlreadyExists =
@@ -150,14 +143,12 @@ export function useCreatePR() {
           outputText.includes('already has') ||
           outputText.includes('pull request for branch');
 
-        // If PR already exists, the push was successful - show success message
         if (isPrAlreadyExists) {
           void (async () => {
             const { captureTelemetry } = await import('../lib/telemetryClient');
             captureTelemetry('pr_push_to_existing');
           })();
 
-          // Try to extract PR URL from the error output
           const urlMatch = (res?.output || '').match(/https?:\/\/github\.com\/[^\s]+\/pull\/\d+/);
           const prUrl = urlMatch ? urlMatch[0] : null;
 
@@ -187,18 +178,14 @@ export function useCreatePR() {
 
           try {
             await onSuccess?.();
-          } catch {
-            // ignore onSuccess errors
-          }
+          } catch {}
         } else {
-          // Show error for other failures
           void (async () => {
             const { captureTelemetry } = await import('../lib/telemetryClient');
             captureTelemetry('pr_creation_failed', { error_type: res?.error || 'unknown' });
           })();
           const details =
             res?.output && typeof res.output === 'string' ? `\n\nDetails:\n${res.output}` : '';
-          // Offer a browser fallback if org restricts the GitHub CLI app
           const isOrgRestricted =
             typeof res?.code === 'string' && res.code === 'ORG_AUTH_APP_RESTRICTED';
 
@@ -211,12 +198,7 @@ export function useCreatePR() {
             ),
             description:
               (res?.error || 'Unknown error') +
-              (isOrgRestricted
-                ? '\n\nYour organization restricts OAuth apps. You can either:\n' +
-                  '• Approve the GitHub CLI app in your org settings, or\n' +
-                  '• Authenticate gh with a Personal Access Token that has repo scope, or\n' +
-                  '• Create the PR in your browser.'
-                : '') +
+              (isOrgRestricted ? '\n\nYour organization restricts OAuth apps...' : '') +
               details,
             variant: 'destructive',
             action: isOrgRestricted ? (
@@ -227,7 +209,6 @@ export function useCreatePR() {
                     const { captureTelemetry } = await import('../lib/telemetryClient');
                     captureTelemetry('pr_creation_retry_browser');
                   })();
-                  // Retry using web flow
                   void createPR({
                     taskPath,
                     commitMessage,
@@ -263,9 +244,14 @@ export function useCreatePR() {
       });
       return { success: false, error: message } as any;
     } finally {
-      setIsCreating(false);
+      // CLEAR LOADING FOR THIS SPECIFIC PATH
+      setLoadingPaths((prev) => ({ ...prev, [taskPath]: false }));
     }
   };
 
-  return { isCreating, createPR };
+  // UPDATED RETURN: ISCREATING IS NOW A FUNCTION
+  return {
+    isCreating: (path: string) => !!loadingPaths[path],
+    createPR,
+  };
 }
