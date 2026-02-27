@@ -49,6 +49,11 @@ export function getShellEnvVar(varName: string): string | undefined {
 const COMMON_SSH_AGENT_LOCATIONS: ReadonlyArray<{ path: string; description: string }> = [
   // macOS launchd
   { path: '/private/tmp/com.apple.launchd.*/Listeners', description: 'macOS launchd' },
+  // 1Password SSH agent (macOS)
+  {
+    path: path.join(os.homedir(), 'Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock'),
+    description: '1Password SSH agent',
+  },
   // Generic temp directory patterns
   { path: path.join(os.tmpdir(), 'ssh-??????????', 'agent.*'), description: 'OpenSSH temp' },
   // User's .ssh directory

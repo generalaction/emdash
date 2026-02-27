@@ -72,6 +72,7 @@ export const SshConnectionForm: React.FC<Props> = ({
             user?: string;
             port?: number;
             identityFile?: string;
+            identityAgent?: string;
           }>;
           error?: string;
         };
@@ -120,7 +121,10 @@ export const SshConnectionForm: React.FC<Props> = ({
       let authType: 'password' | 'key' | 'agent' = 'agent';
       let privateKeyPath = '';
 
-      if (host.identityFile) {
+      if (host.identityAgent) {
+        // IdentityAgent signals the user wants agent-based auth (e.g. 1Password)
+        authType = 'agent';
+      } else if (host.identityFile) {
         authType = 'key';
         privateKeyPath = host.identityFile;
       }
