@@ -210,7 +210,7 @@ function TaskRow({
           {!isSelectMode && (
             <div className="flex items-center gap-1">
               {isArchived && onRestore ? (
-                <TooltipProvider>
+                <TooltipProvider delayDuration={300}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -227,12 +227,12 @@ function TaskRow({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
-                      Unarchive Task
+                      Unarchive
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : onArchive && !isArchived ? (
-                <TooltipProvider>
+                <TooltipProvider delayDuration={300}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -249,7 +249,7 @@ function TaskRow({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
-                      Archive Task
+                      Archive
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

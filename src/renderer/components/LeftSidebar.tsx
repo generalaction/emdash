@@ -16,6 +16,7 @@ import {
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import {
   Home,
   Plus,
@@ -366,27 +367,36 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             {projectIsRemote && <RemoteIndicator project={typedProject} />}
                             <div className="flex min-w-7 flex-shrink-0 items-center justify-end">
                               {onCreateTaskForProject && (
-                                <button
-                                  type="button"
-                                  className="flex-shrink-0 rounded p-0.5 text-muted-foreground outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
-                                  aria-label={`New Task for ${typedProject.name}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleNavigationWithCloseSettings(() => {
-                                      if (
-                                        onSelectProject &&
-                                        selectedProject?.id !== typedProject.id
-                                      ) {
-                                        onSelectProject(typedProject);
-                                      } else if (!selectedProject) {
-                                        onSelectProject?.(typedProject);
-                                      }
-                                      onCreateTaskForProject(typedProject);
-                                    });
-                                  }}
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </button>
+                                <TooltipProvider delayDuration={300}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="flex-shrink-0 rounded p-0.5 text-muted-foreground outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
+                                        aria-label={`New Task for ${typedProject.name}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleNavigationWithCloseSettings(() => {
+                                            if (
+                                              onSelectProject &&
+                                              selectedProject?.id !== typedProject.id
+                                            ) {
+                                              onSelectProject(typedProject);
+                                            } else if (!selectedProject) {
+                                              onSelectProject?.(typedProject);
+                                            }
+                                            onCreateTaskForProject(typedProject);
+                                          });
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" sideOffset={4}>
+                                      New Task
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                           </div>
