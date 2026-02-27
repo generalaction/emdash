@@ -75,7 +75,12 @@ declare global {
           repository: { branchPrefix: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: { enabled: boolean; sound: boolean };
+          notifications?: {
+            enabled: boolean;
+            sound: boolean;
+            osNotifications: boolean;
+            soundFocusMode: 'always' | 'unfocused';
+          };
           mcp?: {
             context7?: {
               enabled: boolean;
@@ -157,7 +162,12 @@ declare global {
           repository: { branchPrefix?: string; pushOnCreate?: boolean };
           projectPrep: { autoInstallOnOpenInEditor?: boolean };
           browserPreview: { enabled?: boolean; engine?: 'chromium' };
-          notifications: { enabled?: boolean; sound?: boolean };
+          notifications: {
+            enabled?: boolean;
+            sound?: boolean;
+            osNotifications?: boolean;
+            soundFocusMode?: 'always' | 'unfocused';
+          };
           mcp: {
             context7?: {
               enabled?: boolean;
@@ -238,7 +248,12 @@ declare global {
           repository: { branchPrefix: string; pushOnCreate: boolean };
           projectPrep?: { autoInstallOnOpenInEditor: boolean };
           browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: { enabled: boolean; sound: boolean };
+          notifications?: {
+            enabled: boolean;
+            sound: boolean;
+            osNotifications: boolean;
+            soundFocusMode: 'always' | 'unfocused';
+          };
           mcp?: {
             context7?: {
               enabled: boolean;
@@ -365,7 +380,9 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
-      onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
+      onAgentEvent: (
+        listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
+      ) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -1383,7 +1400,9 @@ export interface ElectronAPI {
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
   onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
-  onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
+  onAgentEvent: (
+    listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
+  ) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {

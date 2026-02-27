@@ -2,6 +2,7 @@ import type { SoundEvent } from '@shared/agentEvents';
 
 let audioCtx: AudioContext | null = null;
 let enabled = true;
+let focusMode: 'always' | 'unfocused' = 'always';
 
 function getContext(): AudioContext {
   if (!audioCtx) {
@@ -48,8 +49,9 @@ function playTaskComplete(): void {
 }
 
 export const soundPlayer = {
-  play(event: SoundEvent): void {
+  play(event: SoundEvent, appFocused?: boolean): void {
     if (!enabled) return;
+    if (focusMode === 'unfocused' && appFocused) return;
     try {
       switch (event) {
         case 'needs_attention':
@@ -66,5 +68,9 @@ export const soundPlayer = {
 
   setEnabled(value: boolean): void {
     enabled = value;
+  },
+
+  setFocusMode(mode: 'always' | 'unfocused'): void {
+    focusMode = mode;
   },
 };

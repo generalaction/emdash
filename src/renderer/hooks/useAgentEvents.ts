@@ -17,14 +17,16 @@ function mapToSound(event: AgentEvent): SoundEvent | null {
 
 export function useAgentEvents(onEvent?: (event: AgentEvent) => void): void {
   useEffect(() => {
-    const cleanup = window.electronAPI.onAgentEvent((event: AgentEvent) => {
-      const sound = mapToSound(event);
-      if (sound) {
-        soundPlayer.play(sound);
-      }
+    const cleanup = window.electronAPI.onAgentEvent(
+      (event: AgentEvent, meta: { appFocused: boolean }) => {
+        const sound = mapToSound(event);
+        if (sound) {
+          soundPlayer.play(sound, meta.appFocused);
+        }
 
-      onEvent?.(event);
-    });
+        onEvent?.(event);
+      }
+    );
 
     return cleanup;
   }, [onEvent]);

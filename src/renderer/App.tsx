@@ -92,14 +92,17 @@ const AppContent: React.FC = () => {
   }, []);
   useAgentEvents(handleAgentEvent);
 
-  // Load notification sound setting
+  // Load notification sound settings
   useEffect(() => {
     (async () => {
       try {
         const result = await window.electronAPI.getSettings();
         if (result.success && result.settings) {
-          const soundEnabled = Boolean(result.settings.notifications?.enabled ?? true);
-          soundPlayer.setEnabled(soundEnabled);
+          const notif = result.settings.notifications;
+          const masterEnabled = Boolean(notif?.enabled ?? true);
+          const soundOn = Boolean(notif?.sound ?? true);
+          soundPlayer.setEnabled(masterEnabled && soundOn);
+          soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
         }
       } catch {}
     })();

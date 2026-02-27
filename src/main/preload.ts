@@ -132,9 +132,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
-  onAgentEvent: (listener: (event: AgentEvent) => void) => {
+  onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
     const channel = 'agent:event';
-    const wrapped = (_: Electron.IpcRendererEvent, data: AgentEvent) => listener(data);
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: AgentEvent,
+      meta: { appFocused: boolean }
+    ) => listener(data, meta);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },

@@ -1,9 +1,12 @@
 import http from 'http';
 import crypto from 'crypto';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, Notification } from 'electron';
 import { log } from '../lib/logger';
 import { parsePtyId } from '@shared/ptyId';
+import { getProvider } from '@shared/providers/registry';
+import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
+import { getAppSettings } from '../settings';
 
 class AgentEventService {
   private server: http.Server | null = null;
@@ -79,8 +82,13 @@ class AgentEventService {
           };
 
           const windows = BrowserWindow.getAllWindows();
+          const appFocused = windows.some((w) => w.isFocused());
+
+          // Show OS notification banner when appropriate
+          this.maybeShowOsNotification(event, appFocused);
+
           for (const win of windows) {
-            win.webContents.send('agent:event', event);
+            win.webContents.send('agent:event', event, { appFocused });
           }
 
           res.writeHead(200);
@@ -107,6 +115,39 @@ class AgentEventService {
         reject(err);
       });
     });
+  }
+
+  private maybeShowOsNotification(event: AgentEvent, appFocused: boolean): void {
+    try {
+      const settings = getAppSettings();
+      if (!settings.notifications?.enabled) return;
+      if (!settings.notifications?.osNotifications) return;
+      if (appFocused) return;
+      if (!Notification.isSupported()) return;
+
+      const providerName = getProvider(event.providerId as ProviderId)?.name ?? event.providerId;
+
+      if (event.type === 'stop') {
+        const notification = new Notification({
+          title: `${providerName} Task Complete`,
+          body: 'Your agent has finished working',
+          silent: true,
+        });
+        notification.show();
+      } else if (event.type === 'notification') {
+        const nt = event.payload.notificationType;
+        if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
+          const notification = new Notification({
+            title: `${providerName} Needs Attention`,
+            body: event.payload.message || 'Your agent needs your input',
+            silent: true,
+          });
+          notification.show();
+        }
+      }
+    } catch (error) {
+      log.warn('AgentEventService: failed to show OS notification', { error: String(error) });
+    }
   }
 
   stop(): void {
