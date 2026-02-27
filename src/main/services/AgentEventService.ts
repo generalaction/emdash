@@ -16,11 +16,6 @@ class AgentEventService {
     this.token = crypto.randomUUID();
 
     this.server = http.createServer((req, res) => {
-      log.info('AgentEventService: incoming request', {
-        method: req.method,
-        url: req.url,
-      });
-
       if (req.method !== 'POST' || req.url !== '/hook') {
         res.writeHead(404);
         res.end();
@@ -64,32 +59,26 @@ class AgentEventService {
             return;
           }
 
-          // Claude Code sends snake_case (notification_type, last_assistant_message).
-          // Normalize to camelCase for our internal types.
+          // Normalize snake_case fields from provider hooks to camelCase
           const raw = payload || {};
+          const normalizedPayload = {
+            ...raw,
+            notificationType: raw.notification_type ?? raw.notificationType,
+            lastAssistantMessage: raw.last_assistant_message ?? raw.lastAssistantMessage,
+          };
+          delete normalizedPayload.notification_type;
+          delete normalizedPayload.last_assistant_message;
+
           const event: AgentEvent = {
             type,
             ptyId,
             taskId: parsed.suffix,
             providerId: parsed.providerId,
             timestamp: Date.now(),
-            payload: {
-              notificationType: raw.notification_type || raw.notificationType,
-              title: raw.title,
-              message: raw.message,
-              lastAssistantMessage: raw.last_assistant_message || raw.lastAssistantMessage,
-            },
+            payload: normalizedPayload,
           };
 
-          log.info('AgentEventService: received hook event', {
-            type: event.type,
-            ptyId: event.ptyId,
-            providerId: event.providerId,
-            notificationType: event.payload.notificationType,
-          });
-
           const windows = BrowserWindow.getAllWindows();
-          log.info('AgentEventService: broadcasting to windows', { count: windows.length });
           for (const win of windows) {
             win.webContents.send('agent:event', event);
           }

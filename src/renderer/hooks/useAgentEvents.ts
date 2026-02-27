@@ -17,22 +17,12 @@ function mapToSound(event: AgentEvent): SoundEvent | null {
 
 export function useAgentEvents(onEvent?: (event: AgentEvent) => void): void {
   useEffect(() => {
-    console.log('[useAgentEvents] subscribing to agent:event IPC');
     const cleanup = window.electronAPI.onAgentEvent((event: AgentEvent) => {
       const sound = mapToSound(event);
-      console.log('[useAgentEvents] received event', {
-        type: event.type,
-        ptyId: event.ptyId,
-        notificationType: event.payload.notificationType,
-        mappedSound: sound,
-      });
-
-      // Play sound for all tasks regardless of focus
       if (sound) {
         soundPlayer.play(sound);
       }
 
-      // Forward to caller for additional handling (e.g. activityStore)
       onEvent?.(event);
     });
 

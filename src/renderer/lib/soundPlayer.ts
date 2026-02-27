@@ -49,7 +49,6 @@ function playTaskComplete(): void {
 
 export const soundPlayer = {
   play(event: SoundEvent): void {
-    console.log('[soundPlayer] play called', { event, enabled });
     if (!enabled) return;
     try {
       switch (event) {
