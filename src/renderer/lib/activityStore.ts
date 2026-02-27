@@ -10,6 +10,7 @@ class ActivityStore {
   private states = new Map<string, boolean>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private busySince = new Map<string, number>();
+  private idleSince = new Map<string, number>();
   private subscribed = false;
   private subscribedIds = new Set<string>();
 
@@ -61,6 +62,7 @@ class ActivityStore {
       if (prev) clearTimeout(prev);
       this.timers.delete(wsId);
       this.busySince.set(wsId, Date.now());
+      this.idleSince.delete(wsId);
       if (!current) {
         this.states.set(wsId, true);
         this.emit(wsId, true);
@@ -78,6 +80,7 @@ class ActivityStore {
       if (prev) clearTimeout(prev);
       this.timers.delete(wsId);
       this.busySince.delete(wsId);
+      this.idleSince.set(wsId, Date.now());
       if (this.states.get(wsId) !== false) {
         this.states.set(wsId, false);
         this.emit(wsId, false);
@@ -102,6 +105,10 @@ class ActivityStore {
         fn(busy);
       } catch {}
     }
+  }
+
+  getIdleSince(wsId: string): number | null {
+    return this.idleSince.get(wsId) ?? null;
   }
 
   setTaskBusy(wsId: string, busy: boolean) {

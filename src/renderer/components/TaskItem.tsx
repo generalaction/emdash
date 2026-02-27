@@ -6,6 +6,7 @@ import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
+import { useTaskIdleSince } from '../hooks/useTaskIdleSince';
 
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
@@ -37,6 +38,18 @@ function formatCompactDate(dateStr?: string): string {
   const diffMonths = Math.floor(diffDays / 30);
   if (diffMonths < 12) return `${diffMonths}mo`;
   return `${Math.floor(diffDays / 365)}y`;
+}
+
+function formatTimeSince(timestamp: number): string {
+  const diffMs = Date.now() - timestamp;
+  if (diffMs < 0) return '';
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d ago`;
 }
 
 interface Task {
@@ -74,6 +87,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
+  const idleSince = useTaskIdleSince(task.id, isRunning);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -241,6 +255,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               />
             )}
             <span className="block truncate text-sm font-medium text-foreground">{task.name}</span>
+            {idleSince !== null && (
+              <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+                ({formatTimeSince(idleSince)})
+              </span>
+            )}
           </>
         )}
         {showDirectBadge && task.useWorktree === false && (
