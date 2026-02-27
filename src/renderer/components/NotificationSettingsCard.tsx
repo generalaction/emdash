@@ -111,7 +111,7 @@ const NotificationSettingsCard: React.FC = () => {
             <p className="text-sm text-muted-foreground">When to play sounds.</p>
           </div>
           <Select value={soundFocusMode} onValueChange={updateSoundFocusMode}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
