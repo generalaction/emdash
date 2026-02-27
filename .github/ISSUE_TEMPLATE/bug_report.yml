@@ -23,7 +23,7 @@ body:
       label: Steps to Reproduce
       description: Steps to reproduce the behavior
       placeholder: |
-        1. Create a projoect
+        1. Create a project
         2. Open a workspace
         3. When ... observe the bug: ...
     validations:
