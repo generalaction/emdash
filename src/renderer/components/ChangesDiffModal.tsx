@@ -669,10 +669,10 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
               {files.map((f) => (
                 <button
                   key={f.path}
-                  className={`w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted dark:border-border dark:hover:bg-accent ${
+                  className={`w-full border-b border-border px-3 py-2 text-left text-sm dark:border-border ${
                     selected === f.path
-                      ? 'bg-muted text-foreground dark:bg-muted dark:text-foreground'
-                      : 'text-foreground'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-foreground hover:bg-accent/50'
                   }`}
                   onClick={() => setSelected(f.path)}
                 >
