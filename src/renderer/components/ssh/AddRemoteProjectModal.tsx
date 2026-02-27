@@ -241,15 +241,20 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       const stableId = `ssh-config:${encodeURIComponent(host.host)}`;
       setConnectionId(stableId);
 
-      // Determine auth type and key path - default to key auth (more reliable)
-      const authType: AuthType = 'key';
+      // Determine auth type and key path
+      let authType: AuthType;
       let privateKeyPath = '';
 
-      if (host.identityFile) {
+      if (host.identityAgent) {
+        // IdentityAgent signals the user wants agent-based auth (e.g. 1Password)
+        authType = 'agent';
+      } else if (host.identityFile) {
         // SSH config specifies a key - use it
+        authType = 'key';
         privateKeyPath = host.identityFile;
       } else {
-        // No key specified - use default ed25519 key (most common modern key)
+        // No key specified - default to key auth with ed25519 (most common modern key)
+        authType = 'key';
         privateKeyPath = '~/.ssh/id_ed25519';
       }
 

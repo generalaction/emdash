@@ -115,4 +115,5 @@ export interface SshConfigHost {
   user?: string;
   port?: number;
   identityFile?: string;
+  identityAgent?: string;
 }

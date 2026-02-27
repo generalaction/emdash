@@ -7,11 +7,9 @@ import { SshConnectionMonitor } from '../services/ssh/SshConnectionMonitor';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '../db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { readFile } from 'fs/promises';
-import { homedir } from 'os';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
+import { parseSshConfigFile, resolveIdentityAgent } from '../utils/sshConfigParser';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -224,7 +222,8 @@ export function registerSshIpc() {
               return;
             }
           } else if (config.authType === 'agent') {
-            connectConfig.agent = process.env.SSH_AUTH_SOCK;
+            const identityAgent = await resolveIdentityAgent(config.host);
+            connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
           }
 
           testClient.connect(connectConfig);
@@ -679,90 +678,6 @@ export function registerSshIpc() {
       }
     }
   );
-
-  // Helper function to parse SSH config
-  const parseSshConfigFile = async (): Promise<SshConfigHost[]> => {
-    const configPath = join(homedir(), '.ssh', 'config');
-    const content = await readFile(configPath, 'utf-8').catch(() => '');
-
-    const hosts: SshConfigHost[] = [];
-    const lines = content.split('\n');
-    let currentHost: SshConfigHost | null = null;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // Skip empty lines and comments
-      if (!trimmed || trimmed.startsWith('#')) continue;
-
-      // Match Host directive
-      const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
-      if (hostMatch) {
-        // Save previous host if exists
-        if (currentHost && currentHost.host) {
-          hosts.push(currentHost);
-        }
-        // Start new host entry
-        const hostPattern = hostMatch[1].trim();
-        // Skip wildcard patterns
-        if (!hostPattern.includes('*') && !hostPattern.includes('?')) {
-          currentHost = { host: hostPattern };
-        } else {
-          currentHost = null;
-        }
-        continue;
-      }
-
-      // Match HostName
-      const hostnameMatch = trimmed.match(/^HostName\s+(.+)$/i);
-      if (hostnameMatch && currentHost) {
-        currentHost.hostname = hostnameMatch[1].trim();
-        continue;
-      }
-
-      // Match User
-      const userMatch = trimmed.match(/^User\s+(.+)$/i);
-      if (userMatch && currentHost) {
-        currentHost.user = userMatch[1].trim();
-        continue;
-      }
-
-      // Match Port
-      const portMatch = trimmed.match(/^Port\s+(\d+)$/i);
-      if (portMatch && currentHost) {
-        currentHost.port = parseInt(portMatch[1], 10);
-        continue;
-      }
-
-      // Match IdentityFile
-      const identityMatch = trimmed.match(/^IdentityFile\s+(.+)$/i);
-      if (identityMatch && currentHost) {
-        let identityFile = identityMatch[1].trim();
-        // Strip optional quotes
-        if (
-          (identityFile.startsWith('"') && identityFile.endsWith('"')) ||
-          (identityFile.startsWith("'") && identityFile.endsWith("'"))
-        ) {
-          identityFile = identityFile.slice(1, -1);
-        }
-        // Expand ~ to home directory
-        if (identityFile === '~') {
-          identityFile = homedir();
-        } else if (identityFile.startsWith('~/')) {
-          identityFile = join(homedir(), identityFile.slice(2));
-        }
-        currentHost.identityFile = identityFile;
-        continue;
-      }
-    }
-
-    // Don't forget the last host
-    if (currentHost && currentHost.host) {
-      hosts.push(currentHost);
-    }
-
-    return hosts;
-  };
 
   // Get SSH config hosts from ~/.ssh/config
   ipcMain.handle(

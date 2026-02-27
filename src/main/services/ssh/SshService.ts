@@ -7,6 +7,7 @@ import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
+import { resolveIdentityAgent } from '../../utils/sshConfigParser';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;
@@ -198,15 +199,17 @@ export class SshService extends EventEmitter {
       }
 
       case 'agent': {
-        const agentSocket = process.env.SSH_AUTH_SOCK;
+        const identityAgent = await resolveIdentityAgent(config.host);
+        const agentSocket = identityAgent || process.env.SSH_AUTH_SOCK;
         if (!agentSocket) {
           throw new Error(
-            'SSH agent authentication failed: SSH_AUTH_SOCK environment variable is not set. ' +
+            'SSH agent authentication failed: no agent socket found. ' +
               'This typically happens when:\n' +
               '1. The SSH agent is not running (try running "eval $(ssh-agent -s)" in your terminal)\n' +
               '2. The app was launched from the GUI (Finder/Dock) instead of a terminal\n' +
               '3. The SSH agent socket path could not be auto-detected\n\n' +
               'Workarounds:\n' +
+              '• Add IdentityAgent to this host in ~/.ssh/config (e.g. for 1Password)\n' +
               '• Launch Emdash from your terminal where SSH agent is already configured\n' +
               '• Use SSH key authentication instead of agent authentication\n' +
               '• Ensure your SSH agent is running and your keys are added (ssh-add -l)'
