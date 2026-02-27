@@ -205,7 +205,7 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libsecret-1-dev
+          sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
 
       - name: Install dependencies (allow platform optional deps)
         env:
@@ -244,7 +244,7 @@ jobs:
           ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
           npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
 
-      - name: Build Linux packages (AppImage and .deb)
+      - name: Build Linux packages (AppImage, .deb and .rpm)
         run: pnpm run package:linux
 
       - name: Upload Linux packages to GitHub Release
@@ -260,7 +260,7 @@ jobs:
             gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload Linux packages and metadata
-          FILES=(release/emdash-*.AppImage release/emdash-*.deb)
+          FILES=(release/emdash-*.AppImage release/emdash-*.deb release/emdash-*.rpm)
           if [ -f release/latest-linux.yml ]; then FILES+=(release/latest-linux.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber
 
