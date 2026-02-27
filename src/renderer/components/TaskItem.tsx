@@ -80,15 +80,26 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
+  const blurGuardRef = useRef(false);
+  const blurGuardTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleStartEdit = useCallback(() => {
     if (!onRename) return;
     setEditValue(task.name);
     isSubmittingRef.current = false;
+    blurGuardRef.current = true;
     setIsEditing(true);
+    // Keep blur guard active long enough for Radix context menu close
+    // animation (~150ms) and focus restoration to complete
+    clearTimeout(blurGuardTimerRef.current);
+    blurGuardTimerRef.current = setTimeout(() => {
+      blurGuardRef.current = false;
+    }, 300);
   }, [onRename, task.name]);
 
   const handleCancelEdit = useCallback(() => {
+    blurGuardRef.current = false;
+    clearTimeout(blurGuardTimerRef.current);
     setIsEditing(false);
     setEditValue(task.name);
   }, [task.name]);
@@ -96,6 +107,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const handleConfirmEdit = useCallback(async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
+    blurGuardRef.current = false;
+    clearTimeout(blurGuardTimerRef.current);
 
     const normalized = normalizeTaskName(editValue);
     if (!normalized) {
@@ -201,10 +214,20 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            onBlur={handleConfirmEdit}
+            onBlur={() => {
+              if (blurGuardRef.current) {
+                // Re-focus: blur was caused by context menu close/focus restoration
+                requestAnimationFrame(() => {
+                  inputRef.current?.focus();
+                });
+                return;
+              }
+              handleConfirmEdit();
+            }}
             maxLength={MAX_TASK_NAME_LENGTH}
             className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
             onClick={stopPropagation}
+            onMouseDown={stopPropagation}
           />
         ) : (
           <>
