@@ -333,34 +333,32 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  // Fetch archived tasks when filter is "all"
-  useEffect(() => {
-    if (showFilter !== 'all') {
-      setArchivedTasks([]);
-      return;
-    }
-    let cancelled = false;
-    async function fetchArchived() {
+  const activeTasks = project.tasks ?? [];
+  const activeTasksLength = activeTasks.length;
+
+  const refetchArchivedTasks = useCallback(() => {
+    const timeoutId = setTimeout(async () => {
       try {
         const result = await window.electronAPI.getArchivedTasks(project.id);
-        if (!cancelled && Array.isArray(result)) {
+        if (Array.isArray(result)) {
           setArchivedTasks(result);
         }
       } catch {
-        // silently ignore
+        //
       }
-    }
-    void fetchArchived();
-    return () => {
-      cancelled = true;
-    };
-  }, [showFilter, project.id]);
+    }, 100);
+    return () => clearTimeout(timeoutId);
+  }, [project.id]);
 
-  const activeTasks = project.tasks ?? [];
+  useEffect(() => {
+    const cleanup = refetchArchivedTasks();
+    return cleanup;
+  }, [project.id, refetchArchivedTasks]);
   const tasksInProject = useMemo(
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
   );
+  const hasAnyTasks = activeTasks.length > 0 || archivedTasks.length > 0;
   const filteredTasks = useMemo(
     () =>
       searchFilter.trim()
@@ -468,6 +466,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     exitSelectMode();
 
     if (deletedNames.length > 0) {
+      refetchArchivedTasks();
+
       const maxNames = 3;
       const displayNames = deletedNames.slice(0, maxNames).join(', ');
       const remaining = deletedNames.length - maxNames;
@@ -503,6 +503,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     exitSelectMode();
 
     if (archivedNames.length > 0) {
+      refetchArchivedTasks();
+
       const maxNames = 3;
       const displayNames = archivedNames.slice(0, maxNames).join(', ');
       const remaining = archivedNames.length - maxNames;
@@ -513,6 +515,32 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       });
     }
   };
+
+  const handleDeleteTask = useCallback(
+    async (task: Task) => {
+      const wasArchived = Boolean(task.archivedAt);
+      const result = await onDeleteTask(project, task);
+
+      if (wasArchived && result !== false) {
+        refetchArchivedTasks();
+      }
+
+      return result;
+    },
+    [onDeleteTask, project, refetchArchivedTasks]
+  );
+
+  const handleArchiveTask = useCallback(
+    async (task: Task) => {
+      if (!onArchiveTask) return;
+      const result = await onArchiveTask(project, task);
+      if (result !== false) {
+        refetchArchivedTasks();
+      }
+      return result;
+    },
+    [onArchiveTask, project, refetchArchivedTasks]
+  );
 
   const handleRestoreTask = useCallback(
     async (task: Task) => {
@@ -738,7 +766,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </motion.button>
               </div>
 
-              {tasksInProject.length > 0 ? (
+              {hasAnyTasks ? (
                 <>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -802,13 +830,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}{' '}
                           with Emdash
                         </span>
-                        <button
-                          type="button"
-                          className="cursor-pointer text-sm text-muted-foreground underline"
-                          onClick={() => setIsSelectMode(true)}
-                        >
-                          Select
-                        </button>
+                        {filteredTasks.length > 0 && (
+                          <button
+                            type="button"
+                            className="cursor-pointer text-sm text-muted-foreground underline"
+                            onClick={() => setIsSelectMode(true)}
+                          >
+                            Select
+                          </button>
+                        )}
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button
@@ -850,35 +880,48 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     )}
                   </div>
 
-                  <div className="task-list -ml-7 flex flex-col">
-                    <style>{`
-                      .task-list .task-row:first-child .task-card::before { opacity: 0; }
-                      .task-list .task-row:hover + .task-row .task-card::before,
-                      .task-list .task-row[data-active] + .task-row .task-card::before,
-                      .task-list .task-row[data-selected] + .task-row .task-card::before { opacity: 0; }
-                      .task-list .task-row:last-child .task-card::after {
-                        content: ''; position: absolute; inset: auto 0 0 0; height: 1px; background: hsl(var(--border));
-                      }
-                      .task-list .task-row:last-child:hover .task-card::after,
-                      .task-list .task-row:last-child[data-active] .task-card::after,
-                      .task-list .task-row:last-child[data-selected] .task-card::after { opacity: 0; }
-                    `}</style>
-                    {filteredTasks.map((ws) => (
-                      <TaskRow
-                        key={ws.id}
-                        ws={ws}
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedIds.has(ws.id)}
-                        onToggleSelect={() => toggleSelect(ws.id)}
-                        active={activeTask?.id === ws.id}
-                        onClick={() => onSelectTask(ws)}
-                        onDelete={() => onDeleteTask(project, ws)}
-                        onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
-                        enablePrStatus={!project.isRemote}
-                        onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
-                      />
-                    ))}
-                  </div>
+                  {filteredTasks.length > 0 ? (
+                    <div className="task-list -ml-7 flex flex-col">
+                      <style>{`
+                        .task-list .task-row:first-child .task-card::before { opacity: 0; }
+                        .task-list .task-row:hover + .task-row .task-card::before,
+                        .task-list .task-row[data-active] + .task-row .task-card::before,
+                        .task-list .task-row[data-selected] + .task-row .task-card::before { opacity: 0; }
+                        .task-list .task-row:last-child .task-card::after {
+                          content: ''; position: absolute; inset: auto 0 0 0; height: 1px; background: hsl(var(--border));
+                        }
+                        .task-list .task-row:last-child:hover .task-card::after,
+                        .task-list .task-row:last-child[data-active] .task-card::after,
+                        .task-list .task-row:last-child[data-selected] .task-card::after { opacity: 0; }
+                      `}</style>
+                      {filteredTasks.map((ws) => (
+                        <TaskRow
+                          key={ws.id}
+                          ws={ws}
+                          isSelectMode={isSelectMode}
+                          isSelected={selectedIds.has(ws.id)}
+                          onToggleSelect={() => toggleSelect(ws.id)}
+                          active={activeTask?.id === ws.id}
+                          onClick={() => onSelectTask(ws)}
+                          onDelete={() => handleDeleteTask(ws)}
+                          onArchive={onArchiveTask ? () => handleArchiveTask(ws) : undefined}
+                          enablePrStatus={!project.isRemote}
+                          onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Archive className="mb-3 h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-sm text-muted-foreground">
+                        {searchFilter.trim()
+                          ? 'No tasks match your search.'
+                          : showFilter === 'active'
+                            ? 'All tasks are archived. Use the filter to view them.'
+                            : 'No tasks found.'}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <Alert>
