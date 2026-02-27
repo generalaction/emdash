@@ -130,7 +130,6 @@ class AgentEventService {
       if (event.type === 'stop') {
         const notification = new Notification({
           title: `${providerName} Task Complete`,
-          body: 'Your agent has finished working',
           silent: true,
         });
         notification.show();
@@ -139,7 +138,6 @@ class AgentEventService {
         if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
           const notification = new Notification({
             title: `${providerName} Needs Attention`,
-            body: event.payload.message || 'Your agent needs your input',
             silent: true,
           });
           notification.show();
