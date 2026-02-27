@@ -373,6 +373,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     () => tasksInProject.filter((ws) => selectedIds.has(ws.id)),
     [selectedIds, tasksInProject]
   );
+
+  // Calculate select all checkbox state
+  const allFilteredSelected =
+    filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.id));
+  const someFilteredSelected =
+    filteredTasks.some((t) => selectedIds.has(t.id)) && !allFilteredSelected;
   const [deleteStatus, setDeleteStatus] = useState<
     Record<
       string,
@@ -436,6 +442,28 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       }
       return next;
     });
+  };
+
+  const toggleSelectAll = () => {
+    const filteredIds = new Set(filteredTasks.map((t) => t.id));
+    const allFilteredSelected = filteredTasks.every((t) => selectedIds.has(t.id));
+
+    if (allFilteredSelected) {
+      // Deselect all filtered tasks
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      // Select all filtered tasks
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+      if (!isSelectMode) setIsSelectMode(true);
+    }
   };
 
   const exitSelectMode = () => {
@@ -781,6 +809,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <div className="flex h-7 items-center gap-2 px-3">
                     {isSelectMode ? (
                       <>
+                        <Checkbox
+                          checked={someFilteredSelected ? 'indeterminate' : allFilteredSelected}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Select all tasks"
+                          className="-ml-10 h-4 w-4 shrink-0 rounded border-muted-foreground/50"
+                        />
                         <span className="text-sm text-muted-foreground">
                           {selectedCount} selected
                         </span>
