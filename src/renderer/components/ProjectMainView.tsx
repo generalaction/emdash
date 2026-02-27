@@ -337,21 +337,27 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const activeTasksLength = activeTasks.length;
 
   const refetchArchivedTasks = useCallback(() => {
-    setTimeout(async () => {
+    const timeoutId = setTimeout(async () => {
       try {
         const result = await window.electronAPI.getArchivedTasks(project.id);
         if (Array.isArray(result)) {
           setArchivedTasks(result);
         }
       } catch {
-        // silently ignore
+        //
       }
     }, 100);
+    return () => clearTimeout(timeoutId);
   }, [project.id]);
 
   useEffect(() => {
-    refetchArchivedTasks();
-  }, [project.id, activeTasksLength, refetchArchivedTasks]);
+    if (showFilter !== 'all') {
+      setArchivedTasks([]);
+      return;
+    }
+    const cleanup = refetchArchivedTasks();
+    return cleanup;
+  }, [project.id, showFilter, refetchArchivedTasks]);
   const tasksInProject = useMemo(
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
