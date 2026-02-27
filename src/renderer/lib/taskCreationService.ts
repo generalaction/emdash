@@ -40,6 +40,7 @@ async function runSetupOnCreate(
       taskId,
       taskPath,
       projectPath,
+      taskName,
     });
     if (!result?.success && !result?.skipped) {
       const { log } = await import('./logger');

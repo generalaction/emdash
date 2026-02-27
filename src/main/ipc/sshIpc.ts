@@ -11,6 +11,7 @@ import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { quoteShellArg } from '../utils/shellEscape';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -23,7 +24,14 @@ import type {
 const credentialService = new SshCredentialService();
 // Host key service initialized for future use (host key verification)
 const _hostKeyService = new SshHostKeyService();
-const monitor = new SshConnectionMonitor();
+const monitor = new SshConnectionMonitor((id) => sshService.isConnected(id));
+
+// When ssh2 detects a dead connection (via keepalive) and emits `close`,
+// SshService removes it from the pool and emits `disconnected`.
+// The monitor reacts by triggering reconnect with exponential backoff.
+sshService.on('disconnected', (connectionId: string) => {
+  monitor.handleDisconnect(connectionId);
+});
 
 /**
  * Maps a database row to SshConfig
@@ -337,11 +345,12 @@ export function registerSshIpc() {
     SSH_IPC_CHANNELS.DELETE_CONNECTION,
     async (_, id: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        // Disconnect active connection first to avoid orphaned sessions (HIGH #8)
+        // Stop monitoring BEFORE disconnecting so the monitor's
+        // handleDisconnect listener doesn't trigger a reconnect.
+        monitor.stopMonitoring(id);
         if (sshService.isConnected(id)) {
           try {
             await sshService.disconnect(id);
-            monitor.stopMonitoring(id);
           } catch {
             // Best-effort: continue with deletion even if disconnect fails
           }
@@ -401,7 +410,11 @@ export function registerSshIpc() {
 
           const loadedConfig = mapRowToConfig(row);
           const connectionId = await sshService.connect(loadedConfig);
+          // startMonitoring is a no-op if already tracked; updateState
+          // is a no-op if not tracked. Call both to handle fresh connects
+          // and re-connects after the monitor gave up (state = disconnected).
           monitor.startMonitoring(connectionId, loadedConfig);
+          monitor.updateState(connectionId, 'connected');
           void import('../telemetry').then(({ capture }) => {
             void capture('ssh_connect_success', { type: loadedConfig.authType });
           });
@@ -447,6 +460,7 @@ export function registerSshIpc() {
 
         const connectionId = await sshService.connect(fullConfig as any);
         monitor.startMonitoring(connectionId, fullConfig as any);
+        monitor.updateState(connectionId, 'connected');
         void import('../telemetry').then(({ capture }) => {
           void capture('ssh_connect_success', { type: config.authType });
         });
@@ -466,8 +480,11 @@ export function registerSshIpc() {
     SSH_IPC_CHANNELS.DISCONNECT,
     async (_, connectionId: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        await sshService.disconnect(connectionId);
+        // Stop monitoring BEFORE disconnecting so the monitor's
+        // handleDisconnect listener doesn't trigger a reconnect
+        // for an intentional disconnect.
         monitor.stopMonitoring(connectionId);
+        await sshService.disconnect(connectionId);
         void import('../telemetry').then(({ capture }) => {
           void capture('ssh_disconnected');
         });
@@ -783,6 +800,164 @@ export function registerSshIpc() {
         return { success: true, host };
       } catch (err: any) {
         console.error('[sshIpc] Get SSH config host error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Check if a remote path is a git repository
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.CHECK_IS_GIT_REPO,
+    async (
+      _,
+      connectionId: string,
+      remotePath: string
+    ): Promise<{ success: boolean; isGitRepo?: boolean; error?: string }> => {
+      try {
+        if (!remotePath || !remotePath.startsWith('/')) {
+          return { success: false, error: 'An absolute remote path is required' };
+        }
+        if (!isPathSafe(remotePath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+
+        const result = await sshService.executeCommand(
+          connectionId,
+          `git -C ${quoteShellArg(remotePath)} rev-parse --is-inside-work-tree 2>/dev/null`
+        );
+        const isGitRepo = result.exitCode === 0 && result.stdout.trim() === 'true';
+        return { success: true, isGitRepo };
+      } catch (err: any) {
+        console.error('[sshIpc] Check git repo error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Initialize a new git repository on the remote machine
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.INIT_REPO,
+    async (
+      _,
+      connectionId: string,
+      parentPath: string,
+      repoName: string
+    ): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        if (!parentPath || !parentPath.startsWith('/')) {
+          return { success: false, error: 'An absolute parent path is required' };
+        }
+        if (!isPathSafe(parentPath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+        // Validate repo name: alphanumeric, hyphens, underscores, dots
+        if (!repoName || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(repoName)) {
+          return {
+            success: false,
+            error:
+              'Invalid repository name. Use letters, numbers, hyphens, underscores, and dots. Must start with a letter or number.',
+          };
+        }
+
+        const repoPath = `${parentPath.replace(/\/+$/, '')}/${repoName}`;
+        if (!isPathSafe(repoPath)) {
+          return { success: false, error: 'Access denied: target path is restricted' };
+        }
+
+        // Check if directory already exists
+        const checkResult = await sshService.executeCommand(
+          connectionId,
+          `test -d ${quoteShellArg(repoPath)} && echo exists || echo absent`
+        );
+        if (checkResult.stdout.trim() === 'exists') {
+          return { success: false, error: `Directory already exists: ${repoPath}` };
+        }
+
+        // Create directory and initialize git repo
+        const initResult = await sshService.executeCommand(
+          connectionId,
+          `mkdir -p ${quoteShellArg(repoPath)} && git -C ${quoteShellArg(repoPath)} init`
+        );
+        if (initResult.exitCode !== 0) {
+          return {
+            success: false,
+            error: `Failed to initialize repository: ${initResult.stderr || initResult.stdout}`,
+          };
+        }
+
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_repo_init');
+        });
+
+        return { success: true, path: repoPath };
+      } catch (err: any) {
+        console.error('[sshIpc] Init repo error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Clone a repository on the remote machine
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.CLONE_REPO,
+    async (
+      _,
+      connectionId: string,
+      repoUrl: string,
+      targetPath: string
+    ): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        if (!repoUrl || typeof repoUrl !== 'string') {
+          return { success: false, error: 'Repository URL is required' };
+        }
+        // Validate URL format
+        const urlPatterns = [/^https?:\/\/.+/i, /^git@.+:.+/i, /^ssh:\/\/.+/i];
+        if (!urlPatterns.some((p) => p.test(repoUrl.trim()))) {
+          return {
+            success: false,
+            error: 'Invalid repository URL. Use https://, git@, or ssh:// format.',
+          };
+        }
+
+        if (!targetPath || !targetPath.startsWith('/')) {
+          return { success: false, error: 'An absolute target path is required' };
+        }
+        if (!isPathSafe(targetPath)) {
+          return { success: false, error: 'Access denied: path is restricted' };
+        }
+
+        // Check if target already exists
+        const checkResult = await sshService.executeCommand(
+          connectionId,
+          `test -e ${quoteShellArg(targetPath)} && echo exists || echo absent`
+        );
+        if (checkResult.stdout.trim() === 'exists') {
+          return { success: false, error: `Target path already exists: ${targetPath}` };
+        }
+
+        // Ensure parent directory exists
+        const parentDir = targetPath.replace(/\/[^/]+\/?$/, '') || '/';
+        await sshService.executeCommand(connectionId, `mkdir -p ${quoteShellArg(parentDir)}`);
+
+        // Clone the repository
+        const cloneResult = await sshService.executeCommand(
+          connectionId,
+          `git clone ${quoteShellArg(repoUrl.trim())} ${quoteShellArg(targetPath)}`
+        );
+        if (cloneResult.exitCode !== 0) {
+          return {
+            success: false,
+            error: `Clone failed: ${cloneResult.stderr || cloneResult.stdout}`,
+          };
+        }
+
+        void import('../telemetry').then(({ capture }) => {
+          void capture('ssh_repo_clone');
+        });
+
+        return { success: true, path: targetPath };
+      } catch (err: any) {
+        console.error('[sshIpc] Clone repo error:', err);
         return { success: false, error: err.message };
       }
     }

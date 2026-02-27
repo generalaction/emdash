@@ -12,6 +12,7 @@ export interface LinearTeamRef {
 export interface LinearStateRef {
   name?: string | null;
   type?: string | null;
+  color?: string | null;
 }
 
 export interface LinearProjectRef {

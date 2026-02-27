@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -364,38 +364,39 @@ export class GitHubService {
       };
 
       if (data.access_token) {
-        // Return immediately - don't block on storage/auth/user fetching
-        // This allows UI to update instantly
+        // We get the token, now fetch user info immediately before returning success
+        // This ensures the UI has the correct username without a race condition
         const token = data.access_token;
+        const user = await this.getUserInfo(token);
 
-        // Do heavy operations in background
-        setImmediate(async () => {
-          try {
-            // Store token securely
-            await this.storeToken(token);
+        // Store token and authenticate gh CLI BEFORE returning success.
+        // This must complete synchronously (awaited) so that when the renderer
+        // receives the success event and checks `gh api user`, the CLI is
+        // already authenticated. Previously these were deferred via setImmediate,
+        // causing a race where the status check ran before gh CLI auth finished.
+        try {
+          await this.storeToken(token);
+        } catch (error) {
+          console.warn('Failed to store token:', error);
+        }
 
-            // Authenticate gh CLI with the token
-            await this.authenticateGHCLI(token).catch(() => {
-              // Silent fail - gh CLI might not be installed
-            });
+        try {
+          await this.authenticateGHCLI(token);
+        } catch {
+          // Silent fail - gh CLI might not be installed
+        }
 
-            // Get user info and send update
-            const user = await this.getUserInfo(token);
-            const mainWindow = getMainWindow();
-            if (user && mainWindow) {
-              mainWindow.webContents.send('github:auth:user-updated', {
-                user: user,
-              });
-            }
-          } catch (error) {
-            console.warn('Background auth setup failed:', error);
-          }
-        });
+        const mainWindow = getMainWindow();
+        if (user && mainWindow) {
+          mainWindow.webContents.send('github:auth:user-updated', {
+            user: user,
+          });
+        }
 
         return {
           success: true,
           token: token,
-          user: undefined, // Will be sent via user-updated event
+          user: user || undefined,
         };
       } else if (data.error) {
         // Return error to caller - they decide how to handle
@@ -426,8 +427,27 @@ export class GitHubService {
       // Check if gh CLI is installed first
       await execAsync('gh --version');
 
-      // Authenticate gh CLI with our token
-      await execAsync(`echo "${token}" | gh auth login --with-token`);
+      // Security: Authenticate gh CLI with token via stdin (not shell interpolation)
+      // This prevents command injection if token contains shell metacharacters
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn('gh', ['auth', 'login', '--with-token'], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`gh auth login failed with code ${code}`));
+          }
+        });
+
+        child.on('error', reject);
+
+        // Write token to stdin and close it
+        child.stdin.write(token);
+        child.stdin.end();
+      });
     } catch (error) {
       console.warn('Could not authenticate gh CLI (may not be installed):', error);
       // Don't throw - OAuth still succeeded even if gh CLI isn't available
@@ -672,13 +692,30 @@ export class GitHubService {
   }
 
   /**
-   * Get user information using GitHub CLI
+   * Get user information using GitHub API or CLI
    */
-  async getUserInfo(_token: string): Promise<GitHubUser | null> {
+  async getUserInfo(token: string): Promise<GitHubUser | null> {
     try {
-      // Use gh CLI to get user info
-      const { stdout } = await this.execGH('gh api user');
-      const userData = JSON.parse(stdout);
+      let userData;
+      if (token) {
+        const response = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.statusText}`);
+        }
+
+        userData = await response.json();
+      } else {
+        // Use gh CLI to get user info as fallback
+        const { stdout } = await this.execGH('gh api user');
+        userData = JSON.parse(stdout);
+      }
 
       return {
         id: userData.id,
@@ -1065,12 +1102,22 @@ export class GitHubService {
    * Logout and clear stored token
    */
   async logout(): Promise<void> {
-    try {
-      const keytar = await import('keytar');
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
-    } catch (error) {
-      console.error('Failed to logout:', error);
-    }
+    // Run both operations in parallel since they're independent
+    await Promise.allSettled([
+      // Logout from gh CLI
+      execAsync('echo Y | gh auth logout --hostname github.com').catch((error) => {
+        console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
+      }),
+      // Clear keychain token
+      (async () => {
+        try {
+          const keytar = await import('keytar');
+          await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+        } catch (error) {
+          console.error('Failed to clear keychain token:', error);
+        }
+      })(),
+    ]);
   }
 
   /**

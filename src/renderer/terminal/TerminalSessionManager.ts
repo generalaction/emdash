@@ -93,6 +93,7 @@ export class TerminalSessionManager {
   private pendingResize: { cols: number; rows: number } | null = null;
   private lastSentResize: { cols: number; rows: number } | null = null;
   private isPanelResizeDragging = false;
+  private hadFocusBeforeDetach = false;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -242,8 +243,6 @@ export class TerminalSessionManager {
 
     this.applyTheme(options.theme);
 
-    const isAgentSession = Boolean(options.providerId);
-
     // Custom key event handler: always attached so the dialog guard
     // runs for every terminal, plus optional copy/Shift+Enter handling.
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -255,10 +254,7 @@ export class TerminalSessionManager {
         return false;
       }
 
-      if (
-        isAgentSession &&
-        shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())
-      ) {
+      if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, this.terminal.hasSelection())) {
         event.preventDefault();
         event.stopImmediatePropagation();
         event.stopPropagation();
@@ -285,6 +281,25 @@ export class TerminalSessionManager {
         this.handleTerminalInput(CTRL_J_ASCII, true);
         return false; // Prevent xterm from processing the Shift+Enter
       }
+
+      // Map Cmd+Left/Right to Ctrl+A/E on macOS (line navigation)
+      if (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          this.handleTerminalInput('\x01', true);
+          return false;
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          this.handleTerminalInput('\x05', true);
+          return false;
+        }
+      }
+
       return true; // Let xterm handle all other keys normally
     });
 
@@ -335,6 +350,9 @@ export class TerminalSessionManager {
     });
     this.resizeObserver.observe(container);
 
+    const shouldRestoreFocus = this.hadFocusBeforeDetach;
+    this.hadFocusBeforeDetach = false;
+
     requestAnimationFrame(() => {
       if (this.disposed) return;
       this.scheduleFit();
@@ -343,6 +361,9 @@ export class TerminalSessionManager {
       requestAnimationFrame(() => {
         if (!this.disposed) {
           this.restoreViewportPosition();
+          if (shouldRestoreFocus) {
+            this.terminal.focus();
+          }
         }
       });
     });
@@ -356,6 +377,9 @@ export class TerminalSessionManager {
   detach() {
     if (this.attachedContainer) {
       // Capture viewport position before detaching
+      const textarea = this.container.querySelector('.xterm-helper-textarea');
+      this.hadFocusBeforeDetach = textarea != null && textarea === document.activeElement;
+
       this.captureViewportPosition();
       this.cancelScheduledFit();
       this.clearQueuedResize();

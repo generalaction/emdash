@@ -20,6 +20,7 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
+import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import CliAgentsList from './CliAgentsList';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
@@ -239,6 +240,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
               <BrowserPreviewSettingsCard />
             </div>
           ),
+        },
+        {
+          title: 'Tools',
+          component: <HiddenToolsSettingsCard />,
         },
       ],
     },

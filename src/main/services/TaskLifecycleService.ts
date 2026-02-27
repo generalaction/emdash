@@ -103,10 +103,11 @@ class TaskLifecycleService extends EventEmitter {
   private async buildLifecycleEnv(
     taskId: string,
     taskPath: string,
-    projectPath: string
+    projectPath: string,
+    taskName?: string
   ): Promise<NodeJS.ProcessEnv> {
     const defaultBranch = await this.resolveDefaultBranch(projectPath);
-    const taskName = path.basename(taskPath) || taskId;
+    taskName = taskName || path.basename(taskPath) || taskId;
     const taskEnv = getTaskEnvVars({
       taskId,
       taskName,
@@ -159,7 +160,8 @@ class TaskLifecycleService extends EventEmitter {
     taskId: string,
     taskPath: string,
     projectPath: string,
-    phase: Extract<LifecyclePhase, 'setup' | 'teardown'>
+    phase: Extract<LifecyclePhase, 'setup' | 'teardown'>,
+    taskName?: string
   ): Promise<LifecycleResult> {
     const script = lifecycleScriptsService.getScript(projectPath, phase);
     if (!script) return Promise.resolve({ ok: true, skipped: true });
@@ -184,7 +186,7 @@ class TaskLifecycleService extends EventEmitter {
           resolve(result);
         };
         try {
-          const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
+          const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath, taskName);
           const child = spawn(script, {
             cwd: taskPath,
             shell: true,
@@ -244,23 +246,33 @@ class TaskLifecycleService extends EventEmitter {
     });
   }
 
-  async runSetup(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {
+  async runSetup(
+    taskId: string,
+    taskPath: string,
+    projectPath: string,
+    taskName?: string
+  ): Promise<LifecycleResult> {
     const key = this.inflightKey(taskId, taskPath);
     if (this.setupInflight.has(key)) {
       return this.setupInflight.get(key)!;
     }
-    const run = this.runFinite(taskId, taskPath, projectPath, 'setup').finally(() => {
+    const run = this.runFinite(taskId, taskPath, projectPath, 'setup', taskName).finally(() => {
       this.setupInflight.delete(key);
     });
     this.setupInflight.set(key, run);
     return run;
   }
 
-  async startRun(taskId: string, taskPath: string, projectPath: string): Promise<LifecycleResult> {
+  async startRun(
+    taskId: string,
+    taskPath: string,
+    projectPath: string,
+    taskName?: string
+  ): Promise<LifecycleResult> {
     const inflight = this.runStartInflight.get(taskId);
     if (inflight) return inflight;
 
-    const run = this.startRunInternal(taskId, taskPath, projectPath).finally(() => {
+    const run = this.startRunInternal(taskId, taskPath, projectPath, taskName).finally(() => {
       if (this.runStartInflight.get(taskId) === run) {
         this.runStartInflight.delete(taskId);
       }
@@ -272,7 +284,8 @@ class TaskLifecycleService extends EventEmitter {
   private async startRunInternal(
     taskId: string,
     taskPath: string,
-    projectPath: string
+    projectPath: string,
+    taskName?: string
   ): Promise<LifecycleResult> {
     const setupScript = lifecycleScriptsService.getScript(projectPath, 'setup');
     if (setupScript) {
@@ -308,7 +321,7 @@ class TaskLifecycleService extends EventEmitter {
     this.emitLifecycleEvent(taskId, 'run', 'starting');
 
     try {
-      const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath);
+      const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath, taskName);
       const child = spawn(script, {
         cwd: taskPath,
         shell: true,
@@ -401,7 +414,8 @@ class TaskLifecycleService extends EventEmitter {
   async runTeardown(
     taskId: string,
     taskPath: string,
-    projectPath: string
+    projectPath: string,
+    taskName?: string
   ): Promise<LifecycleResult> {
     const key = this.inflightKey(taskId, taskPath);
     if (this.teardownInflight.has(key)) {
@@ -435,7 +449,7 @@ class TaskLifecycleService extends EventEmitter {
           });
         });
       }
-      return this.runFinite(taskId, taskPath, projectPath, 'teardown');
+      return this.runFinite(taskId, taskPath, projectPath, 'teardown', taskName);
     })().finally(() => {
       this.teardownInflight.delete(key);
     });

@@ -1,11 +1,4 @@
-import React, {
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-  forwardRef,
-  useImperativeHandle,
-} from 'react';
+import React, { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
@@ -70,17 +63,43 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     const errorCleanupRef = useRef<(() => void) | null>(null);
     const exitCleanupRef = useRef<(() => void) | null>(null);
 
-    const handleLinkClick = useCallback((url: string) => {
-      if (!url || !window.electronAPI?.openExternal) return;
-      window.electronAPI.openExternal(url).catch((error) => {
-        log.warn('failed to open external link', { url, error });
-      });
-    }, []);
+    const cwdRef = useRef(cwd);
+    cwdRef.current = cwd;
+    const remoteRef = useRef(remote);
+    remoteRef.current = remote;
+    const providerIdRef = useRef(providerId);
+    providerIdRef.current = providerId;
+    const shellRef = useRef(shell);
+    shellRef.current = shell;
+    const colsRef = useRef(cols);
+    colsRef.current = cols;
+    const rowsRef = useRef(rows);
+    rowsRef.current = rows;
+    const envRef = useRef(env);
+    envRef.current = env;
+    const autoApproveRef = useRef(autoApprove);
+    autoApproveRef.current = autoApprove;
+    const initialPromptRef = useRef(initialPrompt);
+    initialPromptRef.current = initialPrompt;
+    const mapShiftEnterToCtrlJRef = useRef(mapShiftEnterToCtrlJ);
+    mapShiftEnterToCtrlJRef.current = mapShiftEnterToCtrlJ;
+    const disableSnapshotsRef = useRef(disableSnapshots);
+    disableSnapshotsRef.current = disableSnapshots;
+    const onActivityRef = useRef(onActivity);
+    onActivityRef.current = onActivity;
+    const onStartErrorRef = useRef(onStartError);
+    onStartErrorRef.current = onStartError;
+    const onStartSuccessRef = useRef(onStartSuccess);
+    onStartSuccessRef.current = onStartSuccess;
+    const onExitRef = useRef(onExit);
+    onExitRef.current = onExit;
 
     const theme = useMemo<SessionTheme>(
       () => ({ base: variant, override: themeOverride }),
       [variant, themeOverride]
     );
+    const themeRef = useRef(theme);
+    themeRef.current = theme;
 
     // Expose focus method via ref
     useImperativeHandle(
@@ -97,36 +116,51 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       const container = containerRef.current;
       if (!container) return;
 
+      const handleLinkClick = (url: string) => {
+        if (!url || !window.electronAPI?.openExternal) return;
+        window.electronAPI.openExternal(url).catch((error) => {
+          log.warn('failed to open external link', { url, error });
+        });
+      };
+
       const session = terminalSessionRegistry.attach({
         taskId: id,
         container,
-        cwd,
-        remote,
-        providerId,
-        shell,
-        env,
-        initialSize: { cols, rows },
-        theme,
-        autoApprove,
-        initialPrompt,
-        mapShiftEnterToCtrlJ,
-        disableSnapshots,
+        cwd: cwdRef.current,
+        remote: remoteRef.current,
+        providerId: providerIdRef.current,
+        shell: shellRef.current,
+        env: envRef.current,
+        initialSize: { cols: colsRef.current, rows: rowsRef.current },
+        theme: themeRef.current,
+        autoApprove: autoApproveRef.current,
+        initialPrompt: initialPromptRef.current,
+        mapShiftEnterToCtrlJ: mapShiftEnterToCtrlJRef.current,
+        disableSnapshots: disableSnapshotsRef.current,
         onLinkClick: handleLinkClick,
       });
       sessionRef.current = session;
 
-      if (onActivity) {
-        activityCleanupRef.current = session.registerActivityListener(onActivity);
+      if (onActivityRef.current) {
+        activityCleanupRef.current = session.registerActivityListener((...args: []) =>
+          onActivityRef.current?.(...args)
+        );
       }
 
-      if (onStartSuccess) {
-        readyCleanupRef.current = session.registerReadyListener(onStartSuccess);
+      if (onStartSuccessRef.current) {
+        readyCleanupRef.current = session.registerReadyListener((...args: []) =>
+          onStartSuccessRef.current?.(...args)
+        );
       }
-      if (onStartError) {
-        errorCleanupRef.current = session.registerErrorListener(onStartError);
+      if (onStartErrorRef.current) {
+        errorCleanupRef.current = session.registerErrorListener((msg: string) =>
+          onStartErrorRef.current?.(msg)
+        );
       }
-      if (onExit) {
-        exitCleanupRef.current = session.registerExitListener(onExit);
+      if (onExitRef.current) {
+        exitCleanupRef.current = session.registerExitListener(
+          (info: { exitCode: number | undefined; signal?: number }) => onExitRef.current?.(info)
+        );
       }
 
       return () => {
@@ -140,25 +174,13 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         exitCleanupRef.current = null;
         terminalSessionRegistry.detach(id);
       };
-    }, [
-      id,
-      cwd,
-      remote,
-      providerId,
-      shell,
-      env,
-      cols,
-      rows,
-      theme,
-      autoApprove,
-      initialPrompt,
-      mapShiftEnterToCtrlJ,
-      handleLinkClick,
-      onActivity,
-      onStartError,
-      onStartSuccess,
-      onExit,
-    ]);
+    }, [id]);
+
+    useEffect(() => {
+      if (sessionRef.current) {
+        sessionRef.current.setTheme(theme);
+      }
+    }, [theme]);
 
     useEffect(() => {
       return () => {
@@ -198,11 +220,11 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         }
         if (paths.length === 0) return;
 
-        if (remote?.connectionId) {
+        if (remoteRef.current?.connectionId) {
           // SSH terminal: transfer files to remote first via scp
           try {
             const result = await window.electronAPI.ptyScpToRemote({
-              connectionId: remote.connectionId,
+              connectionId: remoteRef.current.connectionId,
               localPaths: paths,
             });
             if (result.success && result.remotePaths) {

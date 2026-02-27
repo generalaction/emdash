@@ -121,7 +121,7 @@ Private Key Path: /Users/you/.ssh/id_ed25519
 Passphrase:       [if key is encrypted]
 ```
 
-**Security:** Passphrases are stored in your OS keychain (macOS Keychain, Linux Secret Service), not in Emdash's database.
+**Security:** Passphrases are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), not in Emdash's database.
 
 ### 3. Password
 
@@ -329,7 +329,8 @@ ssh-keygen -R old-server.example.com
 ### SSH Config File Location
 
 - **macOS/Linux:** `~/.ssh/config`
-- **Known hosts:** `~/.ssh/known_hosts`
+- **Windows:** `%USERPROFILE%\.ssh\config`
+- **Known hosts:** `~/.ssh/known_hosts` (Windows: `%USERPROFILE%\.ssh\known_hosts`)
 
 ### Common SSH Commands
 

@@ -17,21 +17,27 @@
 
 <br />
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:24px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadformacos.png" alt="Download app for macOS" height="40">
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
+  </a>
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
+  </a>
+  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
 </div>
 
 <br />
 
-**Run multiple coding agents in parallel**
+Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash lets you develop and test multiple features with multiple agents in parallel. It’s provider-agnostic (supports 15+ CLI agents, such as Claude Code, Qwen Code, Amp, and Codex) and runs each agent in its own Git worktree to keep changes clean; Hand off Linear, GitHub, or Jira tickets to an agent and review diffs side-by-side.
+Emdash supports 21 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
 
 **Develop on remote servers via SSH**
 
-Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development.
+Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development. [Learn more](https://www.emdash.sh/cloud)
 
 <div align="center" style="margin:24px 0;">
 
@@ -39,23 +45,28 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 </div>
 
+<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
+
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg  
+- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
 - Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
 
 [![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
 > macOS users can also: `brew install --cask emdash`
 
+### Windows
+- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
+- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
+
 ### Linux
-- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage  
+- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.AppImage
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.deb
-</details>
 
 ### Release Overview
 
-**[Latest Releases (macOS • Linux)](https://github.com/generalaction/emdash/releases/latest)**
+**[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
 
 # Providers
 
@@ -67,27 +78,27 @@ Emdash currently supports twenty-one CLI providers and we are adding new provide
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
-| [Amp](https://ampcode.com/manual) | ✅ Supported | `npm install -g @sourcegraph/amp@latest` |
-| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | `npm install -g @augmentcode/auggie` |
-| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | `npm install -g @charmland/crush` |
-| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | `curl -fsSL https://claude.ai/install.sh \| bash` |
-| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | `npm install -g cline` |
-| [Codebuff](https://www.codebuff.com/docs/help/getting-started) | ✅ Supported | `npm install -g codebuff` |
-| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | `npm install -g @openai/codex` |
-| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | `npm i -g @continuedev/cli` |
-| [Cursor](https://cursor.com/cli) | ✅ Supported | `curl https://cursor.com/install -fsS | bash` |
-| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | `curl -fsSL https://app.factory.ai/cli | sh` |
-| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | `npm install -g @google/gemini-cli` |
-| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | `npm install -g @github/copilot` |
-| [Goose](https://github.com/block/goose) | ✅ Supported | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash` |
-| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | `npm install -g @kilocode/cli` |
-| [Kimi](https://www.kimi.com/coding/docs/en/kimi-cli.html) | ✅ Supported | `uv tool install --python 3.13 kimi-cli` |
-| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | `curl -fsSL https://cli.kiro.dev/install | bash` |
-| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash` |
-| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | `npm install -g opencode-ai` |
-| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | `npm install -g @mariozechner/pi-coding-agent` |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | `npm install -g @qwen-code/qwen-code` |
-| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | `acli rovodev auth login` |
+| [Amp](https://ampcode.com/manual) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
+| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
+| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
+| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
+| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | <code>npm install -g codebuff</code> |
+| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | <code>npm install -g @openai/codex</code> |
+| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
+| [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
+| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
+| [Goose](https://github.com/block/goose) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
+| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install --python 3.13 kimi-cli</code> |
+| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
+| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
+| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | <code>npm install -g @qwen-code/qwen-code</code> |
+| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | <code>acli rovodev auth login</code> |
 
 ### Issues
 
@@ -129,8 +140,9 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > **App data is local‑first**. We store app state in a local **SQLite** database:
 >
 > ```
-> macOS:  ~/Library/Application Support/emdash/emdash.db
-> Linux:  ~/.config/emdash/emdash.db
+> macOS:   ~/Library/Application Support/emdash/emdash.db
+> Windows: %APPDATA%\emdash\emdash.db
+> Linux:   ~/.config/emdash/emdash.db
 > ```
 >
 > **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
@@ -212,5 +224,6 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
 </details>
 
+[![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
 [![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)

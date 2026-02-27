@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
@@ -11,6 +12,7 @@ interface OpenInMenuProps {
   align?: 'left' | 'right';
   isRemote?: boolean;
   sshConnectionId?: string | null;
+  isActive?: boolean;
 }
 
 const menuItemBase =
@@ -21,13 +23,14 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   align = 'right',
   isRemote = false,
   sshConnectionId = null,
+  isActive = true,
 }) => {
   const [open, setOpen] = React.useState(false);
   const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { icons, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
 
   // Fetch default app setting on mount and listen for changes
   React.useEffect(() => {
@@ -78,36 +81,38 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     }
   }, []);
 
-  const callOpen = async (appId: OpenInAppId) => {
-    const appConfig = getAppById(appId);
-    const label = appConfig?.label || appId;
+  const callOpen = React.useCallback(
+    async (appId: OpenInAppId) => {
+      const label = labels[appId] || appId;
 
-    void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('toolbar_open_in_selected', { app: appId });
-    });
-    try {
-      const res = await window.electronAPI?.openIn?.({
-        app: appId,
-        path,
-        isRemote,
-        sshConnectionId,
+      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+        captureTelemetry('toolbar_open_in_selected', { app: appId });
       });
-      if (!res?.success) {
+      try {
+        const res = await window.electronAPI?.openIn?.({
+          app: appId,
+          path,
+          isRemote,
+          sshConnectionId,
+        });
+        if (!res?.success) {
+          toast({
+            title: `Open in ${label} failed`,
+            description: res?.error || 'Application not available.',
+            variant: 'destructive',
+          });
+        }
+      } catch (e: any) {
         toast({
           title: `Open in ${label} failed`,
-          description: res?.error || 'Application not available.',
+          description: e?.message || String(e),
           variant: 'destructive',
         });
       }
-    } catch (e: any) {
-      toast({
-        title: `Open in ${label} failed`,
-        description: e?.message || String(e),
-        variant: 'destructive',
-      });
-    }
-    setOpen(false);
-  };
+      setOpen(false);
+    },
+    [labels, path, isRemote, sshConnectionId, toast]
+  );
 
   // Sort installed apps with default first
   const sortedApps = React.useMemo(() => {
@@ -132,34 +137,54 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     return menuApps[0]?.id;
   }, [defaultApp, menuApps]);
 
-  const buttonAppLabel = buttonAppId ? (getAppById(buttonAppId)?.label ?? buttonAppId) : null;
+  const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
+
+  React.useEffect(() => {
+    if (!isActive) return;
+    const handleOpenInEditorEvent = () => {
+      if (buttonAppId) {
+        void callOpen(buttonAppId);
+      }
+    };
+    window.addEventListener('emdash:open-in-editor', handleOpenInEditorEvent);
+    return () => window.removeEventListener('emdash:open-in-editor', handleOpenInEditorEvent);
+  }, [isActive, buttonAppId, callOpen]);
 
   return (
     <div ref={containerRef} className="relative">
       <div className="flex min-w-0">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="group h-7 min-w-0 gap-1.5 truncate rounded-r-none pl-2 pr-0.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
-          onClick={() => {
-            if (!buttonAppId) return;
-            void callOpen(buttonAppId);
-          }}
-          disabled={!buttonAppId || loading}
-          aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
-        >
-          {buttonAppId && icons[buttonAppId] && (
-            <img
-              src={icons[buttonAppId]}
-              alt={getAppById(buttonAppId)?.label}
-              className={`h-4 w-4 rounded ${
-                getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
-              }`}
-            />
-          )}
-          <span>Open</span>
-        </Button>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="group h-7 min-w-0 gap-1.5 truncate rounded-r-none pl-2 pr-0.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+                onClick={() => {
+                  if (!buttonAppId) return;
+                  void callOpen(buttonAppId);
+                }}
+                disabled={!buttonAppId || loading}
+                aria-label={buttonAppLabel ? `Open in ${buttonAppLabel}` : 'Open'}
+              >
+                {buttonAppId && icons[buttonAppId] && (
+                  <img
+                    src={icons[buttonAppId]}
+                    alt={labels[buttonAppId] || buttonAppId}
+                    className={`h-4 w-4 rounded ${
+                      getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                    }`}
+                  />
+                )}
+                <span>Open</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs font-medium">
+              Open in {buttonAppLabel || 'editor'} ⌘O
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Button
           type="button"
           variant="ghost"
@@ -224,11 +249,11 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   {icons[app.id] ? (
                     <img
                       src={icons[app.id]}
-                      alt={app.label}
+                      alt={labels[app.id] || app.label}
                       className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
                     />
                   ) : null}
-                  <span>{app.label}</span>
+                  <span>{labels[app.id] || app.label}</span>
                   {app.id === defaultApp && (
                     <span className="ml-auto text-xs text-muted-foreground">Selected</span>
                   )}

@@ -185,10 +185,7 @@ const AppContent: React.FC = () => {
   const appInit = useAppInitialization({
     checkGithubStatus: () => github.checkStatus(),
     onProjectsLoaded: (projects) => projectMgmt.setProjects(projects),
-    onProjectSelected: (project) => projectMgmt.setSelectedProject(project),
     onShowHomeView: (show) => projectMgmt.setShowHomeView(show),
-    onTaskSelected: (task) => taskMgmt.setActiveTask(task),
-    onTaskAgentSelected: (agent) => taskMgmt.setActiveTaskAgent(agent),
     onInitialLoadComplete: () => {},
   });
 
@@ -214,7 +211,6 @@ const AppContent: React.FC = () => {
     setActiveTask: (task) => taskMgmt.setActiveTask(task),
     saveProjectOrder: appInit.saveProjectOrder,
     ToastAction,
-    storedActiveIds: appInit.storedActiveIds,
   });
 
   // Keep the selectedProject ref in sync for useModalState's kanban toggle guard
@@ -516,6 +512,10 @@ const AppContent: React.FC = () => {
     handleToggleEditor,
   ]);
 
+  const handleOpenInEditor = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('emdash:open-in-editor'));
+  }, []);
+
   const handleToggleSettingsPage = useCallback(() => {
     if (showSettingsPage) {
       handleCloseSettingsPage();
@@ -545,6 +545,7 @@ const AppContent: React.FC = () => {
                 handleNextTask={taskMgmt.handleNextTask}
                 handlePrevTask={taskMgmt.handlePrevTask}
                 handleNewTask={taskMgmt.handleNewTask}
+                handleOpenInEditor={handleOpenInEditor}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}
@@ -633,7 +634,7 @@ const AppContent: React.FC = () => {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
@@ -661,6 +662,7 @@ const AppContent: React.FC = () => {
                         handleSelectTask={taskMgmt.handleSelectTask}
                         handleDeleteTask={taskMgmt.handleDeleteTask}
                         handleArchiveTask={taskMgmt.handleArchiveTask}
+                        handleRestoreTask={taskMgmt.handleRestoreTask}
                         handleDeleteProject={projectMgmt.handleDeleteProject}
                         handleOpenProject={projectMgmt.handleOpenProject}
                         handleNewProjectClick={projectMgmt.handleNewProjectClick}
@@ -676,7 +678,7 @@ const AppContent: React.FC = () => {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('right', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
                   />
                   <ResizablePanel
                     ref={rightSidebarPanelRef}

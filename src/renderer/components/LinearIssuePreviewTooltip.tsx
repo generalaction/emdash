@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { ExternalLink, User, Tag, Folder } from 'lucide-react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
+import { LinearStatusPill } from './LinearStatusPill';
 
 type Props = {
   issue: LinearIssueSummary | null;
@@ -12,51 +13,87 @@ type Props = {
   side?: 'top' | 'right' | 'bottom' | 'left';
 };
 
-const StatusPill = ({
-  state,
-}: {
-  state?: { name?: string | null; type?: string | null } | null;
-}) => {
-  if (!state?.name) return null;
+// Module-level singleton: only one tooltip may be open at a time.
+// Stores the force-close function of the currently open tooltip instance.
+let activeTooltipForceClose: (() => void) | null = null;
 
-  const getStatusColor = (type?: string | null) => {
-    switch (type) {
-      case 'completed':
-      case 'done':
-        return 'bg-emerald-100/70 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200';
-      case 'canceled':
-      case 'cancelled':
-        return 'bg-rose-100/70 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200';
-      case 'started':
-      case 'in-progress':
-        return 'bg-blue-100/70 text-blue-800 dark:bg-blue-500/10 dark:text-blue-200';
-      default:
-        return 'bg-slate-100/70 text-slate-800 dark:bg-slate-500/10 dark:text-slate-200';
+export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, side = 'top' }) => {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
     }
   };
 
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] ${getStatusColor(state.type)}`}
-    >
-      {state.name}
-    </span>
-  );
-};
+  const latestClose = useRef<() => void>(() => {});
+  latestClose.current = () => {
+    cancelClose();
+    setOpen(false);
+  };
 
-export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, side = 'top' }) => {
+  const stableForceClose = useRef<() => void>(() => latestClose.current());
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 300);
+  };
+
+  const handleMouseEnter = () => {
+    cancelClose();
+    setOpen(true);
+  };
+
+  // Whenever this tooltip becomes visible, register it in the global singleton
+  // and immediately force-close whichever other instance was previously open.
+  useEffect(() => {
+    const myForceClose = stableForceClose.current;
+    if (open) {
+      if (activeTooltipForceClose && activeTooltipForceClose !== myForceClose) {
+        activeTooltipForceClose();
+      }
+      activeTooltipForceClose = myForceClose;
+    } else {
+      if (activeTooltipForceClose === myForceClose) {
+        activeTooltipForceClose = null;
+      }
+    }
+    return () => {
+      if (activeTooltipForceClose === myForceClose) {
+        activeTooltipForceClose = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Clean up pending close timer on unmount.
+  useEffect(() => {
+    return () => cancelClose();
+  }, []);
+
   if (!issue) return children;
 
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <Tooltip
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setOpen(true);
+        }}
+      >
+        <TooltipTrigger asChild onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+          {children}
+        </TooltipTrigger>
         <TooltipContent
           side={side}
           align="start"
           className="border-0 bg-transparent p-0 shadow-none"
           style={{ zIndex: 10000 }}
           onPointerDownOutside={(e) => e.preventDefault()}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
         >
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
@@ -106,7 +143,7 @@ export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
             )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <StatusPill state={issue.state} />
+              <LinearStatusPill state={issue.state} />
 
               {issue.assignee?.name && (
                 <span className="inline-flex items-center gap-1">

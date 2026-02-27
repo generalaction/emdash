@@ -27,6 +27,8 @@ export type ProviderCustomConfig = {
   defaultArgs?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  extraArgs?: string;
+  env?: Record<string, string>;
 };
 
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
@@ -144,6 +146,7 @@ declare global {
             fontFamily: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         };
         error?: string;
       }>;
@@ -225,6 +228,7 @@ declare global {
             fontFamily?: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         }>
       ) => Promise<{
         success: boolean;
@@ -305,6 +309,7 @@ declare global {
             fontFamily: string;
           };
           defaultOpenInApp?: string;
+          hiddenOpenInApps?: string[];
         };
         error?: string;
       }>;
@@ -479,11 +484,13 @@ declare global {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleRunStart: (args: {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleRunStop: (args: {
         taskId: string;
@@ -492,6 +499,7 @@ declare global {
         taskId: string;
         taskPath: string;
         projectPath: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleGetState: (args: { taskId: string }) => Promise<{
         success: boolean;
@@ -1253,6 +1261,9 @@ declare global {
         };
         error?: string;
       }>;
+      sshCheckIsGitRepo: (connectionId: string, remotePath: string) => Promise<boolean>;
+      sshInitRepo: (connectionId: string, parentPath: string, repoName: string) => Promise<string>;
+      sshCloneRepo: (connectionId: string, repoUrl: string, targetPath: string) => Promise<string>;
 
       // Skills management
       skillsGetCatalog: () => Promise<{
@@ -1458,11 +1469,13 @@ export interface ElectronAPI {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleRunStart: (args: {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleRunStop: (args: {
     taskId: string;
@@ -1471,6 +1484,7 @@ export interface ElectronAPI {
     taskId: string;
     taskPath: string;
     projectPath: string;
+    taskName?: string;
   }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
   lifecycleGetState: (args: { taskId: string }) => Promise<{
     success: boolean;

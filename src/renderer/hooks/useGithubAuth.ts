@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type GithubUser = any;
 
@@ -10,6 +10,8 @@ type GithubCache = {
 
 let cachedGithubStatus: GithubCache = null;
 
+const FOCUS_COOLDOWN_MS = 5000;
+
 export function useGithubAuth() {
   const [installed, setInstalled] = useState<boolean>(() => cachedGithubStatus?.installed ?? true);
   const [authenticated, setAuthenticated] = useState<boolean>(
@@ -18,14 +20,22 @@ export function useGithubAuth() {
   const [user, setUser] = useState<GithubUser | null>(() => cachedGithubStatus?.user ?? null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(() => !!cachedGithubStatus);
+  const lastFocusCheck = useRef(0);
 
   const syncCache = useCallback(
     (next: { installed: boolean; authenticated: boolean; user: GithubUser | null }) => {
+      const authChanged = cachedGithubStatus?.authenticated !== next.authenticated;
+
       cachedGithubStatus = next;
       setInstalled(next.installed);
       setAuthenticated(next.authenticated);
       setUser(next.user);
       setIsInitialized(true);
+
+      // Notify other components when auth status changes
+      if (authChanged) {
+        window.dispatchEvent(new Event('github-auth-changed'));
+      }
     },
     []
   );
@@ -81,6 +91,29 @@ export function useGithubAuth() {
     }
     // No cache - check status immediately
     void checkStatus();
+  }, [checkStatus]);
+
+  // Listen for auth status changes from other hook instances
+  useEffect(() => {
+    const handleAuthChange = () => {
+      void checkStatus();
+    };
+
+    window.addEventListener('github-auth-changed', handleAuthChange);
+    return () => window.removeEventListener('github-auth-changed', handleAuthChange);
+  }, [checkStatus]);
+
+  // Re-check auth on window focus to clear stale cache (e.g. after `gh auth logout`)
+  useEffect(() => {
+    const handleFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusCheck.current < FOCUS_COOLDOWN_MS) return;
+      lastFocusCheck.current = now;
+      void checkStatus();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [checkStatus]);
 
   return {

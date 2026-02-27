@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ['update:downloading', 'downloading'],
       ['update:download-progress', 'download-progress'],
       ['update:downloaded', 'downloaded'],
+      ['update:installing', 'installing'],
     ];
     const handlers: Array<() => void> = [];
     for (const [channel, type] of pairs) {
@@ -659,6 +660,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   sshGetConfig: () => ipcRenderer.invoke('ssh:getSshConfig'),
   sshGetSshConfigHost: (hostAlias: string) => ipcRenderer.invoke('ssh:getSshConfigHost', hostAlias),
+  sshCheckIsGitRepo: async (connectionId: string, remotePath: string) => {
+    const res = await ipcRenderer.invoke('ssh:checkIsGitRepo', connectionId, remotePath);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH check git repo failed');
+    }
+    return (res as any).isGitRepo as boolean;
+  },
+  sshInitRepo: async (connectionId: string, parentPath: string, repoName: string) => {
+    const res = await ipcRenderer.invoke('ssh:initRepo', connectionId, parentPath, repoName);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH init repo failed');
+    }
+    return (res as any).path as string;
+  },
+  sshCloneRepo: async (connectionId: string, repoUrl: string, targetPath: string) => {
+    const res = await ipcRenderer.invoke('ssh:cloneRepo', connectionId, repoUrl, targetPath);
+    if (res && typeof res === 'object' && 'success' in res && !res.success) {
+      throw new Error((res as any).error || 'SSH clone repo failed');
+    }
+    return (res as any).path as string;
+  },
 
   // Skills management
   skillsGetCatalog: () => ipcRenderer.invoke('skills:getCatalog'),

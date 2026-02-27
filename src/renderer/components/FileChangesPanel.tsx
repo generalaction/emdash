@@ -159,6 +159,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+  const [showRevertConfirm, setShowRevertConfirm] = useState(false);
+  const [revertTargetFile, setRevertTargetFile] = useState<string | null>(null);
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
@@ -224,7 +226,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!safeTaskPath || hasChanges) {
+      if (!safeTaskPath) {
         setBranchAhead(null);
         return;
       }
@@ -361,8 +363,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const handleRevertFile = async (filePath: string, event: React.MouseEvent) => {
+  const confirmRevertFile = (filePath: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    setRevertTargetFile(filePath);
+    setShowRevertConfirm(true);
+  };
+
+  const executeRevertFile = async () => {
+    const filePath = revertTargetFile;
+    if (!filePath) return;
+    setRevertTargetFile(null);
     setRevertingFiles((prev) => new Set(prev).add(filePath));
 
     try {
@@ -583,7 +593,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                {fileChanges.some((f) => !f.isStaged) && fileChanges.some((f) => f.isStaged) && (
+                {fileChanges.some((f) => !f.isStaged) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -639,7 +649,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 px-2 text-xs"
-                  title="Commit all staged changes and push the branch"
+                  title="Commit all staged changes and push"
                   onClick={handleCommitAndPush}
                   disabled={isCommitting || !commitMessage.trim()}
                 >
@@ -683,7 +693,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   isLoading={isActionLoading || branchStatusLoading}
                 />
               ) : (
-                <span className="text-xs text-muted-foreground">No PR for this branch</span>
+                <span className="text-xs text-muted-foreground">No PR for this task</span>
               )}
             </div>
           </div>
@@ -863,7 +873,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            onClick={(e) => handleRevertFile(change.path, e)}
+                            onClick={(e) => confirmRevertFile(change.path, e)}
                             disabled={revertingFiles.has(change.path)}
                           >
                             {revertingFiles.has(change.path) ? (
@@ -955,6 +965,44 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             >
               <GitMerge className="mr-2 h-4 w-4" />
               Merge into Main
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={showRevertConfirm} onOpenChange={setShowRevertConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <AlertDialogTitle className="text-lg">Revert file?</AlertDialogTitle>
+            </div>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <AlertDialogDescription className="text-sm">
+              This will discard all uncommitted changes to{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                {revertTargetFile?.split('/').pop()}
+              </code>{' '}
+              and restore it to the last committed version. This action cannot be undone.
+            </AlertDialogDescription>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowRevertConfirm(false);
+                setRevertTargetFile(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowRevertConfirm(false);
+                void executeRevertFile();
+              }}
+              className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              Revert
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

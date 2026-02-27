@@ -100,9 +100,10 @@ export function CreateChatModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isCreating && onClose()}>
       <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-visible">
         <DialogHeader>
-          <DialogTitle>New Chat</DialogTitle>
+          <DialogTitle>Add Agent to Task</DialogTitle>
           <DialogDescription className="text-xs">
-            Start a new conversation with any agent
+            Add another agent to this chat. It will share the same worktree and appear as a new tab
+            alongside your existing chats.
           </DialogDescription>
         </DialogHeader>
 

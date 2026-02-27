@@ -16,6 +16,9 @@ import {
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
+import { injectIssueFooter } from '../lib/prIssueFooter';
+import { getCreatePrBodyPlan } from '../lib/prCreateBodyPlan';
+import { patchCurrentPrBodyWithIssueFooter } from '../lib/prIssueFooterPatch';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -264,6 +267,21 @@ export function registerGitIpc() {
         });
       try {
         const outputs: string[] = [];
+        let taskMetadata: unknown = undefined;
+        let prBody = body;
+        try {
+          const task = await databaseService.getTaskByPath(taskPath);
+          taskMetadata = task?.metadata;
+          prBody = injectIssueFooter(body, task?.metadata);
+        } catch (error) {
+          log.debug('Unable to enrich PR body with issue footer', { taskPath, error });
+        }
+        const { shouldPatchFilledBody, shouldUseBodyFile, shouldUseFill } = getCreatePrBodyPlan({
+          fill,
+          title,
+          rawBody: body,
+          enrichedBody: prBody,
+        });
 
         // Stage and commit any pending changes
         try {
@@ -403,21 +421,21 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Use temp file for body to properly handle newlines and multiline content
         let bodyFile: string | null = null;
-        if (body) {
+        if (shouldUseBodyFile && prBody) {
           try {
             bodyFile = path.join(
               os.tmpdir(),
               `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
             );
             // Write body with actual newlines preserved
-            fs.writeFileSync(bodyFile, body, 'utf8');
+            fs.writeFileSync(bodyFile, prBody, 'utf8');
             flags.push(`--body-file ${JSON.stringify(bodyFile)}`);
           } catch (writeError) {
             log.warn('Failed to write body to temp file, falling back to --body flag', {
               writeError,
             });
             // Fallback to direct --body flag if temp file creation fails
-            flags.push(`--body ${JSON.stringify(body)}`);
+            flags.push(`--body ${JSON.stringify(prBody)}`);
           }
         }
 
@@ -433,7 +451,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
         if (draft) flags.push('--draft');
         if (web) flags.push('--web');
-        if (fill) flags.push('--fill');
+        if (shouldUseFill) flags.push('--fill');
 
         const cmd = `gh pr create ${flags.join(' ')}`.trim();
 
@@ -460,6 +478,25 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Try to extract PR URL from output
         const urlMatch = out.match(/https?:\/\/\S+/);
         const url = urlMatch ? urlMatch[0] : null;
+
+        if (shouldPatchFilledBody) {
+          try {
+            const didPatchBody = await patchCurrentPrBodyWithIssueFooter({
+              taskPath,
+              metadata: taskMetadata,
+              execFile: execFileAsync,
+              prUrl: url,
+            });
+            if (didPatchBody) {
+              outputs.push('gh pr edit --body-file: success');
+            }
+          } catch (editError) {
+            log.warn('Failed to patch PR body with issue footer after --fill create', {
+              taskPath,
+              editError,
+            });
+          }
+        }
 
         return { success: true, url, output: out };
       } catch (error: any) {
@@ -1218,19 +1255,46 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       // Create PR (or use existing)
       let prUrl = '';
+      let prExists = false;
+      let taskMetadata: unknown = undefined;
       try {
-        const { stdout: prOut } = await execAsync(
-          `gh pr create --fill --base ${JSON.stringify(defaultBranch)}`,
-          { cwd: taskPath }
-        );
+        const task = await databaseService.getTaskByPath(taskPath);
+        taskMetadata = task?.metadata;
+      } catch (metadataError) {
+        log.debug('Unable to load task metadata for merge-to-main issue footer', {
+          taskPath,
+          metadataError,
+        });
+      }
+      try {
+        const prCreateArgs = ['pr', 'create', '--fill', '--base', defaultBranch];
+        const { stdout: prOut } = await execFileAsync('gh', prCreateArgs, { cwd: taskPath });
         const urlMatch = prOut?.match(/https?:\/\/\S+/);
         prUrl = urlMatch ? urlMatch[0] : '';
+        prExists = true;
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);
         if (!/already exists|already has.*pull request/i.test(errMsg)) {
           return { success: false, error: `Failed to create PR: ${errMsg}` };
         }
         // PR already exists - continue to merge
+        prExists = true;
+      }
+
+      if (prExists) {
+        try {
+          await patchCurrentPrBodyWithIssueFooter({
+            taskPath,
+            metadata: taskMetadata,
+            execFile: execFileAsync,
+            prUrl,
+          });
+        } catch (editError) {
+          log.warn('Failed to patch merge-to-main PR body with issue footer', {
+            taskPath,
+            editError,
+          });
+        }
       }
 
       // Merge PR (branch cleanup happens when workspace is deleted)

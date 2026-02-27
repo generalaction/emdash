@@ -74,6 +74,8 @@ const ChatInterface: React.FC<Props> = ({
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [tabsOverflow, setTabsOverflow] = useState(false);
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
@@ -141,6 +143,16 @@ const ChatInterface: React.FC<Props> = ({
   useAutoScrollOnTaskSwitch(true, task.id);
 
   const readySignaledTaskIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const check = () => setTabsOverflow(el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [conversations.length]);
+
   useEffect(() => {
     if (!onTaskInterfaceReady) return;
     if (readySignaledTaskIdRef.current === task.id) return;
@@ -887,8 +899,15 @@ const ChatInterface: React.FC<Props> = ({
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <div
+                  ref={tabsContainerRef}
+                  className={cn(
+                    'flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    tabsOverflow &&
+                      '[mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
+                  )}
+                >
                   {sortedConversations.map((conv, index) => {
                     const isActive = conv.id === activeConversationId;
                     const convAgent = conv.provider || agent;
@@ -910,7 +929,7 @@ const ChatInterface: React.FC<Props> = ({
                         onClick={() => handleSwitchChat(conv.id)}
                         aria-current={isActive ? 'page' : undefined}
                         className={cn(
-                          'inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
+                          'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
                           'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           isActive
                             ? 'bg-background text-foreground shadow-sm'
@@ -964,15 +983,15 @@ const ChatInterface: React.FC<Props> = ({
                       </button>
                     );
                   })}
-
-                  <button
-                    onClick={handleCreateNewChat}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-muted transition-colors hover:bg-muted/80"
-                    title="New Chat"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-
+                </div>
+                <button
+                  onClick={handleCreateNewChat}
+                  className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-border bg-muted transition-colors hover:bg-muted/80"
+                  title="New Chat"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+                <div className="ml-auto flex flex-shrink-0 items-center gap-2">
                   {(task.metadata?.linearIssue ||
                     task.metadata?.githubIssue ||
                     task.metadata?.jiraIssue) && (
@@ -983,16 +1002,16 @@ const ChatInterface: React.FC<Props> = ({
                       jiraIssue={task.metadata?.jiraIssue || null}
                     />
                   )}
+                  {autoApproveEnabled && (
+                    <span
+                      className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
+                      title="Auto-approve enabled"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                      Auto-approve
+                    </span>
+                  )}
                 </div>
-                {autoApproveEnabled && (
-                  <span
-                    className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
-                    title="Auto-approve enabled"
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                    Auto-approve
-                  </span>
-                )}
               </div>
               {(() => {
                 if (isAgentInstalled === false) {

@@ -111,7 +111,7 @@ export class LinearService {
             title
             description
             url
-            state { name type }
+            state { name type color }
             team { name key }
             project { name }
             assignee { displayName name }
@@ -150,7 +150,7 @@ export class LinearService {
             title
             description
             url
-            state { name type }
+            state { name type color }
             team { name key }
             project { name }
             assignee { displayName name }

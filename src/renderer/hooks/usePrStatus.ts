@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { subscribeToPrStatus, refreshPrStatus } from '../lib/prStatusStore';
 import type { PrStatus } from '../lib/prStatus';
 
-export function usePrStatus(taskPath?: string) {
+const noopRefresh = async () => {};
+
+export function usePrStatus(taskPath?: string, enabled = true) {
   const [pr, setPr] = useState<PrStatus | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [prevTaskPath, setPrevTaskPath] = useState(taskPath);
@@ -16,7 +18,7 @@ export function usePrStatus(taskPath?: string) {
   }
 
   const refresh = async () => {
-    if (!taskPath) return;
+    if (!taskPath || !enabled) return;
     setIsLoading(true);
     const result = await refreshPrStatus(taskPath);
     setPr(result);
@@ -24,7 +26,7 @@ export function usePrStatus(taskPath?: string) {
   };
 
   useEffect(() => {
-    if (!taskPath) {
+    if (!enabled || !taskPath) {
       setPr(null);
       setIsLoading(false);
       return;
@@ -36,7 +38,11 @@ export function usePrStatus(taskPath?: string) {
       setPr(newPr);
       setIsLoading(newLoading);
     });
-  }, [taskPath]);
+  }, [taskPath, enabled]);
+
+  if (!enabled) {
+    return { pr: null, isLoading: false, refresh: noopRefresh };
+  }
 
   return { pr, isLoading, refresh };
 }

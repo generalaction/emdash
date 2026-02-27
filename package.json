@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.15",
+  "version": "0.4.19",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -194,6 +194,12 @@
         },
         {
           "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
           "arch": [
             "x64"
           ]

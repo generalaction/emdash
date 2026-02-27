@@ -172,12 +172,7 @@ export function MergePrSection({
     } catch {}
     return 'merge';
   });
-  const [adminOverride, setAdminOverride] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('emdash:prMergeAdminOverride') === 'true';
-    } catch {}
-    return false;
-  });
+  const [adminOverride, setAdminOverride] = useState(false);
 
   const activePr = pr && typeof pr.number === 'number' && Number.isFinite(pr.number) ? pr : null;
   const mergeUiState = activePr ? computeMergeUiState(activePr, adminOverride) : null;
@@ -190,6 +185,8 @@ export function MergePrSection({
     (mergeState === 'BLOCKED' || mergeState === 'HAS_HOOKS' || mergeState === 'UNSTABLE');
 
   if (!activePr || !mergeUiState) return null;
+  const prStateNormalized = typeof pr?.state === 'string' ? pr.state.toUpperCase() : '';
+  if (prStateNormalized === 'CLOSED') return null;
 
   const formatMergeError = (error: unknown): string => {
     if (typeof error !== 'string') return 'Failed to merge PR.';
@@ -204,9 +201,6 @@ export function MergePrSection({
 
   const setAndPersistAdminOverride = (next: boolean) => {
     setAdminOverride(next);
-    try {
-      localStorage.setItem('emdash:prMergeAdminOverride', String(next));
-    } catch {}
   };
 
   const setAndPersistStrategy = (next: MergeStrategy) => {

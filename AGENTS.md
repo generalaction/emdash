@@ -6,6 +6,7 @@ start_command: "pnpm run d"
 dev_command: "pnpm run dev"
 build_command: "pnpm run build"
 test_commands:
+  - "pnpm run format"
   - "pnpm run lint"
   - "pnpm run type-check"
   - "pnpm exec vitest run"
@@ -26,26 +27,70 @@ optional_env:
 
 Cross-platform Electron app that orchestrates multiple CLI coding agents (Claude Code, Codex, Qwen Code, Amp, etc.) in parallel. Each agent runs in its own Git worktree for isolation. Also supports remote development over SSH.
 
+### Tech Stack
+
+- **Runtime**: Electron 30.5.1, Node.js >=20.0.0 <23.0.0 (recommended: 22.20.0 via `.nvmrc`)
+- **Frontend**: React 18, TypeScript 5.3, Vite 5, Tailwind CSS 3
+- **Backend**: Node.js, TypeScript, Drizzle ORM 0.32, SQLite3 5.1
+- **Editor**: Monaco Editor 0.55, **Terminal**: @xterm/xterm 6.0 + node-pty 1.0
+- **Native Modules**: node-pty, sqlite3, keytar 7.9 (require `pnpm run rebuild` after updates)
+- **SSH**: ssh2 1.17
+- **UI**: Radix UI primitives, lucide-react icons, framer-motion
+
 ## Quickstart
 
 1. `nvm use` (installs Node 22.20.0 if missing) or install Node 22.x manually.
 2. `pnpm run d` to install dependencies and launch Electron + Vite.
 3. If `pnpm run d` fails mid-stream, rerun `pnpm install`, then `pnpm run dev` (main + renderer).
 
-## Testing
+## Development Commands
 
-1. `pnpm run lint` — ESLint
-2. `pnpm run type-check` — TypeScript (uses `tsconfig.json` for renderer/shared/types)
-3. `pnpm exec vitest run` — Vitest (tests under `src/**/*.test.ts`)
-4. `pnpm exec vitest run src/test/main/WorktreeService.test.ts` — run a single test
+```bash
+# Quick start (installs deps, starts dev)
+pnpm run d
+
+# Development (runs main + renderer concurrently)
+pnpm run dev
+pnpm run dev:main     # Electron main process only (tsc + electron)
+pnpm run dev:renderer # Vite dev server only (port 3000)
+
+# Quality checks (ALWAYS run before committing)
+pnpm run format       # Format with Prettier
+pnpm run lint         # ESLint
+pnpm run type-check   # TypeScript type checking (uses tsconfig.json — renderer/shared/types)
+pnpm exec vitest run  # Run all tests
+
+# Run a specific test
+pnpm exec vitest run src/test/main/WorktreeService.test.ts
+
+# Native modules
+pnpm run rebuild      # Rebuild native modules for Electron
+pnpm run reset        # Clean install (removes node_modules, reinstalls)
+
+# Building & Packaging
+pnpm run build        # Build main + renderer
+pnpm run package:mac  # macOS .dmg (arm64)
+pnpm run package:linux # Linux AppImage/deb (x64)
+pnpm run package:win  # Windows nsis/portable (x64)
+```
+
+## Testing
 
 Tests use `vi.mock()` to stub `electron`, `DatabaseService`, `logger`, etc. Integration tests create real git repos in `os.tmpdir()`. No shared test setup file — mocks are per-file.
 
-## Build & Package
+- **Framework**: Vitest (configured in `vite.config.ts`, `environment: 'node'`)
+- **Test locations**: `src/test/main/` (15 service tests), `src/test/renderer/` (3 UI tests), `src/main/utils/__tests__/` (2 utility tests)
 
-1. `pnpm run build` to compile the Electron main and Vite renderer.
-2. Platform-specific installers: `pnpm run package:mac|linux|win` (artifacts in `release/`).
-3. If native modules misbehave, `pnpm run rebuild`; use `pnpm run reset` as a last resort.
+## Guardrails
+
+- **ALWAYS** run `pnpm run format`, `pnpm run lint`, `pnpm run type-check`, and `pnpm exec vitest run` before committing.
+- **NEVER** modify `drizzle/meta/` or numbered migration files — always use `drizzle-kit generate`.
+- **NEVER** modify `build/` entitlements or updater config without review.
+- **ALWAYS** use feature branches or worktrees; never commit directly to `main`.
+- Do limit edits to `src/**`, `docs/**`, or config files you fully understand; keep `dist/`, `release/`, and `build/` untouched.
+- Don't modify telemetry defaults or updater logic unless intentional and reviewed.
+- Don't run commands that mutate global environments (global package installs, git pushes) from agent scripts.
+- Put temporary notes or scratch content in `.notes/` (gitignored).
 
 ## Architecture
 
@@ -59,29 +104,72 @@ Tests use `vi.mock()` to stub `electron`, `DatabaseService`, `logger`, etc. Inte
 
 `entry.ts` → `main.ts` → IPC registration → window creation
 
-- `entry.ts` — Sets app name (must happen before `app.getPath('userData')`). Monkey-patches `Module._resolveFilename` to resolve `@shared/*` and `@/*` path aliases at runtime.
-- `main.ts` — Loads `.env`, fixes PATH for CLI discovery per platform (Homebrew, nvm, npm-global), detects `SSH_AUTH_SOCK` from login shell, initializes windows and IPC.
+- `entry.ts` — Sets app name (must happen before `app.getPath('userData')`, or Electron defaults to `~/Library/Application Support/Electron`). Monkey-patches `Module._resolveFilename` to resolve `@shared/*` and `@/*` path aliases at runtime in compiled JS.
+- `main.ts` — Loads `.env`, fixes PATH for CLI discovery on macOS/Linux/Windows (adds Homebrew, npm global, nvm paths so agents like `gh`, `codex`, `claude` are found when launched from Finder), detects `SSH_AUTH_SOCK` from user's login shell, then initializes Electron windows and registers all IPC handlers.
+- `preload.ts` — Exposes secure `electronAPI` to renderer via `contextBridge`.
+
+### Main Process (`src/main/`)
+
+**Key services** (`src/main/services/`):
+- `WorktreeService.ts` — Git worktree lifecycle, file preservation patterns
+- `WorktreePoolService.ts` — Worktree pooling/reuse for instant task starts
+- `DatabaseService.ts` — All SQLite CRUD operations
+- `ptyManager.ts` — PTY (pseudo-terminal) lifecycle, session isolation, agent spawning
+- `SkillsService.ts` — Cross-agent skill installation and catalog management
+- `GitHubService.ts` / `GitService.ts` — Git and GitHub operations via `gh` CLI
+- `PrGenerationService.ts` — Automated PR generation
+- `TaskLifecycleService.ts` — Task lifecycle orchestration
+- `TerminalSnapshotService.ts` — Terminal state snapshots
+- `TerminalConfigParser.ts` — Terminal configuration parsing
+- `RepositoryManager.ts` — Repository management
+- `RemotePtyService.ts` / `RemoteGitService.ts` — Remote development over SSH
+- `ssh/` — SSH connection management, credentials (via keytar), host key verification
+
+Note: Some IPC handler files are colocated in `services/` (e.g., `worktreeIpc.ts`, `ptyIpc.ts`, `updateIpc.ts`, `lifecycleIpc.ts`, `planLockIpc.ts`, `fsIpc.ts`).
+
+**IPC Handlers** (`src/main/ipc/`):
+- 25+ handler files total (19 in `ipc/` + 6 colocated in `services/`) covering app, db, git, github, browser, connections, project, settings, telemetry, SSH, Linear, Jira, skills, and more
+- All return `{ success: boolean, data?: any, error?: string }` format
+- Types defined in `src/renderer/types/electron-api.d.ts` (~1,870 lines)
+
+**Database** (`src/main/db/`):
+- Schema: `schema.ts` — Migrations: `drizzle/` (auto-generated)
+- Locations: macOS `~/Library/Application Support/emdash/emdash.db`, Linux `~/.config/emdash/emdash.db`, Windows `%APPDATA%\emdash\emdash.db`
+- Override with `EMDASH_DB_FILE` env var
+
+### Renderer Process (`src/renderer/`)
+
+**Key components** (`components/`):
+- `App.tsx` — Root orchestration (~790 lines), located at `src/renderer/App.tsx`
+- `EditorMode.tsx` — Monaco code editor
+- `ChatInterface.tsx` — Conversation UI
+- `FileChangesPanel.tsx` / `ChangesDiffModal.tsx` — Diff visualization and review
+- `CommandPalette.tsx` — Command/action palette
+- `FileExplorer/` — File tree navigation
+- `BrowserPane.tsx` — Webview preview
+- `skills/` — Skills catalog and management UI
+- `ssh/` — SSH connection UI components
+
+**Key hooks** (`hooks/`, 42 total):
+- `useAppInitialization` — Two-round project/task loading (fast skeleton then full), restores last active project/task from localStorage
+- `useTaskManagement` — Full task lifecycle (~864 lines): create, delete, rename, archive, restore. Handles optimistic UI removal with rollback, lifecycle teardown, PTY cleanup
+- `useCliAgentDetection` — Detects which CLI agents are installed on the system
+- `useInitialPromptInjection` / `usePendingInjection` — Manages initial prompt sent to agents on task start
 
 ### Path Aliases
 
-`@/*` resolves differently in main vs renderer:
+**Important**: `@/*` resolves differently in main vs renderer:
 
 | Alias | tsconfig.json (renderer) | tsconfig.main.json (main) |
 |-------|-------------------------|--------------------------|
 | `@/*` | `src/renderer/*` | `src/*` |
 | `@shared/*` | `src/shared/*` | `src/shared/*` |
+| `#types/*` | `src/types/*` | _(not available)_ |
+| `#types` | `src/types/index.ts` | _(not available)_ |
+
+At runtime in compiled main process, `entry.ts` monkey-patches `Module._resolveFilename` to map `@shared/*` → `dist/main/shared/*` and `@/*` → `dist/main/main/*`.
 
 Main uses `module: "CommonJS"` (required by Electron), renderer uses `module: "ESNext"` (Vite handles compilation).
-
-### Key Directories
-
-- `src/main/services/` — Core services (worktrees, PTY, database, git, SSH, skills)
-- `src/main/ipc/` — 17+ IPC handler files; all return `{ success: boolean, data?, error? }`
-- `src/main/db/` — SQLite schema (`schema.ts`) + Drizzle ORM migrations (`drizzle/`)
-- `src/renderer/components/` — React components (App.tsx is ~79KB root orchestrator)
-- `src/renderer/hooks/` — 38+ hooks; `useTaskManagement` (~870 lines) handles full task lifecycle
-- `src/renderer/types/electron-api.d.ts` — Canonical IPC type definitions (~1800 lines)
-- `src/shared/providers/registry.ts` — All CLI agent definitions
 
 ### IPC Pattern
 
@@ -181,19 +269,52 @@ Orchestrates agents on remote machines over SSH.
 - Schema in `src/main/db/schema.ts` → `pnpm exec drizzle-kit generate` to create migrations
 - Browse: `pnpm exec drizzle-kit studio`
 - Locations: macOS `~/Library/Application Support/emdash/emdash.db`, Linux `~/.config/emdash/emdash.db`, Windows `%APPDATA%\emdash\emdash.db`
+- **NEVER** manually edit files in `drizzle/meta/` or numbered SQL migrations
+
+## Code Style
+
+- **TypeScript**: Strict mode enabled in both tsconfigs. Prefer explicit types over `any`. Type imports: `import type { Foo } from './bar'`
+- **React**: Functional components with hooks. Both named and default exports are used.
+- **File naming**: Components PascalCase (`FileExplorer.tsx`), hooks/utilities camelCase with `use` prefix (`useTaskManagement.ts`) or kebab-case (`use-toast.ts`). Tests: `*.test.ts`
+- **Error handling**: Main → `log.error()` from `../lib/logger`, Renderer → `console.error()` or toast, IPC → `{ success: false, error }`
+- **Styling**: Tailwind CSS classes
+
+## Project Configuration
+
+- **`.emdash.json`** at project root: `{ "preservePatterns": [".claude/**"] }` — controls which gitignored files are copied to worktrees. Also supports `shellSetup` for lifecycle scripts.
+- **Branch prefix**: Configurable via app settings (`repository.branchPrefix`), defaults to `emdash`
+
+## Environment Variables
+
+All optional:
+- `EMDASH_DB_FILE` — Override database file path
+- `EMDASH_DISABLE_NATIVE_DB` — Disable native SQLite driver
+- `EMDASH_DISABLE_CLONE_CACHE` — Disable clone caching
+- `EMDASH_DISABLE_PTY` — Disable PTY support (used in tests)
+- `TELEMETRY_ENABLED` — Toggle anonymous telemetry (PostHog)
+- `CODEX_SANDBOX_MODE` / `CODEX_APPROVAL_POLICY` — Codex agent configuration
+
+## Hot Reload
+
+- **Renderer changes**: Hot-reload via Vite
+- **Main process changes**: Require Electron restart (Ctrl+C → `pnpm run dev`)
+- **Native modules**: Require `pnpm run rebuild`
 
 ## CI/CD
 
-- **`code-consistency-check.yml`** (every PR): format check, type check, vitest
+- **`code-consistency-check.yml`** (every PR): format check, type check, vitest (workflow name: "CI Check")
 - **`release.yml`** (on `v*` tags): per-platform builds. Mac builds each arch separately to prevent native module architecture mismatches. Mac release includes signing + notarization.
 
-## Guardrails
+## Common Pitfalls
 
-- Do work on branches or worktrees; default branch is `main`, never push directly.
-- Do limit edits to `src/**`, `docs/**`, or config files you fully understand; keep `dist/`, `release/`, and `build/` untouched.
-- Don't rewrite Drizzle migration history (`drizzle/meta`, numbered SQL).
-- Don't modify telemetry defaults or updater logic unless intentional and reviewed.
-- Don't run commands that mutate global environments (global package installs, git pushes) from agent scripts.
+1. **PTY resize after exit**: PTYs must be cleaned up on exit. Use `removePty()` in exit handlers.
+2. **Worktree path resolution**: Always resolve paths from `WorktreeService`, not manually.
+3. **IPC type safety**: Define all new IPC methods in `electron-api.d.ts`.
+4. **Native module issues**: After updating node-pty/sqlite3/keytar, run `pnpm run rebuild`. Last resort: `pnpm run reset`.
+5. **Monaco disposal**: Editor instances must be disposed to prevent memory leaks.
+6. **CLI not found in agent**: If agents can't find `gh`, `codex`, etc., the PATH setup in `main.ts` may need updating for the platform.
+7. **New provider integration**: Must add to registry in `src/shared/providers/registry.ts` AND add any API key to `AGENT_ENV_VARS` in `ptyManager.ts`.
+8. **SSH shell injection**: All remote shell arguments must use `quoteShellArg()` from `src/main/utils/shellEscape.ts`.
 
 ## Risky Areas
 
@@ -203,9 +324,28 @@ Orchestrates agents on remote machines over SSH.
 - PTY/terminal management — Race conditions or unhandled exits can kill agent runs.
 - SSH services (`src/main/services/ssh/**`, `src/main/utils/shellEscape.ts`) — Security-critical: remote connections, credentials, shell command construction.
 
+## Git Workflow
+
+- Worktrees: `../worktrees/{workspace-name}-{hash}`, agents run there
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
+- Example: `fix(agent): resolve worktree path issue (#123)`
+
+## Key Configuration Files
+
+- `vite.config.ts` — Renderer build + Vitest test config
+- `drizzle.config.ts` — Database migration config (supports `EMDASH_DB_FILE` override)
+- `tsconfig.json` — Renderer/shared TypeScript config (`module: ESNext`, `noEmit: true` — Vite does compilation)
+- `tsconfig.main.json` — Main process TypeScript config (`module: CommonJS` — required by Electron main)
+- `tailwind.config.js` — Tailwind configuration
+- `.nvmrc` — Node version (22.20.0)
+- Electron Builder config is in `package.json` under `"build"` key
+
 ## Pre-PR Checklist
 
 - [ ] Dev server runs: `pnpm run d` (or `pnpm run dev`) starts cleanly.
-- [ ] Tests and checks pass: `pnpm run lint`, `pnpm run type-check`, `pnpm exec vitest run`.
+- [ ] Code is formatted: `pnpm run format`.
+- [ ] Lint passes: `pnpm run lint`.
+- [ ] Types check: `pnpm run type-check`.
+- [ ] Tests pass: `pnpm exec vitest run`.
 - [ ] No stray build artifacts or secrets committed.
 - [ ] Documented any schema or config changes impacting users.

@@ -16,8 +16,8 @@ export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 1200,
-    minHeight: 800,
+    minWidth: 700,
+    minHeight: 500,
     title: 'Emdash',
     ...(iconPath && { icon: iconPath }),
     webPreferences: {

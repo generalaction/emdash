@@ -5,20 +5,14 @@ import { spawn } from 'child_process';
 function pickNodeInstallCmd(target: string): string[] {
   // Prefer package manager based on lockfile presence
   if (existsSync(join(target, 'pnpm-lock.yaml'))) {
-    return ['pnpm install --frozen-lockfile', 'pnpm install', 'npm ci', 'npm install'];
+    return ['pnpm install --frozen-lockfile', 'pnpm install'];
   }
   if (existsSync(join(target, 'yarn.lock'))) {
     // Support modern Yarn (Berry) and classic Yarn
-    return [
-      'yarn install --immutable',
-      'yarn install --frozen-lockfile',
-      'yarn install',
-      'npm ci',
-      'npm install',
-    ];
+    return ['yarn install --immutable', 'yarn install --frozen-lockfile', 'yarn install'];
   }
   if (existsSync(join(target, 'bun.lockb'))) {
-    return ['bun install', 'npm ci', 'npm install'];
+    return ['bun install'];
   }
   if (existsSync(join(target, 'package-lock.json'))) {
     return ['npm ci', 'npm install'];

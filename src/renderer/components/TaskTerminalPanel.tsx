@@ -58,8 +58,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
-  // Also differentiate global terminals per variant so each agent has its own
-  const globalKey = task?.path ? `global::${task.path}` : 'global';
+  // Global terminals are scoped per variant (or project when no task) so each
+  // agent worktree gets its own global terminal and simultaneous variants don't conflict.
+  const globalKey = task?.path ? `global::${task.path}` : `global::${projectPath}`;
   const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
 
   const [selectedValue, setSelectedValue] = useState<string>(() => {
@@ -233,6 +234,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     };
   }, [task?.id, refreshLifecycleState]);
 
+  // Auto-switch dropdown to Run when the run phase starts.
+  useEffect(() => {
+    if (runStatus === 'running' && selectedLifecycle !== 'run') {
+      setSelectedValue('lifecycle::run');
+    }
+  }, [runStatus, selectedLifecycle]);
+
   // Sync selection when store active terminal changes; don't override lifecycle selection.
   useEffect(() => {
     if (!taskTerminals.activeTerminalId) return;
@@ -265,16 +273,23 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const p = parseValue(selectedValue);
     if (!p || p.mode === 'lifecycle') return;
 
+    // When there's no task, always prefer global terminal regardless of current mode
+    if (!task && p.mode === 'task') {
+      if (globalTerminals.terminals.length > 0) {
+        setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
+      }
+      return;
+    }
+
     const terminals = p.mode === 'task' ? taskTerminals.terminals : globalTerminals.terminals;
     const exists = terminals.some((t) => t.id === p.id);
     if (exists) return;
 
-    if (p.mode === 'task' && taskTerminals.terminals.length > 0) {
+    // When a task is active, prefer its worktree terminal
+    if (task && taskTerminals.terminals.length > 0) {
       setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
     } else if (globalTerminals.terminals.length > 0) {
       setSelectedValue(`global::${globalTerminals.terminals[0].id}`);
-    } else if (taskTerminals.terminals.length > 0) {
-      setSelectedValue(`task::${taskTerminals.terminals[0].id}`);
     } else {
       setSelectedValue('');
     }
@@ -315,11 +330,26 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     setRunActionBusy(true);
     try {
       if (selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleSetup?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       } else if (selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleTeardown?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       } else {
-        await api.lifecycleRunStart?.({ taskId: task.id, taskPath: task.path, projectPath });
+        await api.lifecycleRunStart?.({
+          taskId: task.id,
+          taskPath: task.path,
+          projectPath,
+          taskName: task.name,
+        });
       }
     } catch (error) {
       console.error('Failed lifecycle play action:', error);
@@ -327,7 +357,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [task?.id, task?.path, projectPath, selectedLifecycle, refreshLifecycleState]);
+  }, [task?.id, task?.name, task?.path, projectPath, selectedLifecycle, refreshLifecycleState]);
 
   const handleStop = useCallback(async () => {
     if (!task) return;
@@ -657,7 +687,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 ? `Teardown status: ${teardownStatus}`
                 : `Run status: ${runStatus}`}
           </div>
-          <pre className="h-full overflow-auto p-3 text-xs leading-relaxed text-foreground">
+          <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
             {lifecycleLogs[selectedLifecycle].join('') || 'No lifecycle output yet.'}
           </pre>
         </div>

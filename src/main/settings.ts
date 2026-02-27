@@ -60,6 +60,8 @@ export interface ProviderCustomConfig {
   defaultArgs?: string;
   autoApproveFlag?: string;
   initialPromptFlag?: string;
+  extraArgs?: string;
+  env?: Record<string, string>;
 }
 
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
@@ -98,6 +100,7 @@ export interface AppSettings {
     fontFamily: string;
   };
   defaultOpenInApp?: OpenInAppId;
+  hiddenOpenInApps?: OpenInAppId[];
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -169,6 +172,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontFamily: '',
   },
   defaultOpenInApp: 'terminal',
+  hiddenOpenInApps: [],
 };
 
 function getSettingsPath(): string {
@@ -472,6 +476,20 @@ function normalizeSettings(input: AppSettings): AppSettings {
     for (const [providerId, config] of Object.entries(providerConfigs)) {
       if (config && typeof config === 'object') {
         const c = config as Record<string, unknown>;
+        let env: Record<string, string> | undefined;
+        if (c.env && typeof c.env === 'object') {
+          env = {};
+          for (const [k, v] of Object.entries(c.env)) {
+            if (
+              typeof k === 'string' &&
+              typeof v === 'string' &&
+              /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)
+            ) {
+              env[k] = v;
+            }
+          }
+          if (Object.keys(env).length === 0) env = undefined;
+        }
         out.providerConfigs[providerId] = {
           ...(typeof c.cli === 'string' ? { cli: c.cli } : {}),
           ...(typeof c.resumeFlag === 'string' ? { resumeFlag: c.resumeFlag } : {}),
@@ -480,6 +498,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
           ...(typeof c.initialPromptFlag === 'string'
             ? { initialPromptFlag: c.initialPromptFlag }
             : {}),
+          ...(typeof c.extraArgs === 'string' ? { extraArgs: c.extraArgs } : {}),
+          ...(env ? { env } : {}),
         };
       }
     }
@@ -495,6 +515,15 @@ function normalizeSettings(input: AppSettings): AppSettings {
   out.defaultOpenInApp = isValidOpenInAppId(defaultOpenInApp)
     ? defaultOpenInApp
     : DEFAULT_SETTINGS.defaultOpenInApp!;
+
+  // Hidden Open In Apps
+  const rawHidden = (input as any)?.hiddenOpenInApps;
+  if (Array.isArray(rawHidden)) {
+    const validated = rawHidden.filter(isValidOpenInAppId);
+    out.hiddenOpenInApps = [...new Set(validated)];
+  } else {
+    out.hiddenOpenInApps = [];
+  }
 
   return out;
 }

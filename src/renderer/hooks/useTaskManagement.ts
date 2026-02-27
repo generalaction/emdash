@@ -50,6 +50,7 @@ const runSetupForTask = async (task: Task, projectPath: string): Promise<void> =
         taskId: target.taskId,
         taskPath: target.taskPath,
         projectPath,
+        taskName: target.label,
       })
     )
   );
@@ -227,6 +228,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           taskId: target.taskId,
           taskPath: target.taskPath,
           projectPath: targetProject.path,
+          taskName: target.label,
         });
         const timeoutPromise = new Promise<'timeout'>((resolve) => {
           window.setTimeout(() => resolve('timeout'), LIFECYCLE_TEARDOWN_TIMEOUT_MS);

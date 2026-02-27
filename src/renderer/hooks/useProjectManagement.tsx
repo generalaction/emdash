@@ -5,6 +5,7 @@ import {
   computeBaseRef,
   getProjectRepoKey,
   normalizePathForComparison,
+  resolveProjectGithubInfo,
   withRepoKey,
 } from '../lib/projectUtils';
 import type { Project, Task } from '../types/app';
@@ -23,7 +24,6 @@ interface UseProjectManagementOptions {
   setActiveTask: React.Dispatch<React.SetStateAction<Task | null>>;
   saveProjectOrder: (list: Project[]) => void;
   ToastAction: React.ComponentType<any>;
-  storedActiveIds: { projectId: string | null; taskId: string | null };
 }
 
 export const useProjectManagement = (options: UseProjectManagementOptions) => {
@@ -41,14 +41,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setActiveTask,
     saveProjectOrder,
     ToastAction,
-    storedActiveIds,
   } = options;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const hasPendingRestore = storedActiveIds.projectId !== null;
-  // Start with showHomeView=false if we have a pending restore to prevent flash
-  const [showHomeView, setShowHomeView] = useState<boolean>(!hasPendingRestore);
+  // Always start on home view (e.g. after app restart)
+  const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
   const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
@@ -161,7 +159,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           }
 
           const remoteUrl = gitInfo.remote || '';
-          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
           const projectName =
             selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
@@ -179,77 +176,39 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
             tasks: [],
           };
 
-          if (isAuthenticated && isGithubRemote) {
-            const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
-            if (githubInfo.success) {
-              const projectWithGithub = withRepoKey(
-                {
-                  ...baseProject,
-                  githubInfo: {
-                    repository: githubInfo.repository || '',
-                    connected: true,
-                  },
-                },
-                platform
-              );
+          const ghInfo = await resolveProjectGithubInfo(
+            selectedPath,
+            remoteUrl,
+            isAuthenticated,
+            window.electronAPI.connectToGitHub
+          );
 
-              const saveResult = await window.electronAPI.saveProject(projectWithGithub);
-              if (saveResult.success) {
-                const { captureTelemetry } = await import('../lib/telemetryClient');
-                captureTelemetry('project_added_success', { source: 'github' });
-                setProjects((prev) => [...prev, projectWithGithub]);
-                activateProjectView(projectWithGithub);
-              } else {
-                const { log } = await import('../lib/logger');
-                log.error('Failed to save project:', saveResult.error);
-                toast({
-                  title: 'Failed to Add Project',
-                  description:
-                    'Project opened but could not be saved to database. Please check console for details.',
-                  variant: 'destructive',
-                });
-              }
-            } else {
-              const updateHint =
-                platform === 'darwin'
-                  ? 'Tip: Update GitHub CLI with: brew upgrade gh — then restart Emdash.'
-                  : platform === 'win32'
-                    ? 'Tip: Update GitHub CLI with: winget upgrade GitHub.cli — then restart Emdash.'
-                    : 'Tip: Update GitHub CLI via your package manager (e.g., apt/dnf) and restart Emdash.';
-              toast({
-                title: 'GitHub Connection Failed',
-                description: `Git repository detected but couldn't connect to GitHub: ${githubInfo.error}\n\n${updateHint}`,
-                variant: 'destructive',
-              });
-            }
-          } else {
-            const projectWithoutGithub = withRepoKey(
-              {
-                ...baseProject,
-                githubInfo: {
-                  repository: isGithubRemote ? '' : '',
-                  connected: false,
-                },
+          const projectToSave = withRepoKey(
+            {
+              ...baseProject,
+              githubInfo: {
+                repository: ghInfo.repository,
+                connected: ghInfo.connected,
               },
-              platform
-            );
+            },
+            platform
+          );
 
-            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-            if (saveResult.success) {
-              const { captureTelemetry } = await import('../lib/telemetryClient');
-              captureTelemetry('project_added_success', { source: 'local' });
-              setProjects((prev) => [...prev, projectWithoutGithub]);
-              activateProjectView(projectWithoutGithub);
-            } else {
-              const { log } = await import('../lib/logger');
-              log.error('Failed to save project:', saveResult.error);
-              toast({
-                title: 'Failed to Add Project',
-                description:
-                  'Project opened but could not be saved to database. Please check console for details.',
-                variant: 'destructive',
-              });
-            }
+          const saveResult = await window.electronAPI.saveProject(projectToSave);
+          if (saveResult.success) {
+            const { captureTelemetry } = await import('../lib/telemetryClient');
+            captureTelemetry('project_added_success', { source: ghInfo.source });
+            setProjects((prev) => [...prev, projectToSave]);
+            activateProjectView(projectToSave);
+          } else {
+            const { log } = await import('../lib/logger');
+            log.error('Failed to save project:', saveResult.error);
+            toast({
+              title: 'Failed to Add Project',
+              description:
+                'Project opened but could not be saved to database. Please check console for details.',
+              variant: 'destructive',
+            });
           }
         } catch (error) {
           const { log } = await import('../lib/logger');
@@ -338,7 +297,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         }
 
         const remoteUrl = gitInfo.remote || '';
-        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
         const projectName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
@@ -355,74 +313,38 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           tasks: [],
         };
 
-        if (isAuthenticated && isGithubRemote) {
-          const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
-          if (githubInfo.success) {
-            const projectWithGithub = withRepoKey(
-              {
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
-                },
-              },
-              platform
-            );
+        const ghInfo = await resolveProjectGithubInfo(
+          selectedPath,
+          remoteUrl,
+          isAuthenticated,
+          window.electronAPI.connectToGitHub
+        );
 
-            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
-            if (saveResult.success) {
-              captureTelemetry('project_clone_success');
-              captureTelemetry('project_added_success', { source: 'clone' });
-              setProjects((prev) => [...prev, projectWithGithub]);
-              activateProjectView(projectWithGithub);
-            } else {
-              const { log } = await import('../lib/logger');
-              log.error('Failed to save project:', saveResult.error);
-              toast({
-                title: 'Project Cloned',
-                description: 'Repository cloned but failed to save to database.',
-                variant: 'destructive',
-              });
-            }
-          } else {
-            const projectWithoutGithub = withRepoKey(
-              {
-                ...baseProject,
-                githubInfo: {
-                  repository: '',
-                  connected: false,
-                },
-              },
-              platform
-            );
-
-            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-            if (saveResult.success) {
-              captureTelemetry('project_clone_success');
-              captureTelemetry('project_added_success', { source: 'clone' });
-              setProjects((prev) => [...prev, projectWithoutGithub]);
-              activateProjectView(projectWithoutGithub);
-            }
-          }
-        } else {
-          const projectWithoutGithub = withRepoKey(
-            {
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
-              },
+        const projectToSave = withRepoKey(
+          {
+            ...baseProject,
+            githubInfo: {
+              repository: ghInfo.repository,
+              connected: ghInfo.connected,
             },
-            platform
-          );
+          },
+          platform
+        );
 
-          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-          if (saveResult.success) {
-            captureTelemetry('project_clone_success');
-            captureTelemetry('project_added_success', { source: 'clone' });
-            setProjects((prev) => [...prev, projectWithoutGithub]);
-            activateProjectView(projectWithoutGithub);
-          }
+        const saveResult = await window.electronAPI.saveProject(projectToSave);
+        if (saveResult.success) {
+          captureTelemetry('project_clone_success');
+          captureTelemetry('project_added_success', { source: 'clone' });
+          setProjects((prev) => [...prev, projectToSave]);
+          activateProjectView(projectToSave);
+        } else {
+          const { log } = await import('../lib/logger');
+          log.error('Failed to save project:', saveResult.error);
+          toast({
+            title: 'Project Cloned',
+            description: 'Repository cloned but failed to save to database.',
+            variant: 'destructive',
+          });
         }
       } catch (error) {
         const { log } = await import('../lib/logger');
@@ -456,7 +378,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         }
 
         const remoteUrl = gitInfo.remote || '';
-        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
         const projectName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Unknown Project';
 
         const baseProject: Project = {
@@ -473,102 +394,53 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           tasks: [],
         };
 
-        if (isAuthenticated && isGithubRemote) {
-          const githubInfo = await window.electronAPI.connectToGitHub(selectedPath);
-          if (githubInfo.success) {
-            const projectWithGithub = withRepoKey(
-              {
-                ...baseProject,
-                githubInfo: {
-                  repository: githubInfo.repository || '',
-                  connected: true,
-                },
-              },
-              platform
-            );
+        const ghInfo = await resolveProjectGithubInfo(
+          selectedPath,
+          remoteUrl,
+          isAuthenticated,
+          window.electronAPI.connectToGitHub
+        );
 
-            const saveResult = await window.electronAPI.saveProject(projectWithGithub);
-            if (saveResult.success) {
-              captureTelemetry('project_create_success');
-              captureTelemetry('project_added_success', { source: 'new_project' });
-              toast({
-                title: 'Project created successfully!',
-                description: `${projectWithGithub.name} has been added to your projects.`,
-              });
-              // Add to beginning of list
-              setProjects((prev) => {
-                const updated = [projectWithGithub, ...prev];
-                saveProjectOrder(updated);
-                return updated;
-              });
-              activateProjectView(projectWithGithub);
-            } else {
-              const { log } = await import('../lib/logger');
-              log.error('Failed to save project:', saveResult.error);
-              toast({
-                title: 'Project Created',
-                description: 'Repository created but failed to save to database.',
-                variant: 'destructive',
-              });
-            }
-          } else {
-            const projectWithoutGithub = withRepoKey(
-              {
-                ...baseProject,
-                githubInfo: {
-                  repository: '',
-                  connected: false,
-                },
-              },
-              platform
-            );
-
-            const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-            if (saveResult.success) {
-              captureTelemetry('project_create_success');
-              captureTelemetry('project_added_success', { source: 'new_project' });
-              toast({
-                title: 'Project created successfully!',
-                description: `${projectWithoutGithub.name} has been added to your projects.`,
-              });
-              // Add to beginning of list
-              setProjects((prev) => {
-                const updated = [projectWithoutGithub, ...prev];
-                saveProjectOrder(updated);
-                return updated;
-              });
-              activateProjectView(projectWithoutGithub);
-            }
-          }
-        } else {
-          const projectWithoutGithub = withRepoKey(
-            {
-              ...baseProject,
-              githubInfo: {
-                repository: '',
-                connected: false,
-              },
+        const projectToSave = withRepoKey(
+          {
+            ...baseProject,
+            githubInfo: {
+              repository: ghInfo.repository,
+              connected: ghInfo.connected,
             },
-            platform
-          );
+          },
+          platform
+        );
 
-          const saveResult = await window.electronAPI.saveProject(projectWithoutGithub);
-          if (saveResult.success) {
-            captureTelemetry('project_create_success');
-            captureTelemetry('project_added_success', { source: 'new_project' });
-            toast({
-              title: 'Project created successfully!',
-              description: `${projectWithoutGithub.name} has been added to your projects.`,
-            });
-            // Add to beginning of list
-            setProjects((prev) => {
-              const updated = [projectWithoutGithub, ...prev];
-              saveProjectOrder(updated);
-              return updated;
-            });
-            activateProjectView(projectWithoutGithub);
+        const saveResult = await window.electronAPI.saveProject(projectToSave);
+        if (saveResult.success) {
+          captureTelemetry('project_create_success');
+          captureTelemetry('project_added_success', { source: 'new_project' });
+          toast({
+            title: 'Project created successfully!',
+            description: `${projectToSave.name} has been added to your projects.`,
+          });
+          // Add to beginning of list
+          setProjects((prev) => {
+            const updated = [projectToSave, ...prev];
+            saveProjectOrder(updated);
+            return updated;
+          });
+          activateProjectView(projectToSave);
+
+          // Auto-open task modal for non-GitHub projects
+          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+          if (!isAuthenticated || !isGithubRemote) {
             setShowTaskModal(true);
           }
+        } else {
+          const { log } = await import('../lib/logger');
+          log.error('Failed to save project:', saveResult.error);
+          toast({
+            title: 'Project Created',
+            description: 'Repository created but failed to save to database.',
+            variant: 'destructive',
+          });
         }
       } catch (error) {
         const { log } = await import('../lib/logger');
@@ -668,15 +540,44 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     const loadBranches = async () => {
       setIsLoadingBranches(true);
       try {
-        const res = await window.electronAPI.listRemoteBranches({
-          projectPath: selectedProject.path,
-        });
-        if (cancelled) return;
-        if (res.success && res.branches) {
-          const options = res.branches.map((b) => ({
-            value: b.ref,
-            label: b.remote ? b.label : `${b.branch} (local)`,
-          }));
+        let options: { value: string; label: string }[];
+
+        if (selectedProject.isRemote && selectedProject.sshConnectionId) {
+          // Load branches over SSH for remote projects
+          const result = await window.electronAPI.sshExecuteCommand(
+            selectedProject.sshConnectionId,
+            'git branch -a --format="%(refname:short)"',
+            selectedProject.path
+          );
+          if (cancelled) return;
+          if (result.exitCode === 0 && result.stdout) {
+            const branches = result.stdout
+              .split('\n')
+              .map((b) => b.trim())
+              .filter((b) => b.length > 0 && !b.includes('HEAD'));
+            options = branches.map((b) => ({
+              value: b,
+              label: b,
+            }));
+          } else {
+            options = [];
+          }
+        } else {
+          const res = await window.electronAPI.listRemoteBranches({
+            projectPath: selectedProject.path,
+          });
+          if (cancelled) return;
+          if (res.success && res.branches) {
+            options = res.branches.map((b) => ({
+              value: b.ref,
+              label: b.remote ? b.label : `${b.branch} (local)`,
+            }));
+          } else {
+            options = [];
+          }
+        }
+
+        if (!cancelled && options.length > 0) {
           setProjectBranchOptions(options);
           const defaultBranch = pickDefaultBranch(options, currentRef);
           setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
