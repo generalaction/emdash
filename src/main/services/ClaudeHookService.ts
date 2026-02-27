@@ -2,15 +2,20 @@ import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
 
-const HOOK_COMMAND =
-  "bash -c 'P=$(cat); curl -sf -X POST " +
-  '-H "Content-Type: application/json" ' +
-  '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-  '-d "{\\"ptyId\\":\\"$EMDASH_PTY_ID\\",\\"type\\":\\"__TYPE__\\",\\"payload\\":$P}" ' +
-  "http://127.0.0.1:$EMDASH_HOOK_PORT/hook || true'";
-
+// Hook command pipes stdin directly to curl via -d @- to avoid any shell
+// expansion of the payload (which can contain $, backticks, etc. in
+// AI-generated text). The ptyId and event type are sent as HTTP headers
+// instead of being embedded in the JSON body.
 function makeCommand(type: string): string {
-  return HOOK_COMMAND.replace('__TYPE__', type);
+  return (
+    'curl -sf -X POST ' +
+    '-H "Content-Type: application/json" ' +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    `-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ` +
+    `-H "X-Emdash-Event-Type: ${type}" ` +
+    '-d @- ' +
+    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+  );
 }
 
 export class ClaudeHookService {

@@ -44,11 +44,14 @@ class AgentEventService {
 
       req.on('end', () => {
         try {
-          const data = JSON.parse(body);
-          const { ptyId, type, payload } = data;
+          // ptyId and event type come from headers (not body) so the
+          // payload can be piped from stdin via `curl -d @-` without
+          // any shell interpolation of its contents.
+          const ptyId = String(req.headers['x-emdash-pty-id'] || '');
+          const type = String(req.headers['x-emdash-event-type'] || '');
 
           if (!ptyId || !type) {
-            log.warn('AgentEventService: malformed request — missing ptyId or type');
+            log.warn('AgentEventService: malformed request — missing ptyId or type headers');
             res.writeHead(400);
             res.end();
             return;
@@ -62,8 +65,10 @@ class AgentEventService {
             return;
           }
 
+          // Body is the raw Claude Code hook payload JSON
+          const raw = body ? JSON.parse(body) : {};
+
           // Normalize snake_case fields from provider hooks to camelCase
-          const raw = payload || {};
           const normalizedPayload = {
             ...raw,
             notificationType: raw.notification_type ?? raw.notificationType,
@@ -73,7 +78,7 @@ class AgentEventService {
           delete normalizedPayload.last_assistant_message;
 
           const event: AgentEvent = {
-            type,
+            type: type as AgentEvent['type'],
             ptyId,
             taskId: parsed.suffix,
             providerId: parsed.providerId,
@@ -82,13 +87,19 @@ class AgentEventService {
           };
 
           const windows = BrowserWindow.getAllWindows();
-          const appFocused = windows.some((w) => w.isFocused());
+          const appFocused = windows.some((w) => !w.isDestroyed() && w.isFocused());
 
           // Show OS notification banner when appropriate
           this.maybeShowOsNotification(event, appFocused);
 
           for (const win of windows) {
-            win.webContents.send('agent:event', event, { appFocused });
+            try {
+              if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+                win.webContents.send('agent:event', event, { appFocused });
+              }
+            } catch {
+              // Window may have been destroyed between check and send
+            }
           }
 
           res.writeHead(200);

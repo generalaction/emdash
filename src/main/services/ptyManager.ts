@@ -48,9 +48,6 @@ const AGENT_ENV_VARS = [
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
-  'EMDASH_HOOK_PORT',
-  'EMDASH_PTY_ID',
-  'EMDASH_HOOK_TOKEN',
 ];
 
 type PtyRecord = {
