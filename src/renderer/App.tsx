@@ -629,7 +629,7 @@ const AppContent: React.FC = () => {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
@@ -673,7 +673,7 @@ const AppContent: React.FC = () => {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('right', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
                   />
                   <ResizablePanel
                     ref={rightSidebarPanelRef}
