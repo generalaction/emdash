@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Switch } from './ui/switch';
+import { soundPlayer } from '../lib/soundPlayer';
 
 const NotificationSettingsCard: React.FC = () => {
   const [enabled, setEnabled] = useState(true);
@@ -25,6 +26,7 @@ const NotificationSettingsCard: React.FC = () => {
 
   const updateEnabled = async (next: boolean) => {
     setEnabled(next);
+    soundPlayer.setEnabled(next);
     void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('notification_settings_changed', { enabled: next, sound });
     });
@@ -55,7 +57,9 @@ const NotificationSettingsCard: React.FC = () => {
     <div className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">Notifications</p>
-        <p className="text-sm text-muted-foreground">Get notified when agents complete tasks.</p>
+        <p className="text-sm text-muted-foreground">
+          Get notified with sounds when agents need your attention.
+        </p>
       </div>
       <Switch checked={enabled} disabled={loading} onCheckedChange={updateEnabled} />
     </div>

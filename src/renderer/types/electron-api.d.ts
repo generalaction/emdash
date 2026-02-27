@@ -1,5 +1,7 @@
 // Updated for Codex integration
 
+import type { AgentEvent } from '../../shared/agentEvents';
+
 type ProjectSettingsPayload = {
   projectId: string;
   name: string;
@@ -363,6 +365,7 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -1380,6 +1383,7 @@ export interface ElectronAPI {
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
   onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {

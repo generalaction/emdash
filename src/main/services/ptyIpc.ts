@@ -23,6 +23,7 @@ import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -815,6 +816,17 @@ export function registerPtyIpc(): void {
         }
 
         const shellSetup = await resolveShellSetup(cwd);
+
+        // Write Claude Code hook config so it calls back to Emdash on events
+        if (providerId === 'claude') {
+          try {
+            ClaudeHookService.writeHookConfig(cwd);
+          } catch (err) {
+            log.warn('pty:startDirect - failed to write Claude hook config', {
+              error: String(err),
+            });
+          }
+        }
 
         // Try direct spawn first; skip if shellSetup requires a shell wrapper
         const directProc = shellSetup
