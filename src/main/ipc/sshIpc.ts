@@ -164,7 +164,7 @@ export function registerSshIpc() {
         const { Client } = await import('ssh2');
         const testClient = new Client();
 
-        return new Promise((resolve) => {
+        return new Promise(async (resolve) => {
           const startTime = Date.now();
 
           testClient.on('ready', () => {
