@@ -7,6 +7,7 @@ import { type LinearIssueSummary } from '../types/linear';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
+import { LinearStatusPill } from './LinearStatusPill';
 import AgentLogo from './AgentLogo';
 
 interface LinearIssueSelectorProps {
@@ -327,8 +328,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                           {issue.identifier}
                         </span>
                       </span>
+                      <LinearStatusPill state={issue.state} />
                       {issue.title ? (
-                        <span className="ml-2 truncate text-muted-foreground">{issue.title}</span>
+                        <span className="truncate text-muted-foreground">{issue.title}</span>
                       ) : null}
                     </span>
                   </SelectItem>

@@ -5,43 +5,12 @@ import { ExternalLink, User, Tag, Folder } from 'lucide-react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
+import { LinearStatusPill } from './LinearStatusPill';
 
 type Props = {
   issue: LinearIssueSummary | null;
   children: React.ReactElement;
   side?: 'top' | 'right' | 'bottom' | 'left';
-};
-
-const StatusPill = ({
-  state,
-}: {
-  state?: { name?: string | null; type?: string | null } | null;
-}) => {
-  if (!state?.name) return null;
-
-  const getStatusColor = (type?: string | null) => {
-    switch (type) {
-      case 'completed':
-      case 'done':
-        return 'bg-emerald-100/70 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200';
-      case 'canceled':
-      case 'cancelled':
-        return 'bg-rose-100/70 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200';
-      case 'started':
-      case 'in-progress':
-        return 'bg-blue-100/70 text-blue-800 dark:bg-blue-500/10 dark:text-blue-200';
-      default:
-        return 'bg-slate-100/70 text-slate-800 dark:bg-slate-500/10 dark:text-slate-200';
-    }
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] ${getStatusColor(state.type)}`}
-    >
-      {state.name}
-    </span>
-  );
 };
 
 // Module-level singleton: only one tooltip may be open at a time.
@@ -174,7 +143,7 @@ export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
             )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <StatusPill state={issue.state} />
+              <LinearStatusPill state={issue.state} />
 
               {issue.assignee?.name && (
                 <span className="inline-flex items-center gap-1">
