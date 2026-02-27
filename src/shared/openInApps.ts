@@ -68,10 +68,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     supportsRemote: true,
     platforms: {
       darwin: {
-        openCommands: [
-          'command -v cursor >/dev/null 2>&1 && cursor {{path}}',
-          'open -a "Cursor" {{path}}',
-        ],
+        openCommands: ['command -v cursor >/dev/null 2>&1 && cursor .', 'open -a "Cursor" .'],
         checkCommands: ['cursor'],
         appNames: ['Cursor'],
       },

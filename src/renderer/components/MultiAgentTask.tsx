@@ -484,6 +484,7 @@ const MultiAgentTask: React.FC<Props> = ({
                   path={v.path}
                   isRemote={!!projectRemoteConnectionId}
                   sshConnectionId={projectRemoteConnectionId}
+                  isActive={isActive}
                 />
               </div>
               <div className="mt-2 flex items-center justify-center px-4 py-2">
