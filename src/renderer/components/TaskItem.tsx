@@ -231,7 +231,15 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           />
         ) : (
           <>
-            {isPinned && <Pin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
+            {isPinned && (
+              <Pin
+                className="h-3 w-3 flex-shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin?.();
+                }}
+              />
+            )}
             <span className="block truncate text-sm font-medium text-foreground">{task.name}</span>
           </>
         )}
