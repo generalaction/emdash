@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Loader2,
   Shield,
+  Terminal,
   Trash,
   Plus,
   GitBranch,
@@ -37,7 +38,7 @@ import {
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
-type AuthType = 'password' | 'key' | 'agent';
+type AuthType = 'password' | 'key' | 'agent' | 'sshConfig';
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
 type RepoMode = 'pick' | 'create' | 'clone';
 
@@ -235,27 +236,50 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [selectedSavedConnection, loadSavedConnections]
   );
 
-  // Apply SSH config host selection
+  // Apply SSH config host selection — resolve via `ssh -G` to support
+  // ProxyCommand, Include, Match, certificates, etc.
   const applySshHost = useCallback(
-    (host: SshConfigHost) => {
+    async (host: SshConfigHost) => {
       const stableId = `ssh-config:${encodeURIComponent(host.host)}`;
       setConnectionId(stableId);
 
-      // Determine auth type and key path - default to key auth (more reliable)
+      // Try to resolve the full config via ssh -G (handles complex configs)
+      try {
+        const result = await window.electronAPI.sshResolveSshConfigHost(host.host);
+        if (result.success && result.resolved) {
+          setFormData((prev) => ({
+            ...prev,
+            name: host.host,
+            host: host.host, // Store alias; resolved at connection time
+            port: result.resolved!.port || 22,
+            username: result.resolved!.user || prev.username,
+            authType: 'sshConfig' as AuthType,
+            privateKeyPath: '',
+            password: '',
+            passphrase: '',
+          }));
+          setSshConfigSelection(host.host);
+          setTestStatus('idle');
+          setTestResult(null);
+          return;
+        }
+      } catch {
+        // Fall through to legacy behavior
+      }
+
+      // Fallback: manual config parsing
       const authType: AuthType = 'key';
       let privateKeyPath = '';
 
       if (host.identityFile) {
-        // SSH config specifies a key - use it
         privateKeyPath = host.identityFile;
       } else {
-        // No key specified - use default ed25519 key (most common modern key)
         privateKeyPath = '~/.ssh/id_ed25519';
       }
 
       setFormData((prev) => ({
         ...prev,
-        name: host.host, // Use the SSH host alias as connection name
+        name: host.host,
         host: host.hostname || host.host,
         port: host.port || 22,
         username: host.user || prev.username,
@@ -264,7 +288,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       }));
       setSshConfigSelection(host.host);
 
-      // Clear any previous test results when host is changed
       setTestStatus('idle');
       setTestResult(null);
     },
@@ -308,15 +331,17 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           ) {
             newErrors.host = 'Please enter a valid hostname, IP address, or SSH alias';
           }
-          if (!formData.username.trim()) {
+          // Username is not required for sshConfig auth (resolved from SSH config)
+          if (formData.authType !== 'sshConfig' && !formData.username.trim()) {
             newErrors.username = 'Username is required';
           }
-          if (formData.port < 1 || formData.port > 65535) {
+          if (formData.authType !== 'sshConfig' && (formData.port < 1 || formData.port > 65535)) {
             newErrors.port = 'Port must be between 1 and 65535';
           }
           break;
 
         case 'auth':
+          // sshConfig auth type needs no additional credentials
           if (formData.authType === 'password' && !formData.password) {
             newErrors.password = 'Password is required';
           }
@@ -389,6 +414,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         useAgent: formData.authType === 'agent',
         password: formData.authType === 'password' ? formData.password : undefined,
         passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
+        sshConfigHost: formData.authType === 'sshConfig' ? formData.host : undefined,
       };
 
       const result = await window.electronAPI.sshTestConnection(testConfig);
@@ -591,6 +617,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           useAgent: formData.authType === 'agent',
           password: formData.authType === 'password' ? formData.password : undefined,
           passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
+          sshConfigHost: formData.authType === 'sshConfig' ? formData.host : undefined,
         };
 
         const connId = await window.electronAPI.sshConnect({
@@ -600,7 +627,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         setConnectionId(connId);
 
         // Browse directly with connId since connectionId state hasn't updated yet
-        const homePath = '/home/' + formData.username;
+        const homePath = formData.username ? '/home/' + formData.username : '/home';
         setIsBrowsing(true);
         setBrowseError(null);
         try {
@@ -744,6 +771,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           useAgent: formData.authType === 'agent',
           password: formData.authType === 'password' ? formData.password : undefined,
           passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
+          sshConfigHost: formData.authType === 'sshConfig' ? formData.host : undefined,
         };
 
         const savedConfig = await window.electronAPI.sshSaveConnection(saveConfig);
@@ -918,10 +946,16 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-2">
+            <div
+              className={cn(
+                'grid gap-4',
+                formData.authType === 'sshConfig' ? 'grid-cols-1' : 'grid-cols-3'
+              )}
+            >
+              <div className={cn('space-y-2', formData.authType !== 'sshConfig' && 'col-span-2')}>
                 <Label htmlFor="host">
-                  Host <span className="text-destructive">*</span>
+                  {formData.authType === 'sshConfig' ? 'SSH Config Host' : 'Host'}{' '}
+                  <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -930,7 +964,11 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                     value={formData.host}
                     onChange={(e) => updateField('host', e.target.value)}
                     onBlur={() => touchField('host')}
-                    placeholder="server.example.com or SSH alias"
+                    placeholder={
+                      formData.authType === 'sshConfig'
+                        ? 'e.g., workspace-mat-brown'
+                        : 'server.example.com or SSH alias'
+                    }
                     className={cn('pl-10', errors.host && touched.host && 'border-destructive')}
                   />
                 </div>
@@ -939,42 +977,46 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="port">Port</Label>
-                <Input
-                  id="port"
-                  type="number"
-                  value={formData.port}
-                  onChange={(e) => updateField('port', parseInt(e.target.value) || 22)}
-                  min={1}
-                  max={65535}
-                  className={cn(errors.port && 'border-destructive')}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="username">
-                Username <span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) => updateField('username', e.target.value)}
-                  onBlur={() => touchField('username')}
-                  placeholder="user"
-                  className={cn(
-                    'pl-10',
-                    errors.username && touched.username && 'border-destructive'
-                  )}
-                />
-              </div>
-              {errors.username && touched.username && (
-                <p className="text-xs text-destructive">{errors.username}</p>
+              {formData.authType !== 'sshConfig' && (
+                <div className="space-y-2">
+                  <Label htmlFor="port">Port</Label>
+                  <Input
+                    id="port"
+                    type="number"
+                    value={formData.port}
+                    onChange={(e) => updateField('port', parseInt(e.target.value) || 22)}
+                    min={1}
+                    max={65535}
+                    className={cn(errors.port && 'border-destructive')}
+                  />
+                </div>
               )}
             </div>
+
+            {formData.authType !== 'sshConfig' && (
+              <div className="space-y-2">
+                <Label htmlFor="username">
+                  Username <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => updateField('username', e.target.value)}
+                    onBlur={() => touchField('username')}
+                    placeholder="user"
+                    className={cn(
+                      'pl-10',
+                      errors.username && touched.username && 'border-destructive'
+                    )}
+                  />
+                </div>
+                {errors.username && touched.username && (
+                  <p className="text-xs text-destructive">{errors.username}</p>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -1012,8 +1054,22 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               <RadioGroup
                 value={formData.authType}
                 onValueChange={(value) => updateField('authType', value as AuthType)}
-                className="grid grid-cols-3 gap-3"
+                className="grid grid-cols-2 gap-3"
               >
+                <div>
+                  <RadioGroupItem value="sshConfig" id="auth-sshconfig" className="sr-only" />
+                  <Label
+                    htmlFor="auth-sshconfig"
+                    className={cn(
+                      'flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary',
+                      formData.authType === 'sshConfig' && 'border-primary'
+                    )}
+                  >
+                    <Terminal className="mb-3 h-6 w-6" />
+                    <span className="text-sm font-medium">SSH Config</span>
+                  </Label>
+                </div>
+
                 <div>
                   <RadioGroupItem value="password" id="auth-password" className="sr-only" />
                   <Label
@@ -1136,6 +1192,19 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                   </p>
                 </div>
               </div>
+            )}
+
+            {formData.authType === 'sshConfig' && (
+              <Alert>
+                <Terminal className="h-4 w-4" />
+                <AlertDescription>
+                  <p>
+                    Authentication and connection settings will be read from your ~/.ssh/config.
+                    This handles ProxyCommand, certificates, jump hosts, and other advanced
+                    configurations automatically.
+                  </p>
+                </AlertDescription>
+              </Alert>
             )}
 
             {formData.authType === 'agent' && (
@@ -1440,6 +1509,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                     Authentication
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {formData.authType === 'sshConfig' && 'SSH Config'}
                     {formData.authType === 'password' && 'Password'}
                     {formData.authType === 'key' && 'SSH Key'}
                     {formData.authType === 'agent' && 'SSH Agent'}

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { SSH_IPC_CHANNELS } from '../../shared/ssh/types';
-import { sshService } from '../services/ssh/SshService';
+import { sshService, resolveSshConfigViaG } from '../services/ssh/SshService';
 import { SshCredentialService } from '../services/ssh/SshCredentialService';
 import { SshHostKeyService } from '../services/ssh/SshHostKeyService';
 import { SshConnectionMonitor } from '../services/ssh/SshConnectionMonitor';
@@ -46,16 +46,23 @@ function mapRowToConfig(row: {
   privateKeyPath: string | null;
   useAgent: number;
 }): SshConfig {
-  return {
+  const config: SshConfig = {
     id: row.id,
     name: row.name,
     host: row.host,
     port: row.port,
     username: row.username,
-    authType: row.authType as 'password' | 'key' | 'agent',
+    authType: row.authType as 'password' | 'key' | 'agent' | 'sshConfig',
     privateKeyPath: row.privateKeyPath ?? undefined,
     useAgent: row.useAgent === 1,
   };
+
+  // For sshConfig auth type, the host field stores the SSH config alias
+  if (config.authType === 'sshConfig') {
+    config.sshConfigHost = row.host;
+  }
+
+  return config;
 }
 
 /**
@@ -163,6 +170,26 @@ export function registerSshIpc() {
       config: SshConfig & { password?: string; passphrase?: string }
     ): Promise<ConnectionTestResult> => {
       try {
+        // For sshConfig auth type, test via the full SshService path
+        // which handles ProxyCommand, resolved config, etc.
+        if (config.authType === 'sshConfig') {
+          const startTime = Date.now();
+          const tempId = `test-${randomUUID()}`;
+          try {
+            await sshService.connect({ ...config, id: tempId });
+            const latency = Date.now() - startTime;
+            await sshService.disconnect(tempId);
+            return { success: true, latency };
+          } catch (err: any) {
+            try {
+              await sshService.disconnect(tempId);
+            } catch {
+              // ignore cleanup errors
+            }
+            return { success: false, error: err.message };
+          }
+        }
+
         const { Client } = await import('ssh2');
         const testClient = new Client();
 
@@ -800,6 +827,37 @@ export function registerSshIpc() {
         return { success: true, host };
       } catch (err: any) {
         console.error('[sshIpc] Get SSH config host error:', err);
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
+  // Resolve SSH config host using `ssh -G` (handles Include, Match, ProxyCommand, etc.)
+  ipcMain.handle(
+    SSH_IPC_CHANNELS.RESOLVE_SSH_CONFIG_HOST,
+    async (
+      _,
+      hostAlias: string
+    ): Promise<{
+      success: boolean;
+      resolved?: {
+        hostname: string;
+        port: number;
+        user: string;
+        identityFile?: string;
+        proxyCommand?: string;
+      };
+      error?: string;
+    }> => {
+      try {
+        if (!hostAlias || typeof hostAlias !== 'string') {
+          return { success: false, error: 'Host alias is required' };
+        }
+
+        const resolved = await resolveSshConfigViaG(hostAlias);
+        return { success: true, resolved };
+      } catch (err: any) {
+        console.error('[sshIpc] Resolve SSH config host error:', err);
         return { success: false, error: err.message };
       }
     }

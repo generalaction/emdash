@@ -8,9 +8,11 @@ export interface SshConfig {
   host: string;
   port: number;
   username: string;
-  authType: 'password' | 'key' | 'agent';
+  authType: 'password' | 'key' | 'agent' | 'sshConfig';
   privateKeyPath?: string;
   useAgent?: boolean;
+  /** When authType is 'sshConfig', stores the SSH config host alias for resolution via `ssh -G`. */
+  sshConfigHost?: string;
 }
 
 /**
@@ -95,6 +97,7 @@ export const SSH_IPC_CHANNELS = {
   ON_STATE_CHANGE: 'ssh:onStateChange',
   GET_SSH_CONFIG: 'ssh:getSshConfig',
   GET_SSH_CONFIG_HOST: 'ssh:getSshConfigHost',
+  RESOLVE_SSH_CONFIG_HOST: 'ssh:resolveSshConfigHost',
   CHECK_IS_GIT_REPO: 'ssh:checkIsGitRepo',
   INIT_REPO: 'ssh:initRepo',
   CLONE_REPO: 'ssh:cloneRepo',
@@ -115,4 +118,5 @@ export interface SshConfigHost {
   user?: string;
   port?: number;
   identityFile?: string;
+  proxyCommand?: string;
 }

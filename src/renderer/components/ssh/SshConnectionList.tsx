@@ -13,9 +13,10 @@ export interface SshConnection {
   host: string;
   port: number;
   username: string;
-  authType: 'password' | 'key' | 'agent';
+  authType: 'password' | 'key' | 'agent' | 'sshConfig';
   privateKeyPath?: string;
   useAgent?: boolean;
+  sshConfigHost?: string;
   state?: ConnectionState;
   lastError?: string;
   createdAt: Date;

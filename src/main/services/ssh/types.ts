@@ -1,4 +1,5 @@
 import { Client, SFTPWrapper } from 'ssh2';
+import type { ChildProcess } from 'child_process';
 import { SshConfig } from '../../../shared/ssh/types';
 
 export interface Connection {
@@ -8,6 +9,8 @@ export interface Connection {
   sftp?: SFTPWrapper;
   connectedAt: Date;
   lastActivity: Date;
+  /** ProxyCommand child process, if any — must be killed on disconnect. */
+  proxyProcess?: ChildProcess;
 }
 
 export interface ConnectionPool {

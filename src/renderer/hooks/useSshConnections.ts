@@ -230,6 +230,8 @@ export function useSshConnections(): UseSshConnectionsResult {
           authType: connection.authType,
           privateKeyPath: connection.privateKeyPath,
           useAgent: connection.useAgent,
+          // For sshConfig auth, the host field stores the config alias
+          sshConfigHost: connection.authType === 'sshConfig' ? connection.host : undefined,
         };
 
         // sshTestConnection returns { success, error?, latency? }

@@ -660,6 +660,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   sshGetConfig: () => ipcRenderer.invoke('ssh:getSshConfig'),
   sshGetSshConfigHost: (hostAlias: string) => ipcRenderer.invoke('ssh:getSshConfigHost', hostAlias),
+  sshResolveSshConfigHost: (hostAlias: string) =>
+    ipcRenderer.invoke('ssh:resolveSshConfigHost', hostAlias),
   sshCheckIsGitRepo: async (connectionId: string, remotePath: string) => {
     const res = await ipcRenderer.invoke('ssh:checkIsGitRepo', connectionId, remotePath);
     if (res && typeof res === 'object' && 'success' in res && !res.success) {

@@ -7,12 +7,129 @@ import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
+import { spawn, type ChildProcess } from 'child_process';
+import { Duplex } from 'stream';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;
 
 /** Threshold (fraction of MAX_CONNECTIONS) at which a warning is logged. */
 const POOL_WARNING_THRESHOLD = 0.8;
+
+/**
+ * Resolves the full SSH config for a host alias using `ssh -G`.
+ * This handles Include directives, Match blocks, ProxyCommand, etc.
+ * that the manual parser cannot handle.
+ */
+export async function resolveSshConfigViaG(hostAlias: string): Promise<{
+  hostname: string;
+  port: number;
+  user: string;
+  identityFile?: string;
+  proxyCommand?: string;
+}> {
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const execFileAsync = promisify(execFile);
+
+  const { stdout } = await execFileAsync('ssh', ['-G', hostAlias], {
+    timeout: 10000,
+    env: { ...process.env },
+  });
+
+  const config: Record<string, string> = {};
+  for (const line of stdout.split('\n')) {
+    const spaceIdx = line.indexOf(' ');
+    if (spaceIdx > 0) {
+      const key = line.slice(0, spaceIdx).toLowerCase();
+      const value = line.slice(spaceIdx + 1).trim();
+      // ssh -G outputs multiple identityfile lines; keep the first
+      if (key === 'identityfile' && config[key]) continue;
+      config[key] = value;
+    }
+  }
+
+  let identityFile = config['identityfile'];
+  if (identityFile) {
+    if (identityFile === '~') {
+      identityFile = homedir();
+    } else if (identityFile.startsWith('~/')) {
+      const { join } = await import('path');
+      identityFile = join(homedir(), identityFile.slice(2));
+    }
+  }
+
+  // ssh -G outputs "none" for proxycommand when not set
+  const proxyCommand =
+    config['proxycommand'] && config['proxycommand'] !== 'none'
+      ? config['proxycommand']
+      : undefined;
+
+  return {
+    hostname: config['hostname'] || hostAlias,
+    port: parseInt(config['port'] || '22', 10),
+    user: config['user'] || process.env.USER || 'root',
+    identityFile,
+    proxyCommand,
+  };
+}
+
+/**
+ * Spawns a ProxyCommand and returns a Duplex stream suitable for ssh2's `sock` option.
+ * Substitutes %h and %p tokens in the command string.
+ */
+function spawnProxyCommand(
+  proxyCommand: string,
+  hostname: string,
+  port: number
+): { stream: Duplex; process: ChildProcess } {
+  // Substitute SSH tokens
+  const cmd = proxyCommand.replace(/%h/g, hostname).replace(/%p/g, String(port));
+
+  // Split the command - use shell to handle complex commands (pipes, env vars, etc.)
+  const child = spawn('sh', ['-c', cmd], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  // Create a duplex stream wrapping the child process stdin/stdout
+  const stream = new Duplex({
+    read() {
+      // Data is pushed from the child stdout handler below
+    },
+    write(chunk, encoding, callback) {
+      if (child.stdin.writable) {
+        child.stdin.write(chunk, encoding, callback);
+      } else {
+        callback(new Error('ProxyCommand stdin not writable'));
+      }
+    },
+    final(callback) {
+      child.stdin.end(callback);
+    },
+  });
+
+  child.stdout.on('data', (data: Buffer) => {
+    stream.push(data);
+  });
+
+  child.stdout.on('end', () => {
+    stream.push(null);
+  });
+
+  child.stderr.on('data', (data: Buffer) => {
+    console.warn(`[SshService] ProxyCommand stderr: ${data.toString()}`);
+  });
+
+  child.on('error', (err) => {
+    stream.destroy(err);
+  });
+
+  child.on('close', () => {
+    stream.push(null);
+  });
+
+  return { stream, process: child };
+}
 
 /**
  * Main SSH service for managing SSH connections, executing commands,
@@ -92,8 +209,14 @@ export class SshService extends EventEmitter {
     const client = new Client();
 
     return new Promise((resolve, reject) => {
+      let proxyProcess: import('child_process').ChildProcess | undefined;
+
       // Handle connection errors
       client.on('error', (err: Error) => {
+        // Kill proxy process on error
+        if (proxyProcess) {
+          proxyProcess.kill();
+        }
         reject(err);
       });
 
@@ -103,6 +226,10 @@ export class SshService extends EventEmitter {
         // A stale client's close event must not remove a newer connection
         // that was established under the same connectionId.
         if (this.connections[connectionId]?.client === client) {
+          // Kill proxy process on close
+          if (this.connections[connectionId].proxyProcess) {
+            this.connections[connectionId].proxyProcess.kill();
+          }
           delete this.connections[connectionId];
           this.emit('disconnected', connectionId);
         }
@@ -116,6 +243,7 @@ export class SshService extends EventEmitter {
           client,
           connectedAt: new Date(),
           lastActivity: new Date(),
+          proxyProcess,
         };
 
         this.connections[connectionId] = connection;
@@ -125,8 +253,9 @@ export class SshService extends EventEmitter {
 
       // Build connection config
       this.buildConnectConfig(connectionId, config)
-        .then((connectConfig) => {
-          client.connect(connectConfig);
+        .then((result) => {
+          proxyProcess = result.proxyProcess;
+          client.connect(result.connectConfig);
         })
         .catch((err) => {
           // Never emit the special EventEmitter 'error' event unless
@@ -141,12 +270,23 @@ export class SshService extends EventEmitter {
   }
 
   /**
-   * Builds the ssh2 ConnectConfig from our SshConfig
+   * Builds the ssh2 ConnectConfig from our SshConfig.
+   *
+   * For the 'sshConfig' auth type, resolves the full config via `ssh -G`
+   * and optionally spawns a ProxyCommand for the transport layer.
    */
   private async buildConnectConfig(
     connectionId: string,
     config: SshConfig
-  ): Promise<ConnectConfig> {
+  ): Promise<{
+    connectConfig: ConnectConfig;
+    proxyProcess?: import('child_process').ChildProcess;
+  }> {
+    // For sshConfig auth type, resolve everything from system SSH config
+    if (config.authType === 'sshConfig' && config.sshConfigHost) {
+      return this.buildSshConfigConnectConfig(connectionId, config);
+    }
+
     const connectConfig: ConnectConfig = {
       host: config.host,
       port: config.port,
@@ -221,7 +361,63 @@ export class SshService extends EventEmitter {
       }
     }
 
-    return connectConfig;
+    return { connectConfig };
+  }
+
+  /**
+   * Builds ConnectConfig for 'sshConfig' auth type by resolving the host
+   * alias via `ssh -G` and optionally spawning a ProxyCommand.
+   */
+  private async buildSshConfigConnectConfig(
+    _connectionId: string,
+    config: SshConfig
+  ): Promise<{
+    connectConfig: ConnectConfig;
+    proxyProcess?: import('child_process').ChildProcess;
+  }> {
+    const hostAlias = config.sshConfigHost || config.host;
+    const resolved = await resolveSshConfigViaG(hostAlias);
+
+    const connectConfig: ConnectConfig = {
+      host: resolved.hostname,
+      port: resolved.port,
+      username: resolved.user,
+      readyTimeout: 20000,
+      keepaliveInterval: 60000,
+      keepaliveCountMax: 3,
+    };
+
+    let proxyProcess: import('child_process').ChildProcess | undefined;
+
+    // If there's a ProxyCommand, spawn it and use as transport
+    if (resolved.proxyCommand) {
+      const proxy = spawnProxyCommand(resolved.proxyCommand, resolved.hostname, resolved.port);
+      connectConfig.sock = proxy.stream;
+      proxyProcess = proxy.process;
+    }
+
+    // Try to set up authentication: identity file first, then agent
+    if (resolved.identityFile) {
+      try {
+        const privateKey = await readFile(resolved.identityFile, 'utf-8');
+        connectConfig.privateKey = privateKey;
+      } catch {
+        // Identity file not readable — fall through to agent auth
+        console.warn(
+          `[SshService] Could not read identity file ${resolved.identityFile}, falling back to agent`
+        );
+      }
+    }
+
+    // Always try agent as a fallback if available
+    if (!connectConfig.privateKey && process.env.SSH_AUTH_SOCK) {
+      connectConfig.agent = process.env.SSH_AUTH_SOCK;
+    }
+
+    // If we have neither key nor agent, ssh2 will attempt "none" auth
+    // which works for some setups (e.g., ProxyCommand handles auth)
+
+    return { connectConfig, proxyProcess };
   }
 
   /**
@@ -254,6 +450,11 @@ export class SshService extends EventEmitter {
 
     // Close SSH client
     connection.client.end();
+
+    // Kill proxy process if running
+    if (connection.proxyProcess) {
+      connection.proxyProcess.kill();
+    }
 
     // Remove from pool
     delete this.connections[connectionId];

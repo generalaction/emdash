@@ -1165,11 +1165,12 @@ declare global {
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'sshConfig';
         privateKeyPath?: string;
         useAgent?: boolean;
         password?: string;
         passphrase?: string;
+        sshConfigHost?: string;
       }) => Promise<{ success: boolean; error?: string; latency?: number }>;
       sshSaveConnection: (config: {
         id?: string;
@@ -1177,18 +1178,19 @@ declare global {
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'sshConfig';
         privateKeyPath?: string;
         useAgent?: boolean;
         password?: string;
         passphrase?: string;
+        sshConfigHost?: string;
       }) => Promise<{
         id: string;
         name: string;
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'sshConfig';
         privateKeyPath?: string;
         useAgent?: boolean;
       }>;
@@ -1199,7 +1201,7 @@ declare global {
           host: string;
           port: number;
           username: string;
-          authType: 'password' | 'key' | 'agent';
+          authType: 'password' | 'key' | 'agent' | 'sshConfig';
           privateKeyPath?: string;
           useAgent?: boolean;
         }>
@@ -1214,11 +1216,12 @@ declare global {
               host: string;
               port: number;
               username: string;
-              authType: 'password' | 'key' | 'agent';
+              authType: 'password' | 'key' | 'agent' | 'sshConfig';
               privateKeyPath?: string;
               useAgent?: boolean;
               password?: string;
               passphrase?: string;
+              sshConfigHost?: string;
             }
       ) => Promise<string>;
       sshDisconnect: (connectionId: string) => Promise<void>;
@@ -1258,6 +1261,18 @@ declare global {
           user?: string;
           port?: number;
           identityFile?: string;
+          proxyCommand?: string;
+        };
+        error?: string;
+      }>;
+      sshResolveSshConfigHost: (hostAlias: string) => Promise<{
+        success: boolean;
+        resolved?: {
+          hostname: string;
+          port: number;
+          user: string;
+          identityFile?: string;
+          proxyCommand?: string;
         };
         error?: string;
       }>;

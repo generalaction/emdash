@@ -5,7 +5,18 @@ import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Spinner } from '../ui/spinner';
 import { cn } from '@/lib/utils';
-import { FolderOpen, Eye, EyeOff, Server, User, Lock, Key, Shield, Download } from 'lucide-react';
+import {
+  FolderOpen,
+  Eye,
+  EyeOff,
+  Server,
+  User,
+  Lock,
+  Key,
+  Shield,
+  Download,
+  Terminal,
+} from 'lucide-react';
 import { useSshConnections } from '../../hooks/useSshConnections';
 import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
 
@@ -59,6 +70,13 @@ export const SshConnectionForm: React.FC<Props> = ({
   const [showConfigSuggestions, setShowConfigSuggestions] = useState(false);
   const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
   const [hostMatches, setHostMatches] = useState<SshConfigHost[]>([]);
+  // Resolved SSH config info (shown as read-only when using sshConfig auth type)
+  const [resolvedInfo, setResolvedInfo] = useState<{
+    hostname?: string;
+    port?: number;
+    user?: string;
+    proxyCommand?: string;
+  } | null>(null);
 
   // Load SSH config hosts on mount
   useEffect(() => {
@@ -87,8 +105,9 @@ export const SshConnectionForm: React.FC<Props> = ({
     loadSshConfigHosts();
   }, []);
 
-  // Update host suggestions when user types in host field
+  // Update host suggestions when user types in host field (only for non-sshConfig mode)
   useEffect(() => {
+    if (formData.authType === 'sshConfig') return;
     if (formData.host.trim().length > 0) {
       const matches = sshConfigHosts.filter((h) =>
         h.host.toLowerCase().includes(formData.host.toLowerCase())
@@ -99,7 +118,7 @@ export const SshConnectionForm: React.FC<Props> = ({
       setHostMatches([]);
       setShowConfigSuggestions(false);
     }
-  }, [formData.host, sshConfigHosts]);
+  }, [formData.host, formData.authType, sshConfigHosts]);
 
   // Reset form when initialValues change
   useEffect(() => {
@@ -111,40 +130,85 @@ export const SshConnectionForm: React.FC<Props> = ({
     }
   }, [initialValues]);
 
-  // Apply SSH config host settings to form
+  // Apply SSH config host: switch to sshConfig auth type and resolve via ssh -G
   const applyConfigHost = useCallback(async (host: SshConfigHost) => {
     try {
       setIsLoadingFromConfig(true);
-
-      // Determine auth type based on config
-      let authType: 'password' | 'key' | 'agent' = 'agent';
-      let privateKeyPath = '';
-
-      if (host.identityFile) {
-        authType = 'key';
-        privateKeyPath = host.identityFile;
-      }
-
-      // Apply settings to form
-      setFormData((prev) => ({
-        ...prev,
-        host: host.hostname || host.host,
-        port: host.port || 22,
-        username: host.user || '',
-        authType,
-        privateKeyPath,
-        // Keep existing name if set, otherwise use host alias
-        name: prev.name || `${host.host} (from SSH config)`,
-      }));
-
-      // Hide suggestions
       setShowConfigSuggestions(false);
+
+      // Use ssh -G to resolve the full config (handles Include, Match, ProxyCommand, etc.)
+      const result = await window.electronAPI.sshResolveSshConfigHost(host.host);
+
+      if (result.success && result.resolved) {
+        const resolved = result.resolved;
+        setResolvedInfo({
+          hostname: resolved.hostname,
+          port: resolved.port,
+          user: resolved.user,
+          proxyCommand: resolved.proxyCommand,
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          host: host.host,
+          port: resolved.port || 22,
+          username: resolved.user || '',
+          authType: 'sshConfig',
+          sshConfigHost: host.host,
+          privateKeyPath: '',
+          password: '',
+          passphrase: '',
+          name: prev.name || host.host,
+        }));
+      } else {
+        // Fallback to manual parsing if ssh -G fails
+        let authType: 'password' | 'key' | 'agent' = 'agent';
+        let privateKeyPath = '';
+
+        if (host.identityFile) {
+          authType = 'key';
+          privateKeyPath = host.identityFile;
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          host: host.hostname || host.host,
+          port: host.port || 22,
+          username: host.user || '',
+          authType,
+          privateKeyPath,
+          name: prev.name || `${host.host} (from SSH config)`,
+        }));
+      }
     } catch (err) {
       console.error('Failed to apply SSH config:', err);
     } finally {
       setIsLoadingFromConfig(false);
     }
   }, []);
+
+  // Clear sshConfig mode when user manually changes auth type to something else
+  const handleAuthTypeChange = useCallback(
+    (value: string) => {
+      if (value !== 'sshConfig') {
+        setResolvedInfo(null);
+        setFormData((prev) => ({
+          ...prev,
+          authType: value as SshConnectionConfig['authType'],
+          sshConfigHost: undefined,
+        }));
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          authType: value as SshConnectionConfig['authType'],
+        }));
+      }
+      if (errors.authType) {
+        setErrors((prev) => ({ ...prev, authType: undefined }));
+      }
+    },
+    [errors]
+  );
 
   const validate = useCallback((): boolean => {
     const newErrors: ValidationErrors = {};
@@ -157,21 +221,24 @@ export const SshConnectionForm: React.FC<Props> = ({
       newErrors.host = 'Host is required';
     }
 
-    if (!formData.port || formData.port < 1 || formData.port > 65535) {
-      newErrors.port = 'Port must be between 1 and 65535';
-    }
+    // For sshConfig auth type, host is the SSH config alias — that's all we need
+    if (formData.authType !== 'sshConfig') {
+      if (!formData.port || formData.port < 1 || formData.port > 65535) {
+        newErrors.port = 'Port must be between 1 and 65535';
+      }
 
-    if (!formData.username?.trim()) {
-      newErrors.username = 'Username is required';
-    }
+      if (!formData.username?.trim()) {
+        newErrors.username = 'Username is required';
+      }
 
-    if (formData.authType === 'password' && !formData.password?.trim()) {
-      newErrors.password = 'Password is required';
-    }
+      if (formData.authType === 'password' && !formData.password?.trim()) {
+        newErrors.password = 'Password is required';
+      }
 
-    if (formData.authType === 'key') {
-      if (!formData.privateKeyPath?.trim()) {
-        newErrors.privateKeyPath = 'Private key path is required';
+      if (formData.authType === 'key') {
+        if (!formData.privateKeyPath?.trim()) {
+          newErrors.privateKeyPath = 'Private key path is required';
+        }
       }
     }
 
@@ -211,6 +278,8 @@ export const SshConnectionForm: React.FC<Props> = ({
     }
   }, [handleChange]);
 
+  const isSshConfigMode = formData.authType === 'sshConfig';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Connection Name */}
@@ -230,21 +299,27 @@ export const SshConnectionForm: React.FC<Props> = ({
       </div>
 
       {/* Host and Port */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 space-y-2">
+      <div className={cn('grid gap-4', isSshConfigMode ? 'grid-cols-1' : 'grid-cols-3')}>
+        <div className={cn('space-y-2', !isSshConfigMode && 'col-span-2')}>
           <Label htmlFor="host">
-            Host <span className="text-red-500">*</span>
+            {isSshConfigMode ? 'SSH Config Host' : 'Host'} <span className="text-red-500">*</span>
           </Label>
           <div className="relative">
             <Server className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="host"
               type="text"
-              placeholder="e.g., 192.168.1.100 or server.example.com"
+              placeholder={
+                isSshConfigMode
+                  ? 'e.g., workspace-mat-brown'
+                  : 'e.g., 192.168.1.100 or server.example.com'
+              }
               value={formData.host}
               onChange={(e) => handleChange('host', e.target.value)}
               onFocus={() =>
-                formData.host.trim().length > 0 && setShowConfigSuggestions(hostMatches.length > 0)
+                !isSshConfigMode &&
+                formData.host.trim().length > 0 &&
+                setShowConfigSuggestions(hostMatches.length > 0)
               }
               className={cn('pl-10', errors.host && 'border-red-500 focus-visible:ring-red-500')}
             />
@@ -280,48 +355,87 @@ export const SshConnectionForm: React.FC<Props> = ({
           {errors.host && <p className="text-xs text-red-500">{errors.host}</p>}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="port">Port</Label>
-          <Input
-            id="port"
-            type="number"
-            min={1}
-            max={65535}
-            value={formData.port}
-            onChange={(e) => handleChange('port', parseInt(e.target.value, 10) || 22)}
-            className={cn(errors.port && 'border-red-500 focus-visible:ring-red-500')}
-          />
-          {errors.port && <p className="text-xs text-red-500">{errors.port}</p>}
-        </div>
+        {!isSshConfigMode && (
+          <div className="space-y-2">
+            <Label htmlFor="port">Port</Label>
+            <Input
+              id="port"
+              type="number"
+              min={1}
+              max={65535}
+              value={formData.port}
+              onChange={(e) => handleChange('port', parseInt(e.target.value, 10) || 22)}
+              className={cn(errors.port && 'border-red-500 focus-visible:ring-red-500')}
+            />
+            {errors.port && <p className="text-xs text-red-500">{errors.port}</p>}
+          </div>
+        )}
       </div>
 
-      {/* Username */}
-      <div className="space-y-2">
-        <Label htmlFor="username">
-          Username <span className="text-red-500">*</span>
-        </Label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="username"
-            type="text"
-            placeholder="e.g., ubuntu"
-            value={formData.username}
-            onChange={(e) => handleChange('username', e.target.value)}
-            className={cn('pl-10', errors.username && 'border-red-500 focus-visible:ring-red-500')}
-          />
+      {/* Resolved SSH Config info (shown when sshConfig mode is active) */}
+      {isSshConfigMode && resolvedInfo && (
+        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Resolved from SSH config
+          </p>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              Host: {resolvedInfo.hostname}:{resolvedInfo.port || 22}
+            </p>
+            {resolvedInfo.user && <p>User: {resolvedInfo.user}</p>}
+            {resolvedInfo.proxyCommand && <p>ProxyCommand: {resolvedInfo.proxyCommand}</p>}
+          </div>
         </div>
-        {errors.username && <p className="text-xs text-red-500">{errors.username}</p>}
-      </div>
+      )}
+
+      {/* Username (hidden in sshConfig mode) */}
+      {!isSshConfigMode && (
+        <div className="space-y-2">
+          <Label htmlFor="username">
+            Username <span className="text-red-500">*</span>
+          </Label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="username"
+              type="text"
+              placeholder="e.g., ubuntu"
+              value={formData.username}
+              onChange={(e) => handleChange('username', e.target.value)}
+              className={cn(
+                'pl-10',
+                errors.username && 'border-red-500 focus-visible:ring-red-500'
+              )}
+            />
+          </div>
+          {errors.username && <p className="text-xs text-red-500">{errors.username}</p>}
+        </div>
+      )}
 
       {/* Auth Type */}
       <div className="space-y-3">
         <Label>Authentication Method</Label>
         <RadioGroup
           value={formData.authType}
-          onValueChange={(value: 'password' | 'key' | 'agent') => handleChange('authType', value)}
+          onValueChange={handleAuthTypeChange}
           className="flex flex-col gap-3"
         >
+          <div className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-muted/50">
+            <RadioGroupItem value="sshConfig" id="auth-sshconfig" />
+            <Label
+              htmlFor="auth-sshconfig"
+              className="flex cursor-pointer items-center gap-2 font-normal"
+            >
+              <Terminal className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <span className="font-medium">SSH Config</span>
+                <p className="text-xs text-muted-foreground">
+                  Use your ~/.ssh/config (handles ProxyCommand, certificates, etc.)
+                </p>
+              </div>
+            </Label>
+          </div>
+
           <div className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-muted/50">
             <RadioGroupItem value="password" id="auth-password" />
             <Label
