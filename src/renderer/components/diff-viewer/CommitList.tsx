@@ -55,6 +55,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [aheadCount, setAheadCount] = useState<number | undefined>(undefined);
 
   const onSelectCommitRef = useRef(onSelectCommit);
   onSelectCommitRef.current = onSelectCommit;
@@ -63,6 +64,7 @@ export const CommitList: React.FC<CommitListProps> = ({
     if (!taskPath) {
       setCommits([]);
       setHasMore(false);
+      setAheadCount(undefined);
       return;
     }
 
@@ -74,6 +76,7 @@ export const CommitList: React.FC<CommitListProps> = ({
         const res = await window.electronAPI.gitGetLog({ taskPath, maxCount: PAGE_SIZE });
         if (!cancelled && res?.success && res.commits) {
           setCommits(res.commits);
+          setAheadCount(res.aheadCount);
           setHasMore(res.commits.length >= PAGE_SIZE);
           // Auto-select the latest commit if none is selected
           if (res.commits.length > 0 && !selectedCommit) {
@@ -109,6 +112,7 @@ export const CommitList: React.FC<CommitListProps> = ({
         taskPath,
         maxCount: PAGE_SIZE,
         skip: commits.length,
+        aheadCount,
       });
       if (res?.success && res.commits && res.commits.length > 0) {
         const newCommits = res.commits;
@@ -122,7 +126,7 @@ export const CommitList: React.FC<CommitListProps> = ({
     } finally {
       setLoadingMore(false);
     }
-  }, [taskPath, loadingMore, hasMore, commits.length]);
+  }, [taskPath, loadingMore, hasMore, commits.length, aheadCount]);
 
   if (loading) {
     return (

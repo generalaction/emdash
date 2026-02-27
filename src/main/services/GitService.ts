@@ -307,6 +307,9 @@ export async function getFileDiff(
 
 /** Commit staged files (no push). Returns the commit hash. */
 export async function commit(taskPath: string, message: string): Promise<{ hash: string }> {
+  if (!message || !message.trim()) {
+    throw new Error('Commit message cannot be empty');
+  }
   await execFileAsync('git', ['commit', '-m', message], { cwd: taskPath });
   const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: taskPath });
   return { hash: stdout.trim() };
@@ -345,9 +348,10 @@ export async function pull(taskPath: string): Promise<{ output: string }> {
 export async function getLog(
   taskPath: string,
   maxCount: number = 50,
-  skip: number = 0
-): Promise<
-  Array<{
+  skip: number = 0,
+  knownAheadCount?: number
+): Promise<{
+  commits: Array<{
     hash: string;
     subject: string;
     body: string;
@@ -355,55 +359,59 @@ export async function getLog(
     date: string;
     isPushed: boolean;
     tags: string[];
-  }>
-> {
-  // Get ahead count to determine which commits are unpushed.
+  }>;
+  aheadCount: number;
+}> {
+  // Use caller-provided aheadCount for pagination consistency, otherwise compute it.
   // Strategy: try upstream tracking branch first, then origin/<branch>, then origin/HEAD.
   // If none work, assume all commits are pushed (aheadCount = 0).
-  let aheadCount = 0;
-  try {
-    // Best case: branch has an upstream tracking ref
-    const { stdout: countOut } = await execFileAsync(
-      'git',
-      ['rev-list', '--count', '@{upstream}..HEAD'],
-      { cwd: taskPath }
-    );
-    aheadCount = parseInt(countOut.trim(), 10) || 0;
-  } catch {
+  let aheadCount = knownAheadCount ?? -1;
+  if (aheadCount < 0) {
+    aheadCount = 0;
     try {
-      // Fallback: compare against origin/<current-branch>
-      const { stdout: branchOut } = await execFileAsync(
-        'git',
-        ['rev-parse', '--abbrev-ref', 'HEAD'],
-        { cwd: taskPath }
-      );
-      const currentBranch = branchOut.trim();
+      // Best case: branch has an upstream tracking ref
       const { stdout: countOut } = await execFileAsync(
         'git',
-        ['rev-list', '--count', `origin/${currentBranch}..HEAD`],
+        ['rev-list', '--count', '@{upstream}..HEAD'],
         { cwd: taskPath }
       );
       aheadCount = parseInt(countOut.trim(), 10) || 0;
     } catch {
       try {
-        // Last resort: compare against origin/HEAD (default branch)
-        const { stdout: defaultBranchOut } = await execFileAsync(
+        // Fallback: compare against origin/<current-branch>
+        const { stdout: branchOut } = await execFileAsync(
           'git',
-          ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+          ['rev-parse', '--abbrev-ref', 'HEAD'],
           { cwd: taskPath }
         );
-        const defaultBranch = defaultBranchOut.trim();
+        const currentBranch = branchOut.trim();
         const { stdout: countOut } = await execFileAsync(
           'git',
-          ['rev-list', '--count', `${defaultBranch}..HEAD`],
+          ['rev-list', '--count', `origin/${currentBranch}..HEAD`],
           { cwd: taskPath }
         );
         aheadCount = parseInt(countOut.trim(), 10) || 0;
       } catch {
-        // Cannot determine remote state (no remote, detached HEAD, offline, etc.)
-        // Default to 0 ahead so all commits show as pushed. This avoids false "unpushed"
-        // indicators when there's genuinely no remote to compare against.
-        aheadCount = 0;
+        try {
+          // Last resort: compare against origin/HEAD (default branch)
+          const { stdout: defaultBranchOut } = await execFileAsync(
+            'git',
+            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+            { cwd: taskPath }
+          );
+          const defaultBranch = defaultBranchOut.trim();
+          const { stdout: countOut } = await execFileAsync(
+            'git',
+            ['rev-list', '--count', `${defaultBranch}..HEAD`],
+            { cwd: taskPath }
+          );
+          aheadCount = parseInt(countOut.trim(), 10) || 0;
+        } catch {
+          // Cannot determine remote state (no remote, detached HEAD, offline, etc.)
+          // Default to 0 ahead so all commits show as pushed. This avoids false "unpushed"
+          // indicators when there's genuinely no remote to compare against.
+          aheadCount = 0;
+        }
       }
     }
   }
@@ -417,7 +425,7 @@ export async function getLog(
     { cwd: taskPath }
   );
 
-  if (!stdout.trim()) return [];
+  if (!stdout.trim()) return { commits: [], aheadCount };
 
   const commits = stdout
     .split(RECORD_SEP)
@@ -442,15 +450,15 @@ export async function getLog(
       };
     });
 
-  return commits;
+  return { commits, aheadCount };
 }
 
 /** Get the latest commit info (subject + body). */
 export async function getLatestCommit(
   taskPath: string
 ): Promise<{ hash: string; subject: string; body: string; isPushed: boolean } | null> {
-  const log = await getLog(taskPath, 1);
-  return log[0] || null;
+  const { commits } = await getLog(taskPath, 1);
+  return commits[0] || null;
 }
 
 /** Get files changed in a specific commit. */
@@ -588,7 +596,7 @@ export async function softResetLastCommit(
   }
 
   // Check if the commit has been pushed (safety guard — UI also hides the button)
-  const log = await getLog(taskPath, 1);
+  const { commits: log } = await getLog(taskPath, 1);
   if (log[0]?.isPushed) {
     throw new Error('Cannot undo a commit that has already been pushed');
   }

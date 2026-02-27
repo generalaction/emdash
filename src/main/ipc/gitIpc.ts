@@ -105,6 +105,22 @@ const releaseRemoteStatusPoller = (taskPath: string, watchId?: string) => {
   return { success: true as const };
 };
 
+/**
+ * Validate that a taskPath is an absolute path pointing to a real directory
+ * that is a git repository. Returns an error string if invalid, or null if OK.
+ */
+function validateTaskPath(taskPath: string | undefined): string | null {
+  if (!taskPath) return 'Missing taskPath';
+  if (!path.isAbsolute(taskPath)) return 'taskPath must be absolute';
+  try {
+    const stat = fs.statSync(taskPath);
+    if (!stat.isDirectory()) return 'taskPath is not a directory';
+  } catch {
+    return 'taskPath does not exist';
+  }
+  return null;
+}
+
 const broadcastGitStatusChange = (taskPath: string, error?: string) => {
   const windows = BrowserWindow.getAllWindows();
   windows.forEach((window) => {
@@ -2216,9 +2232,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:commit', async (_, args: { taskPath: string; message: string }) => {
     try {
-      if (!args.taskPath) {
-        return { success: false, error: 'Missing taskPath' };
-      }
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const result = await gitCommit(args.taskPath, args.message);
       broadcastGitStatusChange(args.taskPath);
       return { success: true, hash: result.hash };
@@ -2229,9 +2244,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
     try {
-      if (!args.taskPath) {
-        return { success: false, error: 'Missing taskPath' };
-      }
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const result = await gitPush(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
@@ -2242,9 +2256,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:pull', async (_, args: { taskPath: string }) => {
     try {
-      if (!args.taskPath) {
-        return { success: false, error: 'Missing taskPath' };
-      }
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const result = await gitPull(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
@@ -2255,13 +2268,20 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle(
     'git:get-log',
-    async (_, args: { taskPath: string; maxCount?: number; skip?: number }) => {
+    async (
+      _,
+      args: { taskPath: string; maxCount?: number; skip?: number; aheadCount?: number }
+    ) => {
       try {
-        if (!args.taskPath) {
-          return { success: false, error: 'Missing taskPath' };
-        }
-        const commits = await gitGetLog(args.taskPath, args.maxCount, args.skip);
-        return { success: true, commits };
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
+        const result = await gitGetLog(
+          args.taskPath,
+          args.maxCount,
+          args.skip,
+          args.aheadCount
+        );
+        return { success: true, commits: result.commits, aheadCount: result.aheadCount };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
@@ -2270,9 +2290,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:get-latest-commit', async (_, args: { taskPath: string }) => {
     try {
-      if (!args.taskPath) {
-        return { success: false, error: 'Missing taskPath' };
-      }
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const commit = await gitGetLatestCommit(args.taskPath);
       return { success: true, commit };
     } catch (error) {
@@ -2284,9 +2303,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-files',
     async (_, args: { taskPath: string; commitHash: string }) => {
       try {
-        if (!args.taskPath) {
-          return { success: false, error: 'Missing taskPath' };
-        }
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
         if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
           return { success: false, error: 'Invalid commit hash' };
         }
@@ -2302,15 +2320,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-commit-file-diff',
     async (_, args: { taskPath: string; commitHash: string; filePath: string }) => {
       try {
-        if (!args.taskPath) {
-          return { success: false, error: 'Missing taskPath' };
-        }
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
         if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
           return { success: false, error: 'Invalid commit hash' };
         }
-        if (args.filePath.includes('..')) {
-          return { success: false, error: 'Invalid file path' };
-        }
+        // filePath is validated by path.resolve check in GitService.getCommitFileDiff
         const diff = await gitGetCommitFileDiff(args.taskPath, args.commitHash, args.filePath);
         return { success: true, diff };
       } catch (error) {
@@ -2321,9 +2336,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
   ipcMain.handle('git:soft-reset', async (_, args: { taskPath: string }) => {
     try {
-      if (!args.taskPath) {
-        return { success: false, error: 'Missing taskPath' };
-      }
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const result = await gitSoftResetLastCommit(args.taskPath);
       broadcastGitStatusChange(args.taskPath);
       return { success: true, subject: result.subject, body: result.body };
