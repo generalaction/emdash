@@ -112,7 +112,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
-        'group/right-sidebar relative z-[45] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
+        'group/right-sidebar relative z-30 flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
         forceBorder
           ? 'bg-background'
           : 'border-l border-border bg-muted/10 data-[state=collapsed]:border-l-0',
