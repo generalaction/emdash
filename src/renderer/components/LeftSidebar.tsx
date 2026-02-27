@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import ReorderList from './ReorderList';
 import { Button } from './ui/button';
@@ -89,14 +89,14 @@ const getConnectionId = (project: Project): string | null => {
   return (project as any).sshConnectionId || null;
 };
 
-// Project item with remote indicator
+// Project item with remote indicator - MEMOIZED to prevent lag during parent toggles
 interface ProjectItemProps {
   project: Project;
   isActive: boolean;
   onSelect: () => void;
 }
 
-const ProjectItem: React.FC<ProjectItemProps> = ({ project, isActive, onSelect }) => {
+const ProjectItem = React.memo<ProjectItemProps>(({ project, isActive, onSelect }) => {
   const remote = useRemoteProject(project);
   const connectionId = getConnectionId(project);
 
@@ -114,39 +114,38 @@ const ProjectItem: React.FC<ProjectItemProps> = ({ project, isActive, onSelect }
       <span className="flex-1 truncate">{project.name}</span>
     </div>
   );
-};
+});
+ProjectItem.displayName = 'ProjectItem';
 
-const MenuItemButton: React.FC<MenuItemButtonProps> = ({
-  icon: Icon,
-  label,
-  ariaLabel,
-  onClick,
-}) => {
-  const handleKeyDown = React.useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onClick();
-      }
-    },
-    [onClick]
-  );
+const MenuItemButton = React.memo<MenuItemButtonProps>(
+  ({ icon: Icon, label, ariaLabel, onClick }) => {
+    const handleKeyDown = React.useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      },
+      [onClick]
+    );
 
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      tabIndex={0}
-      aria-label={ariaLabel}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </button>
-  );
-};
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        tabIndex={0}
+        aria-label={ariaLabel}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+      >
+        <Icon className="h-4 w-4" />
+        {label}
+      </button>
+    );
+  }
+);
+MenuItemButton.displayName = 'MenuItemButton';
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
@@ -180,7 +179,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
 
-  // Fetch archived tasks for all projects
   const fetchArchivedTasks = useCallback(async () => {
     const archived: Record<string, Task[]> = {};
     for (const project of projects) {
@@ -196,22 +194,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setArchivedTasksByProject(archived);
   }, [projects]);
 
-  // Fetch when projects load or when archivedTasksVersion changes (after successful archive)
-  // We use projects.length (not projects) to avoid race conditions where optimistic
-  // task removal triggers a refetch before the database is updated
   useEffect(() => {
     if (projects.length > 0) {
       fetchArchivedTasks();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects.length, archivedTasksVersion]);
+  }, [projects.length, archivedTasksVersion, fetchArchivedTasks]);
 
-  // Refresh archived tasks when a task is archived or restored
   const handleRestoreTask = useCallback(
     async (project: Project, task: Task) => {
       if (onRestoreTask) {
         await onRestoreTask(project, task);
-        // Refresh archived tasks after restore
         fetchArchivedTasks();
       }
     },
@@ -222,7 +214,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     async (project: Project, task: Task) => {
       if (onArchiveTask) {
         await onArchiveTask(project, task);
-        // Refresh archived tasks after archive
         fetchArchivedTasks();
       }
     },
@@ -231,9 +222,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const handleDeleteProject = useCallback(
     async (project: Project) => {
-      if (!onDeleteProject) {
-        return;
-      }
+      if (!onDeleteProject) return;
       setDeletingProjectId(project.id);
       try {
         await onDeleteProject(project);
@@ -248,7 +237,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
-  // Helper to close settings page when navigating
   const handleNavigationWithCloseSettings = useCallback(
     (callback: () => void) => {
       onCloseSettingsPage?.();
@@ -407,8 +395,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             </div>
                           </div>
 
-                          <CollapsibleContent asChild>
-                            <div className="mt-1 min-w-0">
+                          {/* OPTIMIZATION: forceMount + CSS hidden ensures instant toggle by avoiding re-mounting costs */}
+                          <CollapsibleContent
+                            forceMount
+                            className="mt-1 min-w-0 data-[state=closed]:hidden"
+                          >
+                            <div className="min-w-0">
                               <motion.button
                                 type="button"
                                 whileTap={{ scale: 0.97 }}
@@ -478,7 +470,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                               : undefined
                                           }
                                           onRename={
-                                            // Disable rename for multi-agent tasks (variant metadata would become stale)
                                             onRenameTask && !task.metadata?.multiAgent?.enabled
                                               ? (newName) =>
                                                   onRenameTask(typedProject, task, newName)
@@ -495,7 +486,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     );
                                   })}
 
-                                {/* Archived tasks section */}
                                 {archivedTasksByProject[typedProject.id]?.length > 0 && (
                                   <Collapsible className="mt-1">
                                     <CollapsibleTrigger asChild>
