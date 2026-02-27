@@ -159,7 +159,8 @@ export function UpdateCard(): JSX.Element {
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Installing update. Emdash will close when ready.
+            Installing update. Emdash will close and restart automatically — this may take a few
+            seconds.
           </p>
         );
 
