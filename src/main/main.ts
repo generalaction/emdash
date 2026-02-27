@@ -36,7 +36,11 @@ if (process.platform === 'darwin') {
     const shell = process.env.SHELL || '/bin/zsh';
     const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
     if (loginPath) {
-      const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
+      // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
+      // Filter to only entries that look like real paths (start with /).
+      const allEntries = (loginPath + ':' + process.env.PATH).split(':').filter(Boolean);
+      const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
+      const merged = new Set(validEntries);
       process.env.PATH = Array.from(merged).join(':');
     }
   } catch {}
@@ -67,7 +71,11 @@ if (process.platform === 'linux') {
         encoding: 'utf8',
       });
       if (loginPath) {
-        const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
+        // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
+        // Filter to only entries that look like real paths (start with /).
+        const allEntries = (loginPath + ':' + process.env.PATH).split(':').filter(Boolean);
+        const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
+        const merged = new Set(validEntries);
         process.env.PATH = Array.from(merged).join(':');
       }
     } catch {}
