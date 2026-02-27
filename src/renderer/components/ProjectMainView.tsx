@@ -351,13 +351,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   }, [project.id]);
 
   useEffect(() => {
-    if (showFilter !== 'all') {
-      setArchivedTasks([]);
-      return;
-    }
     const cleanup = refetchArchivedTasks();
     return cleanup;
-  }, [project.id, showFilter, refetchArchivedTasks]);
+  }, [project.id, refetchArchivedTasks]);
   const tasksInProject = useMemo(
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
@@ -532,6 +528,18 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       return result;
     },
     [onDeleteTask, project, refetchArchivedTasks]
+  );
+
+  const handleArchiveTask = useCallback(
+    async (task: Task) => {
+      if (!onArchiveTask) return;
+      const result = await onArchiveTask(project, task);
+      if (result !== false) {
+        refetchArchivedTasks();
+      }
+      return result;
+    },
+    [onArchiveTask, project, refetchArchivedTasks]
   );
 
   const handleRestoreTask = useCallback(
@@ -896,7 +904,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           active={activeTask?.id === ws.id}
                           onClick={() => onSelectTask(ws)}
                           onDelete={() => handleDeleteTask(ws)}
-                          onArchive={onArchiveTask ? () => onArchiveTask(project, ws) : undefined}
+                          onArchive={onArchiveTask ? () => handleArchiveTask(ws) : undefined}
                           enablePrStatus={!project.isRemote}
                           onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
                         />
