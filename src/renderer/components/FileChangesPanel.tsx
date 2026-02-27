@@ -549,9 +549,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     const dir = last >= 0 ? p.slice(0, last + 1) : '';
     const base = last >= 0 ? p.slice(last + 1) : p;
     return (
-      <span className="truncate">
-        {dir && <span className="text-muted-foreground">{dir}</span>}
-        <span className="font-medium text-foreground">{base}</span>
+      <span className="flex min-w-0" title={p}>
+        {dir && (
+          <span className="truncate text-left text-muted-foreground [direction:rtl]">{dir}</span>
+        )}
+        <span className="shrink-0 font-medium text-foreground">{base}</span>
       </span>
     );
   };
@@ -789,7 +791,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     <FileIcon filename={change.path} isDirectory={false} size={16} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm">{renderPath(change.path)}</div>
+                    <div className="min-w-0 text-sm">{renderPath(change.path)}</div>
                   </div>
                 </div>
                 <div className="ml-3 flex items-center gap-2">

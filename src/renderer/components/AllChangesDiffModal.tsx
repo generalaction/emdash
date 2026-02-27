@@ -832,7 +832,10 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-muted-foreground dark:text-muted-foreground dark:group-hover:text-muted-foreground" />
                                 )}
                               </div>
-                              <span className="truncate font-mono text-sm font-medium text-foreground">
+                              <span
+                                className="truncate text-left font-mono text-sm font-medium text-foreground [direction:rtl]"
+                                title={file.path}
+                              >
                                 {file.path}
                               </span>
                               {isDirty && (
