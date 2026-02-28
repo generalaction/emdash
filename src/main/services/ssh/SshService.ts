@@ -281,8 +281,11 @@ export class SshService extends EventEmitter {
     // Update last activity
     connection.lastActivity = new Date();
 
-    // Build the command with optional cwd
-    const fullCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+    // Build the command with optional cwd, wrapped in a login shell so that
+    // ~/.ssh/config, ~/.gitconfig, and other user-level configuration files
+    // are available (ssh2's client.exec() uses a non-login shell by default).
+    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+    const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
 
     return new Promise((resolve, reject) => {
       connection.client.exec(fullCommand, (err, stream) => {
