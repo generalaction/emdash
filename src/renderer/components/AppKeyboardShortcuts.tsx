@@ -59,6 +59,12 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
         new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
       ),
     onOpenInEditor: handleOpenInEditor,
+    onNextTab: () =>
+      window.dispatchEvent(new CustomEvent('emdash:switch-tab', { detail: { direction: 'next' } })),
+    onPrevTab: () =>
+      window.dispatchEvent(new CustomEvent('emdash:switch-tab', { detail: { direction: 'prev' } })),
+    onNewTab: () => window.dispatchEvent(new CustomEvent('emdash:new-tab')),
+    onCloseTab: () => window.dispatchEvent(new CustomEvent('emdash:close-tab')),
     onCloseModal: showCommandPalette
       ? handleCloseCommandPalette
       : showSettings

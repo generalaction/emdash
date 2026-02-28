@@ -165,6 +165,16 @@ const AppContent: React.FC = () => {
     return () => cleanup?.();
   }, []);
 
+  // Listen for native menu "Close Tab" (Cmd+W on macOS) — dispatch as custom event
+  // so ChatInterface can handle it. If no task is active, the event goes unhandled
+  // and Cmd+W effectively does nothing (preventing accidental window close).
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuCloseTab?.(() => {
+      window.dispatchEvent(new CustomEvent('emdash:close-tab'));
+    });
+    return () => cleanup?.();
+  }, []);
+
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {

@@ -723,6 +723,62 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [conversations, activeConversationId, handleSwitchChat]);
 
+  // Switch tabs via Cmd+Shift+]/[
+  useEffect(() => {
+    const handleTabSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (conversations.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      if (currentIndex === -1) return;
+
+      let newIndex: number;
+      if (direction === 'prev') {
+        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+      } else {
+        newIndex = (currentIndex + 1) % conversations.length;
+      }
+
+      const newConversation = conversations[newIndex];
+      if (newConversation) {
+        handleSwitchChat(newConversation.id);
+      }
+    };
+
+    window.addEventListener('emdash:switch-tab', handleTabSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-tab', handleTabSwitch);
+    };
+  }, [conversations, activeConversationId, handleSwitchChat]);
+
+  // New tab via Cmd+T
+  useEffect(() => {
+    const handleNewTab = () => {
+      handleCreateNewChat();
+    };
+
+    window.addEventListener('emdash:new-tab', handleNewTab);
+    return () => {
+      window.removeEventListener('emdash:new-tab', handleNewTab);
+    };
+  }, [handleCreateNewChat]);
+
+  // Close tab via Cmd+W
+  useEffect(() => {
+    const handleCloseTab = () => {
+      if (conversations.length > 1 && activeConversationId) {
+        handleCloseChat(activeConversationId);
+      }
+    };
+
+    window.addEventListener('emdash:close-tab', handleCloseTab);
+    return () => {
+      window.removeEventListener('emdash:close-tab', handleCloseTab);
+    };
+  }, [conversations.length, activeConversationId, handleCloseChat]);
+
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
     Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);

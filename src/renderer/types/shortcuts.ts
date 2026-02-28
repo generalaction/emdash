@@ -27,6 +27,10 @@ export interface KeyboardSettings {
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
   openInEditor?: ShortcutBinding;
+  nextTab?: ShortcutBinding;
+  prevTab?: ShortcutBinding;
+  newTab?: ShortcutBinding;
+  closeTab?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -93,6 +97,12 @@ export interface GlobalShortcutHandlers {
 
   // Open in editor
   onOpenInEditor?: () => void;
+
+  // Tab navigation (conversation tabs within a task)
+  onNextTab?: () => void;
+  onPrevTab?: () => void;
+  onNewTab?: () => void;
+  onCloseTab?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

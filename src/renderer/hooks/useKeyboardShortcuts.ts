@@ -22,7 +22,11 @@ export type ShortcutSettingsKey =
   | 'newTask'
   | 'nextAgent'
   | 'prevAgent'
-  | 'openInEditor';
+  | 'openInEditor'
+  | 'nextTab'
+  | 'prevTab'
+  | 'newTab'
+  | 'closeTab';
 
 export interface AppShortcut {
   key: string;
@@ -133,8 +137,8 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   TOGGLE_THEME: {
-    key: 't',
-    modifier: 'cmd',
+    key: '',
+    modifier: undefined,
     label: 'Toggle Theme',
     description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
@@ -207,6 +211,43 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     description: 'Open the project in the default editor',
     category: 'Navigation',
     settingsKey: 'openInEditor',
+  },
+
+  NEXT_TAB: {
+    key: ']',
+    modifier: 'cmd+shift',
+    label: 'Next Tab',
+    description: 'Switch to the next conversation tab',
+    category: 'Navigation',
+    settingsKey: 'nextTab',
+  },
+
+  PREV_TAB: {
+    key: '[',
+    modifier: 'cmd+shift',
+    label: 'Previous Tab',
+    description: 'Switch to the previous conversation tab',
+    category: 'Navigation',
+    settingsKey: 'prevTab',
+  },
+
+  NEW_TAB: {
+    key: 't',
+    modifier: 'cmd',
+    label: 'New Tab',
+    description: 'Open a new conversation tab',
+    category: 'Navigation',
+    settingsKey: 'newTab',
+  },
+
+  CLOSE_TAB: {
+    key: 'w',
+    modifier: 'cmd',
+    label: 'Close Tab',
+    description: 'Close the current conversation tab',
+    category: 'Navigation',
+    settingsKey: 'closeTab',
+    hideFromSettings: true,
   },
 };
 
@@ -367,6 +408,10 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       nextAgent: getEffectiveConfig(APP_SHORTCUTS.NEXT_AGENT, custom),
       prevAgent: getEffectiveConfig(APP_SHORTCUTS.PREV_AGENT, custom),
       openInEditor: getEffectiveConfig(APP_SHORTCUTS.OPEN_IN_EDITOR, custom),
+      nextTab: getEffectiveConfig(APP_SHORTCUTS.NEXT_TAB, custom),
+      prevTab: getEffectiveConfig(APP_SHORTCUTS.PREV_TAB, custom),
+      newTab: getEffectiveConfig(APP_SHORTCUTS.NEW_TAB, custom),
+      closeTab: getEffectiveConfig(APP_SHORTCUTS.CLOSE_TAB, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -396,6 +441,34 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       {
         config: effectiveShortcuts.toggleRightSidebar,
         handler: () => handlers.onToggleRightSidebar?.(),
+        priority: 'global',
+        requiresClosed: true,
+        bypassEditable: true,
+      },
+      {
+        config: effectiveShortcuts.nextTab,
+        handler: () => handlers.onNextTab?.(),
+        priority: 'global',
+        requiresClosed: true,
+        bypassEditable: true,
+      },
+      {
+        config: effectiveShortcuts.prevTab,
+        handler: () => handlers.onPrevTab?.(),
+        priority: 'global',
+        requiresClosed: true,
+        bypassEditable: true,
+      },
+      {
+        config: effectiveShortcuts.newTab,
+        handler: () => handlers.onNewTab?.(),
+        priority: 'global',
+        requiresClosed: true,
+        bypassEditable: true,
+      },
+      {
+        config: effectiveShortcuts.closeTab,
+        handler: () => handlers.onCloseTab?.(),
         priority: 'global',
         requiresClosed: true,
         bypassEditable: true,
@@ -481,6 +554,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
 
       for (const shortcut of shortcuts) {
+        if (!shortcut.config.key) continue;
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
         const keyMatches = key === shortcutKey;
 

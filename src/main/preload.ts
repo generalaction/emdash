@@ -162,6 +162,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onMenuCloseTab: (listener: () => void) => {
+    const channel = 'menu:close-tab';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // Worktree management
   worktreeCreate: (args: {

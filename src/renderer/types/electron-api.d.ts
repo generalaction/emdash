@@ -65,6 +65,7 @@ declare global {
       onMenuCheckForUpdates: (listener: () => void) => () => void;
       onMenuUndo: (listener: () => void) => () => void;
       onMenuRedo: (listener: () => void) => () => void;
+      onMenuCloseTab: (listener: () => void) => () => void;
 
       // App settings
       getSettings: () => Promise<{
@@ -1311,6 +1312,7 @@ export interface ElectronAPI {
   onMenuCheckForUpdates: (listener: () => void) => () => void;
   onMenuUndo: (listener: () => void) => () => void;
   onMenuRedo: (listener: () => void) => () => void;
+  onMenuCloseTab: (listener: () => void) => () => void;
 
   // App info
   getVersion: () => Promise<string>;
