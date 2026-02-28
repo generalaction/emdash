@@ -25,6 +25,7 @@ import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
+import { ensureClaudeTrust } from './ClaudeConfigService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -254,6 +255,13 @@ async function resolveShellSetup(cwd: string): Promise<string | undefined> {
   return undefined;
 }
 
+function maybeAutoTrustForClaude(providerId: string, cwd?: string): void {
+  if (!cwd) return;
+  if (providerId !== 'claude') return;
+  if (!getAppSettings().tasks?.autoTrustWorktrees) return;
+  ensureClaudeTrust(cwd);
+}
+
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
   setOnDirectCliExit(async (id: string, cwd: string) => {
@@ -469,6 +477,9 @@ export function registerPtyIpc(): void {
           // Use the explicitly provided value
           shouldSkipResume = shouldSkipResume || false;
         }
+
+        const parsedPty = parsePtyId(id);
+        if (parsedPty) maybeAutoTrustForClaude(parsedPty.providerId, cwd);
 
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
 
@@ -813,6 +824,8 @@ export function registerPtyIpc(): void {
             effectiveResume = false;
           }
         }
+
+        maybeAutoTrustForClaude(providerId, cwd);
 
         const shellSetup = await resolveShellSetup(cwd);
 

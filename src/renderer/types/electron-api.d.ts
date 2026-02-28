@@ -84,6 +84,7 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoTrustWorktrees: boolean;
           };
           projects?: {
             defaultDirectory: string;
@@ -166,6 +167,7 @@ declare global {
           tasks?: {
             autoGenerateName?: boolean;
             autoApproveByDefault?: boolean;
+            autoTrustWorktrees?: boolean;
           };
           projects?: {
             defaultDirectory?: string;
@@ -247,6 +249,7 @@ declare global {
           tasks?: {
             autoGenerateName: boolean;
             autoApproveByDefault: boolean;
+            autoTrustWorktrees: boolean;
           };
           projects?: {
             defaultDirectory: string;
