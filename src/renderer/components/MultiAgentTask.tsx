@@ -17,6 +17,7 @@ import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import { rpc } from '@/lib/rpc';
 
 interface Props {
   task: Task;
@@ -605,7 +606,7 @@ const MultiAgentTask: React.FC<Props> = ({
                       }
                       // Mark initial injection as sent so it won't re-run on restart
                       if (initialInjection && !task.metadata?.initialInjectionSent) {
-                        void window.electronAPI.saveTask({
+                        void rpc.db.saveTask({
                           ...task,
                           metadata: {
                             ...task.metadata,

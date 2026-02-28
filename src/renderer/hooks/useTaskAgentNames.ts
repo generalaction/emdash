@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
+import { rpc } from '../lib/rpc';
 
 interface AgentNameInfo {
   primaryName: string;
@@ -24,14 +25,11 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
 
     async function load() {
       try {
-        const res = await window.electronAPI.getConversations(taskId);
+        const conversations = await rpc.db.getConversations(taskId);
         if (cancelled) return;
-
-        const conversations =
-          res?.success && Array.isArray(res.conversations) ? res.conversations : [];
         const providerIds = [
           ...new Set(
-            conversations.map((c: { provider?: string }) => c.provider).filter(Boolean) as string[]
+            conversations.map((c) => c.provider ?? undefined).filter(Boolean) as string[]
           ),
         ];
 
@@ -54,7 +52,7 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
 
         const primaryProvider = getProvider(providerIds[0] as ProviderId);
         const primaryName = primaryProvider?.name ?? providerIds[0];
-        const totalChats = conversations.filter((c: { provider?: string }) => c.provider).length;
+        const totalChats = conversations.filter((c) => c.provider).length;
         const additionalCount = Math.max(0, totalChats - 1);
         const displayLabel =
           additionalCount > 0 ? `${primaryName} +${additionalCount}` : primaryName;

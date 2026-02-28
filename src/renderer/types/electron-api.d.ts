@@ -1082,57 +1082,6 @@ declare global {
         error?: string;
       }>;
 
-      // Database operations
-      getProjects: () => Promise<any[]>;
-      saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-      getTasks: (projectId?: string) => Promise<any[]>;
-      saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
-      deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-      deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-      archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-      restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-      getArchivedTasks: (projectId?: string) => Promise<any[]>;
-
-      // Conversation and Message operations
-      saveConversation: (conversation: any) => Promise<{ success: boolean; error?: string }>;
-      getConversations: (
-        taskId: string
-      ) => Promise<{ success: boolean; conversations?: any[]; error?: string }>;
-      deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
-      cleanupSessionDirectory: (args: {
-        taskPath: string;
-        conversationId: string;
-      }) => Promise<{ success: boolean }>;
-      saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
-      getMessages: (
-        conversationId: string
-      ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
-      getOrCreateDefaultConversation: (
-        taskId: string
-      ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
-
-      // Multi-chat support
-      createConversation: (params: {
-        taskId: string;
-        title: string;
-        provider?: string;
-        isMain?: boolean;
-      }) => Promise<{ success: boolean; conversation?: any; error?: string }>;
-      setActiveConversation: (params: {
-        taskId: string;
-        conversationId: string;
-      }) => Promise<{ success: boolean; error?: string }>;
-      getActiveConversation: (
-        taskId: string
-      ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
-      reorderConversations: (params: {
-        taskId: string;
-        conversationIds: string[];
-      }) => Promise<{ success: boolean; error?: string }>;
-      updateConversationTitle: (params: {
-        conversationId: string;
-        title: string;
-      }) => Promise<{ success: boolean; error?: string }>;
 
       // Debug helpers
       debugAppendLog: (
@@ -1804,25 +1753,6 @@ export interface ElectronAPI {
     error?: string;
   }>;
 
-  // Database operations
-  getProjects: () => Promise<any[]>;
-  saveProject: (project: any) => Promise<{ success: boolean; error?: string }>;
-  getTasks: (projectId?: string) => Promise<any[]>;
-  saveTask: (task: any) => Promise<{ success: boolean; error?: string }>;
-  deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
-  deleteTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-  archiveTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-  restoreTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
-  getArchivedTasks: (projectId?: string) => Promise<any[]>;
-
-  // Message operations
-  saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
-  getMessages: (
-    conversationId: string
-  ) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
-  getOrCreateDefaultConversation: (
-    taskId: string
-  ) => Promise<{ success: boolean; conversation?: any; error?: string }>;
 
   // Debug helpers
   debugAppendLog: (

@@ -9,6 +9,7 @@ import {
   withRepoKey,
 } from '../lib/projectUtils';
 import type { Project, Task } from '../types/app';
+import { rpc } from '../lib/rpc';
 
 interface UseProjectManagementOptions {
   platform: string;
@@ -194,22 +195,19 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
             platform
           );
 
-          const saveResult = await window.electronAPI.saveProject(projectToSave);
-          if (saveResult.success) {
-            const { captureTelemetry } = await import('../lib/telemetryClient');
-            captureTelemetry('project_added_success', { source: ghInfo.source });
-            setProjects((prev) => [...prev, projectToSave]);
-            activateProjectView(projectToSave);
-          } else {
-            const { log } = await import('../lib/logger');
-            log.error('Failed to save project:', saveResult.error);
+          try {
+            await rpc.db.saveProject(projectToSave);
+          } catch (e) {
             toast({
-              title: 'Failed to Add Project',
-              description:
-                'Project opened but could not be saved to database. Please check console for details.',
+              title: 'Failed to save project',
+              description: 'Please check the console for details.',
               variant: 'destructive',
-            });
+            })
           }
+          const { captureTelemetry } = await import('../lib/telemetryClient');
+          captureTelemetry('project_added_success', { source: ghInfo.source });
+          setProjects((prev) => [...prev, projectToSave]);
+          activateProjectView(projectToSave);
         } catch (error) {
           const { log } = await import('../lib/logger');
           log.error('Git detection error:', error as any);
@@ -331,21 +329,11 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           platform
         );
 
-        const saveResult = await window.electronAPI.saveProject(projectToSave);
-        if (saveResult.success) {
-          captureTelemetry('project_clone_success');
-          captureTelemetry('project_added_success', { source: 'clone' });
-          setProjects((prev) => [...prev, projectToSave]);
-          activateProjectView(projectToSave);
-        } else {
-          const { log } = await import('../lib/logger');
-          log.error('Failed to save project:', saveResult.error);
-          toast({
-            title: 'Project Cloned',
-            description: 'Repository cloned but failed to save to database.',
-            variant: 'destructive',
-          });
-        }
+        await rpc.db.saveProject(projectToSave);
+        captureTelemetry('project_clone_success');
+        captureTelemetry('project_added_success', { source: 'clone' });
+        setProjects((prev) => [...prev, projectToSave]);
+        activateProjectView(projectToSave);
       } catch (error) {
         const { log } = await import('../lib/logger');
         log.error('Failed to load cloned project:', error);
@@ -412,10 +400,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           platform
         );
 
-        const saveResult = await window.electronAPI.saveProject(projectToSave);
-        if (saveResult.success) {
-          captureTelemetry('project_create_success');
-          captureTelemetry('project_added_success', { source: 'new_project' });
+        await rpc.db.saveProject(projectToSave);
+        captureTelemetry('project_create_success');
+        captureTelemetry('project_added_success', { source: 'new_project' });
           toast({
             title: 'Project created successfully!',
             description: `${projectToSave.name} has been added to your projects.`,
@@ -433,15 +420,6 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           if (!isAuthenticated || !isGithubRemote) {
             setShowTaskModal(true);
           }
-        } else {
-          const { log } = await import('../lib/logger');
-          log.error('Failed to save project:', saveResult.error);
-          toast({
-            title: 'Project Created',
-            description: 'Repository created but failed to save to database.',
-            variant: 'destructive',
-          });
-        }
       } catch (error) {
         const { log } = await import('../lib/logger');
         log.error('Failed to load new project:', error);
@@ -495,8 +473,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         })
         .catch(() => {});
 
-      const res = await window.electronAPI.deleteProject(project.id);
-      if (!res?.success) throw new Error(res?.error || 'Failed to delete project');
+      await rpc.db.deleteProject(project.id);
 
       const { captureTelemetry } = await import('../lib/telemetryClient');
       captureTelemetry('project_deleted');
