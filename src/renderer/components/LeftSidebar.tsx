@@ -339,17 +339,26 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             }`}
                             title={projectIsRemote ? 'Remote Project' : undefined}
                           >
-                            <CollapsibleTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
-                                onClick={(e) => e.stopPropagation()}
-                                aria-label={`Toggle tasks for ${typedProject.name}`}
-                              >
-                                <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
-                                <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
-                              </button>
-                            </CollapsibleTrigger>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <CollapsibleTrigger asChild>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label={`Toggle tasks for ${typedProject.name}`}
+                                    >
+                                      <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
+                                      <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
+                                    </button>
+                                  </TooltipTrigger>
+                                </CollapsibleTrigger>
+                                <TooltipContent side="right" sideOffset={4}>
+                                  Toggle Tasks
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <motion.button
                               type="button"
                               className="min-w-0 flex-1 cursor-default truncate bg-transparent text-left text-foreground/60 outline-none focus-visible:outline-none"
