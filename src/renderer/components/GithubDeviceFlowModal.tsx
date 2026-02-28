@@ -374,7 +374,20 @@ export function GithubDeviceFlowModal({
                 )}
 
                 <div className="w-full border-t pt-4">
-                  <p className="text-center text-xs text-muted-foreground">Having trouble?</p>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Having{' '}
+                    <button
+                      onClick={() =>
+                        window.electronAPI.openExternal(
+                          'https://github.com/generalaction/emdash/issues'
+                        )
+                      }
+                      className="text-primary hover:underline focus:underline focus:outline-none"
+                    >
+                      trouble
+                    </button>
+                    ?
+                  </p>
                 </div>
 
                 <div className="space-x-3 text-center text-xs text-muted-foreground">
