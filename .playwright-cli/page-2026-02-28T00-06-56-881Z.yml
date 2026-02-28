@@ -1,0 +1,4 @@
+- generic [ref=e4]:
+  - heading "Something went wrong" [level=1] [ref=e5]
+  - paragraph [ref=e6]: Cannot read properties of undefined (reading 'onMenuOpenSettings')
+  - button "Reload" [ref=e8] [cursor=pointer]
