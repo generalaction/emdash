@@ -162,6 +162,7 @@ export function registerSshIpc() {
     ): Promise<ConnectionTestResult> => {
       try {
         const { Client } = await import('ssh2');
+        const debugLogs: string[] = [];
         const testClient = new Client();
 
         return new Promise(async (resolve) => {
@@ -170,17 +171,21 @@ export function registerSshIpc() {
           testClient.on('ready', () => {
             const latency = Date.now() - startTime;
             testClient.end();
-            resolve({ success: true, latency });
+            resolve({ success: true, latency, debugLogs });
           });
 
           testClient.on('error', (err: Error) => {
-            resolve({ success: false, error: err.message });
+            resolve({ success: false, error: err.message, debugLogs });
           });
 
           testClient.on('keyboard-interactive', () => {
             // Close the connection if keyboard-interactive auth is required
             testClient.end();
-            resolve({ success: false, error: 'Keyboard-interactive authentication not supported' });
+            resolve({
+              success: false,
+              error: 'Keyboard-interactive authentication not supported',
+              debugLogs,
+            });
           });
 
           const connectConfig: {
@@ -192,11 +197,13 @@ export function registerSshIpc() {
             privateKey?: Buffer;
             passphrase?: string;
             agent?: string;
+            debug?: (info: string) => void;
           } = {
             host: config.host,
             port: config.port,
             username: config.username,
             readyTimeout: 10000,
+            debug: (info: string) => debugLogs.push(info),
           };
 
           if (config.authType === 'password') {
@@ -218,7 +225,11 @@ export function registerSshIpc() {
                 connectConfig.passphrase = config.passphrase;
               }
             } catch (err: any) {
-              resolve({ success: false, error: `Failed to read private key: ${err.message}` });
+              resolve({
+                success: false,
+                error: `Failed to read private key: ${err.message}`,
+                debugLogs,
+              });
               return;
             }
           } else if (config.authType === 'agent') {

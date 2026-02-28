@@ -1170,7 +1170,7 @@ declare global {
         useAgent?: boolean;
         password?: string;
         passphrase?: string;
-      }) => Promise<{ success: boolean; error?: string; latency?: number }>;
+      }) => Promise<{ success: boolean; error?: string; latency?: number; debugLogs?: string[] }>;
       sshSaveConnection: (config: {
         id?: string;
         name: string;

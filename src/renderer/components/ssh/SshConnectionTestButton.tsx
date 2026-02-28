@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/spinner';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { cn } from '@/lib/utils';
-import { Play, CheckCircle2, XCircle, Zap } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Zap, ChevronDown, Copy, Check } from 'lucide-react';
 import type { ConnectionTestResult } from '@shared/ssh/types';
 
 type TestState = 'idle' | 'testing' | 'success' | 'error';
@@ -23,11 +24,15 @@ export const SshConnectionTestButton: React.FC<Props> = ({
   const [testState, setTestState] = useState<TestState>('idle');
   const [result, setResult] = useState<ConnectionTestResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [debugLogsOpen, setDebugLogsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleTest = useCallback(async () => {
     setTestState('testing');
     setResult(null);
     setErrorMessage(null);
+    setDebugLogsOpen(false);
+    setCopied(false);
 
     try {
       // For testing, we need the full config - this would need to be fetched or passed in
@@ -53,11 +58,11 @@ export const SshConnectionTestButton: React.FC<Props> = ({
         onResult?.({ success: false, message: testResult.error });
       }
 
-      // Reset to idle after 3 seconds on success
+      // Reset button state to idle after 3 seconds on success,
+      // but keep result so debug logs remain accessible
       if (testResult.success) {
         setTimeout(() => {
           setTestState('idle');
-          setResult(null);
         }, 3000);
       }
     } catch (error) {
@@ -134,6 +139,39 @@ export const SshConnectionTestButton: React.FC<Props> = ({
 
       {testState === 'error' && errorMessage && (
         <p className="max-w-[200px] text-xs text-red-600 dark:text-red-400">{errorMessage}</p>
+      )}
+
+      {result?.debugLogs && result.debugLogs.length > 0 && (
+        <Collapsible open={debugLogsOpen} onOpenChange={setDebugLogsOpen} className="max-w-[300px]">
+          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground [&[data-state=open]>svg:first-child]:rotate-180">
+            <ChevronDown className="h-3 w-3 transition-transform duration-200" />
+            Show debug log ({result.debugLogs.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-1 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(result.debugLogs!.join('\n'));
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    // Clipboard access may be denied
+                  }
+                }}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                aria-label="Copy debug log"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <pre className="max-h-[200px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words rounded border bg-muted/50 p-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
+              {result.debugLogs.join('\n')}
+            </pre>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
