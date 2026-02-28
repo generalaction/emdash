@@ -439,7 +439,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         });
 
         try {
-          const refreshedTasks = await rpc.db.getTasks(targetProject.id) as Task[];
+          const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
@@ -698,7 +698,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // Restore task to UI on error
         let restored = false;
         try {
-          const refreshedTasks = await rpc.db.getTasks(targetProject.id) as Task[];
+          const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
@@ -765,7 +765,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       let refreshed = false;
       let restoredTaskForSetup: Task | null = null;
       try {
-        const refreshedTasks = await rpc.db.getTasks(targetProject.id) as Task[];
+        const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
         setProjects((prev) =>
           prev.map((project) =>
             project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project

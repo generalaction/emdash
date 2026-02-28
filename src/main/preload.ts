@@ -1021,7 +1021,6 @@ export interface ElectronAPI {
   githubCheckCLIInstalled: () => Promise<boolean>;
   githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
 
-
   // Host preview (non-container)
   hostPreviewStart: (args: {
     taskId: string;

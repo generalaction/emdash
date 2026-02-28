@@ -1,35 +1,28 @@
-import { ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { databaseService } from '../services/DatabaseService';
 import type { Conversation, Message, Project, Task } from '../services/DatabaseService';
-import { createRPCController, createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
+import { createRPCController } from '../../shared/ipc/rpc';
 import { log } from '../lib/logger';
 
 export const databaseController = createRPCController({
-  getProjects: (): Promise<Project[]> =>
-    databaseService.getProjects(),
+  getProjects: (): Promise<Project[]> => databaseService.getProjects(),
 
   saveProject: (project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> =>
     databaseService.saveProject(project),
 
-  getTasks: (projectId?: string): Promise<Task[]> =>
-    databaseService.getTasks(projectId),
+  getTasks: (projectId?: string): Promise<Task[]> => databaseService.getTasks(projectId),
 
   saveTask: (task: Omit<Task, 'createdAt' | 'updatedAt'>): Promise<void> =>
     databaseService.saveTask(task),
 
-  deleteProject: (projectId: string): Promise<void> =>
-    databaseService.deleteProject(projectId),
+  deleteProject: (projectId: string): Promise<void> => databaseService.deleteProject(projectId),
 
-  deleteTask: (taskId: string): Promise<void> =>
-    databaseService.deleteTask(taskId),
+  deleteTask: (taskId: string): Promise<void> => databaseService.deleteTask(taskId),
 
-  archiveTask: (taskId: string): Promise<void> =>
-    databaseService.archiveTask(taskId),
+  archiveTask: (taskId: string): Promise<void> => databaseService.archiveTask(taskId),
 
-  restoreTask: (taskId: string): Promise<void> =>
-    databaseService.restoreTask(taskId),
+  restoreTask: (taskId: string): Promise<void> => databaseService.restoreTask(taskId),
 
   getArchivedTasks: (projectId?: string): Promise<Task[]> =>
     databaseService.getArchivedTasks(projectId),
@@ -93,13 +86,3 @@ export const databaseController = createRPCController({
     }
   },
 });
-
-export const rpcRouter = createRPCRouter({
-  db: databaseController
-})
-
-export type RpcRouter = typeof rpcRouter;
-
-export function registerDatabaseIpc() {
-  registerRPCRouter({ db: databaseController }, ipcMain);
-}

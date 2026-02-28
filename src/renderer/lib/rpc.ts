@@ -1,6 +1,10 @@
 import { createRPCClient } from '../../shared/ipc/rpc';
-import type { RpcRouter } from '../../main/ipc/dbIpc';
+import type { RpcRouter } from '../../main/ipc';
 
-const invoke = (window.electronAPI as unknown as { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> }).invoke;
+const invoke = (
+  window.electronAPI as unknown as {
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+  }
+).invoke;
 
 export const rpc = createRPCClient<RpcRouter>(invoke);

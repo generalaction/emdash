@@ -1082,7 +1082,6 @@ declare global {
         error?: string;
       }>;
 
-
       // Debug helpers
       debugAppendLog: (
         filePath: string,
@@ -1752,7 +1751,6 @@ export interface ElectronAPI {
     issues?: any[];
     error?: string;
   }>;
-
 
   // Debug helpers
   debugAppendLog: (

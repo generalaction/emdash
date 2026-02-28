@@ -340,7 +340,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const refetchArchivedTasks = useCallback(() => {
     const timeoutId = setTimeout(async () => {
       try {
-        const archivedTasks = await rpc.db.getArchivedTasks(project.id) as Task[];
+        const archivedTasks = (await rpc.db.getArchivedTasks(project.id)) as Task[];
         setArchivedTasks(archivedTasks);
       } catch {
         //

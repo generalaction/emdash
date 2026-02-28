@@ -28,9 +28,7 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
         const conversations = await rpc.db.getConversations(taskId);
         if (cancelled) return;
         const providerIds = [
-          ...new Set(
-            conversations.map((c) => c.provider ?? undefined).filter(Boolean) as string[]
-          ),
+          ...new Set(conversations.map((c) => c.provider ?? undefined).filter(Boolean) as string[]),
         ];
 
         if (providerIds.length === 0 && fallbackAgentId) {

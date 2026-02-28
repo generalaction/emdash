@@ -202,7 +202,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
               title: 'Failed to save project',
               description: 'Please check the console for details.',
               variant: 'destructive',
-            })
+            });
           }
           const { captureTelemetry } = await import('../lib/telemetryClient');
           captureTelemetry('project_added_success', { source: ghInfo.source });
@@ -403,23 +403,23 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         await rpc.db.saveProject(projectToSave);
         captureTelemetry('project_create_success');
         captureTelemetry('project_added_success', { source: 'new_project' });
-          toast({
-            title: 'Project created successfully!',
-            description: `${projectToSave.name} has been added to your projects.`,
-          });
-          // Add to beginning of list
-          setProjects((prev) => {
-            const updated = [projectToSave, ...prev];
-            saveProjectOrder(updated);
-            return updated;
-          });
-          activateProjectView(projectToSave);
+        toast({
+          title: 'Project created successfully!',
+          description: `${projectToSave.name} has been added to your projects.`,
+        });
+        // Add to beginning of list
+        setProjects((prev) => {
+          const updated = [projectToSave, ...prev];
+          saveProjectOrder(updated);
+          return updated;
+        });
+        activateProjectView(projectToSave);
 
-          // Auto-open task modal for non-GitHub projects
-          const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
-          if (!isAuthenticated || !isGithubRemote) {
-            setShowTaskModal(true);
-          }
+        // Auto-open task modal for non-GitHub projects
+        const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
+        if (!isAuthenticated || !isGithubRemote) {
+          setShowTaskModal(true);
+        }
       } catch (error) {
         const { log } = await import('../lib/logger');
         log.error('Failed to load new project:', error);

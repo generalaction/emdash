@@ -33,15 +33,21 @@ type IpcClient<R extends RouterMap> = {
 export function createRPCClient<Router extends RouterMap>(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 ): IpcClient<Router> {
-  return new Proxy({}, {
-    get(_, ns: string) {
-      if (typeof ns !== 'string' || ns === 'then') return undefined;
-      return new Proxy({}, {
-        get(_, procedure: string) {
-          if (typeof procedure !== 'string' || procedure === 'then') return undefined;
-          return (...args: unknown[]) => invoke(`${ns}.${procedure}`, ...args);
-        },
-      });
-    },
-  }) as IpcClient<Router>;
+  return new Proxy(
+    {},
+    {
+      get(_, ns: string) {
+        if (typeof ns !== 'string' || ns === 'then') return undefined;
+        return new Proxy(
+          {},
+          {
+            get(_, procedure: string) {
+              if (typeof procedure !== 'string' || procedure === 'then') return undefined;
+              return (...args: unknown[]) => invoke(`${ns}.${procedure}`, ...args);
+            },
+          }
+        );
+      },
+    }
+  ) as IpcClient<Router>;
 }
