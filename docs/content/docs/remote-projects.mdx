@@ -130,17 +130,38 @@ All shell commands are executed on the remote server. Your local machine only ru
 - Git installed on the remote server
 - At least one [provider](/providers) CLI installed on the remote machine
 
+## Supported Git Features
+
+Remote projects support the same git workflow as local projects:
+
+- File status watching with automatic change detection
+- File diffs with side-by-side viewer
+- Stage, unstage, and revert individual files or all files
+- Commit and push from the UI
+- Branch status (ahead/behind counts)
+- Branch listing and branch rename
+- PR creation (regular and draft), merge, and status checks
+- PR comments and CI check runs
+
+## Remote Server Prerequisites
+
+Your remote server needs the following for full functionality:
+
+1. **Git** installed and configured with `user.name` and `user.email`
+2. **GitHub CLI (`gh`)** installed and authenticated (required for PR features)
+3. **SSH key for GitHub** configured on the server (required for push/pull)
+
+See the [SSH Setup Guide](https://github.com/generalaction/emdash/blob/main/docs/ssh-setup.md) for detailed server preparation steps.
+
 ## Current Limitations
 
-Some features that work locally are not yet available for remote projects:
+Some features are not yet available for remote projects:
 
-- Staging/unstaging individual files in the UI
-- Live file diffs and status updates
-- Branch rename and worktree merge via UI
 - Worktree pooling (instant task start)
-- GitHub PR creation, status checks, and merge from the UI
-
-Agents can still perform these operations via shell commands in the terminal.
+- Worktree merge via UI
+- Session isolation for multi-chat (--session-id)
+- Plan lock/unlock
+- Remote lifecycle scripts
 
 ## Emdash Cloud for Teams
 

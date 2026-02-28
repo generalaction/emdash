@@ -20,6 +20,97 @@ When you add a remote project:
 4. Coding agents execute in remote worktrees
 5. All connections use your system's SSH agent or configured keys
 
+## Preparing Your Remote Server
+
+Before adding a remote project in Emdash, set up your server with the required tools.
+
+### 1. Install Git
+
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y git
+
+# Configure identity (required for commits)
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+```
+
+### 2. Install GitHub CLI (for PR features)
+
+The `gh` CLI is required for creating PRs, viewing check runs, and other GitHub operations from the Emdash UI.
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+  https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli-stable.list > /dev/null
+sudo apt update && sudo apt install -y gh
+
+# Authenticate (choose GitHub.com → HTTPS → Login with web browser)
+gh auth login
+```
+
+### 3. Set Up SSH Key for GitHub (for push/pull)
+
+Git push and pull require SSH authentication to GitHub from the server. Create a dedicated key:
+
+```bash
+# Generate a passphrase-free key for non-interactive use
+ssh-keygen -t ed25519 -C "server-github" -f ~/.ssh/id_github -N ""
+
+# Add the key to your GitHub account
+gh ssh-key add ~/.ssh/id_github.pub --title "My Server"
+
+# Configure git to use this key (use absolute path, not ~)
+HOME_DIR=$(eval echo ~)
+git config --global core.sshCommand "ssh -i ${HOME_DIR}/.ssh/id_github"
+
+# Trust GitHub's host key
+ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+# Verify it works
+ssh -T git@github.com
+```
+
+**Important:** Use the absolute path (e.g., `/home/user/.ssh/id_github`) in `core.sshCommand`, not `~`. Emdash runs commands in a non-interactive shell where tilde expansion may not work.
+
+Alternatively, configure SSH directly in `~/.ssh/config`:
+
+```
+Host github.com
+    IdentityFile /home/user/.ssh/id_github
+    IdentitiesOnly yes
+```
+
+### 4. Clone or Initialize a Repository
+
+```bash
+# Clone an existing repo (use SSH URL for push access)
+git clone git@github.com:your-org/your-repo.git
+
+# Or initialize a new repo
+mkdir ~/my-project && cd ~/my-project && git init
+```
+
+**Note:** If your repo was cloned with HTTPS, switch to SSH for push access:
+
+```bash
+git remote set-url origin git@github.com:your-org/your-repo.git
+```
+
+### 5. Install a Coding Agent
+
+At least one CLI agent must be installed on the server. For example:
+
+```bash
+# Claude Code
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Or install another supported agent
+```
+
 ## Adding a Remote Project
 
 ### Step 1: Configure SSH Connection
