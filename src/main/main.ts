@@ -111,6 +111,7 @@ import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
+import { agentEventService } from './services/AgentEventService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -288,6 +289,13 @@ app.whenReady().then(async () => {
     // ignore errors — telemetry is best-effort only
   }
 
+  // Start agent event HTTP server (receives hook callbacks from CLI agents)
+  try {
+    await agentEventService.start();
+  } catch (error) {
+    console.warn('Failed to start agent event service:', error);
+  }
+
   // Register IPC handlers
   registerAllIpc();
 
@@ -331,6 +339,8 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
+  // Stop agent event HTTP server
+  agentEventService.stop();
   // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
 

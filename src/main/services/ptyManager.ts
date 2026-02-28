@@ -9,6 +9,7 @@ import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
+import { agentEventService } from './AgentEventService';
 
 /**
  * Environment variables to pass through for agent authentication.
@@ -812,6 +813,14 @@ export function startDirectPty(options: {
     }
   }
 
+  // Pass agent event hook env vars so CLI hooks can call back to Emdash
+  const hookPort = agentEventService.getPort();
+  if (hookPort > 0) {
+    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
+    useEnv['EMDASH_PTY_ID'] = id;
+    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
+  }
+
   // Lazy load native module
   let pty: typeof import('node-pty');
   try {
@@ -911,6 +920,15 @@ export async function startPty(options: {
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
   };
+
+  // Pass agent event hook env vars so CLI hooks can call back to Emdash
+  const hookPort = agentEventService.getPort();
+  if (hookPort > 0) {
+    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
+    useEnv['EMDASH_PTY_ID'] = id;
+    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
+  }
+
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
     try {

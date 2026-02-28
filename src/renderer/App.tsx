@@ -43,6 +43,9 @@ import { useTaskManagement } from './hooks/useTaskManagement';
 import { createTask } from './lib/taskCreationService';
 import { getProjectRepoKey } from './lib/projectUtils';
 import { handleMenuUndo, handleMenuRedo } from './lib/menuUndoRedo';
+import { useAgentEvents } from './hooks/useAgentEvents';
+import { activityStore } from './lib/activityStore';
+import { soundPlayer } from './lib/soundPlayer';
 
 // Extracted constants
 import {
@@ -82,6 +85,28 @@ const AppContent: React.FC = () => {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
+
+  // Agent event hook: plays sounds and updates sidebar status for all tasks
+  const handleAgentEvent = useCallback((event: import('@shared/agentEvents').AgentEvent) => {
+    activityStore.handleAgentEvent(event);
+  }, []);
+  useAgentEvents(handleAgentEvent);
+
+  // Load notification sound settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await window.electronAPI.getSettings();
+        if (result.success && result.settings) {
+          const notif = result.settings.notifications;
+          const masterEnabled = Boolean(notif?.enabled ?? true);
+          const soundOn = Boolean(notif?.sound ?? true);
+          soundPlayer.setEnabled(masterEnabled && soundOn);
+          soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
+        }
+      } catch {}
+    })();
+  }, []);
 
   // Ref for selectedProject, so useModalState can read it without re-instantiation
   const selectedProjectRef = useRef<{ id: string } | null>(null);

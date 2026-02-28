@@ -2,6 +2,7 @@ import { classifyActivity } from './activityClassifier';
 import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
 import { type PtyIdKind, parsePtyId, makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
+import type { AgentEvent } from '@shared/agentEvents';
 
 type Listener = (busy: boolean) => void;
 
@@ -106,6 +107,21 @@ class ActivityStore {
 
   setTaskBusy(wsId: string, busy: boolean) {
     this.setBusy(wsId, busy, false);
+  }
+
+  handleAgentEvent(event: AgentEvent) {
+    const wsId = event.taskId;
+    if (!wsId) return;
+
+    if (event.type === 'notification') {
+      const nt = event.payload.notificationType;
+      // Agent is waiting for user input — mark idle
+      if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
+        this.setBusy(wsId, false, true);
+      }
+    } else if (event.type === 'stop') {
+      this.setBusy(wsId, false, true);
+    }
   }
 
   subscribe(wsId: string, fn: Listener, opts?: { kinds?: PtyIdKind[] }) {

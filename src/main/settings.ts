@@ -78,6 +78,8 @@ export interface AppSettings {
   notifications?: {
     enabled: boolean;
     sound: boolean;
+    osNotifications: boolean;
+    soundFocusMode: 'always' | 'unfocused';
   };
   mcp?: {
     context7?: {
@@ -134,6 +136,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   notifications: {
     enabled: true,
     sound: true,
+    osNotifications: true,
+    soundFocusMode: 'always',
   },
   mcp: {
     context7: {
@@ -334,6 +338,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
     notifications: {
       enabled: DEFAULT_SETTINGS.notifications!.enabled,
       sound: DEFAULT_SETTINGS.notifications!.sound,
+      osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
+      soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
     },
     mcp: {
       context7: {
@@ -366,9 +372,17 @@ function normalizeSettings(input: AppSettings): AppSettings {
   };
 
   const notif = (input as any)?.notifications || {};
+  const rawFocusMode = notif?.soundFocusMode;
   out.notifications = {
     enabled: Boolean(notif?.enabled ?? DEFAULT_SETTINGS.notifications!.enabled),
     sound: Boolean(notif?.sound ?? DEFAULT_SETTINGS.notifications!.sound),
+    osNotifications: Boolean(
+      notif?.osNotifications ?? DEFAULT_SETTINGS.notifications!.osNotifications
+    ),
+    soundFocusMode:
+      rawFocusMode === 'always' || rawFocusMode === 'unfocused'
+        ? rawFocusMode
+        : DEFAULT_SETTINGS.notifications!.soundFocusMode,
   };
 
   // MCP

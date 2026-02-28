@@ -1,4 +1,4 @@
-import { app, ipcMain, WebContents, BrowserWindow, Notification } from 'electron';
+import { app, ipcMain, WebContents, BrowserWindow } from 'electron';
 import {
   startPty,
   writePty,
@@ -18,11 +18,11 @@ import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
-import { getAppSettings } from '../settings';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -816,6 +816,17 @@ export function registerPtyIpc(): void {
 
         const shellSetup = await resolveShellSetup(cwd);
 
+        // Write Claude Code hook config so it calls back to Emdash on events
+        if (providerId === 'claude') {
+          try {
+            ClaudeHookService.writeHookConfig(cwd);
+          } catch (err) {
+            log.warn('pty:startDirect - failed to write Claude hook config', {
+              error: String(err),
+            });
+          }
+        }
+
         // Try direct spawn first; skip if shellSetup requires a shell wrapper
         const directProc = shellSetup
           ? null
@@ -1021,37 +1032,6 @@ function maybeMarkProviderFinish(
     outcome,
     duration_ms: duration,
   });
-
-  if (cause === 'process_exit' && exitCode === 0) {
-    const providerName = getProvider(providerId)?.name ?? providerId;
-    showCompletionNotification(providerName);
-  }
-}
-
-/**
- * Show a system notification for provider completion.
- * Only shows if: notifications are enabled, supported, and app is not focused.
- */
-function showCompletionNotification(providerName: string) {
-  try {
-    const settings = getAppSettings();
-
-    if (!settings.notifications?.enabled) return;
-    if (!Notification.isSupported()) return;
-
-    const windows = BrowserWindow.getAllWindows();
-    const anyFocused = windows.some((w) => w.isFocused());
-    if (anyFocused) return;
-
-    const notification = new Notification({
-      title: `${providerName} Task Complete`,
-      body: 'Your agent has finished working',
-      silent: !settings.notifications?.sound,
-    });
-    notification.show();
-  } catch (error) {
-    log.warn('Failed to show completion notification', { error });
-  }
 }
 
 // Kill all PTYs on app shutdown to prevent crash loop

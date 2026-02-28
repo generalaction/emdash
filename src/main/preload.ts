@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
+import type { AgentEvent } from '../shared/agentEvents';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -128,6 +129,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPtyStarted: (listener: (data: { id: string }) => void) => {
     const channel = 'pty:started';
     const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
+    const channel = 'agent:event';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: AgentEvent,
+      meta: { appFocused: boolean }
+    ) => listener(data, meta);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
