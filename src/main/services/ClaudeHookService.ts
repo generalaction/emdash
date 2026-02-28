@@ -39,20 +39,23 @@ export class ClaudeHookService {
       // May already exist
     }
 
-    // Merge only the hooks we own, preserve everything else.
-    // Claude Code hook format: [{ hooks: [{ type, command }] }]
-    // Omitting `matcher` matches all occurrences of the event.
+    // Merge our hook entries alongside any user-defined hooks.
+    // Claude Code hook format: [{ matcher?, hooks: [{ type, command }] }]
+    // We identify our own entries by the EMDASH_HOOK_PORT marker in the
+    // command string, strip them out, then append a fresh one. This is
+    // idempotent across restarts and preserves user hooks.
     const hooks = existing.hooks || {};
-    hooks.Notification = [
-      {
-        hooks: [{ type: 'command', command: makeCommand('notification') }],
-      },
-    ];
-    hooks.Stop = [
-      {
-        hooks: [{ type: 'command', command: makeCommand('stop') }],
-      },
-    ];
+
+    for (const eventType of ['Notification', 'Stop'] as const) {
+      const prev: unknown[] = Array.isArray(hooks[eventType]) ? hooks[eventType] : [];
+      const userEntries = prev.filter(
+        (entry: any) => !JSON.stringify(entry).includes('EMDASH_HOOK_PORT')
+      );
+      userEntries.push({
+        hooks: [{ type: 'command', command: makeCommand(eventType.toLowerCase()) }],
+      });
+      hooks[eventType] = userEntries;
+    }
 
     existing.hooks = hooks;
 
