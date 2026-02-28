@@ -52,6 +52,7 @@ import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
+import { OpenPrsSection } from './OpenPrsSection';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -956,6 +957,26 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       </p>
                     </div>
                   )}
+
+                  {project.githubInfo?.connected && (
+                    <OpenPrsSection
+                      projectPath={project.path}
+                      projectId={project.id}
+                      onOpenTask={(task) => {
+                        const newTask: Task = {
+                          id: task.id,
+                          projectId: project.id,
+                          name: task.name,
+                          branch: task.branch || '',
+                          path: task.path,
+                          status: 'idle',
+                          useWorktree: true,
+                          prNumber: task.prNumber,
+                        };
+                        onSelectTask(newTask);
+                      }}
+                    />
+                  )}
                 </>
               ) : (
                 <Alert>
@@ -963,6 +984,25 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   <AlertDescription>
                     Each task is an isolated copy and branch of your repo (Git-tracked files only).
                   </AlertDescription>
+                  {project.githubInfo?.connected && (
+                    <OpenPrsSection
+                      projectPath={project.path}
+                      projectId={project.id}
+                      onOpenTask={(task) => {
+                        const newTask: Task = {
+                          id: task.id,
+                          projectId: project.id,
+                          name: task.name,
+                          branch: task.branch || '',
+                          path: task.path,
+                          status: 'idle',
+                          useWorktree: true,
+                          prNumber: task.prNumber,
+                        };
+                        onSelectTask(newTask);
+                      }}
+                    />
+                  )}
                 </Alert>
               )}
             </div>

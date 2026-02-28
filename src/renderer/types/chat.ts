@@ -57,4 +57,5 @@ export interface Task {
   createdAt?: string;
   updatedAt?: string;
   agentId?: string;
+  prNumber?: number;
 }

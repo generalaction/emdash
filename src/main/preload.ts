@@ -323,6 +323,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
+  getFileFromBranch: (args: { taskPath: string; branch: string; filePath: string }) =>
+    ipcRenderer.invoke('git:get-file-from-branch', args),
   gitCommitAndPush: (args: {
     taskPath: string;
     commitMessage?: string;
@@ -435,6 +437,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('github:createNewProject', params),
   githubListPullRequests: (projectPath: string) =>
     ipcRenderer.invoke('github:listPullRequests', { projectPath }),
+  githubGetPullRequestDiff: (args: { projectPath: string; prNumber: number }) =>
+    ipcRenderer.invoke('github:getPullRequestDiff', args),
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) =>
+    ipcRenderer.invoke('github:getPullRequestBaseDiff', args),
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;

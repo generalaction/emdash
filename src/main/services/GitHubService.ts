@@ -828,6 +828,51 @@ export class GitHubService {
   }
 
   /**
+   * Get the diff for a pull request
+   */
+  async getPullRequestDiff(projectPath: string, prNumber: number): Promise<string> {
+    try {
+      const { stdout } = await this.execGH(`gh pr diff ${prNumber} --repo ${projectPath}`, {
+        cwd: projectPath,
+      });
+      return stdout || '';
+    } catch (error) {
+      console.error('Failed to get PR diff:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get PR details including base branch for diff comparison
+   */
+  async getPullRequestDetails(
+    projectPath: string,
+    prNumber: number
+  ): Promise<{
+    baseRefName: string;
+    headRefName: string;
+    title: string;
+    number: number;
+  } | null> {
+    try {
+      const { stdout } = await this.execGH(
+        `gh pr view ${prNumber} --json baseRefName,headRefName,title,number`,
+        { cwd: projectPath }
+      );
+      const data = JSON.parse(stdout || '{}');
+      return {
+        baseRefName: data.baseRefName || 'main',
+        headRefName: data.headRefName || '',
+        title: data.title || '',
+        number: data.number || prNumber,
+      };
+    } catch (error) {
+      console.error('Failed to get PR details:', error);
+      return null;
+    }
+  }
+
+  /**
    * Ensure a local branch exists for the given pull request by delegating to gh CLI.
    * Returns the branch name that now tracks the PR.
    */

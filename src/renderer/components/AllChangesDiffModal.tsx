@@ -28,6 +28,7 @@ interface AllChangesDiffModalProps {
   onClose: () => void;
   taskPath?: string;
   files: FileChange[];
+  baseBranch?: string;
   onRefreshChanges?: () => Promise<void> | void;
   onOpenFile?: (filePath: string) => void;
   onToggleView?: () => void;
@@ -52,6 +53,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
   onClose,
   taskPath,
   files,
+  baseBranch,
   onRefreshChanges,
   onOpenFile,
   onToggleView,
@@ -258,12 +260,29 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             modifiedContent = converted.modified;
           }
         } else {
-          // Modified file: reconstruct from diff
-          const converted = convertDiffLinesToMonacoFormat(diffLines);
-          originalContent = converted.original;
-          modifiedContent = converted.modified;
+          // When baseBranch is provided (PR review mode), fetch original from the branch
+          if (baseBranch) {
+            try {
+              const originalRes = await window.electronAPI.getFileFromBranch({
+                taskPath: resolvedTaskPath,
+                branch: baseBranch,
+                filePath,
+              });
+              if (originalRes?.success && originalRes.content) {
+                originalContent = originalRes.content;
+              }
+            } catch {
+              // Fallback to diff-based content
+            }
+          }
 
-          // Try to read actual current content for better accuracy
+          // If no baseBranch or original fetch failed, reconstruct from diff
+          if (!originalContent) {
+            const converted = convertDiffLinesToMonacoFormat(diffLines);
+            originalContent = converted.original;
+          }
+
+          // Read actual current content from worktree (PR branch)
           try {
             const readRes = await window.electronAPI.fsRead(
               resolvedTaskPath,
@@ -272,14 +291,17 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             );
             if (readRes?.success && readRes.content) {
               modifiedContent = readRes.content;
-              // Check for truncated read
               if (readRes.truncated) {
                 isLargeFile = true;
                 largeFileReason = 'truncated_read';
               }
+            } else {
+              const converted = convertDiffLinesToMonacoFormat(diffLines);
+              modifiedContent = converted.modified;
             }
           } catch {
-            // Fallback to diff-based content
+            const converted = convertDiffLinesToMonacoFormat(diffLines);
+            modifiedContent = converted.modified;
           }
         }
 
@@ -502,7 +524,8 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
             'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
             'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#1a2332', // Slightly darker for collapsed regions
+            'diffEditor.unchangedRegionBackground': MONACO_DIFF_COLORS.dark.editorBackground,
+            'diffEditor.unchangedTextBackground': MONACO_DIFF_COLORS.dark.editorBackground,
           },
         });
 
@@ -532,11 +555,14 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
           inherit: true,
           rules: [],
           colors: {
+            'editor.background': '#ffffff',
+            'editorGutter.background': '#ffffff',
             'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
             'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
             'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
             'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
-            'diffEditor.unchangedRegionBackground': '#e2e8f0', // slate-200 - slightly different grey for collapsed regions
+            'diffEditor.unchangedRegionBackground': '#ffffff',
+            'diffEditor.unchangedTextBackground': '#ffffff',
           },
         });
       } catch (error) {
@@ -958,7 +984,7 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
                                     options={{
                                       readOnly: false, // Allow edits on modified pane
                                       originalEditable: false,
-                                      renderSideBySide: false, // Unified/inline view
+                                      renderSideBySide: true, // Side-by-side view
                                       fontSize: 13,
                                       lineHeight: 20,
                                       minimap: { enabled: false }, // Disable minimap for cleaner look

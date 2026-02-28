@@ -21,6 +21,7 @@ export interface RightSidebarTask {
   status: 'active' | 'idle' | 'running' | 'creating';
   agentId?: string;
   metadata?: any;
+  prNumber?: number;
 }
 
 interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
@@ -140,7 +141,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       aria-hidden={collapsed}
       {...rest}
     >
-      <TaskScopeProvider value={{ taskId: task?.id, taskPath: task?.path, projectPath }}>
+      <TaskScopeProvider
+        value={{ taskId: task?.id, taskPath: task?.path, projectPath, prNumber: task?.prNumber }}
+      >
         <div className="flex h-full w-full min-w-0 flex-col">
           {task || projectPath ? (
             <div className="flex h-full flex-col">

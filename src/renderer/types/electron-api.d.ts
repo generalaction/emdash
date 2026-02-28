@@ -641,6 +641,11 @@ declare global {
         action?: 'unstaged' | 'reverted';
         error?: string;
       }>;
+      getFileFromBranch: (args: { taskPath: string; branch: string; filePath: string }) => Promise<{
+        success: boolean;
+        content?: string;
+        error?: string;
+      }>;
       gitCommitAndPush: (args: {
         taskPath: string;
         commitMessage?: string;
@@ -984,6 +989,17 @@ declare global {
       githubListPullRequests: (
         projectPath: string
       ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubGetPullRequestDiff: (args: {
+        projectPath: string;
+        prNumber: number;
+      }) => Promise<{ success: boolean; diff?: string; error?: string }>;
+      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        diff?: string;
+        baseBranch?: string;
+        headBranch?: string;
+        error?: string;
+      }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;
@@ -996,6 +1012,13 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          prNumber?: number;
+        };
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -1745,6 +1768,17 @@ export interface ElectronAPI {
   githubListPullRequests: (
     projectPath: string
   ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubGetPullRequestDiff?: (args: {
+    projectPath: string;
+    prNumber: number;
+  }) => Promise<{ success: boolean; diff?: string; error?: string }>;
+  githubGetPullRequestBaseDiff?: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    error?: string;
+  }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -1757,7 +1791,13 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
-    error?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      prNumber?: number;
+    };
   }>;
   githubLogout: () => Promise<void>;
   // GitHub issues
