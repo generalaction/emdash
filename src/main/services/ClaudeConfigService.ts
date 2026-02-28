@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
@@ -36,7 +36,7 @@ export function ensureClaudeTrust(worktreePath: string): void {
       config = JSON.parse(raw);
     }
 
-    if (!config.projects || typeof config.projects !== 'object') {
+    if (!config.projects || typeof config.projects !== 'object' || Array.isArray(config.projects)) {
       config.projects = {};
     }
 
@@ -57,8 +57,15 @@ export function ensureClaudeTrust(worktreePath: string): void {
 
     // Atomic write: write to temp file then rename
     const tmpPath = configPath + '.' + randomUUID() + '.tmp';
-    writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf8');
-    renameSync(tmpPath, configPath);
+    try {
+      writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf8');
+      renameSync(tmpPath, configPath);
+    } catch (writeErr) {
+      try {
+        unlinkSync(tmpPath);
+      } catch {}
+      throw writeErr;
+    }
   } catch (err) {
     log.warn('ClaudeConfigService: failed to write trust entry', {
       path: worktreePath,
