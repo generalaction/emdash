@@ -821,6 +821,7 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        aheadOfDefault?: number;
         error?: string;
       }>;
       renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{

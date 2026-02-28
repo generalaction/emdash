@@ -232,6 +232,7 @@ function parseDiffLines(stdout: string): { lines: DiffLine[]; isBinary: boolean 
     if (DIFF_HEADER_PREFIXES.some((p) => line.startsWith(p))) continue;
     const prefix = line[0];
     const content = line.slice(1);
+    if (prefix === '\\') continue; // skip "\ No newline at end of file" markers
     if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
     else if (prefix === '-') result.push({ left: content, type: 'del' });
     else if (prefix === '+') result.push({ right: content, type: 'add' });

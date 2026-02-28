@@ -1885,7 +1885,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       }
 
-      return { success: true, branch, defaultBranch, ahead, behind };
+      // Count commits ahead of origin/<defaultBranch> (for PR visibility)
+      let aheadOfDefault = 0;
+      if (branch !== defaultBranch) {
+        try {
+          const { stdout: countOut } = await execFileAsync(
+            GIT,
+            ['rev-list', '--count', `origin/${defaultBranch}..HEAD`],
+            { cwd: taskPath }
+          );
+          aheadOfDefault = parseInt(countOut.trim(), 10) || 0;
+        } catch {
+          // origin/<defaultBranch> may not exist
+        }
+      }
+
+      return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
     } catch (error) {
       log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -2275,12 +2290,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       try {
         const pathErr = validateTaskPath(args.taskPath);
         if (pathErr) return { success: false, error: pathErr };
-        const result = await gitGetLog(
-          args.taskPath,
-          args.maxCount,
-          args.skip,
-          args.aheadCount
-        );
+        const result = await gitGetLog(args.taskPath, args.maxCount, args.skip, args.aheadCount);
         return { success: true, commits: result.commits, aheadCount: result.aheadCount };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };

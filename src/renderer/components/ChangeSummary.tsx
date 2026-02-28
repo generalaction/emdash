@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useCreatePR } from '../hooks/useCreatePR';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { ChevronDown, FileDiff } from 'lucide-react';
-import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
+import { dispatchFileChangeEvent, subscribeToFileChanges } from '../lib/fileChangeEvents';
 import type { FileChange } from '../hooks/useFileChanges';
 
 type PrMode = 'create' | 'draft';
@@ -28,6 +28,32 @@ export const ChangeSummary: React.FC<ChangeSummaryProps> = ({
 }) => {
   const { isCreating, createPR } = useCreatePR();
   const [prMode, setPrMode] = useState<PrMode>('draft');
+  const [showPrButton, setShowPrButton] = useState(false);
+
+  const fetchBranchStatus = useCallback(async () => {
+    if (!taskPath) return;
+    try {
+      const result = await window.electronAPI.getBranchStatus({ taskPath });
+      if (result.success) {
+        setShowPrButton((result.aheadOfDefault ?? 0) > 0);
+      }
+    } catch {
+      setShowPrButton(false);
+    }
+  }, [taskPath]);
+
+  useEffect(() => {
+    void fetchBranchStatus();
+  }, [fetchBranchStatus]);
+
+  useEffect(() => {
+    if (!taskPath) return;
+    return subscribeToFileChanges((event) => {
+      if (event.detail.taskPath === taskPath) {
+        void fetchBranchStatus();
+      }
+    });
+  }, [taskPath, fetchBranchStatus]);
 
   const totalAdditions = fileChanges.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = fileChanges.reduce((sum, f) => sum + f.deletions, 0);
@@ -73,7 +99,7 @@ export const ChangeSummary: React.FC<ChangeSummaryProps> = ({
             <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
             <span className="hidden sm:inline">Changes</span>
           </Button>
-          {hasChanges && (
+          {showPrButton && (
             <div className="flex min-w-0">
               <Button
                 variant="outline"
