@@ -741,6 +741,31 @@ export function registerGitIpc() {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  // Git: Read file from a specific branch
+  ipcMain.handle(
+    'git:get-file-from-branch',
+    async (_, args: { taskPath: string; branch: string; filePath: string }) => {
+      const { taskPath, branch, filePath } = args || {};
+      if (!taskPath || !branch || !filePath) {
+        return { success: false, error: 'taskPath, branch, and filePath are required' };
+      }
+      try {
+        const { stdout } = await execAsync(`git show ${branch}:${filePath}`, {
+          cwd: taskPath,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        return { success: true, content: stdout };
+      } catch (error: any) {
+        if (error.code === 128 || error.message?.includes('does not exist')) {
+          return { success: false, error: `File not found in branch ${branch}` };
+        }
+        log.error('Failed to get file from branch:', { branch, filePath, error });
+        return { success: false, error: error.message || String(error) };
+      }
+    }
+  );
+
   // Git: Generate PR title and description
   ipcMain.handle(
     'git:generate-pr-content',

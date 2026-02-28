@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,7 +7,7 @@ import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
 import ChangesDiffModal from './ChangesDiffModal';
 import AllChangesDiffModal from './AllChangesDiffModal';
-import { useFileChanges } from '../hooks/useFileChanges';
+import { useFileChanges, type FileChange } from '../hooks/useFileChanges';
 import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
@@ -46,6 +46,50 @@ import { useTaskScope } from './TaskScopeContext';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
+
+function parseDiffToFileChanges(diffText: string): FileChange[] {
+  if (!diffText.trim()) return [];
+
+  const files: FileChange[] = [];
+  const fileBlocks = diffText.split(/^diff --git /m).filter(Boolean);
+
+  for (const block of fileBlocks) {
+    const lines = block.split('\n');
+    const headerLine = lines[0] || '';
+
+    const aFileMatch = headerLine.match(/^a\/(.+?)(\s|$)/);
+    const bFileMatch = headerLine.match(/^b\/(.+?)(\s|$)/);
+    const path = aFileMatch?.[1] || bFileMatch?.[1] || 'unknown';
+
+    const isNew = headerLine.includes('new file mode');
+    const isDeleted = headerLine.includes('deleted file mode');
+    const isRenamed = headerLine.includes('rename from');
+
+    let status: FileChange['status'] = 'modified';
+    if (isNew) status = 'added';
+    else if (isDeleted) status = 'deleted';
+    else if (isRenamed) status = 'renamed';
+
+    let additions = 0;
+    let deletions = 0;
+
+    for (const line of lines) {
+      if (line.startsWith('+') && !line.startsWith('+++')) additions++;
+      else if (line.startsWith('-') && !line.startsWith('---')) deletions++;
+    }
+
+    files.push({
+      path,
+      status,
+      additions,
+      deletions,
+      isStaged: false,
+      diff: block,
+    });
+  }
+
+  return files;
+}
 
 const PR_MODE_LABELS: Record<PrMode, string> = {
   create: 'Create PR',
@@ -137,11 +181,56 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   taskPath,
   className,
 }) => {
-  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const {
+    taskId: scopedTaskId,
+    taskPath: scopedTaskPath,
+    prNumber: scopedPrNumber,
+    projectPath: scopedProjectPath,
+  } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const resolvedTaskPath = taskPath ?? scopedTaskPath;
+  const resolvedPrNumber = scopedPrNumber;
   const safeTaskPath = resolvedTaskPath ?? '';
   const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
+
+  // Fetch PR diff if this is a PR review task
+  const [prDiff, setPrDiff] = useState<{
+    diff: string;
+    baseBranch: string;
+    headBranch: string;
+  } | null>(null);
+  const [isLoadingPrDiff, setIsLoadingPrDiff] = useState(false);
+
+  useEffect(() => {
+    console.log('PR Review Check:', { resolvedPrNumber, safeTaskPath });
+    if (resolvedPrNumber && safeTaskPath) {
+      setIsLoadingPrDiff(true);
+      window.electronAPI
+        .githubGetPullRequestBaseDiff({
+          worktreePath: safeTaskPath,
+          prNumber: resolvedPrNumber,
+        })
+        .then((result) => {
+          console.log('PR Diff Result:', result);
+          if (result.success && result.diff) {
+            setPrDiff({
+              diff: result.diff,
+              baseBranch: result.baseBranch || 'main',
+              headBranch: result.headBranch || 'HEAD',
+            });
+          }
+          setIsLoadingPrDiff(false);
+        })
+        .catch((err) => {
+          console.error('PR Diff Error:', err);
+          setIsLoadingPrDiff(false);
+        });
+    } else {
+      setPrDiff(null);
+    }
+  }, [resolvedPrNumber, safeTaskPath]);
+
+  const isPrReviewMode = Boolean(resolvedPrNumber && prDiff);
 
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
@@ -185,6 +274,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   };
 
   const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath);
+
+  const prDiffFiles = useMemo(() => {
+    if (!prDiff?.diff) return [];
+    return parseDiffToFileChanges(prDiff.diff);
+  }, [prDiff]);
+
+  const filesToShow = isPrReviewMode && prDiffFiles.length > 0 ? prDiffFiles : fileChanges;
+
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const hasStagedChanges = fileChanges.some((change) => change.isStaged);
@@ -676,6 +773,17 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         )}
       </div>
 
+      {/* PR Review Mode - Show PR Diff Banner */}
+      {isPrReviewMode && prDiff && (
+        <div className="flex items-center gap-2 border-b border-border bg-blue-50 px-4 py-2 dark:bg-blue-950/30">
+          <GitMerge className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+            PR Review: {prDiff.headBranch} → {prDiff.baseBranch}
+          </span>
+          {isLoadingPrDiff && <Loader2 className="h-3 w-3 animate-spin text-blue-600" />}
+        </div>
+      )}
+
       {pr && hasChanges && (
         <div className="flex border-b border-border">
           <TabButton active={activeTab === 'changes'} onClick={() => setActiveTab('changes')}>
@@ -740,6 +848,39 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* PR Review Mode - Show PR Diff */}
+          {isPrReviewMode && prDiff && (
+            <div className="flex flex-col">
+              {prDiff.diff ? (
+                <div className="flex flex-col gap-2 px-4 py-2">
+                  <button
+                    className="flex w-full items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2 text-sm hover:bg-muted"
+                    onClick={() => setShowAllChangesModal(true)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <FileDiff className="h-4 w-4" />
+                      View Full PR Diff
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  {resolvedPrNumber && pr?.url && (
+                    <button
+                      className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      onClick={() => {
+                        window.electronAPI.openExternal(pr.url!);
+                      }}
+                    >
+                      View PR on GitHub
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No changes in this PR compared to {prDiff.baseBranch}
+                </div>
+              )}
+            </div>
+          )}
           {isLoading && fileChanges.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Spinner size="lg" className="text-muted-foreground" />
@@ -898,7 +1039,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           open={showAllChangesModal}
           onClose={() => setShowAllChangesModal(false)}
           taskPath={resolvedTaskPath}
-          files={fileChanges}
+          files={filesToShow}
+          baseBranch={isPrReviewMode ? prDiff?.baseBranch : undefined}
           onRefreshChanges={refreshChanges}
           onOpenFile={(filePath) => {
             setShowAllChangesModal(false);
