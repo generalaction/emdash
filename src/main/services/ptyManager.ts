@@ -79,6 +79,15 @@ function getWindowsEssentialEnv(): Record<string, string> {
     HOMEDRIVE: process.env.HOMEDRIVE || '',
     HOMEPATH: process.env.HOMEPATH || '',
     USERNAME: process.env.USERNAME || os.userInfo().username,
+    // Program file paths needed by .NET, NuGet, MSBuild, and other tools
+    ProgramFiles: process.env.ProgramFiles || 'C:\\Program Files',
+    'ProgramFiles(x86)': process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
+    ProgramData: process.env.ProgramData || 'C:\\ProgramData',
+    CommonProgramFiles: process.env.CommonProgramFiles || 'C:\\Program Files\\Common Files',
+    'CommonProgramFiles(x86)':
+      process.env['CommonProgramFiles(x86)'] || 'C:\\Program Files (x86)\\Common Files',
+    ProgramW6432: process.env.ProgramW6432 || 'C:\\Program Files',
+    CommonProgramW6432: process.env.CommonProgramW6432 || 'C:\\Program Files\\Common Files',
   };
 }
 
