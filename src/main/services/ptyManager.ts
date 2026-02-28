@@ -87,8 +87,7 @@ function getWindowsEssentialEnv(): Record<string, string> {
     'CommonProgramFiles(x86)':
       process.env['CommonProgramFiles(x86)'] || 'C:\\Program Files (x86)\\Common Files',
     ProgramW6432: process.env.ProgramW6432 || 'C:\\Program Files',
-    CommonProgramW6432:
-      process.env.CommonProgramW6432 || 'C:\\Program Files\\Common Files',
+    CommonProgramW6432: process.env.CommonProgramW6432 || 'C:\\Program Files\\Common Files',
   };
 }
 
