@@ -2,12 +2,11 @@ import { registerPtyIpc } from '../services/ptyIpc';
 import { registerWorktreeIpc } from '../services/worktreeIpc';
 import { registerFsIpc } from '../services/fsIpc';
 import { registerLifecycleIpc } from '../services/lifecycleIpc';
-
 import { registerAppIpc } from './appIpc';
 import { registerProjectIpc } from './projectIpc';
 import { registerProjectSettingsIpc } from './projectSettingsIpc';
 import { registerGithubIpc } from './githubIpc';
-import { registerDatabaseIpc } from './dbIpc';
+import { databaseController } from './dbIpc';
 import { registerDebugIpc } from './debugIpc';
 import { registerGitIpc } from './gitIpc';
 import { registerLinearIpc } from './linearIpc';
@@ -23,8 +22,19 @@ import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
+import { ipcMain } from 'electron';
+
+export const rpcRouter = createRPCRouter({
+  db: databaseController,
+});
+
+export type RpcRouter = typeof rpcRouter;
 
 export function registerAllIpc() {
+  // Register RPC
+  registerRPCRouter(rpcRouter, ipcMain);
+
   // Core app/utility IPC
   registerAppIpc();
   registerDebugIpc();
@@ -36,7 +46,6 @@ export function registerAllIpc() {
   registerProjectIpc();
   registerProjectSettingsIpc();
   registerGithubIpc();
-  registerDatabaseIpc();
   registerGitIpc();
   registerHostPreviewIpc();
   registerBrowserIpc();

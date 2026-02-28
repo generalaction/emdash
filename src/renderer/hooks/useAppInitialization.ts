@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { Project } from '../types/app';
+import type { Project, Task } from '../types/app';
 import { saveActiveIds } from '../constants/layout';
 import { withRepoKey } from '../lib/projectUtils';
+import { rpc } from '../lib/rpc';
 
 interface UseAppInitializationOptions {
   checkGithubStatus: () => void;
@@ -56,7 +57,7 @@ export function useAppInitialization(
         const [_appVersion, appPlatform, projects] = await Promise.all([
           window.electronAPI.getAppVersion(),
           window.electronAPI.getPlatform(),
-          window.electronAPI.getProjects(),
+          rpc.db.getProjects(),
         ]);
 
         setPlatform(appPlatform);
@@ -67,7 +68,7 @@ export function useAppInitialization(
 
         const projectsWithTasks = await Promise.all(
           initialProjects.map(async (project) => {
-            const tasks = await window.electronAPI.getTasks(project.id);
+            const tasks = (await rpc.db.getTasks(project.id)) as Task[];
             return withRepoKey({ ...project, tasks }, appPlatform);
           })
         );
