@@ -3,9 +3,13 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock logger to avoid Electron dependency
+// Mock dependencies that pull in Electron
 vi.mock('../../main/lib/logger', () => ({
   log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
+vi.mock('../../main/settings', () => ({
+  getAppSettings: vi.fn(() => ({ tasks: { autoTrustWorktrees: true } })),
 }));
 
 // We need to intercept `homedir` at the module level so the destructured

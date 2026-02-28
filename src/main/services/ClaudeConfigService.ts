@@ -3,9 +3,21 @@ import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import { log } from '../lib/logger';
+import { getAppSettings } from '../settings';
 
 function getClaudeConfigPath(): string {
   return join(homedir(), '.claude.json');
+}
+
+/**
+ * Auto-trust a worktree directory for Claude Code if the setting is enabled.
+ * No-op for non-Claude providers.
+ */
+export function maybeAutoTrustForClaude(providerId: string, cwd?: string): void {
+  if (!cwd) return;
+  if (providerId !== 'claude') return;
+  if (!getAppSettings().tasks?.autoTrustWorktrees) return;
+  ensureClaudeTrust(cwd);
 }
 
 /**

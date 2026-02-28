@@ -25,7 +25,7 @@ import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
-import { ensureClaudeTrust } from './ClaudeConfigService';
+import { maybeAutoTrustForClaude } from './ClaudeConfigService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -253,13 +253,6 @@ async function resolveShellSetup(cwd: string): Promise<string | undefined> {
     if (project?.path) return lifecycleScriptsService.getShellSetup(project.path) ?? undefined;
   } catch {}
   return undefined;
-}
-
-function maybeAutoTrustForClaude(providerId: string, cwd?: string): void {
-  if (!cwd) return;
-  if (providerId !== 'claude') return;
-  if (!getAppSettings().tasks?.autoTrustWorktrees) return;
-  ensureClaudeTrust(cwd);
 }
 
 export function registerPtyIpc(): void {
