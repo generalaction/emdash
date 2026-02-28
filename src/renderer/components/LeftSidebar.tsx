@@ -210,7 +210,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   className="w-full justify-start"
                 >
                   <Home className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                  <span className="hidden text-sm font-medium sm:inline">Home</span>
+                  <span className="text-sm font-medium">Home</span>
                 </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -227,7 +227,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     className="w-full justify-start"
                   >
                     <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                    <span className="hidden text-sm font-medium sm:inline">Skills</span>
+                    <span className="text-sm font-medium">Skills</span>
                   </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
