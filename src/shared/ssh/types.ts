@@ -62,6 +62,7 @@ export interface ConnectionTestResult {
   error?: string;
   latency?: number;
   serverVersion?: string;
+  debugLogs?: string[];
 }
 
 /**

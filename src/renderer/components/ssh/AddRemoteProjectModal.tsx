@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { SshConfig, ConnectionTestResult, FileEntry, SshConfigHost } from '@shared/ssh/types';
 import {
@@ -28,12 +29,14 @@ import {
   XCircle,
   Folder,
   ChevronUp,
+  ChevronDown,
   Loader2,
   Shield,
   Trash,
   Plus,
   GitBranch,
   Download,
+  Copy,
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
@@ -91,6 +94,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [debugLogsOpen, setDebugLogsOpen] = useState(false);
+  const [debugLogsCopied, setDebugLogsCopied] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -163,6 +169,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setTouched({});
       setTestStatus('idle');
       setTestResult(null);
+      setDebugLogs([]);
+      setDebugLogsOpen(false);
+      setDebugLogsCopied(false);
       setFileEntries([]);
       setBrowseError(null);
       setConnectionId(null);
@@ -398,6 +407,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
       const result = await window.electronAPI.sshTestConnection(testConfig);
       setTestResult(result);
+      setDebugLogs(result.debugLogs || []);
 
       import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
         captureTelemetry('remote_project_connection_tested', { success: result.success });
@@ -1197,6 +1207,43 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                   {testStatus === 'error' && (testResult?.error || 'Connection failed')}
                 </span>
               </Badge>
+            )}
+
+            {debugLogs.length > 0 && (
+              <Collapsible open={debugLogsOpen} onOpenChange={setDebugLogsOpen}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground [&[data-state=open]>svg:first-child]:rotate-180">
+                  <ChevronDown className="h-3 w-3 transition-transform duration-200" />
+                  Show connection debug log ({debugLogs.length})
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-1 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(debugLogs.join('\n'));
+                          setDebugLogsCopied(true);
+                          setTimeout(() => setDebugLogsCopied(false), 2000);
+                        } catch {
+                          // Clipboard access may be denied
+                        }
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                      aria-label="Copy debug log"
+                    >
+                      {debugLogsCopied ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                      {debugLogsCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <pre className="max-h-[200px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words rounded border bg-muted/50 p-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
+                    {debugLogs.join('\n')}
+                  </pre>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </div>
         );
