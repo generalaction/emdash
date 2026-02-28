@@ -51,6 +51,7 @@ export interface ShortcutMapping {
   priority: 'modal' | 'global';
   requiresClosed?: boolean;
   isCommandPalette?: boolean;
+  bypassEditable?: boolean;
 }
 
 /**

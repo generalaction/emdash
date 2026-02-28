@@ -378,6 +378,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onToggleCommandPalette?.(),
         priority: 'global',
         isCommandPalette: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.settings,
@@ -390,30 +391,35 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onToggleLeftSidebar?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.toggleRightSidebar,
         handler: () => handlers.onToggleRightSidebar?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.toggleTheme,
         handler: () => handlers.onToggleTheme?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.toggleKanban,
         handler: () => handlers.onToggleKanban?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.toggleEditor,
         handler: () => handlers.onToggleEditor?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.closeModal,
@@ -425,12 +431,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNextProject?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.prevProject,
         handler: () => handlers.onPrevProject?.(),
         priority: 'global',
         requiresClosed: true,
+        bypassEditable: true,
       },
       {
         config: effectiveShortcuts.newTask,
@@ -482,7 +490,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         if (!matchesModifier(shortcut.config.modifier, event)) continue;
 
         // Skip non-command-palette shortcuts when typing in an input
-        if (isEditableTarget && !shortcut.isCommandPalette) continue;
+        if (isEditableTarget && !shortcut.isCommandPalette && !shortcut.bypassEditable) continue;
 
         // Command palette is blocking; settings behaves like a page and should
         // not force-close for global shortcuts.
