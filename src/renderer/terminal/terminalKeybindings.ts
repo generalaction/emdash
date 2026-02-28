@@ -68,3 +68,65 @@ export function shouldPasteToTerminal(event: KeyEventLike, isMacPlatform: boolea
 
   return false;
 }
+
+/**
+ * Returns the terminal escape sequence for a macOS keybinding, or null if no mapping.
+ * Translates Cmd/Opt key combos into readline-compatible sequences that xterm.js
+ * doesn't handle natively in Electron.
+ */
+export function getMacKeybindingSequence(event: KeyEventLike): string | null {
+  if (event.type !== 'keydown') return null;
+
+  const meta = event.metaKey === true;
+  const alt = event.altKey === true;
+  const ctrl = event.ctrlKey === true;
+  const shift = event.shiftKey === true;
+
+  // Cmd keybindings (no Ctrl, no Alt)
+  if (meta && !ctrl && !alt) {
+    if (!shift) {
+      switch (event.key) {
+        case 'ArrowLeft':
+          return '\x01'; // Ctrl+A (beginning-of-line)
+        case 'ArrowRight':
+          return '\x05'; // Ctrl+E (end-of-line)
+        case 'Backspace':
+          return '\x15'; // Ctrl+U (unix-line-discard)
+        case 'Delete':
+          return '\x0b'; // Ctrl+K (kill-line forward)
+      }
+    } else {
+      switch (event.key) {
+        case 'ArrowLeft':
+          return '\x1b[1;2H'; // Shift+Home (select to line start)
+        case 'ArrowRight':
+          return '\x1b[1;2F'; // Shift+End (select to line end)
+      }
+    }
+  }
+
+  // Opt keybindings (no Ctrl, no Cmd)
+  if (alt && !ctrl && !meta) {
+    if (!shift) {
+      switch (event.key) {
+        case 'ArrowLeft':
+          return '\x1bb'; // ESC b (backward-word)
+        case 'ArrowRight':
+          return '\x1bf'; // ESC f (forward-word)
+        case 'Backspace':
+          return '\x1b\x7f'; // ESC DEL (backward-kill-word)
+        case 'Delete':
+          return '\x1bd'; // ESC d (kill-word forward)
+      }
+    } else {
+      switch (event.key) {
+        case 'ArrowLeft':
+          return '\x1b[1;4D'; // Shift+Alt+Left (select word backward)
+        case 'ArrowRight':
+          return '\x1b[1;4C'; // Shift+Alt+Right (select word forward)
+      }
+    }
+  }
+
+  return null;
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CTRL_J_ASCII,
+  getMacKeybindingSequence,
   shouldCopySelectionFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
@@ -138,5 +139,122 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         isNotMac
       )
     ).toBe(false);
+  });
+});
+
+describe('getMacKeybindingSequence', () => {
+  const makeEvent = (overrides: Partial<KeyEventLike> = {}): KeyEventLike => ({
+    type: 'keydown',
+    key: '',
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    ...overrides,
+  });
+
+  describe('Cmd keybindings', () => {
+    it('Cmd+Left -> Ctrl+A (beginning-of-line)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', metaKey: true }))).toBe('\x01');
+    });
+
+    it('Cmd+Right -> Ctrl+E (end-of-line)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowRight', metaKey: true }))).toBe(
+        '\x05'
+      );
+    });
+
+    it('Cmd+Backspace -> Ctrl+U (unix-line-discard)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'Backspace', metaKey: true }))).toBe('\x15');
+    });
+
+    it('Cmd+Delete -> Ctrl+K (kill-line forward)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'Delete', metaKey: true }))).toBe('\x0b');
+    });
+
+    it('Shift+Cmd+Left -> Shift+Home (select to line start)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', metaKey: true, shiftKey: true }))
+      ).toBe('\x1b[1;2H');
+    });
+
+    it('Shift+Cmd+Right -> Shift+End (select to line end)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowRight', metaKey: true, shiftKey: true }))
+      ).toBe('\x1b[1;2F');
+    });
+  });
+
+  describe('Opt keybindings', () => {
+    it('Opt+Left -> ESC b (backward-word)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', altKey: true }))).toBe('\x1bb');
+    });
+
+    it('Opt+Right -> ESC f (forward-word)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowRight', altKey: true }))).toBe(
+        '\x1bf'
+      );
+    });
+
+    it('Opt+Backspace -> ESC DEL (backward-kill-word)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'Backspace', altKey: true }))).toBe(
+        '\x1b\x7f'
+      );
+    });
+
+    it('Opt+Delete -> ESC d (kill-word forward)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'Delete', altKey: true }))).toBe('\x1bd');
+    });
+
+    it('Shift+Opt+Left -> Shift+Alt+Left (select word backward)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', altKey: true, shiftKey: true }))
+      ).toBe('\x1b[1;4D');
+    });
+
+    it('Shift+Opt+Right -> Shift+Alt+Right (select word forward)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowRight', altKey: true, shiftKey: true }))
+      ).toBe('\x1b[1;4C');
+    });
+  });
+
+  describe('returns null for non-macOS combos', () => {
+    it('plain keys without modifiers', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft' }))).toBeNull();
+      expect(getMacKeybindingSequence(makeEvent({ key: 'Backspace' }))).toBeNull();
+    });
+
+    it('Ctrl combos (not macOS-specific)', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', ctrlKey: true }))).toBeNull();
+    });
+
+    it('Cmd+Ctrl combos (mixed modifiers)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', metaKey: true, ctrlKey: true }))
+      ).toBeNull();
+    });
+
+    it('Cmd+Alt combos (mixed modifiers)', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ key: 'ArrowLeft', metaKey: true, altKey: true }))
+      ).toBeNull();
+    });
+
+    it('keyup events', () => {
+      expect(
+        getMacKeybindingSequence(makeEvent({ type: 'keyup', key: 'ArrowLeft', metaKey: true }))
+      ).toBeNull();
+    });
+
+    it('unmapped keys with Cmd', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'a', metaKey: true }))).toBeNull();
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowUp', metaKey: true }))).toBeNull();
+    });
+
+    it('unmapped keys with Opt', () => {
+      expect(getMacKeybindingSequence(makeEvent({ key: 'a', altKey: true }))).toBeNull();
+      expect(getMacKeybindingSequence(makeEvent({ key: 'ArrowUp', altKey: true }))).toBeNull();
+    });
   });
 });

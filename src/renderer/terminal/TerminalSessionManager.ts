@@ -11,6 +11,7 @@ import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import {
   CTRL_J_ASCII,
+  getMacKeybindingSequence,
   shouldCopySelectionFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
@@ -282,20 +283,14 @@ export class TerminalSessionManager {
         return false; // Prevent xterm from processing the Shift+Enter
       }
 
-      // Map Cmd+Left/Right to Ctrl+A/E on macOS (line navigation)
-      if (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-        if (event.key === 'ArrowLeft') {
+      // Map macOS keybindings (Cmd/Opt combos) to terminal escape sequences
+      if (IS_MAC_PLATFORM) {
+        const seq = getMacKeybindingSequence(event);
+        if (seq !== null) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          this.handleTerminalInput('\x01', true);
-          return false;
-        }
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          event.stopPropagation();
-          this.handleTerminalInput('\x05', true);
+          this.handleTerminalInput(seq, true);
           return false;
         }
       }
