@@ -10,6 +10,8 @@ import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
+import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
 
 export interface RightSidebarTask {
   id: string;
@@ -228,103 +230,136 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     name: v.name || task.name,
                   } as any;
                   return (
-                    <>
-                      <VariantChangesIfAny
-                        path={v.path}
-                        taskId={task.id}
-                        className="min-h-0 flex-1 border-b border-border"
-                      />
-                      <TaskTerminalPanel
-                        task={derived}
-                        agent={v.agent}
-                        projectPath={projectPath || task?.path}
-                        remote={
-                          projectRemoteConnectionId
-                            ? {
-                                connectionId: projectRemoteConnectionId,
-                                projectPath: projectRemotePath || projectPath || undefined,
-                              }
-                            : undefined
-                        }
-                        defaultBranch={projectDefaultBranch || undefined}
-                        portSeed={v.worktreeId}
-                        className="min-h-0 flex-1"
-                      />
-                    </>
+                    <ResizablePanelGroup
+                      direction="vertical"
+                      autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
+                    >
+                      <ResizablePanel defaultSize={50} minSize={20}>
+                        <VariantChangesIfAny
+                          path={v.path}
+                          taskId={task.id}
+                          className="h-full min-h-0"
+                        />
+                      </ResizablePanel>
+                      <ResizableHandle />
+                      <ResizablePanel defaultSize={50} minSize={20}>
+                        <TaskTerminalPanel
+                          task={derived}
+                          agent={v.agent}
+                          projectPath={projectPath || task?.path}
+                          remote={
+                            projectRemoteConnectionId
+                              ? {
+                                  connectionId: projectRemoteConnectionId,
+                                  projectPath: projectRemotePath || projectPath || undefined,
+                                }
+                              : undefined
+                          }
+                          defaultBranch={projectDefaultBranch || undefined}
+                          portSeed={v.worktreeId}
+                          className="h-full min-h-0"
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
                   );
                 })()
               ) : task ? (
-                <>
-                  <FileChangesPanel className="min-h-0 flex-1 border-b border-border" />
-                  <TaskTerminalPanel
-                    task={task}
-                    agent={task.agentId as Agent}
-                    projectPath={projectPath || task?.path}
-                    remote={
-                      projectRemoteConnectionId
-                        ? {
-                            connectionId: projectRemoteConnectionId,
-                            projectPath: projectRemotePath || projectPath || undefined,
-                          }
-                        : undefined
-                    }
-                    defaultBranch={projectDefaultBranch || undefined}
-                    className="min-h-0 flex-1"
-                  />
-                </>
+                <ResizablePanelGroup
+                  direction="vertical"
+                  autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
+                >
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <FileChangesPanel className="h-full min-h-0" />
+                  </ResizablePanel>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <TaskTerminalPanel
+                      task={task}
+                      agent={task.agentId as Agent}
+                      projectPath={projectPath || task?.path}
+                      remote={
+                        projectRemoteConnectionId
+                          ? {
+                              connectionId: projectRemoteConnectionId,
+                              projectPath: projectRemotePath || projectPath || undefined,
+                            }
+                          : undefined
+                      }
+                      defaultBranch={projectDefaultBranch || undefined}
+                      className="h-full min-h-0"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               ) : (
-                <>
-                  <div className="flex h-1/2 flex-col border-b border-border bg-background">
-                    <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                      <span className="whitespace-nowrap">Changes</span>
+                <ResizablePanelGroup
+                  direction="vertical"
+                  autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
+                >
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <div className="flex h-full flex-col bg-background">
+                      <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
+                        <span className="whitespace-nowrap">Changes</span>
+                      </div>
+                      <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                          Select a task to review file changes.
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                        Select a task to review file changes.
-                      </span>
-                    </div>
-                  </div>
-                  <TaskTerminalPanel
-                    task={null}
-                    agent={undefined}
-                    projectPath={projectPath || undefined}
-                    remote={
-                      projectRemoteConnectionId
-                        ? {
-                            connectionId: projectRemoteConnectionId,
-                            projectPath: projectRemotePath || projectPath || undefined,
-                          }
-                        : undefined
-                    }
-                    defaultBranch={projectDefaultBranch || undefined}
-                    className="h-1/2 min-h-0"
-                  />
-                </>
+                  </ResizablePanel>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <TaskTerminalPanel
+                      task={null}
+                      agent={undefined}
+                      projectPath={projectPath || undefined}
+                      remote={
+                        projectRemoteConnectionId
+                          ? {
+                              connectionId: projectRemoteConnectionId,
+                              projectPath: projectRemotePath || projectPath || undefined,
+                            }
+                          : undefined
+                      }
+                      defaultBranch={projectDefaultBranch || undefined}
+                      className="h-full min-h-0"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               )}
             </div>
           ) : (
-            <div className="flex h-full flex-col text-sm text-muted-foreground">
-              <div className="flex h-1/2 flex-col border-b border-border bg-background">
-                <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                  <span className="whitespace-nowrap">Changes</span>
+            <ResizablePanelGroup
+              direction="vertical"
+              autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
+              className="text-sm text-muted-foreground"
+            >
+              <ResizablePanel defaultSize={50} minSize={20}>
+                <div className="flex h-full flex-col bg-background">
+                  <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
+                    <span className="whitespace-nowrap">Changes</span>
+                  </div>
+                  <div className="flex flex-1 items-center justify-center px-4 text-center">
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      Select a task to review file changes.
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-1 items-center justify-center px-4 text-center">
-                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                    Select a task to review file changes.
-                  </span>
+              </ResizablePanel>
+              <ResizableHandle />
+              <ResizablePanel defaultSize={50} minSize={20}>
+                <div className="flex h-full flex-col bg-background">
+                  <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
+                    <span className="whitespace-nowrap">Terminal</span>
+                  </div>
+                  <div className="flex flex-1 items-center justify-center px-4 text-center">
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      Select a task to open its terminal.
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex h-1/2 flex-col bg-background">
-                <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                  <span className="whitespace-nowrap">Terminal</span>
-                </div>
-                <div className="flex flex-1 items-center justify-center px-4 text-center">
-                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                    Select a task to open its terminal.
-                  </span>
-                </div>
-              </div>
-            </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
           )}
         </div>
       </TaskScopeProvider>

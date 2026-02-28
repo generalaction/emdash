@@ -9,6 +9,8 @@ export const RIGHT_SIDEBAR_MAX_SIZE = 50;
 export const ACTIVE_PROJECT_KEY = 'emdash:activeProjectId';
 export const ACTIVE_TASK_KEY = 'emdash:activeTaskId';
 export const MAIN_PANEL_MIN_SIZE = 30;
+export const RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY = 'emdash.layout.right-sidebar-vertical';
+export const DEFAULT_RIGHT_SIDEBAR_VERTICAL_LAYOUT: [number, number] = [50, 50];
 
 export const getStoredActiveIds = (): { projectId: string | null; taskId: string | null } => {
   try {
