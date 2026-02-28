@@ -9,7 +9,7 @@ import { agentMeta } from '@/providers/meta';
 import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileDiff, TerminalSquare } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 
 export interface RightSidebarTask {
@@ -41,7 +41,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   forceBorder = false,
   ...rest
 }) => {
-  const { collapsed } = useRightSidebar();
+  const { collapsed, changesVisible, terminalVisible, toggleChanges, toggleTerminal } =
+    useRightSidebar();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
 
@@ -228,44 +229,50 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     path: v.path,
                     name: v.name || task.name,
                   } as any;
+                  const changesEl = (
+                    <VariantChangesIfAny
+                      path={v.path}
+                      taskId={task.id}
+                      className="h-full min-h-0"
+                    />
+                  );
+                  const terminalEl = (
+                    <TaskTerminalPanel
+                      task={derived}
+                      agent={v.agent}
+                      projectPath={projectPath || task?.path}
+                      remote={
+                        projectRemoteConnectionId
+                          ? {
+                              connectionId: projectRemoteConnectionId,
+                              projectPath: projectRemotePath || projectPath || undefined,
+                            }
+                          : undefined
+                      }
+                      defaultBranch={projectDefaultBranch || undefined}
+                      portSeed={v.worktreeId}
+                      className="h-full min-h-0"
+                    />
+                  );
                   return (
-                    <ResizablePanelGroup direction="vertical">
-                      <ResizablePanel defaultSize={50} minSize={15}>
-                        <VariantChangesIfAny
-                          path={v.path}
-                          taskId={task.id}
-                          className="h-full min-h-0"
-                        />
-                      </ResizablePanel>
-                      <ResizableHandle />
-                      <ResizablePanel defaultSize={50} minSize={15}>
-                        <TaskTerminalPanel
-                          task={derived}
-                          agent={v.agent}
-                          projectPath={projectPath || task?.path}
-                          remote={
-                            projectRemoteConnectionId
-                              ? {
-                                  connectionId: projectRemoteConnectionId,
-                                  projectPath: projectRemotePath || projectPath || undefined,
-                                }
-                              : undefined
-                          }
-                          defaultBranch={projectDefaultBranch || undefined}
-                          portSeed={v.worktreeId}
-                          className="h-full min-h-0"
-                        />
-                      </ResizablePanel>
-                    </ResizablePanelGroup>
+                    <SplitPanelLayout
+                      changesVisible={changesVisible}
+                      terminalVisible={terminalVisible}
+                      toggleChanges={toggleChanges}
+                      toggleTerminal={toggleTerminal}
+                      changesEl={changesEl}
+                      terminalEl={terminalEl}
+                    />
                   );
                 })()
               ) : task ? (
-                <ResizablePanelGroup direction="vertical">
-                  <ResizablePanel defaultSize={50} minSize={15}>
-                    <FileChangesPanel className="h-full min-h-0" />
-                  </ResizablePanel>
-                  <ResizableHandle />
-                  <ResizablePanel defaultSize={50} minSize={15}>
+                <SplitPanelLayout
+                  changesVisible={changesVisible}
+                  terminalVisible={terminalVisible}
+                  toggleChanges={toggleChanges}
+                  toggleTerminal={toggleTerminal}
+                  changesEl={<FileChangesPanel className="h-full min-h-0" />}
+                  terminalEl={
                     <TaskTerminalPanel
                       task={task}
                       agent={task.agentId as Agent}
@@ -281,11 +288,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       defaultBranch={projectDefaultBranch || undefined}
                       className="h-full min-h-0"
                     />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
+                  }
+                />
               ) : (
-                <ResizablePanelGroup direction="vertical">
-                  <ResizablePanel defaultSize={50} minSize={15}>
+                <SplitPanelLayout
+                  changesVisible={changesVisible}
+                  terminalVisible={terminalVisible}
+                  toggleChanges={toggleChanges}
+                  toggleTerminal={toggleTerminal}
+                  changesEl={
                     <div className="flex h-full flex-col bg-background">
                       <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
                         <span className="whitespace-nowrap">Changes</span>
@@ -296,9 +307,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                         </span>
                       </div>
                     </div>
-                  </ResizablePanel>
-                  <ResizableHandle />
-                  <ResizablePanel defaultSize={50} minSize={15}>
+                  }
+                  terminalEl={
                     <TaskTerminalPanel
                       task={null}
                       agent={undefined}
@@ -314,8 +324,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       defaultBranch={projectDefaultBranch || undefined}
                       className="h-full min-h-0"
                     />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
+                  }
+                />
               )}
             </div>
           ) : (
@@ -349,6 +359,86 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 };
 
 export default RightSidebar;
+
+const PanelToggleButton: React.FC<{
+  active: boolean;
+  onClick: () => void;
+  disabled: boolean;
+  icon: React.ReactNode;
+  label: string;
+}> = ({ active, onClick, disabled, icon, label }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      'flex h-6 w-6 items-center justify-center rounded transition-colors',
+      active
+        ? 'text-foreground hover:bg-muted'
+        : 'text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground',
+      disabled && 'cursor-not-allowed opacity-50'
+    )}
+    title={label}
+    aria-label={label}
+  >
+    {icon}
+  </button>
+);
+
+const SplitPanelLayout: React.FC<{
+  changesVisible: boolean;
+  terminalVisible: boolean;
+  toggleChanges: () => void;
+  toggleTerminal: () => void;
+  changesEl: React.ReactNode;
+  terminalEl: React.ReactNode;
+}> = ({
+  changesVisible,
+  terminalVisible,
+  toggleChanges,
+  toggleTerminal,
+  changesEl,
+  terminalEl,
+}) => {
+  const bothVisible = changesVisible && terminalVisible;
+  return (
+    <>
+      <div className="flex items-center gap-0.5 border-b border-border bg-muted/50 px-2 py-1 dark:bg-background/50">
+        <PanelToggleButton
+          active={changesVisible}
+          onClick={toggleChanges}
+          disabled={changesVisible && !terminalVisible}
+          icon={<FileDiff className="h-3.5 w-3.5" />}
+          label={changesVisible ? 'Hide changes' : 'Show changes'}
+        />
+        <PanelToggleButton
+          active={terminalVisible}
+          onClick={toggleTerminal}
+          disabled={terminalVisible && !changesVisible}
+          icon={<TerminalSquare className="h-3.5 w-3.5" />}
+          label={terminalVisible ? 'Hide terminal' : 'Show terminal'}
+        />
+      </div>
+      <div className="min-h-0 flex-1">
+        {bothVisible ? (
+          <ResizablePanelGroup direction="vertical">
+            <ResizablePanel defaultSize={50} minSize={15}>
+              {changesEl}
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel defaultSize={50} minSize={15}>
+              {terminalEl}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        ) : changesVisible ? (
+          <div className="h-full">{changesEl}</div>
+        ) : (
+          <div className="h-full">{terminalEl}</div>
+        )}
+      </div>
+    </>
+  );
+};
 
 const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: string }> = ({
   path,
