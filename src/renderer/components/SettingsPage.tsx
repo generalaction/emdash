@@ -11,7 +11,11 @@ import TelemetryCard from './TelemetryCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import { UpdateCard } from './UpdateCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
-import { AutoApproveByDefaultRow, AutoGenerateTaskNamesRow } from './TaskSettingsRows';
+import {
+  AutoApproveByDefaultRow,
+  AutoGenerateTaskNamesRow,
+  AutoTrustWorktreesRow,
+} from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
 import Context7SettingsCard from './Context7SettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
@@ -188,6 +192,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
         },
         {
           component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,
+        },
+        {
+          component: <AutoTrustWorktreesRow taskSettings={taskSettings} />,
         },
         {
           component: <NotificationSettingsCard />,

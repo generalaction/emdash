@@ -195,6 +195,10 @@ vi.mock('../../main/services/DatabaseService', () => ({
   databaseService: {},
 }));
 
+vi.mock('../../main/services/ClaudeConfigService', () => ({
+  maybeAutoTrustForClaude: vi.fn(),
+}));
+
 describe('ptyIpc notification lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
