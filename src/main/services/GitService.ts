@@ -552,12 +552,17 @@ export async function getCommitFileDiff(
     hasParent = false;
   }
 
-  const diffArgs = hasParent
-    ? ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath]
-    : ['diff', '--no-color', '--unified=2000', '--no-index', '/dev/null', filePath];
-
   let stdout: string;
   if (hasParent) {
+    const diffArgs = [
+      'diff',
+      '--no-color',
+      '--unified=2000',
+      `${commitHash}~1`,
+      commitHash,
+      '--',
+      filePath,
+    ];
     ({ stdout } = await execFileAsync('git', diffArgs, { cwd: taskPath }));
   } else {
     // For root commits, show the file content at that commit as all additions
