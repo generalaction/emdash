@@ -241,6 +241,14 @@
       "node-pty",
       "keytar",
       "electron"
+    ],
+    "ignoredBuiltDependencies": [
+      "better-sqlite3",
+      "core-js",
+      "cpu-features",
+      "esbuild",
+      "protobufjs",
+      "ssh2"
     ]
   }
 }

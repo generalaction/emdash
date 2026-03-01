@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ReorderList from './ReorderList';
 import { Button } from './ui/button';
@@ -26,9 +26,13 @@ import {
   Github,
   Server,
   Puzzle,
+  Archive,
+  RotateCcw,
+  ChevronRight,
 } from 'lucide-react';
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
+import { TaskDeleteButton } from './TaskDeleteButton';
 import { RemoteProjectIndicator } from './ssh/RemoteProjectIndicator';
 import { useRemoteProject } from '../hooks/useRemoteProject';
 import type { Project } from '../types/app';
@@ -75,68 +79,78 @@ interface MenuItemButtonProps {
   onClick: () => void;
 }
 
-// Helper to determine if a project is remote
 const isRemoteProject = (project: Project): boolean => {
   return Boolean((project as any).isRemote || (project as any).sshConnectionId);
 };
 
-// Get connection ID from project
 const getConnectionId = (project: Project): string | null => {
   return (project as any).sshConnectionId || null;
 };
 
-// Wrapper component so the useRemoteProject hook can be called per-project
-// (the ReorderList render callback is not a React component).
-const RemoteIndicator: React.FC<{ project: Project }> = ({ project }) => {
+interface ProjectItemProps {
+  project: Project;
+  isActive: boolean;
+  onSelect: () => void;
+}
+
+const ProjectItem = React.memo<ProjectItemProps>(({ project, isActive, onSelect }) => {
   const remote = useRemoteProject(project);
   const connectionId = getConnectionId(project);
-  if (!connectionId) return null;
-  return (
-    <RemoteProjectIndicator
-      host={remote.host || undefined}
-      connectionState={remote.connectionState as ConnectionState}
-      size="md"
-      onReconnect={remote.reconnect}
-      disabled={remote.isLoading}
-    />
-  );
-};
 
-const MenuItemButton: React.FC<MenuItemButtonProps> = ({
-  icon: Icon,
-  label,
-  ariaLabel,
-  onClick,
-}) => {
-  const handleKeyDown = React.useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onClick();
-      }
-    },
-    [onClick]
-  );
+  if (!connectionId && !isRemoteProject(project)) {
+    return <span className="flex-1 truncate">{project.name}</span>;
+  }
 
   return (
-    <button
-      type="button"
-      role="menuitem"
-      tabIndex={0}
-      aria-label={ariaLabel}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </button>
+    <div className="flex min-w-0 items-center gap-2">
+      {connectionId && (
+        <RemoteProjectIndicator
+          host={remote.host || undefined}
+          connectionState={remote.connectionState as ConnectionState}
+          size="md"
+          onReconnect={remote.reconnect}
+          disabled={remote.isLoading}
+        />
+      )}
+      <span className="flex-1 truncate">{project.name}</span>
+    </div>
   );
-};
+});
+ProjectItem.displayName = 'ProjectItem';
+
+const MenuItemButton = React.memo<MenuItemButtonProps>(
+  ({ icon: Icon, label, ariaLabel, onClick }) => {
+    const handleKeyDown = React.useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      },
+      [onClick]
+    );
+
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        tabIndex={0}
+        aria-label={ariaLabel}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+      >
+        <Icon className="h-4 w-4" />
+        {label}
+      </button>
+    );
+  }
+);
+MenuItemButton.displayName = 'MenuItemButton';
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   projects,
-  archivedTasksVersion: _archivedTasksVersion,
+  archivedTasksVersion,
   selectedProject,
   onSelectProject,
   onGoHome,
@@ -150,11 +164,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onReorderProjectsFull,
   onSidebarContextChange,
   onCreateTaskForProject,
-  onDeleteTask: _onDeleteTask,
+  onDeleteTask,
   onRenameTask,
   onArchiveTask,
-  onRestoreTask: _onRestoreTask,
-  onDeleteProject: _onDeleteProject,
+  onRestoreTask,
+  onDeleteProject,
   pinnedTaskIds,
   onPinTask,
   isHomeView,
@@ -164,9 +178,20 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
-  // Track projects that should be force-expanded (e.g. when first task is created)
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
+  const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
+
+  const fetchArchivedTasks = useCallback(async () => {
+    const archived: Record<string, Task[]> = {};
+    for (const project of projects) {
+      try {
+        const tasks = await window.electronAPI.getArchivedTasks(project.id);
+        if (tasks && tasks.length > 0) archived[project.id] = tasks;
+      } catch (err) {}
+    }
+    setArchivedTasksByProject(archived);
+  }, [projects]);
 
   useEffect(() => {
     const prev = prevTaskCountsRef.current;
@@ -181,10 +206,33 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   }, [projects]);
 
   useEffect(() => {
+    if (projects.length > 0) fetchArchivedTasks();
+  }, [projects.length, archivedTasksVersion, fetchArchivedTasks]);
+
+  const handleRestoreTask = useCallback(
+    async (project: Project, task: Task) => {
+      if (onRestoreTask) {
+        await onRestoreTask(project, task);
+        fetchArchivedTasks();
+      }
+    },
+    [onRestoreTask, fetchArchivedTasks]
+  );
+
+  const handleArchiveTaskWithRefresh = useCallback(
+    async (project: Project, task: Task) => {
+      if (onArchiveTask) {
+        await onArchiveTask(project, task);
+        fetchArchivedTasks();
+      }
+    },
+    [onArchiveTask, fetchArchivedTasks]
+  );
+
+  useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
-  // Helper to close settings page when navigating
   const handleNavigationWithCloseSettings = useCallback(
     (callback: () => void) => {
       onCloseSettingsPage?.();
@@ -243,12 +291,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               {onOpenProject && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-foreground/30"
-                      aria-label="Add project"
-                    >
+                    <Button variant="ghost" size="icon-sm" className="text-foreground/30">
                       <FolderPlus className="h-3.5 w-3.5" />
                     </Button>
                   </PopoverTrigger>
@@ -257,29 +300,21 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <MenuItemButton
                         icon={FolderOpen}
                         label="Open Folder"
-                        ariaLabel="Open Folder"
+                        ariaLabel="Open"
                         onClick={() => onOpenProject?.()}
                       />
                       <MenuItemButton
                         icon={Plus}
                         label="Create New"
-                        ariaLabel="Create New Project"
+                        ariaLabel="New"
                         onClick={() => onNewProject?.()}
                       />
                       <MenuItemButton
                         icon={Github}
-                        label="Clone from GitHub"
-                        ariaLabel="Clone from GitHub"
+                        label="Clone"
+                        ariaLabel="Clone"
                         onClick={() => onCloneProject?.()}
                       />
-                      {onAddRemoteProject && (
-                        <MenuItemButton
-                          icon={Server}
-                          label="Add Remote Project"
-                          ariaLabel="Add Remote Project"
-                          onClick={() => onAddRemoteProject?.()}
-                        />
-                      )}
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -299,11 +334,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       const newIds = (newOrder as Project[]).map((p) => p.id);
                       for (let i = 0; i < newIds.length; i++) {
                         if (newIds[i] !== oldIds[i]) {
-                          const sourceId = newIds.find((id) => id === oldIds[i]);
-                          const targetId = newIds[i];
-                          if (sourceId && targetId && sourceId !== targetId) {
-                            onReorderProjects(sourceId, targetId);
-                          }
+                          onReorderProjects(newIds.find((id) => id === oldIds[i])!, newIds[i]);
                           break;
                         }
                       }
@@ -316,7 +347,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   {(project) => {
                     const typedProject = project as Project;
                     const isProjectActive = selectedProject?.id === typedProject.id && !activeTask;
-                    const projectIsRemote = isRemoteProject(typedProject);
                     return (
                       <SidebarMenuItem>
                         <Collapsible
@@ -325,26 +355,21 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           onOpenChange={() => {
                             if (forceOpenIds.has(typedProject.id)) {
                               setForceOpenIds((s) => {
-                                const next = new Set(s);
-                                next.delete(typedProject.id);
-                                return next;
+                                const n = new Set(s);
+                                n.delete(typedProject.id);
+                                return n;
                               });
                             }
                           }}
                           className="group/collapsible"
                         >
                           <div
-                            className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${
-                              isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''
-                            }`}
-                            title={projectIsRemote ? 'Remote Project' : undefined}
+                            className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
                           >
                             <CollapsibleTrigger asChild>
                               <button
                                 type="button"
-                                className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
-                                onClick={(e) => e.stopPropagation()}
-                                aria-label={`Toggle tasks for ${typedProject.name}`}
+                                className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 dark:hover:bg-white/5"
                               >
                                 <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
                                 <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
@@ -352,111 +377,125 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             </CollapsibleTrigger>
                             <motion.button
                               type="button"
-                              className="min-w-0 flex-1 cursor-default truncate bg-transparent text-left text-foreground/60 outline-none focus-visible:outline-none"
+                              className="min-w-0 flex-1 truncate bg-transparent text-left text-foreground/60"
                               whileTap={{ scale: 0.97 }}
-                              transition={{ duration: 0.1, ease: 'easeInOut' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() =>
                                 handleNavigationWithCloseSettings(() =>
                                   onSelectProject(typedProject)
-                                );
-                              }}
+                                )
+                              }
                             >
-                              {typedProject.name}
+                              <ProjectItem
+                                project={typedProject}
+                                isActive={isProjectActive}
+                                onSelect={() => onSelectProject(typedProject)}
+                              />
                             </motion.button>
-                            {projectIsRemote && <RemoteIndicator project={typedProject} />}
-                            <div className="flex min-w-7 flex-shrink-0 items-center justify-end">
-                              {onCreateTaskForProject && (
-                                <TooltipProvider delayDuration={300}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="flex-shrink-0 rounded p-0.5 text-muted-foreground outline-none hover:bg-black/5 focus-visible:outline-none dark:hover:bg-white/5"
-                                        aria-label={`New Task for ${typedProject.name}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleNavigationWithCloseSettings(() => {
-                                            if (
-                                              onSelectProject &&
-                                              selectedProject?.id !== typedProject.id
-                                            ) {
-                                              onSelectProject(typedProject);
-                                            } else if (!selectedProject) {
-                                              onSelectProject?.(typedProject);
-                                            }
-                                            onCreateTaskForProject(typedProject);
-                                          });
-                                        }}
-                                      >
-                                        <Plus className="h-4 w-4" />
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right" sideOffset={4}>
-                                      New Task
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                            </div>
+                            {onCreateTaskForProject && (
+                              <button
+                                type="button"
+                                className="p-0.5 text-muted-foreground hover:bg-black/5"
+                                onClick={() =>
+                                  handleNavigationWithCloseSettings(() =>
+                                    onCreateTaskForProject(typedProject)
+                                  )
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
 
-                          <CollapsibleContent asChild>
-                            <div className="mt-1 min-w-0">
-                              <div className="flex min-w-0 flex-col gap-1">
-                                {typedProject.tasks
-                                  ?.slice()
-                                  .sort((a, b) => {
-                                    const aPinned = pinnedTaskIds?.has(a.id) ? 1 : 0;
-                                    const bPinned = pinnedTaskIds?.has(b.id) ? 1 : 0;
-                                    return bPinned - aPinned;
-                                  })
-                                  .map((task) => {
-                                    const isActive = activeTask?.id === task.id;
-                                    return (
-                                      <motion.div
-                                        key={task.id}
-                                        whileTap={{ scale: 0.97 }}
-                                        transition={{ duration: 0.1, ease: 'easeInOut' }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleNavigationWithCloseSettings(() => {
-                                            if (
-                                              onSelectProject &&
-                                              selectedProject?.id !== typedProject.id
-                                            ) {
-                                              onSelectProject(typedProject);
-                                            }
-                                            onSelectTask && onSelectTask(task);
-                                          });
-                                        }}
-                                        className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${
-                                          isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''
-                                        }`}
-                                        title={task.name}
-                                      >
-                                        <TaskItem
-                                          task={task}
-                                          showDelete={false}
-                                          showDirectBadge={false}
-                                          isPinned={pinnedTaskIds?.has(task.id)}
-                                          onPin={onPinTask ? () => onPinTask(task) : undefined}
-                                          onRename={
-                                            onRenameTask && !task.metadata?.multiAgent?.enabled
-                                              ? (newName) =>
-                                                  onRenameTask(typedProject, task, newName)
-                                              : undefined
-                                          }
-                                          onArchive={
-                                            onArchiveTask
-                                              ? () => onArchiveTask(typedProject, task)
-                                              : undefined
-                                          }
-                                        />
-                                      </motion.div>
-                                    );
-                                  })}
-                              </div>
+                          <CollapsibleContent
+                            forceMount
+                            className="mt-1 min-w-0 data-[state=closed]:hidden"
+                          >
+                            <div className="flex min-w-0 flex-col gap-1">
+                              {typedProject.tasks
+                                ?.slice()
+                                .sort(
+                                  (a, b) =>
+                                    (pinnedTaskIds?.has(b.id) ? 1 : 0) -
+                                    (pinnedTaskIds?.has(a.id) ? 1 : 0)
+                                )
+                                .map((task) => {
+                                  const isActive = activeTask?.id === task.id;
+                                  return (
+                                    <motion.div
+                                      key={task.id}
+                                      whileTap={{ scale: 0.97 }}
+                                      onClick={() =>
+                                        handleNavigationWithCloseSettings(() =>
+                                          onSelectTask?.(task)
+                                        )
+                                      }
+                                      className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                                    >
+                                      <TaskItem
+                                        task={task}
+                                        showDelete={false}
+                                        showDirectBadge={false}
+                                        isPinned={pinnedTaskIds?.has(task.id)}
+                                        onPin={() => onPinTask?.(task)}
+                                        onRename={(n) => onRenameTask?.(typedProject, task, n)}
+                                        onArchive={() =>
+                                          handleArchiveTaskWithRefresh(typedProject, task)
+                                        }
+                                      />
+                                    </motion.div>
+                                  );
+                                })}
+                              {archivedTasksByProject[typedProject.id]?.length > 0 && (
+                                <Collapsible className="mt-1">
+                                  <CollapsibleTrigger asChild>
+                                    <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
+                                      <Archive className="h-3 w-3 opacity-50" />
+                                      <span>
+                                        Archived ({archivedTasksByProject[typedProject.id].length})
+                                      </span>
+                                      <ChevronRight className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
+                                    </button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    <div className="ml-1.5 space-y-0.5 border-l pl-2">
+                                      {archivedTasksByProject[typedProject.id].map(
+                                        (archivedTask) => (
+                                          <div
+                                            key={archivedTask.id}
+                                            className="flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-muted-foreground"
+                                          >
+                                            <span className="truncate text-xs font-medium">
+                                              {archivedTask.name}
+                                            </span>
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                onClick={() =>
+                                                  handleRestoreTask(typedProject, archivedTask)
+                                                }
+                                              >
+                                                <RotateCcw className="h-3 w-3" />
+                                              </Button>
+                                              <TaskDeleteButton
+                                                taskName={archivedTask.name}
+                                                taskId={archivedTask.id}
+                                                taskPath={archivedTask.path}
+                                                useWorktree={archivedTask.useWorktree !== false}
+                                                onConfirm={() =>
+                                                  onDeleteTask?.(typedProject, archivedTask).then(
+                                                    () => fetchArchivedTasks()
+                                                  )
+                                                }
+                                              />
+                                            </div>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              )}
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -472,10 +511,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               <SidebarEmptyState
                 title="Put your agents to work"
                 description="Create a task and run one or more agents on it in parallel."
-                actionLabel={onOpenProject ? 'Open Folder' : undefined}
+                actionLabel="Open Folder"
                 onAction={onOpenProject}
-                secondaryActionLabel={onNewProject ? 'New Project' : undefined}
-                onSecondaryAction={onNewProject}
               />
             </div>
           )}
