@@ -144,6 +144,7 @@ const AppContent: React.FC = () => {
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
+  const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -673,9 +674,10 @@ const AppContent: React.FC = () => {
                           onClose={() => {
                             setShowDiffViewer(false);
                             setDiffViewerInitialFile(null);
+                            setDiffViewerTaskPath(null);
                           }}
                           taskId={activeTask?.id}
-                          taskPath={activeTask?.path}
+                          taskPath={diffViewerTaskPath || activeTask?.path}
                           initialFile={diffViewerInitialFile}
                         />
                       ) : (
@@ -736,8 +738,9 @@ const AppContent: React.FC = () => {
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
-                      onOpenChanges={(filePath?: string) => {
+                      onOpenChanges={(filePath?: string, taskPath?: string) => {
                         setDiffViewerInitialFile(filePath ?? null);
+                        setDiffViewerTaskPath(taskPath ?? null);
                         setShowDiffViewer(true);
                       }}
                     />
