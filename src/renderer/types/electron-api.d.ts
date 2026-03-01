@@ -1345,6 +1345,10 @@ declare global {
         taskId: string;
         stepId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      zenflowSetAutoStartSteps: (args: {
+        taskId: string;
+        enabled: boolean;
+      }) => Promise<{ success: boolean; error?: string }>;
       zenflowRegisterPtyStep: (args: {
         ptyId: string;
         taskId: string;
@@ -1363,7 +1367,9 @@ declare global {
             | 'step-failed'
             | 'workflow-paused'
             | 'workflow-completed'
-            | 'steps-expanded';
+            | 'steps-expanded'
+            | 'auto-start-enabled'
+            | 'auto-start-disabled';
           stepId?: string;
           stepNumber?: number;
           conversationId?: string;
@@ -1995,6 +2001,10 @@ export interface ElectronAPI {
     taskId: string;
     stepId: string;
   }) => Promise<{ success: boolean; error?: string }>;
+  zenflowSetAutoStartSteps: (args: {
+    taskId: string;
+    enabled: boolean;
+  }) => Promise<{ success: boolean; error?: string }>;
   zenflowRegisterPtyStep: (args: {
     ptyId: string;
     taskId: string;
@@ -2013,7 +2023,9 @@ export interface ElectronAPI {
         | 'step-failed'
         | 'workflow-paused'
         | 'workflow-completed'
-        | 'steps-expanded';
+        | 'steps-expanded'
+        | 'auto-start-enabled'
+        | 'auto-start-disabled';
       stepId?: string;
       stepNumber?: number;
       conversationId?: string;

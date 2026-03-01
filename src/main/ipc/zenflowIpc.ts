@@ -116,6 +116,19 @@ export function registerZenflowIpc(): void {
     }
   );
 
+  ipcMain.handle(
+    'zenflow:setAutoStartSteps',
+    async (_, args: { taskId: string; enabled: boolean }) => {
+      try {
+        await zenflowOrchestrationService.setAutoStartSteps(args.taskId, args.enabled);
+        return { success: true };
+      } catch (error: any) {
+        log.error('zenflow:setAutoStartSteps failed', { error: error.message });
+        return { success: false, error: error.message };
+      }
+    }
+  );
+
   // --- plan.md file-based IPC ---
 
   ipcMain.handle('zenflow:readPlan', async (_, worktreePath: string) => {

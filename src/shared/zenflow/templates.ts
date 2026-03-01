@@ -48,7 +48,11 @@ Your spec should include:
 ## Rules
 - Save your output to \`{{artifactsDir}}/spec.md\`
 - Follow existing project conventions
-- When done, provide a brief summary of the spec`,
+- When done, provide a brief summary of the spec
+
+## Marking this step complete
+When you have finished this step, mark it as complete by editing \`{{artifactsDir}}/plan.md\`.
+Find the HTML comment \`<!-- zenflow-step: {...} -->\` for **Step {{stepNumber}}** and change \`"status":"running"\` to \`"status":"completed"\`.`,
       },
       {
         name: 'Implementation',
@@ -70,7 +74,11 @@ Implement the feature as described in the spec. Follow the implementation steps 
 - Read \`{{artifactsDir}}/spec.md\` before starting
 - Follow existing project conventions
 - Write clean, tested code
-- When done, write a brief report of what you implemented to \`{{artifactsDir}}/report.md\``,
+- When done, write a brief report of what you implemented to \`{{artifactsDir}}/report.md\`
+
+## Marking this step complete
+When you have finished this step, mark it as complete by editing \`{{artifactsDir}}/plan.md\`.
+Find the HTML comment \`<!-- zenflow-step: {...} -->\` for **Step {{stepNumber}}** and change \`"status":"running"\` to \`"status":"completed"\`.`,
       },
     ],
   },
@@ -102,7 +110,11 @@ Ask the user clarifying questions if needed. Save the final requirements to \`{{
 ## Rules
 - Save your output to \`{{artifactsDir}}/requirements.md\`
 - Ask clarifying questions directly — the user is available in this chat
-- When done, provide a brief summary`,
+- When done, provide a brief summary
+
+## Marking this step complete
+When you have finished this step, mark it as complete by editing \`{{artifactsDir}}/plan.md\`.
+Find the HTML comment \`<!-- zenflow-step: {...} -->\` for **Step {{stepNumber}}** and change \`"status":"running"\` to \`"status":"completed"\`.`,
       },
       {
         name: 'Tech Spec',
@@ -131,7 +143,11 @@ Save to \`{{artifactsDir}}/spec.md\`.
 - Read \`{{artifactsDir}}/requirements.md\` before starting
 - Save your output to \`{{artifactsDir}}/spec.md\`
 - Follow existing project conventions
-- When done, provide a brief summary`,
+- When done, provide a brief summary
+
+## Marking this step complete
+When you have finished this step, mark it as complete by editing \`{{artifactsDir}}/plan.md\`.
+Find the HTML comment \`<!-- zenflow-step: {...} -->\` for **Step {{stepNumber}}** and change \`"status":"running"\` to \`"status":"completed"\`.`,
       },
       {
         name: 'Planning',
@@ -177,7 +193,11 @@ Each step should:
 - Read requirements.md and spec.md before starting
 - Save your output to \`{{artifactsDir}}/plan-details.md\`
 - Number steps starting from 4 (Steps 1-3 are requirements, spec, and planning)
-- When done, provide a brief summary of the plan`,
+- When done, provide a brief summary of the plan
+
+## Marking this step complete
+When you have finished this step, mark it as complete by editing \`{{artifactsDir}}/plan.md\`.
+Find the HTML comment \`<!-- zenflow-step: {...} -->\` for **Step {{stepNumber}}** and change \`"status":"running"\` to \`"status":"completed"\`.`,
       },
       // Implementation steps are added dynamically after the planning step completes
     ],

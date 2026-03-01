@@ -6,6 +6,8 @@ import type { PlanStepData, ZenflowWorkflowStatus } from '@shared/zenflow/types'
 interface ZenflowProgressBarProps {
   steps: PlanStepData[];
   workflowStatus: ZenflowWorkflowStatus | null;
+  autoStartSteps: boolean;
+  onAutoStartChange: (enabled: boolean) => void;
   onPause: () => void;
   onResume: () => void;
 }
@@ -13,6 +15,8 @@ interface ZenflowProgressBarProps {
 const ZenflowProgressBar: React.FC<ZenflowProgressBarProps> = ({
   steps,
   workflowStatus,
+  autoStartSteps,
+  onAutoStartChange,
   onPause,
   onResume,
 }) => {
@@ -66,11 +70,32 @@ const ZenflowProgressBar: React.FC<ZenflowProgressBarProps> = ({
         <span>{statusText}</span>
       </div>
 
+      {/* Auto-start toggle */}
+      <label className="ml-auto flex cursor-pointer items-center gap-1 text-muted-foreground">
+        <span>Auto-start</span>
+        <button
+          role="switch"
+          aria-checked={autoStartSteps}
+          onClick={() => onAutoStartChange(!autoStartSteps)}
+          className={cn(
+            'relative inline-flex h-4 w-7 items-center rounded-full transition-colors',
+            autoStartSteps ? 'bg-blue-500' : 'bg-muted-foreground/30'
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rounded-full bg-white transition-transform',
+              autoStartSteps ? 'translate-x-3.5' : 'translate-x-0.5'
+            )}
+          />
+        </button>
+      </label>
+
       {/* Pause/Resume button */}
       {workflowStatus === 'running' && (
         <button
           onClick={onPause}
-          className="ml-auto rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
           title="Pause workflow"
         >
           <PauseCircle className="h-3.5 w-3.5" />
@@ -79,7 +104,7 @@ const ZenflowProgressBar: React.FC<ZenflowProgressBarProps> = ({
       {(workflowStatus === 'paused' || workflowStatus === 'failed') && (
         <button
           onClick={onResume}
-          className="ml-auto rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
           title="Resume workflow"
         >
           <Play className="h-3.5 w-3.5" />

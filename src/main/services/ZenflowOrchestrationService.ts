@@ -4,7 +4,7 @@ import path from 'path';
 import { BrowserWindow } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from './DatabaseService';
-import { zenflowPlanService } from './ZenflowPlanService';
+import { zenflowPlanService, type StepStatusTransition } from './ZenflowPlanService';
 import { getZenflowTemplate } from '@shared/zenflow/templates';
 import type {
   ZenflowEvent,
@@ -27,6 +27,18 @@ import type { WorkflowStepInsert, WorkflowStepRow } from '../db/schema';
 class ZenflowOrchestrationService extends EventEmitter {
   /** Maps PTY IDs to their workflow step for exit handling */
   private ptyToStep = new Map<string, { taskId: string; stepId: string }>();
+  /** Tracks tasks currently being processed to avoid duplicate auto-chain */
+  private processingTransitions = new Set<string>();
+
+  constructor() {
+    super();
+    // Subscribe to plan.md status transitions (agent-driven completion)
+    zenflowPlanService.onStepTransition((transitions) => {
+      this.handlePlanTransitions(transitions).catch((err) => {
+        log.error('zenflow: error handling plan transitions', err);
+      });
+    });
+  }
 
   /**
    * Create a new zenflow workflow for a task.
@@ -67,6 +79,7 @@ class ZenflowOrchestrationService extends EventEmitter {
       const prompt = this.resolvePromptTemplate(stepTemplate.promptTemplate, {
         featureDescription: args.featureDescription,
         artifactsDir: '.zenflow',
+        stepNumber,
       });
 
       return {
@@ -108,6 +121,9 @@ class ZenflowOrchestrationService extends EventEmitter {
     // Start watching plan.md for changes (e.g., planning agent adding steps)
     zenflowPlanService.startWatching(args.taskId, args.worktreePath);
 
+    // Snapshot initial step statuses for transition detection
+    zenflowPlanService.snapshotStatuses(args.taskId, planSteps);
+
     return savedSteps;
   }
 
@@ -119,8 +135,9 @@ class ZenflowOrchestrationService extends EventEmitter {
   }
 
   /**
-   * Called when any PTY exits. If it belongs to a zenflow step, advance the workflow.
-   * This is a no-op for non-zenflow PTYs.
+   * Called when any PTY exits. For zenflow steps, this is a fallback handler —
+   * primary completion is via the agent updating plan.md directly.
+   * This handles unexpected exits (crashes, non-zero exit codes).
    */
   async handlePtyExit(ptyId: string, exitCode: number): Promise<void> {
     const mapping = this.ptyToStep.get(ptyId);
@@ -135,56 +152,16 @@ class ZenflowOrchestrationService extends EventEmitter {
       return;
     }
 
-    if (exitCode === 0) {
-      await databaseService.updateWorkflowStepStatus(stepId, 'completed', {
-        completedAt: new Date().toISOString(),
-      });
+    // If the step was already completed (via plan.md), nothing to do
+    if (step.status === 'completed') {
+      log.info('zenflow: PTY exited for already-completed step', { stepId });
+      return;
+    }
 
-      // Update plan.md (source of truth)
-      if (step.conversationId) {
-        const worktreePath = await this.getWorktreePath(taskId);
-        if (worktreePath) {
-          await zenflowPlanService.updateStepStatus(worktreePath, step.conversationId, 'completed');
-        }
-      }
-
-      // Update task metadata
-      const steps = await databaseService.getWorkflowSteps(taskId);
-      const nextPending = steps.find((s) => s.status === 'pending');
-      await this.updateTaskZenflowMetadata(taskId, {
-        currentStepNumber: nextPending?.stepNumber ?? step.stepNumber,
-        status: nextPending ? (step.pauseAfter ? 'paused' : 'running') : 'completed',
-      });
-
-      this.emitEvent({
-        taskId,
-        type: 'step-completed',
-        stepId,
-        stepNumber: step.stepNumber,
-        conversationId: step.conversationId ?? undefined,
-      });
-
-      if (!nextPending) {
-        this.emitEvent({ taskId, type: 'workflow-completed' });
-        return;
-      }
-
-      if (step.pauseAfter) {
-        this.emitEvent({
-          taskId,
-          type: 'workflow-paused',
-          stepNumber: step.stepNumber,
-          data: { reason: 'pause_point', completedStep: step.name },
-        });
-        return;
-      }
-
-      // Auto-chain: start next step
-      await this.startNextStep(taskId);
-    } else {
+    if (exitCode !== 0) {
+      // Non-zero exit → mark as failed
       await databaseService.updateWorkflowStepStatus(stepId, 'failed');
 
-      // Update plan.md
       if (step.conversationId) {
         const worktreePath = await this.getWorktreePath(taskId);
         if (worktreePath) {
@@ -201,6 +178,86 @@ class ZenflowOrchestrationService extends EventEmitter {
         conversationId: step.conversationId ?? undefined,
         data: { exitCode },
       });
+    } else {
+      // Exit code 0 but step not yet marked completed by agent —
+      // treat as unexpected exit, log but don't auto-chain
+      log.warn('zenflow: PTY exited cleanly but step not marked completed in plan.md', {
+        taskId,
+        stepId,
+        stepNumber: step.stepNumber,
+      });
+    }
+  }
+
+  /**
+   * Handle status transitions detected from plan.md file changes.
+   * This is the primary completion path — agents update plan.md directly.
+   */
+  private async handlePlanTransitions(transitions: StepStatusTransition[]): Promise<void> {
+    for (const t of transitions) {
+      // Only handle running → completed (agent marked step done)
+      if (t.oldStatus !== 'running' || t.newStatus !== 'completed') continue;
+
+      const lockKey = `${t.taskId}-${t.stepNumber}`;
+      if (this.processingTransitions.has(lockKey)) continue;
+      this.processingTransitions.add(lockKey);
+
+      try {
+        log.info('zenflow: agent completed step via plan.md', {
+          taskId: t.taskId,
+          stepNumber: t.stepNumber,
+        });
+
+        // Find the DB step record
+        const steps = await databaseService.getWorkflowSteps(t.taskId);
+        const step = steps.find((s) => s.stepNumber === t.stepNumber);
+        if (!step || step.status === 'completed') continue;
+
+        // Update DB
+        await databaseService.updateWorkflowStepStatus(step.id, 'completed', {
+          completedAt: new Date().toISOString(),
+        });
+
+        // Determine next step and auto-chain logic
+        const nextPending = steps.find((s) => s.status === 'pending');
+        const autoStart = await this.getAutoStartSteps(t.taskId);
+        const shouldPause = step.pauseAfter && !autoStart;
+
+        await this.updateTaskZenflowMetadata(t.taskId, {
+          currentStepNumber: nextPending?.stepNumber ?? step.stepNumber,
+          status: nextPending ? (shouldPause ? 'paused' : 'running') : 'completed',
+        });
+
+        this.emitEvent({
+          taskId: t.taskId,
+          type: 'step-completed',
+          stepId: step.id,
+          stepNumber: step.stepNumber,
+          conversationId: step.conversationId ?? undefined,
+        });
+
+        if (!nextPending) {
+          this.emitEvent({ taskId: t.taskId, type: 'workflow-completed' });
+          continue;
+        }
+
+        if (step.pauseAfter && !autoStart) {
+          this.emitEvent({
+            taskId: t.taskId,
+            type: 'workflow-paused',
+            stepNumber: step.stepNumber,
+            data: { reason: 'pause_point', completedStep: step.name },
+          });
+          continue;
+        }
+
+        // Auto-chain: start next step
+        await this.startNextStep(t.taskId);
+      } catch (err) {
+        log.error('zenflow: error handling plan transition', { ...t, error: err });
+      } finally {
+        this.processingTransitions.delete(lockKey);
+      }
     }
   }
 
@@ -238,11 +295,14 @@ class ZenflowOrchestrationService extends EventEmitter {
     const step = await databaseService.getWorkflowStep(stepId);
     if (!step) return;
 
-    // Update plan.md
-    if (step.conversationId) {
-      const worktreePath = await this.getWorktreePath(taskId);
-      if (worktreePath) {
-        await zenflowPlanService.updateStepStatus(worktreePath, step.conversationId, 'running');
+    // Update plan.md and snapshot the new statuses
+    const worktreePath = await this.getWorktreePath(taskId);
+    if (step.conversationId && worktreePath) {
+      await zenflowPlanService.updateStepStatus(worktreePath, step.conversationId, 'running');
+      // Re-snapshot so watcher knows this step is now "running"
+      const plan = await zenflowPlanService.readPlan(worktreePath);
+      if (plan) {
+        zenflowPlanService.snapshotStatuses(taskId, plan.steps);
       }
     }
 
@@ -293,6 +353,32 @@ class ZenflowOrchestrationService extends EventEmitter {
       completedAt: undefined,
     });
     await this.startStep(step.taskId, stepId);
+  }
+
+  /**
+   * Toggle auto-start steps. When enabled, pauseAfter is bypassed.
+   */
+  async setAutoStartSteps(taskId: string, enabled: boolean): Promise<void> {
+    await this.updateTaskZenflowMetadata(taskId, { autoStartSteps: enabled });
+    this.emitEvent({
+      taskId,
+      type: enabled ? 'auto-start-enabled' : 'auto-start-disabled',
+    });
+  }
+
+  /**
+   * Check if auto-start is enabled for a task.
+   */
+  private async getAutoStartSteps(taskId: string): Promise<boolean> {
+    try {
+      const task = await databaseService.getTask(taskId);
+      if (!task) return false;
+      const metadata =
+        typeof task.metadata === 'string' ? JSON.parse(task.metadata) : task.metadata;
+      return Boolean(metadata?.zenflow?.autoStartSteps);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -377,11 +463,12 @@ class ZenflowOrchestrationService extends EventEmitter {
 
   private resolvePromptTemplate(
     template: string,
-    context: { featureDescription: string; artifactsDir: string }
+    context: { featureDescription: string; artifactsDir: string; stepNumber: number }
   ): string {
     return template
       .replace(/\{\{featureDescription\}\}/g, context.featureDescription)
-      .replace(/\{\{artifactsDir\}\}/g, context.artifactsDir);
+      .replace(/\{\{artifactsDir\}\}/g, context.artifactsDir)
+      .replace(/\{\{stepNumber\}\}/g, String(context.stepNumber));
   }
 
   private async getWorktreePath(taskId: string): Promise<string | null> {
@@ -399,6 +486,7 @@ class ZenflowOrchestrationService extends EventEmitter {
       currentStepNumber: number;
       totalSteps: number;
       status: ZenflowWorkflowStatus;
+      autoStartSteps: boolean;
     }>
   ): Promise<void> {
     try {

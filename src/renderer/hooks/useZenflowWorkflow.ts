@@ -14,6 +14,10 @@ export interface UseZenflowWorkflowResult {
   workflowStatus: ZenflowWorkflowStatus | null;
   /** Whether initial load is in progress */
   loading: boolean;
+  /** Whether auto-start steps is enabled (bypasses pauseAfter) */
+  autoStartSteps: boolean;
+  /** Toggle auto-start steps */
+  setAutoStartSteps: (enabled: boolean) => Promise<void>;
   /** Check if a conversation belongs to a zenflow step */
   isZenflowStep: (conversationId: string) => boolean;
   /** Get the step data for a conversation */
@@ -41,9 +45,16 @@ function deriveWorkflowStatus(steps: PlanStepData[]): ZenflowWorkflowStatus | nu
   return null;
 }
 
-export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
+export function useZenflowWorkflow(
+  task: Task,
+  options?: { enabled?: boolean }
+): UseZenflowWorkflowResult {
+  const enabled = options?.enabled !== false;
   const [planSteps, setPlanSteps] = useState<PlanStepData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [autoStartSteps, setAutoStartStepsState] = useState(() =>
+    Boolean((task.metadata as any)?.zenflow?.autoStartSteps)
+  );
   const taskIdRef = useRef(task.id);
   taskIdRef.current = task.id;
 
@@ -55,6 +66,11 @@ export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
 
   // Load plan.md and step prompts on mount
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     const loadPlan = async () => {
       setLoading(true);
       try {
@@ -95,10 +111,11 @@ export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
     return () => {
       window.electronAPI.zenflowUnwatchPlan(task.id);
     };
-  }, [task.id, task.path]);
+  }, [task.id, task.path, enabled]);
 
   // Subscribe to plan.md file changes
   useEffect(() => {
+    if (!enabled) return;
     const cleanup = window.electronAPI.onZenflowPlanChanged(
       (data: { taskId: string; plan: PlanDocument }) => {
         if (data.taskId !== taskIdRef.current) return;
@@ -108,11 +125,12 @@ export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
     );
 
     return cleanup;
-  }, [task.id]);
+  }, [task.id, enabled]);
 
   // Also subscribe to zenflow IPC events for immediate status changes
   // (plan.md file watcher has 500ms debounce, events are instant)
   useEffect(() => {
+    if (!enabled) return;
     const cleanup = window.electronAPI.onZenflowEvent((event: ZenflowEvent) => {
       if (event.taskId !== taskIdRef.current) return;
 
@@ -138,7 +156,7 @@ export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
     });
 
     return cleanup;
-  }, [task.id, task.path]);
+  }, [task.id, task.path, enabled]);
 
   function updateStepMap(steps: PlanStepData[]) {
     const map = new Map<string, PlanStepData>();
@@ -174,10 +192,20 @@ export function useZenflowWorkflow(task: Task): UseZenflowWorkflowResult {
     await window.electronAPI.zenflowRetryStep(stepId);
   }, []);
 
+  const setAutoStartSteps = useCallback(
+    async (enabled: boolean) => {
+      await window.electronAPI.zenflowSetAutoStartSteps({ taskId: task.id, enabled });
+      setAutoStartStepsState(enabled);
+    },
+    [task.id]
+  );
+
   return {
     planSteps,
     workflowStatus,
     loading,
+    autoStartSteps,
+    setAutoStartSteps,
     isZenflowStep,
     getStepForConversation,
     getStepPrompt,

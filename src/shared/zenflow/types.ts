@@ -49,7 +49,9 @@ export interface ZenflowEvent {
     | 'step-failed'
     | 'workflow-paused'
     | 'workflow-completed'
-    | 'steps-expanded';
+    | 'steps-expanded'
+    | 'auto-start-enabled'
+    | 'auto-start-disabled';
   stepId?: string;
   stepNumber?: number;
   conversationId?: string;

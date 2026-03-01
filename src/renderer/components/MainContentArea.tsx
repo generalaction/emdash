@@ -1,5 +1,6 @@
 import React from 'react';
 import ChatInterface from './ChatInterface';
+import ZenflowChatLayout from './zenflow/ZenflowChatLayout';
 import KanbanBoard from './kanban/KanbanBoard';
 import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
@@ -134,6 +135,17 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
               projectRemoteConnectionId={projectRemoteConnectionId}
               projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
+              onTaskInterfaceReady={onTaskInterfaceReady}
+            />
+          ) : (activeTask.metadata as any)?.zenflow?.enabled ? (
+            <ZenflowChatLayout
+              task={activeTask}
+              projectName={selectedProject.name}
+              projectPath={selectedProject.path}
+              projectRemoteConnectionId={projectRemoteConnectionId}
+              projectRemotePath={projectRemotePath}
+              defaultBranch={projectDefaultBranch}
+              initialAgent={activeTaskAgent || undefined}
               onTaskInterfaceReady={onTaskInterfaceReady}
             />
           ) : (

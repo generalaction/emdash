@@ -2,12 +2,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { BrowserWindow } from 'electron';
 import { parsePlanMd, writePlanMd, updateStepInPlan, addStepsToPlan } from '@shared/zenflow/planMd';
-import type { PlanDocument, PlanStepData } from '@shared/zenflow/types';
+import type { PlanDocument, PlanStepData, WorkflowStepStatus } from '@shared/zenflow/types';
 import { log } from '../lib/logger';
 
 const PLAN_DEBOUNCE_MS = 500;
 const ZENFLOW_DIR = '.zenflow';
 const PLAN_FILE = 'plan.md';
+
+/** Describes a step status transition detected from plan.md changes */
+export interface StepStatusTransition {
+  taskId: string;
+  stepNumber: number;
+  conversationId: string | null;
+  oldStatus: WorkflowStepStatus;
+  newStatus: WorkflowStepStatus;
+}
+
+export type StepTransitionListener = (transitions: StepStatusTransition[]) => void;
 
 interface PlanWatcher {
   watcher: fs.FSWatcher;
@@ -22,6 +33,48 @@ interface PlanWatcher {
  */
 export class ZenflowPlanService {
   private watchers = new Map<string, PlanWatcher>();
+  /** Previous step statuses per task, keyed by taskId → Map<stepNumber, status> */
+  private previousStatuses = new Map<string, Map<number, WorkflowStepStatus>>();
+  /** Registered listeners for step status transitions */
+  private transitionListeners: StepTransitionListener[] = [];
+
+  /** Register a listener for step status transitions detected from plan.md file changes. */
+  onStepTransition(listener: StepTransitionListener): () => void {
+    this.transitionListeners.push(listener);
+    return () => {
+      this.transitionListeners = this.transitionListeners.filter((l) => l !== listener);
+    };
+  }
+
+  /** Store the current step statuses as the baseline for a task. */
+  snapshotStatuses(taskId: string, steps: PlanStepData[]): void {
+    const map = new Map<number, WorkflowStepStatus>();
+    for (const step of steps) {
+      map.set(step.stepNumber, step.status);
+    }
+    this.previousStatuses.set(taskId, map);
+  }
+
+  /** Compare new steps against previous snapshot and return transitions. */
+  private detectTransitions(taskId: string, steps: PlanStepData[]): StepStatusTransition[] {
+    const prev = this.previousStatuses.get(taskId);
+    if (!prev) return [];
+
+    const transitions: StepStatusTransition[] = [];
+    for (const step of steps) {
+      const oldStatus = prev.get(step.stepNumber);
+      if (oldStatus && oldStatus !== step.status) {
+        transitions.push({
+          taskId,
+          stepNumber: step.stepNumber,
+          conversationId: step.conversationId,
+          oldStatus,
+          newStatus: step.status,
+        });
+      }
+    }
+    return transitions;
+  }
 
   private getPlanPath(worktreePath: string): string {
     return path.join(worktreePath, ZENFLOW_DIR, PLAN_FILE);
@@ -112,6 +165,24 @@ export class ZenflowPlanService {
           try {
             const content = await fs.promises.readFile(planPath, 'utf-8');
             const plan = parsePlanMd(content);
+
+            // Detect status transitions and notify listeners
+            const transitions = this.detectTransitions(taskId, plan.steps);
+            if (transitions.length > 0) {
+              // Update snapshot before notifying (prevents re-triggering)
+              this.snapshotStatuses(taskId, plan.steps);
+              for (const listener of this.transitionListeners) {
+                try {
+                  listener(transitions);
+                } catch (err) {
+                  log.error('[zenflow-plan] Transition listener error', err);
+                }
+              }
+            } else {
+              // Update snapshot even without transitions (e.g. new steps added)
+              this.snapshotStatuses(taskId, plan.steps);
+            }
+
             this.broadcastPlanChanged(taskId, plan);
           } catch (err) {
             log.warn('[zenflow-plan] Error reading plan.md after change', err);
@@ -145,6 +216,7 @@ export class ZenflowPlanService {
       entry.watcher.close();
     } catch {}
     this.watchers.delete(taskId);
+    this.previousStatuses.delete(taskId);
   }
 
   /** Stop all watchers (e.g., on app quit). */

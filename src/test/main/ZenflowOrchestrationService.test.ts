@@ -35,6 +35,8 @@ vi.mock('../../main/services/ZenflowPlanService', () => ({
     startWatching: vi.fn(),
     stopWatching: vi.fn(),
     stopAll: vi.fn(),
+    onStepTransition: vi.fn().mockReturnValue(() => {}),
+    snapshotStatuses: vi.fn(),
   },
 }));
 
@@ -197,7 +199,28 @@ describe('ZenflowOrchestrationService', () => {
       await service.handlePtyExit('random-pty-id', 0);
     });
 
-    it('marks step as completed on exit code 0', async () => {
+    it('is a no-op when step is already completed via plan.md', async () => {
+      mockSteps.push({
+        id: 'step-task-1-1',
+        taskId: 'task-1',
+        stepNumber: 1,
+        name: 'Tech Spec',
+        type: 'spec',
+        status: 'completed',
+        pauseAfter: 1,
+      });
+
+      const events: any[] = [];
+      service.onEvent((e) => events.push(e));
+
+      service.registerPtyStep('pty-123', 'task-1', 'step-task-1-1');
+      await service.handlePtyExit('pty-123', 0);
+
+      // No events emitted — step was already completed by agent
+      expect(events.length).toBe(0);
+    });
+
+    it('does not mark step completed on exit code 0 (agent does that via plan.md)', async () => {
       mockSteps.push({
         id: 'step-task-1-1',
         taskId: 'task-1',
@@ -208,41 +231,11 @@ describe('ZenflowOrchestrationService', () => {
         pauseAfter: 1,
       });
 
-      service.registerPtyStep('pty-123', 'task-1', 'step-task-1-1');
-      await service.handlePtyExit('pty-123', 0);
-
-      expect(mockSteps[0].status).toBe('completed');
-    });
-
-    it('emits workflow-paused when step has pauseAfter', async () => {
-      mockSteps.push(
-        {
-          id: 'step-task-1-1',
-          taskId: 'task-1',
-          stepNumber: 1,
-          name: 'Tech Spec',
-          type: 'spec',
-          status: 'running',
-          pauseAfter: 1,
-        },
-        {
-          id: 'step-task-1-2',
-          taskId: 'task-1',
-          stepNumber: 2,
-          name: 'Implementation',
-          type: 'implementation',
-          status: 'pending',
-          pauseAfter: 0,
-        }
-      );
-
-      const events: any[] = [];
-      service.onEvent((e) => events.push(e));
-
       service.registerPtyStep('pty-456', 'task-1', 'step-task-1-1');
       await service.handlePtyExit('pty-456', 0);
 
-      expect(events.some((e) => e.type === 'workflow-paused')).toBe(true);
+      // Step stays running — agent is responsible for marking completed
+      expect(mockSteps[0].status).toBe('running');
     });
 
     it('marks step as failed on non-zero exit', async () => {
@@ -264,26 +257,6 @@ describe('ZenflowOrchestrationService', () => {
 
       expect(mockSteps[0].status).toBe('failed');
       expect(events.some((e) => e.type === 'step-failed')).toBe(true);
-    });
-
-    it('emits workflow-completed when last step finishes', async () => {
-      mockSteps.push({
-        id: 'step-task-1-1',
-        taskId: 'task-1',
-        stepNumber: 1,
-        name: 'Only Step',
-        type: 'implementation',
-        status: 'running',
-        pauseAfter: 0,
-      });
-
-      const events: any[] = [];
-      service.onEvent((e) => events.push(e));
-
-      service.registerPtyStep('pty-last', 'task-1', 'step-task-1-1');
-      await service.handlePtyExit('pty-last', 0);
-
-      expect(events.some((e) => e.type === 'workflow-completed')).toBe(true);
     });
   });
 
@@ -326,13 +299,13 @@ describe('ZenflowOrchestrationService', () => {
 
       service.registerPtyStep('pty-cleanup', 'task-1', 'step-task-1-1');
 
-      // First exit handles it
-      await service.handlePtyExit('pty-cleanup', 0);
+      // First exit handles it (non-zero to trigger actual handling)
+      await service.handlePtyExit('pty-cleanup', 1);
 
       // Second exit is a no-op (mapping cleared)
       const events: any[] = [];
       service.onEvent((e) => events.push(e));
-      await service.handlePtyExit('pty-cleanup', 0);
+      await service.handlePtyExit('pty-cleanup', 1);
       expect(events.length).toBe(0);
     });
   });

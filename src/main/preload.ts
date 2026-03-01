@@ -720,6 +720,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('zenflow:expandSteps', args),
   zenflowStartStep: (args: { taskId: string; stepId: string }) =>
     ipcRenderer.invoke('zenflow:startStep', args),
+  zenflowSetAutoStartSteps: (args: { taskId: string; enabled: boolean }) =>
+    ipcRenderer.invoke('zenflow:setAutoStartSteps', args),
   zenflowRegisterPtyStep: (args: { ptyId: string; taskId: string; stepId: string }) =>
     ipcRenderer.invoke('zenflow:registerPtyStep', args),
   zenflowLinkConversation: (args: { stepId: string; conversationId: string }) =>

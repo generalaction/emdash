@@ -26,8 +26,7 @@ import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
-import { useZenflowWorkflow } from '../hooks/useZenflowWorkflow';
-import ZenflowProgressBar from './zenflow/ZenflowProgressBar';
+import { useZenflowWorkflow, type UseZenflowWorkflowResult } from '../hooks/useZenflowWorkflow';
 
 declare const window: Window & {
   electronAPI: {
@@ -45,6 +44,7 @@ interface Props {
   className?: string;
   initialAgent?: Agent;
   onTaskInterfaceReady?: () => void;
+  zenflowData?: UseZenflowWorkflowResult;
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -57,6 +57,7 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialAgent,
   onTaskInterfaceReady,
+  zenflowData,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
@@ -81,7 +82,9 @@ const ChatInterface: React.FC<Props> = ({
 
   // Zenflow mode: detect if this task has zenflow enabled
   const isZenflow = Boolean((task.metadata as any)?.zenflow?.enabled);
-  const zenflow = useZenflowWorkflow(task);
+  const internalZenflow = useZenflowWorkflow(task, { enabled: !zenflowData });
+  // Use externally-provided zenflow data when available (avoids double file watching)
+  const zenflow = zenflowData ?? internalZenflow;
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
@@ -742,6 +745,17 @@ const ChatInterface: React.FC<Props> = ({
     return () => window.removeEventListener('zenflow:switch-to-conversation', handleZenflowSwitch);
   }, [isZenflow, conversations, handleSwitchChat]);
 
+  // Zenflow: broadcast active conversation so sidebar can highlight the active step
+  useEffect(() => {
+    if (isZenflow && activeConversationId) {
+      window.dispatchEvent(
+        new CustomEvent('zenflow:active-conversation-changed', {
+          detail: { conversationId: activeConversationId },
+        })
+      );
+    }
+  }, [isZenflow, activeConversationId]);
+
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
     Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
@@ -1082,15 +1096,6 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 </div>
               </div>
-              {/* Zenflow progress bar */}
-              {isZenflow && zenflow.planSteps.length > 0 && (
-                <ZenflowProgressBar
-                  steps={zenflow.planSteps}
-                  workflowStatus={zenflow.workflowStatus}
-                  onPause={zenflow.pause}
-                  onResume={zenflow.resume}
-                />
-              )}
               {(() => {
                 if (isAgentInstalled === false) {
                   return (
@@ -1232,7 +1237,10 @@ const ChatInterface: React.FC<Props> = ({
                   initialPrompt={
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
                     !agentMeta[agent]?.useKeystrokeInjection &&
-                    !task.metadata?.initialInjectionSent
+                    // Zenflow steps each have their own prompt — don't block on initialInjectionSent
+                    (isZenflow
+                      ? zenflow.isZenflowStep(activeConversationId ?? '')
+                      : !task.metadata?.initialInjectionSent)
                       ? (initialInjection ?? undefined)
                       : undefined
                   }
