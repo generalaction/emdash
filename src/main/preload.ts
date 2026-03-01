@@ -326,6 +326,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
+  gitCommit: (args: { taskPath: string; message: string }) =>
+    ipcRenderer.invoke('git:commit', args),
+  gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
+  gitPull: (args: { taskPath: string }) => ipcRenderer.invoke('git:pull', args),
+  gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) =>
+    ipcRenderer.invoke('git:get-log', args),
+  gitGetLatestCommit: (args: { taskPath: string }) =>
+    ipcRenderer.invoke('git:get-latest-commit', args),
+  gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
+    ipcRenderer.invoke('git:get-commit-files', args),
+  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
+    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
     commitMessage?: string;

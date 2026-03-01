@@ -11,6 +11,7 @@ import LeftSidebar from './components/LeftSidebar';
 import MainContentArea from './components/MainContentArea';
 import { NewProjectModal } from './components/NewProjectModal';
 import RightSidebar from './components/RightSidebar';
+import { DiffViewer } from './components/diff-viewer';
 import CodeEditor from './components/FileExplorer/CodeEditor';
 import TaskModal from './components/TaskModal';
 import { UpdateModal } from './components/UpdateModal';
@@ -141,6 +142,9 @@ const AppContent: React.FC = () => {
     handleWelcomeGetStarted,
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const [showDiffViewer, setShowDiffViewer] = useState(false);
+  const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
+  const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -270,6 +274,7 @@ const AppContent: React.FC = () => {
     handleRightSidebarCollapsedChange,
   } = usePanelLayout({
     showEditorMode,
+    showDiffViewer,
     isInitialLoadComplete: appInit.isInitialLoadComplete,
     showHomeView: projectMgmt.showHomeView,
     selectedProject: projectMgmt.selectedProject,
@@ -603,7 +608,7 @@ const AppContent: React.FC = () => {
                 />
               )}
               <div
-                className={`flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
+                className={`relative flex flex-1 overflow-hidden ${!showWelcomeScreen ? 'pt-[var(--tb)]' : ''}`}
               >
                 <ResizablePanelGroup
                   direction="horizontal"
@@ -619,7 +624,9 @@ const AppContent: React.FC = () => {
                     collapsedSize={0}
                     collapsible
                     order={1}
-                    style={{ display: showEditorMode ? 'none' : undefined }}
+                    style={{
+                      display: showEditorMode ? 'none' : undefined,
+                    }}
                   >
                     <LeftSidebar
                       projects={projectMgmt.projects}
@@ -653,7 +660,7 @@ const AppContent: React.FC = () => {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
@@ -662,37 +669,50 @@ const AppContent: React.FC = () => {
                     order={2}
                   >
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                      <MainContentArea
-                        selectedProject={selectedProject}
-                        activeTask={activeTask}
-                        activeTaskAgent={activeTaskAgent}
-                        isCreatingTask={isCreatingTask}
-                        onTaskInterfaceReady={handleTaskInterfaceReady}
-                        showKanban={showKanban}
-                        showHomeView={projectMgmt.showHomeView}
-                        showSkillsView={projectMgmt.showSkillsView}
-                        showSettingsPage={showSettingsPage}
-                        settingsPageInitialTab={settingsPageInitialTab}
-                        handleCloseSettingsPage={handleCloseSettingsPage}
-                        projectDefaultBranch={projectMgmt.projectDefaultBranch}
-                        projectBranchOptions={projectMgmt.projectBranchOptions}
-                        isLoadingBranches={projectMgmt.isLoadingBranches}
-                        setProjectDefaultBranch={projectMgmt.setProjectDefaultBranch}
-                        handleSelectTask={taskMgmt.handleSelectTask}
-                        handleDeleteTask={taskMgmt.handleDeleteTask}
-                        handleArchiveTask={taskMgmt.handleArchiveTask}
-                        handleRestoreTask={taskMgmt.handleRestoreTask}
-                        handleDeleteProject={projectMgmt.handleDeleteProject}
-                        handleOpenProject={projectMgmt.handleOpenProject}
-                        handleNewProjectClick={projectMgmt.handleNewProjectClick}
-                        handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
-                        handleAddRemoteProject={handleAddRemoteProjectClick}
-                        setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
-                        setShowKanban={(show: boolean) => setShowKanban(show)}
-                        projectRemoteConnectionId={derivedRemoteConnectionId}
-                        projectRemotePath={derivedRemotePath}
-                        onRenameTask={taskMgmt.handleRenameTask}
-                      />
+                      {showDiffViewer ? (
+                        <DiffViewer
+                          onClose={() => {
+                            setShowDiffViewer(false);
+                            setDiffViewerInitialFile(null);
+                            setDiffViewerTaskPath(null);
+                          }}
+                          taskId={activeTask?.id}
+                          taskPath={diffViewerTaskPath || activeTask?.path}
+                          initialFile={diffViewerInitialFile}
+                        />
+                      ) : (
+                        <MainContentArea
+                          selectedProject={selectedProject}
+                          activeTask={activeTask}
+                          activeTaskAgent={activeTaskAgent}
+                          isCreatingTask={isCreatingTask}
+                          onTaskInterfaceReady={handleTaskInterfaceReady}
+                          showKanban={showKanban}
+                          showHomeView={projectMgmt.showHomeView}
+                          showSkillsView={projectMgmt.showSkillsView}
+                          showSettingsPage={showSettingsPage}
+                          settingsPageInitialTab={settingsPageInitialTab}
+                          handleCloseSettingsPage={handleCloseSettingsPage}
+                          projectDefaultBranch={projectMgmt.projectDefaultBranch}
+                          projectBranchOptions={projectMgmt.projectBranchOptions}
+                          isLoadingBranches={projectMgmt.isLoadingBranches}
+                          setProjectDefaultBranch={projectMgmt.setProjectDefaultBranch}
+                          handleSelectTask={taskMgmt.handleSelectTask}
+                          handleDeleteTask={taskMgmt.handleDeleteTask}
+                          handleArchiveTask={taskMgmt.handleArchiveTask}
+                          handleRestoreTask={taskMgmt.handleRestoreTask}
+                          handleDeleteProject={projectMgmt.handleDeleteProject}
+                          handleOpenProject={projectMgmt.handleOpenProject}
+                          handleNewProjectClick={projectMgmt.handleNewProjectClick}
+                          handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
+                          handleAddRemoteProject={handleAddRemoteProjectClick}
+                          setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
+                          setShowKanban={(show: boolean) => setShowKanban(show)}
+                          projectRemoteConnectionId={derivedRemoteConnectionId}
+                          projectRemotePath={derivedRemotePath}
+                          onRenameTask={taskMgmt.handleRenameTask}
+                        />
+                      )}
                     </div>
                   </ResizablePanel>
                   <ResizableHandle
@@ -718,6 +738,11 @@ const AppContent: React.FC = () => {
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
+                      onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setDiffViewerInitialFile(filePath ?? null);
+                        setDiffViewerTaskPath(taskPath ?? null);
+                        setShowDiffViewer(true);
+                      }}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>

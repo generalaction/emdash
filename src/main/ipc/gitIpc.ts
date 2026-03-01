@@ -13,6 +13,14 @@ import {
   stageAllFiles as gitStageAllFiles,
   unstageFile as gitUnstageFile,
   revertFile as gitRevertFile,
+  commit as gitCommit,
+  push as gitPush,
+  pull as gitPull,
+  getLog as gitGetLog,
+  getLatestCommit as gitGetLatestCommit,
+  getCommitFiles as gitGetCommitFiles,
+  getCommitFileDiff as gitGetCommitFileDiff,
+  softResetLastCommit as gitSoftResetLastCommit,
 } from '../services/GitService';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
@@ -96,6 +104,22 @@ const releaseRemoteStatusPoller = (taskPath: string, watchId?: string) => {
   }
   return { success: true as const };
 };
+
+/**
+ * Validate that a taskPath is an absolute path pointing to a real directory
+ * that is a git repository. Returns an error string if invalid, or null if OK.
+ */
+function validateTaskPath(taskPath: string | undefined): string | null {
+  if (!taskPath) return 'Missing taskPath';
+  if (!path.isAbsolute(taskPath)) return 'taskPath must be absolute';
+  try {
+    const stat = fs.statSync(taskPath);
+    if (!stat.isDirectory()) return 'taskPath is not a directory';
+  } catch {
+    return 'taskPath does not exist';
+  }
+  return null;
+}
 
 const broadcastGitStatusChange = (taskPath: string, error?: string) => {
   const windows = BrowserWindow.getAllWindows();
@@ -634,7 +658,7 @@ export function registerGitIpc() {
       const changes = await gitGetStatus(taskPath);
       return { success: true, changes };
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -653,7 +677,7 @@ export function registerGitIpc() {
       const diff = await gitGetFileDiff(args.taskPath, args.filePath);
       return { success: true, diff };
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1220,7 +1244,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: false, error: msg || 'Failed to query PR status' };
       }
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1303,7 +1327,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: false, error: combined || 'Failed to merge PR' };
         }
       } catch (error) {
-        return { success: false, error: error as string };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -1426,7 +1450,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: false, error: msg || 'Failed to query check runs' };
       }
     } catch (error) {
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1593,7 +1617,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: false, error: msg || 'Failed to query PR comments' };
         }
       } catch (error) {
-        return { success: false, error: error as string };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
   );
@@ -1820,36 +1844,66 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         } catch {}
       }
 
-      // Ahead/behind relative to upstream or origin/<default>
+      // Ahead/behind relative to upstream tracking branch
       let ahead = 0;
       let behind = 0;
       try {
-        // Try explicit compare with origin/default...HEAD
+        // Best case: compare against the upstream tracking branch (@{upstream})
         const { stdout } = await execFileAsync(
           GIT,
-          ['rev-list', '--left-right', '--count', `origin/${defaultBranch}...HEAD`],
+          ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
           { cwd: taskPath }
         );
         const parts = (stdout || '').trim().split(/\s+/);
         if (parts.length >= 2) {
-          behind = parseInt(parts[0] || '0', 10) || 0; // commits on left (origin/default)
-          ahead = parseInt(parts[1] || '0', 10) || 0; // commits on right (HEAD)
+          behind = parseInt(parts[0] || '0', 10) || 0;
+          ahead = parseInt(parts[1] || '0', 10) || 0;
         }
       } catch {
         try {
-          const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
-          const line = (stdout || '').split(/\n/)[0] || '';
-          const m = line.match(/ahead\s+(\d+)/i);
-          const n = line.match(/behind\s+(\d+)/i);
-          if (m) ahead = parseInt(m[1] || '0', 10) || 0;
-          if (n) behind = parseInt(n[1] || '0', 10) || 0;
-        } catch {}
+          // Fallback: compare against origin/<current-branch>
+          const { stdout } = await execFileAsync(
+            GIT,
+            ['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`],
+            { cwd: taskPath }
+          );
+          const parts = (stdout || '').trim().split(/\s+/);
+          if (parts.length >= 2) {
+            behind = parseInt(parts[0] || '0', 10) || 0;
+            ahead = parseInt(parts[1] || '0', 10) || 0;
+          }
+        } catch {
+          // No upstream — use git status as last resort
+          try {
+            const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
+            const line = (stdout || '').split(/\n/)[0] || '';
+            const m = line.match(/ahead\s+(\d+)/i);
+            const n = line.match(/behind\s+(\d+)/i);
+            if (m) ahead = parseInt(m[1] || '0', 10) || 0;
+            if (n) behind = parseInt(n[1] || '0', 10) || 0;
+          } catch {}
+        }
       }
 
-      return { success: true, branch, defaultBranch, ahead, behind };
+      // Count commits ahead of origin/<defaultBranch> (for PR visibility)
+      let aheadOfDefault = 0;
+      if (branch !== defaultBranch) {
+        try {
+          const { stdout: countOut } = await execFileAsync(
+            GIT,
+            ['rev-list', '--count', `origin/${defaultBranch}..HEAD`],
+            { cwd: taskPath }
+          );
+          aheadOfDefault = parseInt(countOut.trim(), 10) || 0;
+        } catch {
+          // origin/<defaultBranch> may not exist
+        }
+      }
+
+      return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
     } catch (error) {
       log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
-      return { success: false, error: error as string };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -1886,11 +1940,11 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Check if remote exists before attempting to fetch
         let hasRemote = false;
         try {
-          await execAsync(`git remote get-url ${remote}`, { cwd: projectPath });
+          await execFileAsync('git', ['remote', 'get-url', remote], { cwd: projectPath });
           hasRemote = true;
           // Remote exists, try to fetch
           try {
-            await execAsync(`git fetch --prune ${remote}`, { cwd: projectPath });
+            await execFileAsync('git', ['fetch', '--prune', remote], { cwd: projectPath });
           } catch (fetchError) {
             log.warn('Failed to fetch remote before listing branches', fetchError);
           }
@@ -1903,8 +1957,9 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         if (hasRemote) {
           // List remote branches
-          const { stdout } = await execAsync(
-            `git for-each-ref --format="%(refname:short)" refs/remotes/${remote}`,
+          const { stdout } = await execFileAsync(
+            'git',
+            ['for-each-ref', '--format=%(refname:short)', `refs/remotes/${remote}`],
             { cwd: projectPath }
           );
 
@@ -2189,4 +2244,115 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
     }
   );
+
+  ipcMain.handle('git:commit', async (_, args: { taskPath: string; message: string }) => {
+    try {
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      const result = await gitCommit(args.taskPath, args.message);
+      broadcastGitStatusChange(args.taskPath);
+      return { success: true, hash: result.hash };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
+    try {
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      const result = await gitPush(args.taskPath);
+      return { success: true, output: result.output };
+    } catch (error) {
+      const errObj = error as { stderr?: string; message?: string };
+      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('git:pull', async (_, args: { taskPath: string }) => {
+    try {
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      const result = await gitPull(args.taskPath);
+      return { success: true, output: result.output };
+    } catch (error) {
+      const errObj = error as { stderr?: string; message?: string };
+      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle(
+    'git:get-log',
+    async (
+      _,
+      args: { taskPath: string; maxCount?: number; skip?: number; aheadCount?: number }
+    ) => {
+      try {
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
+        const result = await gitGetLog(args.taskPath, args.maxCount, args.skip, args.aheadCount);
+        return { success: true, commits: result.commits, aheadCount: result.aheadCount };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle('git:get-latest-commit', async (_, args: { taskPath: string }) => {
+    try {
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      const commit = await gitGetLatestCommit(args.taskPath);
+      return { success: true, commit };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle(
+    'git:get-commit-files',
+    async (_, args: { taskPath: string; commitHash: string }) => {
+      try {
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
+        if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
+          return { success: false, error: 'Invalid commit hash' };
+        }
+        const files = await gitGetCommitFiles(args.taskPath, args.commitHash);
+        return { success: true, files };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'git:get-commit-file-diff',
+    async (_, args: { taskPath: string; commitHash: string; filePath: string }) => {
+      try {
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
+        if (!/^[0-9a-f]{4,40}$/i.test(args.commitHash)) {
+          return { success: false, error: 'Invalid commit hash' };
+        }
+        // filePath is validated by path.resolve check in GitService.getCommitFileDiff
+        const diff = await gitGetCommitFileDiff(args.taskPath, args.commitHash, args.filePath);
+        return { success: true, diff };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  ipcMain.handle('git:soft-reset', async (_, args: { taskPath: string }) => {
+    try {
+      const pathErr = validateTaskPath(args.taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      const result = await gitSoftResetLastCommit(args.taskPath);
+      broadcastGitStatusChange(args.taskPath);
+      return { success: true, subject: result.subject, body: result.body };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }

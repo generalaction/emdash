@@ -621,6 +621,7 @@ declare global {
             right?: string;
             type: 'context' | 'add' | 'del';
           }>;
+          isBinary?: boolean;
         };
         error?: string;
       }>;
@@ -639,6 +640,78 @@ declare global {
       revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';
+        error?: string;
+      }>;
+      gitCommit: (args: { taskPath: string; message: string }) => Promise<{
+        success: boolean;
+        hash?: string;
+        error?: string;
+      }>;
+      gitPush: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      gitPull: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      gitGetLog: (args: {
+        taskPath: string;
+        maxCount?: number;
+        skip?: number;
+        aheadCount?: number;
+      }) => Promise<{
+        success: boolean;
+        commits?: Array<{
+          hash: string;
+          subject: string;
+          body: string;
+          author: string;
+          date: string;
+          isPushed: boolean;
+          tags: string[];
+        }>;
+        aheadCount?: number;
+        error?: string;
+      }>;
+      gitGetLatestCommit: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        commit?: {
+          hash: string;
+          subject: string;
+          body: string;
+          isPushed: boolean;
+        } | null;
+        error?: string;
+      }>;
+      gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) => Promise<{
+        success: boolean;
+        files?: Array<{
+          path: string;
+          status: string;
+          additions: number;
+          deletions: number;
+        }>;
+        error?: string;
+      }>;
+      gitGetCommitFileDiff: (args: {
+        taskPath: string;
+        commitHash: string;
+        filePath: string;
+      }) => Promise<{
+        success: boolean;
+        diff?: {
+          lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+          isBinary?: boolean;
+        };
+        error?: string;
+      }>;
+      gitSoftReset: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        subject?: string;
+        body?: string;
         error?: string;
       }>;
       gitCommitAndPush: (args: {
@@ -748,6 +821,7 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        aheadOfDefault?: number;
         error?: string;
       }>;
       renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{
