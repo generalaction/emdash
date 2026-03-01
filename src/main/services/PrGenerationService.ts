@@ -475,8 +475,9 @@ Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
       // Step 4: Try to find a JSON object containing both "title" and "description"
       const specificMatch = text.match(/\{[^{}]*"title"[^{}]*"description"[^{}]*\}/s);
       // Also try reversed key order
-      const reversedMatch =
-        !specificMatch && text.match(/\{[^{}]*"description"[^{}]*"title"[^{}]*\}/s);
+      const reversedMatch = specificMatch
+        ? null
+        : text.match(/\{[^{}]*"description"[^{}]*"title"[^{}]*\}/s);
       const jsonStr = specificMatch?.[0] ?? reversedMatch?.[0];
 
       // Step 5: Fall back to greedy match only if specific match failed
