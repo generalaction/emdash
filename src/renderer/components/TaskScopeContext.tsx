@@ -4,6 +4,7 @@ export type TaskScope = {
   taskId?: string;
   taskPath?: string;
   projectPath?: string | null;
+  prNumber?: number;
 };
 
 const TaskScopeContext = createContext<TaskScope | null>(null);
