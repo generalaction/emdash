@@ -38,6 +38,7 @@ import { useRemoteProject } from '../hooks/useRemoteProject';
 import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 import type { ConnectionState } from './ssh';
+import { rpc } from '../lib/rpc';
 
 interface LeftSidebarProps {
   projects: Project[];
@@ -186,7 +187,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     const archived: Record<string, Task[]> = {};
     for (const project of projects) {
       try {
-        const tasks = await window.electronAPI.getArchivedTasks(project.id);
+        const tasks = (await rpc.db.getArchivedTasks(project.id)) as Task[];
         if (tasks && tasks.length > 0) archived[project.id] = tasks;
       } catch (err) {}
     }
@@ -483,9 +484,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 taskPath={archivedTask.path}
                                                 useWorktree={archivedTask.useWorktree !== false}
                                                 onConfirm={() =>
-                                                  onDeleteTask?.(typedProject, archivedTask).then(
-                                                    () => fetchArchivedTasks()
-                                                  )
+                                                  Promise.resolve(
+                                                    onDeleteTask?.(typedProject, archivedTask)
+                                                  ).then(() => fetchArchivedTasks())
                                                 }
                                               />
                                             </div>
