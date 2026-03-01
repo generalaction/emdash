@@ -505,10 +505,17 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       newBranch = oldBranch;
     }
 
-    // Helper to update task name and branch across all state locations
-    const applyTaskChange = (name: string, branch: string) => {
+    // Helper to update task name, branch, and clear nameGenerated across all state locations
+    const applyTaskChange = (name: string, branch: string, clearNameGenerated = false) => {
       const updateTasks = (tasks: Task[] | undefined) =>
-        tasks?.map((t) => (t.id === task.id ? { ...t, name, branch } : t));
+        tasks?.map((t) => {
+          if (t.id !== task.id) return t;
+          const updated = { ...t, name, branch };
+          if (clearNameGenerated && updated.metadata?.nameGenerated) {
+            updated.metadata = { ...updated.metadata, nameGenerated: null };
+          }
+          return updated;
+        });
 
       setProjects((prev) =>
         prev.map((project) =>
@@ -521,11 +528,18 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         prev && prev.id === targetProject.id ? { ...prev, tasks: updateTasks(prev.tasks) } : prev
       );
       // Check inside updater to avoid stale closure
-      setActiveTask((prev) => (prev?.id === task.id ? { ...prev, name, branch } : prev));
+      setActiveTask((prev) => {
+        if (prev?.id !== task.id) return prev;
+        const updated = { ...prev, name, branch };
+        if (clearNameGenerated && updated.metadata?.nameGenerated) {
+          updated.metadata = { ...updated.metadata, nameGenerated: null };
+        }
+        return updated;
+      });
     };
 
-    // Optimistically update local state
-    applyTaskChange(newName, newBranch);
+    // Optimistically update local state (clear nameGenerated to prevent re-triggering)
+    applyTaskChange(newName, newBranch, true);
 
     let branchRenamed = false;
     try {
@@ -543,11 +557,15 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         branchRenamed = true;
       }
 
-      // Save task with new name and branch
-      await rpc.db.saveTask({
+      // Save task with new name, branch, and clear nameGenerated flag
+      const updatedMetadata = task.metadata?.nameGenerated
+        ? { ...task.metadata, nameGenerated: null }
+        : task.metadata;
+      const saveResult = await rpc.db.saveTask({
         ...task,
         name: newName,
         branch: newBranch,
+        metadata: updatedMetadata,
       });
     } catch (error) {
       const { log } = await import('../lib/logger');
