@@ -152,6 +152,7 @@ declare global {
           };
           terminal?: {
             fontFamily: string;
+            autoCopyOnSelection: boolean;
           };
           defaultOpenInApp?: string;
           hiddenOpenInApps?: string[];
@@ -240,6 +241,7 @@ declare global {
           };
           terminal?: {
             fontFamily?: string;
+            autoCopyOnSelection?: boolean;
           };
           defaultOpenInApp?: string;
           hiddenOpenInApps?: string[];
@@ -327,6 +329,7 @@ declare global {
           };
           terminal?: {
             fontFamily: string;
+            autoCopyOnSelection: boolean;
           };
           defaultOpenInApp?: string;
           hiddenOpenInApps?: string[];
