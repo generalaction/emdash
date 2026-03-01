@@ -149,6 +149,7 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
             theme?: 'light' | 'dark' | 'dark-black' | 'system';
+            taskHoverAction?: 'delete' | 'archive';
           };
           terminal?: {
             fontFamily: string;
@@ -237,6 +238,7 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
             theme?: 'light' | 'dark' | 'dark-black' | 'system';
+            taskHoverAction?: 'delete' | 'archive';
           };
           terminal?: {
             fontFamily?: string;
@@ -324,6 +326,7 @@ declare global {
           interface?: {
             autoRightSidebarBehavior?: boolean;
             theme?: 'light' | 'dark' | 'dark-black' | 'system';
+            taskHoverAction?: 'delete' | 'archive';
           };
           terminal?: {
             fontFamily: string;

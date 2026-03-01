@@ -47,6 +47,7 @@ export interface KeyboardSettings {
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
+  taskHoverAction?: 'delete' | 'archive';
 }
 
 /**
@@ -172,6 +173,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   interface: {
     autoRightSidebarBehavior: false,
     theme: 'system',
+    taskHoverAction: 'delete',
   },
   providerConfigs: {},
   terminal: {
@@ -324,7 +326,7 @@ export function persistSettings(settings: AppSettings) {
 /**
  * Coerce and validate settings for robustness and forward-compatibility.
  */
-function normalizeSettings(input: AppSettings): AppSettings {
+export function normalizeSettings(input: AppSettings): AppSettings {
   const out: AppSettings = {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
@@ -486,6 +488,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
       ? iface.theme
       : DEFAULT_SETTINGS.interface!.theme,
+    taskHoverAction: iface?.taskHoverAction === 'archive' ? 'archive' : 'delete',
   };
 
   // Provider custom configs
