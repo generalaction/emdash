@@ -98,6 +98,8 @@ export class TerminalSessionManager {
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
   private inputBuffer: TerminalInputBuffer | null = null;
+  private autoCopyOnSelection = false;
+  private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -136,6 +138,7 @@ export class TerminalSessionManager {
 
     window.electronAPI.getSettings().then((result) => {
       updateCustomFont(result?.settings?.terminal?.fontFamily);
+      this.autoCopyOnSelection = result?.settings?.terminal?.autoCopyOnSelection ?? false;
     });
 
     const handleFontChange = (e: Event) => {
@@ -146,6 +149,15 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-font-changed', handleFontChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
+
+    const handleAutoCopyChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
+      this.autoCopyOnSelection = detail?.autoCopyOnSelection ?? false;
+    };
+    window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
     );
 
     const handlePanelResizeDragging = (e: Event) => {
@@ -353,6 +365,30 @@ export class TerminalSessionManager {
         element.style.width = '100%';
         element.style.height = '100%';
       }
+
+      const selectionDisposable = this.terminal.onSelectionChange(() => {
+        if (!this.autoCopyOnSelection || this.disposed) return;
+        if (!this.terminal.hasSelection()) return;
+        if (this.selectionChangeDebounceTimer) {
+          clearTimeout(this.selectionChangeDebounceTimer);
+        }
+        this.selectionChangeDebounceTimer = setTimeout(() => {
+          try {
+            if (!this.disposed && this.terminal.hasSelection()) {
+              this.copySelectionToClipboard();
+            }
+          } catch (error) {
+            log.warn('Auto-copy on selection failed', { id: this.id, error });
+          }
+        }, 150);
+      });
+      this.disposables.push(() => {
+        if (this.selectionChangeDebounceTimer) {
+          clearTimeout(this.selectionChangeDebounceTimer);
+          this.selectionChangeDebounceTimer = null;
+        }
+        selectionDisposable.dispose();
+      });
     }
 
     this.scheduleFit();

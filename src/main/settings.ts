@@ -101,6 +101,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -176,6 +177,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -527,7 +529,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
   // Terminal
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
-  out.terminal = { fontFamily };
+  const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
+  out.terminal = { fontFamily, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;
