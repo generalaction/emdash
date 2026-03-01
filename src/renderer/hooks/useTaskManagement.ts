@@ -557,11 +557,11 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         branchRenamed = true;
       }
 
-// Save task with new name, branch, and clear nameGenerated flag
-        const updatedMetadata = task.metadata?.nameGenerated
-          ? { ...task.metadata, nameGenerated: null }
-          : task.metadata;
-        const saveResult = await rpc.db.saveTask({
+      // Save task with new name, branch, and clear nameGenerated flag
+      const updatedMetadata = task.metadata?.nameGenerated
+        ? { ...task.metadata, nameGenerated: null }
+        : task.metadata;
+      const saveResult = await rpc.db.saveTask({
         ...task,
         name: newName,
         branch: newBranch,
