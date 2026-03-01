@@ -22,7 +22,9 @@ type CreatePROptions = {
 
 export function useCreatePR() {
   const { toast } = useToast();
-  const [isCreating, setIsCreating] = useState(false);
+  const [creatingTaskPath, setCreatingTaskPath] = useState<string | null>(null);
+
+  const isCreatingForTaskPath = (path: string) => creatingTaskPath === path;
 
   const createPR = async (opts: CreatePROptions) => {
     const {
@@ -34,7 +36,7 @@ export function useCreatePR() {
       onSuccess,
     } = opts;
 
-    setIsCreating(true);
+    setCreatingTaskPath(taskPath);
     try {
       // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
       const api: any = (window as any).electronAPI;
@@ -267,9 +269,9 @@ export function useCreatePR() {
       });
       return { success: false, error: message } as any;
     } finally {
-      setIsCreating(false);
+      setCreatingTaskPath(null);
     }
   };
 
-  return { isCreating, createPR };
+  return { isCreatingForTaskPath, createPR };
 }
