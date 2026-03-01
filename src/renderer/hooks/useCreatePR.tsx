@@ -27,7 +27,7 @@ export function useCreatePR() {
   const createPR = async (opts: CreatePROptions) => {
     const {
       taskPath,
-      commitMessage = 'chore: apply task changes',
+      commitMessage: explicitCommitMessage,
       createBranchIfOnDefault = true,
       branchPrefix = 'orch',
       prOptions,
@@ -80,6 +80,10 @@ export function useCreatePR() {
       if (!finalPrOptions.title) {
         finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
       }
+
+      // Use the generated PR title as commit message when no explicit one was provided
+      const commitMessage =
+        explicitCommitMessage || finalPrOptions.title || 'chore: apply task changes';
 
       const commitRes = await api.gitCommitAndPush({
         taskPath,

@@ -27,6 +27,7 @@ type Props = {
   onStartError?: (message: string) => void;
   onStartSuccess?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
+  onFirstMessage?: (message: string) => void;
 };
 
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
@@ -53,6 +54,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       onStartError,
       onStartSuccess,
       onExit,
+      onFirstMessage,
     },
     ref
   ) => {
@@ -93,6 +95,8 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     onStartSuccessRef.current = onStartSuccess;
     const onExitRef = useRef(onExit);
     onExitRef.current = onExit;
+    const onFirstMessageRef = useRef(onFirstMessage);
+    onFirstMessageRef.current = onFirstMessage;
 
     const theme = useMemo<SessionTheme>(
       () => ({ base: variant, override: themeOverride }),
@@ -138,6 +142,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         mapShiftEnterToCtrlJ: mapShiftEnterToCtrlJRef.current,
         disableSnapshots: disableSnapshotsRef.current,
         onLinkClick: handleLinkClick,
+        onFirstMessage: onFirstMessageRef.current,
       });
       sessionRef.current = session;
 

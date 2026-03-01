@@ -1,9 +1,8 @@
-import { exec, execFile, spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { log } from '../lib/logger';
 import { getProvider, PROVIDER_IDS, type ProviderId } from '../../shared/providers/registry';
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 export interface GeneratedPrContent {
@@ -34,55 +33,34 @@ export class PrGenerationService {
         return this.generateFallbackContent(changedFiles);
       }
 
-      // Try the task's provider first if specified
+      // Build ordered list of providers to try: preferred → claude → remaining
+      const attempted = new Set<ProviderId>();
+      const tryOrder: ProviderId[] = [];
+
       if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
+        tryOrder.push(preferredProviderId as ProviderId);
+      }
+      tryOrder.push('claude');
+      for (const id of PROVIDER_IDS) {
+        tryOrder.push(id);
+      }
+
+      for (const providerId of tryOrder) {
+        if (attempted.has(providerId)) continue;
+        attempted.add(providerId);
+
         try {
-          const preferredResult = await this.generateWithProvider(
-            preferredProviderId as ProviderId,
-            taskPath,
-            diff,
-            commits
-          );
-          if (preferredResult) {
-            log.info(`Generated PR content with task provider: ${preferredProviderId}`);
+          const result = await this.generateWithProvider(providerId, taskPath, diff, commits);
+          if (result) {
+            log.info(`Generated PR content with ${providerId}`);
             return {
-              title: preferredResult.title,
-              description: this.normalizeMarkdown(preferredResult.description),
+              title: result.title,
+              description: this.normalizeMarkdown(result.description),
             };
           }
         } catch (error) {
-          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
-            error,
-          });
+          log.debug(`Provider ${providerId} generation failed, trying next`, { error });
         }
-      }
-
-      // Try Claude Code as fallback (preferred default)
-      try {
-        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
-        if (claudeResult) {
-          log.info('Generated PR content with Claude Code');
-          return {
-            title: claudeResult.title,
-            description: this.normalizeMarkdown(claudeResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Claude Code generation failed, trying fallback', { error });
-      }
-
-      // Try Codex as fallback
-      try {
-        const codexResult = await this.generateWithProvider('codex', taskPath, diff, commits);
-        if (codexResult) {
-          log.info('Generated PR content with Codex');
-          return {
-            title: codexResult.title,
-            description: this.normalizeMarkdown(codexResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Codex generation failed, using heuristic fallback', { error });
       }
 
       // Fallback to heuristic-based generation
@@ -109,10 +87,10 @@ export class PrGenerationService {
       // This is critical: if local main is behind remote, we'd incorrectly include others' commits
       // Only fetch if remote exists
       try {
-        await execAsync('git remote get-url origin', { cwd: taskPath });
+        await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: taskPath });
         // Remote exists, try to fetch
         try {
-          await execAsync('git fetch origin --quiet', { cwd: taskPath });
+          await execFileAsync('git', ['fetch', 'origin', '--quiet'], { cwd: taskPath });
         } catch (fetchError) {
           log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
         }
@@ -127,13 +105,15 @@ export class PrGenerationService {
 
       // First try remote branch (most reliable - always up to date)
       try {
-        await execAsync(`git rev-parse --verify origin/${baseBranch}`, { cwd: taskPath });
+        await execFileAsync('git', ['rev-parse', '--verify', `origin/${baseBranch}`], {
+          cwd: taskPath,
+        });
         baseBranchExists = true;
         baseBranchRef = `origin/${baseBranch}`;
       } catch {
         // Fall back to local branch only if remote doesn't exist
         try {
-          await execAsync(`git rev-parse --verify ${baseBranch}`, { cwd: taskPath });
+          await execFileAsync('git', ['rev-parse', '--verify', baseBranch], { cwd: taskPath });
           baseBranchExists = true;
           baseBranchRef = baseBranch;
         } catch {
@@ -144,15 +124,17 @@ export class PrGenerationService {
       if (baseBranchExists) {
         // Get diff between base branch and current HEAD (committed changes)
         try {
-          const { stdout: diffOut } = await execAsync(`git diff ${baseBranchRef}...HEAD --stat`, {
-            cwd: taskPath,
-            maxBuffer: 10 * 1024 * 1024,
-          });
+          const { stdout: diffOut } = await execFileAsync(
+            'git',
+            ['diff', `${baseBranchRef}...HEAD`, '--stat'],
+            { cwd: taskPath, maxBuffer: 10 * 1024 * 1024 }
+          );
           diff = diffOut || '';
 
           // Get list of changed files from commits
-          const { stdout: filesOut } = await execAsync(
-            `git diff --name-only ${baseBranchRef}...HEAD`,
+          const { stdout: filesOut } = await execFileAsync(
+            'git',
+            ['diff', '--name-only', `${baseBranchRef}...HEAD`],
             { cwd: taskPath }
           );
           const committedFiles = (filesOut || '')
@@ -162,8 +144,9 @@ export class PrGenerationService {
           changedFiles.push(...committedFiles);
 
           // Get commit messages
-          const { stdout: commitsOut } = await execAsync(
-            `git log ${baseBranchRef}..HEAD --pretty=format:"%s"`,
+          const { stdout: commitsOut } = await execFileAsync(
+            'git',
+            ['log', `${baseBranchRef}..HEAD`, '--pretty=format:%s'],
             { cwd: taskPath }
           );
           commits = (commitsOut || '')
@@ -178,7 +161,7 @@ export class PrGenerationService {
       // Also include uncommitted changes (working directory) to capture all changes
       // This ensures PR description includes changes that will be committed
       try {
-        const { stdout: workingDiff } = await execAsync('git diff --stat', {
+        const { stdout: workingDiff } = await execFileAsync('git', ['diff', '--stat'], {
           cwd: taskPath,
           maxBuffer: 10 * 1024 * 1024,
         });
@@ -194,7 +177,7 @@ export class PrGenerationService {
         }
 
         // Get uncommitted changed files and merge with committed files
-        const { stdout: filesOut } = await execAsync('git diff --name-only', {
+        const { stdout: filesOut } = await execFileAsync('git', ['diff', '--name-only'], {
           cwd: taskPath,
         });
         const uncommittedFiles = (filesOut || '')
@@ -212,15 +195,18 @@ export class PrGenerationService {
       // Fallback: if we still have no diff or commits, try staged changes
       if (commits.length === 0 && diff.length === 0) {
         try {
-          const { stdout: stagedDiff } = await execAsync('git diff --cached --stat', {
-            cwd: taskPath,
-            maxBuffer: 10 * 1024 * 1024,
-          });
+          const { stdout: stagedDiff } = await execFileAsync(
+            'git',
+            ['diff', '--cached', '--stat'],
+            { cwd: taskPath, maxBuffer: 10 * 1024 * 1024 }
+          );
           if (stagedDiff) {
             diff = stagedDiff;
-            const { stdout: filesOut } = await execAsync('git diff --cached --name-only', {
-              cwd: taskPath,
-            });
+            const { stdout: filesOut } = await execFileAsync(
+              'git',
+              ['diff', '--cached', '--name-only'],
+              { cwd: taskPath }
+            );
             changedFiles = (filesOut || '')
               .split('\n')
               .map((f) => f.trim())
@@ -236,7 +222,22 @@ export class PrGenerationService {
   }
 
   /**
-   * Generate PR content using a CLI provider (Claude Code or Codex)
+   * Check if a provider can be used for non-interactive PR generation.
+   * Returns false for providers that require TUI keystroke injection,
+   * have no CLI binary, or can't accept a prompt via CLI args.
+   */
+  private canUseForPrGeneration(providerId: ProviderId): boolean {
+    const provider = getProvider(providerId);
+    if (!provider) return false;
+    if (!provider.cli) return false;
+    if (provider.useKeystrokeInjection) return false;
+    if (provider.initialPromptFlag === undefined) return false;
+    return true;
+  }
+
+  /**
+   * Generate PR content using a CLI provider.
+   * Retries once on parse failure (exit code 0 but malformed output).
    */
   private async generateWithProvider(
     providerId: ProviderId,
@@ -244,19 +245,16 @@ export class PrGenerationService {
     diff: string,
     commits: string[]
   ): Promise<GeneratedPrContent | null> {
-    const provider = getProvider(providerId);
-    if (!provider || !provider.cli) {
+    if (!this.canUseForPrGeneration(providerId)) {
       return null;
     }
 
-    const cliCommand = provider.cli;
-    if (!cliCommand) {
-      return null;
-    }
+    const provider = getProvider(providerId);
+    const cliCommand = provider!.cli!;
 
     // Check if provider CLI is available
     try {
-      await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
+      await execFileAsync(cliCommand, provider!.versionArgs || ['--version'], {
         cwd: taskPath,
       });
     } catch {
@@ -267,29 +265,75 @@ export class PrGenerationService {
     // Build prompt for PR generation
     const prompt = this.buildPrGenerationPrompt(diff, commits);
 
-    // Use spawn with stdin/stdout to invoke the CLI agent non-interactively
-    // This uses the user's authenticated CLI agent (no API keys needed)
-    return new Promise<GeneratedPrContent | null>((resolve) => {
-      const timeout = 30000; // 30 second timeout
+    // Try up to 2 times: retry once if the process succeeded but JSON parsing failed
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { result, shouldRetry } = await this.spawnProvider(
+        providerId,
+        cliCommand,
+        provider,
+        taskPath,
+        prompt
+      );
+      if (result) return result;
+      if (!shouldRetry) break;
+      log.debug(`Retrying provider ${providerId} (attempt ${attempt + 2}/2) after parse failure`);
+    }
+
+    return null;
+  }
+
+  /**
+   * Spawn a provider CLI process and collect its output.
+   * Returns the parsed result (if any) and whether a retry is worthwhile.
+   */
+  private spawnProvider(
+    providerId: ProviderId,
+    cliCommand: string,
+    provider: ReturnType<typeof getProvider>,
+    taskPath: string,
+    prompt: string
+  ): Promise<{ result: GeneratedPrContent | null; shouldRetry: boolean }> {
+    return new Promise((resolve) => {
+      const timeout = 60000;
       let stdout = '';
       let stderr = '';
+      let resolved = false;
 
-      // Build command arguments
+      const done = (result: GeneratedPrContent | null, shouldRetry: boolean) => {
+        if (resolved) return;
+        resolved = true;
+        resolve({ result, shouldRetry });
+      };
+
+      // Build command arguments — Claude Code gets special `-p` (print) mode
       const args: string[] = [];
-      if (provider.defaultArgs?.length) {
-        args.push(...provider.defaultArgs);
-      }
-      if (provider.autoApproveFlag) {
-        args.push(provider.autoApproveFlag);
+      const isClaudeProvider = providerId === 'claude';
+
+      if (isClaudeProvider) {
+        // Use -p (print/non-interactive) mode with structured JSON output.
+        // This eliminates ANSI escapes, progress indicators, and TUI noise.
+        args.push('-p', prompt, '--output-format', 'json');
+        if (provider!.autoApproveFlag) {
+          args.push(provider!.autoApproveFlag);
+        }
+      } else {
+        if (provider!.defaultArgs?.length) {
+          args.push(...provider!.defaultArgs);
+        }
+        if (provider!.autoApproveFlag) {
+          args.push(provider!.autoApproveFlag);
+        }
       }
 
-      // Handle prompt: some providers accept it as a flag, others via stdin
-      let promptViaStdin = true;
-      if (provider.initialPromptFlag !== undefined && provider.initialPromptFlag !== '') {
-        // Provider accepts prompt as command-line argument
-        args.push(provider.initialPromptFlag);
+      // Handle prompt for non-Claude providers using the same logic as ptyManager.buildProviderCliArgs():
+      // - initialPromptFlag: '' → positional arg (push prompt directly)
+      // - initialPromptFlag: '-i' / '-t' / etc. → push flag then prompt
+      // - initialPromptFlag: undefined → provider can't accept a prompt (already filtered by canUseForPrGeneration)
+      if (!isClaudeProvider && provider!.initialPromptFlag !== undefined) {
+        if (provider!.initialPromptFlag) {
+          args.push(provider!.initialPromptFlag);
+        }
         args.push(prompt);
-        promptViaStdin = false;
       }
 
       // Spawn the provider CLI
@@ -298,7 +342,6 @@ export class PrGenerationService {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           ...process.env,
-          // Ensure we have a proper terminal environment
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
         },
@@ -310,7 +353,7 @@ export class PrGenerationService {
           child.kill('SIGTERM');
         } catch {}
         log.debug(`Provider ${providerId} invocation timed out`);
-        resolve(null);
+        done(null, false); // Don't retry on timeout
       }, timeout);
 
       // Collect stdout
@@ -333,13 +376,13 @@ export class PrGenerationService {
 
         if (code !== 0 && code !== null) {
           log.debug(`Provider ${providerId} exited with code ${code}`, { stderr });
-          resolve(null);
+          done(null, false); // Don't retry on non-zero exit
           return;
         }
 
         if (signal) {
           log.debug(`Provider ${providerId} killed by signal ${signal}`);
-          resolve(null);
+          done(null, false);
           return;
         }
 
@@ -347,10 +390,10 @@ export class PrGenerationService {
         const result = this.parseProviderResponse(stdout);
         if (result) {
           log.info(`Successfully generated PR content with ${providerId}`);
-          resolve(result);
+          done(result, false);
         } else {
           log.debug(`Failed to parse response from ${providerId}`, { stdout, stderr });
-          resolve(null);
+          done(null, true); // Retry — process succeeded but parsing failed
         }
       });
 
@@ -358,34 +401,12 @@ export class PrGenerationService {
       child.on('error', (error: Error) => {
         clearTimeout(timeoutId);
         log.debug(`Failed to spawn ${providerId}`, { error });
-        resolve(null);
+        done(null, false); // Don't retry on spawn failure
       });
 
-      // Send prompt via stdin if needed
-      // Claude Code and Codex accept prompts via stdin (initialPromptFlag is empty string)
-      if (promptViaStdin) {
-        try {
-          if (child.stdin) {
-            // Write the prompt
-            child.stdin.write(prompt);
-            // Add a newline to ensure the prompt is processed
-            child.stdin.write('\n');
-            // Close stdin to signal EOF - this should make the CLI process the prompt and exit
-            child.stdin.end();
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          try {
-            child.kill();
-          } catch {}
-          log.debug(`Failed to write prompt to ${providerId}`, { error });
-          resolve(null);
-        }
-      } else {
-        // Prompt was passed as command-line argument, just close stdin
-        if (child.stdin) {
-          child.stdin.end();
-        }
+      // Close stdin — all providers receive prompts via CLI args, not stdin
+      if (child.stdin) {
+        child.stdin.end();
       }
     });
   }
@@ -404,44 +425,77 @@ export class PrGenerationService {
 
 ${commitContext}${diffContext}
 
-Please respond in the following JSON format:
+Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation. Your entire response must be exactly one JSON object:
 {
   "title": "A concise PR title (max 72 chars, use conventional commit format if applicable)",
   "description": "A well-structured markdown description using proper markdown formatting. Use ## for section headers, - or * for lists, \`code\` for inline code, and proper line breaks.\n\nUse actual newlines (\\n in JSON) for line breaks, not literal \\n text. Keep it straightforward and to the point."
-}
-
-Only respond with valid JSON, no other text.`;
+}`;
   }
 
   /**
-   * Parse provider response into PR content
+   * Strip ANSI escape sequences from a string
+   */
+  private stripAnsi(text: string): string {
+    // Covers CSI sequences, OSC sequences, and other common escape codes
+    // eslint-disable-next-line no-control-regex
+    return text.replace(
+      /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[^[(\x1b]*?[a-zA-Z]/g,
+      ''
+    );
+  }
+
+  /**
+   * Parse provider response into PR content.
+   *
+   * Multi-step extraction:
+   * 1. Strip ANSI escape sequences
+   * 2. If output is a Claude --output-format json envelope, extract the result field
+   * 3. Strip markdown code fences
+   * 4. Try to find a JSON object containing both "title" and "description" keys
+   * 5. Fall back to greedy match
    */
   private parseProviderResponse(response: string): GeneratedPrContent | null {
     try {
-      // Try to extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      // Step 1: Strip ANSI escape sequences
+      let text = this.stripAnsi(response);
+
+      // Step 2: If this is a Claude --output-format json envelope, extract the result field
+      try {
+        const envelope = JSON.parse(text);
+        if (envelope && typeof envelope.result === 'string') {
+          text = envelope.result;
+        }
+      } catch {
+        // Not a valid JSON envelope — continue with raw text
+      }
+
+      // Step 3: Strip markdown code fences (```json ... ``` or ``` ... ```)
+      text = text.replace(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/g, '$1');
+
+      // Step 4: Try to find a JSON object containing both "title" and "description"
+      const specificMatch = text.match(/\{[^{}]*"title"[^{}]*"description"[^{}]*\}/s);
+      // Also try reversed key order
+      const reversedMatch = specificMatch
+        ? null
+        : text.match(/\{[^{}]*"description"[^{}]*"title"[^{}]*\}/s);
+      const jsonStr = specificMatch?.[0] ?? reversedMatch?.[0];
+
+      // Step 5: Fall back to greedy match only if specific match failed
+      const fallbackStr = jsonStr ?? text.match(/\{[\s\S]*\}/)?.[0];
+
+      if (fallbackStr) {
+        const parsed = JSON.parse(fallbackStr);
         if (parsed.title && parsed.description) {
           let description = String(parsed.description);
 
           // Handle multiple newline escape scenarios:
           // 1. Literal backslash-n sequences (from double-escaped JSON like "\\n")
-          // 2. String representations of newlines
-          // Do this before trimming to preserve intentional whitespace
-
-          // First, check if we have literal \n characters (backslash followed by n)
-          // This happens when JSON contains "\\n" which becomes "\n" after parsing
           if (description.includes('\\n')) {
-            // Replace literal backslash-n with actual newlines
             description = description.replace(/\\n/g, '\n');
           }
-
-          // Also handle case where newlines might be represented as literal text "\\n" (double backslash)
-          // This is less common but could happen if the LLM outputs raw text
+          // 2. Double-backslash newlines
           description = description.replace(/\\\\n/g, '\n');
 
-          // Trim after processing newlines
           description = description.trim();
 
           return {
