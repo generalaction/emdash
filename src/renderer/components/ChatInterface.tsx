@@ -26,6 +26,9 @@ import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
+import { generateTaskName } from '../lib/branchNameGenerator';
+import { ensureUniqueTaskName } from '../lib/taskNames';
+import type { Project } from '../types/app';
 
 declare const window: Window & {
   electronAPI: {
@@ -35,6 +38,7 @@ declare const window: Window & {
 
 interface Props {
   task: Task;
+  project?: Project | null;
   projectName: string;
   projectPath?: string | null;
   projectRemoteConnectionId?: string | null;
@@ -43,10 +47,12 @@ interface Props {
   className?: string;
   initialAgent?: Agent;
   onTaskInterfaceReady?: () => void;
+  onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
 
 const ChatInterface: React.FC<Props> = ({
   task,
+  project,
   projectName: _projectName,
   projectPath,
   projectRemoteConnectionId,
@@ -55,6 +61,7 @@ const ChatInterface: React.FC<Props> = ({
   className,
   initialAgent,
   onTaskInterfaceReady,
+  onRenameTask,
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
@@ -848,6 +855,33 @@ const ChatInterface: React.FC<Props> = ({
     } catch {}
   }, [agent, task.id]);
 
+  // Auto-rename task from first terminal message (only if name was auto-generated)
+  const handleFirstMessage = useCallback(
+    (message: string) => {
+      if (!project || !onRenameTask) return;
+      // Only rename if this task's name was auto-generated
+      if (!task.metadata?.nameGenerated) return;
+      // Skip multi-agent tasks
+      if (task.metadata?.multiAgent?.enabled) return;
+
+      const generated = generateTaskName(message);
+      if (!generated) return;
+
+      const existingNames = (project.tasks || []).map((t) => t.name);
+      const uniqueName = ensureUniqueTaskName(generated, existingNames);
+      void onRenameTask(project, task, uniqueName);
+    },
+    [project, task, onRenameTask]
+  );
+
+  // Whether to enable first-message capture for this task
+  const shouldCaptureFirstMessage = !!(
+    task.metadata?.nameGenerated &&
+    !task.metadata?.multiAgent?.enabled &&
+    project &&
+    onRenameTask
+  );
+
   if (!isTerminal) {
     return null;
   }
@@ -1125,6 +1159,7 @@ const ChatInterface: React.FC<Props> = ({
                       ? (initialInjection ?? undefined)
                       : undefined
                   }
+                  onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
                   className="h-full w-full"
                 />
               )}
