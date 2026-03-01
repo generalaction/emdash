@@ -36,7 +36,12 @@ if (process.platform === 'darwin') {
     const shell = process.env.SHELL || '/bin/zsh';
     const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
     if (loginPath) {
-      const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
+      // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
+      // Split by both : and \n so noise fused with the first real path entry
+      // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
+      const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
+      const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
+      const merged = new Set(validEntries);
       process.env.PATH = Array.from(merged).join(':');
     }
   } catch {}
@@ -67,7 +72,12 @@ if (process.platform === 'linux') {
         encoding: 'utf8',
       });
       if (loginPath) {
-        const merged = new Set((loginPath + ':' + process.env.PATH).split(':').filter(Boolean));
+        // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
+        // Split by both : and \n so noise fused with the first real path entry
+        // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
+        const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
+        const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
+        const merged = new Set(validEntries);
         process.env.PATH = Array.from(merged).join(':');
       }
     } catch {}

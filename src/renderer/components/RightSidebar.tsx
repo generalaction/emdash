@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
-import { useFileChanges } from '@/hooks/useFileChanges';
 import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { agentAssets } from '@/providers/assets';
@@ -114,7 +113,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     <aside
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
-        'group/right-sidebar relative z-[45] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
+        'group/right-sidebar relative z-30 flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
         forceBorder
           ? 'bg-background'
           : 'border-l border-border bg-muted/10 data-[state=collapsed]:border-l-0',
@@ -374,9 +373,7 @@ const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: 
   taskId,
   className,
 }) => {
-  const { fileChanges } = useFileChanges(path);
   const { projectPath } = useTaskScope();
-  if (!fileChanges || fileChanges.length === 0) return null;
   return (
     <TaskScopeProvider value={{ taskId, taskPath: path, projectPath }}>
       <FileChangesPanel className={className || 'min-h-0'} />

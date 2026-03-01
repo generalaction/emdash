@@ -10,6 +10,10 @@ import { RemoteGitService } from './RemoteGitService';
 import { sshService } from './ssh/SshService';
 import { log } from '../lib/logger';
 import { quoteShellArg } from '../utils/shellEscape';
+import {
+  isRemoteProject,
+  resolveRemoteProjectForWorktreePath,
+} from '../utils/remoteProjectResolver';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -39,30 +43,7 @@ async function resolveProjectByIdOrPath(args: {
   return null;
 }
 
-function isRemoteProject(
-  project: Project | null
-): project is Project & { sshConnectionId: string; remotePath: string } {
-  return !!(
-    project &&
-    project.isRemote &&
-    typeof project.sshConnectionId === 'string' &&
-    project.sshConnectionId.length > 0 &&
-    typeof project.remotePath === 'string' &&
-    project.remotePath.length > 0
-  );
-}
-
-async function resolveRemoteProjectForWorktreePath(
-  worktreePath: string
-): Promise<(Project & { sshConnectionId: string; remotePath: string }) | null> {
-  const all = await databaseService.getProjects();
-  // Pick the longest matching remotePath prefix.
-  const candidates = all
-    .filter((p) => isRemoteProject(p))
-    .filter((p) => worktreePath.startsWith(p.remotePath.replace(/\/+$/g, '') + '/'))
-    .sort((a, b) => b.remotePath.length - a.remotePath.length);
-  return candidates[0] ?? null;
-}
+// isRemoteProject and resolveRemoteProjectForWorktreePath imported from ../utils/remoteProjectResolver
 
 export function registerWorktreeIpc(): void {
   // Create a new worktree

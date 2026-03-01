@@ -6,6 +6,7 @@ import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
 import { saveActiveIds } from '../constants/layout';
 import { getAgentForTask } from './getAgentForTask';
+import { rpc } from './rpc';
 
 export interface CreateTaskParams {
   taskName: string;
@@ -256,17 +257,16 @@ export async function createTask(
           };
 
           // Save to DB
-          const saveResult = await window.electronAPI.saveTask({
-            ...finalTask,
-            agentId: primaryAgent,
-            metadata: finalMeta,
-            useWorktree,
-          });
-
-          if (!saveResult?.success) {
+          try {
+            await rpc.db.saveTask({
+              ...finalTask,
+              agentId: primaryAgent,
+              metadata: finalMeta,
+              useWorktree,
+            });
+          } catch (saveErr) {
             const { log } = await import('./logger');
-            log.error('Failed to save multi-agent task:', saveResult?.error);
-            // Clean up worktrees that were created before the save failed
+            log.error('Failed to save multi-agent task:', saveErr);
             for (const variant of variants) {
               if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
                 window.electronAPI
@@ -427,15 +427,16 @@ export async function createTask(
       // so the task must exist in DB before ChatInterface mounts and
       // tries to create/load conversations.
       if (!taskPersistedInClaim) {
-        const saveResult = await window.electronAPI.saveTask({
-          ...newTask,
-          agentId: primaryAgent,
-          metadata: taskMetadata,
-          useWorktree,
-        });
-        if (!saveResult?.success) {
+        try {
+          await rpc.db.saveTask({
+            ...newTask,
+            agentId: primaryAgent,
+            metadata: taskMetadata,
+            useWorktree,
+          });
+        } catch (saveErr) {
           const { log } = await import('./logger');
-          log.error('Failed to save task:', saveResult?.error);
+          log.error('Failed to save task:', saveErr);
           toast({
             title: 'Warning',
             description:
@@ -496,9 +497,9 @@ export async function createTask(
         if (hasIssueContext) {
           try {
             // Get or create default conversation only once
-            const convoResult = await window.electronAPI.getOrCreateDefaultConversation(newTask.id);
-            if (convoResult?.success && convoResult.conversation?.id) {
-              conversationId = convoResult.conversation.id;
+            const conversation = await rpc.db.getOrCreateDefaultConversation(newTask.id);
+            if (conversation?.id) {
+              conversationId = conversation.id;
             }
           } catch (error) {
             const { log } = await import('./logger');
@@ -537,7 +538,7 @@ export async function createTask(
               lines.push(String((issue as any).description).trim());
             }
 
-            await window.electronAPI.saveMessage({
+            await rpc.db.saveMessage({
               id: `linear-context-${newTask.id}`,
               conversationId,
               content: lines.join('\n'),
@@ -590,7 +591,7 @@ export async function createTask(
               lines.push(String((issue as any).body).trim());
             }
 
-            await window.electronAPI.saveMessage({
+            await rpc.db.saveMessage({
               id: `github-context-${newTask.id}`,
               conversationId,
               content: lines.join('\n'),
@@ -622,7 +623,7 @@ export async function createTask(
             if (details.length) lines.push(`Details: ${details.join(' • ')}`);
             if (issue.url) lines.push(`URL: ${issue.url}`);
 
-            await window.electronAPI.saveMessage({
+            await rpc.db.saveMessage({
               id: `jira-context-${newTask.id}`,
               conversationId,
               content: lines.join('\n'),

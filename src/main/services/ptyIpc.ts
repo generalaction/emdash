@@ -25,6 +25,7 @@ import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
+import { maybeAutoTrustForClaude } from './ClaudeConfigService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -470,6 +471,9 @@ export function registerPtyIpc(): void {
           shouldSkipResume = shouldSkipResume || false;
         }
 
+        const parsedPty = parsePtyId(id);
+        if (parsedPty) maybeAutoTrustForClaude(parsedPty.providerId, cwd);
+
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
 
         const proc =
@@ -813,6 +817,8 @@ export function registerPtyIpc(): void {
             effectiveResume = false;
           }
         }
+
+        maybeAutoTrustForClaude(providerId, cwd);
 
         const shellSetup = await resolveShellSetup(cwd);
 

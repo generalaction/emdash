@@ -41,6 +41,7 @@ import { useGithubIntegration } from './hooks/useGithubIntegration';
 import { useProjectManagement } from './hooks/useProjectManagement';
 import { useTaskManagement } from './hooks/useTaskManagement';
 import { createTask } from './lib/taskCreationService';
+import { rpc } from './lib/rpc';
 import { getProjectRepoKey } from './lib/projectUtils';
 import { handleMenuUndo, handleMenuRedo } from './lib/menuUndoRedo';
 import { useAgentEvents } from './hooks/useAgentEvents';
@@ -432,28 +433,19 @@ const AppContent: React.FC = () => {
           remotePath: remoteProject.path,
         } as Project;
 
-        const saveResult = await window.electronAPI.saveProject(project);
-        if (saveResult.success) {
-          captureTelemetry('project_create_success');
-          captureTelemetry('project_added_success', { source: 'remote' });
-          toast({
-            title: 'Remote project added successfully!',
-            description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
-          });
-          // Add to beginning of list
-          projectMgmt.setProjects((prev) => {
-            const updated = [project, ...prev];
-            appInit.saveProjectOrder(updated);
-            return updated;
-          });
-          projectMgmt.activateProjectView(project);
-        } else {
-          toast({
-            title: 'Failed to save remote project',
-            description: saveResult.error || 'Unknown error occurred',
-            variant: 'destructive',
-          });
-        }
+        await rpc.db.saveProject(project);
+        captureTelemetry('project_create_success');
+        captureTelemetry('project_added_success', { source: 'remote' });
+        toast({
+          title: 'Remote project added successfully!',
+          description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
+        });
+        projectMgmt.setProjects((prev) => {
+          const updated = [project, ...prev];
+          appInit.saveProjectOrder(updated);
+          return updated;
+        });
+        projectMgmt.activateProjectView(project);
       } catch (error) {
         const { log } = await import('./lib/logger');
         log.error('Failed to save remote project:', error);

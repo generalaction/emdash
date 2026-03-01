@@ -210,9 +210,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
         className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background"
       >
         <div
-          className={`pointer-events-none absolute inset-x-0 flex justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
+          className={`pointer-events-none flex justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
         >
-          <div className="w-[min(60vw,720px)]">
+          <div className="w-[min(60vw,720px)] truncate">
             <TitlebarContext
               projects={projects}
               selectedProject={selectedProject}

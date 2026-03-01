@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { activityStore } from '../lib/activityStore';
+import { rpc } from '../lib/rpc';
 
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
 
@@ -10,9 +11,7 @@ export function useTaskBusy(taskId: string) {
 
   const reloadChats = useCallback(async () => {
     try {
-      const res = await window.electronAPI.getConversations(taskId);
-      if (!res?.success) return [];
-      const conversations = Array.isArray(res.conversations) ? res.conversations : [];
+      const conversations = await rpc.db.getConversations(taskId);
       return conversations
         .filter((c: any) => c && !Boolean(c.isMain))
         .map((c: any) => String(c.id));
