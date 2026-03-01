@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -9,7 +9,7 @@ import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
 import TaskContextBadges from './TaskContextBadges';
-import { Badge } from './ui/badge';
+// Badge import removed — currently unused
 import { Spinner } from './ui/spinner';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
@@ -26,6 +26,8 @@ import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
+import { useZenflowWorkflow } from '../hooks/useZenflowWorkflow';
+import ZenflowProgressBar from './zenflow/ZenflowProgressBar';
 
 declare const window: Window & {
   electronAPI: {
@@ -76,6 +78,10 @@ const ChatInterface: React.FC<Props> = ({
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
+
+  // Zenflow mode: detect if this task has zenflow enabled
+  const isZenflow = Boolean((task.metadata as any)?.zenflow?.enabled);
+  const zenflow = useZenflowWorkflow(task);
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
@@ -723,6 +729,19 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [conversations, activeConversationId, handleSwitchChat]);
 
+  // Zenflow: listen for orchestration service telling us to switch to a step's conversation tab
+  useEffect(() => {
+    if (!isZenflow) return;
+    const handleZenflowSwitch = (e: Event) => {
+      const conversationId = (e as CustomEvent).detail?.conversationId;
+      if (conversationId && conversations.find((c) => c.id === conversationId)) {
+        handleSwitchChat(conversationId);
+      }
+    };
+    window.addEventListener('zenflow:switch-to-conversation', handleZenflowSwitch);
+    return () => window.removeEventListener('zenflow:switch-to-conversation', handleZenflowSwitch);
+  }, [isZenflow, conversations, handleSwitchChat]);
+
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
     Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
@@ -731,6 +750,15 @@ const ChatInterface: React.FC<Props> = ({
 
   const initialInjection = useMemo(() => {
     if (!isTerminal) return null;
+
+    // Zenflow: inject step-specific prompt instead of task-level prompt
+    if (isZenflow && activeConversationId) {
+      const stepPrompt = zenflow.getStepPrompt(activeConversationId);
+      if (stepPrompt) return stepPrompt;
+      // If this is a zenflow step but has no prompt, don't inject anything
+      if (zenflow.isZenflowStep(activeConversationId)) return null;
+    }
+
     // Only inject into the main conversation — secondary chats should not
     // receive the task's initial prompt or linked issue context.
     if (!isMainConversation) return null;
@@ -848,7 +876,15 @@ const ChatInterface: React.FC<Props> = ({
     }
 
     return null;
-  }, [isTerminal, isMainConversation, task.metadata, commentsContext]);
+  }, [
+    isTerminal,
+    isMainConversation,
+    task.metadata,
+    commentsContext,
+    isZenflow,
+    activeConversationId,
+    zenflow,
+  ]);
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
@@ -915,13 +951,37 @@ const ChatInterface: React.FC<Props> = ({
                     const agentName = config?.name || convAgent;
                     const isBusy = busyByConversationId[conv.id] === true;
 
+                    // Zenflow step info for this conversation
+                    const zenflowStep = isZenflow ? zenflow.getStepForConversation(conv.id) : null;
+                    const isZenflowStepTab = zenflowStep !== null;
+                    const isPendingStep = zenflowStep?.status === 'pending';
+
                     // Count how many chats use the same agent up to this point
                     const sameAgentCount = sortedConversations
                       .slice(0, index + 1)
                       .filter((c) => (c.provider || agent) === convAgent).length;
                     const showNumber =
+                      !isZenflowStepTab &&
                       sortedConversations.filter((c) => (c.provider || agent) === convAgent)
                         .length > 1;
+
+                    // Tab label: use step name for zenflow steps, agent name otherwise
+                    const tabLabel = isZenflowStepTab
+                      ? `Step ${zenflowStep.stepNumber}: ${zenflowStep.name}`
+                      : agentName;
+
+                    // Step status icon for zenflow tabs
+                    const stepStatusIcon = zenflowStep ? (
+                      zenflowStep.status === 'completed' ? (
+                        <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500" />
+                      ) : zenflowStep.status === 'running' ? (
+                        <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-blue-500" />
+                      ) : zenflowStep.status === 'failed' ? (
+                        <AlertCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
+                      ) : (
+                        <Circle className="h-3 w-3 flex-shrink-0 text-muted-foreground/40" />
+                      )
+                    ) : null;
 
                     return (
                       <button
@@ -933,21 +993,29 @@ const ChatInterface: React.FC<Props> = ({
                           'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           isActive
                             ? 'bg-background text-foreground shadow-sm'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                          isPendingStep && !isActive && 'opacity-50'
                         )}
-                        title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+                        title={
+                          isZenflowStepTab
+                            ? `${tabLabel} (${zenflowStep.status})`
+                            : `${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`
+                        }
                       >
-                        {config?.logo && (
-                          <AgentLogo
-                            logo={config.logo}
-                            alt={config.alt}
-                            isSvg={config.isSvg}
-                            invertInDark={config.invertInDark}
-                            className="h-3.5 w-3.5 flex-shrink-0"
-                          />
-                        )}
+                        {/* Zenflow step status icon OR agent logo */}
+                        {isZenflowStepTab
+                          ? stepStatusIcon
+                          : config?.logo && (
+                              <AgentLogo
+                                logo={config.logo}
+                                alt={config.alt}
+                                isSvg={config.isSvg}
+                                invertInDark={config.invertInDark}
+                                className="h-3.5 w-3.5 flex-shrink-0"
+                              />
+                            )}
                         <span className="max-w-[10rem] truncate">
-                          {agentName}
+                          {tabLabel}
                           {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
                         </span>
                         {isBusy && conversations.length > 1 ? (
@@ -959,7 +1027,8 @@ const ChatInterface: React.FC<Props> = ({
                             )}
                           />
                         ) : null}
-                        {conversations.length > 1 && (
+                        {/* Hide close button for zenflow step tabs */}
+                        {conversations.length > 1 && !isZenflowStepTab && (
                           <span
                             role="button"
                             tabIndex={0}
@@ -1013,6 +1082,15 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 </div>
               </div>
+              {/* Zenflow progress bar */}
+              {isZenflow && zenflow.planSteps.length > 0 && (
+                <ZenflowProgressBar
+                  steps={zenflow.planSteps}
+                  workflowStatus={zenflow.workflowStatus}
+                  onPause={zenflow.pause}
+                  onResume={zenflow.resume}
+                />
+              )}
               {(() => {
                 if (isAgentInstalled === false) {
                   return (
@@ -1097,6 +1175,17 @@ const ChatInterface: React.FC<Props> = ({
                           initialInjectionSent: true,
                         },
                       });
+                    }
+                    // Zenflow: register PTY→step mapping for exit handling
+                    if (isZenflow && activeConversationId) {
+                      const step = zenflow.getStepForConversation(activeConversationId);
+                      if (step) {
+                        void window.electronAPI.zenflowRegisterPtyStep({
+                          ptyId: terminalId,
+                          taskId: task.id,
+                          stepId: `step-${task.id}-${step.stepNumber}`,
+                        });
+                      }
                     }
                   }}
                   variant={

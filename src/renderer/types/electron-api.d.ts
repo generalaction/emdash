@@ -1323,6 +1323,75 @@ declare global {
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
       }>;
+
+      // Zenflow workflow orchestration
+      zenflowCreateWorkflow: (args: {
+        taskId: string;
+        template: 'spec-and-build' | 'full-sdd';
+        featureDescription: string;
+        worktreePath: string;
+      }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+      zenflowGetSteps: (
+        taskId: string
+      ) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+      zenflowResumeWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      zenflowPauseWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      zenflowRetryStep: (stepId: string) => Promise<{ success: boolean; error?: string }>;
+      zenflowExpandSteps: (args: {
+        taskId: string;
+        newSteps: Array<{ name: string; prompt: string }>;
+      }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+      zenflowStartStep: (args: {
+        taskId: string;
+        stepId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      zenflowRegisterPtyStep: (args: {
+        ptyId: string;
+        taskId: string;
+        stepId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      zenflowLinkConversation: (args: {
+        stepId: string;
+        conversationId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      onZenflowEvent: (
+        listener: (event: {
+          taskId: string;
+          type:
+            | 'step-started'
+            | 'step-completed'
+            | 'step-failed'
+            | 'workflow-paused'
+            | 'workflow-completed'
+            | 'steps-expanded';
+          stepId?: string;
+          stepNumber?: number;
+          conversationId?: string;
+          data?: any;
+        }) => void
+      ) => () => void;
+
+      // Zenflow plan.md file-based methods
+      zenflowReadPlan: (worktreePath: string) => Promise<{
+        success: boolean;
+        data?: import('@shared/zenflow/types').PlanDocument | null;
+        error?: string;
+      }>;
+      zenflowWritePlan: (args: {
+        worktreePath: string;
+        plan: import('@shared/zenflow/types').PlanDocument;
+      }) => Promise<{ success: boolean; error?: string }>;
+      zenflowWatchPlan: (args: {
+        taskId: string;
+        worktreePath: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      zenflowUnwatchPlan: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      onZenflowPlanChanged: (
+        listener: (data: {
+          taskId: string;
+          plan: import('@shared/zenflow/types').PlanDocument;
+        }) => void
+      ) => () => void;
     };
   }
 }
@@ -1906,6 +1975,70 @@ export interface ElectronAPI {
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
   }>;
+
+  // Zenflow workflow orchestration
+  zenflowCreateWorkflow: (args: {
+    taskId: string;
+    template: 'spec-and-build' | 'full-sdd';
+    featureDescription: string;
+    worktreePath: string;
+  }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowGetSteps: (taskId: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowResumeWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowPauseWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowRetryStep: (stepId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowExpandSteps: (args: {
+    taskId: string;
+    newSteps: Array<{ name: string; prompt: string }>;
+  }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowStartStep: (args: {
+    taskId: string;
+    stepId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowRegisterPtyStep: (args: {
+    ptyId: string;
+    taskId: string;
+    stepId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowLinkConversation: (args: {
+    stepId: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  onZenflowEvent: (
+    listener: (event: {
+      taskId: string;
+      type:
+        | 'step-started'
+        | 'step-completed'
+        | 'step-failed'
+        | 'workflow-paused'
+        | 'workflow-completed'
+        | 'steps-expanded';
+      stepId?: string;
+      stepNumber?: number;
+      conversationId?: string;
+      data?: any;
+    }) => void
+  ) => () => void;
+
+  // Zenflow plan.md file-based methods
+  zenflowReadPlan: (worktreePath: string) => Promise<{
+    success: boolean;
+    data?: import('@shared/zenflow/types').PlanDocument | null;
+    error?: string;
+  }>;
+  zenflowWritePlan: (args: {
+    worktreePath: string;
+    plan: import('@shared/zenflow/types').PlanDocument;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowWatchPlan: (args: {
+    taskId: string;
+    worktreePath: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowUnwatchPlan: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  onZenflowPlanChanged: (
+    listener: (data: { taskId: string; plan: import('@shared/zenflow/types').PlanDocument }) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

@@ -702,6 +702,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
+
+  // Zenflow workflow orchestration
+  zenflowCreateWorkflow: (args: {
+    taskId: string;
+    template: 'spec-and-build' | 'full-sdd';
+    featureDescription: string;
+    worktreePath: string;
+  }) => ipcRenderer.invoke('zenflow:createWorkflow', args),
+  zenflowGetSteps: (taskId: string) => ipcRenderer.invoke('zenflow:getSteps', taskId),
+  zenflowResumeWorkflow: (taskId: string) => ipcRenderer.invoke('zenflow:resumeWorkflow', taskId),
+  zenflowPauseWorkflow: (taskId: string) => ipcRenderer.invoke('zenflow:pauseWorkflow', taskId),
+  zenflowRetryStep: (stepId: string) => ipcRenderer.invoke('zenflow:retryStep', stepId),
+  zenflowExpandSteps: (args: {
+    taskId: string;
+    newSteps: Array<{ name: string; prompt: string }>;
+  }) => ipcRenderer.invoke('zenflow:expandSteps', args),
+  zenflowStartStep: (args: { taskId: string; stepId: string }) =>
+    ipcRenderer.invoke('zenflow:startStep', args),
+  zenflowRegisterPtyStep: (args: { ptyId: string; taskId: string; stepId: string }) =>
+    ipcRenderer.invoke('zenflow:registerPtyStep', args),
+  zenflowLinkConversation: (args: { stepId: string; conversationId: string }) =>
+    ipcRenderer.invoke('zenflow:linkConversation', args),
+  onZenflowEvent: (listener: (event: any) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on('zenflow:event', wrapped);
+    return () => ipcRenderer.removeListener('zenflow:event', wrapped);
+  },
+
+  // Zenflow plan.md file-based IPC
+  zenflowReadPlan: (worktreePath: string) => ipcRenderer.invoke('zenflow:readPlan', worktreePath),
+  zenflowWritePlan: (args: { worktreePath: string; plan: any }) =>
+    ipcRenderer.invoke('zenflow:writePlan', args),
+  zenflowWatchPlan: (args: { taskId: string; worktreePath: string }) =>
+    ipcRenderer.invoke('zenflow:watchPlan', args),
+  zenflowUnwatchPlan: (taskId: string) => ipcRenderer.invoke('zenflow:unwatchPlan', taskId),
+  onZenflowPlanChanged: (listener: (data: { taskId: string; plan: any }) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on('zenflow:plan-changed', wrapped);
+    return () => ipcRenderer.removeListener('zenflow:plan-changed', wrapped);
+  },
 });
 
 // Type definitions for the exposed API
@@ -1164,6 +1204,70 @@ export interface ElectronAPI {
   sshWriteFile: (connectionId: string, path: string, content: string) => Promise<void>;
   sshGetState: (connectionId: string) => Promise<any>;
   sshGetConfig: () => Promise<{ success: boolean; hosts?: any[]; error?: string }>;
+
+  // Zenflow workflow orchestration
+  zenflowCreateWorkflow: (args: {
+    taskId: string;
+    template: 'spec-and-build' | 'full-sdd';
+    featureDescription: string;
+    worktreePath: string;
+  }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowGetSteps: (taskId: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowResumeWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowPauseWorkflow: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowRetryStep: (stepId: string) => Promise<{ success: boolean; error?: string }>;
+  zenflowExpandSteps: (args: {
+    taskId: string;
+    newSteps: Array<{ name: string; prompt: string }>;
+  }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  zenflowStartStep: (args: {
+    taskId: string;
+    stepId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowRegisterPtyStep: (args: {
+    ptyId: string;
+    taskId: string;
+    stepId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowLinkConversation: (args: {
+    stepId: string;
+    conversationId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  onZenflowEvent: (
+    listener: (event: {
+      taskId: string;
+      type:
+        | 'step-started'
+        | 'step-completed'
+        | 'step-failed'
+        | 'workflow-paused'
+        | 'workflow-completed'
+        | 'steps-expanded';
+      stepId?: string;
+      stepNumber?: number;
+      conversationId?: string;
+      data?: any;
+    }) => void
+  ) => () => void;
+
+  // Zenflow plan.md file-based methods
+  zenflowReadPlan: (worktreePath: string) => Promise<{
+    success: boolean;
+    data?: import('@shared/zenflow/types').PlanDocument | null;
+    error?: string;
+  }>;
+  zenflowWritePlan: (args: {
+    worktreePath: string;
+    plan: import('@shared/zenflow/types').PlanDocument;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowWatchPlan: (args: {
+    taskId: string;
+    worktreePath: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  zenflowUnwatchPlan: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  onZenflowPlanChanged: (
+    listener: (data: { taskId: string; plan: import('@shared/zenflow/types').PlanDocument }) => void
+  ) => () => void;
 }
 
 declare global {

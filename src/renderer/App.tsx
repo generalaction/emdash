@@ -330,7 +330,12 @@ const AppContent: React.FC = () => {
       linkedJiraIssue: JiraIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
-      baseRef?: string
+      baseRef?: string,
+      zenflow?: {
+        enabled: boolean;
+        template: 'spec-and-build' | 'full-sdd';
+        featureDescription: string;
+      }
     ) => {
       if (!projectMgmt.selectedProject) return;
       setIsCreatingTask(true);
@@ -345,6 +350,7 @@ const AppContent: React.FC = () => {
           autoApprove,
           useWorktree,
           baseRef,
+          zenflow: zenflow ?? null,
         },
         {
           selectedProject: projectMgmt.selectedProject,

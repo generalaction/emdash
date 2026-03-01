@@ -11,6 +11,7 @@ import {
   messages as messagesTable,
   lineComments as lineCommentsTable,
   sshConnections as sshConnectionsTable,
+  workflowSteps as workflowStepsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
@@ -19,6 +20,8 @@ import {
   type LineCommentInsert,
   type SshConnectionRow,
   type SshConnectionInsert,
+  type WorkflowStepRow,
+  type WorkflowStepInsert,
 } from '../db/schema';
 
 export interface Project {
@@ -322,6 +325,13 @@ export class DatabaseService {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
+  }
+
+  async getTask(taskId: string): Promise<Task | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const [row] = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId)).limit(1);
+    return row ? this.mapDrizzleTaskRow(row) : null;
   }
 
   async getTasks(projectId?: string): Promise<Task[]> {
@@ -1256,6 +1266,93 @@ export class DatabaseService {
         }
       });
     });
+  }
+
+  // ─── Workflow Steps ──────────────────────────────────────────────────
+
+  async getWorkflowSteps(taskId: string): Promise<WorkflowStepRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    return db
+      .select()
+      .from(workflowStepsTable)
+      .where(eq(workflowStepsTable.taskId, taskId))
+      .orderBy(asc(workflowStepsTable.stepNumber));
+  }
+
+  async getWorkflowStep(stepId: string): Promise<WorkflowStepRow | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const [row] = await db
+      .select()
+      .from(workflowStepsTable)
+      .where(eq(workflowStepsTable.id, stepId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async saveWorkflowStep(step: WorkflowStepInsert): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .insert(workflowStepsTable)
+      .values(step)
+      .onConflictDoUpdate({
+        target: workflowStepsTable.id,
+        set: {
+          name: step.name,
+          type: step.type,
+          status: step.status,
+          pauseAfter: step.pauseAfter,
+          prompt: step.prompt,
+          artifactPaths: step.artifactPaths,
+          metadata: step.metadata,
+          conversationId: step.conversationId,
+          startedAt: step.startedAt,
+          completedAt: step.completedAt,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      });
+  }
+
+  async updateWorkflowStepStatus(
+    stepId: string,
+    status: string,
+    extras?: { startedAt?: string; completedAt?: string; conversationId?: string }
+  ): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(workflowStepsTable)
+      .set({
+        status,
+        ...(extras?.startedAt ? { startedAt: extras.startedAt } : {}),
+        ...(extras?.completedAt ? { completedAt: extras.completedAt } : {}),
+        ...(extras?.conversationId ? { conversationId: extras.conversationId } : {}),
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(workflowStepsTable.id, stepId));
+  }
+
+  async insertWorkflowSteps(steps: WorkflowStepInsert[]): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    for (const step of steps) {
+      await db.insert(workflowStepsTable).values(step);
+    }
+  }
+
+  async deleteWorkflowStepsAfter(taskId: string, afterStepNumber: number): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    const steps = await db
+      .select()
+      .from(workflowStepsTable)
+      .where(eq(workflowStepsTable.taskId, taskId));
+    const toDelete = steps.filter((s) => s.stepNumber > afterStepNumber);
+    for (const step of toDelete) {
+      await db.delete(workflowStepsTable).where(eq(workflowStepsTable.id, step.id));
+    }
   }
 }
 

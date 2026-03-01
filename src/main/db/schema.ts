@@ -128,6 +128,39 @@ export const messages = sqliteTable(
   })
 );
 
+export const workflowSteps = sqliteTable(
+  'workflow_steps',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id').references(() => conversations.id, {
+      onDelete: 'set null',
+    }),
+    stepNumber: integer('step_number').notNull(),
+    name: text('name').notNull(),
+    type: text('type').notNull(), // 'requirements' | 'spec' | 'planning' | 'implementation'
+    status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'completed' | 'failed' | 'paused'
+    pauseAfter: integer('pause_after').notNull().default(0), // boolean: 1 = pause after this step
+    prompt: text('prompt'), // Initial prompt to send to the agent
+    artifactPaths: text('artifact_paths'), // JSON array of output artifact file paths
+    metadata: text('metadata'), // JSON for extensibility
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskIdIdx: index('idx_workflow_steps_task_id').on(table.taskId),
+    taskStepIdx: index('idx_workflow_steps_task_step').on(table.taskId, table.stepNumber),
+  })
+);
+
 export const lineComments = sqliteTable(
   'line_comments',
   {
@@ -171,6 +204,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   conversations: many(conversations),
   lineComments: many(lineComments),
+  workflowSteps: many(workflowSteps),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -184,6 +218,17 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
 export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, {
     fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const workflowStepsRelations = relations(workflowSteps, ({ one }) => ({
+  task: one(tasks, {
+    fields: [workflowSteps.taskId],
+    references: [tasks.id],
+  }),
+  conversation: one(conversations, {
+    fields: [workflowSteps.conversationId],
     references: [conversations.id],
   }),
 }));
@@ -203,3 +248,5 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;
+export type WorkflowStepRow = typeof workflowSteps.$inferSelect;
+export type WorkflowStepInsert = typeof workflowSteps.$inferInsert;

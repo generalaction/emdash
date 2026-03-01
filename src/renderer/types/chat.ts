@@ -23,6 +23,16 @@ export interface TaskMetadata {
   autoApprove?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  // When present, this task is a zenflow workflow with step-based orchestration
+  zenflow?: {
+    enabled: boolean;
+    template: 'spec-and-build' | 'full-sdd';
+    currentStepNumber: number;
+    totalSteps: number;
+    status: 'running' | 'paused' | 'completed' | 'failed';
+    featureDescription: string;
+    artifactsDir: string;
+  } | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

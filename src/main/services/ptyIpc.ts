@@ -18,6 +18,7 @@ import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
+import { zenflowOrchestrationService } from './ZenflowOrchestrationService';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { parsePtyId, isChatPty } from '../../shared/ptyId';
@@ -513,6 +514,9 @@ export function registerPtyIpc(): void {
               signal,
               isAppQuitting ? 'app_quit' : 'process_exit'
             );
+            zenflowOrchestrationService.handlePtyExit(id, exitCode ?? -1).catch((err) => {
+              log.error('zenflow: error handling PTY exit', { id, error: err });
+            });
             owners.delete(id);
             listeners.delete(id);
             removePtyRecord(id);
@@ -892,6 +896,9 @@ export function registerPtyIpc(): void {
               signal,
               isAppQuitting ? 'app_quit' : 'process_exit'
             );
+            zenflowOrchestrationService.handlePtyExit(id, exitCode ?? -1).catch((err) => {
+              log.error('zenflow: error handling PTY exit', { id, error: err });
+            });
             // Direct-spawn CLIs can be replaced immediately by a fallback shell after exit.
             // If this PTY has already been replaced, skip cleanup so we don't delete the new PTY record.
             const current = getPty(id);

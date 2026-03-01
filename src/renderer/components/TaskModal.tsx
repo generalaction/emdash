@@ -44,7 +44,12 @@ interface TaskModalProps {
     linkedJiraIssue?: JiraIssueSummary | null,
     autoApprove?: boolean,
     useWorktree?: boolean,
-    baseRef?: string
+    baseRef?: string,
+    zenflow?: {
+      enabled: boolean;
+      template: 'spec-and-build' | 'full-sdd';
+      featureDescription: string;
+    }
   ) => void;
   projectName: string;
   defaultBranch: string;
@@ -81,6 +86,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+
+  // Zenflow workflow state
+  const [zenflowEnabled, setZenflowEnabled] = useState(false);
+  const [zenflowTemplate, setZenflowTemplate] = useState<'spec-and-build' | 'full-sdd'>(
+    'spec-and-build'
+  );
+  const [zenflowDescription, setZenflowDescription] = useState('');
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -163,6 +175,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedJiraIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setZenflowEnabled(false);
+    setZenflowTemplate('spec-and-build');
+    setZenflowDescription('');
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
@@ -242,16 +257,26 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
     // Fire and forget - don't await
     try {
+      // For zenflow, use the feature description as the initial prompt
+      const effectivePrompt = zenflowEnabled
+        ? zenflowDescription.trim() || undefined
+        : hasInitialPromptSupport && initialPrompt.trim()
+          ? initialPrompt.trim()
+          : undefined;
+
       onCreateTask(
         normalizedTaskName,
-        hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
+        effectivePrompt,
         agentRuns,
         selectedLinearIssue,
         selectedGithubIssue,
         selectedJiraIssue,
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
-        selectedBranch
+        selectedBranch,
+        zenflowEnabled
+          ? { enabled: true, template: zenflowTemplate, featureDescription: zenflowDescription }
+          : undefined
       );
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -322,6 +347,71 @@ const TaskModal: React.FC<TaskModalProps> = ({
           <div className="flex items-center gap-4">
             <Label className="shrink-0">Agent</Label>
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
+          </div>
+
+          {/* Zenflow Workflow Toggle */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="zenflow-toggle"
+                checked={zenflowEnabled}
+                onChange={(e) => setZenflowEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="zenflow-toggle" className="cursor-pointer text-sm">
+                Zenflow workflow
+              </Label>
+              <span className="text-[10px] text-muted-foreground">
+                (step-by-step orchestration)
+              </span>
+            </div>
+
+            {zenflowEnabled && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      zenflowTemplate === 'spec-and-build'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-accent'
+                    }`}
+                    onClick={() => setZenflowTemplate('spec-and-build')}
+                  >
+                    Spec & Build
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      zenflowTemplate === 'full-sdd'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-accent'
+                    }`}
+                    onClick={() => setZenflowTemplate('full-sdd')}
+                  >
+                    Full SDD
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {zenflowTemplate === 'spec-and-build'
+                    ? 'Write a tech spec, then implement. Good for medium tasks.'
+                    : 'Requirements, tech spec, planning, then implement. Good for complex features.'}
+                </p>
+                <div>
+                  <Label htmlFor="zenflow-desc" className="mb-1 block text-xs">
+                    Feature description
+                  </Label>
+                  <textarea
+                    id="zenflow-desc"
+                    value={zenflowDescription}
+                    onChange={(e) => setZenflowDescription(e.target.value)}
+                    placeholder="Describe the feature you want to build..."
+                    className="h-20 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <TaskAdvancedSettings
