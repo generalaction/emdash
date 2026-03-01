@@ -483,11 +483,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 taskId={archivedTask.id}
                                                 taskPath={archivedTask.path}
                                                 useWorktree={archivedTask.useWorktree !== false}
-                                                onConfirm={() =>
-                                                  Promise.resolve(
-                                                    onDeleteTask?.(typedProject, archivedTask)
-                                                  ).then(() => fetchArchivedTasks())
-                                                }
+                                                onConfirm={async () => {
+                                                  await onDeleteTask?.(typedProject, archivedTask);
+                                                  fetchArchivedTasks();
+                                                }}
                                               />
                                             </div>
                                           </div>
