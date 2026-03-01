@@ -398,6 +398,15 @@ export class DatabaseService {
     return this.mapDrizzleTaskRow(rows[0]);
   }
 
+  async getTaskById(taskId: string): Promise<Task | null> {
+    if (this.disabled) return null;
+    if (!taskId) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId)).limit(1);
+    if (rows.length === 0) return null;
+    return this.mapDrizzleTaskRow(rows[0]);
+  }
+
   async deleteProject(projectId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
