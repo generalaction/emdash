@@ -112,6 +112,7 @@
     "minimatch": "^10.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
+    "nbranch": "^0.1.0",
     "node-pty": "1.0.0",
     "posthog-js": "^1.297.2",
     "react": "^18.2.0",

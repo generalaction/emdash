@@ -330,7 +330,8 @@ const AppContent: React.FC = () => {
       linkedJiraIssue: JiraIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
-      baseRef?: string
+      baseRef?: string,
+      nameGenerated?: boolean
     ) => {
       if (!projectMgmt.selectedProject) return;
       setIsCreatingTask(true);
@@ -343,6 +344,7 @@ const AppContent: React.FC = () => {
           linkedGithubIssue,
           linkedJiraIssue,
           autoApprove,
+          nameGenerated,
           useWorktree,
           baseRef,
         },
@@ -697,6 +699,7 @@ const AppContent: React.FC = () => {
                         setShowKanban={(show: boolean) => setShowKanban(show)}
                         projectRemoteConnectionId={derivedRemoteConnectionId}
                         projectRemotePath={derivedRemotePath}
+                        onRenameTask={taskMgmt.handleRenameTask}
                       />
                     </div>
                   </ResizablePanel>

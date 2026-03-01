@@ -15,6 +15,7 @@ export interface CreateTaskParams {
   linkedGithubIssue: GitHubIssueSummary | null;
   linkedJiraIssue: JiraIssueSummary | null;
   autoApprove?: boolean;
+  nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
 }
@@ -64,6 +65,7 @@ export async function createTask(
     linkedGithubIssue,
     linkedJiraIssue,
     autoApprove,
+    nameGenerated,
     useWorktree,
     baseRef,
   } = params;
@@ -97,13 +99,19 @@ export async function createTask(
       preparedPrompt = parts.join('\n');
     }
     const taskMetadata: TaskMetadata | null =
-      linkedLinearIssue || linkedJiraIssue || linkedGithubIssue || preparedPrompt || autoApprove
+      linkedLinearIssue ||
+      linkedJiraIssue ||
+      linkedGithubIssue ||
+      preparedPrompt ||
+      autoApprove ||
+      nameGenerated
         ? {
             linearIssue: linkedLinearIssue ?? null,
             jiraIssue: linkedJiraIssue ?? null,
             githubIssue: linkedGithubIssue ?? null,
             initialPrompt: preparedPrompt ?? null,
             autoApprove: autoApprove ?? null,
+            nameGenerated: nameGenerated ?? null,
           }
         : null;
 

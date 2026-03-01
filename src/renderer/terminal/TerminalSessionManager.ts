@@ -4,6 +4,8 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
+import { TerminalInputBuffer } from './TerminalInputBuffer';
+import { classifyActivity } from '../lib/activityClassifier';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
@@ -56,6 +58,7 @@ export interface TerminalSessionOptions {
   mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
+  onFirstMessage?: (message: string) => void;
 }
 
 type CleanupFn = () => void;
@@ -94,6 +97,7 @@ export class TerminalSessionManager {
   private lastSentResize: { cols: number; rows: number } | null = null;
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
+  private inputBuffer: TerminalInputBuffer | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -308,6 +312,14 @@ export class TerminalSessionManager {
       telemetry: options.telemetry ?? null,
     });
 
+    // Set up one-shot capture of the user's first terminal message
+    if (options.onFirstMessage) {
+      const callback = options.onFirstMessage;
+      this.inputBuffer = new TerminalInputBuffer((message) => {
+        callback(message);
+      });
+    }
+
     const inputDisposable = this.terminal.onData((data) => {
       this.handleTerminalInput(data);
     });
@@ -427,6 +439,7 @@ export class TerminalSessionManager {
         });
       }
     }
+    this.inputBuffer = null;
     this.metrics.dispose();
     this.activityListeners.clear();
     this.readyListeners.clear();
@@ -501,6 +514,11 @@ export class TerminalSessionManager {
     }
 
     if (!filtered) return;
+
+    // Feed input to the buffer for first-message capture
+    if (this.inputBuffer && !this.inputBuffer.isComplete) {
+      this.inputBuffer.feed(filtered);
+    }
 
     // Track command execution when Enter is pressed (but not for newline inserts)
     const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
@@ -987,6 +1005,14 @@ export class TerminalSessionManager {
       }
       const buffer = this.terminal.buffer?.active;
       const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
+
+      // Check if agent started processing — confirms the user's input was accepted
+      if (this.inputBuffer && !this.inputBuffer.isComplete) {
+        const signal = classifyActivity(this.options.providerId ?? null, chunk);
+        if (signal === 'busy') {
+          this.inputBuffer.confirmSubmit();
+        }
+      }
 
       try {
         this.terminal.write(chunk);
