@@ -33,55 +33,34 @@ export class PrGenerationService {
         return this.generateFallbackContent(changedFiles);
       }
 
-      // Try the task's provider first if specified
+      // Build ordered list of providers to try: preferred → claude → remaining
+      const attempted = new Set<ProviderId>();
+      const tryOrder: ProviderId[] = [];
+
       if (preferredProviderId && this.isValidProviderId(preferredProviderId)) {
+        tryOrder.push(preferredProviderId as ProviderId);
+      }
+      tryOrder.push('claude');
+      for (const id of PROVIDER_IDS) {
+        tryOrder.push(id);
+      }
+
+      for (const providerId of tryOrder) {
+        if (attempted.has(providerId)) continue;
+        attempted.add(providerId);
+
         try {
-          const preferredResult = await this.generateWithProvider(
-            preferredProviderId as ProviderId,
-            taskPath,
-            diff,
-            commits
-          );
-          if (preferredResult) {
-            log.info(`Generated PR content with task provider: ${preferredProviderId}`);
+          const result = await this.generateWithProvider(providerId, taskPath, diff, commits);
+          if (result) {
+            log.info(`Generated PR content with ${providerId}`);
             return {
-              title: preferredResult.title,
-              description: this.normalizeMarkdown(preferredResult.description),
+              title: result.title,
+              description: this.normalizeMarkdown(result.description),
             };
           }
         } catch (error) {
-          log.debug(`Task provider ${preferredProviderId} generation failed, trying fallbacks`, {
-            error,
-          });
+          log.debug(`Provider ${providerId} generation failed, trying next`, { error });
         }
-      }
-
-      // Try Claude Code as fallback (preferred default)
-      try {
-        const claudeResult = await this.generateWithProvider('claude', taskPath, diff, commits);
-        if (claudeResult) {
-          log.info('Generated PR content with Claude Code');
-          return {
-            title: claudeResult.title,
-            description: this.normalizeMarkdown(claudeResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Claude Code generation failed, trying fallback', { error });
-      }
-
-      // Try Codex as fallback
-      try {
-        const codexResult = await this.generateWithProvider('codex', taskPath, diff, commits);
-        if (codexResult) {
-          log.info('Generated PR content with Codex');
-          return {
-            title: codexResult.title,
-            description: this.normalizeMarkdown(codexResult.description),
-          };
-        }
-      } catch (error) {
-        log.debug('Codex generation failed, using heuristic fallback', { error });
       }
 
       // Fallback to heuristic-based generation
@@ -243,7 +222,21 @@ export class PrGenerationService {
   }
 
   /**
-   * Generate PR content using a CLI provider (Claude Code or Codex)
+   * Check if a provider can be used for non-interactive PR generation.
+   * Returns false for providers that require TUI keystroke injection,
+   * have no CLI binary, or can't accept a prompt via CLI args.
+   */
+  private canUseForPrGeneration(providerId: ProviderId): boolean {
+    const provider = getProvider(providerId);
+    if (!provider) return false;
+    if (!provider.cli) return false;
+    if (provider.useKeystrokeInjection) return false;
+    if (provider.initialPromptFlag === undefined) return false;
+    return true;
+  }
+
+  /**
+   * Generate PR content using a CLI provider.
    * Retries once on parse failure (exit code 0 but malformed output).
    */
   private async generateWithProvider(
@@ -252,19 +245,16 @@ export class PrGenerationService {
     diff: string,
     commits: string[]
   ): Promise<GeneratedPrContent | null> {
-    const provider = getProvider(providerId);
-    if (!provider || !provider.cli) {
+    if (!this.canUseForPrGeneration(providerId)) {
       return null;
     }
 
-    const cliCommand = provider.cli;
-    if (!cliCommand) {
-      return null;
-    }
+    const provider = getProvider(providerId);
+    const cliCommand = provider!.cli!;
 
     // Check if provider CLI is available
     try {
-      await execFileAsync(cliCommand, provider.versionArgs || ['--version'], {
+      await execFileAsync(cliCommand, provider!.versionArgs || ['--version'], {
         cwd: taskPath,
       });
     } catch {
@@ -335,15 +325,15 @@ export class PrGenerationService {
         }
       }
 
-      // Handle prompt for non-Claude providers: some accept it as a flag, others via stdin
-      let promptViaStdin = false;
-      if (!isClaudeProvider) {
-        if (provider!.initialPromptFlag !== undefined && provider!.initialPromptFlag !== '') {
+      // Handle prompt for non-Claude providers using the same logic as ptyManager.buildProviderCliArgs():
+      // - initialPromptFlag: '' → positional arg (push prompt directly)
+      // - initialPromptFlag: '-i' / '-t' / etc. → push flag then prompt
+      // - initialPromptFlag: undefined → provider can't accept a prompt (already filtered by canUseForPrGeneration)
+      if (!isClaudeProvider && provider!.initialPromptFlag !== undefined) {
+        if (provider!.initialPromptFlag) {
           args.push(provider!.initialPromptFlag);
-          args.push(prompt);
-        } else {
-          promptViaStdin = true;
         }
+        args.push(prompt);
       }
 
       // Spawn the provider CLI
@@ -414,26 +404,9 @@ export class PrGenerationService {
         done(null, false); // Don't retry on spawn failure
       });
 
-      // Send prompt via stdin if needed (non-Claude providers with no initialPromptFlag)
-      if (promptViaStdin) {
-        try {
-          if (child.stdin) {
-            child.stdin.write(prompt);
-            child.stdin.write('\n');
-            child.stdin.end();
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          try {
-            child.kill();
-          } catch {}
-          log.debug(`Failed to write prompt to ${providerId}`, { error });
-          done(null, false);
-        }
-      } else {
-        if (child.stdin) {
-          child.stdin.end();
-        }
+      // Close stdin — all providers receive prompts via CLI args, not stdin
+      if (child.stdin) {
+        child.stdin.end();
       }
     });
   }
