@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
-import { useFileChanges } from '@/hooks/useFileChanges';
 import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { agentAssets } from '@/providers/assets';
@@ -377,9 +376,7 @@ const VariantChangesIfAny: React.FC<{ path: string; taskId: string; className?: 
   taskId,
   className,
 }) => {
-  const { fileChanges } = useFileChanges(path);
   const { projectPath } = useTaskScope();
-  if (!fileChanges || fileChanges.length === 0) return null;
   return (
     <TaskScopeProvider value={{ taskId, taskPath: path, projectPath }}>
       <FileChangesPanel className={className || 'min-h-0'} />

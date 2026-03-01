@@ -820,7 +820,14 @@ export class WorktreeService {
           branch: target.branch,
           fullRef: target.branch,
         };
-      } catch (error) {
+      } catch (error: any) {
+        if (
+          error?.code === 'ENAMETOOLONG' ||
+          error?.code === 'ENOENT' ||
+          error?.code === 'EACCES'
+        ) {
+          throw new Error(`Git failed to run (${error.code}). Check app logs for details.`);
+        }
         throw new Error(`Local branch '${target.branch}' does not exist. Please create it first.`);
       }
     }
@@ -889,7 +896,10 @@ export class WorktreeService {
         cwd: projectPath,
       });
       return true;
-    } catch {
+    } catch (error: any) {
+      if (error?.code === 'ENAMETOOLONG' || error?.code === 'ENOENT' || error?.code === 'EACCES') {
+        throw error;
+      }
       return false;
     }
   }

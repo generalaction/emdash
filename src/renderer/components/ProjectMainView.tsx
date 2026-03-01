@@ -45,6 +45,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
+import { rpc } from '../lib/rpc';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import AgentLogo from './AgentLogo';
@@ -340,10 +341,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const refetchArchivedTasks = useCallback(() => {
     const timeoutId = setTimeout(async () => {
       try {
-        const result = await window.electronAPI.getArchivedTasks(project.id);
-        if (Array.isArray(result)) {
-          setArchivedTasks(result);
-        }
+        const archivedTasks = (await rpc.db.getArchivedTasks(project.id)) as Task[];
+        setArchivedTasks(archivedTasks);
       } catch {
         //
       }
@@ -577,8 +576,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         if (onRestoreTask) {
           await onRestoreTask(project, task);
         } else {
-          const result = await window.electronAPI.restoreTask(task.id);
-          if (!result?.success) throw new Error(result?.error);
+          await rpc.db.restoreTask(task.id);
         }
         setArchivedTasks((prev) => prev.filter((t) => t.id !== task.id));
         toast({ title: 'Task restored', description: task.name });

@@ -9,6 +9,7 @@ import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink } from '../types/chat';
+import { rpc } from '../lib/rpc';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -327,16 +328,14 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // Kill chat agent terminals (agents added via "+")
         const chatSessionIds: string[] = [];
         try {
-          const convResult = await window.electronAPI.getConversations(task.id);
-          if (convResult.success && convResult.conversations) {
-            for (const conv of convResult.conversations) {
-              if (!conv.isMain && conv.provider) {
-                const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
-                chatSessionIds.push(chatId);
-                try {
-                  window.electronAPI.ptyKill?.(chatId);
-                } catch {}
-              }
+          const conversations = await rpc.db.getConversations(task.id);
+          for (const conv of conversations) {
+            if (!conv.isMain && conv.provider) {
+              const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
+              chatSessionIds.push(chatId);
+              try {
+                window.electronAPI.ptyKill?.(chatId);
+              } catch {}
             }
           }
         } catch {}
@@ -372,7 +371,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // IMPORTANT: Tasks without worktrees have useWorktree === false
         const shouldRemoveWorktree = task.useWorktree !== false;
 
-        const promises: Promise<any>[] = [window.electronAPI.deleteTask(task.id)];
+        const promises: Promise<any>[] = [rpc.db.deleteTask(task.id)];
 
         if (shouldRemoveWorktree) {
           // Safety check: Don't try to remove worktree if the task path equals project path
@@ -410,12 +409,10 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
         // Check task deletion result
         const deleteResult = shouldRemoveWorktree ? results[1] : results[0];
-        if (deleteResult.status !== 'fulfilled' || !deleteResult.value?.success) {
-          const errorMsg =
-            deleteResult.status === 'fulfilled'
-              ? deleteResult.value?.error || 'Failed to delete task'
-              : deleteResult.reason?.message || String(deleteResult.reason);
-          throw new Error(errorMsg);
+        if (deleteResult.status !== 'fulfilled') {
+          throw new Error(
+            deleteResult.reason?.message || String(deleteResult.reason) || 'Failed to delete task'
+          );
         }
 
         for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
@@ -442,7 +439,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         });
 
         try {
-          const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+          const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
@@ -547,15 +544,11 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       }
 
       // Save task with new name and branch
-      const saveResult = await window.electronAPI.saveTask({
+      await rpc.db.saveTask({
         ...task,
         name: newName,
         branch: newBranch,
       });
-
-      if (!saveResult?.success) {
-        throw new Error(saveResult?.error || 'Failed to save task');
-      }
     } catch (error) {
       const { log } = await import('../lib/logger');
       log.error('Failed to rename task:', error as any);
@@ -628,16 +621,14 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           // Kill chat agent terminals
           const chatSessionIds: string[] = [];
           try {
-            const convResult = await window.electronAPI.getConversations(task.id);
-            if (convResult.success && convResult.conversations) {
-              for (const conv of convResult.conversations) {
-                if (!conv.isMain && conv.provider) {
-                  const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
-                  chatSessionIds.push(chatId);
-                  try {
-                    window.electronAPI.ptyKill?.(chatId);
-                  } catch {}
-                }
+            const conversations = await rpc.db.getConversations(task.id);
+            for (const conv of conversations) {
+              if (!conv.isMain && conv.provider) {
+                const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
+                chatSessionIds.push(chatId);
+                try {
+                  window.electronAPI.ptyKill?.(chatId);
+                } catch {}
               }
             }
           } catch {}
@@ -677,11 +668,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
       await runLifecycleTeardownBestEffort(targetProject, task, 'archive', options);
 
       try {
-        const result = await window.electronAPI.archiveTask(task.id);
-
-        if (!result?.success) {
-          throw new Error(result?.error || 'Failed to archive task');
-        }
+        await rpc.db.archiveTask(task.id);
 
         for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
           try {
@@ -711,7 +698,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
         // Restore task to UI on error
         let restored = false;
         try {
-          const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+          const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
           setProjects((prev) =>
             prev.map((project) =>
               project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project
@@ -772,17 +759,13 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     restoringTaskIdsRef.current.add(task.id);
 
     try {
-      const result = await window.electronAPI.restoreTask(task.id);
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Failed to restore task');
-      }
+      await rpc.db.restoreTask(task.id);
 
       // Refresh tasks to include the restored task
       let refreshed = false;
       let restoredTaskForSetup: Task | null = null;
       try {
-        const refreshedTasks = await window.electronAPI.getTasks(targetProject.id);
+        const refreshedTasks = (await rpc.db.getTasks(targetProject.id)) as Task[];
         setProjects((prev) =>
           prev.map((project) =>
             project.id === targetProject.id ? { ...project, tasks: refreshedTasks } : project

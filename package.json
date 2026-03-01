@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.20",
+  "version": "0.4.21",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -25,7 +25,8 @@
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "docs": "cd docs && pnpm run dev",
-    "docs:build": "cd docs && pnpm run build"
+    "docs:build": "cd docs && pnpm run build",
+    "prepare": "husky"
   },
   "keywords": [
     "electron",
@@ -60,6 +61,8 @@
     "eslint": "^8.55.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.0",
     "postcss": "^8.4.32",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
@@ -241,6 +244,23 @@
       "node-pty",
       "keytar",
       "electron"
+    ],
+    "ignoredBuiltDependencies": [
+      "better-sqlite3",
+      "core-js",
+      "cpu-features",
+      "esbuild",
+      "protobufjs",
+      "ssh2"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,jsx,json,css}": [
+      "prettier --write"
     ]
   }
 }
