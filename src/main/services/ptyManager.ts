@@ -97,11 +97,20 @@ function resolveWindowsPtySpawn(
 ): { command: string; args: string[] } {
   if (process.platform !== 'win32') return { command, args };
 
+  const quoteForCmdExe = (input: string): string => {
+    if (input.length === 0) return '""';
+    if (!/[\s"^&|<>()%!]/.test(input)) return input;
+    return `"${input
+      .replace(/%/g, '%%')
+      .replace(/!/g, '^!')
+      .replace(/(["^&|<>()])/g, '^$1')}"`;
+  };
+
   const ext = path.extname(command).toLowerCase();
   if (ext === '.cmd' || ext === '.bat') {
     const comspec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
-    const cmdArg = /\s/.test(command) ? `"${command}"` : command;
-    return { command: comspec, args: ['/c', cmdArg, ...args] };
+    const fullCommandString = [command, ...args].map(quoteForCmdExe).join(' ');
+    return { command: comspec, args: ['/d', '/s', '/c', fullCommandString] };
   }
   if (ext === '.ps1') {
     return {

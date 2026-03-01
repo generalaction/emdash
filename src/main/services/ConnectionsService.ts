@@ -42,6 +42,15 @@ const truncate = (input: string, max = 400): string =>
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
+const quoteForCmdExe = (input: string): string => {
+  if (input.length === 0) return '""';
+  if (!/[\s"^&|<>()%!]/.test(input)) return input;
+  return `"${input
+    .replace(/%/g, '%%')
+    .replace(/!/g, '^!')
+    .replace(/(["^&|<>()])/g, '^$1')}"`;
+};
+
 export const CLI_DEFINITIONS: CliDefinition[] = listDetectableProviders().map((provider) => ({
   id: provider.id,
   name: provider.name,
@@ -260,7 +269,20 @@ class ConnectionsService {
     const resolvedPath = this.resolveCommandPath(command);
     return new Promise((resolve) => {
       try {
-        const child = spawn(command, args);
+        const executable = resolvedPath || command;
+        const lowerExecutable = executable.toLowerCase();
+        const shouldUseCmdExe =
+          process.platform === 'win32' &&
+          (lowerExecutable.endsWith('.cmd') || lowerExecutable.endsWith('.bat'));
+
+        const child = shouldUseCmdExe
+          ? spawn(process.env.ComSpec || 'cmd.exe', [
+              '/d',
+              '/s',
+              '/c',
+              [executable, ...args].map(quoteForCmdExe).join(' '),
+            ])
+          : spawn(command, args);
 
         let stdout = '';
         let stderr = '';
@@ -282,6 +304,12 @@ class ConnectionsService {
 
         child.on('error', (error) => {
           clearTimeout(timeoutId);
+          log.warn('provider:command-spawn-error', {
+            command,
+            executable,
+            resolvedPath,
+            error: error?.message || String(error),
+          });
           resolve({
             command,
             success: false,
@@ -301,6 +329,18 @@ class ConnectionsService {
 
           const success = !didTimeout && code === 0;
           const version = this.extractVersion(stdout) || this.extractVersion(stderr);
+
+          if (!success) {
+            log.warn('provider:command-exit-failed', {
+              command,
+              executable,
+              resolvedPath,
+              status: code,
+              timedOut: didTimeout,
+              stderr: stderr ? truncate(stderr) : null,
+              stdout: stdout ? truncate(stdout) : null,
+            });
+          }
 
           resolve({
             command,
