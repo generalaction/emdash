@@ -87,7 +87,6 @@ const getConnectionId = (project: Project): string | null => {
   return (project as any).sshConnectionId || null;
 };
 
-// RESOLVED CONFLICT: Kept our Memoized ProjectItem for performance
 interface ProjectItemProps {
   project: Project;
   isActive: boolean;
@@ -179,7 +178,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
-  // RESOLVED CONFLICT: Integrated Force Expansion from Main + Performance Fixes
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
   const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
@@ -408,7 +406,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             )}
                           </div>
 
-                          {/* RESOLVED CONFLICT: ForceMount + CSS Hidden optimization preserved */}
                           <CollapsibleContent
                             forceMount
                             className="mt-1 min-w-0 data-[state=closed]:hidden"
