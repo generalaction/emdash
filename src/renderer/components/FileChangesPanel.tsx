@@ -147,9 +147,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
 
-  // Reset selectedPath when task changes
+  // Reset selectedPath and action loading states when task changes
   useEffect(() => {
     setSelectedPath(undefined);
+    setIsMergingToMain(false);
   }, [resolvedTaskPath]);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
@@ -173,7 +174,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       return 'create';
     }
   });
-  const { isCreating: isCreatingPR, createPR } = useCreatePR();
+  const { isCreatingForTaskPath, createPR } = useCreatePR();
 
   const selectPrMode = (mode: PrMode) => {
     setPrMode(mode);
@@ -544,7 +545,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     return null;
   }
 
-  const isActionLoading = isCreatingPR || isMergingToMain;
+  const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMergingToMain;
 
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
