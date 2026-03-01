@@ -25,7 +25,8 @@
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "docs": "cd docs && pnpm run dev",
-    "docs:build": "cd docs && pnpm run build"
+    "docs:build": "cd docs && pnpm run build",
+    "prepare": "husky"
   },
   "keywords": [
     "electron",
@@ -60,6 +61,8 @@
     "eslint": "^8.55.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.0",
     "postcss": "^8.4.32",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
@@ -249,6 +252,15 @@
       "esbuild",
       "protobufjs",
       "ssh2"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,jsx,json,css}": [
+      "prettier --write"
     ]
   }
 }
