@@ -244,22 +244,23 @@ function createTerminal(
   taskId: string,
   taskPath?: string,
   options?: { title?: string; cwd?: string }
-) {
+): string {
+  const newId = makeTerminalId(taskId);
   updateTaskState(taskId, taskPath, (draft) => {
     const nextIndex = draft.counter + 1;
-    const id = makeTerminalId(taskId);
     draft.counter = nextIndex;
-    draft.activeId = id;
+    draft.activeId = newId;
     draft.terminals = [
       ...draft.terminals,
       {
-        id,
+        id: newId,
         title: options?.title || `Terminal ${nextIndex}`,
         cwd: options?.cwd || taskPath,
         createdAt: Date.now(),
       },
     ];
   });
+  return newId;
 }
 
 function setActive(taskId: string, terminalId: string, taskPath?: string) {
@@ -345,7 +346,7 @@ export function useTaskTerminals(
 
   const actions = useMemo(() => {
     return {
-      createTerminal: (options?: { title?: string; cwd?: string }) =>
+      createTerminal: (options?: { title?: string; cwd?: string }): string =>
         createTerminal(resolvedId, options?.cwd || resolvedPath, options),
       setActiveTerminal: (terminalId: string) => setActive(resolvedId, terminalId, resolvedPath),
       closeTerminal: (terminalId: string) => closeTerminal(resolvedId, terminalId, resolvedPath),
