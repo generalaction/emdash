@@ -109,6 +109,9 @@ export const FileList: React.FC<FileListProps> = ({
     const filename = parts.pop() || file.path;
     const directory = parts.length > 0 ? parts.join('/') + '/' : '';
 
+    const isRenamed = file.status === 'renamed' && !!file.oldPath;
+    const oldFilename = isRenamed ? file.oldPath?.split('/').pop() || file.oldPath : null;
+
     return (
       <div
         key={file.path}
@@ -119,8 +122,18 @@ export const FileList: React.FC<FileListProps> = ({
       >
         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor}`} />
         <div className="min-w-0 flex-1 truncate">
-          <span className="font-medium text-foreground">{filename}</span>
-          {directory && <span className="ml-1 text-muted-foreground">{directory}</span>}
+          {isRenamed && oldFilename ? (
+            <span className="text-foreground">
+              <span className="text-muted-foreground line-through">{oldFilename}</span>
+              <span className="mx-1 text-muted-foreground">→</span>
+              <span className="font-medium">{filename}</span>
+            </span>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">{filename}</span>
+              {directory && <span className="ml-1 text-muted-foreground">{directory}</span>}
+            </>
+          )}
         </div>
         <button
           className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/file:opacity-100"

@@ -1,9 +1,10 @@
 import React from 'react';
-import { MoreHorizontal, GitPullRequest, RefreshCw, Github, User } from 'lucide-react';
+import { MoreHorizontal, GitPullRequest, RefreshCw, Github, User, AlertCircle } from 'lucide-react';
 import { usePullRequests, PullRequestSummary } from '../hooks/usePullRequests';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
+import { useToast } from '../hooks/use-toast';
 interface OpenPrsSectionProps {
   projectPath: string;
   projectId: string;
@@ -60,6 +61,7 @@ function PrRow({
   onOpenTask?: (task: { id: string; path: string; name: string }) => void;
 }) {
   const [isCreating, setIsCreating] = React.useState(false);
+  const { toast } = useToast();
   const handleReviewPR = async () => {
     setIsCreating(true);
     try {
@@ -80,11 +82,24 @@ function PrRow({
         };
         onOpenTask?.(taskWithPr as typeof result.task & { prNumber: number });
       } else {
-        console.log('Falling back to GitHub, success:', result.success, 'task:', result.task);
+        const errorMessage = result.error || 'Failed to create worktree';
+        toast({
+          title: 'Worktree creation failed',
+          description: `${errorMessage}. Opening PR on GitHub instead.`,
+          variant: 'destructive',
+        });
+        console.log('Falling back to GitHub, success:', result.success, 'error:', result.error);
         window.electronAPI.openExternal(pr.url);
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: 'Failed to review PR',
+        description: `${errorMessage}. Opening PR on GitHub instead.`,
+        variant: 'destructive',
+      });
       console.error('Failed to create PR worktree:', error);
+      window.electronAPI.openExternal(pr.url);
     } finally {
       setIsCreating(false);
     }

@@ -179,6 +179,17 @@ export const ChangesDiffModal: React.FC<ChangesDiffModalProps> = ({
             originalContent = '';
             modifiedContent = converted.modified;
           }
+        } else if (selectedFile.status === 'renamed' && selectedFile.oldPath) {
+          // For renamed files: get original from oldPath, new content from new path
+          const converted = convertDiffLinesToMonacoFormat(diffLines);
+          originalContent = converted.original;
+          // Read new content from the new path
+          const readRes = await window.electronAPI.fsRead(safeTaskPath, filePath, 2 * 1024 * 1024);
+          if (readRes?.success && readRes.content) {
+            modifiedContent = readRes.content;
+          } else {
+            modifiedContent = converted.modified;
+          }
         } else {
           // Modified file: reconstruct from diff
           const converted = convertDiffLinesToMonacoFormat(diffLines);

@@ -488,7 +488,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
                   <ArrowUpRight className="size-3" />
                 </button>
-              ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
+              ) : branchStatusLoading || branchAhead !== null ? (
                 <PrActionButton
                   mode={prMode}
                   onModeChange={selectPrMode}

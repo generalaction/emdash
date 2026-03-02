@@ -311,21 +311,27 @@ export function registerGithubIpc() {
           return { success: false, error: 'Could not get PR details' };
         }
 
-        // Get diff between base branch and current branch in the worktree
+        // Get diff between base branch and PR head branch (not HEAD which may have extra commits)
         const { execSync } = require('child_process');
         let diff = '';
         try {
-          diff = execSync(`git diff ${prDetails.baseRefName}...HEAD --no-color`, {
-            cwd: worktreePath,
-            encoding: 'utf-8',
-          });
+          diff = execSync(
+            `git diff ${prDetails.baseRefName}...${prDetails.headRefName} --no-color`,
+            {
+              cwd: worktreePath,
+              encoding: 'utf-8',
+            }
+          );
         } catch (e) {
           // Try without three dots if that fails
           try {
-            diff = execSync(`git diff ${prDetails.baseRefName}..HEAD --no-color`, {
-              cwd: worktreePath,
-              encoding: 'utf-8',
-            });
+            diff = execSync(
+              `git diff ${prDetails.baseRefName}..${prDetails.headRefName} --no-color`,
+              {
+                cwd: worktreePath,
+                encoding: 'utf-8',
+              }
+            );
           } catch (e2) {
             log.warn('git diff failed:', e2);
             diff = '';
@@ -374,29 +380,6 @@ export function registerGithubIpc() {
       const branchName = args.branchName || `pr/${prNumber}`;
 
       try {
-        const currentWorktrees = await worktreeService.listWorktrees(projectPath);
-        const existing = currentWorktrees.find((wt) => wt.branch === branchName);
-
-        if (existing) {
-          const taskInfo = {
-            id: existing.id,
-            projectId,
-            name: existing.name,
-            branch: existing.branch,
-            path: existing.path,
-            status: 'idle' as const,
-            useWorktree: true,
-            prNumber,
-          };
-          return {
-            success: true,
-            worktree: existing,
-            branchName,
-            taskName: existing.name,
-            task: taskInfo,
-          };
-        }
-
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
         const worktreesDir = path.resolve(projectPath, '..', 'worktrees');

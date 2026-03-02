@@ -259,6 +259,47 @@ export const AllChangesDiffModal: React.FC<AllChangesDiffModalProps> = ({
             originalContent = '';
             modifiedContent = converted.modified;
           }
+        } else if (file.status === 'renamed' && file.oldPath) {
+          // For renamed files: get original from oldPath in base branch, new content from new path
+          if (baseBranch) {
+            try {
+              const originalRes = await window.electronAPI.getFileFromBranch({
+                taskPath: resolvedTaskPath,
+                branch: baseBranch,
+                filePath: file.oldPath,
+              });
+              if (originalRes?.success && originalRes.content) {
+                originalContent = originalRes.content;
+              }
+            } catch {
+              // Fallback to diff-based content
+            }
+          }
+          if (!originalContent) {
+            const converted = convertDiffLinesToMonacoFormat(diffLines);
+            originalContent = converted.original;
+          }
+          // Read new content from the new path
+          try {
+            const readRes = await window.electronAPI.fsRead(
+              resolvedTaskPath,
+              filePath,
+              2 * 1024 * 1024
+            );
+            if (readRes?.success && readRes.content) {
+              modifiedContent = readRes.content;
+              if (readRes.truncated) {
+                isLargeFile = true;
+                largeFileReason = 'truncated_read';
+              }
+            } else {
+              const converted = convertDiffLinesToMonacoFormat(diffLines);
+              modifiedContent = converted.modified;
+            }
+          } catch {
+            const converted = convertDiffLinesToMonacoFormat(diffLines);
+            modifiedContent = converted.modified;
+          }
         } else {
           // When baseBranch is provided (PR review mode), fetch original from the branch
           if (baseBranch) {

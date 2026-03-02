@@ -900,8 +900,16 @@ export class GitHubService {
         { cwd: projectPath }
       );
     } catch (error) {
-      console.error('Failed to checkout pull request branch via gh:', error);
-      throw error;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.includes('is already checked out')) {
+        console.warn(
+          'Branch already checked out elsewhere, continuing with existing branch:',
+          safeBranch
+        );
+      } else {
+        console.error('Failed to checkout pull request branch via gh:', error);
+        throw error;
+      }
     } finally {
       if (previousRef && previousRef !== safeBranch) {
         try {

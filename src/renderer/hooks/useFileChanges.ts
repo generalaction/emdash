@@ -9,6 +9,7 @@ export interface FileChange {
   deletions: number;
   isStaged: boolean;
   diff?: string;
+  oldPath?: string;
 }
 
 interface UseFileChangesOptions {
@@ -126,6 +127,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
               deletions: change.deletions || 0,
               isStaged: change.isStaged || false,
               diff: change.diff,
+              oldPath: change.oldPath,
             }))
             .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
           setFileChanges(changes);

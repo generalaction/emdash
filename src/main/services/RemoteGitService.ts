@@ -364,8 +364,10 @@ export class RemoteGitService {
     for (const line of statusLines) {
       const statusCode = line.substring(0, 2);
       let filePath = line.substring(3);
+      let oldPath: string | undefined;
       if (statusCode.includes('R') && filePath.includes('->')) {
         const parts = filePath.split('->');
+        oldPath = parts[0].trim();
         filePath = parts[parts.length - 1].trim();
       }
 
@@ -386,7 +388,7 @@ export class RemoteGitService {
         untrackedPaths.push(filePath);
       }
 
-      changes.push({ path: filePath, status, additions, deletions, isStaged });
+      changes.push({ path: filePath, status, additions, deletions, isStaged, oldPath });
     }
 
     // Batch line-count for untracked files (skip files > 512KB)
