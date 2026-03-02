@@ -6,6 +6,7 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;
@@ -16,11 +17,13 @@ export interface UseOpenInAppsResult {
 }
 
 export function useOpenInApps(): UseOpenInAppsResult {
+  const { settings, isLoading: settingsLoading } = useAppSettings();
   const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
   const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
-  const [hiddenApps, setHiddenApps] = useState<OpenInAppId[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+
+  const loading = settingsLoading || availabilityLoading;
 
   // Load platform-resolved icons and labels
   useEffect(() => {
@@ -47,25 +50,6 @@ export function useOpenInApps(): UseOpenInAppsResult {
     void load();
   }, []);
 
-  // Load hidden apps from settings
-  useEffect(() => {
-    const loadHidden = async () => {
-      try {
-        const result = await window.electronAPI?.getSettings?.();
-        if (result?.settings?.hiddenOpenInApps) {
-          setHiddenApps(result.settings.hiddenOpenInApps as OpenInAppId[]);
-        }
-      } catch {}
-    };
-    void loadHidden();
-
-    const handleChange = () => {
-      void loadHidden();
-    };
-    window.addEventListener('hiddenOpenInAppsChanged', handleChange);
-    return () => window.removeEventListener('hiddenOpenInAppsChanged', handleChange);
-  }, []);
-
   // Fetch app availability
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -75,7 +59,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
       } catch (e) {
         console.error('Failed to check installed apps:', e);
       } finally {
-        setLoading(false);
+        setAvailabilityLoading(false);
       }
     };
     void fetchAvailability();
@@ -83,9 +67,10 @@ export function useOpenInApps(): UseOpenInAppsResult {
 
   // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
+    const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
     if (loading) return OPEN_IN_APPS;
     return OPEN_IN_APPS.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
-  }, [availability, loading, hiddenApps]);
+  }, [availability, loading, settings?.hiddenOpenInApps]);
 
   return { icons, labels, availability, installedApps, loading };
 }

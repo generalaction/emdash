@@ -14,6 +14,7 @@ import { AgentDropdown } from './AgentDropdown';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
+import { rpc } from '@/lib/rpc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -42,10 +43,9 @@ export function CreateChatModal({
       setError(null);
 
       let cancel = false;
-      window.electronAPI.getSettings().then((res) => {
+      rpc.appSettings.get().then((settings) => {
         if (cancel) return;
 
-        const settings = res?.success ? res.settings : undefined;
         const settingsAgent = settings?.defaultProvider;
         const defaultFromSettings: Agent = isValidProviderId(settingsAgent)
           ? (settingsAgent as Agent)

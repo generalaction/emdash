@@ -15,7 +15,7 @@ import { registerUpdateIpc } from '../services/updateIpc';
 import { registerTelemetryIpc } from './telemetryIpc';
 import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
-import { registerSettingsIpc } from './settingsIpc';
+import { appSettingsController } from './settingsIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
@@ -27,6 +27,7 @@ import { ipcMain } from 'electron';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
+  appSettings: appSettingsController,
 });
 
 export type RpcRouter = typeof rpcRouter;
@@ -40,7 +41,6 @@ export function registerAllIpc() {
   registerDebugIpc();
   registerTelemetryIpc();
   registerUpdateIpc();
-  registerSettingsIpc();
 
   // Domain IPC
   registerProjectIpc();

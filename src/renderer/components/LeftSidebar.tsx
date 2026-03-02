@@ -167,8 +167,10 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const [taskHoverAction, setTaskHoverAction] = useState<'delete' | 'archive'>('delete');
   useEffect(() => {
-    window.electronAPI.getSettings().then((r) => {
-      if (r.success) setTaskHoverAction(r.settings?.interface?.taskHoverAction ?? 'delete');
+    rpc.appSettings.get().then((settings) => {
+      if (settings?.interface?.taskHoverAction) {
+        setTaskHoverAction(settings.interface.taskHoverAction);
+      }
     });
     const handler = (e: Event) => setTaskHoverAction((e as CustomEvent).detail.value);
     window.addEventListener('taskHoverActionChanged', handler);

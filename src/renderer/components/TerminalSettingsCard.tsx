@@ -4,21 +4,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Switch } from './ui/switch';
-
-type TerminalSettings = {
-  fontFamily: string;
-  autoCopyOnSelection: boolean;
-};
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 type FontOption = {
   id: string;
   label: string;
   fontValue: string;
-};
-
-const DEFAULTS: TerminalSettings = {
-  fontFamily: '',
-  autoCopyOnSelection: false,
 };
 
 const POPULAR_FONTS = [
@@ -44,13 +35,14 @@ const dedupeAndSort = (fonts: string[]) =>
   );
 
 const TerminalSettingsCard: React.FC = () => {
-  const [settings, setSettings] = useState<TerminalSettings>(DEFAULTS);
+  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [search, setSearch] = useState<string>('');
   const [installedFonts, setInstalledFonts] = useState<string[] | null>(null);
   const [loadingFonts, setLoadingFonts] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
+
+  const fontFamily = settings?.terminal?.fontFamily ?? '';
+  const autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
 
   const popularOptions = useMemo<FontOption[]>(() => {
     return [
@@ -111,77 +103,36 @@ const TerminalSettingsCard: React.FC = () => {
     }
   }, [installedFonts, loadingFonts]);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await window.electronAPI.getSettings();
-      if (res?.success && res.settings?.terminal) {
-        const fontFamily = res.settings.terminal.fontFamily ?? DEFAULTS.fontFamily;
-        const autoCopyOnSelection =
-          res.settings.terminal.autoCopyOnSelection ?? DEFAULTS.autoCopyOnSelection;
-        setSettings({ fontFamily, autoCopyOnSelection });
-      } else {
-        setSettings(DEFAULTS);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   useEffect(() => {
     if (pickerOpen) {
       void loadInstalledFonts();
     }
   }, [loadInstalledFonts, pickerOpen]);
 
-  const savePartial = useCallback(
-    async (partial: Partial<TerminalSettings>) => {
-      setSaving(true);
-      try {
-        const next = { ...settings, ...partial };
-        const res = await window.electronAPI.updateSettings({ terminal: next });
-        if (res?.success && res.settings?.terminal) {
-          const fontFamily = res.settings.terminal.fontFamily ?? DEFAULTS.fontFamily;
-          const autoCopyOnSelection =
-            res.settings.terminal.autoCopyOnSelection ?? DEFAULTS.autoCopyOnSelection;
-          setSettings({ fontFamily, autoCopyOnSelection });
-          if (partial.fontFamily !== undefined) {
-            window.dispatchEvent(
-              new CustomEvent('terminal-font-changed', {
-                detail: { fontFamily: res.settings.terminal.fontFamily },
-              })
-            );
-          }
-          if (partial.autoCopyOnSelection !== undefined) {
-            window.dispatchEvent(
-              new CustomEvent('terminal-auto-copy-changed', {
-                detail: { autoCopyOnSelection: res.settings.terminal.autoCopyOnSelection },
-              })
-            );
-          }
-        }
-      } finally {
-        setSaving(false);
-      }
-    },
-    [settings]
-  );
-
   const applyFont = useCallback(
-    async (fontFamily: string) => {
-      const normalized = fontFamily.trim();
-      setSettings((prev) => ({ ...prev, fontFamily: normalized }));
-      await savePartial({ fontFamily: normalized });
+    (next: string) => {
+      const normalized = next.trim();
+      updateSettings({ terminal: { fontFamily: normalized } });
+      window.dispatchEvent(
+        new CustomEvent('terminal-font-changed', { detail: { fontFamily: normalized } })
+      );
     },
-    [savePartial]
+    [updateSettings]
   );
 
-  const selectedPreset = findPreset(settings.fontFamily);
-  const pickerLabel = settings.fontFamily.trim()
-    ? (selectedPreset?.label ?? `Custom: ${settings.fontFamily.trim()}`)
+  const toggleAutoCopy = useCallback(
+    (next: boolean) => {
+      updateSettings({ terminal: { autoCopyOnSelection: next } });
+      window.dispatchEvent(
+        new CustomEvent('terminal-auto-copy-changed', { detail: { autoCopyOnSelection: next } })
+      );
+    },
+    [updateSettings]
+  );
+
+  const selectedPreset = findPreset(fontFamily);
+  const pickerLabel = fontFamily.trim()
+    ? (selectedPreset?.label ?? `Custom: ${fontFamily.trim()}`)
     : 'Default (Menlo)';
 
   const filteredPopularOptions = useMemo(() => {
@@ -197,14 +148,6 @@ const TerminalSettingsCard: React.FC = () => {
   }, [installedOptions, search]);
 
   const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
-
-  const toggleAutoCopy = useCallback(
-    async (autoCopyOnSelection: boolean) => {
-      setSettings((prev) => ({ ...prev, autoCopyOnSelection }));
-      await savePartial({ autoCopyOnSelection });
-    },
-    [savePartial]
-  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -237,7 +180,7 @@ const TerminalSettingsCard: React.FC = () => {
                     if (!typed) return;
                     setSearch('');
                     setPickerOpen(false);
-                    void applyFont(typed);
+                    applyFont(typed);
                   }}
                   placeholder="Search or type custom font"
                   aria-label="Search font options"
@@ -261,7 +204,7 @@ const TerminalSettingsCard: React.FC = () => {
                             onClick={() => {
                               setSearch('');
                               setPickerOpen(false);
-                              void applyFont(option.fontValue);
+                              applyFont(option.fontValue);
                             }}
                           >
                             <span>{option.label}</span>
@@ -295,7 +238,7 @@ const TerminalSettingsCard: React.FC = () => {
                         onClick={() => {
                           setSearch('');
                           setPickerOpen(false);
-                          void applyFont(option.fontValue);
+                          applyFont(option.fontValue);
                         }}
                       >
                         <span>{option.label}</span>
@@ -321,9 +264,9 @@ const TerminalSettingsCard: React.FC = () => {
           </p>
         </div>
         <Switch
-          checked={settings.autoCopyOnSelection}
+          checked={autoCopyOnSelection}
           disabled={loading || saving}
-          onCheckedChange={(checked) => void toggleAutoCopy(checked === true)}
+          onCheckedChange={toggleAutoCopy}
         />
       </div>
     </div>

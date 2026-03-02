@@ -17,6 +17,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
+import { rpc } from '@/lib/rpc';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -136,9 +137,9 @@ export class TerminalSessionManager {
       this.applyEffectiveFont();
     };
 
-    window.electronAPI.getSettings().then((result) => {
-      updateCustomFont(result?.settings?.terminal?.fontFamily);
-      this.autoCopyOnSelection = result?.settings?.terminal?.autoCopyOnSelection ?? false;
+    rpc.appSettings.get().then((settings) => {
+      updateCustomFont(settings?.terminal?.fontFamily);
+      this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
     });
 
     const handleFontChange = (e: Event) => {
