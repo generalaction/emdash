@@ -3,9 +3,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { FIRST_LAUNCH_KEY } from './constants/layout';
 
 export function App() {
-  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>('app_first_launch', true);
+  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);
 
   const renderContent = () => {
     switch (isFirstLaunch) {
