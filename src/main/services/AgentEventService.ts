@@ -2,7 +2,8 @@ import http from 'http';
 import crypto from 'crypto';
 import { BrowserWindow, Notification } from 'electron';
 import { log } from '../lib/logger';
-import { parsePtyId } from '@shared/ptyId';
+import { parsePtyId, isMainPty } from '@shared/ptyId';
+import { getMainWindow } from '../app/window';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
@@ -42,7 +43,7 @@ class AgentEventService {
         }
       });
 
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           // ptyId and event type come from headers (not body) so the
           // payload can be piped from stdin via `curl -d @-` without
@@ -89,8 +90,7 @@ class AgentEventService {
           const windows = BrowserWindow.getAllWindows();
           const appFocused = windows.some((w) => !w.isDestroyed() && w.isFocused());
 
-          // Show OS notification banner when appropriate
-          this.maybeShowOsNotification(event, appFocused);
+          await this.maybeShowOsNotification(event, appFocused);
 
           for (const win of windows) {
             try {
@@ -128,7 +128,7 @@ class AgentEventService {
     });
   }
 
-  private maybeShowOsNotification(event: AgentEvent, appFocused: boolean): void {
+  private async maybeShowOsNotification(event: AgentEvent, appFocused: boolean): Promise<void> {
     try {
       const settings = getAppSettings();
       if (!settings.notifications?.enabled) return;
@@ -138,19 +138,47 @@ class AgentEventService {
 
       const providerName = getProvider(event.providerId as ProviderId)?.name ?? event.providerId;
 
+      const isMain = isMainPty(event.ptyId);
+      let taskName: string | null = null;
+      if (isMain) {
+        const { databaseService } = await import('./DatabaseService');
+        const task = await databaseService.getTaskById(event.taskId);
+        if (task?.name) taskName = task.name;
+      }
+
+      const titleSuffix = taskName ? ` — ${taskName}` : '';
+
+      const addClickHandler = (notification: Notification) => {
+        notification.on('click', () => {
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            if (win.isMinimized()) win.restore();
+            win.show();
+            win.focus();
+            if (isMain) {
+              win.webContents.send('notification:focus-task', event.taskId);
+            }
+          }
+        });
+      };
+
       if (event.type === 'stop') {
         const notification = new Notification({
-          title: `${providerName} Task Complete`,
+          title: `${providerName}${titleSuffix}`,
+          body: 'Your agent has finished working',
           silent: true,
         });
+        addClickHandler(notification);
         notification.show();
       } else if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
           const notification = new Notification({
-            title: `${providerName} Needs Attention`,
+            title: `${providerName}${titleSuffix}`,
+            body: 'Your agent is waiting for input',
             silent: true,
           });
+          addClickHandler(notification);
           notification.show();
         }
       }

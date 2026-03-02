@@ -145,6 +145,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onNotificationFocusTask: (listener: (taskId: string) => void) => {
+    const channel = 'notification:focus-task';
+    const wrapped = (_: Electron.IpcRendererEvent, taskId: string) => listener(taskId);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // App settings
@@ -172,6 +178,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuRedo: (listener: () => void) => {
     const channel = 'menu:redo';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onMenuCloseTab: (listener: () => void) => {
+    const channel = 'menu:close-tab';
     const wrapped = () => listener();
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
@@ -328,6 +340,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:revert-file', args),
   getFileFromBranch: (args: { taskPath: string; branch: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-from-branch', args),
+  gitCommit: (args: { taskPath: string; message: string }) =>
+    ipcRenderer.invoke('git:commit', args),
+  gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
+  gitPull: (args: { taskPath: string }) => ipcRenderer.invoke('git:pull', args),
+  gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) =>
+    ipcRenderer.invoke('git:get-log', args),
+  gitGetLatestCommit: (args: { taskPath: string }) =>
+    ipcRenderer.invoke('git:get-latest-commit', args),
+  gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
+    ipcRenderer.invoke('git:get-commit-files', args),
+  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
+    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
     commitMessage?: string;

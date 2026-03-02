@@ -3,9 +3,11 @@ import { Check, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Switch } from './ui/switch';
 
 type TerminalSettings = {
   fontFamily: string;
+  autoCopyOnSelection: boolean;
 };
 
 type FontOption = {
@@ -16,6 +18,7 @@ type FontOption = {
 
 const DEFAULTS: TerminalSettings = {
   fontFamily: '',
+  autoCopyOnSelection: false,
 };
 
 const POPULAR_FONTS = [
@@ -113,7 +116,9 @@ const TerminalSettingsCard: React.FC = () => {
       const res = await window.electronAPI.getSettings();
       if (res?.success && res.settings?.terminal) {
         const fontFamily = res.settings.terminal.fontFamily ?? DEFAULTS.fontFamily;
-        setSettings({ fontFamily });
+        const autoCopyOnSelection =
+          res.settings.terminal.autoCopyOnSelection ?? DEFAULTS.autoCopyOnSelection;
+        setSettings({ fontFamily, autoCopyOnSelection });
       } else {
         setSettings(DEFAULTS);
       }
@@ -140,12 +145,23 @@ const TerminalSettingsCard: React.FC = () => {
         const res = await window.electronAPI.updateSettings({ terminal: next });
         if (res?.success && res.settings?.terminal) {
           const fontFamily = res.settings.terminal.fontFamily ?? DEFAULTS.fontFamily;
-          setSettings({ fontFamily });
-          window.dispatchEvent(
-            new CustomEvent('terminal-font-changed', {
-              detail: { fontFamily: res.settings.terminal.fontFamily },
-            })
-          );
+          const autoCopyOnSelection =
+            res.settings.terminal.autoCopyOnSelection ?? DEFAULTS.autoCopyOnSelection;
+          setSettings({ fontFamily, autoCopyOnSelection });
+          if (partial.fontFamily !== undefined) {
+            window.dispatchEvent(
+              new CustomEvent('terminal-font-changed', {
+                detail: { fontFamily: res.settings.terminal.fontFamily },
+              })
+            );
+          }
+          if (partial.autoCopyOnSelection !== undefined) {
+            window.dispatchEvent(
+              new CustomEvent('terminal-auto-copy-changed', {
+                detail: { autoCopyOnSelection: res.settings.terminal.autoCopyOnSelection },
+              })
+            );
+          }
         }
       } finally {
         setSaving(false);
@@ -182,109 +198,133 @@ const TerminalSettingsCard: React.FC = () => {
 
   const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
 
+  const toggleAutoCopy = useCallback(
+    async (autoCopyOnSelection: boolean) => {
+      setSettings((prev) => ({ ...prev, autoCopyOnSelection }));
+      await savePartial({ autoCopyOnSelection });
+    },
+    [savePartial]
+  );
+
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-1 flex-col gap-0.5">
-        <p className="text-sm font-medium text-foreground">Terminal font</p>
-        <p className="text-sm text-muted-foreground">Choose the font family for the terminal.</p>
-      </div>
-      <div className="w-[183px] flex-shrink-0">
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 w-full justify-between text-sm font-normal"
-              disabled={loading || saving}
-            >
-              <span className="truncate text-left">{pickerLabel}</span>
-              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-            <div className="grid gap-2">
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  const typed = search.trim();
-                  if (!typed) return;
-                  setSearch('');
-                  setPickerOpen(false);
-                  void applyFont(typed);
-                }}
-                placeholder="Search or type custom font"
-                aria-label="Search font options"
-                className="h-8"
-              />
-              <div className="max-h-56 overflow-auto">
-                {filteredPopularOptions.length > 0 ? (
-                  <>
-                    <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Popular
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">Terminal font</p>
+          <p className="text-sm text-muted-foreground">Choose the font family for the terminal.</p>
+        </div>
+        <div className="w-[183px] flex-shrink-0">
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 w-full justify-between text-sm font-normal"
+                disabled={loading || saving}
+              >
+                <span className="truncate text-left">{pickerLabel}</span>
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+              <div className="grid gap-2">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    const typed = search.trim();
+                    if (!typed) return;
+                    setSearch('');
+                    setPickerOpen(false);
+                    void applyFont(typed);
+                  }}
+                  placeholder="Search or type custom font"
+                  aria-label="Search font options"
+                  className="h-8"
+                />
+                <div className="max-h-56 overflow-auto">
+                  {filteredPopularOptions.length > 0 ? (
+                    <>
+                      <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Popular
+                      </div>
+                      {filteredPopularOptions.map((option) => {
+                        const selected =
+                          selectedPreset?.fontValue.toLowerCase() ===
+                          option.fontValue.toLowerCase();
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                            onClick={() => {
+                              setSearch('');
+                              setPickerOpen(false);
+                              void applyFont(option.fontValue);
+                            }}
+                          >
+                            <span>{option.label}</span>
+                            {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                          </button>
+                        );
+                      })}
+                    </>
+                  ) : null}
+
+                  {filteredInstalledOptions.length > 0 || loadingFonts ? (
+                    <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Installed Fonts
                     </div>
-                    {filteredPopularOptions.map((option) => {
-                      const selected =
-                        selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                          onClick={() => {
-                            setSearch('');
-                            setPickerOpen(false);
-                            void applyFont(option.fontValue);
-                          }}
-                        >
-                          <span>{option.label}</span>
-                          {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                        </button>
-                      );
-                    })}
-                  </>
-                ) : null}
+                  ) : null}
 
-                {filteredInstalledOptions.length > 0 || loadingFonts ? (
-                  <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Installed Fonts
-                  </div>
-                ) : null}
+                  {loadingFonts ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      Loading installed fonts...
+                    </div>
+                  ) : null}
 
-                {loadingFonts ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    Loading installed fonts...
-                  </div>
-                ) : null}
+                  {filteredInstalledOptions.map((option) => {
+                    const selected =
+                      selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                        onClick={() => {
+                          setSearch('');
+                          setPickerOpen(false);
+                          void applyFont(option.fontValue);
+                        }}
+                      >
+                        <span>{option.label}</span>
+                        {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                      </button>
+                    );
+                  })}
 
-                {filteredInstalledOptions.map((option) => {
-                  const selected =
-                    selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                      onClick={() => {
-                        setSearch('');
-                        setPickerOpen(false);
-                        void applyFont(option.fontValue);
-                      }}
-                    >
-                      <span>{option.label}</span>
-                      {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                    </button>
-                  );
-                })}
-
-                {!loadingFonts && !hasAnyResults ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No fonts found.</div>
-                ) : null}
+                  {!loadingFonts && !hasAnyResults ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No fonts found.</div>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">Auto-copy selected text</p>
+          <p className="text-sm text-muted-foreground">
+            Automatically copy text to clipboard when you select it in the terminal.
+          </p>
+        </div>
+        <Switch
+          checked={settings.autoCopyOnSelection}
+          disabled={loading || saving}
+          onCheckedChange={(checked) => void toggleAutoCopy(checked === true)}
+        />
       </div>
     </div>
   );

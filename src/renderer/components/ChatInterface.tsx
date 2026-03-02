@@ -708,6 +708,17 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [conversations, activeConversationId, handleSwitchChat]);
 
+  // Close active chat tab on Cmd+W
+  useEffect(() => {
+    const handleCloseActiveChat = () => {
+      if (activeConversationId) {
+        handleCloseChat(activeConversationId);
+      }
+    };
+    window.addEventListener('emdash:close-active-chat', handleCloseActiveChat);
+    return () => window.removeEventListener('emdash:close-active-chat', handleCloseActiveChat);
+  }, [activeConversationId, handleCloseChat]);
+
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
   const autoApproveEnabled =
     Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);

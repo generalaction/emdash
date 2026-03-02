@@ -349,6 +349,29 @@ jobs:
           console.log('Wrote dist/main/appConfig.json');
           NODE
 
+      - name: Check Azure Trusted Signing secrets
+        id: signing
+        shell: bash
+        env:
+          AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+          AZ_CLIENT: ${{ secrets.AZURE_CLIENT_ID }}
+          AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          if [ -n "$AZ_TENANT" ] && [ -n "$AZ_CLIENT" ] && [ -n "$AZ_SECRET" ]; then
+            echo "has_signing=true" >> "$GITHUB_OUTPUT"
+            echo "Azure Trusted Signing secrets are configured."
+          else
+            echo "has_signing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
+          fi
+
+      - name: Install Azure Trusted Signing dependencies
+        if: ${{ steps.signing.outputs.has_signing == 'true' }}
+        shell: pwsh
+        run: |
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+          Install-Module -Name TrustedSigning -RequiredVersion 0.5.0 -Force -Repository PSGallery
+
       - name: Rebuild native modules (x64)
         shell: bash
         run: |
@@ -358,10 +381,43 @@ jobs:
 
       - name: Build Windows packages (NSIS + MSI) (no publish)
         shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
           pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
           ls -lah release || true
+
+      - name: Verify Windows code signature
+        if: ${{ steps.signing.outputs.has_signing == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @()
+          $files += Get-ChildItem -Path release -Filter 'emdash-*.exe' -ErrorAction SilentlyContinue
+          $files += Get-ChildItem -Path release -Filter 'emdash-*.msi' -ErrorAction SilentlyContinue
+          if ($files.Count -eq 0) {
+            Write-Host "::error::No .exe or .msi files found in release/ to verify"
+            exit 1
+          }
+          $failed = $false
+          foreach ($f in $files) {
+            Write-Host "Verifying signature on $($f.Name)..."
+            $sig = Get-AuthenticodeSignature -FilePath $f.FullName
+            if ($sig.Status -ne 'Valid') {
+              Write-Host "::error::Signature invalid on $($f.Name): $($sig.Status) - $($sig.StatusMessage)"
+              $failed = $true
+            } else {
+              Write-Host "  Status: $($sig.Status)"
+              Write-Host "  Subject: $($sig.SignerCertificate.Subject)"
+              Write-Host "  Issuer: $($sig.SignerCertificate.Issuer)"
+              Write-Host "  Thumbprint: $($sig.SignerCertificate.Thumbprint)"
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "All Windows installers are properly signed."
 
       - name: Publish GitHub Release and upload Windows artifacts
         if: ${{ steps.init.outputs.dry_run != 'true' }}

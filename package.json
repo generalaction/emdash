@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.21",
+  "version": "0.4.22",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -225,7 +225,13 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "azureSignOptions": {
+        "publisherName": "General Action, Inc.",
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "certificateProfileName": "emdash-public",
+        "codeSigningAccountName": "emdash"
+      }
     },
     "msi": {
       "oneClick": false,

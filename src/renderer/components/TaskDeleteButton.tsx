@@ -37,6 +37,12 @@ type Props = {
    * @default true
    */
   useWorktree?: boolean;
+  /** Controlled open state — when provided, overrides the internal state. */
+  externalOpen?: boolean;
+  /** Callback when controlled open state changes. */
+  onExternalOpenChange?: (open: boolean) => void;
+  /** When true, the trigger button is hidden and only the dialog is rendered. */
+  hideTrigger?: boolean;
 };
 
 export const TaskDeleteButton: React.FC<Props> = ({
@@ -48,8 +54,14 @@ export const TaskDeleteButton: React.FC<Props> = ({
   'aria-label': ariaLabel = 'Delete Task',
   isDeleting = false,
   useWorktree = true,
+  externalOpen,
+  onExternalOpenChange,
+  hideTrigger = false,
 }) => {
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = externalOpen !== undefined;
+  const open = isControlled ? externalOpen : internalOpen;
+  const setOpen = isControlled ? (v: boolean) => onExternalOpenChange?.(v) : setInternalOpen;
   const [acknowledge, setAcknowledge] = React.useState(false);
   const targets = useMemo(
     () => [{ id: taskId, name: taskName, path: taskPath }],
@@ -90,33 +102,35 @@ export const TaskDeleteButton: React.FC<Props> = ({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={cn(className, isDeleting && 'opacity-100')}
-                title="Delete Task"
-                aria-label={ariaLabel}
-                aria-busy={isDeleting}
-                disabled={isDeleting}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {isDeleting ? (
-                  <Spinner className="h-4 w-4" size="sm" />
-                ) : (
-                  <Trash className="h-4 w-4" />
-                )}
-              </Button>
-            </AlertDialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
-            Delete Task
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {!hideTrigger && (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn(className, isDeleting && 'opacity-100')}
+                  title="Delete Task"
+                  aria-label={ariaLabel}
+                  aria-busy={isDeleting}
+                  disabled={isDeleting}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {isDeleting ? (
+                    <Spinner className="h-4 w-4" size="sm" />
+                  ) : (
+                    <Trash className="h-4 w-4" />
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Delete Task
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       <AlertDialogContent onClick={(e) => e.stopPropagation()} className="space-y-4">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete task?</AlertDialogTitle>
