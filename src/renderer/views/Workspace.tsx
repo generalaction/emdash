@@ -12,7 +12,7 @@ import { RightSidebarProvider, useRightSidebar } from '@/components/ui/right-sid
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { ModalProvider, useModalContext } from '@/contexts/ModalProvider';
-import { WorkspaceOverlayRenderer } from '@/components/WorkspaceOverlayRenderer';
+import { ModalRenderer } from '@/components/ModalRenderer';
 import {
   TITLEBAR_HEIGHT,
   LEFT_SIDEBAR_MIN_SIZE,
@@ -778,7 +778,7 @@ function WorkspaceInner() {
                     />
                   )}
 
-                  <WorkspaceOverlayRenderer />
+                  <ModalRenderer />
                   <Toaster />
                   <BrowserPane
                     taskId={activeTask?.id || null}

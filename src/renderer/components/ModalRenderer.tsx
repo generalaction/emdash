@@ -2,7 +2,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { useModalContext } from '@/contexts/ModalProvider';
 import { useMemo } from 'react';
 
-export function WorkspaceOverlayRenderer() {
+export function ModalRenderer() {
   const { activeModalId, renderModal, closeModal } = useModalContext();
   const content = useMemo(
     () => (activeModalId ? renderModal() : null),
