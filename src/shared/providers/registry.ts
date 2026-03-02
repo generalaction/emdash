@@ -341,7 +341,7 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'autohand',
     name: 'Autohand Code',
-    docUrl: 'https://autohand.ai/docs/',
+    docUrl: 'https://autohand.ai/code/',
     installCommand: 'npm install -g autohand-cli',
     commands: ['autohand'],
     versionArgs: ['--version'],
