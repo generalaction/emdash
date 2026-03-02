@@ -62,13 +62,11 @@ interface TaskModalProps {
   ) => void;
 }
 
-export type TaskModalOverlayProps = Omit<TaskModalProps, 'onClose' | 'onCreateTask'> &
-  OverlayProps<CreateTaskResult>;
+export type TaskModalOverlayProps = OverlayProps<CreateTaskResult>;
 
-export function TaskModalOverlay({ onSuccess, onClose, ...props }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
   return (
     <TaskModal
-      {...props}
       onClose={onClose}
       onCreateTask={(
         name,

@@ -544,7 +544,7 @@ function WorkspaceInner() {
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
-  const { activeTask, activeTaskAgent } = taskMgmt;
+  const { activeTask } = taskMgmt;
   const activeTaskProjectPath = activeTask?.projectId
     ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
     : null;
