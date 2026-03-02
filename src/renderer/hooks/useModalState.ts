@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FIRST_LAUNCH_KEY } from '../constants/layout';
+import { useCallback, useState } from 'react';
 
 export type SettingsPageTab =
   | 'general'
@@ -13,7 +12,6 @@ export interface ModalState {
   showSettingsPage: boolean;
   settingsPageInitialTab: SettingsPageTab;
   showCommandPalette: boolean;
-  showWelcomeScreen: boolean;
   showTaskModal: boolean;
   showNewProjectModal: boolean;
   showCloneModal: boolean;
@@ -26,7 +24,6 @@ export interface ModalActions {
   setShowSettingsPage: React.Dispatch<React.SetStateAction<boolean>>;
   setSettingsPageInitialTab: React.Dispatch<React.SetStateAction<SettingsPageTab>>;
   setShowCommandPalette: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowWelcomeScreen: React.Dispatch<React.SetStateAction<boolean>>;
   setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
   setShowNewProjectModal: React.Dispatch<React.SetStateAction<boolean>>;
   setShowCloneModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -40,8 +37,6 @@ export interface ModalActions {
   handleCloseCommandPalette: () => void;
   handleToggleKanban: () => void;
   handleToggleEditor: () => void;
-  handleWelcomeGetStarted: () => void;
-  markFirstLaunchSeen: () => void;
 }
 
 export function useModalState(deps: {
@@ -50,7 +45,6 @@ export function useModalState(deps: {
   const [showSettingsPage, setShowSettingsPage] = useState<boolean>(false);
   const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<SettingsPageTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
-  const [showWelcomeScreen, setShowWelcomeScreen] = useState<boolean>(false);
   const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
@@ -90,52 +84,10 @@ export function useModalState(deps: {
     setShowEditorMode((v) => !v);
   }, []);
 
-  const markFirstLaunchSeen = useCallback(() => {
-    try {
-      localStorage.setItem(FIRST_LAUNCH_KEY, '1');
-    } catch {
-      // ignore
-    }
-    try {
-      void window.electronAPI.setOnboardingSeen?.(true);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handleWelcomeGetStarted = useCallback(() => {
-    setShowWelcomeScreen(false);
-    markFirstLaunchSeen();
-  }, [markFirstLaunchSeen]);
-
-  // First-launch check effect
-  useEffect(() => {
-    const check = async () => {
-      let seenLocal = false;
-      try {
-        seenLocal = localStorage.getItem(FIRST_LAUNCH_KEY) === '1';
-      } catch {
-        // ignore
-      }
-      if (seenLocal) return;
-
-      try {
-        const res = await window.electronAPI.getTelemetryStatus?.();
-        if (res?.success && res.status?.onboardingSeen) return;
-      } catch {
-        // ignore
-      }
-      // Show WelcomeScreen for first-time users
-      setShowWelcomeScreen(true);
-    };
-    void check();
-  }, []);
-
   return {
     showSettingsPage,
     settingsPageInitialTab,
     showCommandPalette,
-    showWelcomeScreen,
     showTaskModal,
     showNewProjectModal,
     showCloneModal,
@@ -145,7 +97,6 @@ export function useModalState(deps: {
     setShowSettingsPage,
     setSettingsPageInitialTab,
     setShowCommandPalette,
-    setShowWelcomeScreen,
     setShowTaskModal,
     setShowNewProjectModal,
     setShowCloneModal,
@@ -159,7 +110,5 @@ export function useModalState(deps: {
     handleCloseCommandPalette,
     handleToggleKanban,
     handleToggleEditor,
-    handleWelcomeGetStarted,
-    markFirstLaunchSeen,
   };
 }
