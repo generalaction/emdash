@@ -653,6 +653,7 @@ export function startSshPty(options: {
     USER: process.env.USER || os.userInfo().username,
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
@@ -803,6 +804,7 @@ export function startDirectPty(options: {
     // Include PATH so CLI can find its dependencies
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
@@ -934,6 +936,7 @@ export async function startPty(options: {
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
