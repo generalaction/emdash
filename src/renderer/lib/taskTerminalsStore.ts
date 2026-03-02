@@ -245,17 +245,15 @@ function createTerminal(
   taskPath?: string,
   options?: { title?: string; cwd?: string }
 ): string {
-  let newId = '';
+  const newId = makeTerminalId(taskId);
   updateTaskState(taskId, taskPath, (draft) => {
     const nextIndex = draft.counter + 1;
-    const id = makeTerminalId(taskId);
-    newId = id;
     draft.counter = nextIndex;
-    draft.activeId = id;
+    draft.activeId = newId;
     draft.terminals = [
       ...draft.terminals,
       {
-        id,
+        id: newId,
         title: options?.title || `Terminal ${nextIndex}`,
         cwd: options?.cwd || taskPath,
         createdAt: Date.now(),

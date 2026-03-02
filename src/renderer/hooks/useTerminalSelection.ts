@@ -121,7 +121,8 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
 
   const prevTaskIdRef = useRef<string | null>(task?.id ?? null);
 
-  // Unified validity effect
+  // Unified validity effect — deps list individual properties to avoid re-runs
+  // from unstable object references (useTaskTerminals returns new objects each render).
   useEffect(() => {
     const prevTaskId = prevTaskIdRef.current;
     const newValue = resolveSelection({
@@ -138,6 +139,7 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
     if (newValue !== null && newValue !== selectedValue) {
       setSelectedValue(newValue);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     task?.id,
     selectedValue,
@@ -149,6 +151,7 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
 
   const parsed = selectedValue ? parseTerminalValue(selectedValue) : null;
 
+  // Intentionally deps on stable setActiveTerminal methods, not full store objects.
   const onChange = useCallback(
     (value: string) => {
       setSelectedValue(value);
@@ -160,9 +163,11 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
         globalTerminals.setActiveTerminal(p.id);
       }
     },
-    [taskTerminals, globalTerminals]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [taskTerminals.setActiveTerminal, globalTerminals.setActiveTerminal]
   );
 
+  // Assumes the store's activeId was already set by createTerminal() before this is called.
   const onCreateTerminal = useCallback((mode: 'task' | 'global', id: string) => {
     setSelectedValue(`${mode}::${id}`);
     setIsOpen(false);

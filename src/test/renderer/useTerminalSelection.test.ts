@@ -70,6 +70,17 @@ describe('resolveSelection', () => {
       });
       expect(result).toBe('');
     });
+
+    it('resets from lifecycle mode on task switch', () => {
+      const result = resolveSelection({
+        currentValue: 'lifecycle::setup',
+        taskId: 'task-2',
+        prevTaskId: 'task-1',
+        taskTerminals: makeTerminals(['t1']),
+        globalTerminals: makeTerminals(['g1']),
+      });
+      expect(result).toBe('task::t1');
+    });
   });
 
   describe('no selection', () => {

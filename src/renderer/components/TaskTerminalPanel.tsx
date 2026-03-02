@@ -74,10 +74,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     }
   }, []);
 
+  // Small delay to ensure the terminal pane has rendered after visibility change
   useEffect(() => {
-    if (!selection.activeTerminalId) return;
+    const id = selection.activeTerminalId;
+    if (!id) return;
     const timer = setTimeout(() => {
-      terminalRefs.current.get(selection.activeTerminalId!)?.focus();
+      terminalRefs.current.get(id)?.focus();
     }, 50);
     return () => clearTimeout(timer);
   }, [selection.activeTerminalId]);
