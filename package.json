@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.22",
+  "version": "0.4.23",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -58,7 +58,7 @@
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.2",
     "electron": "^30.5.1",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^26.0.12",
     "eslint": "^8.55.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",

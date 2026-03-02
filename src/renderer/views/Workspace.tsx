@@ -718,6 +718,7 @@ function WorkspaceInner() {
                               handleCloseSettingsPage={handleCloseSettingsPage}
                               handleAddRemoteProject={handleAddRemoteProjectClick}
                               openTaskModal={stableOpenTaskModal}
+                              setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
                               setShowKanban={(show: boolean) => setShowKanban(show)}
                               projectRemoteConnectionId={derivedRemoteConnectionId}
                               projectRemotePath={derivedRemotePath}

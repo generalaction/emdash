@@ -98,6 +98,7 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+
   const {
     selectedProject,
     projectDefaultBranch: defaultBranch,
