@@ -39,37 +39,19 @@ import type { Project } from '../types/app';
 import type { Task } from '../types/chat';
 import type { ConnectionState } from './ssh';
 import { rpc } from '../lib/rpc';
+import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 interface LeftSidebarProps {
-  projects: Project[];
-  archivedTasksVersion?: number;
-  selectedProject: Project | null;
-  onSelectProject: (project: Project) => void;
-  onGoHome: () => void;
-  onOpenProject?: () => void;
-  onNewProject?: () => void;
-  onCloneProject?: () => void;
   onAddRemoteProject?: () => void;
-  onSelectTask?: (task: Task) => void;
-  activeTask?: Task | null;
-  onReorderProjects?: (sourceId: string, targetId: string) => void;
-  onReorderProjectsFull?: (newOrder: Project[]) => void;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
     setOpen: (next: boolean) => void;
   }) => void;
-  onCreateTaskForProject?: (project: Project) => void;
   onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
-  onRenameTask?: (project: Project, task: Task, newName: string) => void | Promise<void>;
-  onArchiveTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
-  onRestoreTask?: (project: Project, task: Task) => void | Promise<void>;
-  onDeleteProject?: (project: Project) => void | Promise<void>;
   pinnedTaskIds?: Set<string>;
   onPinTask?: (task: Task) => void;
-  isHomeView?: boolean;
-  onGoToSkills?: () => void;
-  isSkillsView?: boolean;
   onCloseSettingsPage?: () => void;
 }
 
@@ -150,34 +132,38 @@ const MenuItemButton = React.memo<MenuItemButtonProps>(
 MenuItemButton.displayName = 'MenuItemButton';
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
-  projects,
-  archivedTasksVersion,
-  selectedProject,
-  onSelectProject,
-  onGoHome,
-  onOpenProject,
-  onNewProject,
-  onCloneProject,
   onAddRemoteProject,
-  onSelectTask,
-  activeTask,
-  onReorderProjects,
-  onReorderProjectsFull,
   onSidebarContextChange,
-  onCreateTaskForProject,
   onDeleteTask,
-  onRenameTask,
-  onArchiveTask,
-  onRestoreTask,
-  onDeleteProject,
   pinnedTaskIds,
   onPinTask,
-  isHomeView,
-  onGoToSkills,
-  isSkillsView,
   onCloseSettingsPage,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
+  const {
+    projects,
+    selectedProject,
+    showHomeView: isHomeView,
+    showSkillsView: isSkillsView,
+    handleSelectProject: onSelectProject,
+    handleGoHome: onGoHome,
+    handleOpenProject: onOpenProject,
+    handleNewProjectClick: onNewProject,
+    handleCloneProjectClick: onCloneProject,
+    handleReorderProjects: onReorderProjects,
+    handleReorderProjectsFull: onReorderProjectsFull,
+    handleDeleteProject: onDeleteProject,
+    handleGoToSkills: onGoToSkills,
+  } = useProjectManagementContext();
+  const {
+    activeTask,
+    archivedTasksVersion,
+    handleSelectTask: onSelectTask,
+    handleStartCreateTaskFromSidebar: onCreateTaskForProject,
+    handleRenameTask: onRenameTask,
+    handleArchiveTask: onArchiveTask,
+    handleRestoreTask: onRestoreTask,
+  } = useTaskManagementContext();
 
   const [taskHoverAction, setTaskHoverAction] = useState<'delete' | 'archive'>('delete');
   useEffect(() => {
