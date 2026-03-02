@@ -91,6 +91,7 @@ describe('ptyManager provider command resolution', () => {
 
     const expectedAutoApproveFlags: Record<string, string> = {
       amp: '--dangerously-allow-all',
+      autohand: '--unrestricted',
       claude: '--dangerously-skip-permissions',
       charm: '--yolo',
       cline: '--yolo',
