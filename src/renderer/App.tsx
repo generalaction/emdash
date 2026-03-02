@@ -9,14 +9,15 @@ export function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);
 
   const renderContent = () => {
-    switch (isFirstLaunch) {
-      case true:
-        return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
-      case false:
-        return <Workspace />;
-      default:
-        return null;
+  const renderContent = () => {
+    // Handle legacy string value '1' from old implementation
+    const isFirstLaunchBool = isFirstLaunch === true || isFirstLaunch === 1;
+    
+    if (isFirstLaunchBool) {
+      return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
+    return <Workspace />;
+  };
   };
   return (
     <ThemeProvider>
