@@ -4,25 +4,21 @@ import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { FIRST_LAUNCH_KEY } from './constants/layout';
-import { WorkspaceOverlayProvider } from './contexts/WorkspaceOverlayContext';
 
 export function App() {
-  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);
+  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean | number>(FIRST_LAUNCH_KEY, true);
 
   const renderContent = () => {
-    switch (isFirstLaunch) {
-      case true:
-        return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
-      case false:
-        return (
-          <WorkspaceOverlayProvider>
-            <Workspace />
-          </WorkspaceOverlayProvider>
-        );
-      default:
-        return null;
+    // Handle legacy string value '1' from old implementation
+    const isFirstLaunchBool = isFirstLaunch === true || isFirstLaunch === 1;
+    
+    if (isFirstLaunchBool) {
+      return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
+    return <Workspace />;
   };
+
+
   return (
     <ThemeProvider>
       <ErrorBoundary>{renderContent()}</ErrorBoundary>
