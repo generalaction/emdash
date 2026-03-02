@@ -1,6 +1,8 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext } from 'react';
 import type { KeyboardSettings, ShortcutModifier } from '../types/shortcuts';
 import { APP_SHORTCUTS, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface KeyboardSettingsContextValue {
   settings: KeyboardSettings | null;
@@ -11,31 +13,21 @@ interface KeyboardSettingsContextValue {
 const KeyboardSettingsContext = createContext<KeyboardSettingsContextValue | null>(null);
 
 export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState<KeyboardSettings | null>(null);
+  const { settings: appSettings } = useAppSettings();
+  const queryClient = useQueryClient();
 
-  const loadSettings = useCallback(async () => {
-    try {
-      const result = await window.electronAPI.getSettings();
-      if (result.success && result.settings?.keyboard) {
-        setSettings(result.settings.keyboard);
-      }
-    } catch {
-      // Use defaults on error
-    }
-  }, []);
+  const settings: KeyboardSettings | null = appSettings?.keyboard ?? null;
 
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  const refreshSettings = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['appSettings'] });
+  }, [queryClient]);
 
   const getShortcut = useCallback(
     (settingsKey: ShortcutSettingsKey): { key: string; modifier?: ShortcutModifier } => {
-      // Check custom settings first
       const custom = settings?.[settingsKey];
       if (custom) {
         return { key: custom.key, modifier: custom.modifier };
       }
-      // Fall back to default from APP_SHORTCUTS
       const defaultShortcut = Object.values(APP_SHORTCUTS).find(
         (s) => s.settingsKey === settingsKey
       );
@@ -48,9 +40,7 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
   );
 
   return (
-    <KeyboardSettingsContext.Provider
-      value={{ settings, getShortcut, refreshSettings: loadSettings }}
-    >
+    <KeyboardSettingsContext.Provider value={{ settings, getShortcut, refreshSettings }}>
       {children}
     </KeyboardSettingsContext.Provider>
   );
@@ -59,7 +49,6 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
 export const useKeyboardSettings = (): KeyboardSettingsContextValue => {
   const context = useContext(KeyboardSettingsContext);
   if (!context) {
-    // Return a fallback that uses defaults when not in provider
     return {
       settings: null,
       getShortcut: (settingsKey: ShortcutSettingsKey) => {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Switch } from './ui/switch';
+import { rpc } from '@/lib/rpc';
 
 type PrepSettings = {
   autoInstallOnOpenInEditor: boolean;
@@ -16,13 +17,12 @@ const ProjectPrepSettingsCard: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const res = await window.electronAPI.getSettings();
-      if (res?.success && res.settings?.projectPrep) {
-        const prep = res.settings.projectPrep as any;
+      const settings = await rpc.appSettings.get();
+      if (settings?.projectPrep) {
         setSettings({
           autoInstallOnOpenInEditor:
-            typeof prep.autoInstallOnOpenInEditor === 'boolean'
-              ? prep.autoInstallOnOpenInEditor
+            typeof settings.projectPrep.autoInstallOnOpenInEditor === 'boolean'
+              ? settings.projectPrep.autoInstallOnOpenInEditor
               : DEFAULTS.autoInstallOnOpenInEditor,
         });
       } else {
@@ -42,13 +42,12 @@ const ProjectPrepSettingsCard: React.FC = () => {
       setSaving(true);
       try {
         const next = { ...settings, ...partial };
-        const res = await window.electronAPI.updateSettings({ projectPrep: next as any });
-        if (res?.success && res.settings?.projectPrep) {
-          const prep = res.settings.projectPrep as any;
+        const res = await rpc.appSettings.update({ projectPrep: next as any });
+        if (res.projectPrep) {
           setSettings({
             autoInstallOnOpenInEditor:
-              typeof prep.autoInstallOnOpenInEditor === 'boolean'
-                ? prep.autoInstallOnOpenInEditor
+              typeof res.projectPrep.autoInstallOnOpenInEditor === 'boolean'
+                ? res.projectPrep.autoInstallOnOpenInEditor
                 : DEFAULTS.autoInstallOnOpenInEditor,
           });
         }

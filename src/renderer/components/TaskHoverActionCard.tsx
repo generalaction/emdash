@@ -1,34 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const TaskHoverActionCard: React.FC = () => {
-  const [value, setValue] = useState<'delete' | 'archive'>('delete');
-  const [loading, setLoading] = useState(true);
+  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          setValue(result.settings.interface?.taskHoverAction ?? 'delete');
-        }
-      } catch (error) {
-        console.error('Failed to load task hover action setting:', error);
-      }
-      setLoading(false);
-    })();
-  }, []);
+  const value = settings?.interface?.taskHoverAction ?? 'delete';
 
-  const handleChange = async (next: 'delete' | 'archive') => {
-    setValue(next);
-    try {
-      await window.electronAPI.updateSettings({
-        interface: { taskHoverAction: next },
-      });
-      window.dispatchEvent(new CustomEvent('taskHoverActionChanged', { detail: { value: next } }));
-    } catch (error) {
-      console.error('Failed to update task hover action setting:', error);
-    }
+  const handleChange = (next: 'delete' | 'archive') => {
+    updateSettings({ interface: { taskHoverAction: next } });
+    window.dispatchEvent(new CustomEvent('taskHoverActionChanged', { detail: { value: next } }));
   };
 
   return (
@@ -39,7 +20,11 @@ const TaskHoverActionCard: React.FC = () => {
           Primary action when hovering over tasks in the sidebar.
         </p>
       </div>
-      <Select value={value} onValueChange={handleChange} disabled={loading}>
+      <Select
+        value={value}
+        onValueChange={(next) => handleChange(next as 'delete' | 'archive')}
+        disabled={isLoading || isSaving}
+      >
         <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
           <SelectValue />
         </SelectTrigger>

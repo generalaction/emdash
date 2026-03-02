@@ -5,6 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
+import { rpc } from '@/lib/rpc';
 
 interface CloneFromUrlModalProps {
   onClose: () => void;
@@ -130,11 +131,10 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
 
       try {
         // Get default directory from settings
-        const settingsResult = await window.electronAPI.getSettings();
-        const defaultDir =
-          settingsResult.success && settingsResult.settings?.projects?.defaultDirectory
-            ? settingsResult.settings.projects.defaultDirectory
-            : '~/emdash-projects';
+        const settings = await rpc.appSettings.get();
+        const defaultDir = settings?.projects?.defaultDirectory
+          ? settings.projects.defaultDirectory
+          : '~/emdash-projects';
         const localPath = `${defaultDir}/${directoryName.trim()}`;
 
         setProgress(`Cloning to ${localPath}...`);

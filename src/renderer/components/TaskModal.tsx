@@ -30,6 +30,7 @@ import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { rpc } from '@/lib/rpc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -222,9 +223,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
     // Load settings
     let cancel = false;
-    window.electronAPI.getSettings().then((res) => {
+    rpc.appSettings.get().then((settings) => {
       if (cancel) return;
-      const settings = res?.success ? res.settings : undefined;
 
       const settingsAgent = settings?.defaultProvider;
       const agent: Agent = isValidProviderId(settingsAgent)

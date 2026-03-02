@@ -9,13 +9,15 @@ import {
 import IntegrationRow from './IntegrationRow';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export default function HiddenToolsSettingsCard() {
-  const [hiddenApps, setHiddenApps] = useState<OpenInAppId[]>([]);
+  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
   const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
   const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
+
+  const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
 
   useEffect(() => {
     const init = async () => {
@@ -37,32 +39,17 @@ export default function HiddenToolsSettingsCard() {
       setLabels(loadedLabels);
 
       try {
-        const [settingsResult, appsResult] = await Promise.all([
-          window.electronAPI?.getSettings?.(),
-          window.electronAPI?.checkInstalledApps?.(),
-        ]);
-        if (settingsResult?.settings?.hiddenOpenInApps) {
-          setHiddenApps(settingsResult.settings.hiddenOpenInApps as OpenInAppId[]);
-        }
-        if (appsResult) {
-          setAvailability(appsResult);
-        }
+        const appsResult = await window.electronAPI?.checkInstalledApps?.();
+        if (appsResult) setAvailability(appsResult);
       } catch {}
-
-      setLoading(false);
     };
     void init();
   }, []);
 
-  const toggle = async (appId: OpenInAppId, visible: boolean) => {
+  const toggle = (appId: OpenInAppId, visible: boolean) => {
     const next = visible ? hiddenApps.filter((id) => id !== appId) : [...hiddenApps, appId];
-    setHiddenApps(next);
-    try {
-      await window.electronAPI?.updateSettings?.({ hiddenOpenInApps: next });
-      window.dispatchEvent(new Event('hiddenOpenInAppsChanged'));
-    } catch (e) {
-      console.error('Failed to update hidden tools setting:', e);
-    }
+    updateSettings({ hiddenOpenInApps: next });
+    window.dispatchEvent(new Event('hiddenOpenInAppsChanged'));
   };
 
   // Sort: detected first, then alphabetically by label
@@ -107,8 +94,8 @@ export default function HiddenToolsSettingsCard() {
                       <span>
                         <Switch
                           checked={isVisible}
-                          disabled={loading}
-                          onCheckedChange={(checked) => void toggle(app.id, checked)}
+                          disabled={isLoading || isSaving}
+                          onCheckedChange={(checked) => toggle(app.id, checked)}
                           aria-label={`${isVisible ? 'Hide' : 'Show'} ${label} in open menu`}
                         />
                       </span>

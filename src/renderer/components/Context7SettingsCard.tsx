@@ -6,34 +6,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import FeedbackModal from './FeedbackModal';
 import context7Logo from '../../assets/images/context7.png';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const Context7SettingsCard: React.FC = () => {
-  const [enabled, setEnabled] = React.useState<boolean>(false);
-  const [busy, setBusy] = React.useState<boolean>(false);
+  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
   const [showMcpFeedback, setShowMcpFeedback] = React.useState(false);
 
-  const refresh = React.useCallback(async () => {
-    try {
-      const res = await window.electronAPI.getSettings();
-      if (res?.success && res.settings) {
-        const flag = Boolean(res.settings.mcp?.context7?.enabled);
-        setEnabled(flag);
-      }
-    } catch {}
-  }, []);
+  const enabled = Boolean(settings?.mcp?.context7?.enabled);
 
-  React.useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const onToggle = async (next: boolean) => {
-    setBusy(true);
-    try {
-      await window.electronAPI.updateSettings({ mcp: { context7: { enabled: next } } as any });
-      setEnabled(next);
-    } finally {
-      setBusy(false);
-    }
+  const onToggle = (next: boolean) => {
+    updateSettings({ mcp: { context7: { enabled: next } } });
   };
 
   return (
@@ -98,7 +80,7 @@ const Context7SettingsCard: React.FC = () => {
         <Switch
           checked={enabled}
           onCheckedChange={onToggle}
-          disabled={busy}
+          disabled={isLoading || isSaving}
           aria-label="Enable Context7 MCP"
         />
       </div>

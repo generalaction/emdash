@@ -98,14 +98,12 @@ function WorkspaceInner() {
   useEffect(() => {
     (async () => {
       try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          const notif = result.settings.notifications;
-          const masterEnabled = Boolean(notif?.enabled ?? true);
-          const soundOn = Boolean(notif?.sound ?? true);
-          soundPlayer.setEnabled(masterEnabled && soundOn);
-          soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
-        }
+        const settings = await rpc.appSettings.get();
+        const notif = settings.notifications;
+        const masterEnabled = Boolean(notif?.enabled ?? true);
+        const soundOn = Boolean(notif?.sound ?? true);
+        soundPlayer.setEnabled(masterEnabled && soundOn);
+        soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
       } catch {}
     })();
   }, []);
