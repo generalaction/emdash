@@ -9,7 +9,13 @@ import SettingsPage from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
-import type { SettingsPageTab } from '../hooks/useModalState';
+type SettingsPageTab =
+  | 'general'
+  | 'clis-models'
+  | 'integrations'
+  | 'repository'
+  | 'interface'
+  | 'docs';
 
 interface MainContentAreaProps {
   selectedProject: Project | null;
@@ -44,7 +50,7 @@ interface MainContentAreaProps {
   handleNewProjectClick: () => void;
   handleCloneProjectClick: () => void;
   handleAddRemoteProject: () => void;
-  setShowTaskModal: (show: boolean) => void;
+  openTaskModal: () => void;
   setShowKanban: (show: boolean) => void;
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
@@ -76,7 +82,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   handleNewProjectClick,
   handleCloneProjectClick,
   handleAddRemoteProject,
-  setShowTaskModal,
+  openTaskModal,
   setShowKanban,
   projectRemoteConnectionId,
   projectRemotePath,
@@ -102,7 +108,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
             handleSelectTask(ws);
             setShowKanban(false);
           }}
-          onCreateTask={() => setShowTaskModal(true)}
+          onCreateTask={() => openTaskModal()}
         />
       </div>
     );
@@ -156,7 +162,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
         ) : (
           <ProjectMainView
             project={selectedProject}
-            onCreateTask={() => setShowTaskModal(true)}
+            onCreateTask={() => openTaskModal()}
             activeTask={activeTask}
             onSelectTask={handleSelectTask}
             onDeleteTask={handleDeleteTask}

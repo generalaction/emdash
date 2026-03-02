@@ -1,22 +1,21 @@
 import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
-import { CloneFromUrlModal } from '@/components/CloneFromUrlModal';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
-import { GithubDeviceFlowModal } from '@/components/GithubDeviceFlowModal';
 import LeftSidebar from '@/components/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
-import { NewProjectModal } from '@/components/NewProjectModal';
 import RightSidebar from '@/components/RightSidebar';
-import { AddRemoteProjectModal } from '@/components/ssh';
-import TaskModal from '@/components/TaskModal';
 import Titlebar from '@/components/titlebar/Titlebar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { RightSidebarProvider, useRightSidebar } from '@/components/ui/right-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
-import { UpdateModal } from '@/components/UpdateModal';
+import {
+  WorkspaceOverlayProvider,
+  useWorkspaceOverlayContext,
+} from '@/contexts/WorkspaceOverlayContext';
+import { WorkspaceOverlayRenderer } from '@/components/WorkspaceOverlayRenderer';
 import {
   TITLEBAR_HEIGHT,
   LEFT_SIDEBAR_MIN_SIZE,
@@ -31,7 +30,6 @@ import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAppInitialization } from '@/hooks/useAppInitialization';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
 import { useGithubIntegration } from '@/hooks/useGithubIntegration';
-import { useModalState } from '@/hooks/useModalState';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { useTaskManagement } from '@/hooks/useTaskManagement';
@@ -78,8 +76,17 @@ const RightSidebarBridge: React.FC<{
 };
 
 export function Workspace() {
+  return (
+    <WorkspaceOverlayProvider>
+      <WorkspaceInner />
+    </WorkspaceOverlayProvider>
+  );
+}
+
+function WorkspaceInner() {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
+  const { showOverlay } = useWorkspaceOverlayContext();
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
 
   // Agent event hook: plays sounds and updates sidebar status for all tasks
@@ -104,35 +111,44 @@ export function Workspace() {
     })();
   }, []);
 
-  // Ref for selectedProject, so useModalState can read it without re-instantiation
   const selectedProjectRef = useRef<{ id: string } | null>(null);
 
-  // --- Modal / UI visibility state ---
-  const modals = useModalState({ selectedProjectRef });
+  // --- View-mode / UI visibility state (inlined from former useModalState) ---
+  const [showSettingsPage, setShowSettingsPage] = useState(false);
+  const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<
+    'general' | 'clis-models' | 'integrations' | 'repository' | 'interface' | 'docs'
+  >('general');
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showEditorMode, setShowEditorMode] = useState(false);
+  const [showKanban, setShowKanban] = useState(false);
 
-  const {
-    showSettingsPage,
-    settingsPageInitialTab,
-    showCommandPalette,
-    showTaskModal,
-    showNewProjectModal,
-    showCloneModal,
-    showEditorMode,
-    showKanban,
-    showDeviceFlowModal,
-    setShowEditorMode,
-    setShowKanban,
-    setShowTaskModal,
-    setShowNewProjectModal,
-    setShowCloneModal,
-    openSettingsPage,
-    handleCloseSettingsPage,
-    handleToggleCommandPalette,
-    handleCloseCommandPalette,
-    handleToggleKanban,
-    handleToggleEditor,
-  } = modals;
-  const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const openSettingsPage = useCallback(
+    (
+      tab:
+        | 'general'
+        | 'clis-models'
+        | 'integrations'
+        | 'repository'
+        | 'interface'
+        | 'docs' = 'general'
+    ) => {
+      setSettingsPageInitialTab(tab);
+      setShowSettingsPage(true);
+    },
+    []
+  );
+  const handleCloseSettingsPage = useCallback(() => setShowSettingsPage(false), []);
+  const handleToggleCommandPalette = useCallback(() => setShowCommandPalette((prev) => !prev), []);
+  const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
+  const handleToggleKanban = useCallback(() => {
+    if (!selectedProjectRef.current) return;
+    setShowEditorMode(false);
+    setShowKanban((v) => !v);
+  }, []);
+  const handleToggleEditor = useCallback(() => {
+    setShowKanban(false);
+    setShowEditorMode((v) => !v);
+  }, []);
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
@@ -177,15 +193,6 @@ export function Workspace() {
     return () => cleanup?.();
   }, [openSettingsPage]);
 
-  // Listen for native menu "Check for Updates" click (main → renderer)
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  useEffect(() => {
-    const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
-      setShowUpdateModal(true);
-    });
-    return () => cleanup?.();
-  }, []);
-
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
@@ -218,11 +225,15 @@ export function Workspace() {
     onInitialLoadComplete: () => {},
   });
 
+  // Stable ref for openTaskModal to break the projectMgmt/taskMgmt circular init
+  // (both hooks need it, but the implementation needs data from both hooks)
+  const openTaskModalRef = useRef<() => void>(() => {});
+  const stableOpenTaskModal = useCallback(() => openTaskModalRef.current(), []);
+
   // --- GitHub integration ---
   const github = useGithubIntegration({
     platform: appInit.platform,
     toast,
-    setShowDeviceFlowModal: modals.setShowDeviceFlowModal,
   });
 
   // --- Project management ---
@@ -234,16 +245,13 @@ export function Workspace() {
     handleGithubConnect: github.handleGithubConnect,
     setShowEditorMode,
     setShowKanban,
-    setShowNewProjectModal,
-    setShowCloneModal,
-    setShowTaskModal,
+    openTaskModal: stableOpenTaskModal,
     setActiveTask: (task) => taskMgmt.setActiveTask(task),
     saveProjectOrder: appInit.saveProjectOrder,
     ToastAction,
   });
 
-  // Keep the selectedProject ref in sync for useModalState's kanban toggle guard
-  // Using useEffect to avoid writing to ref during render (react-hooks/refs lint rule)
+  // Keep selectedProject ref in sync for the kanban toggle guard
   useEffect(() => {
     selectedProjectRef.current = projectMgmt.selectedProject;
   }, [projectMgmt.selectedProject]);
@@ -258,7 +266,7 @@ export function Workspace() {
     setShowSkillsView: projectMgmt.setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
-    setShowTaskModal,
+    openTaskModal: stableOpenTaskModal,
     toast,
     activateProjectView: projectMgmt.activateProjectView,
   });
@@ -314,6 +322,14 @@ export function Workspace() {
 
   // Show toast on update availability
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
+
+  // Listen for native menu "Check for Updates" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
+      showOverlay('updateModal', {});
+    });
+    return () => cleanup?.();
+  }, [showOverlay]);
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
@@ -423,11 +439,44 @@ export function Workspace() {
     setIsCreatingTask(false);
   }, []);
 
-  // --- SSH Remote Project handlers ---
-  const handleAddRemoteProjectClick = useCallback(() => {
-    setShowRemoteProjectModal(true);
-  }, []);
+  // Wire up the stable openTaskModal ref with current project/task data
+  openTaskModalRef.current = () => {
+    showOverlay('taskModal', {
+      onSuccess: ({
+        name,
+        initialPrompt,
+        agentRuns,
+        linkedLinearIssue,
+        linkedGithubIssue,
+        linkedJiraIssue,
+        autoApprove,
+        useWorktree,
+        baseRef,
+        nameGenerated,
+      }) =>
+        handleCreateTask(
+          name,
+          initialPrompt,
+          agentRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          useWorktree,
+          baseRef,
+          nameGenerated
+        ),
+      projectName: projectMgmt.selectedProject?.name ?? '',
+      defaultBranch: projectMgmt.projectDefaultBranch,
+      existingNames: (projectMgmt.selectedProject?.tasks ?? []).map((w) => w.name),
+      linkedGithubIssueMap: taskMgmt.linkedGithubIssueMap,
+      projectPath: projectMgmt.selectedProject?.path,
+      branchOptions: projectMgmt.projectBranchOptions,
+      isLoadingBranches: projectMgmt.isLoadingBranches,
+    });
+  };
 
+  // --- SSH Remote Project handlers ---
   const handleRemoteProjectSuccess = useCallback(
     async (remoteProject: {
       id: string;
@@ -493,6 +542,10 @@ export function Workspace() {
     },
     [projectMgmt.projects, projectMgmt.activateProjectView, toast, appInit.saveProjectOrder]
   );
+
+  const handleAddRemoteProjectClick = useCallback(() => {
+    showOverlay('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
+  }, [showOverlay, handleRemoteProjectSuccess]);
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
@@ -730,7 +783,7 @@ export function Workspace() {
                           handleNewProjectClick={projectMgmt.handleNewProjectClick}
                           handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
                           handleAddRemoteProject={handleAddRemoteProjectClick}
-                          setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
+                          openTaskModal={stableOpenTaskModal}
                           setShowKanban={(show: boolean) => setShowKanban(show)}
                           projectRemoteConnectionId={derivedRemoteConnectionId}
                           projectRemotePath={derivedRemotePath}
@@ -771,7 +824,6 @@ export function Workspace() {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
-              <UpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
               <CommandPaletteWrapper
                 isOpen={showCommandPalette}
                 onClose={handleCloseCommandPalette}
@@ -797,44 +849,12 @@ export function Workspace() {
                 />
               )}
 
-              <TaskModal
-                isOpen={showTaskModal}
-                onClose={() => setShowTaskModal(false)}
-                onCreateTask={handleCreateTask}
-                projectName={selectedProject?.name || ''}
-                defaultBranch={projectMgmt.projectDefaultBranch}
-                existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
-                linkedGithubIssueMap={taskMgmt.linkedGithubIssueMap}
-                projectPath={selectedProject?.path}
-                branchOptions={projectMgmt.projectBranchOptions}
-                isLoadingBranches={projectMgmt.isLoadingBranches}
-              />
-              <NewProjectModal
-                isOpen={showNewProjectModal}
-                onClose={() => setShowNewProjectModal(false)}
-                onSuccess={projectMgmt.handleNewProjectSuccess}
-              />
-              <CloneFromUrlModal
-                isOpen={showCloneModal}
-                onClose={() => setShowCloneModal(false)}
-                onSuccess={projectMgmt.handleCloneSuccess}
-              />
-              <AddRemoteProjectModal
-                isOpen={showRemoteProjectModal}
-                onClose={() => setShowRemoteProjectModal(false)}
-                onSuccess={handleRemoteProjectSuccess}
-              />
-              <GithubDeviceFlowModal
-                open={showDeviceFlowModal}
-                onClose={github.handleDeviceFlowClose}
-                onSuccess={github.handleDeviceFlowSuccess}
-                onError={github.handleDeviceFlowError}
-              />
+              <WorkspaceOverlayRenderer />
               <Toaster />
               <BrowserPane
                 taskId={activeTask?.id || null}
                 taskPath={activeTask?.path || null}
-                overlayActive={showSettingsPage || showCommandPalette || showTaskModal}
+                overlayActive={showSettingsPage || showCommandPalette}
               />
             </RightSidebarProvider>
           </SidebarProvider>

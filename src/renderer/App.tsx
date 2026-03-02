@@ -4,6 +4,7 @@ import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { FIRST_LAUNCH_KEY } from './constants/layout';
+import { WorkspaceOverlayProvider } from './contexts/WorkspaceOverlayContext';
 
 export function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);
@@ -13,7 +14,11 @@ export function App() {
       case true:
         return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
       case false:
-        return <Workspace />;
+        return (
+          <WorkspaceOverlayProvider>
+            <Workspace />
+          </WorkspaceOverlayProvider>
+        );
       default:
         return null;
     }

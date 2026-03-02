@@ -81,7 +81,7 @@ interface UseTaskManagementOptions {
   setShowSkillsView: React.Dispatch<React.SetStateAction<boolean>>;
   setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
+  openTaskModal: () => void;
   toast: (opts: any) => void;
   activateProjectView: (project: Project) => void;
 }
@@ -96,7 +96,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
-    setShowTaskModal,
+    openTaskModal,
     toast,
     activateProjectView,
   } = options;
@@ -184,17 +184,17 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
   const handleNewTask = useCallback(() => {
     // Only open modal if a project is selected
     if (selectedProject) {
-      setShowTaskModal(true);
+      openTaskModal();
     }
-  }, [selectedProject]);
+  }, [selectedProject, openTaskModal]);
 
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
-      setShowTaskModal(true);
+      openTaskModal();
     },
-    [activateProjectView, projects]
+    [activateProjectView, projects, openTaskModal]
   );
 
   const removeTaskFromState = (projectId: string, taskId: string, wasActive: boolean) => {
