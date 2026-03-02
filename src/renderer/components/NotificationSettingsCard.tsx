@@ -30,7 +30,7 @@ const NotificationSettingsCard: React.FC = () => {
       <div
         className={cn(
           'flex flex-col gap-3 pl-1',
-          notifications?.enabled && 'pointer-events-none opacity-50'
+          !notifications?.enabled && 'pointer-events-none opacity-50'
         )}
       >
         {/* Sound toggle */}
