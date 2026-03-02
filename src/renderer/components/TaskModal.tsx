@@ -21,15 +21,16 @@ import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
-import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 import {
   generateFriendlyTaskName,
   normalizeTaskName,
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
-import BranchSelect, { type BranchOption } from './BranchSelect';
+import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
+import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -48,27 +49,20 @@ interface TaskModalProps {
     baseRef?: string,
     nameGenerated?: boolean
   ) => void;
-  projectName: string;
-  defaultBranch: string;
-  existingNames?: string[];
-  linkedGithubIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
-  projectPath?: string;
-  branchOptions?: BranchOption[];
-  isLoadingBranches?: boolean;
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({
-  isOpen,
-  onClose,
-  onCreateTask,
-  projectName,
-  defaultBranch,
-  existingNames = [],
-  linkedGithubIssueMap,
-  projectPath,
-  branchOptions = [],
-  isLoadingBranches = false,
-}) => {
+const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onCreateTask }) => {
+  const {
+    selectedProject,
+    projectDefaultBranch: defaultBranch,
+    projectBranchOptions: branchOptions,
+    isLoadingBranches,
+  } = useProjectManagementContext();
+  const { linkedGithubIssueMap } = useTaskManagementContext();
+
+  const projectName = selectedProject?.name || '';
+  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
+  const projectPath = selectedProject?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
