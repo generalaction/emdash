@@ -369,6 +369,12 @@ jobs:
         if: ${{ steps.signing.outputs.has_signing == 'true' }}
         shell: pwsh
         run: |
+          # Ensure TLS 1.2 for PSGallery and NuGet
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          # Register NuGet source directly (avoids flaky Install-PackageProvider)
+          if (-not (Get-PackageSource -Name nuget.org -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name nuget.org -Location https://api.nuget.org/v3/index.json -ProviderName NuGet -Force
+          }
           Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
           Install-Module -Name TrustedSigning -RequiredVersion 0.5.0 -Force -Repository PSGallery
 
