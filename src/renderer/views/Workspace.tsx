@@ -2,6 +2,7 @@ import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
 import { CloneFromUrlModal } from '@/components/CloneFromUrlModal';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
+import { DiffViewer } from '@/components/diff-viewer';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
 import { GithubDeviceFlowModal } from '@/components/GithubDeviceFlowModal';
 import LeftSidebar from '@/components/LeftSidebar';
@@ -132,6 +133,9 @@ export function Workspace() {
     handleToggleEditor,
   } = modals;
   const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const [showDiffViewer, setShowDiffViewer] = useState(false);
+  const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
+  const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -196,6 +200,14 @@ export function Workspace() {
     };
   }, []);
 
+  // Listen for native menu "Close Tab" (Cmd+W) — dispatches to active ChatInterface
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuCloseTab?.(() => {
+      window.dispatchEvent(new CustomEvent('emdash:close-active-chat'));
+    });
+    return () => cleanup?.();
+  }, []);
+
   // --- App initialization (version, platform, loadAppData) ---
   // The callbacks here execute inside a useEffect (after render), so all hooks
   // are already initialized by the time they run — no temporal dead zone issue.
@@ -243,12 +255,44 @@ export function Workspace() {
     setProjects: projectMgmt.setProjects,
     setSelectedProject: projectMgmt.setSelectedProject,
     setShowHomeView: projectMgmt.setShowHomeView,
+    setShowSkillsView: projectMgmt.setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
     setShowTaskModal,
     toast,
     activateProjectView: projectMgmt.activateProjectView,
   });
+
+  // Focus task when OS notification is clicked
+  const notificationFocusRef = useRef({
+    allTasks: taskMgmt.allTasks,
+    selectedProject: projectMgmt.selectedProject,
+    handleSelectTask: taskMgmt.handleSelectTask,
+  });
+  useEffect(() => {
+    notificationFocusRef.current = {
+      allTasks: taskMgmt.allTasks,
+      selectedProject: projectMgmt.selectedProject,
+      handleSelectTask: taskMgmt.handleSelectTask,
+    };
+  });
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onNotificationFocusTask((taskId: string) => {
+      const { allTasks, selectedProject, handleSelectTask } = notificationFocusRef.current;
+      const entry = allTasks.find((t) => t.task.id === taskId);
+      if (!entry) return;
+      const { task, project } = entry;
+      if (!selectedProject || selectedProject.id !== project.id) {
+        projectMgmt.activateProjectView(project);
+      }
+      setShowKanban(false);
+      setShowEditorMode(false);
+      handleCloseSettingsPage();
+      handleSelectTask(task);
+    });
+    return cleanup;
+  }, [projectMgmt.activateProjectView, handleCloseSettingsPage]);
 
   // --- Panel layout ---
   const {
@@ -261,6 +305,7 @@ export function Workspace() {
     handleRightSidebarCollapsedChange,
   } = usePanelLayout({
     showEditorMode,
+    showDiffViewer,
     isInitialLoadComplete: appInit.isInitialLoadComplete,
     showHomeView: projectMgmt.showHomeView,
     selectedProject: projectMgmt.selectedProject,
@@ -590,7 +635,7 @@ export function Workspace() {
                 onSelectProject={projectMgmt.handleSelectProject}
                 onSelectTask={taskMgmt.handleSelectTask}
               />
-              <div className="flex flex-1 overflow-hidden pt-[var(--tb)]">
+              <div className="relative flex flex-1 overflow-hidden pt-[var(--tb)]">
                 <ResizablePanelGroup
                   direction="horizontal"
                   className="flex-1 overflow-hidden"
@@ -639,7 +684,7 @@ export function Workspace() {
                   <ResizableHandle
                     withHandle
                     onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
+                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
                   />
                   <ResizablePanel
                     className="sidebar-panel sidebar-panel--main"
@@ -648,37 +693,50 @@ export function Workspace() {
                     order={2}
                   >
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                      <MainContentArea
-                        selectedProject={selectedProject}
-                        activeTask={activeTask}
-                        activeTaskAgent={activeTaskAgent}
-                        isCreatingTask={isCreatingTask}
-                        onTaskInterfaceReady={handleTaskInterfaceReady}
-                        showKanban={showKanban}
-                        showHomeView={projectMgmt.showHomeView}
-                        showSkillsView={projectMgmt.showSkillsView}
-                        showSettingsPage={showSettingsPage}
-                        settingsPageInitialTab={settingsPageInitialTab}
-                        handleCloseSettingsPage={handleCloseSettingsPage}
-                        projectDefaultBranch={projectMgmt.projectDefaultBranch}
-                        projectBranchOptions={projectMgmt.projectBranchOptions}
-                        isLoadingBranches={projectMgmt.isLoadingBranches}
-                        setProjectDefaultBranch={projectMgmt.setProjectDefaultBranch}
-                        handleSelectTask={taskMgmt.handleSelectTask}
-                        handleDeleteTask={taskMgmt.handleDeleteTask}
-                        handleArchiveTask={taskMgmt.handleArchiveTask}
-                        handleRestoreTask={taskMgmt.handleRestoreTask}
-                        handleDeleteProject={projectMgmt.handleDeleteProject}
-                        handleOpenProject={projectMgmt.handleOpenProject}
-                        handleNewProjectClick={projectMgmt.handleNewProjectClick}
-                        handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
-                        handleAddRemoteProject={handleAddRemoteProjectClick}
-                        setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
-                        setShowKanban={(show: boolean) => setShowKanban(show)}
-                        projectRemoteConnectionId={derivedRemoteConnectionId}
-                        projectRemotePath={derivedRemotePath}
-                        onRenameTask={taskMgmt.handleRenameTask}
-                      />
+                      {showDiffViewer ? (
+                        <DiffViewer
+                          onClose={() => {
+                            setShowDiffViewer(false);
+                            setDiffViewerInitialFile(null);
+                            setDiffViewerTaskPath(null);
+                          }}
+                          taskId={activeTask?.id}
+                          taskPath={diffViewerTaskPath || activeTask?.path}
+                          initialFile={diffViewerInitialFile}
+                        />
+                      ) : (
+                        <MainContentArea
+                          selectedProject={selectedProject}
+                          activeTask={activeTask}
+                          activeTaskAgent={activeTaskAgent}
+                          isCreatingTask={isCreatingTask}
+                          onTaskInterfaceReady={handleTaskInterfaceReady}
+                          showKanban={showKanban}
+                          showHomeView={projectMgmt.showHomeView}
+                          showSkillsView={projectMgmt.showSkillsView}
+                          showSettingsPage={showSettingsPage}
+                          settingsPageInitialTab={settingsPageInitialTab}
+                          handleCloseSettingsPage={handleCloseSettingsPage}
+                          projectDefaultBranch={projectMgmt.projectDefaultBranch}
+                          projectBranchOptions={projectMgmt.projectBranchOptions}
+                          isLoadingBranches={projectMgmt.isLoadingBranches}
+                          setProjectDefaultBranch={projectMgmt.setProjectDefaultBranch}
+                          handleSelectTask={taskMgmt.handleSelectTask}
+                          handleDeleteTask={taskMgmt.handleDeleteTask}
+                          handleArchiveTask={taskMgmt.handleArchiveTask}
+                          handleRestoreTask={taskMgmt.handleRestoreTask}
+                          handleDeleteProject={projectMgmt.handleDeleteProject}
+                          handleOpenProject={projectMgmt.handleOpenProject}
+                          handleNewProjectClick={projectMgmt.handleNewProjectClick}
+                          handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
+                          handleAddRemoteProject={handleAddRemoteProjectClick}
+                          setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
+                          setShowKanban={(show: boolean) => setShowKanban(show)}
+                          projectRemoteConnectionId={derivedRemoteConnectionId}
+                          projectRemotePath={derivedRemotePath}
+                          onRenameTask={taskMgmt.handleRenameTask}
+                        />
+                      )}
                     </div>
                   </ResizablePanel>
                   <ResizableHandle
@@ -704,6 +762,11 @@ export function Workspace() {
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
+                      onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setDiffViewerInitialFile(filePath ?? null);
+                        setDiffViewerTaskPath(taskPath ?? null);
+                        setShowDiffViewer(true);
+                      }}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
