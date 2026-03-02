@@ -57,9 +57,14 @@ export function WorkspaceOverlayProvider({ children }: { children: ReactNode }) 
     return <Component {...activeOverlayArgs.current} />;
   }, [activeOverlayId]);
 
+  const dispatchOverlayEvent = (open: boolean) => {
+    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open } }));
+  };
+
   const closeOverlay = useCallback(() => {
     setActiveOverlayId(null);
     activeOverlayArgs.current = null;
+    dispatchOverlayEvent(false);
   }, [setActiveOverlayId, activeOverlayArgs]);
 
   const showOverlay = useCallback(
@@ -80,6 +85,7 @@ export function WorkspaceOverlayProvider({ children }: { children: ReactNode }) 
       setActiveOverlayId(id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       activeOverlayArgs.current = wrappedArgs as any;
+      dispatchOverlayEvent(true);
     },
     [setActiveOverlayId, activeOverlayArgs, closeOverlay]
   );

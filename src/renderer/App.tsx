@@ -16,7 +16,7 @@ export function App() {
     const isFirstLaunchBool = isFirstLaunch === true || isFirstLaunch === 1;
 
     if (isFirstLaunchBool) {
-      return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />
+      return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
     return <Workspace />;
   };
