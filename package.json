@@ -9,6 +9,7 @@
     "dev": "concurrently \"pnpm run dev:main\" \"pnpm run dev:renderer\"",
     "dev:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs && electron dist/main/main/entry.js --dev",
     "dev:renderer": "vite",
+    "test": "vitest run",
     "build": "pnpm run build:main && pnpm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs",
     "build:renderer": "vite build",
