@@ -131,9 +131,9 @@ function ReleaseNotes({ content }: { content: string }) {
       text
         // Handle GitHub URLs, but not if they're followed by punctuation
         .replace(
-          /https:\/\/github\.com\/[^\s\)\]\.,;!?]+/g,
+          /https:\/\/github\.com\/[^\s\)\]]+/g,
           (url) =>
-            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline">${url}</a>`
+            `<a href="${url.replace(/[.,;!?]+$/, '')}" target="_blank" rel="noopener noreferrer" class="underline">${url.replace(/[.,;!?]+$/, '')}</a>`
         )
         // Handle @mentions, but avoid matching email addresses
         // Look for @mentions that are preceded by whitespace or start of string
@@ -241,8 +241,9 @@ function ReleaseNotes({ content }: { content: string }) {
     if (line.includes('**')) {
       flushListItems(); // Flush any pending list items
       const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      const withLinks = processLinks(formatted);
       elements.push(
-        <p key={i} className="mt-4 font-semibold" dangerouslySetInnerHTML={{ __html: formatted }} />
+        <p key={i} className="mt-4 font-semibold" dangerouslySetInnerHTML={{ __html: withLinks }} />
       );
       continue;
     }

@@ -47,6 +47,7 @@ export interface KeyboardSettings {
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
+  taskHoverAction?: 'delete' | 'archive';
 }
 
 /**
@@ -101,6 +102,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -172,10 +174,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   interface: {
     autoRightSidebarBehavior: false,
     theme: 'system',
+    taskHoverAction: 'delete',
   },
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -324,7 +328,7 @@ export function persistSettings(settings: AppSettings) {
 /**
  * Coerce and validate settings for robustness and forward-compatibility.
  */
-function normalizeSettings(input: AppSettings): AppSettings {
+export function normalizeSettings(input: AppSettings): AppSettings {
   const out: AppSettings = {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
@@ -486,6 +490,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
       ? iface.theme
       : DEFAULT_SETTINGS.interface!.theme,
+    taskHoverAction: iface?.taskHoverAction === 'archive' ? 'archive' : 'delete',
   };
 
   // Provider custom configs
@@ -527,7 +532,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
   // Terminal
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
-  out.terminal = { fontFamily };
+  const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
+  out.terminal = { fontFamily, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;

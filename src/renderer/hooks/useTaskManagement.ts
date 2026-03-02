@@ -78,6 +78,7 @@ interface UseTaskManagementOptions {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setSelectedProject: React.Dispatch<React.SetStateAction<Project | null>>;
   setShowHomeView: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowSkillsView: React.Dispatch<React.SetStateAction<boolean>>;
   setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
   setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -92,6 +93,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     setProjects,
     setSelectedProject,
     setShowHomeView,
+    setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
     setShowTaskModal,
@@ -123,6 +125,17 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
   );
 
   const handleSelectTask = (task: Task) => {
+    const taskProject = projects.find((project) => project.id === task.projectId);
+    const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
+    if (isProjectSwitch) {
+      setShowEditorMode(false);
+    }
+    if (taskProject && selectedProject?.id !== taskProject.id) {
+      setSelectedProject(taskProject);
+    }
+    setShowHomeView(false);
+    setShowSkillsView(false);
+    setShowKanban(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(task.projectId, task.id);
@@ -142,6 +155,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
     setSelectedProject(project);
     setShowHomeView(false);
+    setShowSkillsView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -161,6 +175,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
     setSelectedProject(project);
     setShowHomeView(false);
+    setShowSkillsView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);

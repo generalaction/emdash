@@ -179,6 +179,16 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
 
+  const [taskHoverAction, setTaskHoverAction] = useState<'delete' | 'archive'>('delete');
+  useEffect(() => {
+    window.electronAPI.getSettings().then((r) => {
+      if (r.success) setTaskHoverAction(r.settings?.interface?.taskHoverAction ?? 'delete');
+    });
+    const handler = (e: Event) => setTaskHoverAction((e as CustomEvent).detail.value);
+    window.addEventListener('taskHoverActionChanged', handler);
+    return () => window.removeEventListener('taskHoverActionChanged', handler);
+  }, []);
+
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
   const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
@@ -218,16 +228,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       }
     },
     [onRestoreTask, fetchArchivedTasks]
-  );
-
-  const handleArchiveTaskWithRefresh = useCallback(
-    async (project: Project, task: Task) => {
-      if (onArchiveTask) {
-        await onArchiveTask(project, task);
-        fetchArchivedTasks();
-      }
-    },
-    [onArchiveTask, fetchArchivedTasks]
   );
 
   useEffect(() => {
@@ -434,14 +434,14 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     >
                                       <TaskItem
                                         task={task}
-                                        showDelete={false}
+                                        showDelete={true}
                                         showDirectBadge={false}
                                         isPinned={pinnedTaskIds?.has(task.id)}
                                         onPin={() => onPinTask?.(task)}
                                         onRename={(n) => onRenameTask?.(typedProject, task, n)}
-                                        onArchive={() =>
-                                          handleArchiveTaskWithRefresh(typedProject, task)
-                                        }
+                                        onDelete={() => onDeleteTask?.(typedProject, task)}
+                                        onArchive={() => onArchiveTask?.(typedProject, task)}
+                                        primaryAction={taskHoverAction}
                                       />
                                     </motion.div>
                                   );
