@@ -304,6 +304,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         ariaLabel="Clone"
                         onClick={() => onCloneProject?.()}
                       />
+                      <MenuItemButton
+                        icon={Server}
+                        label="Remote Project"
+                        ariaLabel="Remote Project"
+                        onClick={() => onAddRemoteProject?.()}
+                      />
                     </div>
                   </PopoverContent>
                 </Popover>
