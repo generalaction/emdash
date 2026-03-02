@@ -7,7 +7,6 @@ import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
 import SettingsPage from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
-import type { SettingsPageTab } from '../hooks/useModalState';
 import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
