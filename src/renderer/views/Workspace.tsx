@@ -11,10 +11,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { RightSidebarProvider, useRightSidebar } from '@/components/ui/right-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
-import {
-  WorkspaceOverlayProvider,
-  useWorkspaceOverlayContext,
-} from '@/contexts/WorkspaceOverlayContext';
+import { ModalProvider, useModalContext } from '@/contexts/ModalProvider';
 import { WorkspaceOverlayRenderer } from '@/components/WorkspaceOverlayRenderer';
 import {
   TITLEBAR_HEIGHT,
@@ -79,16 +76,16 @@ const RightSidebarBridge: React.FC<{
 
 export function Workspace() {
   return (
-    <WorkspaceOverlayProvider>
+    <ModalProvider>
       <WorkspaceInner />
-    </WorkspaceOverlayProvider>
+    </ModalProvider>
   );
 }
 
 function WorkspaceInner() {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
-  const { showOverlay } = useWorkspaceOverlayContext();
+  const { showModal } = useModalContext();
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
 
   // Agent event hook: plays sounds and updates sidebar status for all tasks
@@ -328,10 +325,10 @@ function WorkspaceInner() {
   // Listen for native menu "Check for Updates" click (main → renderer)
   useEffect(() => {
     const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
-      showOverlay('updateModal', {});
+      showModal('updateModal', {});
     });
     return () => cleanup?.();
-  }, [showOverlay]);
+  }, [showModal]);
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
@@ -443,7 +440,7 @@ function WorkspaceInner() {
 
   // Wire up the stable openTaskModal ref with current project/task data
   openTaskModalRef.current = () => {
-    showOverlay('taskModal', {
+    showModal('taskModal', {
       onSuccess: ({
         name,
         initialPrompt,
@@ -539,8 +536,8 @@ function WorkspaceInner() {
   );
 
   const handleAddRemoteProjectClick = useCallback(() => {
-    showOverlay('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
-  }, [showOverlay, handleRemoteProjectSuccess]);
+    showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
+  }, [showModal, handleRemoteProjectSuccess]);
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;

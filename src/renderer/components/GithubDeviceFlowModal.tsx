@@ -5,7 +5,7 @@ import { Spinner } from './ui/spinner';
 import { Check, Copy, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
-import type { OverlayProps } from '@/contexts/WorkspaceOverlayContext';
+import type { BaseModalProps } from '@/contexts/ModalProvider';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;
@@ -21,7 +21,7 @@ export function GithubDeviceFlowModalOverlay({
   onSuccess,
   onClose,
   onError,
-}: GithubDeviceFlowOverlayExtraProps & OverlayProps<unknown>) {
+}: GithubDeviceFlowOverlayExtraProps & BaseModalProps<unknown>) {
   return (
     <GithubDeviceFlowModal
       onClose={onClose}

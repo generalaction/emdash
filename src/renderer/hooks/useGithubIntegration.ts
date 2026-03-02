@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useGithubAuth } from './useGithubAuth';
-import { useWorkspaceOverlayContext } from '../contexts/WorkspaceOverlayContext';
+import { useModalContext } from '../contexts/ModalProvider';
 
 interface UseGithubIntegrationOptions {
   platform: string;
@@ -10,7 +10,7 @@ interface UseGithubIntegrationOptions {
 export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
   const { platform, toast } = opts;
 
-  const { showOverlay } = useWorkspaceOverlayContext();
+  const { showModal } = useModalContext();
 
   const {
     installed: ghInstalled,
@@ -107,7 +107,7 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
 
       if (result?.success) {
         // Show modal - it will receive events from main process
-        showOverlay('githubDeviceFlowModal', {
+        showModal('githubDeviceFlowModal', {
           onSuccess: handleDeviceFlowSuccess,
           onError: handleDeviceFlowError,
         });
@@ -133,7 +133,7 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
     toast,
     checkStatus,
     githubLogin,
-    showOverlay,
+    showModal,
     handleDeviceFlowSuccess,
     handleDeviceFlowError,
   ]);

@@ -10,7 +10,7 @@ import {
 } from '../lib/projectUtils';
 import type { Project, Task } from '../types/app';
 import { rpc } from '../lib/rpc';
-import { useWorkspaceOverlayContext } from '../contexts/WorkspaceOverlayContext';
+import { useModalContext } from '../contexts/ModalProvider';
 
 interface UseProjectManagementOptions {
   platform: string;
@@ -41,7 +41,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     ToastAction,
   } = options;
 
-  const { showOverlay } = useWorkspaceOverlayContext();
+  const { showModal } = useModalContext();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -252,7 +252,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       return;
     }
 
-    showOverlay('newProjectModal', { onSuccess: handleNewProjectSuccess });
+    showModal('newProjectModal', { onSuccess: handleNewProjectSuccess });
   };
 
   const handleCloneProjectClick = async () => {
@@ -272,7 +272,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       return;
     }
 
-    showOverlay('cloneFromUrlModal', { onSuccess: handleCloneSuccess });
+    showModal('cloneFromUrlModal', { onSuccess: handleCloneSuccess });
   };
 
   const handleCloneSuccess = useCallback(

@@ -17,7 +17,7 @@ import {
 } from './ui/dialog';
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
-import { useWorkspaceOverlayContext } from '../contexts/WorkspaceOverlayContext';
+import { useModalContext } from '../contexts/ModalProvider';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -40,7 +40,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 
 const IntegrationsCard: React.FC = () => {
   const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubAuth();
-  const { showOverlay, closeOverlay } = useWorkspaceOverlayContext();
+  const { showModal, closeModal } = useModalContext();
 
   // Connection states
   const [linearConnected, setLinearConnected] = useState(false);
@@ -105,7 +105,7 @@ const IntegrationsCard: React.FC = () => {
         await checkStatus();
       }
 
-      showOverlay('githubDeviceFlowModal', {
+      showModal('githubDeviceFlowModal', {
         onSuccess: async () => {
           let attempts = 0;
           const maxAttempts = 15;
@@ -122,14 +122,14 @@ const IntegrationsCard: React.FC = () => {
 
       if (!result?.success) {
         setGithubError(result?.error || 'Could not connect.');
-        closeOverlay();
+        closeModal();
       }
     } catch (error) {
       console.error('GitHub connect failed:', error);
       setGithubError('Could not connect.');
-      closeOverlay();
+      closeModal();
     }
-  }, [checkStatus, login, installed, showOverlay, closeOverlay]);
+  }, [checkStatus, login, installed, showModal, closeModal]);
 
   const handleGithubDisconnect = useCallback(async () => {
     setGithubError(null);

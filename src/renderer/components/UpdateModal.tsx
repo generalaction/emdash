@@ -15,13 +15,13 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useUpdater, EMDASH_RELEASES_URL } from '@/hooks/useUpdater';
-import { OverlayProps } from '@/contexts/WorkspaceOverlayContext';
+import { BaseModalProps } from '@/contexts/ModalProvider';
 
 interface UpdateModalProps {
   onClose: () => void;
 }
 
-export function UpdateModalOverlay({ onClose }: OverlayProps<void>) {
+export function UpdateModalOverlay({ onClose }: BaseModalProps<void>) {
   return <UpdateModal onClose={onClose} />;
 }
 

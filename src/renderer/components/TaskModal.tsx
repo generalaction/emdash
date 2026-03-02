@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from './ui/dialog';
-import type { OverlayProps } from '@/contexts/WorkspaceOverlayContext';
+import type { BaseModalProps } from '@/contexts/ModalProvider';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
@@ -62,7 +62,7 @@ interface TaskModalProps {
   ) => void;
 }
 
-export type TaskModalOverlayProps = OverlayProps<CreateTaskResult>;
+export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
 
 export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
   return (

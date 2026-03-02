@@ -1,19 +1,19 @@
 import { Dialog } from '@/components/ui/dialog';
-import { useWorkspaceOverlayContext } from '@/contexts/WorkspaceOverlayContext';
+import { useModalContext } from '@/contexts/ModalProvider';
 import { useMemo } from 'react';
 
 export function WorkspaceOverlayRenderer() {
-  const { activeOverlayId, renderOverlay, closeOverlay } = useWorkspaceOverlayContext();
+  const { activeModalId, renderModal, closeModal } = useModalContext();
   const content = useMemo(
-    () => (activeOverlayId ? renderOverlay() : null),
-    [renderOverlay, activeOverlayId]
+    () => (activeModalId ? renderModal() : null),
+    [renderModal, activeModalId]
   );
   return (
     <Dialog
-      open={activeOverlayId !== null}
+      open={activeModalId !== null}
       onOpenChange={(open) => {
-        if (!open && activeOverlayId !== null) {
-          closeOverlay();
+        if (!open && activeModalId !== null) {
+          closeModal();
         }
       }}
     >
