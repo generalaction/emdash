@@ -284,6 +284,7 @@ const ChatInterface: React.FC<Props> = ({
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
+    if (!conversationsLoaded) return;
     // Small delay to ensure terminal is mounted and attached
     const timer = setTimeout(() => {
       const session = terminalSessionRegistry.getSession(terminalId);
@@ -292,7 +293,7 @@ const ChatInterface: React.FC<Props> = ({
       }
     }, 100);
     return () => clearTimeout(timer);
-  }, [task.id, terminalId]);
+  }, [task.id, terminalId, conversationsLoaded]);
 
   // Focus terminal when this task becomes active (for already-mounted terminals)
   useEffect(() => {
