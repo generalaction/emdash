@@ -57,7 +57,7 @@
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.2",
     "electron": "^30.5.1",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^26.0.12",
     "eslint": "^8.55.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
