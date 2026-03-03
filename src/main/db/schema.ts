@@ -152,6 +152,28 @@ export const lineComments = sqliteTable(
   })
 );
 
+export const taskNotes = sqliteTable(
+  'task_notes',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'manual' | 'summary'
+    content: text('content').notNull().default(''),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskIdIdx: index('idx_task_notes_task_id').on(table.taskId),
+    taskIdTypeIdx: uniqueIndex('idx_task_notes_task_id_type').on(table.taskId, table.type),
+  })
+);
+
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
 }));
@@ -171,6 +193,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   conversations: many(conversations),
   lineComments: many(lineComments),
+  taskNotes: many(taskNotes),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -195,6 +218,13 @@ export const lineCommentsRelations = relations(lineComments, ({ one }) => ({
   }),
 }));
 
+export const taskNotesRelations = relations(taskNotes, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskNotes.taskId],
+    references: [tasks.id],
+  }),
+}));
+
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
@@ -203,3 +233,5 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;
+export type TaskNoteRow = typeof taskNotes.$inferSelect;
+export type TaskNoteInsert = typeof taskNotes.$inferInsert;
