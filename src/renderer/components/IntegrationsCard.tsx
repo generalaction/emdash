@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Plus, Loader2 } from 'lucide-react';
-import { useGithubAuth } from '../hooks/useGithubAuth';
+import { useGithubContext } from '../contexts/GithubContextProvider';
 import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
@@ -39,7 +39,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 };
 
 const IntegrationsCard: React.FC = () => {
-  const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubAuth();
+  const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubContext();
   const { showModal, closeModal } = useModalContext();
 
   // Connection states

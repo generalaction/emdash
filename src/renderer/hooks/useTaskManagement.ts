@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
@@ -8,8 +8,15 @@ import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
-import type { GitHubIssueLink } from '../types/chat';
+import type { GitHubIssueLink, AgentRun } from '../types/chat';
+import type { LinearIssueSummary } from '../types/linear';
+import type { GitHubIssueSummary } from '../types/github';
+import type { JiraIssueSummary } from '../types/jira';
 import { rpc } from '../lib/rpc';
+import { createTask } from '../lib/taskCreationService';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useToast } from './use-toast';
+import { useModalContext } from '../contexts/ModalProvider';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -72,21 +79,7 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
   return linked;
 };
 
-interface UseTaskManagementOptions {
-  projects: Project[];
-  selectedProject: Project | null;
-  setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
-  setSelectedProject: React.Dispatch<React.SetStateAction<Project | null>>;
-  setShowHomeView: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowSkillsView: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
-  openTaskModal: () => void;
-  toast: (opts: any) => void;
-  activateProjectView: (project: Project) => void;
-}
-
-export function useTaskManagement(options: UseTaskManagementOptions) {
+export function useTaskManagement() {
   const {
     projects,
     selectedProject,
@@ -96,17 +89,32 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
-    openTaskModal,
-    toast,
     activateProjectView,
-  } = options;
+    resetTaskTrigger,
+    autoOpenTaskModalTrigger,
+  } = useProjectManagementContext();
+
+  const { toast } = useToast();
+  const { showModal } = useModalContext();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
   const [archivedTasksVersion, setArchivedTasksVersion] = useState(0);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
+  // Stable ref so openTaskModal can be declared early while handleCreateTask is defined later
+  const openTaskModalImplRef = useRef<() => void>(() => {});
+  const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+
+  // Reset active task when project management signals a navigation away
+  useEffect(() => {
+    if (resetTaskTrigger > 0) {
+      setActiveTask(null);
+      setActiveTaskAgent(null);
+    }
+  }, [resetTaskTrigger]);
 
   // Collect all tasks across all projects for cycling
   const allTasks = useMemo(() => {
@@ -860,6 +868,92 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
   };
 
+  const handleCreateTask = useCallback(
+    async (
+      taskName: string,
+      initialPrompt?: string,
+      agentRuns: AgentRun[] = [{ agent: 'claude', runs: 1 }],
+      linkedLinearIssue: LinearIssueSummary | null = null,
+      linkedGithubIssue: GitHubIssueSummary | null = null,
+      linkedJiraIssue: JiraIssueSummary | null = null,
+      autoApprove?: boolean,
+      useWorktree: boolean = true,
+      baseRef?: string,
+      nameGenerated?: boolean
+    ) => {
+      if (!selectedProject) return;
+      setIsCreatingTask(true);
+      const started = await createTask(
+        {
+          taskName,
+          initialPrompt,
+          agentRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          nameGenerated,
+          useWorktree,
+          baseRef,
+        },
+        {
+          selectedProject,
+          setProjects,
+          setSelectedProject,
+          setActiveTask,
+          setActiveTaskAgent,
+          toast,
+          onTaskCreationFailed: () => setIsCreatingTask(false),
+        }
+      );
+      if (!started) {
+        setIsCreatingTask(false);
+      }
+    },
+    [selectedProject, setProjects, setSelectedProject, toast]
+  );
+
+  const handleTaskInterfaceReady = useCallback(() => {
+    setIsCreatingTask(false);
+  }, []);
+
+  // isCreatingTask safety-net: clear after 30s if task interface never signals ready
+  useEffect(() => {
+    if (!isCreatingTask) return;
+    const timeout = window.setTimeout(() => {
+      setIsCreatingTask(false);
+    }, 30000);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isCreatingTask]);
+
+  // Wire up openTaskModal with the latest handleCreateTask (re-assigned each render so it stays current)
+  openTaskModalImplRef.current = () => {
+    showModal('taskModal', {
+      onSuccess: (result) =>
+        handleCreateTask(
+          result.name,
+          result.initialPrompt,
+          result.agentRuns,
+          result.linkedLinearIssue ?? null,
+          result.linkedGithubIssue ?? null,
+          result.linkedJiraIssue ?? null,
+          result.autoApprove,
+          result.useWorktree,
+          result.baseRef,
+          result.nameGenerated
+        ),
+    });
+  };
+
+  // Auto-open task modal when project management requests it (e.g. after new project creation)
+  useEffect(() => {
+    if (autoOpenTaskModalTrigger > 0) {
+      openTaskModal();
+    }
+  }, [autoOpenTaskModalTrigger, openTaskModal]);
+
   return {
     activeTask,
     setActiveTask,
@@ -868,6 +962,10 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     archivedTasksVersion,
     allTasks,
     linkedGithubIssueMap,
+    isCreatingTask,
+    handleCreateTask,
+    handleTaskInterfaceReady,
+    openTaskModal,
     handleSelectTask,
     handleNextTask,
     handlePrevTask,

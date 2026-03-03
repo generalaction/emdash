@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ToastAction } from '@radix-ui/react-toast';
 import { pickDefaultBranch } from '../components/BranchSelect';
 import { saveActiveIds } from '../constants/layout';
 import {
@@ -11,36 +13,18 @@ import {
 import type { Project, Task } from '../types/app';
 import { rpc } from '../lib/rpc';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useAppContext } from '../contexts/AppContextProvider';
+import { useGithubContext } from '../contexts/GithubContextProvider';
+import { useToast } from './use-toast';
 
-interface UseProjectManagementOptions {
-  platform: string;
-  isAuthenticated: boolean;
-  ghInstalled: boolean;
-  toast: (opts: any) => void;
-  handleGithubConnect: () => void;
-  setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
-  openTaskModal: () => void;
-  setActiveTask: React.Dispatch<React.SetStateAction<Task | null>>;
-  saveProjectOrder: (list: Project[]) => void;
-  ToastAction: React.ComponentType<any>;
-}
-
-export const useProjectManagement = (options: UseProjectManagementOptions) => {
+export const useProjectManagement = () => {
+  const { platform } = useAppContext();
   const {
-    platform,
-    isAuthenticated,
-    ghInstalled,
-    toast,
+    authenticated: isAuthenticated,
+    installed: ghInstalled,
     handleGithubConnect,
-    setShowEditorMode,
-    setShowKanban,
-    openTaskModal,
-    setActiveTask,
-    saveProjectOrder,
-    ToastAction,
-  } = options;
-
+  } = useGithubContext();
+  const { toast } = useToast();
   const { showModal } = useModalContext();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -48,12 +32,57 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   // Always start on home view (e.g. after app restart)
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
+  const [showEditorMode, setShowEditorMode] = useState(false);
+  const [showKanban, setShowKanban] = useState(false);
+  // Trigger counters — incremented to signal task management to reset active task / auto-open modal
+  const [resetTaskTrigger, setResetTaskTrigger] = useState(0);
+  const [autoOpenTaskModalTrigger, setAutoOpenTaskModalTrigger] = useState(0);
   const [projectBranchOptions, setProjectBranchOptions] = useState<
     Array<{ value: string; label: string }>
   >([]);
   const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [hasResolvedBranchOptions, setHasResolvedBranchOptions] = useState(false);
+
+  // --- Project + task fetching via React Query (replaces useAppInitialization) ---
+
+  // Phase 1: projects without tasks — populates sidebar skeleton quickly
+  const { data: rawProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const projs = await rpc.db.getProjects();
+      return projs.map((p) => withRepoKey(p, platform ?? ''));
+    },
+    enabled: !!platform,
+    staleTime: Infinity,
+  });
+
+  // Phase 2: attach tasks to each project
+  const { data: projectsWithTasks, isSuccess: isInitialLoadComplete } = useQuery({
+    queryKey: ['projects', 'withTasks', rawProjects?.map((p) => p.id)],
+    queryFn: async () =>
+      Promise.all(
+        rawProjects!.map(async (p) => {
+          const tasks = (await rpc.db.getTasks(p.id)) as Task[];
+          return withRepoKey({ ...p, tasks }, platform ?? '');
+        })
+      ),
+    enabled: !!rawProjects,
+    staleTime: Infinity,
+  });
+
+  // Sync query data → state. React Query drives the initial load;
+  // setProjects() still owns all mutation updates after that.
+  useEffect(() => {
+    if (rawProjects && !isInitialLoadComplete) setProjects(rawProjects);
+  }, [rawProjects, isInitialLoadComplete]);
+
+  useEffect(() => {
+    if (projectsWithTasks) {
+      setProjects(projectsWithTasks);
+      setShowHomeView(true);
+    }
+  }, [projectsWithTasks]);
 
   const prewarmReserveForBaseRef = useCallback(
     (projectId: string, projectPath: string, isGitRepo: boolean | undefined, baseRef?: string) => {
@@ -81,7 +110,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       setSelectedProject(project);
       setShowHomeView(false);
       setShowSkillsView(false);
-      setActiveTask(null);
+      setResetTaskTrigger((t) => t + 1);
       setShowEditorMode(false);
       setShowKanban(false);
       saveActiveIds(project.id, null);
@@ -101,7 +130,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setSelectedProject(null);
     setShowHomeView(true);
     setShowSkillsView(false);
-    setActiveTask(null);
+    setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
     saveActiveIds(null, null);
@@ -115,7 +144,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setSelectedProject(null);
     setShowHomeView(false);
     setShowSkillsView(true);
-    setActiveTask(null);
+    setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
     saveActiveIds(null, null);
@@ -407,17 +436,13 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
           description: `${projectToSave.name} has been added to your projects.`,
         });
         // Add to beginning of list
-        setProjects((prev) => {
-          const updated = [projectToSave, ...prev];
-          saveProjectOrder(updated);
-          return updated;
-        });
+        setProjects((prev) => [projectToSave, ...prev]);
         activateProjectView(projectToSave);
 
         // Auto-open task modal for non-GitHub projects
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
         if (!isAuthenticated || !isGithubRemote) {
-          openTaskModal();
+          setAutoOpenTaskModalTrigger((t) => t + 1);
         }
       } catch (error) {
         const { log } = await import('../lib/logger');
@@ -429,37 +454,8 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         });
       }
     },
-    [
-      projects,
-      isAuthenticated,
-      activateProjectView,
-      platform,
-      toast,
-      saveProjectOrder,
-      openTaskModal,
-    ]
+    [projects, isAuthenticated, activateProjectView, platform, toast]
   );
-
-  const handleReorderProjects = (sourceId: string, targetId: string) => {
-    setProjects((prev) => {
-      const list = [...prev];
-      const fromIdx = list.findIndex((p) => p.id === sourceId);
-      const toIdx = list.findIndex((p) => p.id === targetId);
-      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
-      const [moved] = list.splice(fromIdx, 1);
-      list.splice(toIdx, 0, moved);
-      saveProjectOrder(list);
-      return list;
-    });
-  };
-
-  const handleReorderProjectsFull = (newOrder: Project[]) => {
-    setProjects(() => {
-      const list = [...newOrder];
-      saveProjectOrder(list);
-      return list;
-    });
-  };
 
   const handleDeleteProject = async (project: Project) => {
     try {
@@ -479,7 +475,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       setProjects((prev) => prev.filter((p) => p.id !== project.id));
       if (selectedProject?.id === project.id) {
         setSelectedProject(null);
-        setActiveTask(null);
+        setResetTaskTrigger((t) => t + 1);
         setShowHomeView(true);
         saveActiveIds(null, null);
       }
@@ -603,6 +599,70 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     prewarmReserveForBaseRef,
   ]);
 
+  interface RemoteProjectInput {
+    id: string;
+    name: string;
+    path: string;
+    host: string;
+    connectionId: string;
+  }
+
+  const handleRemoteProjectSuccess = useCallback(
+    async (remoteProject: RemoteProjectInput) => {
+      const { captureTelemetry } = await import('../lib/telemetryClient');
+      captureTelemetry('remote_project_created');
+
+      try {
+        const repoKey = `${remoteProject.host}:${remoteProject.path}`;
+        const existingProject = projects.find((p) => getProjectRepoKey(p) === repoKey);
+
+        if (existingProject) {
+          activateProjectView(existingProject);
+          toast({
+            title: 'Project already open',
+            description: `"${existingProject.name}" is already in the sidebar.`,
+          });
+          return;
+        }
+
+        const project: Project = {
+          id: remoteProject.id,
+          name: remoteProject.name,
+          path: remoteProject.path,
+          repoKey,
+          gitInfo: { isGitRepo: true },
+          tasks: [],
+          isRemote: true,
+          sshConnectionId: remoteProject.connectionId,
+          remotePath: remoteProject.path,
+        } as Project;
+
+        await rpc.db.saveProject(project);
+        captureTelemetry('project_create_success');
+        captureTelemetry('project_added_success', { source: 'remote' });
+        toast({
+          title: 'Remote project added successfully!',
+          description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
+        });
+        setProjects((prev) => [project, ...prev]);
+        activateProjectView(project);
+      } catch (error) {
+        const { log } = await import('../lib/logger');
+        log.error('Failed to save remote project:', error);
+        toast({
+          title: 'Failed to add remote project',
+          description: 'An error occurred while saving the project.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [projects, activateProjectView, setProjects, toast]
+  );
+
+  const handleAddRemoteProject = useCallback(() => {
+    showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
+  }, [showModal, handleRemoteProjectSuccess]);
+
   return {
     projects,
     setProjects,
@@ -612,6 +672,12 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     setShowHomeView,
     showSkillsView,
     setShowSkillsView,
+    showEditorMode,
+    setShowEditorMode,
+    showKanban,
+    setShowKanban,
+    resetTaskTrigger,
+    autoOpenTaskModalTrigger,
     handleGoToSkills,
     projectBranchOptions,
     projectDefaultBranch,
@@ -625,8 +691,9 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     handleCloneProjectClick,
     handleCloneSuccess,
     handleNewProjectSuccess,
-    handleReorderProjects,
-    handleReorderProjectsFull,
     handleDeleteProject,
+    handleRemoteProjectSuccess,
+    handleAddRemoteProject,
+    isInitialLoadComplete,
   };
 };
