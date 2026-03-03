@@ -1,7 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { Separator } from './ui/separator';
-import type { SettingsPageTab } from '../hooks/useModalState';
+type SettingsPageTab =
+  | 'general'
+  | 'clis-models'
+  | 'integrations'
+  | 'repository'
+  | 'interface'
+  | 'docs';
 import type { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS } from './CliAgentsList';
 import { Button } from './ui/button';

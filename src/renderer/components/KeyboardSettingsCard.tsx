@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { ArrowBigUp, Command, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -11,7 +11,7 @@ import {
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
-import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 interface ShortcutBinding {
   key: string;
@@ -134,58 +134,23 @@ const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) =>
 };
 
 const KeyboardSettingsCard: React.FC = () => {
-  const { refreshSettings } = useKeyboardSettings();
-  const [bindings, setBindings] = useState<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
-    const initial: Record<string, ShortcutBinding> = {};
-    for (const shortcut of CONFIGURABLE_SHORTCUTS) {
-      initial[shortcut.settingsKey] = {
-        key: shortcut.key,
-        modifier: shortcut.modifier!,
-      };
-    }
-    return initial as Record<ShortcutSettingsKey, ShortcutBinding>;
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
   const [error, setError] = useState<string | null>(null);
   const [capturingKey, setCapturingKey] = useState<ShortcutSettingsKey | null>(null);
   const captureRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await window.electronAPI.getSettings();
-        if (cancelled) return;
-        if (result.success && result.settings?.keyboard) {
-          const keyboard = result.settings.keyboard;
-          setBindings((prev) => {
-            const next = { ...prev };
-            for (const shortcut of CONFIGURABLE_SHORTCUTS) {
-              const saved = keyboard[shortcut.settingsKey as keyof typeof keyboard];
-              if (saved) {
-                next[shortcut.settingsKey] = saved;
-              }
-            }
-            return next;
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Failed to load settings.';
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const bindings = useMemo<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
+    const keyboard = settings?.keyboard;
+    const result: Record<string, ShortcutBinding> = {};
+    for (const shortcut of CONFIGURABLE_SHORTCUTS) {
+      const saved = keyboard?.[shortcut.settingsKey as keyof typeof keyboard];
+      result[shortcut.settingsKey] = saved ?? { key: shortcut.key, modifier: shortcut.modifier! };
+    }
+    return result as Record<ShortcutSettingsKey, ShortcutBinding>;
+  }, [settings?.keyboard]);
 
   const saveBinding = useCallback(
-    async (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding) => {
+    (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding) => {
       const shortcut = CONFIGURABLE_SHORTCUTS.find((s) => s.settingsKey === settingsKey);
       if (!shortcut) return;
 
@@ -194,53 +159,18 @@ const KeyboardSettingsCard: React.FC = () => {
       if (conflict) {
         const message = `Conflicts with "${conflict.label}". Choose a different shortcut.`;
         setError(message);
-        toast({
-          title: 'Shortcut conflict',
-          description: message,
-          variant: 'destructive',
-        });
+        toast({ title: 'Shortcut conflict', description: message, variant: 'destructive' });
         return;
       }
 
-      const previous = bindings[settingsKey];
-      setBindings((prev) => ({ ...prev, [settingsKey]: binding }));
       setError(null);
-      setSaving(true);
-      try {
-        const result = await window.electronAPI.updateSettings({
-          keyboard: { [settingsKey]: binding },
-        });
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to update settings.');
-        }
-        const savedBinding =
-          result.settings?.keyboard?.[settingsKey as keyof typeof result.settings.keyboard];
-        if (savedBinding) {
-          setBindings((prev) => ({
-            ...prev,
-            [settingsKey]: savedBinding,
-          }));
-        }
-        toast({
-          title: 'Shortcut updated',
-          description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${formatDisplayKey(binding.key)}`,
-        });
-        // Refresh global keyboard settings so shortcuts work immediately
-        await refreshSettings();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to update settings.';
-        setBindings((prev) => ({ ...prev, [settingsKey]: previous }));
-        setError(message);
-        toast({
-          title: 'Failed to save shortcut',
-          description: message,
-          variant: 'destructive',
-        });
-      } finally {
-        setSaving(false);
-      }
+      updateSettings({ keyboard: { [settingsKey]: binding } });
+      toast({
+        title: 'Shortcut updated',
+        description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${formatDisplayKey(binding.key)}`,
+      });
     },
-    [bindings, refreshSettings]
+    [bindings, updateSettings]
   );
 
   const handleKeyCapture = useCallback(

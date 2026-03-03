@@ -7,9 +7,11 @@ import {
   clampLeftSidebarSize,
   clampRightSidebarSize,
 } from '../constants/layout';
+import { rpc } from '@/lib/rpc';
 
 export interface UsePanelLayoutOptions {
   showEditorMode: boolean;
+  showDiffViewer: boolean;
   isInitialLoadComplete: boolean;
   showHomeView: boolean;
   selectedProject: { id: string } | null;
@@ -17,7 +19,14 @@ export interface UsePanelLayoutOptions {
 }
 
 export function usePanelLayout(opts: UsePanelLayoutOptions) {
-  const { showEditorMode, isInitialLoadComplete, showHomeView, selectedProject, activeTask } = opts;
+  const {
+    showEditorMode,
+    showDiffViewer,
+    isInitialLoadComplete,
+    showHomeView,
+    selectedProject,
+    activeTask,
+  } = opts;
 
   const defaultPanelLayout = useMemo(() => {
     const stored = loadPanelSizes(PANEL_LAYOUT_STORAGE_KEY, DEFAULT_PANEL_LAYOUT);
@@ -40,6 +49,8 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
   const rightSidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
   const lastLeftSidebarSizeRef = useRef<number>(defaultPanelLayout[0]);
   const leftSidebarWasCollapsedBeforeEditor = useRef<boolean>(false);
+  const leftSidebarWasCollapsedBeforeDiffViewer = useRef<boolean>(false);
+  const rightSidebarWasCollapsedBeforeDiffViewer = useRef<boolean>(false);
   const lastRightSidebarSizeRef = useRef<number>(rightSidebarDefaultWidth);
   const leftSidebarSetOpenRef = useRef<((next: boolean) => void) | null>(null);
   const leftSidebarIsMobileRef = useRef<boolean>(false);
@@ -164,16 +175,56 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     }
   }, [showEditorMode]);
 
+  // Handle both sidebars visibility when Diff Viewer opens/closes
+  useEffect(() => {
+    const leftPanel = leftSidebarPanelRef.current;
+    const rightPanel = rightSidebarPanelRef.current;
+
+    if (showDiffViewer) {
+      // Save and collapse left sidebar
+      if (leftPanel) {
+        leftSidebarWasCollapsedBeforeDiffViewer.current = leftPanel.isCollapsed();
+        if (!leftPanel.isCollapsed()) {
+          leftPanel.collapse();
+        }
+      }
+      // Save and collapse right sidebar
+      if (rightPanel) {
+        rightSidebarWasCollapsedBeforeDiffViewer.current = rightPanel.isCollapsed();
+        if (!rightPanel.isCollapsed()) {
+          rightPanel.collapse();
+        }
+      }
+    } else {
+      // Restore left sidebar
+      if (
+        leftPanel &&
+        !leftSidebarWasCollapsedBeforeDiffViewer.current &&
+        leftPanel.isCollapsed()
+      ) {
+        leftPanel.expand();
+      }
+      // Restore right sidebar
+      if (
+        rightPanel &&
+        !rightSidebarWasCollapsedBeforeDiffViewer.current &&
+        rightPanel.isCollapsed()
+      ) {
+        const targetRight = clampRightSidebarSize(
+          lastRightSidebarSizeRef.current || DEFAULT_PANEL_LAYOUT[2]
+        );
+        rightPanel.expand();
+        rightPanel.resize(targetRight);
+      }
+    }
+  }, [showDiffViewer]);
+
   // Load autoRightSidebarBehavior setting on mount and listen for changes
   useEffect(() => {
     (async () => {
       try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          setAutoRightSidebarBehavior(
-            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
-          );
-        }
+        const settings = await rpc.appSettings.get();
+        setAutoRightSidebarBehavior(Boolean(settings.interface?.autoRightSidebarBehavior ?? false));
       } catch (error) {
         console.error('Failed to load right sidebar settings:', error);
       }

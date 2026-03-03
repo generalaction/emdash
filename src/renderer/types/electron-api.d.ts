@@ -69,278 +69,6 @@ declare global {
       onMenuRedo: (listener: () => void) => () => void;
       onMenuCloseTab: (listener: () => void) => () => void;
 
-      // App settings
-      getSettings: () => Promise<{
-        success: boolean;
-        settings?: {
-          repository: { branchPrefix: string; pushOnCreate: boolean };
-          projectPrep?: { autoInstallOnOpenInEditor: boolean };
-          browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: {
-            enabled: boolean;
-            sound: boolean;
-            osNotifications: boolean;
-            soundFocusMode: 'always' | 'unfocused';
-          };
-          mcp?: {
-            context7?: {
-              enabled: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName: boolean;
-            autoApproveByDefault: boolean;
-            autoTrustWorktrees: boolean;
-          };
-          projects?: {
-            defaultDirectory: string;
-          };
-          keyboard?: {
-            commandPalette?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            settings?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleLeftSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleRightSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleTheme?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleKanban?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleEditor?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            newTask?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-          };
-          interface?: {
-            autoRightSidebarBehavior?: boolean;
-            theme?: 'light' | 'dark' | 'dark-black' | 'system';
-            taskHoverAction?: 'delete' | 'archive';
-          };
-          terminal?: {
-            fontFamily: string;
-            autoCopyOnSelection: boolean;
-          };
-          defaultOpenInApp?: string;
-          hiddenOpenInApps?: string[];
-        };
-        error?: string;
-      }>;
-      updateSettings: (
-        settings: Partial<{
-          repository: { branchPrefix?: string; pushOnCreate?: boolean };
-          projectPrep: { autoInstallOnOpenInEditor?: boolean };
-          browserPreview: { enabled?: boolean; engine?: 'chromium' };
-          notifications: {
-            enabled?: boolean;
-            sound?: boolean;
-            osNotifications?: boolean;
-            soundFocusMode?: 'always' | 'unfocused';
-          };
-          mcp: {
-            context7?: {
-              enabled?: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName?: boolean;
-            autoApproveByDefault?: boolean;
-            autoTrustWorktrees?: boolean;
-          };
-          projects?: {
-            defaultDirectory?: string;
-          };
-          keyboard?: {
-            commandPalette?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            settings?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleLeftSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleRightSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleTheme?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleKanban?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleEditor?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            newTask?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-          };
-          interface?: {
-            autoRightSidebarBehavior?: boolean;
-            theme?: 'light' | 'dark' | 'dark-black' | 'system';
-            taskHoverAction?: 'delete' | 'archive';
-          };
-          terminal?: {
-            fontFamily?: string;
-            autoCopyOnSelection?: boolean;
-          };
-          defaultOpenInApp?: string;
-          hiddenOpenInApps?: string[];
-        }>
-      ) => Promise<{
-        success: boolean;
-        settings?: {
-          repository: { branchPrefix: string; pushOnCreate: boolean };
-          projectPrep?: { autoInstallOnOpenInEditor: boolean };
-          browserPreview?: { enabled: boolean; engine: 'chromium' };
-          notifications?: {
-            enabled: boolean;
-            sound: boolean;
-            osNotifications: boolean;
-            soundFocusMode: 'always' | 'unfocused';
-          };
-          mcp?: {
-            context7?: {
-              enabled: boolean;
-              installHintsDismissed?: Record<string, boolean>;
-            };
-          };
-          defaultProvider?: string;
-          tasks?: {
-            autoGenerateName: boolean;
-            autoApproveByDefault: boolean;
-            autoTrustWorktrees: boolean;
-          };
-          projects?: {
-            defaultDirectory: string;
-          };
-          keyboard?: {
-            commandPalette?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            settings?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleLeftSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleRightSidebar?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleTheme?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleKanban?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            toggleEditor?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevProject?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            newTask?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            nextAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-            prevAgent?: {
-              key: string;
-              modifier: 'cmd' | 'ctrl' | 'shift' | 'alt' | 'option' | 'cmd+shift' | 'ctrl+shift';
-            };
-          };
-          interface?: {
-            autoRightSidebarBehavior?: boolean;
-            theme?: 'light' | 'dark' | 'dark-black' | 'system';
-            taskHoverAction?: 'delete' | 'archive';
-          };
-          terminal?: {
-            fontFamily: string;
-            autoCopyOnSelection: boolean;
-          };
-          defaultOpenInApp?: string;
-          hiddenOpenInApps?: string[];
-        };
-        error?: string;
-      }>;
-
       // PTY
       ptyStart: (opts: {
         id: string;
@@ -393,6 +121,7 @@ declare global {
       onAgentEvent: (
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
+      onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -628,6 +357,7 @@ declare global {
             right?: string;
             type: 'context' | 'add' | 'del';
           }>;
+          isBinary?: boolean;
         };
         error?: string;
       }>;
@@ -646,6 +376,78 @@ declare global {
       revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'unstaged' | 'reverted';
+        error?: string;
+      }>;
+      gitCommit: (args: { taskPath: string; message: string }) => Promise<{
+        success: boolean;
+        hash?: string;
+        error?: string;
+      }>;
+      gitPush: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      gitPull: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      gitGetLog: (args: {
+        taskPath: string;
+        maxCount?: number;
+        skip?: number;
+        aheadCount?: number;
+      }) => Promise<{
+        success: boolean;
+        commits?: Array<{
+          hash: string;
+          subject: string;
+          body: string;
+          author: string;
+          date: string;
+          isPushed: boolean;
+          tags: string[];
+        }>;
+        aheadCount?: number;
+        error?: string;
+      }>;
+      gitGetLatestCommit: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        commit?: {
+          hash: string;
+          subject: string;
+          body: string;
+          isPushed: boolean;
+        } | null;
+        error?: string;
+      }>;
+      gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) => Promise<{
+        success: boolean;
+        files?: Array<{
+          path: string;
+          status: string;
+          additions: number;
+          deletions: number;
+        }>;
+        error?: string;
+      }>;
+      gitGetCommitFileDiff: (args: {
+        taskPath: string;
+        commitHash: string;
+        filePath: string;
+      }) => Promise<{
+        success: boolean;
+        diff?: {
+          lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+          isBinary?: boolean;
+        };
+        error?: string;
+      }>;
+      gitSoftReset: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        subject?: string;
+        body?: string;
         error?: string;
       }>;
       gitCommitAndPush: (args: {
@@ -755,6 +557,7 @@ declare global {
         defaultBranch?: string;
         ahead?: number;
         behind?: number;
+        aheadOfDefault?: number;
         error?: string;
       }>;
       renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{
@@ -1362,6 +1165,7 @@ export interface ElectronAPI {
   onAgentEvent: (
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
   ) => () => void;
+  onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {

@@ -17,6 +17,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
+import { rpc } from '@/lib/rpc';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -119,6 +120,16 @@ export class TerminalSessionManager {
     } as CSSStyleDeclaration);
     ensureTerminalHost().appendChild(this.container);
 
+    const openLink = (uri: string) => {
+      if (options.onLinkClick) {
+        options.onLinkClick(uri);
+      } else {
+        window.electronAPI.openExternal(uri).catch((error) => {
+          log.warn('Failed to open external link', { uri, error });
+        });
+      }
+    };
+
     this.terminal = new Terminal({
       cols: options.initialSize.cols,
       rows: options.initialSize.rows,
@@ -129,6 +140,9 @@ export class TerminalSessionManager {
       letterSpacing: 0,
       allowProposedApi: true,
       scrollOnUserInput: false,
+      linkHandler: {
+        activate: (_event, text) => openLink(text),
+      },
     });
 
     const updateCustomFont = (customFont?: string) => {
@@ -136,9 +150,9 @@ export class TerminalSessionManager {
       this.applyEffectiveFont();
     };
 
-    window.electronAPI.getSettings().then((result) => {
-      updateCustomFont(result?.settings?.terminal?.fontFamily);
-      this.autoCopyOnSelection = result?.settings?.terminal?.autoCopyOnSelection ?? false;
+    rpc.appSettings.get().then((settings) => {
+      updateCustomFont(settings?.terminal?.fontFamily);
+      this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
     });
 
     const handleFontChange = (e: Event) => {
@@ -188,18 +202,8 @@ export class TerminalSessionManager {
 
     // Initialize WebLinks addon with custom handler
     this.webLinksAddon = new WebLinksAddon((event, uri) => {
-      // Prevent default behavior
       event.preventDefault();
-
-      // Call the custom link handler if provided, otherwise use default behavior
-      if (options.onLinkClick) {
-        options.onLinkClick(uri);
-      } else {
-        // Fallback to opening directly via electronAPI
-        window.electronAPI.openExternal(uri).catch((error) => {
-          log.warn('Failed to open external link', { uri, error });
-        });
-      }
+      openLink(uri);
     });
 
     this.terminal.loadAddon(this.fitAddon);

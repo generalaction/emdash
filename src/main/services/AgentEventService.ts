@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { BrowserWindow, Notification } from 'electron';
 import { log } from '../lib/logger';
 import { parsePtyId, isMainPty } from '@shared/ptyId';
+import { getMainWindow } from '../app/window';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
@@ -137,8 +138,9 @@ class AgentEventService {
 
       const providerName = getProvider(event.providerId as ProviderId)?.name ?? event.providerId;
 
+      const isMain = isMainPty(event.ptyId);
       let taskName: string | null = null;
-      if (isMainPty(event.ptyId)) {
+      if (isMain) {
         const { databaseService } = await import('./DatabaseService');
         const task = await databaseService.getTaskById(event.taskId);
         if (task?.name) taskName = task.name;
@@ -146,12 +148,27 @@ class AgentEventService {
 
       const titleSuffix = taskName ? ` — ${taskName}` : '';
 
+      const addClickHandler = (notification: Notification) => {
+        notification.on('click', () => {
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            if (win.isMinimized()) win.restore();
+            win.show();
+            win.focus();
+            if (isMain) {
+              win.webContents.send('notification:focus-task', event.taskId);
+            }
+          }
+        });
+      };
+
       if (event.type === 'stop') {
         const notification = new Notification({
           title: `${providerName}${titleSuffix}`,
           body: 'Your agent has finished working',
           silent: true,
         });
+        addClickHandler(notification);
         notification.show();
       } else if (event.type === 'notification') {
         const nt = event.payload.notificationType;
@@ -161,6 +178,7 @@ class AgentEventService {
             body: 'Your agent is waiting for input',
             silent: true,
           });
+          addClickHandler(notification);
           notification.show();
         }
       }

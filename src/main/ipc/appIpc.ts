@@ -1,5 +1,5 @@
 import { app, clipboard, ipcMain, shell } from 'electron';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
@@ -13,7 +13,11 @@ import {
 } from '@shared/openInApps';
 import { databaseService } from '../services/DatabaseService';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
-import { quoteShellArg } from '../utils/shellEscape';
+import {
+  buildGhosttyRemoteExecArgs,
+  buildRemoteEditorUrl,
+  buildRemoteSshCommand,
+} from '../utils/remoteOpenIn';
 
 const UNKNOWN_VERSION = 'unknown';
 
@@ -41,6 +45,30 @@ const execCommand = (
     );
   });
 };
+
+const execFileCommand = (
+  file: string,
+  args: string[],
+  opts?: { timeout?: number }
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    execFile(
+      file,
+      args,
+      {
+        timeout: opts?.timeout ?? 30000,
+        env: buildExternalToolEnv(),
+      },
+      (error) => {
+        if (error) return reject(error);
+        resolve();
+      }
+    );
+  });
+};
+
+const escapeAppleScriptString = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 const dedupeAndSortFonts = (fonts: string[]): string[] => {
   const unique = Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean)));
@@ -280,70 +308,121 @@ export function registerAppIpc() {
 
             // Construct remote SSH URL or command based on the app
             // Security: Escape all user-controlled values to prevent command injection
-            const safeHost = encodeURIComponent(connection.host);
-            const safeTarget = encodeURIComponent(target);
-
             if (appId === 'vscode') {
-              // VS Code Remote SSH URL format: vscode://vscode-remote/ssh-remote+hostname/path
-              const remoteUrl = `vscode://vscode-remote/ssh-remote+${safeHost}${target}`;
+              // VS Code Remote SSH URL format:
+              // vscode://vscode-remote/ssh-remote+user%40hostname/path
+              const remoteUrl = buildRemoteEditorUrl(
+                'vscode',
+                connection.host,
+                connection.username,
+                target
+              );
               await shell.openExternal(remoteUrl);
               return { success: true };
             } else if (appId === 'cursor') {
               // Cursor uses its own URL scheme for remote SSH
-              const remoteUrl = `cursor://vscode-remote/ssh-remote+${safeHost}${target}`;
+              const remoteUrl = buildRemoteEditorUrl(
+                'cursor',
+                connection.host,
+                connection.username,
+                target
+              );
               await shell.openExternal(remoteUrl);
               return { success: true };
             } else if (appId === 'terminal' && platform === 'darwin') {
               // macOS Terminal.app - execute SSH command
-              // Security: Use quoteShellArg to prevent command injection
-              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
-              // Properly escape for AppleScript
-              const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-              const terminalCommand = `osascript -e 'tell application "Terminal" to do script "${escapedCommand}"' -e 'tell application "Terminal" to activate'`;
-
-              await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
-                  if (err) return reject(err);
-                  resolve();
-                });
+              const sshCommand = buildRemoteSshCommand({
+                host: connection.host,
+                username: connection.username,
+                port: connection.port,
+                targetPath: target,
               });
+              const escapedCommand = escapeAppleScriptString(sshCommand);
+
+              await execFileCommand('osascript', [
+                '-e',
+                `tell application "Terminal" to do script "${escapedCommand}"`,
+                '-e',
+                'tell application "Terminal" to activate',
+              ]);
               return { success: true };
             } else if (appId === 'iterm2' && platform === 'darwin') {
               // iTerm2 - execute SSH command
-              // Security: Use quoteShellArg to prevent command injection
-              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
-              const escapedCommand = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-              const terminalCommand = `osascript -e 'tell application "iTerm" to create window with default profile command "${escapedCommand}"'`;
-
-              await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
-                  if (err) return reject(err);
-                  resolve();
-                });
+              const sshCommand = buildRemoteSshCommand({
+                host: connection.host,
+                username: connection.username,
+                port: connection.port,
+                targetPath: target,
               });
+              const escapedCommand = escapeAppleScriptString(sshCommand);
+
+              await execFileCommand('osascript', [
+                '-e',
+                `tell application "iTerm" to create window with default profile command "${escapedCommand}"`,
+                '-e',
+                'tell application "iTerm" to activate',
+              ]);
               return { success: true };
             } else if (appId === 'warp' && platform === 'darwin') {
               // Warp - use URL scheme with SSH command
-              // Security: Use quoteShellArg to prevent command injection
-              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
+              const sshCommand = buildRemoteSshCommand({
+                host: connection.host,
+                username: connection.username,
+                port: connection.port,
+                targetPath: target,
+              });
               await shell.openExternal(
                 `warp://action/new_window?cmd=${encodeURIComponent(sshCommand)}`
               );
               return { success: true };
             } else if (appId === 'ghostty') {
-              // Ghostty - execute SSH command directly
-              // Security: Use quoteShellArg to prevent command injection
-              const sshCommand = `ssh ${quoteShellArg(connection.username)}@${quoteShellArg(connection.host)} -p ${quoteShellArg(String(connection.port))} -t "cd ${quoteShellArg(target)} && exec \\$SHELL"`;
-              const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
-              const terminalCommand = `ghostty -e ${quoted(sshCommand)}`;
-
-              await new Promise<void>((resolve, reject) => {
-                exec(terminalCommand, { env: buildExternalToolEnv() }, (err) => {
-                  if (err) return reject(err);
-                  resolve();
-                });
+              // Ghostty - execute SSH command directly.
+              // Prefer remote login shell behavior for normal prompt/init scripts while
+              // keeping deterministic fallbacks when SHELL is missing or invalid.
+              // Compatibility note: many remote hosts don't ship xterm-ghostty terminfo.
+              // The argv builder falls back to TERM=xterm-256color only when current TERM
+              // isn't supported, keeping TUIs (e.g. ranger) working without always downgrading.
+              const ghosttyExecArgs = buildGhosttyRemoteExecArgs({
+                host: connection.host,
+                username: connection.username,
+                port: connection.port,
+                targetPath: target,
               });
-              return { success: true };
+
+              const attempts =
+                platform === 'darwin'
+                  ? [
+                      {
+                        file: 'open',
+                        args: [
+                          '-n',
+                          '-b',
+                          'com.mitchellh.ghostty',
+                          '--args',
+                          '-e',
+                          ...ghosttyExecArgs,
+                        ],
+                      },
+                      {
+                        file: 'open',
+                        args: ['-na', 'Ghostty', '--args', '-e', ...ghosttyExecArgs],
+                      },
+                      { file: 'ghostty', args: ['-e', ...ghosttyExecArgs] },
+                    ]
+                  : [{ file: 'ghostty', args: ['-e', ...ghosttyExecArgs] }];
+
+              let lastError: unknown = null;
+              for (const attempt of attempts) {
+                try {
+                  await execFileCommand(attempt.file, attempt.args);
+                  return { success: true };
+                } catch (error) {
+                  lastError = error;
+                }
+              }
+
+              if (lastError instanceof Error) throw lastError;
+              throw new Error('Unable to launch Ghostty');
             } else if (appConfig.supportsRemote) {
               // App claims to support remote but we don't have a handler
               return {

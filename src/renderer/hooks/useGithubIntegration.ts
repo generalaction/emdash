@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useGithubAuth } from './useGithubAuth';
+import { useModalContext } from '../contexts/ModalProvider';
 
 interface UseGithubIntegrationOptions {
   platform: string;
   toast: (opts: any) => void;
-  setShowDeviceFlowModal: (show: boolean) => void;
 }
 
 export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
-  const { platform, toast, setShowDeviceFlowModal } = opts;
+  const { platform, toast } = opts;
+
+  const { showModal } = useModalContext();
 
   const {
     installed: ghInstalled,
@@ -24,6 +26,35 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
 
   const needsGhInstall = isGithubInitialized && !ghInstalled;
   const needsGhAuth = isGithubInitialized && ghInstalled && !isAuthenticated;
+
+  const handleDeviceFlowSuccess = useCallback(
+    async (flowUser: any) => {
+      // Refresh status immediately to update UI
+      await checkStatus();
+
+      // Also refresh again after a short delay to catch user info if it arrives quickly
+      setTimeout(async () => {
+        await checkStatus();
+      }, 500);
+
+      toast({
+        title: 'Connected to GitHub',
+        description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
+      });
+    },
+    [checkStatus, toast]
+  );
+
+  const handleDeviceFlowError = useCallback(
+    (error: string) => {
+      toast({
+        title: 'Authentication Failed',
+        description: error,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
 
   const handleGithubConnect = useCallback(async () => {
     setGithubLoading(true);
@@ -76,7 +107,10 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
 
       if (result?.success) {
         // Show modal - it will receive events from main process
-        setShowDeviceFlowModal(true);
+        showModal('githubDeviceFlowModal', {
+          onSuccess: handleDeviceFlowSuccess,
+          onError: handleDeviceFlowError,
+        });
       } else {
         toast({
           title: 'Authentication Failed',
@@ -94,44 +128,15 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
         variant: 'destructive',
       });
     }
-  }, [platform, toast, checkStatus, githubLogin, setShowDeviceFlowModal]);
-
-  const handleDeviceFlowSuccess = useCallback(
-    async (flowUser: any) => {
-      setShowDeviceFlowModal(false);
-
-      // Refresh status immediately to update UI
-      await checkStatus();
-
-      // Also refresh again after a short delay to catch user info if it arrives quickly
-      setTimeout(async () => {
-        await checkStatus();
-      }, 500);
-
-      toast({
-        title: 'Connected to GitHub',
-        description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
-      });
-    },
-    [checkStatus, toast, setShowDeviceFlowModal]
-  );
-
-  const handleDeviceFlowError = useCallback(
-    (error: string) => {
-      setShowDeviceFlowModal(false);
-
-      toast({
-        title: 'Authentication Failed',
-        description: error,
-        variant: 'destructive',
-      });
-    },
-    [toast, setShowDeviceFlowModal]
-  );
-
-  const handleDeviceFlowClose = useCallback(() => {
-    setShowDeviceFlowModal(false);
-  }, [setShowDeviceFlowModal]);
+  }, [
+    platform,
+    toast,
+    checkStatus,
+    githubLogin,
+    showModal,
+    handleDeviceFlowSuccess,
+    handleDeviceFlowError,
+  ]);
 
   // Subscribe to GitHub auth events from main process
   useEffect(() => {
@@ -169,6 +174,5 @@ export function useGithubIntegration(opts: UseGithubIntegrationOptions) {
     handleGithubConnect,
     handleDeviceFlowSuccess,
     handleDeviceFlowError,
-    handleDeviceFlowClose,
   };
 }

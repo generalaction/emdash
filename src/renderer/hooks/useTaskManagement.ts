@@ -78,9 +78,10 @@ interface UseTaskManagementOptions {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setSelectedProject: React.Dispatch<React.SetStateAction<Project | null>>;
   setShowHomeView: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowSkillsView: React.Dispatch<React.SetStateAction<boolean>>;
   setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
+  openTaskModal: () => void;
   toast: (opts: any) => void;
   activateProjectView: (project: Project) => void;
 }
@@ -92,9 +93,10 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     setProjects,
     setSelectedProject,
     setShowHomeView,
+    setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
-    setShowTaskModal,
+    openTaskModal,
     toast,
     activateProjectView,
   } = options;
@@ -123,6 +125,17 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
   );
 
   const handleSelectTask = (task: Task) => {
+    const taskProject = projects.find((project) => project.id === task.projectId);
+    const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
+    if (isProjectSwitch) {
+      setShowEditorMode(false);
+    }
+    if (taskProject && selectedProject?.id !== taskProject.id) {
+      setSelectedProject(taskProject);
+    }
+    setShowHomeView(false);
+    setShowSkillsView(false);
+    setShowKanban(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(task.projectId, task.id);
@@ -142,6 +155,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
     setSelectedProject(project);
     setShowHomeView(false);
+    setShowSkillsView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -161,6 +175,7 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
     }
     setSelectedProject(project);
     setShowHomeView(false);
+    setShowSkillsView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -169,17 +184,17 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
   const handleNewTask = useCallback(() => {
     // Only open modal if a project is selected
     if (selectedProject) {
-      setShowTaskModal(true);
+      openTaskModal();
     }
-  }, [selectedProject]);
+  }, [selectedProject, openTaskModal]);
 
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
-      setShowTaskModal(true);
+      openTaskModal();
     },
-    [activateProjectView, projects]
+    [activateProjectView, projects, openTaskModal]
   );
 
   const removeTaskFromState = (projectId: string, taskId: string, wasActive: boolean) => {
