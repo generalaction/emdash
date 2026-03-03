@@ -508,6 +508,20 @@ function resolveCommandPath(command: string): string | null {
   const trimmed = command.trim();
   if (!trimmed) return null;
 
+  const expandWindowsEnvVars = (input: string): string => {
+    if (process.platform !== 'win32') return input;
+    return input.replace(/%([^%]+)%/g, (_match, key: string) => {
+      const candidates = [key, key.toUpperCase(), key.toLowerCase()];
+      for (const candidate of candidates) {
+        const value = process.env[candidate];
+        if (typeof value === 'string' && value.length > 0) {
+          return value;
+        }
+      }
+      return '';
+    });
+  };
+
   const pathLike =
     trimmed.includes('/') ||
     trimmed.includes('\\') ||
@@ -553,13 +567,17 @@ function resolveCommandPath(command: string): string | null {
   };
 
   if (pathLike) {
-    return resolveFromCandidates([trimmed], true);
+    return resolveFromCandidates([expandWindowsEnvVars(trimmed)], true);
   }
 
   const pathEnv = process.env.PATH;
   if (!pathEnv) return null;
 
-  const pathDirs = pathEnv.split(path.delimiter).filter(Boolean);
+  const pathDirs = pathEnv
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((dir) => expandWindowsEnvVars(dir))
+    .filter(Boolean);
   const pathCandidates = pathDirs.map((dir) => path.join(dir, trimmed));
   return resolveFromCandidates(pathCandidates, false);
 }
@@ -597,6 +615,64 @@ function resolveCommandPathCached(command: string): string | null {
   const resolved = resolveCommandPath(command);
   resolvedCommandPathCache.set(command, resolved);
   return resolved;
+}
+
+function resolveWindowsCommandViaWhere(command: string): string | null {
+  if (process.platform !== 'win32') return null;
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { execSync } = require('child_process');
+    const output = execSync(`where ${trimmed}`, { encoding: 'utf8' });
+    const first = output
+      .split(/\r?\n/)
+      .map((line: string) => line.trim())
+      .find(Boolean);
+    return first || null;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveSshCommand(): string {
+  if (process.platform !== 'win32') return 'ssh';
+
+  const cachedPath = resolveCommandPathCached('ssh');
+  if (cachedPath) return cachedPath;
+
+  const wherePath = resolveWindowsCommandViaWhere('ssh');
+  if (wherePath) return wherePath;
+
+  const candidates: string[] = [];
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  candidates.push(path.join(systemRoot, 'System32', 'OpenSSH', 'ssh.exe'));
+  candidates.push(path.join(systemRoot, 'Sysnative', 'OpenSSH', 'ssh.exe'));
+  candidates.push(path.join(systemRoot, 'SysWOW64', 'OpenSSH', 'ssh.exe'));
+
+  const programFiles = process.env.ProgramFiles;
+  if (programFiles) {
+    candidates.push(path.join(programFiles, 'Git', 'usr', 'bin', 'ssh.exe'));
+  }
+  const programFilesX86 = process.env['ProgramFiles(x86)'];
+  if (programFilesX86) {
+    candidates.push(path.join(programFilesX86, 'Git', 'usr', 'bin', 'ssh.exe'));
+  }
+  const localAppData = process.env.LOCALAPPDATA || process.env.LocalAppData;
+  if (localAppData) {
+    candidates.push(path.join(localAppData, 'Programs', 'Git', 'usr', 'bin', 'ssh.exe'));
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    'SSH executable not found on Windows. Install OpenSSH Client or add ssh.exe to PATH.'
+  );
 }
 
 function needsShellResolution(command: string): boolean {
@@ -679,7 +755,9 @@ export function startSshPty(options: {
     args.push(remoteInitCommand);
   }
 
-  const proc = pty.spawn('ssh', args, {
+  const sshCommand = resolveSshCommand();
+  const spawnSpec = resolveWindowsPtySpawn(sshCommand, args);
+  const proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
     name: 'xterm-256color',
     cols,
     rows,

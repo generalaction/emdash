@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import os from 'os';
+import path from 'path';
 
 const providerStatusGetMock = vi.fn();
 const getProviderCustomConfigMock = vi.fn();
@@ -154,6 +157,49 @@ describe('ptyManager provider command resolution', () => {
         'C:\\Program Files\\Codex\\codex.cmd',
       ]);
     } finally {
+      if (originalPlatformDescriptor) {
+        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+      }
+    }
+  });
+});
+
+describe('ptyManager SSH spawn resolution', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+  });
+
+  it('resolves ssh from SystemRoot OpenSSH path on Windows when PATH lookup fails', async () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+    });
+
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'emdash-ssh-test-'));
+    const fakeWindowsRoot = path.join(tempDir, 'Windows');
+    const fakeSshPath = path.join(fakeWindowsRoot, 'System32', 'OpenSSH', 'ssh.exe');
+    mkdirSync(path.dirname(fakeSshPath), { recursive: true });
+    writeFileSync(fakeSshPath, '');
+
+    process.env.PATH = '';
+    process.env.Path = '';
+    process.env.SystemRoot = fakeWindowsRoot;
+    process.env.WINDIR = fakeWindowsRoot;
+    process.env.ProgramFiles = '';
+    process.env['ProgramFiles(x86)'] = '';
+    process.env.LOCALAPPDATA = '';
+
+    try {
+      const { resolveSshCommand } = await import('../../main/services/ptyManager');
+      const resolved = resolveSshCommand();
+      expect(resolved).toBe(fakeSshPath);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
       if (originalPlatformDescriptor) {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
       }
