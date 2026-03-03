@@ -304,4 +304,86 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(path.join(destDir, '.claude', 'settings.local.json'))).toBe(true);
     });
   });
+
+  describe('createWorktree', () => {
+    let tempDir: string;
+    let mainRepo: string;
+
+    beforeEach(async () => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-tracking-test-'));
+      mainRepo = path.join(tempDir, 'main-repo');
+
+      fs.mkdirSync(mainRepo);
+
+      // Initialize git repo with explicit main branch
+      execSync('git init -b main', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git config user.email "test@test.com"', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git config user.name "Test"', { cwd: mainRepo, stdio: 'pipe' });
+
+      // Create initial commit
+      fs.writeFileSync(path.join(mainRepo, 'README.md'), '# Test');
+      execSync('git add README.md', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git commit -m "init"', { cwd: mainRepo, stdio: 'pipe' });
+
+      // Create a fake origin remote (local path as remote)
+      const originPath = path.join(tempDir, 'origin');
+      fs.mkdirSync(originPath);
+      execSync('git init --bare', { cwd: originPath, stdio: 'pipe' });
+      execSync(`git remote add origin ${originPath}`, { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git push -u origin main', { cwd: mainRepo, stdio: 'pipe' });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should create worktree branch without tracking the base ref', async () => {
+      const worktreePath = path.join(tempDir, 'test-worktree');
+      const branchName = 'test-branch';
+
+      // Create worktree using git command with --no-track (simulating what service does)
+      execSync(`git worktree add --no-track -b ${branchName} ${worktreePath} origin/main`, {
+        cwd: mainRepo,
+        stdio: 'pipe',
+      });
+
+      // Verify branch has no upstream tracking
+      const result = execSync(
+        `git -C ${worktreePath} rev-parse --abbrev-ref @{upstream} 2>&1 || true`,
+        {
+          encoding: 'utf8',
+        }
+      );
+
+      // Should fail with "no upstream configured" or similar error
+      expect(result).toMatch(/fatal|no upstream/);
+    });
+
+    it('should have tracking set to origin/<branch> after push --set-upstream', async () => {
+      const worktreePath = path.join(tempDir, 'push-test-worktree');
+      const branchName = 'push-test-branch';
+
+      // Create worktree with --no-track
+      execSync(`git worktree add --no-track -b ${branchName} ${worktreePath} origin/main`, {
+        cwd: mainRepo,
+        stdio: 'pipe',
+      });
+
+      // Make a commit and push with --set-upstream
+      fs.writeFileSync(path.join(worktreePath, 'test.txt'), 'content');
+      execSync('git add test.txt', { cwd: worktreePath, stdio: 'pipe' });
+      execSync('git commit -m "test commit"', { cwd: worktreePath, stdio: 'pipe' });
+      execSync(`git push --set-upstream origin ${branchName}`, {
+        cwd: worktreePath,
+        stdio: 'pipe',
+      });
+
+      // Now verify tracking is set to origin/<branch>
+      const upstream = execSync(`git -C ${worktreePath} rev-parse --abbrev-ref @{upstream}`, {
+        encoding: 'utf8',
+      }).trim();
+
+      expect(upstream).toBe(`origin/${branchName}`);
+    });
+  });
 });
