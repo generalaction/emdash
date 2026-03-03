@@ -112,6 +112,7 @@ export interface AppSettings {
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  onboardingSeen?: boolean;
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -554,6 +555,11 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     out.hiddenOpenInApps = [...new Set(validated)];
   } else {
     out.hiddenOpenInApps = [];
+  }
+
+  // Onboarding
+  if ((input as any)?.onboardingSeen === true) {
+    out.onboardingSeen = true;
   }
 
   return out;
