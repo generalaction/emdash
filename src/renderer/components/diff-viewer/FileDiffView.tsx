@@ -110,9 +110,9 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         const diffLines: DiffLine[] = diffRes.diff.lines;
         const converted = convertDiffLinesToMonacoFormat(diffLines);
         let originalContent = diffRes.diff.originalContent ?? converted.original;
-        let modifiedContent = converted.modified;
+        let modifiedContent = diffRes.diff.modifiedContent ?? converted.modified;
 
-        let fileExistsOnDisk = false;
+        let fileExistsOnDisk = diffRes.diff.modifiedContent !== undefined;
         try {
           const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
