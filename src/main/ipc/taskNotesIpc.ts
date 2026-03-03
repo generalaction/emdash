@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
+import { terminalSnapshotService } from '../services/TerminalSnapshotService';
+import { generateSummary } from '../services/SummaryGenerationService';
+import { stripAnsi, extractLastLines } from '../utils/ansiStrip';
+import { getAppSettings } from '../settings';
 
 export function registerTaskNotesIpc() {
   ipcMain.handle(
@@ -35,4 +39,37 @@ export function registerTaskNotesIpc() {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  ipcMain.handle(
+    'taskNotes:generateSummary',
+    async (_, args: { taskId: string; ptyId: string }) => {
+      try {
+        const snapshot = await terminalSnapshotService.getSnapshot(args.ptyId);
+        if (!snapshot?.data) {
+          return { success: false, error: 'No terminal output to summarize' };
+        }
+
+        const settings = getAppSettings();
+        const maxLines = settings.summary?.terminalLines ?? 500;
+        const plainText = extractLastLines(stripAnsi(snapshot.data), maxLines);
+
+        if (!plainText.trim()) {
+          return { success: false, error: 'No terminal output to summarize' };
+        }
+
+        const conversations = await databaseService.getConversations(args.taskId);
+        const mainConv = conversations.find((c) => c.isMain) ?? conversations[0];
+        const providerId = mainConv?.provider ?? 'claude';
+
+        const summary = await generateSummary(plainText, providerId);
+
+        await databaseService.upsertTaskNote(args.taskId, 'summary', summary);
+
+        return { success: true, summary };
+      } catch (error) {
+        log.error('Failed to generate summary:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
 }
