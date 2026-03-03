@@ -864,6 +864,29 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // GitLab
+      gitlabSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+        projectPathOverride?: string;
+      }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      gitlabClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      gitlabCheckConnection?: () => Promise<{
+        success: boolean;
+        username?: string;
+        instanceUrl?: string;
+        projectPathOverride?: string;
+        error?: string;
+      }>;
+      gitlabInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      gitlabSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];

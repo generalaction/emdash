@@ -37,8 +37,8 @@ export class GitLabService {
     try {
       siteUrl = siteUrl.trim();
       token = token.trim();
-      if(siteUrl.length == 0 || token.length == 0){
-        return {success: false, error: 'Instance URL and token are required'}
+      if (siteUrl.length == 0 || token.length == 0) {
+        return { success: false, error: 'Instance URL and token are required' };
       }
       const regex = /^https?:\/\/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/?$/;
       if (!regex.test(siteUrl)) {

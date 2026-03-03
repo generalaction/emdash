@@ -21,6 +21,7 @@ import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
+import { type GitLabIssueSummary } from '../types/gitlab';
 import {
   generateFriendlyTaskName,
   normalizeTaskName,
@@ -122,6 +123,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [selectedLinearIssue, setSelectedLinearIssue] = useState<LinearIssueSummary | null>(null);
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
+  const [selectedGitlabIssue, setSelectedGitlabIssue] = useState<GitLabIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
 
@@ -184,6 +186,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       setSelectedJiraIssue(null);
+      setSelectedGitlabIssue(null);
       setInitialPrompt('');
     }
   }, [hasInitialPromptSupport]);
@@ -205,6 +208,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     setSelectedLinearIssue(null);
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
+    setSelectedGitlabIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
     userHasTypedRef.current = false;
@@ -445,6 +449,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
           onJiraIssueChange={setSelectedJiraIssue}
           isJiraConnected={integrations.isJiraConnected}
           onJiraConnect={integrations.handleJiraConnect}
+          selectedGitlabIssue={selectedGitlabIssue}
+          onGitlabIssueChange={setSelectedGitlabIssue}
+          isGitlabConnected={integrations.isGitlabConnected}
+          onGitlabConnect={integrations.handleGitlabConnect}
         />
 
         <DialogFooter>
