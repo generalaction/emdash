@@ -357,6 +357,13 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
 
         const sessionIds = [...mainSessionIds, ...chatSessionIds];
 
+        // Also kill any lingering tmux sessions (best-effort, fire-and-forget)
+        for (const sessionId of sessionIds) {
+          try {
+            window.electronAPI.ptyKillTmux?.(sessionId);
+          } catch {}
+        }
+
         await Promise.allSettled(
           sessionIds.map(async (sessionId) => {
             try {
@@ -667,6 +674,13 @@ export function useTaskManagement(options: UseTaskManagementOptions) {
           } catch {}
 
           const sessionIds = [...mainSessionIds, ...chatSessionIds];
+
+          // Also kill any lingering tmux sessions (best-effort, fire-and-forget)
+          for (const sessionId of sessionIds) {
+            try {
+              window.electronAPI.ptyKillTmux?.(sessionId);
+            } catch {}
+          }
 
           await Promise.allSettled(
             sessionIds.map(async (sessionId) => {

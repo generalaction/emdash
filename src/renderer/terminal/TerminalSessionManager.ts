@@ -903,9 +903,17 @@ export class TerminalSessionManager {
     // Connect to PTY - pass resume flag if we have a previous session
     const result = await this.connectPty(hasSnapshot);
 
+    // When tmux is active, disable snapshots — tmux preserves terminal state natively.
+    if (result?.tmux) {
+      this.options.disableSnapshots = true;
+      this.stopSnapshotTimer();
+    }
+
     // Decide whether to restore snapshot based on PTY result
     try {
-      if (result?.reused) {
+      if (result?.tmux) {
+        // Tmux session: skip snapshot — tmux restores its own scrollback on reattach
+      } else if (result?.reused) {
         // Hot reload - PTY still running, restore snapshot for visual continuity
         if (snapshot) {
           this.applySnapshot(snapshot);
@@ -957,7 +965,7 @@ export class TerminalSessionManager {
 
   private async connectPty(
     hasExistingSession: boolean = false
-  ): Promise<{ ok: boolean; reused?: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
     this.ptyConnectStartTime = performance.now();
     const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
       this.options;
