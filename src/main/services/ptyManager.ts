@@ -1092,14 +1092,13 @@ export async function startPty(options: {
             args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
           }
         } else {
-          args.push(
-            baseLower === 'zsh' ||
-              baseLower === 'bash' ||
-              baseLower === 'fish' ||
-              baseLower === 'sh'
-              ? '-il'
-              : '-i'
-          );
+          if (baseLower === 'fish') {
+            args.push('-i', '-l');
+          } else {
+            args.push(
+              baseLower === 'zsh' || baseLower === 'bash' || baseLower === 'sh' ? '-il' : '-i'
+            );
+          }
         }
       }
     } catch {}
