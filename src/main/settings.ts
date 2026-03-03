@@ -112,6 +112,11 @@ export interface AppSettings {
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  summary?: {
+    model?: string;
+    provider?: ProviderId;
+    terminalLines?: number;
+  };
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
