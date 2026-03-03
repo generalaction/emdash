@@ -865,9 +865,7 @@ const ChatInterface: React.FC<Props> = ({
   // Plan mode overlay for Claude
   const planMode = usePlanMode({
     taskId: task.id,
-    taskPath: task.path ?? null,
     providerId: agent,
-    terminalId,
     enabled: agent === 'claude' && !projectRemoteConnectionId,
   });
 

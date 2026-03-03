@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectPlanModeSignal } from '../../renderer/lib/planModeDetector';
+import { detectPlanModeSignal, extractPlanFileName } from '../../renderer/lib/planModeDetector';
 
 describe('detectPlanModeSignal', () => {
   it('detects real Claude Code plan presentation output', () => {
@@ -10,21 +10,31 @@ describe('detectPlanModeSignal', () => {
   });
 
   it('detects plan file path reference', () => {
-    expect(detectPlanModeSignal('Plan saved to .claude/plans/my-plan.md')).toBe('plan_ready');
+    expect(detectPlanModeSignal('Plan saved to: ~/.claude/plans/my-plan.md')).toBe('plan_ready');
     expect(detectPlanModeSignal('Writing plan to .claude/plans/compressed-frolicking-owl.md')).toBe(
       'plan_ready'
     );
   });
 
-  it('detects approval prompts', () => {
+  it('detects plan-specific approval prompts', () => {
     expect(detectPlanModeSignal('Do you want to proceed with this plan?')).toBe('plan_ready');
-    expect(detectPlanModeSignal('Do you want to execute the implementation?')).toBe('plan_ready');
     expect(detectPlanModeSignal('Do you want to approve this plan?')).toBe('plan_ready');
-    expect(detectPlanModeSignal('Do you want to implement this?')).toBe('plan_ready');
+    expect(detectPlanModeSignal('Do you want to proceed with plan?')).toBe('plan_ready');
   });
 
-  it('detects ExitPlanMode reference', () => {
+  it('does not match generic prompts without plan context', () => {
+    expect(detectPlanModeSignal('Do you want to proceed with the install?')).toBe('none');
+    expect(detectPlanModeSignal('Do you want to execute the script?')).toBe('none');
+    expect(detectPlanModeSignal('Do you want to implement this?')).toBe('none');
+  });
+
+  it('does not match ready to code in non-standalone contexts', () => {
+    expect(detectPlanModeSignal('A tutorial asking: are you ready to code? Great!')).toBe('none');
+  });
+
+  it('detects ExitPlanMode reference (case-sensitive)', () => {
     expect(detectPlanModeSignal('Calling ExitPlanMode to present the plan')).toBe('plan_ready');
+    expect(detectPlanModeSignal('exitplanmode in lowercase')).toBe('none');
   });
 
   it('handles ANSI escape codes', () => {
@@ -69,5 +79,23 @@ describe('detectPlanModeSignal', () => {
   it('strips OSC escape sequences', () => {
     const osc = '\x1b]0;Claude Code\x07Plan rejected';
     expect(detectPlanModeSignal(osc)).toBe('plan_rejected');
+  });
+});
+
+describe('extractPlanFileName', () => {
+  it('extracts filename from plan saved output', () => {
+    expect(extractPlanFileName('Plan saved to: ~/.claude/plans/jolly-greeting-dove.md')).toBe(
+      'jolly-greeting-dove.md'
+    );
+  });
+
+  it('extracts filename with ANSI codes', () => {
+    expect(extractPlanFileName('\x1b[1m.claude/plans/test-plan.md\x1b[0m')).toBe('test-plan.md');
+  });
+
+  it('returns null for unrelated output', () => {
+    expect(extractPlanFileName('Hello world')).toBeNull();
+    expect(extractPlanFileName('')).toBeNull();
+    expect(extractPlanFileName(null as any)).toBeNull();
   });
 });

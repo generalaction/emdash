@@ -536,14 +536,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Plan file watcher
-  planWatchStart: (taskPath: string) => ipcRenderer.invoke('plan:watch-start', taskPath),
-  planWatchStop: (taskPath: string) => ipcRenderer.invoke('plan:watch-stop', taskPath),
-  planReadFile: (args: { taskPath: string; fileName: string }) =>
-    ipcRenderer.invoke('plan:read-file', args),
-  planListFiles: (taskPath: string) => ipcRenderer.invoke('plan:list-files', taskPath),
-  onPlanFileChanged: (
-    listener: (data: { taskPath: string; fileName: string; eventType: string }) => void
-  ) => {
+  planWatchStart: () => ipcRenderer.invoke('plan:watch-start'),
+  planWatchStop: () => ipcRenderer.invoke('plan:watch-stop'),
+  planReadFile: (args: { fileName: string }) => ipcRenderer.invoke('plan:read-file', args),
+  planListFiles: () => ipcRenderer.invoke('plan:list-files'),
+  onPlanFileChanged: (listener: (data: { fileName: string; eventType: string }) => void) => {
     const channel = 'plan:file-changed';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
     ipcRenderer.on(channel, wrapped);

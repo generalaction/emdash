@@ -1,19 +1,22 @@
 import { ipcMain, BrowserWindow, app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
-const PLANS_DIR = '.claude/plans';
 const DEBOUNCE_MS = 300;
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 150; // 5 minutes
+const MAX_POLL_ATTEMPTS = 150;
 
-interface WatcherEntry {
+const globalPlansDir = path.join(os.homedir(), '.claude', 'plans');
+
+interface WatcherState {
   watcher: fs.FSWatcher | null;
   pollTimer: ReturnType<typeof setInterval> | null;
   debounceTimer: ReturnType<typeof setTimeout> | null;
+  refCount: number;
 }
 
-const watchers = new Map<string, WatcherEntry>();
+let watcherState: WatcherState | null = null;
 
 function broadcast(channel: string, payload: any) {
   try {
@@ -25,134 +28,128 @@ function broadcast(channel: string, payload: any) {
   } catch {}
 }
 
-function getPlansDir(taskPath: string): string {
-  return path.join(taskPath, PLANS_DIR);
-}
-
-function isInsidePlansDir(filePath: string, taskPath: string): boolean {
-  const plansDir = path.resolve(getPlansDir(taskPath));
+function isInsidePlansDir(filePath: string): boolean {
   const resolved = path.resolve(filePath);
-  return resolved.startsWith(plansDir + path.sep) || resolved === plansDir;
+  const resolvedPlansDir = path.resolve(globalPlansDir);
+  return resolved.startsWith(resolvedPlansDir + path.sep) || resolved === resolvedPlansDir;
 }
 
-function startWatcher(taskPath: string): void {
-  const existing = watchers.get(taskPath);
-  if (existing?.watcher || existing?.pollTimer) return;
+function startWatcher(): void {
+  if (watcherState) {
+    watcherState.refCount++;
+    return;
+  }
 
-  const plansDir = getPlansDir(taskPath);
+  watcherState = { watcher: null, pollTimer: null, debounceTimer: null, refCount: 1 };
 
   const attachFsWatch = () => {
+    if (!watcherState) return;
     try {
-      const watcher = fs.watch(plansDir, (eventType, filename) => {
+      const watcher = fs.watch(globalPlansDir, (eventType, filename) => {
         if (!filename || !filename.endsWith('.md')) return;
+        if (!watcherState) return;
 
-        const entry = watchers.get(taskPath);
-        if (!entry) return;
-
-        if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
-        entry.debounceTimer = setTimeout(() => {
-          broadcast('plan:file-changed', {
-            taskPath,
-            fileName: filename,
-            eventType,
-          });
+        if (watcherState.debounceTimer) clearTimeout(watcherState.debounceTimer);
+        watcherState.debounceTimer = setTimeout(() => {
+          broadcast('plan:file-changed', { fileName: filename, eventType });
         }, DEBOUNCE_MS);
       });
 
-      const entry = watchers.get(taskPath);
-      if (entry) {
-        entry.watcher = watcher;
-        if (entry.pollTimer) {
-          clearInterval(entry.pollTimer);
-          entry.pollTimer = null;
-        }
+      watcherState.watcher = watcher;
+      if (watcherState.pollTimer) {
+        clearInterval(watcherState.pollTimer);
+        watcherState.pollTimer = null;
       }
 
       watcher.on('error', () => {
-        stopWatcher(taskPath);
+        stopWatcherInternal();
       });
     } catch {}
   };
 
-  if (fs.existsSync(plansDir)) {
-    watchers.set(taskPath, { watcher: null, pollTimer: null, debounceTimer: null });
+  if (fs.existsSync(globalPlansDir)) {
     attachFsWatch();
   } else {
     let attempts = 0;
-    const pollTimer = setInterval(() => {
+    watcherState.pollTimer = setInterval(() => {
       attempts++;
       if (attempts > MAX_POLL_ATTEMPTS) {
-        clearInterval(pollTimer);
-        const entry = watchers.get(taskPath);
-        if (entry) entry.pollTimer = null;
+        if (watcherState?.pollTimer) {
+          clearInterval(watcherState.pollTimer);
+          watcherState.pollTimer = null;
+        }
         return;
       }
-      if (fs.existsSync(plansDir)) {
-        clearInterval(pollTimer);
-        const entry = watchers.get(taskPath);
-        if (entry) entry.pollTimer = null;
+      if (fs.existsSync(globalPlansDir)) {
+        if (watcherState?.pollTimer) {
+          clearInterval(watcherState.pollTimer);
+          watcherState.pollTimer = null;
+        }
         attachFsWatch();
       }
     }, POLL_INTERVAL_MS);
-
-    watchers.set(taskPath, { watcher: null, pollTimer, debounceTimer: null });
   }
 }
 
-function stopWatcher(taskPath: string): void {
-  const entry = watchers.get(taskPath);
-  if (!entry) return;
-
-  if (entry.watcher) {
+function stopWatcherInternal(): void {
+  if (!watcherState) return;
+  if (watcherState.watcher) {
     try {
-      entry.watcher.close();
+      watcherState.watcher.close();
     } catch {}
   }
-  if (entry.pollTimer) clearInterval(entry.pollTimer);
-  if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
-  watchers.delete(taskPath);
+  if (watcherState.pollTimer) clearInterval(watcherState.pollTimer);
+  if (watcherState.debounceTimer) clearTimeout(watcherState.debounceTimer);
+  watcherState = null;
+}
+
+function stopWatcher(): void {
+  if (!watcherState) return;
+  watcherState.refCount--;
+  if (watcherState.refCount <= 0) {
+    stopWatcherInternal();
+  }
 }
 
 export function registerPlanWatcherIpc(): void {
-  ipcMain.handle('plan:watch-start', async (_e, taskPath: string) => {
+  ipcMain.handle('plan:watch-start', async () => {
     try {
-      startWatcher(taskPath);
+      startWatcher();
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
     }
   });
 
-  ipcMain.handle('plan:watch-stop', async (_e, taskPath: string) => {
-    stopWatcher(taskPath);
+  ipcMain.handle('plan:watch-stop', async () => {
+    stopWatcher();
     return { success: true };
   });
 
-  ipcMain.handle('plan:read-file', async (_e, args: { taskPath: string; fileName: string }) => {
+  ipcMain.handle('plan:read-file', async (_e, args: { fileName: string }) => {
     try {
-      const filePath = path.join(getPlansDir(args.taskPath), args.fileName);
-      if (!isInsidePlansDir(filePath, args.taskPath)) {
+      const filePath = path.join(globalPlansDir, args.fileName);
+      if (!isInsidePlansDir(filePath)) {
         return { success: false, error: 'Path traversal denied' };
       }
-      const content = fs.readFileSync(filePath, 'utf8');
+      const content = await fs.promises.readFile(filePath, 'utf8');
       return { success: true, content };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
     }
   });
 
-  ipcMain.handle('plan:list-files', async (_e, taskPath: string) => {
+  ipcMain.handle('plan:list-files', async () => {
     try {
-      const plansDir = getPlansDir(taskPath);
-      if (!fs.existsSync(plansDir)) {
+      if (!fs.existsSync(globalPlansDir)) {
         return { success: true, files: [] };
       }
-      const entries = fs.readdirSync(plansDir);
+      const entries = fs.readdirSync(globalPlansDir);
       const files = entries
         .filter((name) => name.endsWith('.md'))
         .map((name) => {
           try {
-            const st = fs.statSync(path.join(plansDir, name));
+            const st = fs.statSync(path.join(globalPlansDir, name));
             return { name, mtime: st.mtimeMs };
           } catch {
             return { name, mtime: 0 };
@@ -166,8 +163,6 @@ export function registerPlanWatcherIpc(): void {
   });
 
   app.on('will-quit', () => {
-    for (const taskPath of watchers.keys()) {
-      stopWatcher(taskPath);
-    }
+    stopWatcherInternal();
   });
 }

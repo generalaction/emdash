@@ -27,19 +27,18 @@ declare global {
       ) => () => void;
 
       // Plan file watcher
-      planWatchStart: (taskPath: string) => Promise<{ success: boolean; error?: string }>;
-      planWatchStop: (taskPath: string) => Promise<{ success: boolean }>;
+      planWatchStart: () => Promise<{ success: boolean; error?: string }>;
+      planWatchStop: () => Promise<{ success: boolean }>;
       planReadFile: (args: {
-        taskPath: string;
         fileName: string;
       }) => Promise<{ success: boolean; content?: string; error?: string }>;
-      planListFiles: (taskPath: string) => Promise<{
+      planListFiles: () => Promise<{
         success: boolean;
         files?: Array<{ name: string; mtime: number }>;
         error?: string;
       }>;
       onPlanFileChanged: (
-        listener: (data: { taskPath: string; fileName: string; eventType: string }) => void
+        listener: (data: { fileName: string; eventType: string }) => void
       ) => () => void;
     };
   }

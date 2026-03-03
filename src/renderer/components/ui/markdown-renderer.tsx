@@ -113,25 +113,29 @@ function useFullComponents(isDark: boolean, rootPath?: string, fileDir?: string)
       code: ({ children, className }: any) => {
         const match = /language-(\w+)/.exec(className || '');
         const language = match ? match[1] : '';
-        const isBlock = className?.includes('language-');
+        const content = String(children).replace(/\n$/, '');
+        const isBlock = className?.includes('language-') || content.includes('\n');
 
         if (isBlock) {
           return (
             <SyntaxHighlighter
               style={isDark ? oneDark : oneLight}
-              language={language}
+              language={language || 'text'}
               PreTag="div"
-              className="!my-0 !rounded-md !text-xs"
+              className="!my-0 !rounded-none !text-xs"
+              customStyle={{ margin: 0, borderRadius: 0 }}
             >
-              {String(children).replace(/\n$/, '')}
+              {content}
             </SyntaxHighlighter>
           );
         }
 
-        return <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{children}</code>;
+        return <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{children}</code>;
       },
       pre: ({ children }: any) => (
-        <pre className="mb-3 overflow-x-auto rounded-md border border-border">{children}</pre>
+        <pre className="mb-3 overflow-hidden rounded-lg border border-border bg-[#282c34] dark:bg-[#282c34]">
+          {children}
+        </pre>
       ),
       a: ({ href, children }: any) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
