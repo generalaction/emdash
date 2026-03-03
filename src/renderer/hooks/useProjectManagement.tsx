@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { pickDefaultBranch } from '../components/BranchSelect';
 import { saveActiveIds } from '../constants/layout';
 import {
@@ -45,6 +45,10 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  const activeProjectIdRef = useRef<string | null>(null);
+  activeProjectIdRef.current = selectedProject?.id || null;
+
   // Always start on home view (e.g. after app restart)
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
@@ -499,6 +503,8 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
   const refreshBranches = useCallback(async () => {
     if (!selectedProject) return;
 
+    const originProjectId = selectedProject.id;
+
     setIsLoadingBranches(true);
     try {
       let options: { value: string; label: string }[];
@@ -536,6 +542,10 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         }
       }
 
+      if (activeProjectIdRef.current !== originProjectId) {
+        return;
+      }
+
       // Only update state if we found branches
       if (options.length > 0) {
         setProjectBranchOptions(options);
@@ -546,8 +556,10 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     } catch (error) {
       console.error('Failed to load branches:', error);
     } finally {
-      setIsLoadingBranches(false);
-      setHasResolvedBranchOptions(true);
+      if (activeProjectIdRef.current === originProjectId) {
+        setIsLoadingBranches(false);
+        setHasResolvedBranchOptions(true);
+      }
     }
   }, [selectedProject]);
 
