@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 // Mock electron app before importing anything that depends on it
 vi.mock('electron', () => ({
@@ -329,7 +329,10 @@ describe('WorktreeService', () => {
       const originPath = path.join(tempDir, 'origin');
       fs.mkdirSync(originPath);
       execSync('git init --bare', { cwd: originPath, stdio: 'pipe' });
-      execSync(`git remote add origin ${originPath}`, { cwd: mainRepo, stdio: 'pipe' });
+      execFileSync('git', ['remote', 'add', 'origin', originPath], {
+        cwd: mainRepo,
+        stdio: 'pipe',
+      });
       execSync('git push -u origin main', { cwd: mainRepo, stdio: 'pipe' });
     });
 
@@ -342,18 +345,24 @@ describe('WorktreeService', () => {
       const branchName = 'test-branch';
 
       // Create worktree using git command with --no-track (simulating what service does)
-      execSync(`git worktree add --no-track -b ${branchName} ${worktreePath} origin/main`, {
-        cwd: mainRepo,
-        stdio: 'pipe',
-      });
+      execFileSync(
+        'git',
+        ['worktree', 'add', '--no-track', '-b', branchName, worktreePath, 'origin/main'],
+        { cwd: mainRepo, stdio: 'pipe' }
+      );
 
       // Verify branch has no upstream tracking
-      const result = execSync(
-        `git -C ${worktreePath} rev-parse --abbrev-ref @{upstream} 2>&1 || true`,
-        {
+      // Use try/catch instead of shell redirection for Windows compatibility
+      let result = '';
+      try {
+        result = execFileSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+          cwd: worktreePath,
           encoding: 'utf8',
-        }
-      );
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch (err: any) {
+        result = String(err.stderr || err.stdout || err.message);
+      }
 
       // Should fail with "no upstream configured" or similar error
       expect(result).toMatch(/fatal|no upstream/);
@@ -364,22 +373,24 @@ describe('WorktreeService', () => {
       const branchName = 'push-test-branch';
 
       // Create worktree with --no-track
-      execSync(`git worktree add --no-track -b ${branchName} ${worktreePath} origin/main`, {
-        cwd: mainRepo,
-        stdio: 'pipe',
-      });
+      execFileSync(
+        'git',
+        ['worktree', 'add', '--no-track', '-b', branchName, worktreePath, 'origin/main'],
+        { cwd: mainRepo, stdio: 'pipe' }
+      );
 
       // Make a commit and push with --set-upstream
       fs.writeFileSync(path.join(worktreePath, 'test.txt'), 'content');
       execSync('git add test.txt', { cwd: worktreePath, stdio: 'pipe' });
       execSync('git commit -m "test commit"', { cwd: worktreePath, stdio: 'pipe' });
-      execSync(`git push --set-upstream origin ${branchName}`, {
+      execFileSync('git', ['push', '--set-upstream', 'origin', branchName], {
         cwd: worktreePath,
         stdio: 'pipe',
       });
 
       // Now verify tracking is set to origin/<branch>
-      const upstream = execSync(`git -C ${worktreePath} rev-parse --abbrev-ref @{upstream}`, {
+      const upstream = execFileSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+        cwd: worktreePath,
         encoding: 'utf8',
       }).trim();
 
