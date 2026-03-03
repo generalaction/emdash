@@ -5,34 +5,25 @@ import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
-import SettingsPage from './SettingsPage';
+import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
-
-type SettingsPageTab =
-  | 'general'
-  | 'clis-models'
-  | 'integrations'
-  | 'repository'
-  | 'interface'
-  | 'docs';
+import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
 
 interface MainContentAreaProps {
   showSettingsPage: boolean;
   settingsPageInitialTab?: SettingsPageTab;
   handleCloseSettingsPage?: () => void;
-  projectRemoteConnectionId?: string | null;
-  projectRemotePath?: string | null;
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
   showSettingsPage,
   settingsPageInitialTab,
   handleCloseSettingsPage,
-  projectRemoteConnectionId,
-  projectRemotePath,
 }) => {
+  const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
+    useProjectRemoteInfo();
   const {
     selectedProject,
     showHomeView,

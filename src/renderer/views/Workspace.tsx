@@ -3,7 +3,7 @@ import BrowserPane from '@/components/BrowserPane';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
-import LeftSidebar from '@/components/sidebar/LeftSidebar';
+import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
 import RightSidebar from '@/components/RightSidebar';
 import Titlebar from '@/components/titlebar/Titlebar';
@@ -25,8 +25,8 @@ import { KeyboardSettingsProvider } from '@/contexts/KeyboardSettingsContext';
 import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
-import { useAppContext } from '@/contexts/AppContextProvider';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
+import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
@@ -36,7 +36,7 @@ import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
 import BrowserProvider from '@/providers/BrowserProvider';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
+import { SettingsPageTab } from '@/components/SettingsPage';
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 type ResizeHandleId = 'left' | 'right';
 
@@ -84,30 +84,16 @@ export function Workspace() {
     })();
   }, []);
 
-  const selectedProjectRef = useRef<{ id: string } | null>(null);
-
   // --- View-mode / UI visibility state (inlined from former useModalState) ---
   const [showSettingsPage, setShowSettingsPage] = useState(false);
-  const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<
-    'general' | 'clis-models' | 'integrations' | 'repository' | 'interface' | 'docs'
-  >('general');
+  const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<SettingsPageTab>('general');
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
-  const openSettingsPage = useCallback(
-    (
-      tab:
-        | 'general'
-        | 'clis-models'
-        | 'integrations'
-        | 'repository'
-        | 'interface'
-        | 'docs' = 'general'
-    ) => {
-      setSettingsPageInitialTab(tab);
-      setShowSettingsPage(true);
-    },
-    []
-  );
+  const openSettingsPage = useCallback((tab: SettingsPageTab = 'general') => {
+    setSettingsPageInitialTab(tab);
+    setShowSettingsPage(true);
+  }, []);
+
   const handleCloseSettingsPage = useCallback(() => setShowSettingsPage(false), []);
   const handleToggleCommandPalette = useCallback(() => setShowCommandPalette((prev) => !prev), []);
   const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
@@ -177,27 +163,19 @@ export function Workspace() {
     return () => cleanup?.();
   }, []);
 
-  // --- App platform (from context) ---
-  const { platform } = useAppContext();
-
   // --- Project management (provided by ProjectManagementProvider in App.tsx) ---
   const projectMgmt = useProjectManagementContext();
-  const { showEditorMode, setShowEditorMode, showKanban, setShowKanban } = projectMgmt;
+  const { showEditorMode, setShowEditorMode, setShowKanban } = projectMgmt;
 
   const handleToggleKanban = useCallback(() => {
-    if (!selectedProjectRef.current) return;
+    if (!projectMgmt.selectedProject) return;
     setShowEditorMode(false);
     setShowKanban((v) => !v);
-  }, [setShowEditorMode, setShowKanban]);
+  }, [projectMgmt.selectedProject, setShowEditorMode, setShowKanban]);
   const handleToggleEditor = useCallback(() => {
     setShowKanban(false);
     setShowEditorMode((v) => !v);
   }, [setShowKanban, setShowEditorMode]);
-
-  // Keep selectedProject ref in sync for the kanban toggle guard
-  useEffect(() => {
-    selectedProjectRef.current = projectMgmt.selectedProject;
-  }, [projectMgmt.selectedProject]);
 
   // --- Task management ---
   const taskMgmt = useTaskManagementContext();
@@ -265,67 +243,19 @@ export function Workspace() {
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
 
-  // --- Pinned tasks (localStorage) ---
-  const [pinnedTaskIds, setPinnedTaskIds] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem(PINNED_TASKS_KEY);
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const { handleDeleteTask } = taskMgmt;
-  const handleDeleteTaskAndUnpin: typeof handleDeleteTask = useCallback(
-    async (project, task, options) => {
-      setPinnedTaskIds((prev) => {
-        if (!prev.has(task.id)) return prev;
-        const next = new Set(prev);
-        next.delete(task.id);
-        localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify([...next]));
-        return next;
-      });
-      return handleDeleteTask(project, task, options);
-    },
-    [handleDeleteTask]
-  );
-
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
   const { activeTask } = taskMgmt;
-  const activeTaskProjectPath = activeTask?.projectId
-    ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
-    : null;
+  const activeTaskProjectPath = useMemo(
+    () =>
+      activeTask?.projectId
+        ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
+        : null,
+    [activeTask, projectMgmt.projects]
+  );
 
-  const derivedRemoteConnectionId = useMemo((): string | null => {
-    if (!selectedProject) return null;
-    if (selectedProject.sshConnectionId) return selectedProject.sshConnectionId;
-    const alias = selectedProject.name;
-    if (typeof alias !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(alias)) return null;
-
-    // Back-compat for remote projects created before remote fields were persisted.
-    // Heuristic: on macOS/Windows, a /home/... project path is almost certainly remote.
-    const p = selectedProject.path || '';
-    const looksRemoteByPath =
-      platform === 'darwin'
-        ? p.startsWith('/home/')
-        : platform === 'win32'
-          ? p.startsWith('/home/')
-          : false;
-
-    if (selectedProject.isRemote || looksRemoteByPath) {
-      return `ssh-config:${encodeURIComponent(alias)}`;
-    }
-    return null;
-  }, [selectedProject, platform]);
-
-  const derivedRemotePath = useMemo((): string | null => {
-    if (!selectedProject) return null;
-    if (selectedProject.remotePath) return selectedProject.remotePath;
-    // If we derived a connection id, treat project.path as the remote path.
-    if (derivedRemoteConnectionId) return selectedProject.path;
-    return selectedProject.isRemote ? selectedProject.path : null;
-  }, [selectedProject, derivedRemoteConnectionId]);
+  const { connectionId: derivedRemoteConnectionId, remotePath: derivedRemotePath } =
+    useProjectRemoteInfo();
 
   // Close modals before titlebar view toggles
   const handleTitlebarKanbanToggle = useCallback(() => {
@@ -423,7 +353,6 @@ export function Workspace() {
                   >
                     <LeftSidebar
                       onSidebarContextChange={handleSidebarContextChange}
-                      onDeleteTask={handleDeleteTaskAndUnpin}
                       onCloseSettingsPage={handleCloseSettingsPage}
                     />
                   </ResizablePanel>
@@ -455,8 +384,6 @@ export function Workspace() {
                           showSettingsPage={showSettingsPage}
                           settingsPageInitialTab={settingsPageInitialTab}
                           handleCloseSettingsPage={handleCloseSettingsPage}
-                          projectRemoteConnectionId={derivedRemoteConnectionId}
-                          projectRemotePath={derivedRemotePath}
                         />
                       )}
                     </div>

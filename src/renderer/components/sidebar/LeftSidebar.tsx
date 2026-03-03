@@ -46,7 +46,6 @@ interface LeftSidebarProps {
     isMobile: boolean;
     setOpen: (next: boolean) => void;
   }) => void;
-  onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
   onCloseSettingsPage?: () => void;
 }
 
@@ -60,8 +59,6 @@ const getConnectionId = (project: Project): string | null => {
 
 interface ProjectItemProps {
   project: Project;
-  isActive: boolean;
-  onSelect: () => void;
 }
 
 const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
@@ -89,9 +86,8 @@ const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
 });
 ProjectItem.displayName = 'ProjectItem';
 
-const LeftSidebar: React.FC<LeftSidebarProps> = ({
+export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSidebarContextChange,
-  onDeleteTask,
   onCloseSettingsPage,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
@@ -127,6 +123,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     },
     [setProjectOrder]
   );
+
   const {
     activeTask,
     tasksByProjectId,
@@ -136,6 +133,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleRenameTask: onRenameTask,
     handleArchiveTask: onArchiveTask,
     handleRestoreTask: onRestoreTask,
+    handleDeleteTask,
   } = useTaskManagementContext();
 
   const { settings } = useAppSettings();
@@ -155,6 +153,20 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     },
     [setPinnedTaskIdsArray]
   );
+
+  // Remove pinned IDs for tasks that no longer exist (deleted or archived)
+  useEffect(() => {
+    if (!pinnedTaskIdsArray.length) return;
+    const allActiveIds = new Set(
+      Object.values(tasksByProjectId)
+        .flat()
+        .map((t) => t.id)
+    );
+    const cleaned = pinnedTaskIdsArray.filter((id) => allActiveIds.has(id));
+    if (cleaned.length !== pinnedTaskIdsArray.length) {
+      setPinnedTaskIdsArray(cleaned);
+    }
+  }, [tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
@@ -278,11 +290,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 )
                               }
                             >
-                              <ProjectItem
-                                project={typedProject}
-                                isActive={isProjectActive}
-                                onSelect={() => onSelectProject(typedProject)}
-                              />
+                              <ProjectItem project={typedProject} />
                             </motion.button>
                             {onCreateTaskForProject && (
                               <button
@@ -331,7 +339,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         isPinned={pinnedTaskIds.has(task.id)}
                                         onPin={() => handlePinTask(task)}
                                         onRename={(n) => onRenameTask?.(typedProject, task, n)}
-                                        onDelete={() => onDeleteTask?.(typedProject, task)}
+                                        onDelete={() => handleDeleteTask(typedProject, task)}
                                         onArchive={() => onArchiveTask?.(typedProject, task)}
                                         primaryAction={taskHoverAction}
                                       />
@@ -377,7 +385,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 taskPath={archivedTask.path}
                                                 useWorktree={archivedTask.useWorktree !== false}
                                                 onConfirm={() =>
-                                                  onDeleteTask?.(typedProject, archivedTask)
+                                                  handleDeleteTask(typedProject, archivedTask)
                                                 }
                                               />
                                             </div>
@@ -413,5 +421,3 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     </div>
   );
 };
-
-export default LeftSidebar;

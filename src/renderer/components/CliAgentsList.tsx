@@ -90,7 +90,7 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
   );
 };
 
-const CliAgentsList: React.FC<CliAgentsListProps> = (props) => {
+export const CliAgentsList: React.FC<CliAgentsListProps> = (props) => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
 
   const sortedAgents = useMemo(() => {
@@ -122,5 +122,3 @@ const CliAgentsList: React.FC<CliAgentsListProps> = (props) => {
     </div>
   );
 };
-
-export default CliAgentsList;
