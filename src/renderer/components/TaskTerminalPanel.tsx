@@ -235,12 +235,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     };
   }, [task?.id, refreshLifecycleState]);
 
-  // Auto-switch dropdown to Run when the run phase starts.
+  // Auto-switch dropdown to Run when the run phase first starts.
+  const prevRunStatusRef = useRef(runStatus);
   useEffect(() => {
-    if (runStatus === 'running' && selection.selectedLifecycle !== 'run') {
+    const wasRunning = prevRunStatusRef.current === 'running';
+    prevRunStatusRef.current = runStatus;
+    if (runStatus === 'running' && !wasRunning) {
       selection.onChange('lifecycle::run');
     }
-  }, [runStatus, selection.selectedLifecycle, selection.onChange]);
+  }, [runStatus, selection.onChange]);
 
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
 
