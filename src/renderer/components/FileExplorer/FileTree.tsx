@@ -5,6 +5,7 @@ import { FileIcon } from './FileIcons';
 import { useContentSearch } from '@/hooks/useContentSearch';
 import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
+import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
 import type { FileChange } from '@/hooks/useFileChanges';
 
 export interface FileNode {
@@ -25,7 +26,19 @@ export const constructSubRoot = (rootPath: string, nodePath: string): string => 
     : `${rootPath}${separator}${nodePath}`;
 };
 
+function findNode(nodes: FileNode[], path: string): FileNode | null {
+  for (const n of nodes) {
+    if (n.path === path) return n;
+    if (n.children?.length) {
+      const found = findNode(n.children, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 interface FileTreeProps {
+  taskId: string;
   rootPath: string;
   selectedFile?: string | null;
   onSelectFile: (path: string) => void;
@@ -151,6 +164,7 @@ const TreeNode: React.FC<{
 };
 
 export const FileTree: React.FC<FileTreeProps> = ({
+  taskId,
   rootPath,
   selectedFile,
   onSelectFile,
@@ -163,7 +177,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
   remotePath,
 }) => {
   const [tree, setTree] = useState<FileNode[]>([]);
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
+    const state = getEditorState(taskId);
+    return new Set(state?.expandedPaths ?? []);
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<any[]>([]);
@@ -424,12 +441,18 @@ export const FileTree: React.FC<FileTreeProps> = ({
       if (node.isLoaded) return;
 
       try {
-        const subRoot = constructSubRoot(rootPath, node.path); // node.path is relative
+        const subRoot = constructSubRoot(rootPath, node.path);
 
-        const result = await window.electronAPI.fsList(subRoot, {
+        const opts: { includeDirs: boolean; recursive: boolean; connectionId?: string; remotePath?: string } = {
           includeDirs: true,
           recursive: false,
-        });
+        };
+        if (connectionId && remotePath) {
+          opts.connectionId = connectionId;
+          opts.remotePath = remotePath;
+        }
+
+        const result = await window.electronAPI.fsList(subRoot, opts);
 
         if (result.success && result.items) {
           // Process new items:
@@ -466,21 +489,43 @@ export const FileTree: React.FC<FileTreeProps> = ({
         console.error('Failed to load children', error);
       }
     },
-    [rootPath]
+    [rootPath, connectionId, remotePath]
   );
 
-  // Toggle expand/collapse
-  const handleToggleExpand = useCallback((path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
+  useEffect(() => {
+    const state = getEditorState(taskId);
+    setExpandedPaths(new Set(state?.expandedPaths ?? []));
+  }, [taskId]);
+
+  useEffect(() => {
+    if (expandedPaths.size === 0 || tree.length === 0) return;
+    const paths = [...expandedPaths].sort(
+      (a, b) => a.split('/').filter(Boolean).length - b.split('/').filter(Boolean).length
+    );
+    const path = paths.find((p) => {
+      const node = findNode(tree, p);
+      return node?.type === 'directory' && !node.isLoaded;
     });
-  }, []);
+    if (!path) return;
+    const node = findNode(tree, path);
+    if (node) void loadChildren(node);
+  }, [taskId, tree, expandedPaths, loadChildren]);
+
+  const handleToggleExpand = useCallback(
+    (path: string) => {
+      setExpandedPaths((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) {
+          next.delete(path);
+        } else {
+          next.add(path);
+        }
+        saveEditorState(taskId, { expandedPaths: Array.from(next) });
+        return next;
+      });
+    },
+    [taskId]
+  );
 
   // Handle clicking on a search result
   const handleSearchResultClick = useCallback(
