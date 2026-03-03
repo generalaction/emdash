@@ -251,6 +251,8 @@ describe('stale Claude session detection', () => {
     expect(result).toBe(false);
     expect(cliArgs).not.toContain('--resume');
     expect(cliArgs).not.toContain(TEST_UUID);
+    // Stale entry must be evicted from the persisted session map
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(SESSION_MAP_PATH, JSON.stringify({}));
   });
 
   it('treats cwd mismatch as stale session', () => {
@@ -267,5 +269,7 @@ describe('stale Claude session detection', () => {
     expect(result).toBe(false);
     expect(cliArgs).not.toContain('--resume');
     expect(cliArgs).not.toContain(TEST_UUID);
+    // Stale entry must be evicted from the persisted session map
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(SESSION_MAP_PATH, JSON.stringify({}));
   });
 });

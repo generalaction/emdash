@@ -361,14 +361,14 @@ export function applySessionIsolation(
   const sessionUuid = deterministicUuid(parsed.suffix);
   const isAdditionalChat = parsed.kind === 'chat';
 
-  const knownSession = getKnownSessionId(id);
+  const entry = loadSessionMap()[id];
+  const knownSession = entry?.uuid;
   if (knownSession) {
     // For Claude, validate the session still exists on disk before resuming.
     // Also treat cwd mismatch as stale — the session belongs to a different
     // project context and Claude would look in the wrong directory.
     if (provider.id === 'claude') {
-      const entry = loadSessionMap()[id];
-      const isStale = entry?.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
+      const isStale = entry.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
       if (isStale) {
         log.warn('ptyManager: stale session detected, creating new session', {
           ptyId: id,
