@@ -249,6 +249,7 @@ export async function getFileDiff(
   lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
   isBinary?: boolean;
   originalContent?: string;
+  modifiedContent?: string;
 }> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
@@ -268,11 +269,14 @@ export async function getFileDiff(
   };
 
   try {
-    const [{ stdout }, originalContent] = await Promise.all([
+    const [{ stdout }, originalContent, modifiedContent] = await Promise.all([
       execFileAsync('git', ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath], {
         cwd: taskPath,
       }),
       getOriginalContent(),
+      readFileTextCapped(path.join(taskPath, filePath), MAX_UNTRACKED_DIFF_BYTES).then((content) =>
+        content !== null ? content.replace(/\n$/, '') : undefined
+      ),
     ]);
 
     const { lines: result, isBinary } = parseDiffLines(stdout);
@@ -282,22 +286,23 @@ export async function getFileDiff(
     }
 
     if (result.length === 0) {
-      try {
-        const abs = path.join(taskPath, filePath);
-        const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
-        if (content !== null) {
-          return { lines: content.split('\n').map((l) => ({ right: l, type: 'add' as const })) };
-        }
-        const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-          cwd: taskPath,
-        });
-        return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
-      } catch {
-        return { lines: [] };
+      if (modifiedContent !== undefined) {
+        return {
+          lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+          modifiedContent,
+        };
       }
+      // File unreadable on disk — use already-fetched originalContent instead of a redundant git show
+      if (originalContent !== undefined) {
+        return {
+          lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+          originalContent,
+        };
+      }
+      return { lines: [] };
     }
 
-    return { lines: result, originalContent };
+    return { lines: result, originalContent, modifiedContent };
   } catch {
     // The git diff against HEAD failed (e.g., untracked file, no HEAD).
     // Try reading the file directly as an all-additions diff.
@@ -305,7 +310,10 @@ export async function getFileDiff(
     const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
     if (content !== null) {
       const lines = content.split('\n');
-      return { lines: lines.map((l) => ({ right: l, type: 'add' as const })) };
+      return {
+        lines: lines.map((l) => ({ right: l, type: 'add' as const })),
+        modifiedContent: content.replace(/\n$/, ''),
+      };
     }
     // File unreadable — try to show the HEAD version as all-deletions
     try {
