@@ -589,6 +589,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         title: restoredNames.length === 1 ? 'Task restored' : 'Tasks restored',
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
+    } else {
+      toast({ title: 'Failed to restore tasks', variant: 'destructive' });
     }
   };
 
