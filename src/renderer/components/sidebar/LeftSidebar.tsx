@@ -36,6 +36,7 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
@@ -238,6 +239,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </SidebarHeader>
         <SidebarContent className="flex flex-col">
           <SidebarGroup>
+            <ProjectsGroupLabel />
             <SidebarGroupContent>
               <SidebarMenu>
                 <ReorderList
