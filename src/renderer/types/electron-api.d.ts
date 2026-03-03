@@ -358,6 +358,8 @@ declare global {
             type: 'context' | 'add' | 'del';
           }>;
           isBinary?: boolean;
+          originalContent?: string;
+          modifiedContent?: string;
         };
         error?: string;
       }>;
@@ -441,6 +443,8 @@ declare global {
         diff?: {
           lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
           isBinary?: boolean;
+          originalContent?: string;
+          modifiedContent?: string;
         };
         error?: string;
       }>;

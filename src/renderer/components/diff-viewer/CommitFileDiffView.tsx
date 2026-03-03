@@ -57,11 +57,13 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
         }
 
         const converted = convertDiffLinesToMonacoFormat(res.diff.lines);
+        const original = res.diff.originalContent ?? converted.original;
+        const modified = res.diff.modifiedContent ?? converted.modified;
 
         if (!cancelled) {
           setData({
-            original: converted.original,
-            modified: converted.modified,
+            original,
+            modified,
             language,
             loading: false,
             error: null,
