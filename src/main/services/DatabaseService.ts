@@ -11,6 +11,7 @@ import {
   messages as messagesTable,
   lineComments as lineCommentsTable,
   sshConnections as sshConnectionsTable,
+  taskNotes as taskNotesTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
@@ -19,7 +20,9 @@ import {
   type LineCommentInsert,
   type SshConnectionRow,
   type SshConnectionInsert,
+  type TaskNoteRow,
 } from '../db/schema';
+import { randomUUID } from 'crypto';
 
 export interface Project {
   id: string;
@@ -772,6 +775,62 @@ export class DatabaseService {
       .where(and(eq(lineCommentsTable.taskId, taskId), isNull(lineCommentsTable.sentAt)))
       .orderBy(asc(lineCommentsTable.filePath), asc(lineCommentsTable.lineNumber));
     return rows;
+  }
+
+  // Task notes methods
+
+  async upsertTaskNote(
+    taskId: string,
+    type: 'manual' | 'summary',
+    content: string
+  ): Promise<string> {
+    if (this.disabled) return '';
+    const { db } = await getDrizzleClient();
+    const id = randomUUID();
+    await db
+      .insert(taskNotesTable)
+      .values({
+        id,
+        taskId,
+        type,
+        content,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .onConflictDoUpdate({
+        target: [taskNotesTable.taskId, taskNotesTable.type],
+        set: {
+          content,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        },
+      });
+    return id;
+  }
+
+  async getTaskNotes(taskId: string): Promise<TaskNoteRow[]> {
+    if (this.disabled) return [];
+    const { db } = await getDrizzleClient();
+    return db
+      .select()
+      .from(taskNotesTable)
+      .where(eq(taskNotesTable.taskId, taskId))
+      .orderBy(taskNotesTable.type);
+  }
+
+  async getTaskNote(taskId: string, type: 'manual' | 'summary'): Promise<TaskNoteRow | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(taskNotesTable)
+      .where(and(eq(taskNotesTable.taskId, taskId), eq(taskNotesTable.type, type)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async deleteTaskNote(noteId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db.delete(taskNotesTable).where(eq(taskNotesTable.id, noteId));
   }
 
   // SSH connection management methods
