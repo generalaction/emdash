@@ -425,7 +425,10 @@ export class RemoteGitService {
     connectionId: string,
     worktreePath: string,
     filePath: string
-  ): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
+  ): Promise<{
+    lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
+    originalContent?: string;
+  }> {
     const cwd = this.normalizeRemotePath(worktreePath);
 
     const parseDiffOutput = (
@@ -452,16 +455,23 @@ export class RemoteGitService {
       return result;
     };
 
-    // Try git diff HEAD
-    const diffResult = await this.sshService.executeCommand(
-      connectionId,
-      `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(filePath)}`,
-      cwd
-    );
+    const [diffResult, showResult] = await Promise.all([
+      this.sshService.executeCommand(
+        connectionId,
+        `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(filePath)}`,
+        cwd
+      ),
+      this.sshService.executeCommand(connectionId, `git show HEAD:${quoteShellArg(filePath)}`, cwd),
+    ]);
+
+    const originalContent =
+      showResult.exitCode === 0 && showResult.stdout
+        ? showResult.stdout.replace(/\n$/, '')
+        : undefined;
 
     if (diffResult.exitCode === 0 && diffResult.stdout.trim()) {
       const lines = parseDiffOutput(diffResult.stdout);
-      if (lines.length > 0) return { lines };
+      if (lines.length > 0) return { lines, originalContent };
     }
 
     // Fallback: untracked file (read content as "add" lines)
@@ -483,14 +493,9 @@ export class RemoteGitService {
     }
 
     // Fallback: deleted file (show HEAD content as "del" lines)
-    const showResult = await this.sshService.executeCommand(
-      connectionId,
-      `git show HEAD:${quoteShellArg(filePath)}`,
-      cwd
-    );
-    if (showResult.exitCode === 0 && showResult.stdout) {
+    if (originalContent !== undefined) {
       return {
-        lines: showResult.stdout.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+        lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
       };
     }
 

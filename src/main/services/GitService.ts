@@ -248,6 +248,7 @@ export async function getFileDiff(
 ): Promise<{
   lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
   isBinary?: boolean;
+  originalContent?: string;
 }> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
@@ -255,12 +256,24 @@ export async function getFileDiff(
     throw new Error('File path is outside the worktree');
   }
 
+  const getOriginalContent = async (): Promise<string | undefined> => {
+    try {
+      const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
+        cwd: taskPath,
+      });
+      return prev.replace(/\n$/, '');
+    } catch {
+      return undefined;
+    }
+  };
+
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-      { cwd: taskPath }
-    );
+    const [{ stdout }, originalContent] = await Promise.all([
+      execFileAsync('git', ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath], {
+        cwd: taskPath,
+      }),
+      getOriginalContent(),
+    ]);
 
     const { lines: result, isBinary } = parseDiffLines(stdout);
 
@@ -284,7 +297,7 @@ export async function getFileDiff(
       }
     }
 
-    return { lines: result };
+    return { lines: result, originalContent };
   } catch {
     // The git diff against HEAD failed (e.g., untracked file, no HEAD).
     // Try reading the file directly as an all-additions diff.
@@ -537,12 +550,25 @@ export async function getCommitFileDiff(
 ): Promise<{
   lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
   isBinary?: boolean;
+  originalContent?: string;
+  modifiedContent?: string;
 }> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
+
+  const getContentAt = async (ref: string): Promise<string | undefined> => {
+    try {
+      const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
+        cwd: taskPath,
+      });
+      return stdout.replace(/\n$/, '');
+    } catch {
+      return undefined;
+    }
+  };
 
   // Check if this is a root commit (no parent)
   let hasParent = true;
@@ -552,42 +578,34 @@ export async function getCommitFileDiff(
     hasParent = false;
   }
 
-  let stdout: string;
-  if (hasParent) {
-    const diffArgs = [
-      'diff',
-      '--no-color',
-      '--unified=2000',
-      `${commitHash}~1`,
-      commitHash,
-      '--',
-      filePath,
-    ];
-    ({ stdout } = await execFileAsync('git', diffArgs, { cwd: taskPath }));
-  } else {
-    // For root commits, show the file content at that commit as all additions
-    try {
-      const { stdout: content } = await execFileAsync(
-        'git',
-        ['show', `${commitHash}:${filePath}`],
-        { cwd: taskPath }
-      );
-      const lines = content.split('\n');
+  if (!hasParent) {
+    const modifiedContent = await getContentAt(commitHash);
+    if (modifiedContent !== undefined) {
       return {
-        lines: lines.map((l) => ({ right: l, type: 'add' as const })),
+        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+        modifiedContent,
       };
-    } catch {
-      return { lines: [] };
     }
+    return { lines: [] };
   }
 
-  const { lines: result, isBinary } = parseDiffLines(stdout);
+  const [diffResult, originalContent, modifiedContent] = await Promise.all([
+    execFileAsync(
+      'git',
+      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
+      { cwd: taskPath }
+    ),
+    getContentAt(`${commitHash}~1`),
+    getContentAt(commitHash),
+  ]);
+
+  const { lines: result, isBinary } = parseDiffLines(diffResult.stdout);
 
   if (isBinary) {
     return { lines: [], isBinary: true };
   }
 
-  return { lines: result };
+  return { lines: result, originalContent, modifiedContent };
 }
 
 /** Soft-reset the latest commit. Returns the commit message that was reset. */

@@ -568,7 +568,8 @@ describe('RemoteGitService', () => {
 
     it('should handle untracked file (no diff, read content)', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // empty diff
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult)
+        .mockResolvedValueOnce({ stdout: '', stderr: 'not found', exitCode: 128 } as ExecResult)
         .mockResolvedValueOnce({
           stdout: 'line1\nline2\nline3\n',
           stderr: '',
@@ -583,17 +584,17 @@ describe('RemoteGitService', () => {
 
     it('should handle deleted file (show HEAD content)', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // empty diff
-        .mockResolvedValueOnce({
-          stdout: '__EMDASH_TOO_LARGE__',
-          stderr: '',
-          exitCode: 0,
-        } as ExecResult) // cat returns too large marker
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // git diff (parallel)
         .mockResolvedValueOnce({
           stdout: 'old content\nwas here\n',
           stderr: '',
           exitCode: 0,
-        } as ExecResult); // git show HEAD:file
+        } as ExecResult) // git show HEAD:file (parallel)
+        .mockResolvedValueOnce({
+          stdout: '__EMDASH_TOO_LARGE__',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult); // cat returns too large marker
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'deleted.txt');
 
@@ -603,9 +604,9 @@ describe('RemoteGitService', () => {
 
     it('should return empty lines when all fallbacks fail', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult)
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult)
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult);
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // git diff (parallel)
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult) // git show HEAD:file (parallel)
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult); // cat fallback
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'ghost.txt');
       expect(result.lines).toEqual([]);

@@ -109,32 +109,28 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
 
         const diffLines: DiffLine[] = diffRes.diff.lines;
         const converted = convertDiffLinesToMonacoFormat(diffLines);
-        let originalContent = converted.original;
+        let originalContent = diffRes.diff.originalContent ?? converted.original;
         let modifiedContent = converted.modified;
 
-        // For non-deleted files, try reading actual current content
+        let fileExistsOnDisk = false;
         try {
           const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
           if (readRes?.success && readRes.content) {
             modifiedContent = readRes.content.replace(/\n$/, '');
+            fileExistsOnDisk = true;
           }
         } catch {
           // fallback to diff-based content
         }
 
-        // For deleted files, modified should be empty
-        if (diffLines.every((l) => l.type === 'del' || l.type === 'context')) {
-          const hasAdds = diffLines.some((l) => l.type === 'add');
-          if (!hasAdds) {
-            modifiedContent = '';
-          }
+        const hasAdds = diffLines.some((l) => l.type === 'add');
+        if (!fileExistsOnDisk && diffLines.length > 0 && !hasAdds) {
+          modifiedContent = '';
         }
 
-        // For added files, original should be empty
-        // Only treat as new file if there are no context lines and no deletions
         const hasDels = diffLines.some((l) => l.type === 'del');
         const hasContext = diffLines.some((l) => l.type === 'context');
-        if (!hasDels && !hasContext && diffLines.some((l) => l.type === 'add')) {
+        if (diffLines.length > 0 && !hasDels && !hasContext && hasAdds) {
           originalContent = '';
         }
 
