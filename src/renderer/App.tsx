@@ -4,6 +4,10 @@ import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { FIRST_LAUNCH_KEY } from './constants/layout';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppSettingsProvider } from './contexts/AppSettingsProvider';
+
+const queryClient = new QueryClient();
 
 export function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean | number>(
@@ -22,8 +26,12 @@ export function App() {
   };
 
   return (
-    <ThemeProvider>
-      <ErrorBoundary>{renderContent()}</ErrorBoundary>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AppSettingsProvider>
+        <ThemeProvider>
+          <ErrorBoundary>{renderContent()}</ErrorBoundary>
+        </ThemeProvider>
+      </AppSettingsProvider>
+    </QueryClientProvider>
   );
 }

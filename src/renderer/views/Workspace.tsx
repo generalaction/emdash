@@ -1,22 +1,18 @@
 import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
-import { CloneFromUrlModal } from '@/components/CloneFromUrlModal';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
-import { GithubDeviceFlowModal } from '@/components/GithubDeviceFlowModal';
 import LeftSidebar from '@/components/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
-import { NewProjectModal } from '@/components/NewProjectModal';
 import RightSidebar from '@/components/RightSidebar';
-import { AddRemoteProjectModal } from '@/components/ssh';
-import TaskModal from '@/components/TaskModal';
 import Titlebar from '@/components/titlebar/Titlebar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { RightSidebarProvider, useRightSidebar } from '@/components/ui/right-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
-import { UpdateModal } from '@/components/UpdateModal';
+import { ModalProvider, useModalContext } from '@/contexts/ModalProvider';
+import { ModalRenderer } from '@/components/ModalRenderer';
 import {
   TITLEBAR_HEIGHT,
   LEFT_SIDEBAR_MIN_SIZE,
@@ -26,12 +22,13 @@ import {
   RIGHT_SIDEBAR_MAX_SIZE,
 } from '@/constants/layout';
 import { KeyboardSettingsProvider } from '@/contexts/KeyboardSettingsContext';
+import { ProjectManagementContext } from '@/contexts/ProjectManagementContext';
+import { TaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAppInitialization } from '@/hooks/useAppInitialization';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
 import { useGithubIntegration } from '@/hooks/useGithubIntegration';
-import { useModalState } from '@/hooks/useModalState';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { useTaskManagement } from '@/hooks/useTaskManagement';
@@ -78,8 +75,17 @@ const RightSidebarBridge: React.FC<{
 };
 
 export function Workspace() {
+  return (
+    <ModalProvider>
+      <WorkspaceInner />
+    </ModalProvider>
+  );
+}
+
+function WorkspaceInner() {
   useTheme(); // Initialize theme on app startup
   const { toast } = useToast();
+  const { showModal } = useModalContext();
   const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
 
   // Agent event hook: plays sounds and updates sidebar status for all tasks
@@ -92,47 +98,54 @@ export function Workspace() {
   useEffect(() => {
     (async () => {
       try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          const notif = result.settings.notifications;
-          const masterEnabled = Boolean(notif?.enabled ?? true);
-          const soundOn = Boolean(notif?.sound ?? true);
-          soundPlayer.setEnabled(masterEnabled && soundOn);
-          soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
-        }
+        const settings = await rpc.appSettings.get();
+        const notif = settings.notifications;
+        const masterEnabled = Boolean(notif?.enabled ?? true);
+        const soundOn = Boolean(notif?.sound ?? true);
+        soundPlayer.setEnabled(masterEnabled && soundOn);
+        soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
       } catch {}
     })();
   }, []);
 
-  // Ref for selectedProject, so useModalState can read it without re-instantiation
   const selectedProjectRef = useRef<{ id: string } | null>(null);
 
-  // --- Modal / UI visibility state ---
-  const modals = useModalState({ selectedProjectRef });
+  // --- View-mode / UI visibility state (inlined from former useModalState) ---
+  const [showSettingsPage, setShowSettingsPage] = useState(false);
+  const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<
+    'general' | 'clis-models' | 'integrations' | 'repository' | 'interface' | 'docs'
+  >('general');
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showEditorMode, setShowEditorMode] = useState(false);
+  const [showKanban, setShowKanban] = useState(false);
 
-  const {
-    showSettingsPage,
-    settingsPageInitialTab,
-    showCommandPalette,
-    showTaskModal,
-    showNewProjectModal,
-    showCloneModal,
-    showEditorMode,
-    showKanban,
-    showDeviceFlowModal,
-    setShowEditorMode,
-    setShowKanban,
-    setShowTaskModal,
-    setShowNewProjectModal,
-    setShowCloneModal,
-    openSettingsPage,
-    handleCloseSettingsPage,
-    handleToggleCommandPalette,
-    handleCloseCommandPalette,
-    handleToggleKanban,
-    handleToggleEditor,
-  } = modals;
-  const [showRemoteProjectModal, setShowRemoteProjectModal] = useState<boolean>(false);
+  const openSettingsPage = useCallback(
+    (
+      tab:
+        | 'general'
+        | 'clis-models'
+        | 'integrations'
+        | 'repository'
+        | 'interface'
+        | 'docs' = 'general'
+    ) => {
+      setSettingsPageInitialTab(tab);
+      setShowSettingsPage(true);
+    },
+    []
+  );
+  const handleCloseSettingsPage = useCallback(() => setShowSettingsPage(false), []);
+  const handleToggleCommandPalette = useCallback(() => setShowCommandPalette((prev) => !prev), []);
+  const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
+  const handleToggleKanban = useCallback(() => {
+    if (!selectedProjectRef.current) return;
+    setShowEditorMode(false);
+    setShowKanban((v) => !v);
+  }, []);
+  const handleToggleEditor = useCallback(() => {
+    setShowKanban(false);
+    setShowEditorMode((v) => !v);
+  }, []);
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
@@ -177,15 +190,6 @@ export function Workspace() {
     return () => cleanup?.();
   }, [openSettingsPage]);
 
-  // Listen for native menu "Check for Updates" click (main → renderer)
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  useEffect(() => {
-    const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
-      setShowUpdateModal(true);
-    });
-    return () => cleanup?.();
-  }, []);
-
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
@@ -218,11 +222,15 @@ export function Workspace() {
     onInitialLoadComplete: () => {},
   });
 
+  // Stable ref for openTaskModal to break the projectMgmt/taskMgmt circular init
+  // (both hooks need it, but the implementation needs data from both hooks)
+  const openTaskModalRef = useRef<() => void>(() => {});
+  const stableOpenTaskModal = useCallback(() => openTaskModalRef.current(), []);
+
   // --- GitHub integration ---
   const github = useGithubIntegration({
     platform: appInit.platform,
     toast,
-    setShowDeviceFlowModal: modals.setShowDeviceFlowModal,
   });
 
   // --- Project management ---
@@ -234,16 +242,13 @@ export function Workspace() {
     handleGithubConnect: github.handleGithubConnect,
     setShowEditorMode,
     setShowKanban,
-    setShowNewProjectModal,
-    setShowCloneModal,
-    setShowTaskModal,
+    openTaskModal: stableOpenTaskModal,
     setActiveTask: (task) => taskMgmt.setActiveTask(task),
     saveProjectOrder: appInit.saveProjectOrder,
     ToastAction,
   });
 
-  // Keep the selectedProject ref in sync for useModalState's kanban toggle guard
-  // Using useEffect to avoid writing to ref during render (react-hooks/refs lint rule)
+  // Keep selectedProject ref in sync for the kanban toggle guard
   useEffect(() => {
     selectedProjectRef.current = projectMgmt.selectedProject;
   }, [projectMgmt.selectedProject]);
@@ -258,7 +263,7 @@ export function Workspace() {
     setShowSkillsView: projectMgmt.setShowSkillsView,
     setShowEditorMode,
     setShowKanban,
-    setShowTaskModal,
+    openTaskModal: stableOpenTaskModal,
     toast,
     activateProjectView: projectMgmt.activateProjectView,
   });
@@ -314,6 +319,14 @@ export function Workspace() {
 
   // Show toast on update availability
   useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
+
+  // Listen for native menu "Check for Updates" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuCheckForUpdates?.(() => {
+      showModal('updateModal', {});
+    });
+    return () => cleanup?.();
+  }, [showModal]);
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
@@ -423,11 +436,37 @@ export function Workspace() {
     setIsCreatingTask(false);
   }, []);
 
-  // --- SSH Remote Project handlers ---
-  const handleAddRemoteProjectClick = useCallback(() => {
-    setShowRemoteProjectModal(true);
-  }, []);
+  // Wire up the stable openTaskModal ref with current project/task data
+  openTaskModalRef.current = () => {
+    showModal('taskModal', {
+      onSuccess: ({
+        name,
+        initialPrompt,
+        agentRuns,
+        linkedLinearIssue,
+        linkedGithubIssue,
+        linkedJiraIssue,
+        autoApprove,
+        useWorktree,
+        baseRef,
+        nameGenerated,
+      }) =>
+        handleCreateTask(
+          name,
+          initialPrompt,
+          agentRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          useWorktree,
+          baseRef,
+          nameGenerated
+        ),
+    });
+  };
 
+  // --- SSH Remote Project handlers ---
   const handleRemoteProjectSuccess = useCallback(
     async (remoteProject: {
       id: string;
@@ -494,9 +533,13 @@ export function Workspace() {
     [projectMgmt.projects, projectMgmt.activateProjectView, toast, appInit.saveProjectOrder]
   );
 
+  const handleAddRemoteProjectClick = useCallback(() => {
+    showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
+  }, [showModal, handleRemoteProjectSuccess]);
+
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
-  const { activeTask, activeTaskAgent } = taskMgmt;
+  const { activeTask } = taskMgmt;
   const activeTaskProjectPath = activeTask?.projectId
     ? projectMgmt.projects.find((p) => p.id === activeTask.projectId)?.path || null
     : null;
@@ -579,267 +622,173 @@ export function Workspace() {
   }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage]);
 
   return (
-    <BrowserProvider>
-      <div
-        className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
-        style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
-      >
-        <KeyboardSettingsProvider>
-          <SidebarProvider>
-            <RightSidebarProvider>
-              <AppKeyboardShortcuts
-                showCommandPalette={showCommandPalette}
-                showSettings={showSettingsPage}
-                handleToggleCommandPalette={handleToggleCommandPalette}
-                handleOpenSettings={handleToggleSettingsPage}
-                handleCloseCommandPalette={handleCloseCommandPalette}
-                handleCloseSettings={handleCloseSettingsPage}
-                handleToggleKanban={handleToggleKanban}
-                handleToggleEditor={handleToggleEditor}
-                handleNextTask={taskMgmt.handleNextTask}
-                handlePrevTask={taskMgmt.handlePrevTask}
-                handleNewTask={taskMgmt.handleNewTask}
-                handleOpenInEditor={handleOpenInEditor}
-              />
-              <RightSidebarBridge
-                onCollapsedChange={handleRightSidebarCollapsedChange}
-                setCollapsedRef={rightSidebarSetCollapsedRef}
-              />
-              <Titlebar
-                onToggleSettings={handleToggleSettingsPage}
-                isSettingsOpen={showSettingsPage}
-                currentPath={
-                  activeTask?.metadata?.multiAgent?.enabled
-                    ? null
-                    : activeTask?.path ||
-                      (selectedProject?.isRemote
-                        ? selectedProject?.remotePath
-                        : selectedProject?.path) ||
-                      null
-                }
-                defaultPreviewUrl={null}
-                taskId={activeTask?.id || null}
-                taskPath={activeTask?.path || null}
-                projectPath={selectedProject?.path || null}
-                isTaskMultiAgent={Boolean(activeTask?.metadata?.multiAgent?.enabled)}
-                githubUser={github.user}
-                onToggleKanban={handleTitlebarKanbanToggle}
-                isKanbanOpen={Boolean(showKanban)}
-                kanbanAvailable={Boolean(selectedProject)}
-                onToggleEditor={handleTitlebarEditorToggle}
-                showEditorButton={Boolean(activeTask)}
-                isEditorOpen={showEditorMode}
-                projects={projectMgmt.projects}
-                selectedProject={selectedProject}
-                activeTask={activeTask}
-                onSelectProject={projectMgmt.handleSelectProject}
-                onSelectTask={taskMgmt.handleSelectTask}
-              />
-              <div className="relative flex flex-1 overflow-hidden pt-[var(--tb)]">
-                <ResizablePanelGroup
-                  direction="horizontal"
-                  className="flex-1 overflow-hidden"
-                  onLayout={handlePanelLayout}
-                >
-                  <ResizablePanel
-                    ref={leftSidebarPanelRef}
-                    className="sidebar-panel sidebar-panel--left"
-                    defaultSize={defaultPanelLayout[0]}
-                    minSize={LEFT_SIDEBAR_MIN_SIZE}
-                    maxSize={LEFT_SIDEBAR_MAX_SIZE}
-                    collapsedSize={0}
-                    collapsible
-                    order={1}
-                    style={{ display: showEditorMode ? 'none' : undefined }}
-                  >
-                    <LeftSidebar
-                      projects={projectMgmt.projects}
-                      archivedTasksVersion={taskMgmt.archivedTasksVersion}
-                      selectedProject={selectedProject}
-                      onSelectProject={projectMgmt.handleSelectProject}
-                      onGoHome={projectMgmt.handleGoHome}
-                      onOpenProject={projectMgmt.handleOpenProject}
-                      onNewProject={projectMgmt.handleNewProjectClick}
-                      onCloneProject={projectMgmt.handleCloneProjectClick}
-                      onAddRemoteProject={handleAddRemoteProjectClick}
-                      onSelectTask={taskMgmt.handleSelectTask}
-                      activeTask={activeTask || undefined}
-                      onReorderProjects={projectMgmt.handleReorderProjects}
-                      onReorderProjectsFull={projectMgmt.handleReorderProjectsFull}
-                      onSidebarContextChange={handleSidebarContextChange}
-                      onCreateTaskForProject={taskMgmt.handleStartCreateTaskFromSidebar}
-                      onDeleteTask={handleDeleteTaskAndUnpin}
-                      onRenameTask={taskMgmt.handleRenameTask}
-                      onArchiveTask={taskMgmt.handleArchiveTask}
-                      onRestoreTask={taskMgmt.handleRestoreTask}
-                      onDeleteProject={projectMgmt.handleDeleteProject}
-                      pinnedTaskIds={pinnedTaskIds}
-                      onPinTask={handlePinTask}
-                      isHomeView={projectMgmt.showHomeView}
-                      onGoToSkills={projectMgmt.handleGoToSkills}
-                      isSkillsView={projectMgmt.showSkillsView}
-                      onCloseSettingsPage={handleCloseSettingsPage}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle
-                    withHandle
-                    onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+    <ProjectManagementContext.Provider value={projectMgmt}>
+      <TaskManagementContext.Provider value={taskMgmt}>
+        <BrowserProvider>
+          <div
+            className="flex h-[100dvh] w-full flex-col bg-background text-foreground"
+            style={{ '--tb': TITLEBAR_HEIGHT } as React.CSSProperties}
+          >
+            <KeyboardSettingsProvider>
+              <SidebarProvider>
+                <RightSidebarProvider>
+                  <AppKeyboardShortcuts
+                    showCommandPalette={showCommandPalette}
+                    showSettings={showSettingsPage}
+                    handleToggleCommandPalette={handleToggleCommandPalette}
+                    handleOpenSettings={handleToggleSettingsPage}
+                    handleCloseCommandPalette={handleCloseCommandPalette}
+                    handleCloseSettings={handleCloseSettingsPage}
+                    handleToggleKanban={handleToggleKanban}
+                    handleToggleEditor={handleToggleEditor}
+                    handleOpenInEditor={handleOpenInEditor}
                   />
-                  <ResizablePanel
-                    className="sidebar-panel sidebar-panel--main"
-                    defaultSize={defaultPanelLayout[1]}
-                    minSize={MAIN_PANEL_MIN_SIZE}
-                    order={2}
-                  >
-                    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-                      {showDiffViewer ? (
-                        <DiffViewer
-                          onClose={() => {
-                            setShowDiffViewer(false);
-                            setDiffViewerInitialFile(null);
-                            setDiffViewerTaskPath(null);
-                          }}
-                          taskId={activeTask?.id}
-                          taskPath={diffViewerTaskPath || activeTask?.path}
-                          initialFile={diffViewerInitialFile}
+                  <RightSidebarBridge
+                    onCollapsedChange={handleRightSidebarCollapsedChange}
+                    setCollapsedRef={rightSidebarSetCollapsedRef}
+                  />
+                  <Titlebar
+                    onToggleSettings={handleToggleSettingsPage}
+                    isSettingsOpen={showSettingsPage}
+                    githubUser={github.user}
+                    defaultPreviewUrl={null}
+                    onToggleKanban={handleTitlebarKanbanToggle}
+                    isKanbanOpen={Boolean(showKanban)}
+                    onToggleEditor={handleTitlebarEditorToggle}
+                    isEditorOpen={showEditorMode}
+                  />
+                  <div className="relative flex flex-1 overflow-hidden pt-[var(--tb)]">
+                    <ResizablePanelGroup
+                      direction="horizontal"
+                      className="flex-1 overflow-hidden"
+                      onLayout={handlePanelLayout}
+                    >
+                      <ResizablePanel
+                        ref={leftSidebarPanelRef}
+                        className="sidebar-panel sidebar-panel--left"
+                        defaultSize={defaultPanelLayout[0]}
+                        minSize={LEFT_SIDEBAR_MIN_SIZE}
+                        maxSize={LEFT_SIDEBAR_MAX_SIZE}
+                        collapsedSize={0}
+                        collapsible
+                        order={1}
+                        style={{ display: showEditorMode ? 'none' : undefined }}
+                      >
+                        <LeftSidebar
+                          onAddRemoteProject={handleAddRemoteProjectClick}
+                          onSidebarContextChange={handleSidebarContextChange}
+                          onDeleteTask={handleDeleteTaskAndUnpin}
+                          pinnedTaskIds={pinnedTaskIds}
+                          onPinTask={handlePinTask}
+                          onCloseSettingsPage={handleCloseSettingsPage}
                         />
-                      ) : (
-                        <MainContentArea
-                          selectedProject={selectedProject}
-                          activeTask={activeTask}
-                          activeTaskAgent={activeTaskAgent}
-                          isCreatingTask={isCreatingTask}
-                          onTaskInterfaceReady={handleTaskInterfaceReady}
-                          showKanban={showKanban}
-                          showHomeView={projectMgmt.showHomeView}
-                          showSkillsView={projectMgmt.showSkillsView}
-                          showSettingsPage={showSettingsPage}
-                          settingsPageInitialTab={settingsPageInitialTab}
-                          handleCloseSettingsPage={handleCloseSettingsPage}
-                          projectDefaultBranch={projectMgmt.projectDefaultBranch}
-                          projectBranchOptions={projectMgmt.projectBranchOptions}
-                          isLoadingBranches={projectMgmt.isLoadingBranches}
-                          setProjectDefaultBranch={projectMgmt.setProjectDefaultBranch}
-                          handleSelectTask={taskMgmt.handleSelectTask}
-                          handleDeleteTask={taskMgmt.handleDeleteTask}
-                          handleArchiveTask={taskMgmt.handleArchiveTask}
-                          handleRestoreTask={taskMgmt.handleRestoreTask}
-                          handleDeleteProject={projectMgmt.handleDeleteProject}
-                          handleOpenProject={projectMgmt.handleOpenProject}
-                          handleNewProjectClick={projectMgmt.handleNewProjectClick}
-                          handleCloneProjectClick={projectMgmt.handleCloneProjectClick}
-                          handleAddRemoteProject={handleAddRemoteProjectClick}
-                          setShowTaskModal={(show: boolean) => setShowTaskModal(show)}
-                          setShowKanban={(show: boolean) => setShowKanban(show)}
+                      </ResizablePanel>
+                      <ResizableHandle
+                        withHandle
+                        onDragging={(dragging) => handlePanelResizeDragging('left', dragging)}
+                        className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 lg:flex"
+                      />
+                      <ResizablePanel
+                        className="sidebar-panel sidebar-panel--main"
+                        defaultSize={defaultPanelLayout[1]}
+                        minSize={MAIN_PANEL_MIN_SIZE}
+                        order={2}
+                      >
+                        <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+                          {showDiffViewer ? (
+                            <DiffViewer
+                              onClose={() => {
+                                setShowDiffViewer(false);
+                                setDiffViewerInitialFile(null);
+                                setDiffViewerTaskPath(null);
+                              }}
+                              taskId={activeTask?.id}
+                              taskPath={diffViewerTaskPath || activeTask?.path}
+                              initialFile={diffViewerInitialFile}
+                            />
+                          ) : (
+                            <MainContentArea
+                              isCreatingTask={isCreatingTask}
+                              onTaskInterfaceReady={handleTaskInterfaceReady}
+                              showKanban={showKanban}
+                              showSettingsPage={showSettingsPage}
+                              settingsPageInitialTab={settingsPageInitialTab}
+                              handleCloseSettingsPage={handleCloseSettingsPage}
+                              handleAddRemoteProject={handleAddRemoteProjectClick}
+                              openTaskModal={stableOpenTaskModal}
+                              setShowKanban={(show: boolean) => setShowKanban(show)}
+                              projectRemoteConnectionId={derivedRemoteConnectionId}
+                              projectRemotePath={derivedRemotePath}
+                            />
+                          )}
+                        </div>
+                      </ResizablePanel>
+                      <ResizableHandle
+                        withHandle
+                        onDragging={(dragging) => handlePanelResizeDragging('right', dragging)}
+                        className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
+                      />
+                      <ResizablePanel
+                        ref={rightSidebarPanelRef}
+                        className="sidebar-panel sidebar-panel--right"
+                        defaultSize={defaultPanelLayout[2]}
+                        minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                        maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                        collapsedSize={0}
+                        collapsible
+                        order={3}
+                      >
+                        <RightSidebar
+                          task={activeTask}
+                          projectPath={selectedProject?.path || activeTaskProjectPath}
                           projectRemoteConnectionId={derivedRemoteConnectionId}
                           projectRemotePath={derivedRemotePath}
-                          onRenameTask={taskMgmt.handleRenameTask}
+                          projectDefaultBranch={projectMgmt.projectDefaultBranch}
+                          className="lg:border-l-0"
+                          forceBorder={showEditorMode}
+                          onOpenChanges={(filePath?: string, taskPath?: string) => {
+                            setDiffViewerInitialFile(filePath ?? null);
+                            setDiffViewerTaskPath(taskPath ?? null);
+                            setShowDiffViewer(true);
+                          }}
                         />
-                      )}
-                    </div>
-                  </ResizablePanel>
-                  <ResizableHandle
-                    withHandle
-                    onDragging={(dragging) => handlePanelResizeDragging('right', dragging)}
-                    className="hidden cursor-col-resize items-center justify-center transition-colors hover:bg-border/80 sm:flex"
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
+                  <CommandPaletteWrapper
+                    isOpen={showCommandPalette}
+                    onClose={handleCloseCommandPalette}
+                    handleGoHome={() => {
+                      handleCloseSettingsPage();
+                      projectMgmt.handleGoHome();
+                    }}
+                    handleOpenSettings={() => openSettingsPage()}
+                    handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
                   />
-                  <ResizablePanel
-                    ref={rightSidebarPanelRef}
-                    className="sidebar-panel sidebar-panel--right"
-                    defaultSize={defaultPanelLayout[2]}
-                    minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                    maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                    collapsedSize={0}
-                    collapsible
-                    order={3}
-                  >
-                    <RightSidebar
-                      task={activeTask}
-                      projectPath={selectedProject?.path || activeTaskProjectPath}
-                      projectRemoteConnectionId={derivedRemoteConnectionId}
-                      projectRemotePath={derivedRemotePath}
-                      projectDefaultBranch={projectMgmt.projectDefaultBranch}
-                      className="lg:border-l-0"
-                      forceBorder={showEditorMode}
-                      onOpenChanges={(filePath?: string, taskPath?: string) => {
-                        setDiffViewerInitialFile(filePath ?? null);
-                        setDiffViewerTaskPath(taskPath ?? null);
-                        setShowDiffViewer(true);
-                      }}
+                  {showEditorMode && activeTask && selectedProject && (
+                    <CodeEditor
+                      taskPath={activeTask.path}
+                      taskName={activeTask.name}
+                      projectName={selectedProject.name}
+                      onClose={() => setShowEditorMode(false)}
+                      connectionId={derivedRemoteConnectionId}
+                      remotePath={derivedRemotePath}
                     />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              </div>
-              <UpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
-              <CommandPaletteWrapper
-                isOpen={showCommandPalette}
-                onClose={handleCloseCommandPalette}
-                projects={projectMgmt.projects}
-                handleSelectProject={projectMgmt.handleSelectProject}
-                handleSelectTask={taskMgmt.handleSelectTask}
-                handleGoHome={() => {
-                  handleCloseSettingsPage();
-                  projectMgmt.handleGoHome();
-                }}
-                handleOpenProject={projectMgmt.handleOpenProject}
-                handleOpenSettings={() => openSettingsPage()}
-                handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
-              />
-              {showEditorMode && activeTask && selectedProject && (
-                <CodeEditor
-                  taskPath={activeTask.path}
-                  taskName={activeTask.name}
-                  projectName={selectedProject.name}
-                  onClose={() => setShowEditorMode(false)}
-                  connectionId={derivedRemoteConnectionId}
-                  remotePath={derivedRemotePath}
-                />
-              )}
+                  )}
 
-              <TaskModal
-                isOpen={showTaskModal}
-                onClose={() => setShowTaskModal(false)}
-                onCreateTask={handleCreateTask}
-                projectName={selectedProject?.name || ''}
-                defaultBranch={projectMgmt.projectDefaultBranch}
-                existingNames={(selectedProject?.tasks || []).map((w) => w.name)}
-                linkedGithubIssueMap={taskMgmt.linkedGithubIssueMap}
-                projectPath={selectedProject?.path}
-                branchOptions={projectMgmt.projectBranchOptions}
-                isLoadingBranches={projectMgmt.isLoadingBranches}
-              />
-              <NewProjectModal
-                isOpen={showNewProjectModal}
-                onClose={() => setShowNewProjectModal(false)}
-                onSuccess={projectMgmt.handleNewProjectSuccess}
-              />
-              <CloneFromUrlModal
-                isOpen={showCloneModal}
-                onClose={() => setShowCloneModal(false)}
-                onSuccess={projectMgmt.handleCloneSuccess}
-              />
-              <AddRemoteProjectModal
-                isOpen={showRemoteProjectModal}
-                onClose={() => setShowRemoteProjectModal(false)}
-                onSuccess={handleRemoteProjectSuccess}
-              />
-              <GithubDeviceFlowModal
-                open={showDeviceFlowModal}
-                onClose={github.handleDeviceFlowClose}
-                onSuccess={github.handleDeviceFlowSuccess}
-                onError={github.handleDeviceFlowError}
-              />
-              <Toaster />
-              <BrowserPane
-                taskId={activeTask?.id || null}
-                taskPath={activeTask?.path || null}
-                overlayActive={showSettingsPage || showCommandPalette || showTaskModal}
-              />
-            </RightSidebarProvider>
-          </SidebarProvider>
-        </KeyboardSettingsProvider>
-      </div>
-    </BrowserProvider>
+                  <ModalRenderer />
+                  <Toaster />
+                  <BrowserPane
+                    taskId={activeTask?.id || null}
+                    taskPath={activeTask?.path || null}
+                    overlayActive={showSettingsPage || showCommandPalette}
+                  />
+                </RightSidebarProvider>
+              </SidebarProvider>
+            </KeyboardSettingsProvider>
+          </div>
+        </BrowserProvider>
+      </TaskManagementContext.Provider>
+    </ProjectManagementContext.Provider>
   );
 }

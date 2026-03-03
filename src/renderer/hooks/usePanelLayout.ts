@@ -7,6 +7,7 @@ import {
   clampLeftSidebarSize,
   clampRightSidebarSize,
 } from '../constants/layout';
+import { rpc } from '@/lib/rpc';
 
 export interface UsePanelLayoutOptions {
   showEditorMode: boolean;
@@ -222,12 +223,8 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
   useEffect(() => {
     (async () => {
       try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          setAutoRightSidebarBehavior(
-            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
-          );
-        }
+        const settings = await rpc.appSettings.get();
+        setAutoRightSidebarBehavior(Boolean(settings.interface?.autoRightSidebarBehavior ?? false));
       } catch (error) {
         console.error('Failed to load right sidebar settings:', error);
       }

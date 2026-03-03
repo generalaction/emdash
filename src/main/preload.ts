@@ -153,10 +153,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
-  // App settings
-  getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
-
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => {
     const channel = 'menu:open-settings';

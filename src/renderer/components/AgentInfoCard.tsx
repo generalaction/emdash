@@ -119,6 +119,11 @@ export const agentInfo: Record<UiAgent, AgentInfo> = {
     description:
       'Minimal terminal coding agent by Mario Zechner. Supports 15+ providers and hundreds of models, tree-structured sessions, and TypeScript extensions for custom tools and sub-agents.',
   },
+  autohand: {
+    title: 'Autohand Code',
+    description:
+      'Terminal coding agent with auto-commit, dry-run previews, community skills, and headless CI/CD mode. Supports multiple LLM providers and unrestricted auto-approve for hands-free operation.',
+  },
 };
 
 type Props = {

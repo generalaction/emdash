@@ -10,6 +10,7 @@ import {
 } from '../lib/projectUtils';
 import type { Project, Task } from '../types/app';
 import { rpc } from '../lib/rpc';
+import { useModalContext } from '../contexts/ModalProvider';
 
 interface UseProjectManagementOptions {
   platform: string;
@@ -19,9 +20,7 @@ interface UseProjectManagementOptions {
   handleGithubConnect: () => void;
   setShowEditorMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowKanban: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowNewProjectModal: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowCloneModal: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowTaskModal: React.Dispatch<React.SetStateAction<boolean>>;
+  openTaskModal: () => void;
   setActiveTask: React.Dispatch<React.SetStateAction<Task | null>>;
   saveProjectOrder: (list: Project[]) => void;
   ToastAction: React.ComponentType<any>;
@@ -36,13 +35,13 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
     handleGithubConnect,
     setShowEditorMode,
     setShowKanban,
-    setShowNewProjectModal,
-    setShowCloneModal,
-    setShowTaskModal,
+    openTaskModal,
     setActiveTask,
     saveProjectOrder,
     ToastAction,
   } = options;
+
+  const { showModal } = useModalContext();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -253,7 +252,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       return;
     }
 
-    setShowNewProjectModal(true);
+    showModal('newProjectModal', { onSuccess: handleNewProjectSuccess });
   };
 
   const handleCloneProjectClick = async () => {
@@ -273,7 +272,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       return;
     }
 
-    setShowCloneModal(true);
+    showModal('cloneFromUrlModal', { onSuccess: handleCloneSuccess });
   };
 
   const handleCloneSuccess = useCallback(
@@ -418,7 +417,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
         // Auto-open task modal for non-GitHub projects
         const isGithubRemote = /github\.com[:/]/i.test(remoteUrl);
         if (!isAuthenticated || !isGithubRemote) {
-          setShowTaskModal(true);
+          openTaskModal();
         }
       } catch (error) {
         const { log } = await import('../lib/logger');
@@ -437,7 +436,7 @@ export const useProjectManagement = (options: UseProjectManagementOptions) => {
       platform,
       toast,
       saveProjectOrder,
-      setShowTaskModal,
+      openTaskModal,
     ]
   );
 

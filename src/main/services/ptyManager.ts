@@ -18,6 +18,7 @@ import { agentEventService } from './AgentEventService';
 const AGENT_ENV_VARS = [
   'AMP_API_KEY',
   'ANTHROPIC_API_KEY',
+  'AUTOHAND_API_KEY',
   'AUGMENT_SESSION_AUTH',
   'AWS_ACCESS_KEY_ID',
   'AWS_DEFAULT_REGION',
@@ -89,6 +90,27 @@ function getWindowsEssentialEnv(): Record<string, string> {
     ProgramW6432: process.env.ProgramW6432 || 'C:\\Program Files',
     CommonProgramW6432: process.env.CommonProgramW6432 || 'C:\\Program Files\\Common Files',
   };
+}
+
+// Display/desktop env vars needed for GUI operations from within PTY sessions.
+const DISPLAY_ENV_VARS = [
+  'DISPLAY', // X11 display server
+  'XAUTHORITY', // X11 auth cookie (often at non-standard path on Wayland+GNOME)
+  'WAYLAND_DISPLAY', // Wayland compositor socket
+  'XDG_RUNTIME_DIR', // Contains Wayland/D-Bus sockets (e.g. /run/user/1000)
+  'XDG_CURRENT_DESKTOP', // Used by xdg-open for DE detection (e.g. "GNOME")
+  'XDG_SESSION_TYPE', // Used by browsers/toolkits to select X11 vs Wayland
+  'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
+] as const;
+
+function getDisplayEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of DISPLAY_ENV_VARS) {
+    if (process.env[key]) {
+      env[key] = process.env[key] as string;
+    }
+  }
+  return env;
 }
 
 function resolveWindowsPtySpawn(
@@ -653,6 +675,8 @@ export function startSshPty(options: {
     USER: process.env.USER || os.userInfo().username,
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
@@ -803,6 +827,8 @@ export function startDirectPty(options: {
     // Include PATH so CLI can find its dependencies
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
   };
@@ -934,7 +960,9 @@ export async function startPty(options: {
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
   };

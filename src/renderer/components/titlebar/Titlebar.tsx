@@ -17,7 +17,8 @@ import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
 import TitlebarContext from './TitlebarContext';
-import type { Project, Task } from '../../types/app';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementContext';
+import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 
 interface GithubUser {
   login?: string;
@@ -29,24 +30,12 @@ interface GithubUser {
 interface TitlebarProps {
   onToggleSettings: () => void;
   isSettingsOpen?: boolean;
-  currentPath?: string | null;
   githubUser?: GithubUser | null;
   defaultPreviewUrl?: string | null;
-  taskId?: string | null;
-  taskPath?: string | null;
-  projectPath?: string | null;
-  isTaskMultiAgent?: boolean;
   onToggleKanban?: () => void;
   isKanbanOpen?: boolean;
-  kanbanAvailable?: boolean;
   onToggleEditor?: () => void;
-  showEditorButton?: boolean;
   isEditorOpen?: boolean;
-  projects: Project[];
-  selectedProject: Project | null;
-  activeTask: Task | null;
-  onSelectProject: (project: Project) => void;
-  onSelectTask: (task: Task) => void;
 }
 
 interface TitlebarToggleButtonProps {
@@ -105,25 +94,31 @@ function TitlebarToggleButton({
 const Titlebar: React.FC<TitlebarProps> = ({
   onToggleSettings,
   isSettingsOpen = false,
-  currentPath,
   githubUser,
   defaultPreviewUrl,
-  taskId,
-  taskPath,
-  projectPath,
-  isTaskMultiAgent,
   onToggleKanban,
   isKanbanOpen = false,
-  kanbanAvailable = false,
   onToggleEditor,
-  showEditorButton = false,
   isEditorOpen = false,
-  projects,
-  selectedProject,
-  activeTask,
-  onSelectProject,
-  onSelectTask,
 }) => {
+  const {
+    projects,
+    selectedProject,
+    handleSelectProject: onSelectProject,
+  } = useProjectManagementContext();
+  const { activeTask, handleSelectTask: onSelectTask } = useTaskManagementContext();
+
+  const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
+  const currentPath = isTaskMultiAgent
+    ? null
+    : activeTask?.path ||
+      (selectedProject?.isRemote ? selectedProject?.remotePath : selectedProject?.path) ||
+      null;
+  const taskId = activeTask?.id || null;
+  const taskPath = activeTask?.path || null;
+  const projectPath = selectedProject?.path || null;
+  const kanbanAvailable = Boolean(selectedProject);
+  const showEditorButton = Boolean(activeTask);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);

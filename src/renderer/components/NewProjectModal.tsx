@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
@@ -9,7 +9,6 @@ import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
 
 interface NewProjectModalProps {
-  isOpen: boolean;
   onClose: () => void;
   onSuccess: (projectPath: string) => void;
 }
@@ -19,7 +18,7 @@ interface Owner {
   type: 'User' | 'Organization';
 }
 
-export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuccess }) => {
   const [repoName, setRepoName] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState<string>('');
@@ -35,8 +34,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
   // Load owners on mount
   useEffect(() => {
-    if (!isOpen) return;
-
     let cancel = false;
     (async () => {
       try {
@@ -58,12 +55,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     return () => {
       cancel = true;
     };
-  }, [isOpen]);
+  }, []);
 
-  // Reset form on open
+  // Reset form on mount
   useEffect(() => {
-    if (!isOpen) return;
-
     setRepoName('');
     setDescription('');
     setIsPrivate(false);
@@ -72,7 +67,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     setIsValidating(false);
     setProgress('');
     setTouched(false);
-  }, [isOpen]);
+  }, []);
 
   // Validate repository name
   useEffect(() => {
@@ -167,131 +162,127 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
     [repoName, description, owner, isPrivate, validationError, onSuccess, onClose]
   );
 
-  const handleOpenChange = (open: boolean) => {
-    // Prevent closing during async operations
-    if (!open && isCreating) {
-      return;
-    }
-    if (!open) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
-        </DialogHeader>
+    <DialogContent
+      className="max-w-md"
+      onInteractOutside={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>New Project</DialogTitle>
+      </DialogHeader>
 
-        <Separator />
+      <Separator />
 
-        {isCreating && progress ? (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center gap-3">
-              <Spinner size="sm" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">{progress}</p>
-                <p className="text-xs text-muted-foreground">This may take a few seconds...</p>
-              </div>
+      {isCreating && progress ? (
+        <div className="space-y-4 py-4">
+          <div className="flex items-center gap-3">
+            <Spinner size="sm" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">{progress}</p>
+              <p className="text-xs text-muted-foreground">This may take a few seconds...</p>
             </div>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="repo-name" className="mb-2 block">
-                Repository name <span className="text-destructive">*</span>
-              </Label>
-              <SlugInput
-                id="repo-name"
-                value={repoName}
-                onChange={setRepoName}
-                onBlur={() => setTouched(true)}
-                placeholder="my-awesome-project"
-                maxLength={100}
-                className={`w-full ${
-                  touched && (error || validationError)
-                    ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive'
-                    : ''
-                }`}
-                aria-invalid={touched && !!(error || validationError)}
-                disabled={isCreating}
-                autoFocus
-              />
-              {touched && (validationError || error) && (
-                <div className="mt-1">
-                  <p className="text-xs text-destructive">{validationError || error}</p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="description" className="mb-2 block">
-                Description
-              </Label>
-              <Input
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="A brief description of your project"
-                disabled={isCreating}
-              />
-            </div>
-
-            <div>
-              <Label className="mb-2 block">Visibility</Label>
-              <RadioGroup
-                value={isPrivate ? 'private' : 'public'}
-                onValueChange={(value: string) => setIsPrivate(value === 'private')}
-                disabled={isCreating}
-                className="flex items-center gap-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="public" id="visibility-public" />
-                  <Label htmlFor="visibility-public" className="cursor-pointer font-normal">
-                    Public
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="private" id="visibility-private" />
-                  <Label htmlFor="visibility-private" className="cursor-pointer font-normal">
-                    Private
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {error && !validationError && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error.split('\n').map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="repo-name" className="mb-2 block">
+              Repository name <span className="text-destructive">*</span>
+            </Label>
+            <SlugInput
+              id="repo-name"
+              value={repoName}
+              onChange={setRepoName}
+              onBlur={() => setTouched(true)}
+              placeholder="my-awesome-project"
+              maxLength={100}
+              className={`w-full ${
+                touched && (error || validationError)
+                  ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive'
+                  : ''
+              }`}
+              aria-invalid={touched && !!(error || validationError)}
+              disabled={isCreating}
+              autoFocus
+            />
+            {touched && (validationError || error) && (
+              <div className="mt-1">
+                <p className="text-xs text-destructive">{validationError || error}</p>
               </div>
             )}
+          </div>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isCreating}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  !!validationError || !repoName.trim() || !owner || isCreating || isValidating
-                }
-              >
-                {isCreating ? (
-                  <>
-                    <Spinner size="sm" className="mr-2" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Project'
-                )}
-              </Button>
+          <div>
+            <Label htmlFor="description" className="mb-2 block">
+              Description
+            </Label>
+            <Input
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="A brief description of your project"
+              disabled={isCreating}
+            />
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Visibility</Label>
+            <RadioGroup
+              value={isPrivate ? 'private' : 'public'}
+              onValueChange={(value: string) => setIsPrivate(value === 'private')}
+              disabled={isCreating}
+              className="flex items-center gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="public" id="visibility-public" />
+                <Label htmlFor="visibility-public" className="cursor-pointer font-normal">
+                  Public
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="private" id="visibility-private" />
+                <Label htmlFor="visibility-private" className="cursor-pointer font-normal">
+                  Private
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {error && !validationError && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {error.split('\n').map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
             </div>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isCreating}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                !!validationError || !repoName.trim() || !owner || isCreating || isValidating
+              }
+            >
+              {isCreating ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Creating...
+                </>
+              ) : (
+                'Create Project'
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
+    </DialogContent>
   );
 };

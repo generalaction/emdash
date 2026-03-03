@@ -1,10 +1,16 @@
 import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
-import { homedir } from 'os';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+
+export type DeepPartial<T> = {
+  [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
+};
+
+export type AppSettingsUpdate = DeepPartial<AppSettings>;
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 const IS_MAC = process.platform === 'darwin';
@@ -304,9 +310,9 @@ export function getAppSettings(): AppSettings {
 /**
  * Update settings and persist to disk. Partial updates are deeply merged.
  */
-export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
+export function updateAppSettings(partial: AppSettingsUpdate): AppSettings {
   const current = getAppSettings();
-  const merged = deepMerge(current, partial);
+  const merged = deepMerge(current, partial as Partial<AppSettings>);
   const next = normalizeSettings(merged);
   if (partial.keyboard) {
     assertNoKeyboardShortcutConflicts(next.keyboard);

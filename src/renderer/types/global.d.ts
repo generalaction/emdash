@@ -339,8 +339,6 @@ declare global {
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
-      getSettings: () => Promise<any>;
-      updateSettings: (settings: any) => Promise<void>;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
         taskName?: string;

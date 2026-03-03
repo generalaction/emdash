@@ -365,13 +365,6 @@ jobs:
             echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
           fi
 
-      - name: Install Azure Trusted Signing dependencies
-        if: ${{ steps.signing.outputs.has_signing == 'true' }}
-        shell: pwsh
-        run: |
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-          Install-Module -Name TrustedSigning -RequiredVersion 0.5.0 -Force -Repository PSGallery
-
       - name: Rebuild native modules (x64)
         shell: bash
         run: |

@@ -1,27 +1,9 @@
 import React from 'react';
 import { Switch } from './ui/switch';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export default function BrowserPreviewSettingsCard() {
-  const [enabled, setEnabled] = React.useState(true);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const s = await (window as any).electronAPI?.getSettings?.();
-        const en = Boolean(s?.browserPreview?.enabled ?? true);
-        setEnabled(en);
-      } catch {}
-      setLoading(false);
-    })();
-  }, []);
-
-  const update = async (next: boolean) => {
-    setEnabled(next);
-    try {
-      await (window as any).electronAPI?.updateSettings?.({ browserPreview: { enabled: next } });
-    } catch {}
-  };
+  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -32,9 +14,9 @@ export default function BrowserPreviewSettingsCard() {
         </span>
       </div>
       <Switch
-        checked={enabled}
-        disabled={loading}
-        onCheckedChange={(checked) => update(checked === true)}
+        checked={settings?.browserPreview?.enabled ?? true}
+        disabled={isLoading || isSaving}
+        onCheckedChange={(next) => updateSettings({ browserPreview: { enabled: next } })}
       />
     </div>
   );

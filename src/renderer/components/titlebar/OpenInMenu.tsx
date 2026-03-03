@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { useToast } from '@/hooks/use-toast';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 interface OpenInMenuProps {
   path: string;
@@ -26,41 +27,16 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   isActive = true,
 }) => {
   const [open, setOpen] = React.useState(false);
-  const [defaultApp, setDefaultApp] = React.useState<OpenInAppId | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
+  const { settings, updateSettings } = useAppSettings();
 
-  // Fetch default app setting on mount and listen for changes
-  React.useEffect(() => {
-    const fetchDefaultApp = async () => {
-      try {
-        const res = await window.electronAPI?.getSettings?.();
-        if (res?.success && res.settings?.defaultOpenInApp) {
-          const app = res.settings.defaultOpenInApp;
-          if (isValidOpenInAppId(app)) {
-            // Do not overwrite a newer in-memory selection from user interaction.
-            setDefaultApp((prev) => prev ?? app);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch default open in app:', e);
-      }
-    };
-    void fetchDefaultApp();
-
-    // Listen for changes from settings
-    const handleChange = (e: CustomEvent<OpenInAppId>) => {
-      if (isValidOpenInAppId(e.detail)) {
-        setDefaultApp(e.detail);
-      }
-    };
-    window.addEventListener('defaultOpenInAppChanged', handleChange as EventListener);
-    return () => {
-      window.removeEventListener('defaultOpenInAppChanged', handleChange as EventListener);
-    };
-  }, []);
+  const defaultApp: OpenInAppId | null =
+    settings?.defaultOpenInApp && isValidOpenInAppId(settings.defaultOpenInApp)
+      ? settings.defaultOpenInApp
+      : null;
 
   React.useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -71,15 +47,13 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const persistPreferredApp = React.useCallback(async (appId: OpenInAppId) => {
-    setDefaultApp(appId);
-    window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: appId }));
-    try {
-      await window.electronAPI?.updateSettings?.({ defaultOpenInApp: appId });
-    } catch (e) {
-      console.error('Failed to persist preferred open in app:', e);
-    }
-  }, []);
+  const persistPreferredApp = React.useCallback(
+    (appId: OpenInAppId) => {
+      updateSettings({ defaultOpenInApp: appId });
+      window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: appId }));
+    },
+    [updateSettings]
+  );
 
   const callOpen = React.useCallback(
     async (appId: OpenInAppId) => {

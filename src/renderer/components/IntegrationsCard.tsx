@@ -17,7 +17,7 @@ import {
 } from './ui/dialog';
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
-import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
+import { useModalContext } from '../contexts/ModalProvider';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -40,6 +40,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 
 const IntegrationsCard: React.FC = () => {
   const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubAuth();
+  const { showModal, closeModal } = useModalContext();
 
   // Connection states
   const [linearConnected, setLinearConnected] = useState(false);
@@ -49,7 +50,6 @@ const IntegrationsCard: React.FC = () => {
   const [integrationSetupModal, setIntegrationSetupModal] = useState<null | 'linear' | 'jira'>(
     null
   );
-  const [showGithubModal, setShowGithubModal] = useState(false);
 
   // Linear state
   const [linearInput, setLinearInput] = useState('');
@@ -105,19 +105,31 @@ const IntegrationsCard: React.FC = () => {
         await checkStatus();
       }
 
-      setShowGithubModal(true);
+      showModal('githubDeviceFlowModal', {
+        onSuccess: async () => {
+          let attempts = 0;
+          const maxAttempts = 15;
+          while (attempts < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            const status = await checkStatus();
+            if (status?.authenticated) break;
+            attempts++;
+          }
+        },
+        onError: (error) => setGithubError(error),
+      });
       const result = await login();
 
       if (!result?.success) {
         setGithubError(result?.error || 'Could not connect.');
-        setShowGithubModal(false);
+        closeModal();
       }
     } catch (error) {
       console.error('GitHub connect failed:', error);
       setGithubError('Could not connect.');
-      setShowGithubModal(false);
+      closeModal();
     }
-  }, [checkStatus, login, installed]);
+  }, [checkStatus, login, installed, showModal, closeModal]);
 
   const handleGithubDisconnect = useCallback(async () => {
     setGithubError(null);
@@ -432,29 +444,6 @@ const IntegrationsCard: React.FC = () => {
       </Dialog>
 
       {/* GitHub Device Flow Modal */}
-      <GithubDeviceFlowModal
-        open={showGithubModal}
-        onClose={() => setShowGithubModal(false)}
-        onSuccess={async () => {
-          // Poll for authentication status (gh CLI takes time to authenticate)
-          let attempts = 0;
-          const maxAttempts = 15;
-
-          while (attempts < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            const status = await checkStatus();
-
-            if (status?.authenticated) {
-              break;
-            }
-            attempts++;
-          }
-        }}
-        onError={(error) => {
-          setGithubError(error);
-          setShowGithubModal(false);
-        }}
-      />
     </>
   );
 };
