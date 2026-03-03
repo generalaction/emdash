@@ -211,6 +211,12 @@ type SessionEntry = { uuid: string; cwd: string };
 let _sessionMapPath: string | null = null;
 let _sessionMap: Record<string, SessionEntry> | null = null;
 
+/** @internal Exported for testing. Sets session map path and clears the cache. */
+export function _resetSessionMapForTest(mapPath: string): void {
+  _sessionMapPath = mapPath;
+  _sessionMap = null;
+}
+
 function sessionMapPath(): string {
   if (!_sessionMapPath) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -230,10 +236,6 @@ function loadSessionMap(): Record<string, SessionEntry> {
   return _sessionMap!;
 }
 
-function getKnownSessionId(ptyId: string): string | undefined {
-  return loadSessionMap()[ptyId]?.uuid;
-}
-
 /** Check if the session map has entries for other chats of the same provider in the same cwd. */
 function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
   const map = loadSessionMap();
@@ -250,6 +252,26 @@ function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
     fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
   } catch (e) {
     log.warn('ptyManager: failed to persist session map', e);
+  }
+}
+
+function removeSessionId(ptyId: string): void {
+  const map = loadSessionMap();
+  delete map[ptyId];
+  try {
+    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
+  } catch (e) {
+    log.warn('ptyManager: failed to persist session map after removal', e);
+  }
+}
+
+function claudeSessionFileExists(uuid: string, cwd: string): boolean {
+  try {
+    const encoded = cwd.replace(/[:\\/]/g, '-');
+    const sessionFile = path.join(os.homedir(), '.claude', 'projects', encoded, `${uuid}.jsonl`);
+    return fs.existsSync(sessionFile);
+  } catch {
+    return false;
   }
 }
 
@@ -320,7 +342,7 @@ function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): S
  *
  * Returns true if session isolation args were added.
  */
-function applySessionIsolation(
+export function applySessionIsolation(
   cliArgs: string[],
   provider: ProviderDefinition,
   id: string,
@@ -335,10 +357,30 @@ function applySessionIsolation(
   const sessionUuid = deterministicUuid(parsed.suffix);
   const isAdditionalChat = parsed.kind === 'chat';
 
-  const knownSession = getKnownSessionId(id);
+  const entry = loadSessionMap()[id];
+  const knownSession = entry?.uuid;
   if (knownSession) {
-    cliArgs.push('--resume', knownSession);
-    return true;
+    // For Claude, validate the session still exists on disk before resuming.
+    // Also treat cwd mismatch as stale — the session belongs to a different
+    // project context and Claude would look in the wrong directory.
+    if (provider.id === 'claude') {
+      const isStale = entry.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
+      if (isStale) {
+        log.warn('ptyManager: stale session detected, creating new session', {
+          ptyId: id,
+          staleUuid: knownSession,
+        });
+        removeSessionId(id);
+        // Fall through — the decision tree below will create a new session
+        // or the caller will use generic resume flags
+      } else {
+        cliArgs.push('--resume', knownSession);
+        return true;
+      }
+    } else {
+      cliArgs.push('--resume', knownSession);
+      return true;
+    }
   }
 
   if (isAdditionalChat) {
