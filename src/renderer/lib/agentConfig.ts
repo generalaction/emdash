@@ -20,6 +20,7 @@ import continueLogo from '../../assets/images/continue.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 import piLogo from '../../assets/images/pi.png';
+import autohandLogoSvg from '../../assets/images/autohand.svg?raw';
 
 export type AgentInfo = {
   name: string;
@@ -39,6 +40,7 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogoSvg, alt: 'Factory Droid', isSvg: true },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
+  autohand: { name: 'Autohand Code', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
   auggie: { name: 'Auggie', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },

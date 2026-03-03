@@ -18,6 +18,7 @@ import { agentEventService } from './AgentEventService';
 const AGENT_ENV_VARS = [
   'AMP_API_KEY',
   'ANTHROPIC_API_KEY',
+  'AUTOHAND_API_KEY',
   'AUGMENT_SESSION_AUTH',
   'AWS_ACCESS_KEY_ID',
   'AWS_DEFAULT_REGION',

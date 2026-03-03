@@ -20,6 +20,7 @@ export const PROVIDER_IDS = [
   'codebuff',
   'mistral',
   'pi',
+  'autohand',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -335,6 +336,19 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '-c',
     icon: 'pi.png',
+    terminalOnly: true,
+  },
+  {
+    id: 'autohand',
+    name: 'Autohand Code',
+    docUrl: 'https://autohand.ai/code/',
+    installCommand: 'npm install -g autohand-cli',
+    commands: ['autohand'],
+    versionArgs: ['--version'],
+    cli: 'autohand',
+    autoApproveFlag: '--unrestricted',
+    initialPromptFlag: '-p',
+    icon: 'autohand.svg',
     terminalOnly: true,
   },
 ];
