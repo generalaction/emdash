@@ -124,12 +124,13 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         }
 
         const hasAdds = diffLines.some((l) => l.type === 'add');
-        if (!fileExistsOnDisk && diffLines.length > 0 && !hasAdds) {
+        const hasContext = diffLines.some((l) => l.type === 'context');
+        // Only blank modifiedContent if truly deleted: no context lines, no adds, and file unreadable.
+        if (!fileExistsOnDisk && diffLines.length > 0 && !hasAdds && !hasContext) {
           modifiedContent = '';
         }
 
         const hasDels = diffLines.some((l) => l.type === 'del');
-        const hasContext = diffLines.some((l) => l.type === 'context');
         if (diffLines.length > 0 && !hasDels && !hasContext && hasAdds) {
           originalContent = '';
         }
