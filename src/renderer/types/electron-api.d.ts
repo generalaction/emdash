@@ -359,6 +359,7 @@ declare global {
           }>;
           isBinary?: boolean;
           originalContent?: string;
+          modifiedContent?: string;
         };
         error?: string;
       }>;
