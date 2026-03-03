@@ -64,6 +64,7 @@ export type GitChange = {
   additions: number;
   deletions: number;
   isStaged: boolean;
+  oldPath?: string;
 };
 
 export async function getStatus(taskPath: string): Promise<GitChange[]> {
@@ -94,8 +95,10 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
   for (const line of statusLines) {
     const statusCode = line.substring(0, 2);
     let filePath = line.substring(3);
+    let oldPath: string | undefined;
     if (statusCode.includes('R') && filePath.includes('->')) {
       const parts = filePath.split('->');
+      oldPath = parts[0].trim();
       filePath = parts[parts.length - 1].trim();
     }
 
@@ -150,7 +153,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
       }
     }
 
-    changes.push({ path: filePath, status, additions, deletions, isStaged });
+    changes.push({ path: filePath, status, additions, deletions, isStaged, oldPath });
   }
 
   return changes;

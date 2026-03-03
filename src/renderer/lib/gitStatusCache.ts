@@ -5,6 +5,7 @@ export type GitStatusChange = {
   deletions: number;
   isStaged: boolean;
   diff?: string;
+  oldPath?: string;
 };
 
 export type GitStatusResult = {

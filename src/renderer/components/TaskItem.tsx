@@ -44,7 +44,7 @@ interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating';
   agentId?: string;
   useWorktree?: boolean;
   updatedAt?: string;
@@ -239,7 +239,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {(isRunning || task.status === 'running') && (
+        {(isRunning || task.status === 'running' || task.status === 'creating') && (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         {isEditing ? (
@@ -276,6 +276,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               />
             )}
             <span className="block truncate text-sm font-medium text-foreground">{task.name}</span>
+            {task.status === 'creating' && (
+              <span className="ml-1 animate-pulse text-xs text-muted-foreground">Creating...</span>
+            )}
           </>
         )}
         {showDirectBadge && task.useWorktree === false && (

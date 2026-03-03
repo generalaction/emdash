@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { homedir } from 'os';
 import { quoteShellArg } from '../utils/shellEscape';
+import { databaseService } from '../services/DatabaseService';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();
@@ -256,6 +257,103 @@ export function registerGithubIpc() {
   });
 
   ipcMain.handle(
+    'github:getPullRequestDiff',
+    async (_, args: { projectPath: string; prNumber: number }) => {
+      const { projectPath, prNumber } = args || {};
+      if (!projectPath || !prNumber) {
+        return { success: false, error: 'Project path and PR number are required' };
+      }
+
+      try {
+        const diff = await githubService.getPullRequestDiff(projectPath, prNumber);
+        return { success: true, diff };
+      } catch (error) {
+        log.error('Failed to get PR diff:', error);
+        const message =
+          error instanceof Error ? error.message : 'Unable to get PR diff via GitHub CLI';
+        return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'github:getPullRequestBaseDiff',
+    async (_, args: { worktreePath: string; prNumber: number }) => {
+      const { worktreePath, prNumber } = args || {};
+      if (!worktreePath || !prNumber) {
+        log.warn('getPullRequestBaseDiff: Missing worktreePath or prNumber', {
+          worktreePath,
+          prNumber,
+        });
+        return { success: false, error: 'Worktree path and PR number are required' };
+      }
+
+      try {
+        // Find the git repository by traversing up from the worktree
+        const fs = require('fs');
+        let projectDir = worktreePath;
+        while (projectDir && !fs.existsSync(path.join(projectDir, '.git'))) {
+          const parent = path.dirname(projectDir);
+          if (parent === projectDir) {
+            log.warn('getPullRequestBaseDiff: No git repository found');
+            return { success: false, error: 'Could not find git repository' };
+          }
+          projectDir = parent;
+        }
+
+        log.debug('getPullRequestBaseDiff: Found projectDir:', projectDir);
+
+        // Get PR details including base branch
+        const prDetails = await githubService.getPullRequestDetails(projectDir, prNumber);
+        log.debug('PR Details:', prDetails);
+
+        if (!prDetails) {
+          return { success: false, error: 'Could not get PR details' };
+        }
+
+        // Get diff between base branch and PR head branch (not HEAD which may have extra commits)
+        const { execSync } = require('child_process');
+        let diff = '';
+        try {
+          diff = execSync(
+            `git diff ${prDetails.baseRefName}...${prDetails.headRefName} --no-color`,
+            {
+              cwd: worktreePath,
+              encoding: 'utf-8',
+            }
+          );
+        } catch (e) {
+          // Try without three dots if that fails
+          try {
+            diff = execSync(
+              `git diff ${prDetails.baseRefName}..${prDetails.headRefName} --no-color`,
+              {
+                cwd: worktreePath,
+                encoding: 'utf-8',
+              }
+            );
+          } catch (e2) {
+            log.warn('git diff failed:', e2);
+            diff = '';
+          }
+        }
+
+        log.debug('Diff length:', diff.length);
+        return {
+          success: true,
+          diff,
+          baseBranch: prDetails.baseRefName,
+          headBranch: prDetails.headRefName,
+        };
+      } catch (error) {
+        log.error('Failed to get PR base diff:', error);
+        const message = error instanceof Error ? error.message : 'Unable to get PR diff';
+        return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
     'github:createPullRequestWorktree',
     async (
       _,
@@ -282,13 +380,6 @@ export function registerGithubIpc() {
       const branchName = args.branchName || `pr/${prNumber}`;
 
       try {
-        const currentWorktrees = await worktreeService.listWorktrees(projectPath);
-        const existing = currentWorktrees.find((wt) => wt.branch === branchName);
-
-        if (existing) {
-          return { success: true, worktree: existing, branchName, taskName: existing.name };
-        }
-
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
         const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
@@ -307,7 +398,24 @@ export function registerGithubIpc() {
           { worktreePath }
         );
 
-        return { success: true, worktree, branchName, taskName };
+        const taskInfo = {
+          id: `task-${Date.now()}`,
+          projectId,
+          name: taskName,
+          branch: branchName,
+          path: worktree.path,
+          status: 'idle' as const,
+          useWorktree: true,
+          prNumber,
+        };
+
+        try {
+          await databaseService.saveTask(taskInfo);
+        } catch (dbError) {
+          log.warn('Failed to save PR task to database, continuing:', dbError);
+        }
+
+        return { success: true, worktree, branchName, taskName, task: taskInfo };
       } catch (error) {
         log.error('Failed to create PR worktree:', error);
         const message =
