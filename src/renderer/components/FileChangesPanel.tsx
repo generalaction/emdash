@@ -65,7 +65,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
         {isLoading ? <Spinner size="sm" /> : PR_MODE_LABELS[mode]}
       </Button>
       <Popover>
-        <PopoverTrigger asChild>
+        <PopoverTrigger>
           <Button
             variant="outline"
             size="sm"

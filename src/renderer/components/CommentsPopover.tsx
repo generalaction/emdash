@@ -150,7 +150,7 @@ export function CommentsPopover({
         <TooltipProvider delayDuration={tooltipDelay}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <PopoverTrigger asChild>{children}</PopoverTrigger>
+              <PopoverTrigger>{children}</PopoverTrigger>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
               {tooltipContent}
@@ -158,7 +158,7 @@ export function CommentsPopover({
           </Tooltip>
         </TooltipProvider>
       ) : (
-        <PopoverTrigger asChild>{children}</PopoverTrigger>
+        <PopoverTrigger>{children}</PopoverTrigger>
       )}
       <PopoverContent className="w-[min(460px,92vw)] p-0" align="start">
         <div className="flex items-center justify-between border-b px-4 py-3">

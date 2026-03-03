@@ -1,4 +1,12 @@
-import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { CloneFromUrlModal } from '@/components/CloneFromUrlModal';
 import { NewProjectModal } from '@/components/NewProjectModal';
 import { UpdateModalOverlay } from '@/components/UpdateModal';
@@ -42,13 +50,18 @@ type ModalContext = {
   renderModal: () => ReactNode;
   closeModal: () => void;
   showModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
+  canClose: boolean;
+  setCloseBlocked: (blocked: boolean) => void;
 };
 
 const ModalContext = createContext<ModalContext | undefined>(undefined);
 
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [activeModalId, setActiveModalId] = useState<ModalId | null>(null);
+  const [canClose, setCanClose] = useState<boolean>(true);
   const activeModalArgs = useRef<ModalArgs<ModalId> | null>(null);
+
+  const setCloseBlocked = (blocked: boolean) => setCanClose(!blocked);
 
   const renderModal = useCallback((): ReactNode => {
     if (!activeModalId || !activeModalArgs.current) return null;
@@ -97,6 +110,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         renderModal: renderModal,
         closeModal: closeModal,
         showModal: showModal,
+        setCloseBlocked: setCloseBlocked,
+        canClose: canClose,
       }}
     >
       {children}
@@ -115,4 +130,12 @@ export function useModalContext() {
 export function useShowModal<MId extends ModalId>(id: MId) {
   const { showModal } = useModalContext();
   return (args: UserArgs<MId>) => showModal(id, args);
+}
+
+export function useModalCloseGuard(shouldBlock: boolean) {
+  const { setCloseBlocked } = useModalContext();
+  useEffect(() => {
+    setCloseBlocked(shouldBlock);
+    return () => setCloseBlocked(false);
+  }, [shouldBlock, setCloseBlocked]);
 }

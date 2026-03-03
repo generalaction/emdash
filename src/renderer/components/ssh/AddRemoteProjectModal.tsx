@@ -38,6 +38,7 @@ import {
   Download,
   Copy,
 } from 'lucide-react';
+import { useModalCloseGuard } from '@/contexts/ModalProvider';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
 type AuthType = 'password' | 'key' | 'agent';
@@ -134,6 +135,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [isLoadingSavedConnections, setIsLoadingSavedConnections] = useState(false);
   const [selectedSavedConnection, setSelectedSavedConnection] = useState<string | null>(null);
   const [useExistingConnection, setUseExistingConnection] = useState(false);
+
+  useModalCloseGuard(isSubmitting);
 
   // Form data
   const [formData, setFormData] = useState<FormData>({
@@ -1508,17 +1511,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   };
 
   return (
-    <DialogContent
-      className="max-w-lg md:max-w-2xl"
-      onInteractOutside={(e) => {
-        if (isSubmitting) e.preventDefault();
-        else handleClose();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isSubmitting) e.preventDefault();
-        else handleClose();
-      }}
-    >
+    <DialogContent className="max-w-lg md:max-w-2xl">
       <DialogHeader>
         <DialogTitle>Add Remote Project</DialogTitle>
         <DialogDescription>

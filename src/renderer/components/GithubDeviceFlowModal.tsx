@@ -207,12 +207,6 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
     }
   };
 
-  const handleClose = () => {
-    // Cancel auth flow in main process (polling continues in background)
-    window.electronAPI.githubCancelAuth();
-    onClose();
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -237,14 +231,16 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [userCode]);
 
+  useEffect(() => {
+    return () => {
+      window.electronAPI.githubCancelAuth();
+    };
+  }, []);
+
   return (
-    <DialogContent
-      className="max-w-[480px] p-0"
-      onInteractOutside={() => handleClose()}
-      onEscapeKeyDown={() => handleClose()}
-    >
+    <DialogContent className="max-w-[480px] p-0">
       <button
-        onClick={handleClose}
+        onClick={onClose}
         className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
       >
         <X className="h-4 w-4" />
@@ -286,7 +282,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
               <h2 className="text-xl font-semibold">Authentication Failed</h2>
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
-            <Button onClick={handleClose} variant="outline" className="w-full">
+            <Button onClick={onClose} variant="outline" className="w-full">
               Close
             </Button>
           </div>

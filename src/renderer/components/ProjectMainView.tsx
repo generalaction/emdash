@@ -872,7 +872,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           </button>
                         )}
                         <Popover>
-                          <PopoverTrigger asChild>
+                          <PopoverTrigger>
                             <Button
                               variant="ghost"
                               size="icon-sm"

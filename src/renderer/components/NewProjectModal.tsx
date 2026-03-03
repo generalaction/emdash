@@ -7,6 +7,7 @@ import { Label } from './ui/label';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
+import { useModalCloseGuard } from '@/contexts/ModalProvider';
 
 interface NewProjectModalProps {
   onClose: () => void;
@@ -31,6 +32,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
   const [progress, setProgress] = useState<string>('');
   const [touched, setTouched] = useState(false);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useModalCloseGuard(isCreating);
 
   // Load owners on mount
   useEffect(() => {
@@ -163,15 +166,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
   );
 
   return (
-    <DialogContent
-      className="max-w-md"
-      onInteractOutside={(e) => {
-        if (isCreating) e.preventDefault();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isCreating) e.preventDefault();
-      }}
-    >
+    <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>New Project</DialogTitle>
       </DialogHeader>

@@ -16,7 +16,6 @@ import {
 } from './ui/sidebar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import {
   Home,
   Plus,
@@ -279,7 +278,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </span>
               {onOpenProject && (
                 <Popover>
-                  <PopoverTrigger asChild>
+                  <PopoverTrigger>
                     <Button variant="ghost" size="icon-sm" className="text-foreground/30">
                       <FolderPlus className="h-3.5 w-3.5" />
                     </Button>

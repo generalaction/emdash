@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
 import { rpc } from '@/lib/rpc';
+import { useModalCloseGuard } from '@/contexts/ModalProvider';
 
 interface CloneFromUrlModalProps {
   onClose: () => void;
@@ -19,6 +20,8 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [touched, setTouched] = useState(false);
+
+  useModalCloseGuard(isCloning);
 
   // Clean URL by removing hash, query params, and trailing slashes
   const cleanUrl = useCallback((url: string): string => {
@@ -162,15 +165,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
   );
 
   return (
-    <DialogContent
-      className="max-w-md"
-      onInteractOutside={(e) => {
-        if (isCloning) e.preventDefault();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isCloning) e.preventDefault();
-      }}
-    >
+    <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>Clone from URL</DialogTitle>
       </DialogHeader>

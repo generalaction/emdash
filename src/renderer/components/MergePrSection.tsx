@@ -316,7 +316,7 @@ export function MergePrSection({
               </Button>
             )}
             <Popover>
-              <PopoverTrigger asChild>
+              <PopoverTrigger>
                 <Button
                   variant="default"
                   size="sm"

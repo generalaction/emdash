@@ -158,7 +158,7 @@ const TerminalSettingsCard: React.FC = () => {
         </div>
         <div className="w-[183px] flex-shrink-0">
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
+            <PopoverTrigger>
               <Button
                 type="button"
                 variant="outline"
