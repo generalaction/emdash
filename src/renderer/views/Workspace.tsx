@@ -767,6 +767,7 @@ function WorkspaceInner() {
                   />
                   {showEditorMode && activeTask && selectedProject && (
                     <CodeEditor
+                      taskId={activeTask.id}
                       taskPath={activeTask.path}
                       taskName={activeTask.name}
                       projectName={selectedProject.name}
