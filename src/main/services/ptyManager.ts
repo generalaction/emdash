@@ -59,6 +59,7 @@ type PtyRecord = {
   kind?: 'local' | 'ssh';
   cols?: number;
   rows?: number;
+  tmuxSessionName?: string; // Set when session is wrapped in tmux
 };
 
 const ptys = new Map<string, PtyRecord>();
@@ -112,6 +113,43 @@ function getDisplayEnv(): Record<string, string> {
   }
   return env;
 }
+
+// --- Tmux session helpers ---
+
+/**
+ * Derive a deterministic tmux session name from a PTY ID.
+ * Sanitizes to characters allowed by tmux (alphanumeric, `-`, `_`, `.`).
+ */
+export function getTmuxSessionName(ptyId: string): string {
+  // PTY ID format: {providerId}-main-{taskId} or {providerId}-chat-{conversationId}
+  // Prefix with "emdash-" and sanitize
+  const sanitized = ptyId.replace(/[^a-zA-Z0-9._-]/g, '-');
+  return `emdash-${sanitized}`;
+}
+
+/**
+ * Kill a tmux session by PTY ID. Fire-and-forget — ignores errors
+ * for non-existent sessions (e.g., tmux not installed or session already dead).
+ */
+export function killTmuxSession(ptyId: string): void {
+  const sessionName = getTmuxSessionName(ptyId);
+  try {
+    const { execFile } = require('child_process');
+    execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+      if (!err) {
+        log.info('ptyManager:tmux - killed session', { sessionName });
+      }
+      // Ignore errors — session may not exist or tmux not installed
+    });
+  } catch {
+    // Ignore
+  }
+}
+
+// TODO: Remote tmux cleanup will be handled by the workspace provider teardown script.
+// The PTY record doesn't currently store SSH target/args, so we can't shell out
+// `ssh <target> tmux kill-session` from here. When workspace providers land, the
+// teardown script is the right place for this.
 
 function resolveWindowsPtySpawn(
   command: string,
@@ -732,9 +770,18 @@ export function startDirectPty(options: {
   initialPrompt?: string;
   env?: Record<string, string>;
   resume?: boolean;
+  tmux?: boolean;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  // Tmux wrapping requires a shell — fall back to startPty() which handles tmux.
+  if (options.tmux) {
+    log.info('ptyManager:directSpawn - tmux enabled, falling back to shell spawn', {
+      id: options.id,
+    });
+    return null;
   }
 
   const {
@@ -916,6 +963,7 @@ export async function startPty(options: {
   initialPrompt?: string;
   skipResume?: boolean;
   shellSetup?: string;
+  tmux?: boolean;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -931,6 +979,7 @@ export async function startPty(options: {
     initialPrompt,
     skipResume,
     shellSetup,
+    tmux,
   } = options;
 
   const defaultShell = getDefaultShell();
@@ -1117,9 +1166,35 @@ export async function startPty(options: {
     } catch {}
   }
 
+  // When tmux is enabled, wrap the spawn in a tmux session.
+  // tmux new-session -As <name> creates or attaches to a named session.
+  // The inner shell command (with the agent CLI) runs inside tmux.
+  let tmuxSessionName: string | undefined;
+  let spawnCommand = useShell;
+  let spawnArgs = args;
+
+  if (tmux && process.platform !== 'win32') {
+    let tmuxAvailable = false;
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
+      tmuxAvailable = true;
+    } catch {
+      log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
+    }
+
+    if (tmuxAvailable) {
+      tmuxSessionName = getTmuxSessionName(id);
+      // Build: tmux new-session -As <name> -- <shell> <args...>
+      spawnCommand = 'tmux';
+      spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
+      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
+    }
+  }
+
   let proc: IPty;
   try {
-    const spawnSpec = resolveWindowsPtySpawn(useShell, args);
+    const spawnSpec = resolveWindowsPtySpawn(spawnCommand, spawnArgs);
     proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
       name: 'xterm-256color',
       cols,
@@ -1158,7 +1233,7 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc, kind: 'local', cols, rows });
+  ptys.set(id, { id, proc, kind: 'local', cols, rows, tmuxSessionName });
   return proc;
 }
 
@@ -1231,4 +1306,8 @@ export function getPty(id: string): IPty | undefined {
 
 export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
   return ptys.get(id)?.kind;
+}
+
+export function getPtyTmuxSessionName(id: string): string | undefined {
+  return ptys.get(id)?.tmuxSessionName;
 }
