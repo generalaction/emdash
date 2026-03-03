@@ -2,10 +2,16 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  parseDiffLines,
+  stripTrailingNewline,
+  MAX_DIFF_CONTENT_BYTES,
+  MAX_DIFF_OUTPUT_BYTES,
+} from '../utils/diffParser';
+import type { DiffLine, DiffResult } from '../utils/diffParser';
 
 const execFileAsync = promisify(execFile);
 const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
-const MAX_UNTRACKED_DIFF_BYTES = 512 * 1024;
 
 async function countFileNewlinesCapped(filePath: string, maxBytes: number): Promise<number | null> {
   let stat: fs.Stats;
@@ -205,94 +211,67 @@ export async function revertFile(
   return { action: 'reverted' };
 }
 
-/** Headers emitted by `git diff` that should be skipped when parsing hunks. */
-const DIFF_HEADER_PREFIXES = [
-  'diff ',
-  'index ',
-  '--- ',
-  '+++ ',
-  '@@',
-  'new file mode',
-  'old file mode',
-  'deleted file mode',
-  'similarity index',
-  'rename from',
-  'rename to',
-  'Binary files',
-];
-
-type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
-
-/** Parse raw `git diff` output into structured diff lines, skipping headers. */
-function parseDiffLines(stdout: string): { lines: DiffLine[]; isBinary: boolean } {
-  const linesRaw = stdout.split('\n');
-  const result: DiffLine[] = [];
-  for (const line of linesRaw) {
-    if (!line) continue;
-    if (DIFF_HEADER_PREFIXES.some((p) => line.startsWith(p))) continue;
-    const prefix = line[0];
-    const content = line.slice(1);
-    if (prefix === '\\') continue; // skip "\ No newline at end of file" markers
-    if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-    else if (prefix === '-') result.push({ left: content, type: 'del' });
-    else if (prefix === '+') result.push({ right: content, type: 'add' });
-    else result.push({ left: line, right: line, type: 'context' });
-  }
-  const isBinary = result.length === 0 && stdout.includes('Binary files');
-  return { lines: result, isBinary };
-}
-
-export async function getFileDiff(
-  taskPath: string,
-  filePath: string
-): Promise<{
-  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
-  isBinary?: boolean;
-  originalContent?: string;
-  modifiedContent?: string;
-}> {
+export async function getFileDiff(taskPath: string, filePath: string): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
 
+  // Helper: fetch content at HEAD with size guard
   const getOriginalContent = async (): Promise<string | undefined> => {
     try {
-      const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
+      const { stdout } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
         cwd: taskPath,
+        maxBuffer: MAX_DIFF_CONTENT_BYTES,
       });
-      return prev.replace(/\n$/, '');
+      return stripTrailingNewline(stdout);
     } catch {
       return undefined;
     }
   };
 
-  try {
-    const [{ stdout }, originalContent, modifiedContent] = await Promise.all([
-      execFileAsync('git', ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath], {
-        cwd: taskPath,
-      }),
-      getOriginalContent(),
-      readFileTextCapped(path.join(taskPath, filePath), MAX_UNTRACKED_DIFF_BYTES).then((content) =>
-        content !== null ? content.replace(/\n$/, '') : undefined
-      ),
-    ]);
+  // Helper: read current file from disk with size guard
+  const getModifiedContent = async (): Promise<string | undefined> => {
+    const content = await readFileTextCapped(path.join(taskPath, filePath), MAX_DIFF_CONTENT_BYTES);
+    return content !== null ? stripTrailingNewline(content) : undefined;
+  };
 
-    const { lines: result, isBinary } = parseDiffLines(stdout);
+  // Step 1: Run git diff
+  let diffStdout: string | undefined;
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
+      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
+    );
+    diffStdout = stdout;
+  } catch {
+    // git diff failed (no HEAD, untracked file, etc.) — fall through to content-only path
+  }
+
+  // Step 2: Parse diff and check binary
+  if (diffStdout !== undefined) {
+    const { lines, isBinary } = parseDiffLines(diffStdout);
 
     if (isBinary) {
       return { lines: [], isBinary: true };
     }
 
-    if (result.length === 0) {
+    // Step 3: Fetch content (only for non-binary)
+    const [originalContent, modifiedContent] = await Promise.all([
+      getOriginalContent(),
+      getModifiedContent(),
+    ]);
+
+    // Step 4: Handle empty diff (untracked or deleted file that git reports as empty diff)
+    if (lines.length === 0) {
       if (modifiedContent !== undefined) {
         return {
           lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
           modifiedContent,
         };
       }
-      // File unreadable on disk — use already-fetched originalContent instead of a redundant git show
       if (originalContent !== undefined) {
         return {
           lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
@@ -302,32 +281,29 @@ export async function getFileDiff(
       return { lines: [] };
     }
 
-    return { lines: result, originalContent, modifiedContent };
-  } catch {
-    // The git diff against HEAD failed (e.g., untracked file, no HEAD).
-    // Try reading the file directly as an all-additions diff.
-    const abs = path.join(taskPath, filePath);
-    const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
-    if (content !== null) {
-      const lines = content.split('\n');
-      return {
-        lines: lines.map((l) => ({ right: l, type: 'add' as const })),
-        modifiedContent: content.replace(/\n$/, ''),
-      };
-    }
-    // File unreadable — try to show the HEAD version as all-deletions
-    try {
-      const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-        cwd: taskPath,
-      });
-      return {
-        lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-        originalContent: prev.replace(/\n$/, ''),
-      };
-    } catch {
-      return { lines: [] };
-    }
+    return { lines, originalContent, modifiedContent };
   }
+
+  // Fallback: git diff failed — try content-only approach
+  const [originalContent, modifiedContent] = await Promise.all([
+    getOriginalContent(),
+    getModifiedContent(),
+  ]);
+
+  if (modifiedContent !== undefined) {
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      originalContent,
+      modifiedContent,
+    };
+  }
+  if (originalContent !== undefined) {
+    return {
+      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+      originalContent,
+    };
+  }
+  return { lines: [] };
 }
 
 /** Commit staged files (no push). Returns the commit hash. */
@@ -558,24 +534,21 @@ export async function getCommitFileDiff(
   taskPath: string,
   commitHash: string,
   filePath: string
-): Promise<{
-  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
-  isBinary?: boolean;
-  originalContent?: string;
-  modifiedContent?: string;
-}> {
+): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
 
+  // Helper: fetch content at a given ref with size guard
   const getContentAt = async (ref: string): Promise<string | undefined> => {
     try {
       const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
         cwd: taskPath,
+        maxBuffer: MAX_DIFF_CONTENT_BYTES,
       });
-      return stdout.replace(/\n$/, '');
+      return stripTrailingNewline(stdout);
     } catch {
       return undefined;
     }
@@ -591,32 +564,64 @@ export async function getCommitFileDiff(
 
   if (!hasParent) {
     const modifiedContent = await getContentAt(commitHash);
-    if (modifiedContent !== undefined) {
-      return {
-        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-        modifiedContent,
-      };
+    if (modifiedContent === undefined) {
+      return { lines: [] };
     }
-    return { lines: [] };
+    if (modifiedContent === '') {
+      return { lines: [], modifiedContent };
+    }
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      modifiedContent,
+    };
   }
 
-  const [diffResult, originalContent, modifiedContent] = await Promise.all([
-    execFileAsync(
+  // Run diff
+  let diffStdout: string | undefined;
+  try {
+    const { stdout } = await execFileAsync(
       'git',
       ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
-      { cwd: taskPath }
-    ),
+      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
+    );
+    diffStdout = stdout;
+  } catch {
+    // diff too large or git error — fall through to content-only path
+  }
+
+  let diffLines: DiffLine[] = [];
+  if (diffStdout !== undefined) {
+    const { lines, isBinary } = parseDiffLines(diffStdout);
+    if (isBinary) {
+      return { lines: [], isBinary: true };
+    }
+    diffLines = lines;
+  }
+
+  // Fetch content AFTER binary check to avoid fetching binary blobs
+  const [originalContent, modifiedContent] = await Promise.all([
     getContentAt(`${commitHash}~1`),
     getContentAt(commitHash),
   ]);
 
-  const { lines: result, isBinary } = parseDiffLines(diffResult.stdout);
+  if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
 
-  if (isBinary) {
-    return { lines: [], isBinary: true };
+  // Fallback: diff failed or empty — determine from content
+  if (modifiedContent !== undefined && modifiedContent !== '') {
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      originalContent,
+      modifiedContent,
+    };
   }
-
-  return { lines: result, originalContent, modifiedContent };
+  if (originalContent !== undefined) {
+    return {
+      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+      originalContent,
+      modifiedContent,
+    };
+  }
+  return { lines: [], originalContent, modifiedContent };
 }
 
 /** Soft-reset the latest commit. Returns the commit message that was reset. */

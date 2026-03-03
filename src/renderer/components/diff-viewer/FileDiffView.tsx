@@ -109,30 +109,19 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
 
         const diffLines: DiffLine[] = diffRes.diff.lines;
         const converted = convertDiffLinesToMonacoFormat(diffLines);
-        let originalContent = diffRes.diff.originalContent ?? converted.original;
+        const originalContent = diffRes.diff.originalContent ?? converted.original;
         let modifiedContent = diffRes.diff.modifiedContent ?? converted.modified;
 
-        let fileExistsOnDisk = diffRes.diff.modifiedContent !== undefined;
+        // Re-read the file from disk to get the most up-to-date content.
+        // The agent may still be writing while we render, so this ensures
+        // we show the latest version rather than a stale backend snapshot.
         try {
           const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
-          if (readRes?.success && readRes.content) {
+          if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
             modifiedContent = readRes.content.replace(/\n$/, '');
-            fileExistsOnDisk = true;
           }
         } catch {
           // fallback to diff-based content
-        }
-
-        const hasAdds = diffLines.some((l) => l.type === 'add');
-        const hasContext = diffLines.some((l) => l.type === 'context');
-        // Only blank modifiedContent if truly deleted: no context lines, no adds, and file unreadable.
-        if (!fileExistsOnDisk && diffLines.length > 0 && !hasAdds && !hasContext) {
-          modifiedContent = '';
-        }
-
-        const hasDels = diffLines.some((l) => l.type === 'del');
-        if (diffLines.length > 0 && !hasDels && !hasContext && hasAdds) {
-          originalContent = '';
         }
 
         if (!cancelled) {
