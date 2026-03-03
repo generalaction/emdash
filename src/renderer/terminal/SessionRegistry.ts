@@ -51,6 +51,10 @@ class SessionRegistry {
     return this.sessions.get(taskId);
   }
 
+  getContent(taskId: string): string | null {
+    return this.sessions.get(taskId)?.getSerializedContent() ?? null;
+  }
+
   disposeAll() {
     for (const id of Array.from(this.sessions.keys())) {
       this.dispose(id);

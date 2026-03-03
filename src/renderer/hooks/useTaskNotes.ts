@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TaskNote } from '../types/chat';
+import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 export function useTaskNotes(taskId: string | null) {
   const [manualNote, setManualNote] = useState('');
@@ -49,10 +50,14 @@ export function useTaskNotes(taskId: string | null) {
       setIsGenerating(true);
       setError(null);
       try {
+        // Serialize the terminal content on-demand so we don't depend on
+        // the periodic snapshot file (which only saves every 2 minutes).
+        const content = terminalSessionRegistry.getContent(ptyId) ?? undefined;
         const result = await window.electronAPI.taskNotesGenerateSummary({
           taskId,
           ptyId,
           agentId,
+          content,
         });
         if (result.success && result.summary) {
           setSummary(result.summary);

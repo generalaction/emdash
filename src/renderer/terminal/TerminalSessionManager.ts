@@ -503,6 +503,15 @@ export class TerminalSessionManager {
     this.terminal.focus();
   }
 
+  /** Return the current terminal buffer as a serialized string, or null if not ready. */
+  getSerializedContent(): string | null {
+    try {
+      return this.serializeAddon.serialize();
+    } catch {
+      return null;
+    }
+  }
+
   scrollToBottom() {
     try {
       this.terminal.scrollToBottom();

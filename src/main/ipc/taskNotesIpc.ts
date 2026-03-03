@@ -42,16 +42,22 @@ export function registerTaskNotesIpc(): void {
 
   ipcMain.handle(
     'taskNotes:generateSummary',
-    async (_, args: { taskId: string; ptyId: string; agentId?: string }) => {
+    async (_, args: { taskId: string; ptyId: string; agentId?: string; content?: string }) => {
       try {
-        const snapshot = await terminalSnapshotService.getSnapshot(args.ptyId);
-        if (!snapshot?.data) {
+        // Prefer renderer-provided content (on-demand serialization).
+        // Fall back to the periodic snapshot file if no content was sent.
+        let rawContent = args.content ?? null;
+        if (!rawContent) {
+          const snapshot = await terminalSnapshotService.getSnapshot(args.ptyId);
+          rawContent = snapshot?.data ?? null;
+        }
+        if (!rawContent) {
           return { success: false, error: 'No terminal output to summarize' };
         }
 
         const settings = getAppSettings();
         const maxLines = settings.summary?.terminalLines ?? 500;
-        const plainText = extractLastLines(stripAnsi(snapshot.data), maxLines);
+        const plainText = extractLastLines(stripAnsi(rawContent), maxLines);
 
         if (!plainText.trim()) {
           return { success: false, error: 'No terminal output to summarize' };

@@ -381,7 +381,7 @@ const SingleTaskSidebar: React.FC<{
         <div className="flex h-full min-h-0 flex-col">
           <TaskNotesPanel
             taskId={task.id}
-            ptyId={task.agentId ? makePtyId(task.agentId as ProviderId, 'main', task.id) : null}
+            ptyId={makePtyId((task.agentId ?? 'claude') as ProviderId, 'main', task.id)}
             agentId={task.agentId}
           />
           <FileChangesPanel className="min-h-0 flex-1" onOpenChanges={onOpenChanges} />

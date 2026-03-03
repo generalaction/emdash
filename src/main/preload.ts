@@ -699,8 +699,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   taskNotesUpsert: (args: { taskId: string; type: 'manual' | 'summary'; content: string }) =>
     ipcRenderer.invoke('taskNotes:upsert', args),
   taskNotesDelete: (noteId: string) => ipcRenderer.invoke('taskNotes:delete', noteId),
-  taskNotesGenerateSummary: (args: { taskId: string; ptyId: string; agentId?: string }) =>
-    ipcRenderer.invoke('taskNotes:generateSummary', args),
+  taskNotesGenerateSummary: (args: {
+    taskId: string;
+    ptyId: string;
+    agentId?: string;
+    content?: string;
+  }) => ipcRenderer.invoke('taskNotes:generateSummary', args),
 });
 
 // Type definitions for the exposed API

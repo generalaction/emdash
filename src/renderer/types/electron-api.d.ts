@@ -1102,6 +1102,7 @@ declare global {
         taskId: string;
         ptyId: string;
         agentId?: string;
+        content?: string;
       }) => Promise<{
         success: boolean;
         summary?: string;
@@ -1689,7 +1690,12 @@ export interface ElectronAPI {
     error?: string;
   }>;
   taskNotesDelete: (noteId: string) => Promise<{ success: boolean; error?: string }>;
-  taskNotesGenerateSummary: (args: { taskId: string; ptyId: string; agentId?: string }) => Promise<{
+  taskNotesGenerateSummary: (args: {
+    taskId: string;
+    ptyId: string;
+    agentId?: string;
+    content?: string;
+  }) => Promise<{
     success: boolean;
     summary?: string;
     error?: string;

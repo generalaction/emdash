@@ -33,7 +33,6 @@ import {
 import SidebarEmptyState from './SidebarEmptyState';
 import { TaskItem } from './TaskItem';
 import { TaskDeleteButton } from './TaskDeleteButton';
-import { TaskNotesPanel } from './TaskNotesPanel';
 import { RemoteProjectIndicator } from './ssh/RemoteProjectIndicator';
 import { useRemoteProject } from '../hooks/useRemoteProject';
 import type { Project } from '../types/app';
@@ -441,13 +440,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     </motion.div>
                                   );
                                 })}
-                              {activeTask &&
-                                typedProject.tasks?.some((t) => t.id === activeTask.id) && (
-                                  <TaskNotesPanel
-                                    task={activeTask}
-                                    isArchived={!!activeTask.archivedAt}
-                                  />
-                                )}
                               {archivedTasksByProject[typedProject.id]?.length > 0 && (
                                 <Collapsible className="mt-1">
                                   <CollapsibleTrigger asChild>
