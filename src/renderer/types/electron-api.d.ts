@@ -939,6 +939,23 @@ declare global {
         error?: string;
       }>;
 
+      // Task notes
+      taskNotesUpsert: (args: {
+        taskId: string;
+        type: 'manual' | 'summary';
+        content: string;
+      }) => Promise<{ success: boolean; id?: string; error?: string }>;
+      taskNotesGet: (taskId: string) => Promise<{
+        success: boolean;
+        notes?: import('./chat').TaskNote[];
+        error?: string;
+      }>;
+      taskNotesDelete: (noteId: string) => Promise<{ success: boolean; error?: string }>;
+      taskNotesGenerateSummary: (args: {
+        taskId: string;
+        ptyId: string;
+      }) => Promise<{ success: boolean; summary?: string; error?: string }>;
+
       // SSH operations
       sshTestConnection: (config: {
         id?: string;
@@ -1610,6 +1627,23 @@ export interface ElectronAPI {
     comments?: LineComment[];
     error?: string;
   }>;
+
+  // Task notes
+  taskNotesUpsert: (args: {
+    taskId: string;
+    type: 'manual' | 'summary';
+    content: string;
+  }) => Promise<{ success: boolean; id?: string; error?: string }>;
+  taskNotesGet: (taskId: string) => Promise<{
+    success: boolean;
+    notes?: import('./chat').TaskNote[];
+    error?: string;
+  }>;
+  taskNotesDelete: (noteId: string) => Promise<{ success: boolean; error?: string }>;
+  taskNotesGenerateSummary: (args: {
+    taskId: string;
+    ptyId: string;
+  }) => Promise<{ success: boolean; summary?: string; error?: string }>;
 
   // Skills management
   skillsGetCatalog: () => Promise<{

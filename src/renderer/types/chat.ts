@@ -46,6 +46,15 @@ export interface TaskMetadata {
   } | null;
 }
 
+export interface TaskNote {
+  id: string;
+  taskId: string;
+  type: 'manual' | 'summary';
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Task {
   id: string;
   projectId: string;

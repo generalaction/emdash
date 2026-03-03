@@ -513,6 +513,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('lineComments:markSent', commentIds),
   lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
+  // Task notes
+  taskNotesUpsert: (args: { taskId: string; type: 'manual' | 'summary'; content: string }) =>
+    ipcRenderer.invoke('taskNotes:upsert', args),
+  taskNotesGet: (taskId: string) => ipcRenderer.invoke('taskNotes:get', taskId),
+  taskNotesDelete: (noteId: string) => ipcRenderer.invoke('taskNotes:delete', noteId),
+  taskNotesGenerateSummary: (args: { taskId: string; ptyId: string }) =>
+    ipcRenderer.invoke('taskNotes:generateSummary', args),
+
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
     ipcRenderer.invoke('debug:append-log', filePath, content, options ?? {}),
