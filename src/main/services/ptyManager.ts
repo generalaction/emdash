@@ -570,7 +570,7 @@ function resolveCommandPath(command: string): string | null {
     return resolveFromCandidates([expandWindowsEnvVars(trimmed)], true);
   }
 
-  const pathEnv = process.env.PATH;
+  const pathEnv = process.env.PATH || process.env.Path;
   if (!pathEnv) return null;
 
   const pathDirs = pathEnv

@@ -199,6 +199,7 @@ describe('ptyManager SSH spawn resolution', () => {
       const resolved = resolveSshCommand();
       expect(resolved).toBe(fakeSshPath);
     } finally {
+      process.env = { ...originalEnv };
       rmSync(tempDir, { recursive: true, force: true });
       if (originalPlatformDescriptor) {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
