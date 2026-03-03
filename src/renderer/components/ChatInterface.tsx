@@ -11,6 +11,8 @@ import AgentLogo from './AgentLogo';
 import TaskContextBadges from './TaskContextBadges';
 import { Spinner } from './ui/spinner';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
+import { usePlanMode } from '../hooks/usePlanMode';
+import { PlanOverlay } from './PlanOverlay';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
@@ -860,6 +862,15 @@ const ChatInterface: React.FC<Props> = ({
         agentMeta[agent]?.useKeystrokeInjection === true),
   });
 
+  // Plan mode overlay for Claude
+  const planMode = usePlanMode({
+    taskId: task.id,
+    taskPath: task.path ?? null,
+    providerId: agent,
+    terminalId,
+    enabled: agent === 'claude' && !projectRemoteConnectionId,
+  });
+
   // Ensure an agent is stored for this task so fallbacks can subscribe immediately
   useEffect(() => {
     try {
@@ -1069,7 +1080,7 @@ const ChatInterface: React.FC<Props> = ({
           </div>
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
-              className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
@@ -1173,6 +1184,15 @@ const ChatInterface: React.FC<Props> = ({
                   }
                   onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
                   className="h-full w-full"
+                />
+              )}
+              {planMode.isActive && planMode.planContent && (
+                <PlanOverlay
+                  planContent={planMode.planContent}
+                  onAccept={planMode.onAccept}
+                  onDecline={planMode.onDecline}
+                  onDismiss={planMode.onDismiss}
+                  taskPath={task.path}
                 />
               )}
             </div>

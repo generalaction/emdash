@@ -16,6 +16,7 @@ import { registerTelemetryIpc } from './telemetryIpc';
 import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
 import { appSettingsController } from './settingsIpc';
+import { registerPlanWatcherIpc } from '../services/planWatcherIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
@@ -61,6 +62,7 @@ export function registerAllIpc() {
   registerConnectionsIpc();
   registerJiraIpc();
   registerPlanLockIpc();
+  registerPlanWatcherIpc();
   registerSshIpc();
   registerSkillsIpc();
 }

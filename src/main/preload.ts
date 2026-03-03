@@ -535,6 +535,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
+  // Plan file watcher
+  planWatchStart: (taskPath: string) => ipcRenderer.invoke('plan:watch-start', taskPath),
+  planWatchStop: (taskPath: string) => ipcRenderer.invoke('plan:watch-stop', taskPath),
+  planReadFile: (args: { taskPath: string; fileName: string }) =>
+    ipcRenderer.invoke('plan:read-file', args),
+  planListFiles: (taskPath: string) => ipcRenderer.invoke('plan:list-files', taskPath),
+  onPlanFileChanged: (
+    listener: (data: { taskPath: string; fileName: string; eventType: string }) => void
+  ) => {
+    const channel = 'plan:file-changed';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   onProviderStatusUpdated: (listener: (data: { providerId: string; status: any }) => void) => {
     const channel = 'provider:status-updated';
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
