@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { AUTO_SAVE_DELAY } from '@/constants/file-explorer';
 import { dispatchFileChangeEvent, subscribeToFileChanges } from '@/lib/fileChangeEvents';
+import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
 
 export interface ManagedFile {
   path: string;
@@ -10,10 +11,11 @@ export interface ManagedFile {
 }
 
 interface UseFileManagerOptions {
+  taskId: string;
   taskPath: string;
   autoSave?: boolean;
   autoSaveDelay?: number;
-  onFileChange?: () => void; // Callback when files are modified/saved
+  onFileChange?: () => void;
   connectionId?: string | null;
   remotePath?: string | null;
 }
@@ -38,6 +40,7 @@ interface UseFileManagerReturn {
  */
 export function useFileManager(options: UseFileManagerOptions): UseFileManagerReturn {
   const {
+    taskId,
     taskPath,
     autoSave = true,
     autoSaveDelay = AUTO_SAVE_DELAY,
@@ -46,12 +49,12 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
     remotePath,
   } = options;
 
-  // Build remote param object if both are provided
   const remote = useMemo(
     () => (connectionId && remotePath ? { connectionId, remotePath } : undefined),
     [connectionId, remotePath]
   );
 
+  const restoringRef = useRef(false);
   const [openFiles, setOpenFiles] = useState<Map<string, ManagedFile>>(new Map());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -247,9 +250,51 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
     return () => clearTimeout(timer);
   }, [activeFile?.content, activeFile?.isDirty, autoSave, autoSaveDelay, saveFile]);
 
-  /**
-   * Listen for external file changes (e.g., revert, git pull)
-   */
+  const loadFileRef = useRef(loadFile);
+  loadFileRef.current = loadFile;
+
+  useEffect(() => {
+    const state = getEditorState(taskId);
+    if (!state?.openFilePaths?.length) {
+      setOpenFiles(new Map());
+      setActiveFilePath(null);
+      return;
+    }
+
+    restoringRef.current = true;
+    setOpenFiles(new Map());
+    setActiveFilePath(null);
+
+    let cancelled = false;
+    const restore = async () => {
+      for (const path of state.openFilePaths) {
+        if (cancelled) return;
+        await loadFileRef.current(path);
+      }
+      if (cancelled) return;
+      const active =
+        state.activeFilePath && state.openFilePaths.includes(state.activeFilePath)
+          ? state.activeFilePath
+          : (state.openFilePaths[0] ?? null);
+      setActiveFilePath(active);
+      restoringRef.current = false;
+    };
+    void restore();
+    return () => {
+      cancelled = true;
+      restoringRef.current = false;
+    };
+  }, [taskId]);
+
+  useEffect(() => {
+    if (restoringRef.current) return;
+    const paths = Array.from(openFiles.keys());
+    saveEditorState(taskId, {
+      openFilePaths: paths,
+      activeFilePath,
+    });
+  }, [taskId, openFiles, activeFilePath]);
+
   const openFilesRef = useRef(openFiles);
   openFilesRef.current = openFiles;
 

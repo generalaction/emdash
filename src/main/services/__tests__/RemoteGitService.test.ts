@@ -550,12 +550,23 @@ describe('RemoteGitService', () => {
 
   describe('getFileDiff', () => {
     it('should parse unified diff output', async () => {
-      mockExecuteCommand.mockResolvedValue({
-        stdout:
-          'diff --git a/file.ts b/file.ts\nindex abc..def 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,3 @@\n hello\n-old line\n+new line\n world\n',
-        stderr: '',
-        exitCode: 0,
-      } as ExecResult);
+      mockExecuteCommand
+        .mockResolvedValueOnce({
+          stdout:
+            'diff --git a/file.ts b/file.ts\nindex abc..def 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,3 @@\n hello\n-old line\n+new line\n world\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git diff
+        .mockResolvedValueOnce({
+          stdout: 'hello\nold line\nworld\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git show HEAD:file
+        .mockResolvedValueOnce({
+          stdout: 'hello\nnew line\nworld\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult); // cat file
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'file.ts');
 
@@ -564,11 +575,14 @@ describe('RemoteGitService', () => {
       expect(result.lines[1]).toEqual({ left: 'old line', type: 'del' });
       expect(result.lines[2]).toEqual({ right: 'new line', type: 'add' });
       expect(result.lines[3]).toEqual({ left: 'world', right: 'world', type: 'context' });
+      expect(result.originalContent).toBe('hello\nold line\nworld');
+      expect(result.modifiedContent).toBe('hello\nnew line\nworld');
     });
 
     it('should handle untracked file (no diff, read content)', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // empty diff
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult)
+        .mockResolvedValueOnce({ stdout: '', stderr: 'not found', exitCode: 128 } as ExecResult)
         .mockResolvedValueOnce({
           stdout: 'line1\nline2\nline3\n',
           stderr: '',
@@ -577,38 +591,125 @@ describe('RemoteGitService', () => {
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'newfile.txt');
 
-      expect(result.lines.length).toBeGreaterThan(0);
-      expect(result.lines[0].type).toBe('add');
+      expect(result.lines).toHaveLength(3);
+      expect(result.lines[0]).toEqual({ right: 'line1', type: 'add' });
+      expect(result.lines[1]).toEqual({ right: 'line2', type: 'add' });
+      expect(result.lines[2]).toEqual({ right: 'line3', type: 'add' });
+      expect(result.originalContent).toBeUndefined();
+      expect(result.modifiedContent).toBe('line1\nline2\nline3');
     });
 
-    it('should handle deleted file (show HEAD content)', async () => {
+    it('should handle deleted file with realistic diff output', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // empty diff
         .mockResolvedValueOnce({
-          stdout: '__EMDASH_TOO_LARGE__',
+          stdout:
+            'diff --git a/deleted.txt b/deleted.txt\ndeleted file mode 100644\nindex abc1234..0000000\n--- a/deleted.txt\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-old content\n-was here\n',
           stderr: '',
           exitCode: 0,
-        } as ExecResult) // cat returns too large marker
+        } as ExecResult) // git diff
         .mockResolvedValueOnce({
           stdout: 'old content\nwas here\n',
           stderr: '',
           exitCode: 0,
-        } as ExecResult); // git show HEAD:file
+        } as ExecResult) // git show HEAD:file
+        .mockResolvedValueOnce({
+          stdout: '',
+          stderr: 'No such file or directory',
+          exitCode: 1,
+        } as ExecResult); // cat fails — file not on disk
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'deleted.txt');
 
-      expect(result.lines.length).toBeGreaterThan(0);
-      expect(result.lines[0].type).toBe('del');
+      expect(result.lines).toHaveLength(2);
+      expect(result.lines[0]).toEqual({ left: 'old content', type: 'del' });
+      expect(result.lines[1]).toEqual({ left: 'was here', type: 'del' });
+      expect(result.originalContent).toBe('old content\nwas here');
+      expect(result.modifiedContent).toBeUndefined();
     });
 
     it('should return empty lines when all fallbacks fail', async () => {
       mockExecuteCommand
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult)
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult)
-        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult);
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult) // git diff (parallel)
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult) // git show HEAD:file (parallel)
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 } as ExecResult); // cat fallback
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'ghost.txt');
       expect(result.lines).toEqual([]);
+      expect(result.originalContent).toBeUndefined();
+      expect(result.modifiedContent).toBeUndefined();
+    });
+
+    it('should handle staged new file (git show HEAD fails, diff and cat succeed)', async () => {
+      mockExecuteCommand
+        .mockResolvedValueOnce({
+          stdout:
+            'diff --git a/newfile.ts b/newfile.ts\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/newfile.ts\n@@ -0,0 +1,2 @@\n+line one\n+line two\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git diff
+        .mockResolvedValueOnce({
+          stdout: '',
+          stderr: 'fatal: Path does not exist',
+          exitCode: 128,
+        } as ExecResult) // git show HEAD:file (fails — file not in HEAD)
+        .mockResolvedValueOnce({
+          stdout: 'line one\nline two\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult); // cat file
+
+      const result = await service.getFileDiff('conn-1', '/home/user/project', 'newfile.ts');
+
+      expect(result.lines).toHaveLength(2);
+      expect(result.lines[0]).toEqual({ right: 'line one', type: 'add' });
+      expect(result.lines[1]).toEqual({ right: 'line two', type: 'add' });
+      expect(result.originalContent).toBeUndefined();
+      expect(result.modifiedContent).toBe('line one\nline two');
+    });
+
+    it('should skip "No newline at end of file" markers', async () => {
+      mockExecuteCommand
+        .mockResolvedValueOnce({
+          stdout:
+            'diff --git a/file.ts b/file.ts\nindex abc1234..def5678 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,2 +1,2 @@\n hello\n-old line\n\\ No newline at end of file\n+new line\n\\ No newline at end of file\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git diff
+        .mockResolvedValueOnce({
+          stdout: 'hello\nold line',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git show HEAD:file (no trailing newline)
+        .mockResolvedValueOnce({
+          stdout: 'hello\nnew line',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult); // cat file (no trailing newline)
+
+      const result = await service.getFileDiff('conn-1', '/home/user/project', 'file.ts');
+
+      expect(result.lines).toHaveLength(3);
+      expect(result.lines[0]).toEqual({ left: 'hello', right: 'hello', type: 'context' });
+      expect(result.lines[1]).toEqual({ left: 'old line', type: 'del' });
+      expect(result.lines[2]).toEqual({ right: 'new line', type: 'add' });
+      expect(result.originalContent).toBe('hello\nold line');
+      expect(result.modifiedContent).toBe('hello\nnew line');
+    });
+
+    it('should detect binary files and return empty lines with isBinary flag', async () => {
+      mockExecuteCommand.mockResolvedValueOnce({
+        stdout:
+          'diff --git a/image.png b/image.png\nindex abc1234..def5678 100644\nBinary files a/image.png and b/image.png differ\n',
+        stderr: '',
+        exitCode: 0,
+      } as ExecResult); // git diff only — no content fetch for binary
+
+      const result = await service.getFileDiff('conn-1', '/home/user/project', 'image.png');
+
+      expect(result.lines).toEqual([]);
+      expect(result.isBinary).toBe(true);
+      // Verify no additional SSH calls were made for content
+      expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
     });
   });
 

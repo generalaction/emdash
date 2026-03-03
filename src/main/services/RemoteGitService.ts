@@ -2,6 +2,8 @@ import { SshService } from './ssh/SshService';
 import type { ExecResult } from '../../shared/ssh/types';
 import { quoteShellArg } from '../utils/shellEscape';
 import type { GitChange } from './GitService';
+import { parseDiffLines, stripTrailingNewline, MAX_DIFF_CONTENT_BYTES } from '../utils/diffParser';
+import type { DiffLine, DiffResult } from '../utils/diffParser';
 
 export interface WorktreeInfo {
   path: string;
@@ -396,7 +398,7 @@ export class RemoteGitService {
       const script =
         `for f in ${escaped}; do ` +
         `s=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null); ` +
-        `if [ "$s" -le 524288 ] 2>/dev/null; then ` +
+        `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then ` +
         `wc -l < "$f" 2>/dev/null || echo -1; ` +
         `else echo -1; fi; done`;
       const countResult = await this.sshService.executeCommand(connectionId, script, cwd);
@@ -420,80 +422,73 @@ export class RemoteGitService {
 
   /**
    * Per-file diff matching the shape returned by local GitService.getFileDiff().
+   * Uses a diff-first pattern: run git diff, check for binary, then fetch content only if non-binary.
    */
   async getFileDiff(
     connectionId: string,
     worktreePath: string,
     filePath: string
-  ): Promise<{ lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> }> {
+  ): Promise<DiffResult> {
     const cwd = this.normalizeRemotePath(worktreePath);
 
-    const parseDiffOutput = (
-      stdout: string
-    ): Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> => {
-      const result: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> = [];
-      for (const line of stdout.split('\n')) {
-        if (!line) continue;
-        if (
-          line.startsWith('diff ') ||
-          line.startsWith('index ') ||
-          line.startsWith('--- ') ||
-          line.startsWith('+++ ') ||
-          line.startsWith('@@')
-        )
-          continue;
-        const prefix = line[0];
-        const content = line.slice(1);
-        if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-        else if (prefix === '-') result.push({ left: content, type: 'del' });
-        else if (prefix === '+') result.push({ right: content, type: 'add' });
-        else result.push({ left: line, right: line, type: 'context' });
-      }
-      return result;
-    };
-
-    // Try git diff HEAD
+    // Step 1: Run git diff
     const diffResult = await this.sshService.executeCommand(
       connectionId,
       `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(filePath)}`,
       cwd
     );
 
+    // Step 2: Parse and check binary
+    let diffLines: DiffLine[] = [];
     if (diffResult.exitCode === 0 && diffResult.stdout.trim()) {
-      const lines = parseDiffOutput(diffResult.stdout);
-      if (lines.length > 0) return { lines };
+      const { lines, isBinary } = parseDiffLines(diffResult.stdout);
+      if (isBinary) {
+        return { lines: [], isBinary: true };
+      }
+      diffLines = lines;
     }
 
-    // Fallback: untracked file (read content as "add" lines)
-    const catResult = await this.sshService.executeCommand(
-      connectionId,
-      // Only read files <= 512KB
-      `s=$(stat -c%s ${quoteShellArg(filePath)} 2>/dev/null || stat -f%z ${quoteShellArg(filePath)} 2>/dev/null); ` +
-        `if [ "$s" -le 524288 ] 2>/dev/null; then cat ${quoteShellArg(filePath)}; else echo "__EMDASH_TOO_LARGE__"; fi`,
-      cwd
-    );
-    if (
-      catResult.exitCode === 0 &&
-      catResult.stdout.trim() &&
-      catResult.stdout.trim() !== '__EMDASH_TOO_LARGE__'
-    ) {
+    // Step 3: Fetch content ONCE (non-binary only, covers both diff-success and fallback paths)
+    const [showResult, catResult] = await Promise.all([
+      this.sshService.executeCommand(
+        connectionId,
+        `s=$(git cat-file -s HEAD:${quoteShellArg(filePath)} 2>/dev/null); ` +
+          `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then git show HEAD:${quoteShellArg(filePath)}; ` +
+          `else echo "__EMDASH_TOO_LARGE__"; fi`,
+        cwd
+      ),
+      this.sshService.executeCommand(
+        connectionId,
+        `s=$(stat -c%s ${quoteShellArg(filePath)} 2>/dev/null || stat -f%z ${quoteShellArg(filePath)} 2>/dev/null); ` +
+          `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then cat ${quoteShellArg(filePath)}; else echo "__EMDASH_TOO_LARGE__"; fi`,
+        cwd
+      ),
+    ]);
+
+    const rawOriginal =
+      showResult.exitCode === 0 ? stripTrailingNewline(showResult.stdout) : undefined;
+    const originalContent = rawOriginal === '__EMDASH_TOO_LARGE__' ? undefined : rawOriginal;
+
+    const rawModified =
+      catResult.exitCode === 0 ? stripTrailingNewline(catResult.stdout) : undefined;
+    const modifiedContent = rawModified === '__EMDASH_TOO_LARGE__' ? undefined : rawModified;
+
+    // Step 4: Return based on what we have
+    if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
+
+    // Fallback: empty diff or diff failed — determine untracked/deleted from content
+    if (modifiedContent !== undefined) {
       return {
-        lines: catResult.stdout.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+        modifiedContent,
       };
     }
-
-    // Fallback: deleted file (show HEAD content as "del" lines)
-    const showResult = await this.sshService.executeCommand(
-      connectionId,
-      `git show HEAD:${quoteShellArg(filePath)}`,
-      cwd
-    );
-    if (showResult.exitCode === 0 && showResult.stdout) {
+    if (originalContent !== undefined) {
       return {
-        lines: showResult.stdout.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+        lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+        originalContent,
       };
     }
-
     return { lines: [] };
   }
 

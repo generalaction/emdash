@@ -7,6 +7,7 @@ export interface EmdashConfig {
   preservePatterns?: string[];
   scripts?: LifecycleScriptConfig;
   shellSetup?: string;
+  tmux?: boolean;
 }
 
 /**
@@ -51,6 +52,16 @@ class LifecycleScriptsService {
     return typeof shellSetup === 'string' && shellSetup.trim().length > 0
       ? shellSetup.trim()
       : null;
+  }
+
+  /**
+   * Check if tmux wrapping is enabled for this project in .emdash.json.
+   * When true, agent PTY sessions are wrapped in named tmux sessions
+   * for persistence and resumability.
+   */
+  getTmuxEnabled(projectPath: string): boolean {
+    const config = this.readConfig(projectPath);
+    return config?.tmux === true;
   }
 }
 

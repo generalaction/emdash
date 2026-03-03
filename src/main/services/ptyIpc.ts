@@ -13,6 +13,9 @@ import {
   parseShellArgs,
   buildProviderCliArgs,
   resolveProviderCommandConfig,
+  killTmuxSession,
+  getTmuxSessionName,
+  getPtyTmuxSessionName,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -100,6 +103,7 @@ function bufferedSendPtyData(id: string, chunk: string): void {
 function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
+  tmux?: { sessionName: string };
 }): string {
   const lines: string[] = [];
   if (args.cwd) {
@@ -113,10 +117,22 @@ function buildRemoteInitKeystrokes(args: {
     const msg = `emdash: ${cli} not found on remote.${install}`;
     // Run the check inside a POSIX shell so it works even if the user's login shell isn't POSIX
     // (e.g. fish). PATH/env vars come from the interactive login shell started by `ssh`.
-    const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${args.provider.cmd}; else printf '%s\\n' ${quoteShellArg(
-      msg
-    )}; fi`;
-    lines.push(`sh -c ${quoteShellArg(shScript)}`);
+
+    if (args.tmux) {
+      // When tmux is enabled, wrap the provider command in a named tmux session.
+      // tmux new-session -As creates-or-attaches in one command.
+      // Falls back to running without tmux if tmux isn't installed on the remote.
+      const tmuxName = quoteShellArg(args.tmux.sessionName);
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(args.provider.cmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${args.provider.cmd}; fi; else printf '%s\\n' ${quoteShellArg(
+        msg
+      )}; fi`;
+      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+    } else {
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${args.provider.cmd}; else printf '%s\\n' ${quoteShellArg(
+        msg
+      )}; fi`;
+      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+    }
   }
 
   return lines.length ? `${lines.join('\n')}\n` : '';
@@ -255,6 +271,16 @@ async function resolveShellSetup(cwd: string): Promise<string | undefined> {
   return undefined;
 }
 
+async function resolveTmuxEnabled(cwd: string): Promise<boolean> {
+  if (lifecycleScriptsService.getTmuxEnabled(cwd)) return true;
+  try {
+    const task = await databaseService.getTaskByPath(cwd);
+    const project = task ? await databaseService.getProjectById(task.projectId) : null;
+    if (project?.path) return lifecycleScriptsService.getTmuxEnabled(project.path);
+  } catch {}
+  return false;
+}
+
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
   setOnDirectCliExit(async (id: string, cwd: string) => {
@@ -372,7 +398,11 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          const remoteInit = buildRemoteInitKeystrokes({ cwd });
+          // Resolve tmux config from local project settings
+          const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+          const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
+
+          const remoteInit = buildRemoteInitKeystrokes({ cwd, tmux: remoteTmuxOpt });
           if (remoteInit) {
             proc.write(remoteInit);
           }
@@ -382,7 +412,7 @@ export function registerPtyIpc(): void {
             windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
           } catch {}
 
-          return { ok: true };
+          return { ok: true, tmux: remoteTmux };
         }
 
         // Determine if we should skip resume
@@ -475,6 +505,7 @@ export function registerPtyIpc(): void {
         if (parsedPty) maybeAutoTrustForClaude(parsedPty.providerId, cwd);
 
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
+        const tmux = cwd ? await resolveTmuxEnabled(cwd) : false;
 
         const proc =
           existing ??
@@ -489,6 +520,7 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
             shellSetup,
+            tmux,
           }));
         const wc = event.sender;
         owners.set(id, wc);
@@ -562,7 +594,7 @@ export function registerPtyIpc(): void {
           });
         } catch {}
 
-        return { ok: true };
+        return { ok: true, tmux };
       } catch (err: any) {
         log.error('pty:start FAIL', {
           id: args.id,
@@ -623,11 +655,26 @@ export function registerPtyIpc(): void {
     try {
       // Ensure telemetry timers are cleared even on manual kill
       maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
+      // Kill associated tmux session if this PTY was tmux-wrapped
+      if (getPtyTmuxSessionName(args.id)) {
+        killTmuxSession(args.id);
+      }
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
     } catch (e) {
       log.error('pty:kill error', { id: args.id, error: e });
+    }
+  });
+
+  // Kill a tmux session by PTY ID (used during task deletion cleanup)
+  ipcMain.handle('pty:killTmux', async (_event, args: { id: string }) => {
+    try {
+      killTmuxSession(args.id);
+      return { ok: true };
+    } catch (e) {
+      log.error('pty:killTmux error', { id: args.id, error: e });
+      return { ok: false, error: String(e) };
     }
   });
 
@@ -786,7 +833,15 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          const remoteInit = buildRemoteInitKeystrokes({ cwd, provider: remoteProvider });
+          // Resolve tmux config from local project settings
+          const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+          const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
+
+          const remoteInit = buildRemoteInitKeystrokes({
+            cwd,
+            provider: remoteProvider,
+            tmux: tmuxOpt,
+          });
           if (remoteInit) {
             proc.write(remoteInit);
           }
@@ -797,7 +852,7 @@ export function registerPtyIpc(): void {
             windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
           } catch {}
 
-          return { ok: true };
+          return { ok: true, tmux: remoteTmux };
         }
 
         if (existing) {
@@ -821,6 +876,7 @@ export function registerPtyIpc(): void {
         maybeAutoTrustForClaude(providerId, cwd);
 
         const shellSetup = await resolveShellSetup(cwd);
+        const tmux = await resolveTmuxEnabled(cwd);
 
         // Write Claude Code hook config so it calls back to Emdash on events
         if (providerId === 'claude') {
@@ -833,22 +889,24 @@ export function registerPtyIpc(): void {
           }
         }
 
-        // Try direct spawn first; skip if shellSetup requires a shell wrapper
-        const directProc = shellSetup
-          ? null
-          : startDirectPty({
-              id,
-              providerId,
-              cwd,
-              cols,
-              rows,
-              autoApprove,
-              initialPrompt,
-              env,
-              resume: effectiveResume,
-            });
+        // Try direct spawn first; skip if shellSetup or tmux requires a shell wrapper
+        const directProc =
+          shellSetup || tmux
+            ? null
+            : startDirectPty({
+                id,
+                providerId,
+                cwd,
+                cols,
+                rows,
+                autoApprove,
+                initialPrompt,
+                env,
+                resume: effectiveResume,
+                tmux,
+              });
 
-        // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup is set
+        // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup/tmux is set
         let usedFallback = false;
         let proc: import('node-pty').IPty;
         if (directProc) {
@@ -858,7 +916,7 @@ export function registerPtyIpc(): void {
           if (!provider?.cli) {
             return { ok: false, error: `CLI path not found for provider: ${providerId}` };
           }
-          if (!shellSetup)
+          if (!shellSetup && !tmux)
             log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
           proc = await startPty({
             id,
@@ -871,6 +929,7 @@ export function registerPtyIpc(): void {
             env,
             skipResume: !resume,
             shellSetup,
+            tmux,
           });
           usedFallback = true;
         }
@@ -941,7 +1000,7 @@ export function registerPtyIpc(): void {
           windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
         } catch {}
 
-        return { ok: true };
+        return { ok: true, tmux };
       } catch (err: any) {
         log.error('pty:startDirect FAIL', { id: args.id, error: err?.message || err });
         return { ok: false, error: String(err?.message || err) };
