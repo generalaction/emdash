@@ -6,14 +6,12 @@ import type { Task } from '../types/chat';
 
 interface TaskNotesPanelProps {
   task: Task | null;
-  ptyId: string | null;
   isArchived?: boolean;
 }
 
-export function TaskNotesPanel({ task, ptyId, isArchived }: TaskNotesPanelProps) {
-  const { manualNote, summary, isGenerating, error, saveNote, generateSummary } = useTaskNotes(
-    task?.id ?? null
-  );
+export function TaskNotesPanel({ task, isArchived }: TaskNotesPanelProps) {
+  const { manualNote, summary, isGenerating, error, ptyId, saveNote, generateSummary } =
+    useTaskNotes(task?.id ?? null);
   const [isOpen, setIsOpen] = useState(() => {
     try {
       return localStorage.getItem('emdash:notesPanel:open') === 'true';
@@ -64,7 +62,7 @@ export function TaskNotesPanel({ task, ptyId, isArchived }: TaskNotesPanelProps)
             <label className="text-xs font-medium text-muted-foreground">Summary</label>
             <button
               className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
-              onClick={() => ptyId && generateSummary(ptyId)}
+              onClick={() => generateSummary()}
               disabled={isGenerating || isArchived || !ptyId}
               title={
                 !ptyId ? 'No active terminal session' : 'Generate summary from terminal output'
