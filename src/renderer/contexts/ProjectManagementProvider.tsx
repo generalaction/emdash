@@ -1,5 +1,5 @@
-import { createContext, useContext } from 'react';
-import type { useProjectManagement } from '../hooks/useProjectManagement';
+import React, { createContext, useContext } from 'react';
+import { useProjectManagement } from '../hooks/useProjectManagement';
 
 type ProjectManagementContextValue = ReturnType<typeof useProjectManagement>;
 
@@ -13,4 +13,13 @@ export function useProjectManagementContext(): ProjectManagementContextValue {
     );
   }
   return ctx;
+}
+
+export function ProjectManagementProvider({ children }: { children: React.ReactNode }) {
+  const projectManagement = useProjectManagement();
+  return (
+    <ProjectManagementContext.Provider value={projectManagement}>
+      {children}
+    </ProjectManagementContext.Provider>
+  );
 }

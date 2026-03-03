@@ -1,82 +1,68 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import ReorderList from './ReorderList';
-import { Button } from './ui/button';
+import ReorderList from '../ReorderList';
+import { Button } from '../ui/button';
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
   useSidebar,
-} from './ui/sidebar';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+} from '../ui/sidebar';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import {
   Home,
   Plus,
   FolderOpen,
   FolderClosed,
-  FolderPlus,
-  Github,
-  Server,
   Puzzle,
   Archive,
   RotateCcw,
   ChevronRight,
 } from 'lucide-react';
-import SidebarEmptyState from './SidebarEmptyState';
-import { TaskItem } from './TaskItem';
-import { TaskDeleteButton } from './TaskDeleteButton';
-import { RemoteProjectIndicator } from './ssh/RemoteProjectIndicator';
-import { useRemoteProject } from '../hooks/useRemoteProject';
-import type { Project } from '../types/app';
-import type { Task } from '../types/chat';
-import type { ConnectionState } from './ssh';
-import { rpc } from '../lib/rpc';
-import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import SidebarEmptyState from '../SidebarEmptyState';
+import { TaskItem } from '../TaskItem';
+import { TaskDeleteButton } from '../TaskDeleteButton';
+import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
+import { useRemoteProject } from '../../hooks/useRemoteProject';
+import type { Project } from '../../types/app';
+import type { Task } from '../../types/chat';
+import type { ConnectionState } from '../ssh';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import { useAppSettings } from '../../contexts/AppSettingsProvider';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { ProjectsGroupLabel } from './ProjectsGroupLabel';
+
+const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
+const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 
 interface LeftSidebarProps {
-  onAddRemoteProject?: () => void;
   onSidebarContextChange?: (state: {
     open: boolean;
     isMobile: boolean;
     setOpen: (next: boolean) => void;
   }) => void;
-  onDeleteTask?: (project: Project, task: Task) => void | Promise<void | boolean>;
-  pinnedTaskIds?: Set<string>;
-  onPinTask?: (task: Task) => void;
   onCloseSettingsPage?: () => void;
 }
 
-interface MenuItemButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  ariaLabel: string;
-  onClick: () => void;
-}
-
 const isRemoteProject = (project: Project): boolean => {
-  return Boolean((project as any).isRemote || (project as any).sshConnectionId);
+  return Boolean(project.isRemote || project.sshConnectionId);
 };
 
 const getConnectionId = (project: Project): string | null => {
-  return (project as any).sshConnectionId || null;
+  return project.sshConnectionId || null;
 };
 
 interface ProjectItemProps {
   project: Project;
-  isActive: boolean;
-  onSelect: () => void;
 }
 
-const ProjectItem = React.memo<ProjectItemProps>(({ project, isActive, onSelect }) => {
+const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
   const remote = useRemoteProject(project);
   const connectionId = getConnectionId(project);
 
@@ -101,42 +87,8 @@ const ProjectItem = React.memo<ProjectItemProps>(({ project, isActive, onSelect 
 });
 ProjectItem.displayName = 'ProjectItem';
 
-const MenuItemButton = React.memo<MenuItemButtonProps>(
-  ({ icon: Icon, label, ariaLabel, onClick }) => {
-    const handleKeyDown = React.useCallback(
-      (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      },
-      [onClick]
-    );
-
-    return (
-      <button
-        type="button"
-        role="menuitem"
-        tabIndex={0}
-        aria-label={ariaLabel}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
-        onClick={onClick}
-        onKeyDown={handleKeyDown}
-      >
-        <Icon className="h-4 w-4" />
-        {label}
-      </button>
-    );
-  }
-);
-MenuItemButton.displayName = 'MenuItemButton';
-
-const LeftSidebar: React.FC<LeftSidebarProps> = ({
-  onAddRemoteProject,
+export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSidebarContextChange,
-  onDeleteTask,
-  pinnedTaskIds,
-  onPinTask,
   onCloseSettingsPage,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
@@ -148,75 +100,89 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleSelectProject: onSelectProject,
     handleGoHome: onGoHome,
     handleOpenProject: onOpenProject,
-    handleNewProjectClick: onNewProject,
-    handleCloneProjectClick: onCloneProject,
-    handleReorderProjects: onReorderProjects,
-    handleReorderProjectsFull: onReorderProjectsFull,
-    handleDeleteProject: onDeleteProject,
     handleGoToSkills: onGoToSkills,
   } = useProjectManagementContext();
+
+  // --- Project order (localStorage only — context holds raw DB order) ---
+  const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
+
+  const sortedProjects = useMemo(() => {
+    if (!projectOrder.length) return projects;
+    return [...projects].sort((a, b) => {
+      const ai = projectOrder.indexOf(a.id);
+      const bi = projectOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0; // both new → keep relative DB order
+      if (ai === -1) return -1; // a is new → float to top
+      if (bi === -1) return 1; // b is new → float to top
+      return ai - bi;
+    });
+  }, [projects, projectOrder]);
+
+  const handleReorderProjects = useCallback(
+    (newOrder: Project[]) => {
+      setProjectOrder(newOrder.map((p) => p.id));
+    },
+    [setProjectOrder]
+  );
+
   const {
     activeTask,
-    archivedTasksVersion,
+    tasksByProjectId,
+    archivedTasksByProjectId,
     handleSelectTask: onSelectTask,
     handleStartCreateTaskFromSidebar: onCreateTaskForProject,
     handleRenameTask: onRenameTask,
     handleArchiveTask: onArchiveTask,
     handleRestoreTask: onRestoreTask,
+    handleDeleteTask,
   } = useTaskManagementContext();
 
-  const [taskHoverAction, setTaskHoverAction] = useState<'delete' | 'archive'>('delete');
+  const { settings } = useAppSettings();
+  const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
+
+  const [pinnedTaskIdsArray, setPinnedTaskIdsArray] = useLocalStorage<string[]>(
+    PINNED_TASKS_KEY,
+    []
+  );
+  const pinnedTaskIds = useMemo(() => new Set(pinnedTaskIdsArray), [pinnedTaskIdsArray]);
+
+  const handlePinTask = useCallback(
+    (task: Task) => {
+      setPinnedTaskIdsArray((prev) =>
+        prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]
+      );
+    },
+    [setPinnedTaskIdsArray]
+  );
+
+  // Remove pinned IDs for tasks that no longer exist (deleted or archived)
   useEffect(() => {
-    rpc.appSettings.get().then((settings) => {
-      if (settings?.interface?.taskHoverAction) {
-        setTaskHoverAction(settings.interface.taskHoverAction);
-      }
-    });
-    const handler = (e: Event) => setTaskHoverAction((e as CustomEvent).detail.value);
-    window.addEventListener('taskHoverActionChanged', handler);
-    return () => window.removeEventListener('taskHoverActionChanged', handler);
-  }, []);
+    if (!pinnedTaskIdsArray.length) return;
+    const allActiveIds = new Set(
+      Object.values(tasksByProjectId)
+        .flat()
+        .map((t) => t.id)
+    );
+    const cleaned = pinnedTaskIdsArray.filter((id) => allActiveIds.has(id));
+    if (cleaned.length !== pinnedTaskIdsArray.length) {
+      setPinnedTaskIdsArray(cleaned);
+    }
+  }, [tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
-  const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
-
-  const fetchArchivedTasks = useCallback(async () => {
-    const archived: Record<string, Task[]> = {};
-    for (const project of projects) {
-      try {
-        const tasks = (await rpc.db.getArchivedTasks(project.id)) as Task[];
-        if (tasks && tasks.length > 0) archived[project.id] = tasks;
-      } catch (err) {}
-    }
-    setArchivedTasksByProject(archived);
-  }, [projects]);
 
   useEffect(() => {
     const prev = prevTaskCountsRef.current;
     for (const project of projects) {
-      const taskCount = project.tasks?.length ?? 0;
+      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
       const prevCount = prev.get(project.id) ?? 0;
       if (prevCount === 0 && taskCount > 0) {
         setForceOpenIds((s) => new Set(s).add(project.id));
       }
       prev.set(project.id, taskCount);
     }
-  }, [projects]);
-
-  useEffect(() => {
-    if (projects.length > 0) fetchArchivedTasks();
-  }, [projects.length, archivedTasksVersion, fetchArchivedTasks]);
-
-  const handleRestoreTask = useCallback(
-    async (project: Project, task: Task) => {
-      if (onRestoreTask) {
-        await onRestoreTask(project, task);
-        fetchArchivedTasks();
-      }
-    },
-    [onRestoreTask, fetchArchivedTasks]
-  );
+  }, [projects, tasksByProjectId]);
 
   useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
@@ -273,68 +239,14 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </SidebarHeader>
         <SidebarContent className="flex flex-col">
           <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center justify-between pr-0">
-              <span className="cursor-default select-none text-sm font-medium normal-case tracking-normal text-foreground/30">
-                Projects
-              </span>
-              {onOpenProject && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" className="text-foreground/30">
-                      <FolderPlus className="h-3.5 w-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
-                    <div className="space-y-1">
-                      <MenuItemButton
-                        icon={FolderOpen}
-                        label="Open Folder"
-                        ariaLabel="Open"
-                        onClick={() => onOpenProject?.()}
-                      />
-                      <MenuItemButton
-                        icon={Plus}
-                        label="Create New"
-                        ariaLabel="New"
-                        onClick={() => onNewProject?.()}
-                      />
-                      <MenuItemButton
-                        icon={Github}
-                        label="Clone"
-                        ariaLabel="Clone"
-                        onClick={() => onCloneProject?.()}
-                      />
-                      <MenuItemButton
-                        icon={Server}
-                        label="Remote Project"
-                        ariaLabel="Remote Project"
-                        onClick={() => onAddRemoteProject?.()}
-                      />
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </SidebarGroupLabel>
+            <ProjectsGroupLabel />
             <SidebarGroupContent>
               <SidebarMenu>
                 <ReorderList
                   as="div"
                   axis="y"
-                  items={projects}
-                  onReorder={(newOrder) => {
-                    if (onReorderProjectsFull) {
-                      onReorderProjectsFull(newOrder as Project[]);
-                    } else if (onReorderProjects) {
-                      const oldIds = projects.map((p) => p.id);
-                      const newIds = (newOrder as Project[]).map((p) => p.id);
-                      for (let i = 0; i < newIds.length; i++) {
-                        if (newIds[i] !== oldIds[i]) {
-                          onReorderProjects(newIds.find((id) => id === oldIds[i])!, newIds[i]);
-                          break;
-                        }
-                      }
-                    }
-                  }}
+                  items={sortedProjects}
+                  onReorder={(newOrder) => handleReorderProjects(newOrder as Project[])}
                   className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
                   itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
                   getKey={(p) => (p as Project).id}
@@ -380,11 +292,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 )
                               }
                             >
-                              <ProjectItem
-                                project={typedProject}
-                                isActive={isProjectActive}
-                                onSelect={() => onSelectProject(typedProject)}
-                              />
+                              <ProjectItem project={typedProject} />
                             </motion.button>
                             {onCreateTaskForProject && (
                               <button
@@ -406,12 +314,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             className="mt-1 min-w-0 data-[state=closed]:hidden"
                           >
                             <div className="flex min-w-0 flex-col gap-1">
-                              {typedProject.tasks
-                                ?.slice()
+                              {(tasksByProjectId[typedProject.id] ?? [])
+                                .slice()
                                 .sort(
                                   (a, b) =>
-                                    (pinnedTaskIds?.has(b.id) ? 1 : 0) -
-                                    (pinnedTaskIds?.has(a.id) ? 1 : 0)
+                                    (pinnedTaskIds.has(b.id) ? 1 : 0) -
+                                    (pinnedTaskIds.has(a.id) ? 1 : 0)
                                 )
                                 .map((task) => {
                                   const isActive = activeTask?.id === task.id;
@@ -430,30 +338,31 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         task={task}
                                         showDelete={true}
                                         showDirectBadge={false}
-                                        isPinned={pinnedTaskIds?.has(task.id)}
-                                        onPin={() => onPinTask?.(task)}
+                                        isPinned={pinnedTaskIds.has(task.id)}
+                                        onPin={() => handlePinTask(task)}
                                         onRename={(n) => onRenameTask?.(typedProject, task, n)}
-                                        onDelete={() => onDeleteTask?.(typedProject, task)}
+                                        onDelete={() => handleDeleteTask(typedProject, task)}
                                         onArchive={() => onArchiveTask?.(typedProject, task)}
                                         primaryAction={taskHoverAction}
                                       />
                                     </motion.div>
                                   );
                                 })}
-                              {archivedTasksByProject[typedProject.id]?.length > 0 && (
+                              {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
                                 <Collapsible className="mt-1">
                                   <CollapsibleTrigger asChild>
                                     <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
                                       <Archive className="h-3 w-3 opacity-50" />
                                       <span>
-                                        Archived ({archivedTasksByProject[typedProject.id].length})
+                                        Archived ({archivedTasksByProjectId[typedProject.id].length}
+                                        )
                                       </span>
                                       <ChevronRight className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
                                     </button>
                                   </CollapsibleTrigger>
                                   <CollapsibleContent>
                                     <div className="ml-1.5 space-y-0.5 border-l pl-2">
-                                      {archivedTasksByProject[typedProject.id].map(
+                                      {archivedTasksByProjectId[typedProject.id].map(
                                         (archivedTask) => (
                                           <div
                                             key={archivedTask.id}
@@ -467,7 +376,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 onClick={() =>
-                                                  handleRestoreTask(typedProject, archivedTask)
+                                                  onRestoreTask?.(typedProject, archivedTask)
                                                 }
                                               >
                                                 <RotateCcw className="h-3 w-3" />
@@ -477,10 +386,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 taskId={archivedTask.id}
                                                 taskPath={archivedTask.path}
                                                 useWorktree={archivedTask.useWorktree !== false}
-                                                onConfirm={async () => {
-                                                  await onDeleteTask?.(typedProject, archivedTask);
-                                                  fetchArchivedTasks();
-                                                }}
+                                                onConfirm={() =>
+                                                  handleDeleteTask(typedProject, archivedTask)
+                                                }
                                               />
                                             </div>
                                           </div>
@@ -515,5 +423,3 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     </div>
   );
 };
-
-export default LeftSidebar;

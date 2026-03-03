@@ -28,7 +28,7 @@ import {
 } from '../lib/taskNames';
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
-import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
 

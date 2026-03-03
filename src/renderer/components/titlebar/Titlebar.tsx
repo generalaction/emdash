@@ -17,8 +17,9 @@ import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
 import TitlebarContext from './TitlebarContext';
-import { useProjectManagementContext } from '../../contexts/ProjectManagementContext';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import { useGithubContext } from '../../contexts/GithubContextProvider';
 
 interface GithubUser {
   login?: string;
@@ -30,12 +31,8 @@ interface GithubUser {
 interface TitlebarProps {
   onToggleSettings: () => void;
   isSettingsOpen?: boolean;
-  githubUser?: GithubUser | null;
-  defaultPreviewUrl?: string | null;
   onToggleKanban?: () => void;
-  isKanbanOpen?: boolean;
   onToggleEditor?: () => void;
-  isEditorOpen?: boolean;
 }
 
 interface TitlebarToggleButtonProps {
@@ -94,19 +91,18 @@ function TitlebarToggleButton({
 const Titlebar: React.FC<TitlebarProps> = ({
   onToggleSettings,
   isSettingsOpen = false,
-  githubUser,
-  defaultPreviewUrl,
   onToggleKanban,
-  isKanbanOpen = false,
   onToggleEditor,
-  isEditorOpen = false,
 }) => {
   const {
     projects,
     selectedProject,
     handleSelectProject: onSelectProject,
+    showKanban: isKanbanOpen,
+    showEditorMode: isEditorOpen,
   } = useProjectManagementContext();
   const { activeTask, handleSelectTask: onSelectTask } = useTaskManagementContext();
+  const { user: githubUser } = useGithubContext();
 
   const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
   const currentPath = isTaskMultiAgent
@@ -277,7 +273,6 @@ const Titlebar: React.FC<TitlebarProps> = ({
           ) : null}
           {taskId && !isTaskMultiAgent ? (
             <BrowserToggleButton
-              defaultUrl={defaultPreviewUrl || undefined}
               taskId={taskId}
               taskPath={taskPath}
               parentProjectPath={projectPath}
