@@ -320,7 +320,10 @@ export async function getFileDiff(
       const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
         cwd: taskPath,
       });
-      return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
+      return {
+        lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+        originalContent: prev.replace(/\n$/, ''),
+      };
     } catch {
       return { lines: [] };
     }

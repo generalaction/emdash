@@ -550,12 +550,23 @@ describe('RemoteGitService', () => {
 
   describe('getFileDiff', () => {
     it('should parse unified diff output', async () => {
-      mockExecuteCommand.mockResolvedValue({
-        stdout:
-          'diff --git a/file.ts b/file.ts\nindex abc..def 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,3 @@\n hello\n-old line\n+new line\n world\n',
-        stderr: '',
-        exitCode: 0,
-      } as ExecResult);
+      mockExecuteCommand
+        .mockResolvedValueOnce({
+          stdout:
+            'diff --git a/file.ts b/file.ts\nindex abc..def 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,3 @@\n hello\n-old line\n+new line\n world\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git diff
+        .mockResolvedValueOnce({
+          stdout: 'hello\nold line\nworld\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult) // git show HEAD:file
+        .mockResolvedValueOnce({
+          stdout: 'hello\nnew line\nworld\n',
+          stderr: '',
+          exitCode: 0,
+        } as ExecResult); // cat file
 
       const result = await service.getFileDiff('conn-1', '/home/user/project', 'file.ts');
 
@@ -564,6 +575,8 @@ describe('RemoteGitService', () => {
       expect(result.lines[1]).toEqual({ left: 'old line', type: 'del' });
       expect(result.lines[2]).toEqual({ right: 'new line', type: 'add' });
       expect(result.lines[3]).toEqual({ left: 'world', right: 'world', type: 'context' });
+      expect(result.originalContent).toBe('hello\nold line\nworld');
+      expect(result.modifiedContent).toBe('hello\nnew line\nworld');
     });
 
     it('should handle untracked file (no diff, read content)', async () => {
@@ -580,6 +593,8 @@ describe('RemoteGitService', () => {
 
       expect(result.lines.length).toBeGreaterThan(0);
       expect(result.lines[0].type).toBe('add');
+      expect(result.originalContent).toBeUndefined();
+      expect(result.modifiedContent).toBe('line1\nline2\nline3');
     });
 
     it('should handle deleted file (show HEAD content)', async () => {
@@ -600,6 +615,8 @@ describe('RemoteGitService', () => {
 
       expect(result.lines.length).toBeGreaterThan(0);
       expect(result.lines[0].type).toBe('del');
+      expect(result.originalContent).toBe('old content\nwas here');
+      expect(result.modifiedContent).toBeUndefined();
     });
 
     it('should return empty lines when all fallbacks fail', async () => {
