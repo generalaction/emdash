@@ -53,6 +53,7 @@ import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -316,6 +317,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onBaseBranchChange: onBaseBranchChangeCallback,
 }) => {
   const { toast } = useToast();
+  const { tasksByProjectId } = useTaskManagementContext();
 
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
@@ -334,7 +336,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  const activeTasks = project.tasks ?? [];
+  const activeTasks = tasksByProjectId[project.id] ?? [];
   const activeTasksLength = activeTasks.length;
 
   const refetchArchivedTasks = useCallback(() => {
@@ -762,7 +764,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   {onDeleteProject ? (
                     <ProjectDeleteButton
                       projectName={project.name}
-                      tasks={project.tasks}
+                      tasks={activeTasks}
                       onConfirm={() => onDeleteProject?.(project)}
                       aria-label={`Delete project ${project.name}`}
                     />

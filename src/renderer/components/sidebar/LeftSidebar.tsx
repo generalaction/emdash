@@ -32,9 +32,9 @@ import { useRemoteProject } from '../../hooks/useRemoteProject';
 import type { Project } from '../../types/app';
 import type { Task } from '../../types/chat';
 import type { ConnectionState } from '../ssh';
-import { rpc } from '../../lib/rpc';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
@@ -129,13 +129,17 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   );
   const {
     activeTask,
-    archivedTasksVersion,
+    tasksByProjectId,
+    archivedTasksByProjectId,
     handleSelectTask: onSelectTask,
     handleStartCreateTaskFromSidebar: onCreateTaskForProject,
     handleRenameTask: onRenameTask,
     handleArchiveTask: onArchiveTask,
     handleRestoreTask: onRestoreTask,
   } = useTaskManagementContext();
+
+  const { settings } = useAppSettings();
+  const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
 
   const [pinnedTaskIdsArray, setPinnedTaskIdsArray] = useLocalStorage<string[]>(
     PINNED_TASKS_KEY,
@@ -152,58 +156,20 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [setPinnedTaskIdsArray]
   );
 
-  const [taskHoverAction, setTaskHoverAction] = useState<'delete' | 'archive'>('delete');
-  useEffect(() => {
-    rpc.appSettings.get().then((settings) => {
-      if (settings?.interface?.taskHoverAction) {
-        setTaskHoverAction(settings.interface.taskHoverAction);
-      }
-    });
-    const handler = (e: Event) => setTaskHoverAction((e as CustomEvent).detail.value);
-    window.addEventListener('taskHoverActionChanged', handler);
-    return () => window.removeEventListener('taskHoverActionChanged', handler);
-  }, []);
-
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
-  const [archivedTasksByProject, setArchivedTasksByProject] = useState<Record<string, Task[]>>({});
-
-  const fetchArchivedTasks = useCallback(async () => {
-    const archived: Record<string, Task[]> = {};
-    for (const project of projects) {
-      try {
-        const tasks = (await rpc.db.getArchivedTasks(project.id)) as Task[];
-        if (tasks && tasks.length > 0) archived[project.id] = tasks;
-      } catch (err) {}
-    }
-    setArchivedTasksByProject(archived);
-  }, [projects]);
 
   useEffect(() => {
     const prev = prevTaskCountsRef.current;
     for (const project of projects) {
-      const taskCount = project.tasks?.length ?? 0;
+      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
       const prevCount = prev.get(project.id) ?? 0;
       if (prevCount === 0 && taskCount > 0) {
         setForceOpenIds((s) => new Set(s).add(project.id));
       }
       prev.set(project.id, taskCount);
     }
-  }, [projects]);
-
-  useEffect(() => {
-    if (projects.length > 0) fetchArchivedTasks();
-  }, [projects.length, archivedTasksVersion, fetchArchivedTasks]);
-
-  const handleRestoreTask = useCallback(
-    async (project: Project, task: Task) => {
-      if (onRestoreTask) {
-        await onRestoreTask(project, task);
-        fetchArchivedTasks();
-      }
-    },
-    [onRestoreTask, fetchArchivedTasks]
-  );
+  }, [projects, tasksByProjectId]);
 
   useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
@@ -338,8 +304,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             className="mt-1 min-w-0 data-[state=closed]:hidden"
                           >
                             <div className="flex min-w-0 flex-col gap-1">
-                              {typedProject.tasks
-                                ?.slice()
+                              {(tasksByProjectId[typedProject.id] ?? [])
+                                .slice()
                                 .sort(
                                   (a, b) =>
                                     (pinnedTaskIds.has(b.id) ? 1 : 0) -
@@ -372,20 +338,21 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     </motion.div>
                                   );
                                 })}
-                              {archivedTasksByProject[typedProject.id]?.length > 0 && (
+                              {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
                                 <Collapsible className="mt-1">
                                   <CollapsibleTrigger asChild>
                                     <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
                                       <Archive className="h-3 w-3 opacity-50" />
                                       <span>
-                                        Archived ({archivedTasksByProject[typedProject.id].length})
+                                        Archived ({archivedTasksByProjectId[typedProject.id].length}
+                                        )
                                       </span>
                                       <ChevronRight className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
                                     </button>
                                   </CollapsibleTrigger>
                                   <CollapsibleContent>
                                     <div className="ml-1.5 space-y-0.5 border-l pl-2">
-                                      {archivedTasksByProject[typedProject.id].map(
+                                      {archivedTasksByProjectId[typedProject.id].map(
                                         (archivedTask) => (
                                           <div
                                             key={archivedTask.id}
@@ -399,7 +366,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 onClick={() =>
-                                                  handleRestoreTask(typedProject, archivedTask)
+                                                  onRestoreTask?.(typedProject, archivedTask)
                                                 }
                                               >
                                                 <RotateCcw className="h-3 w-3" />
@@ -409,10 +376,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                                 taskId={archivedTask.id}
                                                 taskPath={archivedTask.path}
                                                 useWorktree={archivedTask.useWorktree !== false}
-                                                onConfirm={async () => {
-                                                  await onDeleteTask?.(typedProject, archivedTask);
-                                                  fetchArchivedTasks();
-                                                }}
+                                                onConfirm={() =>
+                                                  onDeleteTask?.(typedProject, archivedTask)
+                                                }
                                               />
                                             </div>
                                           </div>

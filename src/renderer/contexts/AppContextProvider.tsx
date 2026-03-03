@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { createContext, useContext } from 'react';
+import { createContext, ReactNode, useContext } from 'react';
 
 type AppContextValue = {
   platform?: string;
@@ -9,7 +9,7 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-export function AppContextProvider({ children }: { children: React.ReactNode }) {
+export function AppContextProvider({ children }: { children: ReactNode }) {
   const { data: platform } = useQuery({
     queryKey: ['app:platform'],
     staleTime: 60_000,
