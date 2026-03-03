@@ -236,10 +236,6 @@ function loadSessionMap(): Record<string, SessionEntry> {
   return _sessionMap!;
 }
 
-function getKnownSessionId(ptyId: string): string | undefined {
-  return loadSessionMap()[ptyId]?.uuid;
-}
-
 /** Check if the session map has entries for other chats of the same provider in the same cwd. */
 function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
   const map = loadSessionMap();
