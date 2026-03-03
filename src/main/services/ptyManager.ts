@@ -1060,29 +1060,45 @@ export async function startPty(options: {
                 .join(' ')}`
             : cliCommand;
 
+        const shellBase = (defaultShell.split('/').pop() || '').toLowerCase();
+
         // After the provider exits, exec back into the user's shell (login+interactive)
-        const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
+        const resumeShell =
+          shellBase === 'fish'
+            ? `'${defaultShell.replace(/'/g, "'\\''")}' -i -l`
+            : `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
         const chainCommand = shellSetup
           ? `${shellSetup} && ${commandString}; exec ${resumeShell}`
           : `${commandString}; exec ${resumeShell}`;
 
         // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
-        const shellBase = defaultShell.split('/').pop() || '';
         if (shellBase === 'zsh') args.push('-lic', chainCommand);
         else if (shellBase === 'bash') args.push('-lic', chainCommand);
-        else if (shellBase === 'fish') args.push('-ic', chainCommand);
+        else if (shellBase === 'fish') args.push('-l', '-i', '-c', chainCommand);
         else if (shellBase === 'sh') args.push('-lc', chainCommand);
         else args.push('-c', chainCommand); // Fallback for other shells
       } else {
         // For normal shells, use login + interactive to load user configs
         if (shellSetup) {
-          const cFlag = base === 'fish' ? '-ic' : base === 'sh' ? '-lc' : '-lic';
-          const resumeShell = `'${useShell.replace(/'/g, "'\\''")}' -il`;
-          args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+          const resumeShell =
+            baseLower === 'fish'
+              ? `'${useShell.replace(/'/g, "'\\''")}' -i -l`
+              : `'${useShell.replace(/'/g, "'\\''")}' -il`;
+          if (baseLower === 'fish') {
+            args.push('-l', '-i', '-c', `${shellSetup}; exec ${resumeShell}`);
+          } else {
+            const cFlag = baseLower === 'sh' ? '-lc' : '-lic';
+            args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+          }
         } else {
           args.push(
-            base === 'zsh' || base === 'bash' || base === 'fish' || base === 'sh' ? '-il' : '-i'
+            baseLower === 'zsh' ||
+              baseLower === 'bash' ||
+              baseLower === 'fish' ||
+              baseLower === 'sh'
+              ? '-il'
+              : '-i'
           );
         }
       }
