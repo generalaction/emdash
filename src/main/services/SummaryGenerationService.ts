@@ -138,20 +138,24 @@ async function callOpenAICompatible(
 }
 
 /**
- * Call the agent CLI with -p flag for one-shot summary generation.
- * Used as fallback when no API key is configured.
+ * Call the agent CLI in print mode, piping the prompt via stdin.
+ * Piping avoids OS argument-size limits when the terminal content is large.
+ * The CLI uses its own stored credentials, so no API key env var is needed.
  */
 async function callAgentCli(cli: string, content: string): Promise<string> {
   const prompt = `${SYSTEM_PROMPT}\n\nTerminal output:\n${content}`;
 
   return new Promise((resolve, reject) => {
+    // 90s — CLI needs time to start up and stream the response
     const timeout = setTimeout(() => {
       child.kill();
-      reject(new Error('Agent CLI timed out after 30s'));
-    }, 30_000);
+      reject(new Error('Agent CLI timed out after 90s'));
+    }, 90_000);
 
-    const child = spawn(cli, ['-p', prompt], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // Use --print (= -p) without an argument so the CLI reads from stdin.
+    // This avoids hitting OS arg-size limits for large terminal output.
+    const child = spawn(cli, ['--print'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: process.env,
     });
 
@@ -165,7 +169,7 @@ async function callAgentCli(cli: string, content: string): Promise<string> {
       if (code === 0 && stdout.trim()) {
         resolve(stdout.trim());
       } else {
-        reject(new Error(`Agent CLI exited with code ${code}: ${stderr.slice(0, 200)}`));
+        reject(new Error(`Agent CLI exited with code ${code}: ${stderr.slice(0, 300)}`));
       }
     });
 
@@ -173,6 +177,10 @@ async function callAgentCli(cli: string, content: string): Promise<string> {
       clearTimeout(timeout);
       reject(err);
     });
+
+    // Write prompt to stdin and close the stream so the CLI sees EOF
+    child.stdin?.write(prompt, 'utf8');
+    child.stdin?.end();
   });
 }
 
