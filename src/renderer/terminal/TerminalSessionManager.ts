@@ -13,7 +13,9 @@ import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import {
   CTRL_J_ASCII,
+  CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
@@ -300,6 +302,14 @@ export class TerminalSessionManager {
         // Pass true to skip injection handling - this is a newline insert, not a submit
         this.handleTerminalInput(CTRL_J_ASCII, true);
         return false; // Prevent xterm from processing the Shift+Enter
+      }
+
+      if (shouldKillLineFromTerminal(event, IS_MAC_PLATFORM)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        this.handleTerminalInput(CTRL_U_ASCII, true);
+        return false;
       }
 
       // Map Cmd+Left/Right to Ctrl+A/E on macOS (line navigation)
