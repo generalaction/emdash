@@ -428,6 +428,7 @@ export class RemoteGitService {
   ): Promise<{
     lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
     originalContent?: string;
+    modifiedContent?: string;
   }> {
     const cwd = this.normalizeRemotePath(worktreePath);
 
@@ -455,13 +456,19 @@ export class RemoteGitService {
       return result;
     };
 
-    const [diffResult, showResult] = await Promise.all([
+    const [diffResult, showResult, catResult] = await Promise.all([
       this.sshService.executeCommand(
         connectionId,
         `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(filePath)}`,
         cwd
       ),
       this.sshService.executeCommand(connectionId, `git show HEAD:${quoteShellArg(filePath)}`, cwd),
+      this.sshService.executeCommand(
+        connectionId,
+        `s=$(stat -c%s ${quoteShellArg(filePath)} 2>/dev/null || stat -f%z ${quoteShellArg(filePath)} 2>/dev/null); ` +
+          `if [ "$s" -le 524288 ] 2>/dev/null; then cat ${quoteShellArg(filePath)}; else echo "__EMDASH_TOO_LARGE__"; fi`,
+        cwd
+      ),
     ]);
 
     const originalContent =
@@ -469,26 +476,23 @@ export class RemoteGitService {
         ? showResult.stdout.replace(/\n$/, '')
         : undefined;
 
-    if (diffResult.exitCode === 0 && diffResult.stdout.trim()) {
-      const lines = parseDiffOutput(diffResult.stdout);
-      if (lines.length > 0) return { lines, originalContent };
-    }
-
-    // Fallback: untracked file (read content as "add" lines)
-    const catResult = await this.sshService.executeCommand(
-      connectionId,
-      // Only read files <= 512KB
-      `s=$(stat -c%s ${quoteShellArg(filePath)} 2>/dev/null || stat -f%z ${quoteShellArg(filePath)} 2>/dev/null); ` +
-        `if [ "$s" -le 524288 ] 2>/dev/null; then cat ${quoteShellArg(filePath)}; else echo "__EMDASH_TOO_LARGE__"; fi`,
-      cwd
-    );
-    if (
+    const modifiedContent =
       catResult.exitCode === 0 &&
       catResult.stdout.trim() &&
       catResult.stdout.trim() !== '__EMDASH_TOO_LARGE__'
-    ) {
+        ? catResult.stdout.replace(/\n$/, '')
+        : undefined;
+
+    if (diffResult.exitCode === 0 && diffResult.stdout.trim()) {
+      const lines = parseDiffOutput(diffResult.stdout);
+      if (lines.length > 0) return { lines, originalContent, modifiedContent };
+    }
+
+    // Fallback: untracked file
+    if (modifiedContent !== undefined) {
       return {
-        lines: catResult.stdout.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+        modifiedContent,
       };
     }
 
@@ -496,6 +500,7 @@ export class RemoteGitService {
     if (originalContent !== undefined) {
       return {
         lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+        originalContent,
       };
     }
 
