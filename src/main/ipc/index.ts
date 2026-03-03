@@ -20,9 +20,9 @@ import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
-import { registerTaskNotesIpc } from './taskNotesIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { registerTaskNotesIpc } from './taskNotesIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 
@@ -52,7 +52,6 @@ export function registerAllIpc() {
   registerBrowserIpc();
   registerNetIpc();
   registerLineCommentsIpc();
-  registerTaskNotesIpc();
 
   // Existing modules
   registerPtyIpc();
@@ -65,4 +64,5 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerTaskNotesIpc();
 }

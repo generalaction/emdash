@@ -1,4 +1,5 @@
 import { request } from 'https';
+import { spawn } from 'child_process';
 import { log } from '../lib/logger';
 import { getAppSettings } from '../settings';
 
@@ -10,7 +11,6 @@ const PROVIDER_API_KEY_MAP: Record<string, string> = {
   qwen: 'DASHSCOPE_API_KEY',
   kimi: 'KIMI_API_KEY',
   mistral: 'MISTRAL_API_KEY',
-  amp: 'AMP_API_KEY',
 };
 
 const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
@@ -20,6 +20,13 @@ const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   gemini: 'gemini-2.0-flash-lite',
   qwen: 'qwen-turbo',
   mistral: 'mistral-small-latest',
+};
+
+// CLI binaries that support -p flag for one-shot prompting
+const PROVIDER_CLI_MAP: Record<string, string[]> = {
+  claude: ['claude'],
+  codex: ['codex'],
+  gemini: ['gemini'],
 };
 
 const SYSTEM_PROMPT =
@@ -33,14 +40,6 @@ export function getApiKeyForProvider(providerId: string): string | undefined {
 
 export function getDefaultModelForProvider(providerId: string): string {
   return PROVIDER_DEFAULT_MODEL[providerId] ?? 'claude-haiku-4-5-20251001';
-}
-
-function isAnthropicProvider(providerId: string): boolean {
-  return providerId === 'claude';
-}
-
-function isOpenAICompatible(providerId: string): boolean {
-  return ['codex', 'cursor', 'mistral'].includes(providerId);
 }
 
 async function callAnthropic(apiKey: string, model: string, content: string): Promise<string> {
@@ -74,8 +73,7 @@ async function callAnthropic(apiKey: string, model: string, content: string): Pr
               reject(new Error(parsed.error.message ?? 'Anthropic API error'));
               return;
             }
-            const text = parsed.content?.[0]?.text ?? '';
-            resolve(text);
+            resolve(parsed.content?.[0]?.text ?? '');
           } catch {
             reject(new Error('Failed to parse Anthropic response'));
           }
@@ -126,8 +124,7 @@ async function callOpenAICompatible(
               reject(new Error(parsed.error.message ?? 'API error'));
               return;
             }
-            const text = parsed.choices?.[0]?.message?.content ?? '';
-            resolve(text);
+            resolve(parsed.choices?.[0]?.message?.content ?? '');
           } catch {
             reject(new Error('Failed to parse API response'));
           }
@@ -140,39 +137,90 @@ async function callOpenAICompatible(
   });
 }
 
+/**
+ * Call the agent CLI with -p flag for one-shot summary generation.
+ * Used as fallback when no API key is configured.
+ */
+async function callAgentCli(cli: string, content: string): Promise<string> {
+  const prompt = `${SYSTEM_PROMPT}\n\nTerminal output:\n${content}`;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(new Error('Agent CLI timed out after 30s'));
+    }, 30_000);
+
+    const child = spawn(cli, ['-p', prompt], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+    child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0 && stdout.trim()) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error(`Agent CLI exited with code ${code}: ${stderr.slice(0, 200)}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+}
+
 export async function generateSummary(
   terminalContent: string,
   providerId: string
 ): Promise<string> {
   const settings = getAppSettings();
-  const summarySettings = settings.summary;
+  const summarySettings = (settings as any).summary;
 
   const effectiveProvider = summarySettings?.provider ?? providerId;
   const model = summarySettings?.model ?? getDefaultModelForProvider(effectiveProvider);
   const apiKey = getApiKeyForProvider(effectiveProvider);
 
-  if (!apiKey) {
-    throw new Error(
-      `No API key found for provider "${effectiveProvider}". Set the ${PROVIDER_API_KEY_MAP[effectiveProvider] ?? 'API key'} environment variable.`
-    );
+  // Direct API call if key is available
+  if (apiKey) {
+    log.info(`Generating summary via API: provider=${effectiveProvider}, model=${model}`);
+    if (effectiveProvider === 'claude') {
+      return callAnthropic(apiKey, model, terminalContent);
+    }
+    if (['codex', 'cursor', 'mistral'].includes(effectiveProvider)) {
+      return callOpenAICompatible(apiKey, model, terminalContent, process.env.OPENAI_BASE_URL);
+    }
   }
 
-  log.info(`Generating summary with provider=${effectiveProvider}, model=${model}`);
-
-  if (isAnthropicProvider(effectiveProvider)) {
-    return callAnthropic(apiKey, model, terminalContent);
+  // Fallback: try the agent CLI with -p flag
+  const cliCandidates = PROVIDER_CLI_MAP[effectiveProvider] ?? PROVIDER_CLI_MAP['claude'];
+  for (const cli of cliCandidates) {
+    try {
+      log.info(`No API key for "${effectiveProvider}", trying CLI fallback: ${cli} -p`);
+      return await callAgentCli(cli, terminalContent);
+    } catch (err) {
+      log.warn(`CLI fallback failed for ${cli}:`, err);
+    }
   }
 
-  if (isOpenAICompatible(effectiveProvider)) {
-    const baseUrl = process.env.OPENAI_BASE_URL;
-    return callOpenAICompatible(apiKey, model, terminalContent, baseUrl);
+  // Last resort: try claude CLI regardless of provider
+  if (!cliCandidates.includes('claude')) {
+    try {
+      log.info('Trying claude CLI as last-resort fallback');
+      return await callAgentCli('claude', terminalContent);
+    } catch (err) {
+      log.warn('claude CLI last-resort failed:', err);
+    }
   }
 
-  // Fallback: try Anthropic if we have the key
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    return callAnthropic(anthropicKey, 'claude-haiku-4-5-20251001', terminalContent);
-  }
-
-  throw new Error(`Unsupported provider "${effectiveProvider}" for summary generation.`);
+  throw new Error(
+    `No API key found for "${effectiveProvider}" and no CLI fallback available. ` +
+      `Set the ${PROVIDER_API_KEY_MAP[effectiveProvider] ?? 'API key'} environment variable.`
+  );
 }

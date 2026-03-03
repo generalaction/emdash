@@ -3,6 +3,15 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 
+export interface TaskNote {
+  id: string;
+  taskId: string;
+  type: 'manual' | 'summary';
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Per-agent run configuration for task creation */
 export interface AgentRun {
   agent: ProviderId;
@@ -44,15 +53,6 @@ export interface TaskMetadata {
     }>;
     selectedAgent?: ProviderId | null;
   } | null;
-}
-
-export interface TaskNote {
-  id: string;
-  taskId: string;
-  type: 'manual' | 'summary';
-  content: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Task {

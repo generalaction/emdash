@@ -11,6 +11,9 @@ import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
+import { TaskNotesPanel } from './TaskNotesPanel';
+import { makePtyId } from '@shared/ptyId';
+import type { ProviderId } from '@shared/providers/registry';
 
 export interface RightSidebarTask {
   id: string;
@@ -375,7 +378,14 @@ const SingleTaskSidebar: React.FC<{
   return (
     <ResizablePanelGroup direction="vertical" autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}>
       <ResizablePanel defaultSize={50} minSize={20}>
-        <FileChangesPanel className="h-full min-h-0" onOpenChanges={onOpenChanges} />
+        <div className="flex h-full min-h-0 flex-col">
+          <TaskNotesPanel
+            taskId={task.id}
+            ptyId={task.agentId ? makePtyId(task.agentId as ProviderId, 'main', task.id) : null}
+            agentId={task.agentId}
+          />
+          <FileChangesPanel className="min-h-0 flex-1" onOpenChanges={onOpenChanges} />
+        </div>
       </ResizablePanel>
       <ResizableHandle />
       <ResizablePanel defaultSize={50} minSize={20}>

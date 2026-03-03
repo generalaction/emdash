@@ -6,7 +6,7 @@ import { generateSummary } from '../services/SummaryGenerationService';
 import { stripAnsi, extractLastLines } from '../utils/ansiStrip';
 import { getAppSettings } from '../settings';
 
-export function registerTaskNotesIpc() {
+export function registerTaskNotesIpc(): void {
   ipcMain.handle(
     'taskNotes:upsert',
     async (_, args: { taskId: string; type: 'manual' | 'summary'; content: string }) => {
@@ -42,7 +42,7 @@ export function registerTaskNotesIpc() {
 
   ipcMain.handle(
     'taskNotes:generateSummary',
-    async (_, args: { taskId: string; ptyId: string }) => {
+    async (_, args: { taskId: string; ptyId: string; agentId?: string }) => {
       try {
         const snapshot = await terminalSnapshotService.getSnapshot(args.ptyId);
         if (!snapshot?.data) {
@@ -59,10 +59,9 @@ export function registerTaskNotesIpc() {
 
         const conversations = await databaseService.getConversations(args.taskId);
         const mainConv = conversations.find((c) => c.isMain) ?? conversations[0];
-        const providerId = mainConv?.provider ?? 'claude';
+        const providerId = args.agentId ?? mainConv?.provider ?? 'claude';
 
         const summary = await generateSummary(plainText, providerId);
-
         await databaseService.upsertTaskNote(args.taskId, 'summary', summary);
 
         return { success: true, summary };
