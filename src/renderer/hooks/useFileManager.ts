@@ -250,6 +250,9 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
     return () => clearTimeout(timer);
   }, [activeFile?.content, activeFile?.isDirty, autoSave, autoSaveDelay, saveFile]);
 
+  const loadFileRef = useRef(loadFile);
+  loadFileRef.current = loadFile;
+
   useEffect(() => {
     const state = getEditorState(taskId);
     if (!state?.openFilePaths?.length) {
@@ -262,10 +265,13 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
     setOpenFiles(new Map());
     setActiveFilePath(null);
 
+    let cancelled = false;
     const restore = async () => {
       for (const path of state.openFilePaths) {
-        await loadFile(path);
+        if (cancelled) return;
+        await loadFileRef.current(path);
       }
+      if (cancelled) return;
       const active =
         state.activeFilePath && state.openFilePaths.includes(state.activeFilePath)
           ? state.activeFilePath
@@ -274,7 +280,11 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
       restoringRef.current = false;
     };
     void restore();
-  }, [taskId, loadFile]);
+    return () => {
+      cancelled = true;
+      restoringRef.current = false;
+    };
+  }, [taskId]);
 
   useEffect(() => {
     if (restoringRef.current) return;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcons';
@@ -184,6 +184,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<any[]>([]);
+  const restoringRef = useRef(true);
+  const loadingPathsRef = useRef(new Set<string>());
 
   // Use the clean content search hook
   const {
@@ -493,6 +495,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   );
 
   useEffect(() => {
+    restoringRef.current = true;
     const state = getEditorState(taskId);
     setExpandedPaths(new Set(state?.expandedPaths ?? []));
   }, [taskId]);
@@ -503,29 +506,40 @@ export const FileTree: React.FC<FileTreeProps> = ({
       (a, b) => a.split('/').filter(Boolean).length - b.split('/').filter(Boolean).length
     );
     const path = paths.find((p) => {
+      if (loadingPathsRef.current.has(p)) return false;
       const node = findNode(tree, p);
       return node?.type === 'directory' && !node.isLoaded;
     });
     if (!path) return;
     const node = findNode(tree, path);
-    if (node) void loadChildren(node);
+    if (node) {
+      loadingPathsRef.current.add(path);
+      void loadChildren(node).finally(() => {
+        loadingPathsRef.current.delete(path);
+      });
+    }
   }, [taskId, tree, expandedPaths, loadChildren]);
 
-  const handleToggleExpand = useCallback(
-    (path: string) => {
-      setExpandedPaths((prev) => {
-        const next = new Set(prev);
-        if (next.has(path)) {
-          next.delete(path);
-        } else {
-          next.add(path);
-        }
-        saveEditorState(taskId, { expandedPaths: Array.from(next) });
-        return next;
-      });
-    },
-    [taskId]
-  );
+  const handleToggleExpand = useCallback((path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  // Persist expandedPaths to localStorage (skip during restore)
+  useEffect(() => {
+    if (restoringRef.current) {
+      restoringRef.current = false;
+      return;
+    }
+    saveEditorState(taskId, { expandedPaths: Array.from(expandedPaths) });
+  }, [taskId, expandedPaths]);
 
   // Handle clicking on a search result
   const handleSearchResultClick = useCallback(
