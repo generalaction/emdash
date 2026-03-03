@@ -445,7 +445,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
       try {
         const subRoot = constructSubRoot(rootPath, node.path);
 
-        const opts: { includeDirs: boolean; recursive: boolean; connectionId?: string; remotePath?: string } = {
+        const opts: {
+          includeDirs: boolean;
+          recursive: boolean;
+          connectionId?: string;
+          remotePath?: string;
+        } = {
           includeDirs: true,
           recursive: false,
         };
