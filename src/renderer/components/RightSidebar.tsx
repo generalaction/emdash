@@ -373,27 +373,29 @@ const SingleTaskSidebar: React.FC<{
   onOpenChanges,
 }) => {
   return (
-    <>
-      <FileChangesPanel
-        className="min-h-0 flex-1 border-b border-border"
-        onOpenChanges={onOpenChanges}
-      />
-      <TaskTerminalPanel
-        task={task}
-        agent={task.agentId as Agent}
-        projectPath={projectPath || task?.path}
-        remote={
-          projectRemoteConnectionId
-            ? {
-                connectionId: projectRemoteConnectionId,
-                projectPath: projectRemotePath || projectPath || undefined,
-              }
-            : undefined
-        }
-        defaultBranch={projectDefaultBranch || undefined}
-        className="min-h-0 flex-1"
-      />
-    </>
+    <ResizablePanelGroup direction="vertical" autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}>
+      <ResizablePanel defaultSize={50} minSize={20}>
+        <FileChangesPanel className="h-full min-h-0" onOpenChanges={onOpenChanges} />
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel defaultSize={50} minSize={20}>
+        <TaskTerminalPanel
+          task={task}
+          agent={task.agentId as Agent}
+          projectPath={projectPath || task?.path}
+          remote={
+            projectRemoteConnectionId
+              ? {
+                  connectionId: projectRemoteConnectionId,
+                  projectPath: projectRemotePath || projectPath || undefined,
+                }
+              : undefined
+          }
+          defaultBranch={projectDefaultBranch || undefined}
+          className="h-full min-h-0"
+        />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };
 
