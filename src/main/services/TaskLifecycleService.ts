@@ -5,9 +5,12 @@ import { promisify } from 'node:util';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import {
   type LifecycleEvent,
+  type LifecycleLogs,
   type LifecyclePhase,
   type LifecyclePhaseState,
   type TaskLifecycleState,
+  MAX_LIFECYCLE_LOG_LINES,
+  formatLifecycleLogLine,
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
@@ -23,6 +26,7 @@ type LifecycleResult = {
 
 class TaskLifecycleService extends EventEmitter {
   private states = new Map<string, TaskLifecycleState>();
+  private logBuffers = new Map<string, LifecycleLogs>();
   private runProcesses = new Map<string, ChildProcess>();
   private finiteProcesses = new Map<string, Set<ChildProcess>>();
   private runStartInflight = new Map<string, Promise<LifecycleResult>>();
@@ -140,6 +144,23 @@ class TaskLifecycleService extends EventEmitter {
     return state;
   }
 
+  private ensureLogBuffer(taskId: string): LifecycleLogs {
+    const existing = this.logBuffers.get(taskId);
+    if (existing) return existing;
+    const buf: LifecycleLogs = { setup: [], run: [], teardown: [] };
+    this.logBuffers.set(taskId, buf);
+    return buf;
+  }
+
+  private appendLog(taskId: string, phase: LifecyclePhase, line: string): void {
+    const buf = this.ensureLogBuffer(taskId);
+    const arr = buf[phase];
+    arr.push(line);
+    if (arr.length > MAX_LIFECYCLE_LOG_LINES) {
+      arr.splice(0, arr.length - MAX_LIFECYCLE_LOG_LINES);
+    }
+  }
+
   private emitLifecycleEvent(
     taskId: string,
     phase: LifecyclePhase,
@@ -153,6 +174,13 @@ class TaskLifecycleService extends EventEmitter {
       timestamp: this.nowIso(),
       ...(extras || {}),
     };
+
+    // Buffer log lines so they survive task switches in the renderer
+    const line = formatLifecycleLogLine(phase, status, extras);
+    if (line !== null) {
+      this.appendLog(taskId, phase, line);
+    }
+
     this.emit('event', evt);
   }
 
@@ -461,8 +489,16 @@ class TaskLifecycleService extends EventEmitter {
     return this.ensureState(taskId);
   }
 
+  getLogs(taskId: string): LifecycleLogs {
+    const buf = this.logBuffers.get(taskId);
+    return buf
+      ? { setup: [...buf.setup], run: [...buf.run], teardown: [...buf.teardown] }
+      : { setup: [], run: [], teardown: [] };
+  }
+
   clearTask(taskId: string): void {
     this.states.delete(taskId);
+    this.logBuffers.delete(taskId);
     this.stopIntents.delete(taskId);
     this.runStartInflight.delete(taskId);
 
