@@ -110,22 +110,21 @@ describe('shellEnv', () => {
       expect(result).toBeTruthy();
     });
 
-    it('should prefer launchctl value over process.env on macOS', () => {
-      // Simulate macOS where process.env has the default Apple agent
-      // but launchctl has the user's 1Password override
-      if (process.platform !== 'darwin') return; // macOS-only test
+    it.skipIf(process.platform !== 'darwin')(
+      'should prefer launchctl value over process.env on macOS',
+      () => {
+        process.env.SSH_AUTH_SOCK = '/private/tmp/com.apple.launchd.XXX/Listeners';
+        mockedExecSync.mockReturnValue(
+          '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock\n'
+        );
 
-      process.env.SSH_AUTH_SOCK = '/private/tmp/com.apple.launchd.XXX/Listeners';
-      mockedExecSync.mockReturnValue(
-        '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock\n'
-      );
+        const result = detectSshAuthSock();
 
-      const result = detectSshAuthSock();
-
-      expect(result).toBe(
-        '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock'
-      );
-    });
+        expect(result).toBe(
+          '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock'
+        );
+      }
+    );
 
     it('should return undefined when no socket is found', () => {
       delete process.env.SSH_AUTH_SOCK;

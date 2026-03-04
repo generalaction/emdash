@@ -139,11 +139,12 @@ export async function resolveIdentityAgent(hostname: string): Promise<string | u
 
 /**
  * Normalizes an IdentityAgent value.
- * OpenSSH treats the literal string "SSH_AUTH_SOCK" as "use the env var",
- * so we return undefined to let the caller fall back to process.env.SSH_AUTH_SOCK.
+ * OpenSSH treats "SSH_AUTH_SOCK" as "use the env var" and "none" as
+ * "disable agent auth". Both should return undefined so the caller
+ * falls back to process.env.SSH_AUTH_SOCK or skips agent auth.
  */
 function normalizeIdentityAgent(value: string | undefined): string | undefined {
-  if (!value || value === 'SSH_AUTH_SOCK') {
+  if (!value || value === 'SSH_AUTH_SOCK' || value.toLowerCase() === 'none') {
     return undefined;
   }
   return value;

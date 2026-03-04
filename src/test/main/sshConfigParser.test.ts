@@ -122,4 +122,11 @@ describe('resolveIdentityAgent', () => {
     // so that the caller falls back to process.env.SSH_AUTH_SOCK
     expect(result).toBeUndefined();
   });
+
+  it('handles IdentityAgent none (disables agent auth)', async () => {
+    readFileMock.mockResolvedValue(['Host *', '  IdentityAgent none'].join('\n'));
+
+    const result = await resolveIdentityAgent('anyhost');
+    expect(result).toBeUndefined();
+  });
 });
