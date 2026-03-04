@@ -127,7 +127,7 @@ export function ReviewersSection({
               ) : collabError ? (
                 <div className="p-2">
                   <p className="mb-1.5 text-xs text-muted-foreground">
-                    Could not fetch collaborators. Enter a GitHub login:
+                    Could not list collaborators. Enter reviewer&apos;s GitHub username:
                   </p>
                   <div className="flex gap-1.5">
                     <input
