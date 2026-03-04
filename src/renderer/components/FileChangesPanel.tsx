@@ -424,48 +424,50 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         </div>
       )}
       {activeTab === 'checks' && pr ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {!hasChanges && (
-            <div className="flex items-center gap-1.5 px-4 py-1.5">
-              <span className="text-sm font-medium text-foreground">Checks</span>
-              {checkRunsStatus?.summary && (
-                <div className="flex items-center gap-1.5">
-                  {checkRunsStatus.summary.passed > 0 && (
-                    <Badge variant="outline">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                      {checkRunsStatus.summary.passed} passed
-                    </Badge>
-                  )}
-                  {checkRunsStatus.summary.failed > 0 && (
-                    <Badge variant="outline">
-                      <XCircle className="h-3 w-3 text-red-500" />
-                      {checkRunsStatus.summary.failed} failed
-                    </Badge>
-                  )}
-                  {checkRunsStatus.summary.pending > 0 && (
-                    <Badge variant="outline">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {checkRunsStatus.summary.pending} pending
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          <ChecksPanel
-            status={checkRunsStatus}
-            isLoading={checkRunsLoading}
-            hasPr={!!pr}
-            hideSummary={!hasChanges}
-          />
-          <PrCommentsList
-            status={prCommentsStatus}
-            isLoading={prCommentsLoading}
-            hasPr={!!pr}
-            prUrl={pr?.url}
-          />
+        <>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {!hasChanges && (
+              <div className="flex items-center gap-1.5 px-4 py-1.5">
+                <span className="text-sm font-medium text-foreground">Checks</span>
+                {checkRunsStatus?.summary && (
+                  <div className="flex items-center gap-1.5">
+                    {checkRunsStatus.summary.passed > 0 && (
+                      <Badge variant="outline">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                        {checkRunsStatus.summary.passed} passed
+                      </Badge>
+                    )}
+                    {checkRunsStatus.summary.failed > 0 && (
+                      <Badge variant="outline">
+                        <XCircle className="h-3 w-3 text-red-500" />
+                        {checkRunsStatus.summary.failed} failed
+                      </Badge>
+                    )}
+                    {checkRunsStatus.summary.pending > 0 && (
+                      <Badge variant="outline">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {checkRunsStatus.summary.pending} pending
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <ChecksPanel
+              status={checkRunsStatus}
+              isLoading={checkRunsLoading}
+              hasPr={!!pr}
+              hideSummary={!hasChanges}
+            />
+            <PrCommentsList
+              status={prCommentsStatus}
+              isLoading={prCommentsLoading}
+              hasPr={!!pr}
+              prUrl={pr?.url}
+            />
+          </div>
           <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
-        </div>
+        </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {isLoading && fileChanges.length === 0 ? (
