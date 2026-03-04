@@ -77,7 +77,7 @@ describe('shellEnv', () => {
       expect(result).toBe('/existing/socket');
     });
 
-    it('should detect SSH_AUTH_SOCK from shell when not set', () => {
+    it('should detect SSH_AUTH_SOCK when not in process.env', () => {
       delete process.env.SSH_AUTH_SOCK;
       mockedExecSync.mockReturnValue('/shell/detected/socket');
 

@@ -719,7 +719,9 @@ export function registerSshIpc() {
         }
 
         const hosts = await parseSshConfigFile();
-        const host = hosts.find((h) => h.host.toLowerCase() === hostAlias.toLowerCase());
+        const host = hosts
+          .filter((h) => !h.host.includes('*') && !h.host.includes('?'))
+          .find((h) => h.host.toLowerCase() === hostAlias.toLowerCase());
 
         if (!host) {
           return { success: false, error: `Host alias not found: ${hostAlias}` };
