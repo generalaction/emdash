@@ -34,7 +34,7 @@ import { activityStore } from '@/lib/activityStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
 import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
-import BrowserProvider from '@/providers/BrowserProvider';
+import BrowserProvider, { useBrowser } from '@/providers/BrowserProvider';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { SettingsPageTab } from '@/components/SettingsPage';
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
@@ -58,6 +58,20 @@ const RightSidebarBridge: React.FC<{
   }, [setCollapsed, setCollapsedRef]);
 
   return null;
+};
+
+/** Bridge that reads BrowserProvider context and forwards it to AppKeyboardShortcuts */
+const BrowserAwareShortcuts: React.FC<
+  Omit<React.ComponentProps<typeof AppKeyboardShortcuts>, 'showBrowser' | 'handleCloseBrowser'>
+> = (props) => {
+  const browser = useBrowser();
+  return (
+    <AppKeyboardShortcuts
+      {...props}
+      showBrowser={browser.isOpen}
+      handleCloseBrowser={browser.close}
+    />
+  );
 };
 
 export function Workspace() {
@@ -100,6 +114,11 @@ export function Workspace() {
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
+  const handleCloseDiffViewer = useCallback(() => {
+    setShowDiffViewer(false);
+    setDiffViewerInitialFile(null);
+    setDiffViewerTaskPath(null);
+  }, []);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -176,6 +195,8 @@ export function Workspace() {
     setShowKanban(false);
     setShowEditorMode((v) => !v);
   }, [setShowKanban, setShowEditorMode]);
+  const handleCloseEditor = useCallback(() => setShowEditorMode(false), [setShowEditorMode]);
+  const handleCloseKanban = useCallback(() => setShowKanban(false), [setShowKanban]);
 
   // --- Task management ---
   const taskMgmt = useTaskManagementContext();
@@ -313,13 +334,19 @@ export function Workspace() {
         <KeyboardSettingsProvider>
           <SidebarProvider>
             <RightSidebarProvider>
-              <AppKeyboardShortcuts
+              <BrowserAwareShortcuts
                 showCommandPalette={showCommandPalette}
                 showSettings={showSettingsPage}
+                showDiffViewer={showDiffViewer}
+                showEditor={showEditorMode && !!activeTask && !!selectedProject}
+                showKanban={!!projectMgmt.showKanban && !!selectedProject}
                 handleToggleCommandPalette={handleToggleCommandPalette}
                 handleOpenSettings={handleToggleSettingsPage}
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettingsPage}
+                handleCloseDiffViewer={handleCloseDiffViewer}
+                handleCloseEditor={handleCloseEditor}
+                handleCloseKanban={handleCloseKanban}
                 handleToggleKanban={handleToggleKanban}
                 handleToggleEditor={handleToggleEditor}
                 handleOpenInEditor={handleOpenInEditor}
@@ -370,11 +397,7 @@ export function Workspace() {
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
                       {showDiffViewer ? (
                         <DiffViewer
-                          onClose={() => {
-                            setShowDiffViewer(false);
-                            setDiffViewerInitialFile(null);
-                            setDiffViewerTaskPath(null);
-                          }}
+                          onClose={handleCloseDiffViewer}
                           taskId={activeTask?.id}
                           taskPath={diffViewerTaskPath || activeTask?.path}
                           initialFile={diffViewerInitialFile}
@@ -436,7 +459,7 @@ export function Workspace() {
                   taskPath={activeTask.path}
                   taskName={activeTask.name}
                   projectName={selectedProject.name}
-                  onClose={() => setShowEditorMode(false)}
+                  onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
                 />
