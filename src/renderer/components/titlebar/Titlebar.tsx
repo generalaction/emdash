@@ -21,13 +21,6 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
 
-interface GithubUser {
-  login?: string;
-  name?: string;
-  html_url?: string;
-  email?: string;
-}
-
 interface TitlebarProps {
   onToggleSettings: () => void;
   isSettingsOpen?: boolean;
