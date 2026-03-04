@@ -128,18 +128,10 @@ function expandGlob(pattern: string): string[] {
  * @returns The path to the SSH agent socket, or undefined if not found
  */
 export function detectSshAuthSock(): string | undefined {
-  // If already set, use it
-  if (process.env.SSH_AUTH_SOCK) {
-    return process.env.SSH_AUTH_SOCK;
-  }
-
-  // Try to detect from user's shell
-  const shellValue = getShellEnvVar('SSH_AUTH_SOCK');
-  if (shellValue) {
-    return shellValue;
-  }
-
-  // Method 2: macOS launchd (fast, no shell spawn)
+  // On macOS, check launchctl first — it reflects the user's explicit override
+  // (e.g. `launchctl setenv SSH_AUTH_SOCK /path/to/1password/agent.sock`)
+  // which may differ from the process.env value inherited from the default
+  // Apple SSH agent when launched from Finder/Dock.
   if (process.platform === 'darwin') {
     try {
       const result = execSync('launchctl getenv SSH_AUTH_SOCK', {
@@ -151,8 +143,19 @@ export function detectSshAuthSock(): string | undefined {
         return socket;
       }
     } catch {
-      // launchctl detection failed
+      // launchctl detection failed, continue
     }
+  }
+
+  // If already set in environment, use it
+  if (process.env.SSH_AUTH_SOCK) {
+    return process.env.SSH_AUTH_SOCK;
+  }
+
+  // Try to detect from user's login shell (sources .zshrc/.bash_profile)
+  const shellValue = getShellEnvVar('SSH_AUTH_SOCK');
+  if (shellValue) {
+    return shellValue;
   }
 
   // Check common socket locations as fallback
