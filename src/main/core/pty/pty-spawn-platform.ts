@@ -38,8 +38,19 @@ function getPosixShell(env: NodeJS.ProcessEnv): string {
   return env.SHELL || '/bin/sh';
 }
 
-function getWindowsShell(env: NodeJS.ProcessEnv): string {
+function getWindowsCommandShell(env: NodeJS.ProcessEnv): string {
   return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+}
+
+function getWindowsInteractiveShell(env: NodeJS.ProcessEnv): string {
+  const systemRoot = getWindowsEnvValue(env, 'SystemRoot') || 'C:\\Windows';
+  return path.win32.join(
+    systemRoot,
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe'
+  );
 }
 
 function isWindows(platform: NodeJS.Platform): boolean {
@@ -141,15 +152,15 @@ function resolveWindowsSpawn(
   fileExists: FileExists
 ): ResolvedLocalPtySpawn {
   const warnings = windowsWarnings(intent);
-  const shell = getWindowsShell(env);
+  const commandShell = getWindowsCommandShell(env);
 
   if (intent.kind === 'interactive-shell') {
-    return { command: shell, args: [], cwd: intent.cwd, warnings };
+    return { command: getWindowsInteractiveShell(env), args: [], cwd: intent.cwd, warnings };
   }
 
   if (intent.command.kind === 'shell-line') {
     return {
-      command: shell,
+      command: commandShell,
       args: ['/d', '/s', '/c', wrapCmdExeCommandLine(intent.command.commandLine)],
       cwd: intent.cwd,
       warnings,
@@ -168,7 +179,7 @@ function resolveWindowsSpawn(
 
   if (ext === '.cmd' || ext === '.bat') {
     return {
-      command: shell,
+      command: commandShell,
       args: [
         '/d',
         '/s',
@@ -191,7 +202,7 @@ function resolveWindowsSpawn(
 
   if (!ext) {
     return {
-      command: shell,
+      command: commandShell,
       args: [
         '/d',
         '/s',

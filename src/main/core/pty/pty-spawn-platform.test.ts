@@ -16,7 +16,7 @@ describe('resolveLocalPtySpawn - Windows', () => {
     Path: 'C:\\Users\\me\\AppData\\Roaming\\npm;C:\\Program Files\\nodejs',
   } satisfies NodeJS.ProcessEnv;
 
-  it('uses ComSpec for interactive shells without POSIX flags', () => {
+  it('uses PowerShell for interactive shells without POSIX flags', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
       env: winEnv,
@@ -24,7 +24,7 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
 
     expect(result).toEqual({
-      command: 'C:\\Windows\\System32\\cmd.exe',
+      command: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
       args: [],
       cwd: 'C:\\repo',
       warnings: [],
