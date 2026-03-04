@@ -44,6 +44,7 @@ import {
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
+import { SidebarSpace } from './SidebarSpace';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
@@ -188,6 +189,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
 
   return (
     <div className="relative h-full">
+      <SidebarSpace />
       <Sidebar className="!w-full lg:border-r-0">
         <SidebarHeader className="border-b-0 px-3 py-3">
           <SidebarMenu>

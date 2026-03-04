@@ -45,8 +45,9 @@ export function useWorkspaceLayoutService() {
   }, []);
 
   useEffect(() => {
+    const dragging = draggingRef.current;
     return () => {
-      if (draggingRef.current.left || draggingRef.current.right) {
+      if (dragging.left || dragging.right) {
         window.dispatchEvent(
           new CustomEvent('emdash:panel-resize-dragging', { detail: { dragging: false } })
         );

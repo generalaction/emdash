@@ -14,7 +14,10 @@ import {
   Trash2,
   Check,
   ListFilter,
+  LayoutList,
+  Kanban,
 } from 'lucide-react';
+import KanbanBoard from './kanban/KanbanBoard';
 import { AnimatePresence, motion } from 'motion/react';
 import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -336,9 +339,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [searchFilter, setSearchFilter] = useState('');
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
   const activeTasks = tasksByProjectId[project.id] ?? [];
-  const activeTasksLength = activeTasks.length;
 
   const refetchArchivedTasks = useCallback(() => {
     const timeoutId = setTimeout(async () => {
@@ -834,18 +837,54 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     Spin up a fresh, isolated task for this project.
                   </p>
                 </div>
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.1, ease: 'easeInOut' }}
-                  className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                  onClick={onCreateTask}
-                >
-                  <Plus className="mr-2 size-4" />
-                  New Task
-                </motion.button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-md border border-input bg-background p-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setViewMode('list')}
+                      aria-label="List view"
+                      className={`h-6 w-6 rounded-sm transition-colors ${
+                        viewMode === 'list'
+                          ? 'bg-accent text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <LayoutList className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setViewMode('kanban')}
+                      aria-label="Kanban view"
+                      className={`h-6 w-6 rounded-sm transition-colors ${
+                        viewMode === 'kanban'
+                          ? 'bg-accent text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Kanban className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.1, ease: 'easeInOut' }}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                    onClick={onCreateTask}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    New Task
+                  </motion.button>
+                </div>
               </div>
 
-              {hasAnyTasks ? (
+              {viewMode === 'kanban' ? (
+                <KanbanBoard
+                  project={project}
+                  onOpenTask={onSelectTask}
+                  onCreateTask={onCreateTask}
+                />
+              ) : hasAnyTasks ? (
                 <>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

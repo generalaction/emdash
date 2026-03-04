@@ -20,32 +20,30 @@ export function ProjectTitlebar() {
   const currentPath = project?.isRemote ? project?.remotePath : project?.path || null;
 
   return (
-    <Titlebar>
-      <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-        <div className="pointer-events-auto w-[min(60vw,720px)] truncate">
-          <TitlebarContext
-            projects={projects.map((p) => ({
-              ...p,
-              tasks: tasksByProjectId[p.id] ?? p.tasks ?? [],
-            }))}
-            selectedProject={projectWithTasks}
-            activeTask={null}
-            onSelectProject={(p) => navigate('project', { projectId: p.id })}
-            onSelectTask={(task) =>
-              navigate('task', { projectId: task.projectId, taskId: task.id })
-            }
-          />
-        </div>
-      </div>
-      {currentPath && (
-        <OpenInMenu
-          path={currentPath}
-          align="right"
-          isRemote={project?.isRemote || false}
-          sshConnectionId={project?.sshConnectionId || null}
+    <Titlebar
+      leftSlot={
+        <TitlebarContext
+          projects={projects.map((p) => ({
+            ...p,
+            tasks: tasksByProjectId[p.id] ?? p.tasks ?? [],
+          }))}
+          selectedProject={projectWithTasks}
+          activeTask={null}
+          onSelectProject={(p) => navigate('project', { projectId: p.id })}
+          onSelectTask={(task) => navigate('task', { projectId: task.projectId, taskId: task.id })}
         />
-      )}
-    </Titlebar>
+      }
+      rightSlot={
+        currentPath && (
+          <OpenInMenu
+            path={currentPath}
+            align="right"
+            isRemote={project?.isRemote || false}
+            sshConnectionId={project?.sshConnectionId || null}
+          />
+        )
+      }
+    />
   );
 }
 

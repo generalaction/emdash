@@ -44,7 +44,6 @@ export function useWorkspaceWrapParams(): WrapParamsContextValue {
   return context;
 }
 
-/** Pure helper: returns true when the current view matches the given id. */
 export function isCurrentView(currentView: string | null | undefined, target: string): boolean {
   return currentView === target;
 }
