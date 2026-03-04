@@ -2459,4 +2459,56 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  // Git: Add a reviewer to the current PR
+  ipcMain.handle('git:add-pr-reviewer', async (_, args: { taskPath: string; login: string }) => {
+    const { taskPath, login } = args || ({} as { taskPath: string; login: string });
+    try {
+      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+      if (remoteProject) {
+        const connId = remoteProject.sshConnectionId;
+        const result = await remoteGitService.execGh(
+          connId,
+          taskPath,
+          `pr edit --add-reviewer ${login}`
+        );
+        if (result.exitCode !== 0) {
+          return { success: false, error: result.stderr || 'Failed to add reviewer' };
+        }
+        return { success: true };
+      }
+
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+      await execFileAsync('gh', ['pr', 'edit', '--add-reviewer', login], { cwd: taskPath });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Remove a reviewer from the current PR
+  ipcMain.handle('git:remove-pr-reviewer', async (_, args: { taskPath: string; login: string }) => {
+    const { taskPath, login } = args || ({} as { taskPath: string; login: string });
+    try {
+      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+      if (remoteProject) {
+        const connId = remoteProject.sshConnectionId;
+        const result = await remoteGitService.execGh(
+          connId,
+          taskPath,
+          `pr edit --remove-reviewer ${login}`
+        );
+        if (result.exitCode !== 0) {
+          return { success: false, error: result.stderr || 'Failed to remove reviewer' };
+        }
+        return { success: true };
+      }
+
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+      await execFileAsync('gh', ['pr', 'edit', '--remove-reviewer', login], { cwd: taskPath });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }
