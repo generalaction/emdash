@@ -19,7 +19,6 @@ import Context7SettingsCard from './Context7SettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
-import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -83,19 +82,18 @@ const mapAgentStatusesToCli = (
   }, []);
 };
 
-interface SettingsPageProps {
-  initialTab?: SettingsPageTab;
-  onClose: () => void;
-}
-
 interface SectionConfig {
   title?: string;
   action?: React.ReactNode;
   component: React.ReactNode;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab }) => {
-  const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
+export const SettingsPage: React.FC = ({
+  initialTab = 'general',
+}: {
+  initialTab?: SettingsPageTab;
+}) => {
+  const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab);
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const taskSettings = useTaskSettings();
 
@@ -234,7 +232,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab }) => {
           title: 'Workspace',
           component: (
             <div className="flex flex-col gap-8 rounded-xl border border-muted p-4">
-              <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
               <TaskHoverActionCard />
             </div>

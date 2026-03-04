@@ -33,21 +33,7 @@ export function WorkspaceLayout({
     setIsRightOpen,
     isRightOpen,
     isLeftOpen,
-    setCollapsed,
   } = useWorkspaceLayoutContext();
-
-  const { settings } = useAppSettings();
-  const autoRightSidebarBehavior = settings?.interface?.autoRightSidebarBehavior ?? false;
-
-  // Auto-collapse the right panel when no slot is provided; auto-expand when one is
-  // provided and the user has enabled the auto-right-sidebar setting.
-  useEffect(() => {
-    if (!rightPanel) {
-      setCollapsed('right', true);
-    } else if (autoRightSidebarBehavior) {
-      setCollapsed('right', false);
-    }
-  }, [rightPanel, autoRightSidebarBehavior, setCollapsed]);
 
   return (
     <div

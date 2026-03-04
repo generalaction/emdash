@@ -1,7 +1,6 @@
 import { Titlebar } from '@/components/titlebar/Titlebar';
 import HomeView from '@/components/HomeView';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
-import { useWorkspaceNavigation } from '@/contexts/WorkspaceNavigationContext';
 
 export function HomeTitlebar() {
   return <Titlebar />;
