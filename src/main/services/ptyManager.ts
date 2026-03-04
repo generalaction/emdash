@@ -101,6 +101,7 @@ const DISPLAY_ENV_VARS = [
   'XDG_RUNTIME_DIR', // Contains Wayland/D-Bus sockets (e.g. /run/user/1000)
   'XDG_CURRENT_DESKTOP', // Used by xdg-open for DE detection (e.g. "GNOME")
   'XDG_SESSION_TYPE', // Used by browsers/toolkits to select X11 vs Wayland
+  'XDG_DATA_DIRS', // .desktop file search paths; includes snap/flatpak dirs set by session
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
