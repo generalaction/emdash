@@ -551,6 +551,29 @@ declare global {
         error?: string;
         code?: string;
       }>;
+      getPrReviewers: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        reviewRequests?: Array<{ login: string; avatarUrl?: string }>;
+        reviews?: Array<{
+          author: { login: string; avatarUrl?: string };
+          state: string;
+          submittedAt: string;
+        }>;
+        error?: string;
+      }>;
+      getRepoCollaborators: (args: { taskPath: string }) => Promise<{
+        success: boolean;
+        collaborators?: Array<{ login: string; avatar_url?: string }>;
+        error?: string;
+      }>;
+      addPrReviewer: (args: { taskPath: string; login: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      removePrReviewer: (args: { taskPath: string; login: string }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       getBranchStatus: (args: { taskPath: string }) => Promise<{
         success: boolean;
         branch?: string;

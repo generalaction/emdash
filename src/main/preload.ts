@@ -376,6 +376,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
   getPrComments: (args: { taskPath: string; prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
+  getPrReviewers: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-reviewers', args),
+  getRepoCollaborators: (args: { taskPath: string }) =>
+    ipcRenderer.invoke('git:get-repo-collaborators', args),
+  addPrReviewer: (args: { taskPath: string; login: string }) =>
+    ipcRenderer.invoke('git:add-pr-reviewer', args),
+  removePrReviewer: (args: { taskPath: string; login: string }) =>
+    ipcRenderer.invoke('git:remove-pr-reviewer', args),
   getBranchStatus: (args: { taskPath: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
