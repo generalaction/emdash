@@ -119,6 +119,18 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
   // Batch: run ONE staged numstat and ONE unstaged numstat for ALL files at once and parse the file
   // into a map of file paths to their additions and deletions
   // Map { filePath: { add: number, del: number } }
+  // Resolve git's rename notation to the new (destination) file path.
+  // Formats: "old.ts => new.ts" or "src/{Old => New}.tsx"
+  const resolveRenamePath = (file: string): string => {
+    if (!file.includes(' => ')) return file;
+    // In-place rename with braces: "src/{Old => New}.tsx"
+    if (file.includes('{')) {
+      return file.replace(/\{[^}]+ => ([^}]+)\}/g, '$1').replace(/\/\//g, '/');
+    }
+    // Full rename: "old.ts => new.ts"
+    return file.split(' => ').pop()!.trim();
+  };
+
   const parseNumstatMap = (stdout: string): Map<string, { add: number; del: number }> => {
     const map = new Map<string, { add: number; del: number }>();
     if (!stdout || !stdout.trim()) return map;
@@ -128,7 +140,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
       if (parts.length >= 3) {
         const add = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
         const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
-        const file = parts.slice(2).join('\t');
+        const file = resolveRenamePath(parts.slice(2).join('\t'));
         const existing = map.get(file);
         if (existing) {
           existing.add += add;
