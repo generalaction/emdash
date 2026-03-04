@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Titlebar } from '@/components/titlebar/Titlebar';
 import ChatInterface from '@/components/ChatInterface';
 import MultiAgentTask from '@/components/MultiAgentTask';
@@ -5,6 +7,7 @@ import RightSidebar from '@/components/RightSidebar';
 import TitlebarContext from '@/components/titlebar/TitlebarContext';
 import TaskCreationLoading from '@/components/TaskCreationLoading';
 import OpenInMenu from '@/components/titlebar/OpenInMenu';
+import { DiffViewer } from '@/components/diff-viewer/DiffViewer';
 import { useCurrentProject } from '@/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@/contexts/CurrentTaskProvider';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
@@ -120,23 +123,50 @@ export function TaskMainPanel() {
   );
 }
 
+interface DiffState {
+  taskId: string;
+  taskPath: string;
+  initialFile?: string | null;
+}
+
 export function TaskRightSidebar() {
   const project = useCurrentProject();
   const task = useCurrentTask();
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo(project);
   const { projectDefaultBranch } = useProjectBranchOptions(project);
+  const [diffState, setDiffState] = useState<DiffState | null>(null);
 
   useAutoPrRefresh(task?.path);
 
+  const handleOpenChanges = (filePath?: string, taskPath?: string) => {
+    if (!task || !taskPath) return;
+    setDiffState({ taskId: task.id, taskPath, initialFile: filePath ?? null });
+  };
+
   return (
-    <RightSidebar
-      task={task}
-      projectPath={project?.path || null}
-      projectRemoteConnectionId={projectRemoteConnectionId}
-      projectRemotePath={projectRemotePath}
-      projectDefaultBranch={projectDefaultBranch}
-      className="lg:border-l-0"
-    />
+    <>
+      <RightSidebar
+        task={task}
+        projectPath={project?.path || null}
+        projectRemoteConnectionId={projectRemoteConnectionId}
+        projectRemotePath={projectRemotePath}
+        projectDefaultBranch={projectDefaultBranch}
+        className="lg:border-l-0"
+        onOpenChanges={handleOpenChanges}
+      />
+      {diffState &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] bg-background">
+            <DiffViewer
+              taskId={diffState.taskId}
+              taskPath={diffState.taskPath}
+              initialFile={diffState.initialFile}
+              onClose={() => setDiffState(null)}
+            />
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
