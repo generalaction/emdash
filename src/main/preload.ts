@@ -135,6 +135,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onPtyPrUrlDetected: (listener: (data: { id: string; url: string; cwd?: string }) => void) => {
+    const channel = 'pty:pr-url-detected';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { id: string; url: string; cwd?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
     const channel = 'agent:event';
     const wrapped = (
@@ -738,6 +747,9 @@ export interface ElectronAPI {
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
+  ) => () => void;
+  onPtyPrUrlDetected: (
+    listener: (data: { id: string; url: string; cwd?: string }) => void
   ) => () => void;
   // Worktree management
   worktreeCreate: (args: {

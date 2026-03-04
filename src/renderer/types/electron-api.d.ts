@@ -383,6 +383,9 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyPrUrlDetected: (
+        listener: (data: { id: string; url: string; cwd?: string }) => void
+      ) => () => void;
       onAgentEvent: (
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
@@ -1351,6 +1354,9 @@ export interface ElectronAPI {
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
   onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onPtyPrUrlDetected: (
+    listener: (data: { id: string; url: string; cwd?: string }) => void
+  ) => () => void;
   onAgentEvent: (
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
   ) => () => void;

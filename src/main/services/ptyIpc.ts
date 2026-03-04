@@ -6,6 +6,7 @@ import {
   killPty,
   getPty,
   getPtyKind,
+  getPtyCwd,
   startDirectPty,
   startSshPty,
   removePtyRecord,
@@ -51,6 +52,11 @@ type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kil
 const ptyDataBuffers = new Map<string, string>();
 const ptyDataTimers = new Map<string, NodeJS.Timeout>();
 const PTY_DATA_FLUSH_MS = 16;
+const PR_URL_DETECTION_TAIL_CHARS = 512;
+const PR_URL_DETECTION_COOLDOWN_MS = 1500;
+const PR_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+\b/gi;
+const ptyPrDetectionTails = new Map<string, string>();
+const ptyLastDetectedPr = new Map<string, { url: string; at: number }>();
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -84,6 +90,8 @@ function clearPtyData(id: string): void {
     ptyDataTimers.delete(id);
   }
   ptyDataBuffers.delete(id);
+  ptyPrDetectionTails.delete(id);
+  ptyLastDetectedPr.delete(id);
 }
 
 function bufferedSendPtyData(id: string, chunk: string): void {
@@ -95,6 +103,35 @@ function bufferedSendPtyData(id: string, chunk: string): void {
     flushPtyData(id);
   }, PTY_DATA_FLUSH_MS);
   ptyDataTimers.set(id, t);
+}
+
+function maybeEmitPrUrlDetected(id: string, chunk: string): void {
+  if (!chunk) return;
+
+  const priorTail = ptyPrDetectionTails.get(id) || '';
+  const searchable = `${priorTail}${chunk}`;
+  ptyPrDetectionTails.set(
+    id,
+    searchable.length > PR_URL_DETECTION_TAIL_CHARS
+      ? searchable.slice(-PR_URL_DETECTION_TAIL_CHARS)
+      : searchable
+  );
+
+  const matches = searchable.match(PR_URL_PATTERN);
+  if (!matches || matches.length === 0) return;
+
+  const uniqueMatches = Array.from(new Set(matches));
+  const now = Date.now();
+  const cwd = getPtyCwd(id);
+
+  for (const url of uniqueMatches) {
+    const last = ptyLastDetectedPr.get(id);
+    if (last && last.url === url && now - last.at < PR_URL_DETECTION_COOLDOWN_MS) {
+      continue;
+    }
+    ptyLastDetectedPr.set(id, { url, at: now });
+    safeSendToOwner(id, 'pty:pr-url-detected', { id, url, cwd });
+  }
 }
 
 function buildRemoteInitKeystrokes(args: {
@@ -272,6 +309,7 @@ export function registerPtyIpc(): void {
 
       if (!proc) {
         log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
+        clearPtyData(id);
         killPty(id); // Clean up dead PTY record
         return;
       }
@@ -280,6 +318,7 @@ export function registerPtyIpc(): void {
       listeners.delete(id); // Clear old listener registration
       if (!listeners.has(id)) {
         proc.onData((data) => {
+          maybeEmitPrUrlDetected(id, data);
           bufferedSendPtyData(id, data);
         });
 
@@ -300,6 +339,7 @@ export function registerPtyIpc(): void {
       }
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
+      clearPtyData(id);
       killPty(id); // Clean up dead PTY record
     }
   });
@@ -359,6 +399,7 @@ export function registerPtyIpc(): void {
 
           if (!listeners.has(id)) {
             proc.onData((data) => {
+              maybeEmitPrUrlDetected(id, data);
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
@@ -496,6 +537,7 @@ export function registerPtyIpc(): void {
         // Attach data/exit listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
+            maybeEmitPrUrlDetected(id, data);
             bufferedSendPtyData(id, data);
           });
 
@@ -537,6 +579,7 @@ export function registerPtyIpc(): void {
                     undefined,
                     isAppQuitting ? 'app_quit' : 'owner_destroyed'
                   );
+                  clearPtyData(ptyId);
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -623,6 +666,7 @@ export function registerPtyIpc(): void {
     try {
       // Ensure telemetry timers are cleared even on manual kill
       maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
+      clearPtyData(args.id);
       killPty(args.id);
       owners.delete(args.id);
       listeners.delete(args.id);
@@ -772,6 +816,7 @@ export function registerPtyIpc(): void {
 
           if (!listeners.has(id)) {
             proc.onData((data) => {
+              maybeEmitPrUrlDetected(id, data);
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
@@ -880,6 +925,7 @@ export function registerPtyIpc(): void {
 
         if (!listeners.has(id)) {
           proc.onData((data) => {
+            maybeEmitPrUrlDetected(id, data);
             bufferedSendPtyData(id, data);
           });
 
@@ -925,6 +971,7 @@ export function registerPtyIpc(): void {
                     undefined,
                     isAppQuitting ? 'app_quit' : 'owner_destroyed'
                   );
+                  clearPtyData(ptyId);
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);

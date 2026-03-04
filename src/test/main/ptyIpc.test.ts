@@ -10,6 +10,7 @@ type MockProc = {
   onData: (cb: (data: string) => void) => void;
   onExit: (cb: (payload: ExitPayload) => void) => void;
   write: ReturnType<typeof vi.fn>;
+  emitData: (data: string) => void;
   emitExit: (exitCode: number | null | undefined, signal?: number) => void;
 };
 
@@ -17,6 +18,7 @@ const ipcHandleHandlers = new Map<string, (...args: any[]) => any>();
 const ipcOnHandlers = new Map<string, (...args: any[]) => any>();
 const appListeners = new Map<string, Array<() => void>>();
 const ptys = new Map<string, MockProc>();
+const ptyCwds = new Map<string, string | undefined>();
 const notificationCtor = vi.fn();
 const notificationShow = vi.fn();
 const telemetryCaptureMock = vi.fn();
@@ -24,13 +26,21 @@ let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
 let lastSshPtyStartOpts: any = null;
 
 function createMockProc(): MockProc {
+  const dataHandlers: Array<(data: string) => void> = [];
   const exitHandlers: Array<(payload: ExitPayload) => void> = [];
   return {
-    onData: vi.fn(),
+    onData: (cb) => {
+      dataHandlers.push(cb);
+    },
     onExit: (cb) => {
       exitHandlers.push(cb);
     },
     write: vi.fn(),
+    emitData: (data) => {
+      for (const handler of dataHandlers) {
+        handler(data);
+      }
+    },
     emitExit: (exitCode, signal) => {
       for (const handler of exitHandlers) {
         handler({ exitCode, signal });
@@ -39,14 +49,16 @@ function createMockProc(): MockProc {
   };
 }
 
-const startPtyMock = vi.fn(async ({ id }: { id: string }) => {
+const startPtyMock = vi.fn(async ({ id, cwd }: { id: string; cwd?: string }) => {
   const proc = createMockProc();
   ptys.set(id, proc);
+  ptyCwds.set(id, cwd);
   return proc;
 });
 const startDirectPtyMock = vi.fn(({ id, cwd }: { id: string; cwd: string }) => {
   const proc = createMockProc();
   ptys.set(id, proc);
+  ptyCwds.set(id, cwd);
   // Mimic ptyManager wiring: direct CLI exit triggers shell respawn callback first.
   proc.onExit(() => {
     onDirectCliExitCallback?.(id, cwd);
@@ -84,9 +96,11 @@ const writePtyMock = vi.fn((id: string, data: string) => {
 });
 const killPtyMock = vi.fn((id: string) => {
   ptys.delete(id);
+  ptyCwds.delete(id);
 });
 const removePtyRecordMock = vi.fn((id: string) => {
   ptys.delete(id);
+  ptyCwds.delete(id);
 });
 const getAllWindowsMock = vi.fn(() => [
   {
@@ -138,6 +152,7 @@ vi.mock('../../main/services/ptyManager', () => ({
   killPty: killPtyMock,
   getPty: getPtyMock,
   getPtyKind: vi.fn(() => 'local'),
+  getPtyCwd: vi.fn((id: string) => ptyCwds.get(id)),
   startDirectPty: startDirectPtyMock,
   startSshPty: startSshPtyMock,
   removePtyRecord: removePtyRecordMock,
@@ -207,6 +222,7 @@ describe('ptyIpc notification lifecycle', () => {
     ipcOnHandlers.clear();
     appListeners.clear();
     ptys.clear();
+    ptyCwds.clear();
     onDirectCliExitCallback = null;
     lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
@@ -246,6 +262,29 @@ describe('ptyIpc notification lifecycle', () => {
 
     expect(notificationCtor).not.toHaveBeenCalled();
     expect(notificationShow).not.toHaveBeenCalled();
+  });
+
+  it('emits pty PR URL detection event when terminal output includes a GitHub PR link', async () => {
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const start = ipcHandleHandlers.get('pty:start');
+    expect(start).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-pr-link');
+    const sender = createSender();
+    await start!({ sender }, { id, cwd: '/tmp/task-pr-link', shell: 'codex', cols: 120, rows: 32 });
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('Done. https://github.com/acme/widgets/pull/123\n');
+
+    expect(sender.send).toHaveBeenCalledWith('pty:pr-url-detected', {
+      id,
+      url: 'https://github.com/acme/widgets/pull/123',
+      cwd: '/tmp/task-pr-link',
+    });
   });
 
   it('injects remote init commands so provider lookup uses login shell PATH', async () => {

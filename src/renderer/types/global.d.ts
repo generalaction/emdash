@@ -59,6 +59,9 @@ declare global {
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
+      onPtyPrUrlDetected: (
+        listener: (data: { id: string; url: string; cwd?: string }) => void
+      ) => () => void;
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
