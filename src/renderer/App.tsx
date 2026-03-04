@@ -11,6 +11,7 @@ import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementContext';
 import { ModalProvider } from './contexts/ModalProvider';
+import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 
 const queryClient = new QueryClient();
 
@@ -33,19 +34,21 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ModalProvider>
-        <AppContextProvider>
-          <GithubContextProvider>
-            <ProjectManagementProvider>
-              <TaskManagementProvider>
-                <AppSettingsProvider>
-                  <ThemeProvider>
-                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                  </ThemeProvider>
-                </AppSettingsProvider>
-              </TaskManagementProvider>
-            </ProjectManagementProvider>
-          </GithubContextProvider>
-        </AppContextProvider>
+        <WorkspaceLayoutContextProvider>
+          <AppContextProvider>
+            <GithubContextProvider>
+              <ProjectManagementProvider>
+                <TaskManagementProvider>
+                  <AppSettingsProvider>
+                    <ThemeProvider>
+                      <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                    </ThemeProvider>
+                  </AppSettingsProvider>
+                </TaskManagementProvider>
+              </ProjectManagementProvider>
+            </GithubContextProvider>
+          </AppContextProvider>
+        </WorkspaceLayoutContextProvider>
       </ModalProvider>
     </QueryClientProvider>
   );

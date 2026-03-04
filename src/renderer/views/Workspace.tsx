@@ -6,7 +6,7 @@ import CodeEditor from '@/components/FileExplorer/CodeEditor';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
 import RightSidebar from '@/components/RightSidebar';
-import Titlebar from '@/components/titlebar/Titlebar';
+import Titlebar from '@/components/titlebar/_Titlebar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { RightSidebarProvider, useRightSidebar } from '@/components/ui/right-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';

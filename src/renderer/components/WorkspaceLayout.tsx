@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useWorkspaceLayoutContext } from '@/contexts/WorkspaceLayoutProvider';
-import Titlebar from '@/components/titlebar/Titlebar';
+import { Titlebar } from '@/components/titlebar/Titlebar';
 import { cn } from '@/lib/utils';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 
