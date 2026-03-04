@@ -1255,7 +1255,7 @@ export class DatabaseService {
     if (this.disabled) return '';
     const { db } = await getDrizzleClient();
     const id = randomUUID();
-    await db
+    const rows = await db
       .insert(taskNotesTable)
       .values({
         id,
@@ -1270,8 +1270,9 @@ export class DatabaseService {
           content,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
-      });
-    return id;
+      })
+      .returning({ id: taskNotesTable.id });
+    return rows[0]?.id ?? id;
   }
 
   async getTaskNotes(taskId: string): Promise<TaskNoteRow[]> {
