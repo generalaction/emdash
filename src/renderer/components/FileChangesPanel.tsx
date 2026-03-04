@@ -329,7 +329,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
       <div className="bg-muted px-3 py-2">
-        <div className="flex w-full items-center justify-between gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex shrink-0 items-center gap-1 text-xs">
             {hasChanges ? (
               <>
