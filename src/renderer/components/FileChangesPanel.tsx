@@ -9,9 +9,11 @@ import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
 import { usePrComments } from '../hooks/usePrComments';
+import { usePrReviewers } from '../hooks/usePrReviewers';
 import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
 import MergePrSection from './MergePrSection';
+import { ReviewersSection } from './ReviewersSection';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
@@ -203,6 +205,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     pr ? safeTaskPath : undefined,
     pr?.number
   );
+  const {
+    reviewers,
+    isLoading: reviewersLoading,
+    pendingLogins,
+    addReviewer,
+    removeReviewer,
+  } = usePrReviewers(safeTaskPath, !!pr);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
@@ -462,6 +471,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             isLoading={prCommentsLoading}
             hasPr={!!pr}
             prUrl={pr?.url}
+          />
+          <ReviewersSection
+            taskPath={safeTaskPath}
+            prState={pr?.state ?? undefined}
+            reviewers={reviewers}
+            isLoading={reviewersLoading}
+            pendingLogins={pendingLogins}
+            onAdd={addReviewer}
+            onRemove={removeReviewer}
           />
           <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
         </div>
