@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS } from '../components/CliAgentsList';
+import { events } from '../lib/rpc';
+import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 
 type CachedAgentStatus = {
   installed: boolean;
@@ -83,13 +85,10 @@ export function useCliAgentDetection() {
       }
     };
 
-    const off =
-      window?.electronAPI?.onProviderStatusUpdated?.(
-        (payload: { providerId: string; status: CachedAgentStatus }) => {
-          if (!payload?.providerId || !payload.status) return;
-          applyCachedStatuses({ [payload.providerId]: payload.status });
-        }
-      ) ?? null;
+    const off = events.on(providerStatusUpdatedChannel, (payload) => {
+      if (!payload?.providerId || !payload.status) return;
+      applyCachedStatuses({ [payload.providerId]: payload.status });
+    });
 
     void loadCachedStatuses();
 

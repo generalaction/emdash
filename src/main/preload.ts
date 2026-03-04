@@ -1,35 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
-import type { AgentEvent } from '../shared/agentEvents';
-
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
-const GIT_STATUS_CHANGED_CHANNEL = 'git:status-changed';
-
-const gitStatusChangedListeners = new Set<(data: { taskPath: string; error?: string }) => void>();
-let gitStatusBridgeAttached = false;
-
-function attachGitStatusBridgeOnce() {
-  if (gitStatusBridgeAttached) return;
-  gitStatusBridgeAttached = true;
-  ipcRenderer.on(
-    GIT_STATUS_CHANGED_CHANNEL,
-    (_: Electron.IpcRendererEvent, data: { taskPath: string; error?: string }) => {
-      for (const listener of gitStatusChangedListeners) {
-        try {
-          listener(data);
-        } catch {}
-      }
-    }
-  );
-}
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   // Generic invoke for the typed RPC client (createRPCClient)
   invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+
+  // Generic event bridge for the typesafe event emitter (createEventEmitter)
+  eventSend: (channel: string, data: unknown) => ipcRenderer.send(channel, data),
+  eventOn: (channel: string, cb: (data: unknown) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: unknown) => cb(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // App info
   getAppVersion: () => ipcRenderer.invoke('app:getAppVersion'),
@@ -114,45 +101,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) =>
     ipcRenderer.invoke('pty:scp-to-remote', args),
 
-  onPtyData: (id: string, listener: (data: string) => void) => {
-    const channel = `pty:data:${id}`;
-    const wrapped = (_: Electron.IpcRendererEvent, data: string) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
   ptyGetSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:get', args),
   ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) =>
     ipcRenderer.invoke('pty:snapshot:save', args),
   ptyClearSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:clear', args),
-  onPtyExit: (id: string, listener: (info: { exitCode: number; signal?: number }) => void) => {
-    const channel = `pty:exit:${id}`;
-    const wrapped = (_: Electron.IpcRendererEvent, info: { exitCode: number; signal?: number }) =>
-      listener(info);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onPtyStarted: (listener: (data: { id: string }) => void) => {
-    const channel = 'pty:started';
-    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
-    const channel = 'agent:event';
-    const wrapped = (
-      _: Electron.IpcRendererEvent,
-      data: AgentEvent,
-      meta: { appFocused: boolean }
-    ) => listener(data, meta);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-  onNotificationFocusTask: (listener: (taskId: string) => void) => {
-    const channel = 'notification:focus-task';
-    const wrapped = (_: Electron.IpcRendererEvent, taskId: string) => listener(taskId);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // Menu events (main → renderer)
@@ -320,13 +272,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
   unwatchGitStatus: (taskPath: string, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
-  onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
-    attachGitStatusBridgeOnce();
-    gitStatusChangedListeners.add(listener);
-    return () => {
-      gitStatusChangedListeners.delete(listener);
-    };
-  },
   getFileDiff: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
@@ -522,27 +467,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // PlanMode strict lock
   planApplyLock: (taskPath: string) => ipcRenderer.invoke('plan:lock', taskPath),
   planReleaseLock: (taskPath: string) => ipcRenderer.invoke('plan:unlock', taskPath),
-  onPlanEvent: (
-    listener: (data: {
-      type: 'write_blocked' | 'remove_blocked';
-      root: string;
-      relPath: string;
-      code?: string;
-      message?: string;
-    }) => void
-  ) => {
-    const channel = 'plan:event';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
-
-  onProviderStatusUpdated: (listener: (data: { providerId: string; status: any }) => void) => {
-    const channel = 'provider:status-updated';
-    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  },
 
   // Host preview (non-container)
   hostPreviewStart: (args: {
@@ -747,7 +671,6 @@ export interface ElectronAPI {
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows: number }) => void;
   ptyKill: (id: string) => void;
-  onPtyData: (id: string, listener: (data: string) => void) => () => void;
   ptyGetSnapshot: (args: { id: string }) => Promise<{
     ok: boolean;
     snapshot?: any;
@@ -758,10 +681,6 @@ export interface ElectronAPI {
     payload: TerminalSnapshotPayload;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
-  onPtyExit: (
-    id: string,
-    listener: (info: { exitCode: number; signal?: number }) => void
-  ) => () => void;
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
@@ -926,9 +845,6 @@ export interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
-  onGitStatusChanged: (
-    listener: (data: { taskPath: string; error?: string }) => void
-  ) => () => void;
   getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
     success: boolean;
     diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };

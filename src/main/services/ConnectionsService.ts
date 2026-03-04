@@ -1,6 +1,8 @@
-import { spawn, execFileSync } from 'child_process';
-import { BrowserWindow } from 'electron';
-import { providerStatusCache, type ProviderStatus } from './providerStatusCache';
+import { spawn, execFileSync } from 'node:child_process';
+import { providerStatusCache } from './providerStatusCache';
+import type { ProviderStatus } from '@shared/events/appEvents';
+import { events } from '../events';
+import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { listDetectableProviders, type ProviderDefinition } from '@shared/providers/registry';
 import { log } from '../lib/logger';
 
@@ -405,14 +407,7 @@ class ConnectionsService {
   }
 
   private emitStatusUpdate(providerId: string, status: ProviderStatus) {
-    const payload = { providerId, status };
-    BrowserWindow.getAllWindows().forEach((win) => {
-      try {
-        win.webContents.send('provider:status-updated', payload);
-      } catch {
-        // ignore send errors
-      }
-    });
+    events.emit(providerStatusUpdatedChannel, { providerId, status });
   }
 }
 

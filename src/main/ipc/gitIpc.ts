@@ -1,11 +1,13 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
+import { events } from '../events';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
 import { log } from '../lib/logger';
-import { exec, execFile } from 'child_process';
+import { exec, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { promisify } from 'util';
+import { promisify } from 'node:util';
 import {
   getStatus as gitGetStatus,
   getFileDiff as gitGetFileDiff,
@@ -122,14 +124,7 @@ function validateTaskPath(taskPath: string | undefined): string | null {
 }
 
 const broadcastGitStatusChange = (taskPath: string, error?: string) => {
-  const windows = BrowserWindow.getAllWindows();
-  windows.forEach((window) => {
-    try {
-      window.webContents.send('git:status-changed', { taskPath, error });
-    } catch (err) {
-      log.debug('[git:watch-status] failed to send status change', err);
-    }
-  });
+  events.emit(gitStatusChangedChannel, { taskPath, error });
 };
 
 const ensureGitStatusWatcher = (taskPath: string) => {

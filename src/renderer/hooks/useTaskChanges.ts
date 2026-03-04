@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCachedGitStatus } from '@/lib/gitStatusCache';
+import { events } from '../lib/rpc';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface TaskChange {
   path: string;
@@ -259,17 +261,15 @@ export function useTaskChanges(
           return;
         }
         watchId = res.watchId;
-        if (api.onGitStatusChanged) {
-          off = api.onGitStatusChanged((event) => {
-            if (event?.taskPath !== taskPath) return;
-            if (!shouldPollRef.current) return;
-            if (event?.error === 'watcher-error') {
-              void fetchChanges(false, { force: true });
-              return;
-            }
+        off = events.on(gitStatusChangedChannel, (event) => {
+          if (event?.taskPath !== taskPath) return;
+          if (!shouldPollRef.current) return;
+          if (event?.error === 'watcher-error') {
             void fetchChanges(false, { force: true });
-          });
-        }
+            return;
+          }
+          void fetchChanges(false, { force: true });
+        });
       })
       .catch(() => {});
 

@@ -3,6 +3,8 @@ import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity } from '../lib/activityClassifier';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
+import { events } from '../lib/rpc';
+import { ptyDataChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
@@ -36,25 +38,29 @@ export function useInitialPromptInjection(opts: {
       } catch {}
     };
 
-    const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
-      // Debounce-based idle: send after a short period of silence
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 1200);
+    const offData = events.on(
+      ptyDataChannel,
+      (chunk) => {
+        // Debounce-based idle: send after a short period of silence
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          if (!sent) send();
+        }, 1200);
 
-      // Heuristic: if classifier says idle, trigger a quicker send
-      try {
-        const signal = classifyActivity(providerId, chunk);
-        if (signal === 'idle' && !sent) {
-          idleSeen = true;
-          setTimeout(send, 250);
+        // Heuristic: if classifier says idle, trigger a quicker send
+        try {
+          const signal = classifyActivity(providerId, chunk);
+          if (signal === 'idle' && !sent) {
+            idleSeen = true;
+            setTimeout(send, 250);
+          }
+        } catch {
+          // ignore classifier errors; rely on silence debounce
         }
-      } catch {
-        // ignore classifier errors; rely on silence debounce
-      }
-    });
-    const offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
+      },
+      ptyId
+    );
+    const offStarted = events.on(ptyStartedChannel, (info) => {
       if (info?.id === ptyId) {
         // Start a silence timer in case no output arrives (rare but possible)
         if (silenceTimer) clearTimeout(silenceTimer);
@@ -70,8 +76,8 @@ export function useInitialPromptInjection(opts: {
     return () => {
       clearTimeout(t);
       if (silenceTimer) clearTimeout(silenceTimer);
-      offStarted?.();
-      offData?.();
+      offStarted();
+      offData();
     };
   }, [enabled, taskId, providerId, prompt]);
 }

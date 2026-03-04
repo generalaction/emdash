@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
-import type { AgentEvent, SoundEvent } from '@shared/agentEvents';
+import type { AgentEvent, SoundEvent } from '@shared/events/agentEvents';
+import { agentEventChannel } from '@shared/events/agentEvents';
 import { soundPlayer } from '../lib/soundPlayer';
+import { events } from '../lib/rpc';
 
 function mapToSound(event: AgentEvent): SoundEvent | null {
   if (event.type === 'stop') {
@@ -17,17 +19,12 @@ function mapToSound(event: AgentEvent): SoundEvent | null {
 
 export function useAgentEvents(onEvent?: (event: AgentEvent) => void): void {
   useEffect(() => {
-    const cleanup = window.electronAPI.onAgentEvent(
-      (event: AgentEvent, meta: { appFocused: boolean }) => {
-        const sound = mapToSound(event);
-        if (sound) {
-          soundPlayer.play(sound, meta.appFocused);
-        }
-
-        onEvent?.(event);
+    return events.on(agentEventChannel, ({ event, appFocused }) => {
+      const sound = mapToSound(event);
+      if (sound) {
+        soundPlayer.play(sound, appFocused);
       }
-    );
-
-    return cleanup;
+      onEvent?.(event);
+    });
   }, [onEvent]);
 }

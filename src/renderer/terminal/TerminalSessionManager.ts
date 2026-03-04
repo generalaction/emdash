@@ -1,4 +1,6 @@
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import { events } from '../lib/rpc';
+import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
@@ -1028,7 +1030,7 @@ export class TerminalSessionManager {
           const idx = this.disposables.indexOf(offStarted);
           if (idx >= 0) this.disposables.splice(idx, 1);
         };
-        offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+        offStarted = events.on(ptyStartedChannel, (payload) => {
           if (payload?.id === id) {
             this.ptyStarted = true;
             this.lastSentResize = null;
@@ -1055,53 +1057,61 @@ export class TerminalSessionManager {
   }
 
   private setupPtyDataListener(id: string): void {
-    const offData = window.electronAPI.onPtyData(id, (chunk) => {
-      if (!this.metrics.canAccept(chunk)) {
-        log.warn('Terminal scrollback truncated to protect memory', { id });
-        this.terminal.clear();
-        this.terminal.writeln('[scrollback truncated to protect memory]');
-      }
-      const buffer = this.terminal.buffer?.active;
-      const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
-
-      // Check if agent started processing — confirms the user's input was accepted
-      if (this.inputBuffer && !this.inputBuffer.isComplete) {
-        const signal = classifyActivity(this.options.providerId ?? null, chunk);
-        if (signal === 'busy') {
-          this.inputBuffer.confirmSubmit();
+    const offData = events.on(
+      ptyDataChannel,
+      (chunk) => {
+        if (!this.metrics.canAccept(chunk)) {
+          log.warn('Terminal scrollback truncated to protect memory', { id });
+          this.terminal.clear();
+          this.terminal.writeln('[scrollback truncated to protect memory]');
         }
-      }
+        const buffer = this.terminal.buffer?.active;
+        const isAtBottom = buffer ? buffer.baseY - buffer.viewportY <= 2 : true;
 
-      try {
-        this.terminal.write(chunk);
-      } catch (err) {
-        // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
-        // in 6.0.0). Log once and continue — the terminal session stays usable.
-        log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
-      }
-      if (!this.firstFrameRendered) {
-        this.firstFrameRendered = true;
-        const firstFrameTime = performance.now() - this.initStartTime;
-        log.info('terminalSession:firstFrame timing', {
-          id: this.id,
-          firstFrameMs: Math.round(firstFrameTime),
-        });
+        // Check if agent started processing — confirms the user's input was accepted
+        if (this.inputBuffer && !this.inputBuffer.isComplete) {
+          const signal = classifyActivity(this.options.providerId ?? null, chunk);
+          if (signal === 'busy') {
+            this.inputBuffer.confirmSubmit();
+          }
+        }
+
         try {
-          this.terminal.refresh(0, this.terminal.rows - 1);
-        } catch {}
-      }
+          this.terminal.write(chunk);
+        } catch (err) {
+          // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
+          // in 6.0.0). Log once and continue — the terminal session stays usable.
+          log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
+        }
+        if (!this.firstFrameRendered) {
+          this.firstFrameRendered = true;
+          const firstFrameTime = performance.now() - this.initStartTime;
+          log.info('terminalSession:firstFrame timing', {
+            id: this.id,
+            firstFrameMs: Math.round(firstFrameTime),
+          });
+          try {
+            this.terminal.refresh(0, this.terminal.rows - 1);
+          } catch {}
+        }
 
-      if (isAtBottom) {
-        this.terminal.scrollToBottom();
-      }
-    });
+        if (isAtBottom) {
+          this.terminal.scrollToBottom();
+        }
+      },
+      id
+    );
 
-    const offExit = window.electronAPI.onPtyExit(id, (info) => {
-      this.metrics.recordExit(info);
-      this.ptyStarted = false;
-      this.clearQueuedResize();
-      this.emitExit(info);
-    });
+    const offExit = events.on(
+      ptyExitChannel,
+      (info) => {
+        this.metrics.recordExit(info);
+        this.ptyStarted = false;
+        this.clearQueuedResize();
+        this.emitExit(info);
+      },
+      id
+    );
 
     this.disposables.push(offData, offExit);
   }

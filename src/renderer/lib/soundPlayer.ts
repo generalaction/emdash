@@ -1,4 +1,4 @@
-import type { SoundEvent } from '@shared/agentEvents';
+import type { SoundEvent } from '@shared/events/agentEvents';
 
 let audioCtx: AudioContext | null = null;
 let enabled = true;

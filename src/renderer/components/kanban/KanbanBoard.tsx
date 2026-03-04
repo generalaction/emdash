@@ -8,6 +8,8 @@ import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import { subscribeDerivedStatus, watchTaskPty, watchTaskActivity } from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
 import { refreshPrStatus } from '../../lib/prStatusStore';
+import { events } from '../../lib/rpc';
+import { ptyExitChannel } from '@shared/events/appEvents';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {
@@ -76,10 +78,10 @@ const KanbanBoard: React.FC<{
 
     // Per-task: when the PTY exits and task is not busy anymore, move to Done
     for (const ws of wsList) {
-      try {
-        const offExit = (window as any).electronAPI.onPtyExit?.(
-          ws.id,
-          (_info: { exitCode: number; signal?: number }) => {
+      offs.push(
+        events.on(
+          ptyExitChannel,
+          () => {
             let currentlyBusy = false;
             const un = activityStore.subscribe(ws.id, (b) => {
               currentlyBusy = b;
@@ -92,10 +94,10 @@ const KanbanBoard: React.FC<{
               setStatus(ws.id, 'done');
               return { ...prev, [ws.id]: 'done' };
             });
-          }
-        );
-        if (offExit) offs.push(offExit);
-      } catch {}
+          },
+          ws.id
+        )
+      );
     }
     return () => offs.forEach((f) => f());
     // eslint-disable-next-line react-hooks/exhaustive-deps

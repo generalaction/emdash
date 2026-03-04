@@ -1,13 +1,16 @@
-import http from 'http';
-import crypto from 'crypto';
+import http from 'node:http';
+import crypto from 'node:crypto';
 import { BrowserWindow, Notification } from 'electron';
 import { log } from '../lib/logger';
 import { parsePtyId, isMainPty } from '@shared/ptyId';
 import { getMainWindow } from '../app/window';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
-import type { AgentEvent } from '@shared/agentEvents';
+import type { AgentEvent } from '@shared/events/agentEvents';
+import { agentEventChannel } from '@shared/events/agentEvents';
+import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getAppSettings } from '../settings';
+import { events } from '../events';
 
 class AgentEventService {
   private server: http.Server | null = null;
@@ -92,15 +95,7 @@ class AgentEventService {
 
           await this.maybeShowOsNotification(event, appFocused);
 
-          for (const win of windows) {
-            try {
-              if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-                win.webContents.send('agent:event', event, { appFocused });
-              }
-            } catch {
-              // Window may have been destroyed between check and send
-            }
-          }
+          events.emit(agentEventChannel, { event, appFocused });
 
           res.writeHead(200);
           res.end();
@@ -156,7 +151,7 @@ class AgentEventService {
             win.show();
             win.focus();
             if (isMain) {
-              win.webContents.send('notification:focus-task', event.taskId);
+              events.emit(notificationFocusTaskChannel, { taskId: event.taskId });
             }
           }
         });

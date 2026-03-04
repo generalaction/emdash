@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
 import { getCachedGitStatus } from '@/lib/gitStatusCache';
+import { events } from '../lib/rpc';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface FileChange {
   path: string;
@@ -256,17 +258,15 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
           return;
         }
         watchId = res.watchId;
-        if (api.onGitStatusChanged) {
-          off = api.onGitStatusChanged((event) => {
-            if (event?.taskPath !== taskPath) return;
-            if (!shouldPollRef.current) return;
-            if (event?.error === 'watcher-error') {
-              void fetchFileChanges(false, { force: true });
-              return;
-            }
+        off = events.on(gitStatusChangedChannel, (event) => {
+          if (event?.taskPath !== taskPath) return;
+          if (!shouldPollRef.current) return;
+          if (event?.error === 'watcher-error') {
             void fetchFileChanges(false, { force: true });
-          });
-        }
+            return;
+          }
+          void fetchFileChanges(false, { force: true });
+        });
       })
       .catch(() => {});
 

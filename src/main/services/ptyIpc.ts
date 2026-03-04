@@ -1,4 +1,6 @@
 import { app, ipcMain, WebContents, BrowserWindow } from 'electron';
+import { events } from '../events';
+import { ptyStartedChannel } from '@shared/events/appEvents';
 import {
   startPty,
   writePty,
@@ -32,9 +34,9 @@ import { maybeAutoTrustForClaude } from './ClaudeConfigService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import { execFile } from 'child_process';
-import { randomUUID } from 'crypto';
-import path from 'path';
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { quoteShellArg } from '../utils/shellEscape';
 
 const owners = new Map<string, WebContents>();
@@ -77,7 +79,7 @@ function flushPtyData(id: string): void {
   const buf = ptyDataBuffers.get(id);
   if (!buf) return;
   ptyDataBuffers.delete(id);
-  safeSendToOwner(id, `pty:data:${id}`, buf);
+  safeSendToOwner(id, `pty:data.${id}`, buf);
 }
 
 function clearPtyData(id: string): void {
@@ -312,7 +314,7 @@ export function registerPtyIpc(): void {
         proc.onExit(({ exitCode, signal }) => {
           flushPtyData(id);
           clearPtyData(id);
-          safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+          safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
           owners.delete(id);
           listeners.delete(id);
           removePtyRecord(id);
@@ -322,7 +324,7 @@ export function registerPtyIpc(): void {
 
       // Notify renderer that shell is ready (reuse pty:started so existing listener handles it)
       if (!wc.isDestroyed()) {
-        wc.send('pty:started', { id });
+        events.emit(ptyStartedChannel, { id });
       }
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
@@ -390,7 +392,7 @@ export function registerPtyIpc(): void {
             proc.onExit(({ exitCode, signal }) => {
               flushPtyData(id);
               clearPtyData(id);
-              safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
               owners.delete(id);
               listeners.delete(id);
               removePtyRecord(id);
@@ -408,8 +410,7 @@ export function registerPtyIpc(): void {
           }
 
           try {
-            const windows = BrowserWindow.getAllWindows();
-            windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+            events.emit(ptyStartedChannel, { id });
           } catch {}
 
           return { ok: true, tmux: remoteTmux };
@@ -538,7 +539,7 @@ export function registerPtyIpc(): void {
             if (getPty(id) !== proc) {
               return;
             }
-            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
             maybeMarkProviderFinish(
               id,
               exitCode,
@@ -824,7 +825,7 @@ export function registerPtyIpc(): void {
             proc.onExit(({ exitCode, signal }) => {
               flushPtyData(id);
               clearPtyData(id);
-              safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
               maybeMarkProviderFinish(id, exitCode, signal, 'process_exit');
               owners.delete(id);
               listeners.delete(id);
@@ -848,8 +849,7 @@ export function registerPtyIpc(): void {
 
           maybeMarkProviderStart(id);
           try {
-            const windows = BrowserWindow.getAllWindows();
-            windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+            events.emit(ptyStartedChannel, { id });
           } catch {}
 
           return { ok: true, tmux: remoteTmux };
@@ -957,7 +957,7 @@ export function registerPtyIpc(): void {
             if (current && current !== proc) {
               return;
             }
-            safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
             if (usedFallback) {
@@ -996,8 +996,7 @@ export function registerPtyIpc(): void {
         maybeMarkProviderStart(id, providerId as ProviderId);
 
         try {
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
+          events.emit(ptyStartedChannel, { id });
         } catch {}
 
         return { ok: true, tmux };

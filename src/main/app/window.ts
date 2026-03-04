@@ -1,5 +1,5 @@
 import { BrowserWindow, app } from 'electron';
-import { join } from 'path';
+import { join } from 'node:path';
 import { isDev } from '../utils/dev';
 import { registerExternalLinkHandlers } from '../utils/externalLinks';
 import { ensureRendererServer } from './staticServer';

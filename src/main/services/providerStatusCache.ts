@@ -1,14 +1,9 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { app } from 'electron';
 import { log } from '../lib/logger';
-
-export interface ProviderStatus {
-  installed: boolean;
-  path?: string | null;
-  version?: string | null;
-  lastChecked: number;
-}
+import { ProviderStatus } from '@shared/events/appEvents';
+export type { ProviderStatus } from '@shared/events/appEvents';
 
 type ProviderStatusMap = Record<string, ProviderStatus>;
 

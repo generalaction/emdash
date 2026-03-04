@@ -1,7 +1,5 @@
 // Updated for Codex integration
 
-import type { AgentEvent } from '../../shared/agentEvents';
-
 type ProjectSettingsPayload = {
   projectId: string;
   name: string;
@@ -40,6 +38,10 @@ export {};
 declare global {
   interface Window {
     electronAPI: {
+      // Generic event bridge for the typesafe event emitter (createEventEmitter)
+      eventSend: (channel: string, data: unknown) => void;
+      eventOn: (channel: string, cb: (data: unknown) => void) => () => void;
+
       // App info
       getAppVersion: () => Promise<string>;
       getElectronVersion: () => Promise<string>;
@@ -103,7 +105,6 @@ declare global {
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
       ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
-      onPtyData: (id: string, listener: (data: string) => void) => () => void;
       ptyGetSnapshot: (args: { id: string }) => Promise<{
         ok: boolean;
         snapshot?: any;
@@ -114,15 +115,6 @@ declare global {
         error?: string;
       }>;
       ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
-      onPtyExit: (
-        id: string,
-        listener: (info: { exitCode: number; signal?: number }) => void
-      ) => () => void;
-      onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
-      onAgentEvent: (
-        listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
-      ) => () => void;
-      onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -347,9 +339,6 @@ declare global {
         success: boolean;
         error?: string;
       }>;
-      onGitStatusChanged: (
-        listener: (data: { taskPath: string; error?: string }) => void
-      ) => () => void;
       getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
         success: boolean;
         diff?: {
@@ -876,9 +865,6 @@ declare global {
         >;
         error?: string;
       }>;
-      onProviderStatusUpdated?: (
-        listener: (data: { providerId: string; status: any }) => void
-      ) => () => void;
       getProviderCustomConfig?: (providerId: string) => Promise<{
         success: boolean;
         config?: ProviderCustomConfig;
@@ -1152,7 +1138,6 @@ export interface ElectronAPI {
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
   ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
-  onPtyData: (id: string, listener: (data: string) => void) => () => void;
   ptyGetSnapshot: (args: { id: string }) => Promise<{
     ok: boolean;
     snapshot?: any;
@@ -1163,15 +1148,6 @@ export interface ElectronAPI {
     error?: string;
   }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
-  onPtyExit: (
-    id: string,
-    listener: (info: { exitCode: number; signal?: number }) => void
-  ) => () => void;
-  onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
-  onAgentEvent: (
-    listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
-  ) => () => void;
-  onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {
@@ -1381,9 +1357,6 @@ export interface ElectronAPI {
     >;
     error?: string;
   }>;
-  onProviderStatusUpdated?: (
-    listener: (data: { providerId: string; status: any }) => void
-  ) => () => void;
   // Telemetry
   captureTelemetry: (
     event: string,

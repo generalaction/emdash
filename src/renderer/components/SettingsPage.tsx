@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { events } from '../lib/rpc';
+import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { ExternalLink } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
@@ -119,13 +121,10 @@ export function SettingsPage({ initialTab = 'general' }: { initialTab?: Settings
       }
     };
 
-    const off =
-      window?.electronAPI?.onProviderStatusUpdated?.(
-        (payload: { providerId: string; status: CachedAgentStatus }) => {
-          if (!payload?.providerId || !payload.status) return;
-          applyCachedStatuses({ [payload.providerId]: payload.status });
-        }
-      ) ?? null;
+    const off = events.on(providerStatusUpdatedChannel, (payload) => {
+      if (!payload?.providerId || !payload.status) return;
+      applyCachedStatuses({ [payload.providerId]: payload.status });
+    });
 
     void loadCachedStatuses();
 

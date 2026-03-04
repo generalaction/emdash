@@ -4,6 +4,8 @@
 
 type Derived = 'idle' | 'busy';
 import { activityStore } from './activityStore';
+import { events } from './rpc';
+import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
 type Listener = (status: Derived) => void;
 
@@ -48,7 +50,6 @@ function wireGlobal() {
   if (wired) return;
   wired = true;
   ensureTicker();
-  const api: any = (window as any).electronAPI;
   // Agent streams removed; PTY and container activity drive status.
 }
 
@@ -84,38 +85,36 @@ const ptyUnsubs = new Map<string, () => void>();
 export function watchTaskPty(taskId: string): () => void {
   wireGlobal();
   if (ptyUnsubs.has(taskId)) return ptyUnsubs.get(taskId)!;
-  const api: any = (window as any).electronAPI;
-  let off: (() => void) | null = null;
-  let offExit: (() => void) | null = null;
-  let offStarted: (() => void) | null = null;
-  try {
-    off = api?.onPtyData?.(taskId, (_chunk: string) => {
+  const off = events.on(
+    ptyDataChannel,
+    (_chunk) => {
       lastActivity.set(taskId, Date.now());
       setStatusInternal(taskId, 'busy');
-    });
-  } catch {}
-  try {
-    offStarted = api?.onPtyStarted?.((payload: { id: string }) => {
-      if (payload?.id !== taskId) return;
-      lastActivity.set(taskId, Date.now());
-      setStatusInternal(taskId, 'busy');
-    });
-  } catch {}
-  try {
-    offExit = api?.onPtyExit?.(taskId, () => {
+    },
+    taskId
+  );
+  const offStarted = events.on(ptyStartedChannel, (payload) => {
+    if (payload?.id !== taskId) return;
+    lastActivity.set(taskId, Date.now());
+    setStatusInternal(taskId, 'busy');
+  });
+  const offExit = events.on(
+    ptyExitChannel,
+    () => {
       lastActivity.set(taskId, Date.now());
       setStatusInternal(taskId, 'idle');
-    });
-  } catch {}
+    },
+    taskId
+  );
   const cleanup = () => {
     try {
-      off?.();
+      off();
     } catch {}
     try {
-      offExit?.();
+      offExit();
     } catch {}
     try {
-      offStarted?.();
+      offStarted();
     } catch {}
     ptyUnsubs.delete(taskId);
   };

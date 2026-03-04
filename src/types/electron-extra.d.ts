@@ -16,15 +16,6 @@ declare global {
       planReleaseLock: (
         taskPath: string
       ) => Promise<{ success: boolean; restored?: number; error?: string }>;
-      onPlanEvent: (
-        listener: (data: {
-          type: 'write_blocked' | 'remove_blocked';
-          root: string;
-          relPath: string;
-          code?: string;
-          message?: string;
-        }) => void
-      ) => () => void;
     };
   }
 }

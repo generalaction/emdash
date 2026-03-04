@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { events } from '../lib/rpc';
+import { ptyStartedChannel, providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
@@ -341,10 +343,9 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
     };
 
-    const api: any = (window as any).electronAPI;
     let off: (() => void) | null = null;
     try {
-      off = api?.onPtyStarted?.((info: { id: string }) => {
+      off = events.on(ptyStartedChannel, (info) => {
         if (info?.id === terminalId) send();
       });
     } catch {}
@@ -383,7 +384,7 @@ const ChatInterface: React.FC<Props> = ({
       const ok = send();
 
       // Listen for PTY start in case the terminal was still spinning up
-      const off = api?.onPtyStarted?.((info: { id: string }) => {
+      const off = events.on(ptyStartedChannel, (info) => {
         if (info?.id !== targetId) return;
         send();
         try {
@@ -643,17 +644,16 @@ const ChatInterface: React.FC<Props> = ({
       }
     };
 
-    const off =
-      api?.onProviderStatusUpdated?.((payload: { providerId: string; status: any }) => {
-        if (!payload?.providerId) return;
-        setAgentStatuses((prev) => {
-          const next = { ...prev, [payload.providerId]: payload.status };
-          return next;
-        });
-        if (payload.providerId === agent) {
-          setIsAgentInstalled(payload.status?.installed === true);
-        }
-      }) || null;
+    const off = events.on(providerStatusUpdatedChannel, (payload) => {
+      if (!payload?.providerId) return;
+      setAgentStatuses((prev) => {
+        const next = { ...prev, [payload.providerId]: payload.status };
+        return next;
+      });
+      if (payload.providerId === agent) {
+        setIsAgentInstalled(payload.status?.installed === true);
+      }
+    });
 
     void load();
 

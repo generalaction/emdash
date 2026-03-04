@@ -8,7 +8,9 @@ import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { activityStore } from '../lib/activityStore';
 import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';
 import { soundPlayer } from '../lib/soundPlayer';
-import type { AgentEvent } from '@shared/agentEvents';
+import type { AgentEvent } from '@shared/events/agentEvents';
+import { events } from '../lib/rpc';
+import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 
 /**
@@ -51,7 +53,7 @@ export function WorkspaceEffects() {
   });
 
   useEffect(() => {
-    return window.electronAPI.onNotificationFocusTask((taskId: string) => {
+    return events.on(notificationFocusTaskChannel, ({ taskId }) => {
       const entry = allTasksRef.current.find((t) => t.task.id === taskId);
       if (!entry) return;
       navigate('task', { projectId: entry.task.projectId, taskId: entry.task.id });

@@ -1,7 +1,9 @@
-import { ipcMain, shell } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
-import { Worker } from 'worker_threads';
+import { ipcMain } from 'electron';
+import { events } from '../events';
+import { planEventChannel, type PlanEvent } from '@shared/events/appEvents';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { FsListWorkerResponse } from '../types/fsListWorker';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
@@ -73,15 +75,8 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
 const DEFAULT_ATTACHMENTS_SUBDIR = 'attachments' as const;
 
 export function registerFsIpc(): void {
-  function emitPlanEvent(payload: any) {
-    try {
-      const { BrowserWindow } = require('electron');
-      for (const win of BrowserWindow.getAllWindows()) {
-        try {
-          win.webContents.send('plan:event', payload);
-        } catch {}
-      }
-    } catch {}
+  function emitPlanEvent(payload: PlanEvent) {
+    events.emit(planEventChannel, payload);
   }
   ipcMain.handle('fs:list', async (_event, args: ListArgs) => {
     try {

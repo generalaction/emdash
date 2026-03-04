@@ -1,3 +1,5 @@
+import { defineEvent } from '@shared/ipc/events';
+
 export type AgentEventType = 'notification' | 'stop' | 'error';
 
 export type NotificationType =
@@ -20,4 +22,11 @@ export interface AgentEvent {
   };
 }
 
+export type AgentEventMessage = {
+  event: AgentEvent;
+  appFocused: boolean;
+};
+
 export type SoundEvent = 'needs_attention' | 'task_complete';
+
+export const agentEventChannel = defineEvent<AgentEventMessage>('agent:event');

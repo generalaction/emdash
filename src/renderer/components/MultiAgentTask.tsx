@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { events } from '../lib/rpc';
+import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 import { type Task } from '../types/chat';
 import { type Agent } from '../types';
 import { Button } from './ui/button';
@@ -220,19 +222,23 @@ const MultiAgentTask: React.FC<Props> = ({
         }, INJECT_ENTER_DELAY_MS);
       } catch {}
     };
-    const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 1000);
-      try {
-        const signal = classifyActivity(agent, chunk);
-        if (signal === 'idle' && !sent) {
-          setTimeout(send, 200);
-        }
-      } catch {}
-    });
-    const offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
+    const offData = events.on(
+      ptyDataChannel,
+      (chunk) => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          if (!sent) send();
+        }, 1000);
+        try {
+          const signal = classifyActivity(agent, chunk);
+          if (signal === 'idle' && !sent) {
+            setTimeout(send, 200);
+          }
+        } catch {}
+      },
+      ptyId
+    );
+    const offStarted = events.on(ptyStartedChannel, (info) => {
       if (info?.id === ptyId) {
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
@@ -254,7 +260,7 @@ const MultiAgentTask: React.FC<Props> = ({
       clearTimeout(eager);
       clearTimeout(hard);
       if (silenceTimer) clearTimeout(silenceTimer);
-      offData?.();
+      offData();
       offStarted?.();
     }, 6000);
   };
@@ -349,22 +355,31 @@ const MultiAgentTask: React.FC<Props> = ({
       const ptyId = `${variant.worktreeId}-main`;
       busyState.set(variantId, variantBusy[variantId] ?? false);
 
-      const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
-        try {
-          const signal = classifyActivity(variant.agent, chunk || '');
-          if (signal === 'busy') setBusy(variantId, true);
-          else if (signal === 'idle') setBusy(variantId, false);
-          else armNeutral(variantId);
-        } catch {
-          // ignore classification failures
-        }
-      });
-      if (offData) cleanups.push(offData);
-
-      const offExit = (window as any).electronAPI?.onPtyExit?.(ptyId, () => {
-        setBusy(variantId, false);
-      });
-      if (offExit) cleanups.push(offExit);
+      cleanups.push(
+        events.on(
+          ptyDataChannel,
+          (chunk) => {
+            try {
+              const signal = classifyActivity(variant.agent, chunk || '');
+              if (signal === 'busy') setBusy(variantId, true);
+              else if (signal === 'idle') setBusy(variantId, false);
+              else armNeutral(variantId);
+            } catch {
+              // ignore classification failures
+            }
+          },
+          ptyId
+        )
+      );
+      cleanups.push(
+        events.on(
+          ptyExitChannel,
+          () => {
+            setBusy(variantId, false);
+          },
+          ptyId
+        )
+      );
     });
 
     return () => {
