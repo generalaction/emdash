@@ -220,6 +220,7 @@ export function useTaskManagement() {
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const startCreateTaskFromSidebarImplRef = useRef<(project: Project) => void>(() => {});
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -378,17 +379,9 @@ export function useTaskManagement() {
     }
   }, [selectedProject, openTaskModal]);
 
-  const handleStartCreateTaskFromSidebar = useCallback(
-    (project: Project) => {
-      const targetProject = projects.find((p) => p.id === project.id) || project;
-      activateProjectView(targetProject);
-      // Pass the project ID explicitly to avoid stale closure issues
-      showModal('taskModal', {
-        targetProjectId: targetProject.id,
-      });
-    },
-    [activateProjectView, projects, showModal]
-  );
+  const handleStartCreateTaskFromSidebar = useCallback((project: Project) => {
+    startCreateTaskFromSidebarImplRef.current(project);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Delete task mutation
@@ -963,6 +956,29 @@ export function useTaskManagement() {
   // Wire up openTaskModal with the latest handleCreateTask
   openTaskModalImplRef.current = () => {
     showModal('taskModal', {
+      onSuccess: (result) =>
+        handleCreateTask(
+          result.name,
+          result.initialPrompt,
+          result.agentRuns,
+          result.linkedLinearIssue ?? null,
+          result.linkedGithubIssue ?? null,
+          result.linkedJiraIssue ?? null,
+          result.autoApprove,
+          result.useWorktree,
+          result.baseRef,
+          result.nameGenerated,
+          result.targetProjectId
+        ),
+    });
+  };
+
+  // Wire up handleStartCreateTaskFromSidebar with the latest handleCreateTask
+  startCreateTaskFromSidebarImplRef.current = (project: Project) => {
+    const targetProject = projects.find((p) => p.id === project.id) || project;
+    activateProjectView(targetProject);
+    showModal('taskModal', {
+      targetProjectId: targetProject.id,
       onSuccess: (result) =>
         handleCreateTask(
           result.name,
