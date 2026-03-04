@@ -8,7 +8,7 @@ import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
-import { TaskManagementProvider } from './contexts/TaskManagementContext';
+import { TaskManagementProvider } from './contexts/TaskManagementProvider';
 import { ModalProvider } from './contexts/ModalProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';

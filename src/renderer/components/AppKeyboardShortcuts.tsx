@@ -4,7 +4,7 @@ import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
 

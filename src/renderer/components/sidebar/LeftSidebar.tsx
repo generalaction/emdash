@@ -34,7 +34,7 @@ import type { Project } from '../../types/app';
 import type { Task } from '../../types/chat';
 import type { ConnectionState } from '../ssh';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../../contexts/TaskManagementProvider';
 import {
   useWorkspaceNavigation,
   useWorkspaceSlots,

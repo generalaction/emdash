@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Titlebar } from '@/components/titlebar/Titlebar';
 import ChatInterface from '@/components/ChatInterface';
 import MultiAgentTask from '@/components/MultiAgentTask';
@@ -11,7 +11,7 @@ import { DiffViewer } from '@/components/diff-viewer/DiffViewer';
 import { useCurrentProject } from '@/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@/contexts/CurrentTaskProvider';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
+import { useTaskManagementContext } from '@/contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '@/contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '@/hooks/useProjectBranchOptions';
 import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
@@ -155,18 +155,24 @@ export function TaskRightSidebar() {
         className="lg:border-l-0"
         onOpenChanges={handleOpenChanges}
       />
-      {diffState &&
-        createPortal(
-          <div className="fixed inset-0 z-[200] bg-background">
-            <DiffViewer
-              taskId={diffState.taskId}
-              taskPath={diffState.taskPath}
-              initialFile={diffState.initialFile}
-              onClose={() => setDiffState(null)}
-            />
-          </div>,
-          document.body
-        )}
+      <DialogPrimitive.Root open={!!diffState} onOpenChange={(open) => !open && setDiffState(null)}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Content
+            className="fixed inset-0 z-[200] bg-background focus:outline-none"
+            aria-describedby={undefined}
+          >
+            <DialogPrimitive.Title className="sr-only">Diff Viewer</DialogPrimitive.Title>
+            {diffState && (
+              <DiffViewer
+                taskId={diffState.taskId}
+                taskPath={diffState.taskPath}
+                initialFile={diffState.initialFile}
+                onClose={() => setDiffState(null)}
+              />
+            )}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   );
 }

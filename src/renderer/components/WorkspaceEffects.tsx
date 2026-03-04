@@ -3,7 +3,7 @@ import { useAgentEvents } from '../hooks/useAgentEvents';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { activityStore } from '../lib/activityStore';
 import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';

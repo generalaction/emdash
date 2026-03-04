@@ -56,7 +56,7 @@ import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;

@@ -39,7 +39,7 @@ export function WorkspaceLayout({
     <ResizablePanelGroup
       autoSaveId="workspace-outer"
       direction="horizontal"
-      className="h-full flex-1 overflow-hidden"
+      className="h-full w-full overflow-hidden"
       storage={localStorage}
     >
       <ResizablePanel

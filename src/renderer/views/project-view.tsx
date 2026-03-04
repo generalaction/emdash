@@ -3,7 +3,7 @@ import ProjectMainView from '@/components/ProjectMainView';
 import TitlebarContext from '@/components/titlebar/TitlebarContext';
 import { useCurrentProject } from '@/contexts/CurrentProjectProvider';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
+import { useTaskManagementContext } from '@/contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '@/contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '@/hooks/useProjectBranchOptions';
 import OpenInMenu from '@/components/titlebar/OpenInMenu';

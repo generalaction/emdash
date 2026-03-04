@@ -5,7 +5,7 @@ import { useRightSidebar } from './ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
 import type { Task } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import type { BaseModalProps } from '../contexts/ModalProvider';
 

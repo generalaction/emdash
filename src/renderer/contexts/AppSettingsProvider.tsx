@@ -18,6 +18,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['appSettings'],
     queryFn: () => rpc.appSettings.get(),
+    staleTime: 60_000,
   });
 
   const updateSettingsMutation = useMutation({

@@ -1,4 +1,4 @@
-import { ComponentType, Fragment, useCallback, useMemo, type ReactNode } from 'react';
+import { ComponentType, Fragment, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { ProjectViewWrapper } from './CurrentProjectProvider';
 import { TaskViewWrapper } from './CurrentTaskProvider';
@@ -87,7 +87,7 @@ const VIEW_STATE_KEY = 'emdash:view-state';
 const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as ViewState;
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
-  const [viewState, setViewState] = useLocalStorage<ViewState>(VIEW_STATE_KEY, DEFAULT_VIEW_STATE);
+  const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE);
 
   const navigate = useCallback(
     (...args: unknown[]) => {

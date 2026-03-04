@@ -29,7 +29,7 @@ import {
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceWrapParams } from '../contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '../hooks/useProjectBranchOptions';
 import { rpc } from '@/lib/rpc';
