@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight, FileText, Sparkles, Loader2 } from 'lucide-react';
 import { useTaskNotes } from '../hooks/useTaskNotes';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { MarkdownRenderer } from './ui/markdown-renderer';
 
 interface TaskNotesPanelProps {
   taskId: string | null;
@@ -87,8 +88,8 @@ export function TaskNotesPanel({ taskId, ptyId, agentId, isArchived }: TaskNotes
             {error && <p className="mb-1 text-xs text-destructive">{error}</p>}
 
             {summary ? (
-              <div className="rounded-md bg-muted/50 p-2 text-xs leading-relaxed text-foreground/80">
-                {summary}
+              <div className="max-h-64 overflow-y-auto rounded-md bg-muted/50 p-2 text-xs">
+                <MarkdownRenderer content={summary} variant="compact" />
               </div>
             ) : (
               <p className="text-xs italic text-muted-foreground/50">

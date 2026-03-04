@@ -30,7 +30,7 @@ const PROVIDER_CLI_MAP: Record<string, string[]> = {
 };
 
 const SYSTEM_PROMPT =
-  'Summarize the following terminal session output concisely. Focus on what was accomplished, key decisions, and current state. Keep the summary under 200 words.';
+  'Summarize the following terminal session output. Focus on what was accomplished, key decisions, errors encountered, and current state. Use markdown formatting with headers and bullet points where appropriate.';
 
 export function getApiKeyForProvider(providerId: string): string | undefined {
   const envVar = PROVIDER_API_KEY_MAP[providerId];
@@ -45,7 +45,7 @@ export function getDefaultModelForProvider(providerId: string): string {
 async function callAnthropic(apiKey: string, model: string, content: string): Promise<string> {
   const body = JSON.stringify({
     model,
-    max_tokens: 512,
+    max_tokens: 2048,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
   });
@@ -95,7 +95,7 @@ async function callOpenAICompatible(
   const url = new URL(baseUrl ?? 'https://api.openai.com');
   const body = JSON.stringify({
     model,
-    max_tokens: 512,
+    max_tokens: 2048,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content },
@@ -189,7 +189,7 @@ export async function generateSummary(
   providerId: string
 ): Promise<string> {
   const settings = getAppSettings();
-  const summarySettings = (settings as any).summary;
+  const summarySettings = settings.summary;
 
   const effectiveProvider = summarySettings?.provider ?? providerId;
   const model = summarySettings?.model ?? getDefaultModelForProvider(effectiveProvider);

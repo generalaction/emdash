@@ -49,6 +49,10 @@ async function readSnapshotFile(filePath: string): Promise<StoredSnapshot | null
     return null;
   }
 
+  if (!raw.trim()) {
+    return null;
+  }
+
   try {
     const parsed = JSON.parse(raw) as TerminalSnapshotPayload;
     if (parsed.version !== TERMINAL_SNAPSHOT_VERSION) {
