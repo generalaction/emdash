@@ -338,8 +338,8 @@ export function Workspace() {
                 showCommandPalette={showCommandPalette}
                 showSettings={showSettingsPage}
                 showDiffViewer={showDiffViewer}
-                showEditor={showEditorMode}
-                showKanban={projectMgmt.showKanban}
+                showEditor={showEditorMode && !!activeTask && !!selectedProject}
+                showKanban={!!projectMgmt.showKanban && !!selectedProject}
                 handleToggleCommandPalette={handleToggleCommandPalette}
                 handleOpenSettings={handleToggleSettingsPage}
                 handleCloseCommandPalette={handleCloseCommandPalette}
@@ -459,7 +459,7 @@ export function Workspace() {
                   taskPath={activeTask.path}
                   taskName={activeTask.name}
                   projectName={selectedProject.name}
-                  onClose={() => setShowEditorMode(false)}
+                  onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
                 />
