@@ -30,6 +30,8 @@ import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useWorkspaceWrapParams } from '../contexts/WorkspaceNavigationContext';
+import { useProjectBranchOptions } from '../hooks/useProjectBranchOptions';
 import { rpc } from '@/lib/rpc';
 
 const DEFAULT_AGENT: Agent = 'claude';
@@ -99,12 +101,14 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+  const { projects } = useProjectManagementContext();
+  const { wrapParams } = useWorkspaceWrapParams();
+  const selectedProject = projects.find((p) => p.id === wrapParams.projectId) ?? null;
   const {
-    selectedProject,
     projectDefaultBranch: defaultBranch,
     projectBranchOptions: branchOptions,
     isLoadingBranches,
-  } = useProjectManagementContext();
+  } = useProjectBranchOptions(selectedProject);
   const { linkedGithubIssueMap } = useTaskManagementContext();
 
   const projectName = selectedProject?.name || '';

@@ -5,6 +5,7 @@ import { UpdateModalOverlay } from '@/components/UpdateModal';
 import { TaskModalOverlay } from '@/components/TaskModal';
 import { AddRemoteProjectModal } from '@/components/ssh/AddRemoteProjectModal';
 import { GithubDeviceFlowModalOverlay } from '@/components/GithubDeviceFlowModal';
+import { CommandPaletteModal } from '@/components/CommandPaletteModal';
 
 // Define overlays here so we can use them in the showOverlay function
 const modalRegistry = {
@@ -14,6 +15,7 @@ const modalRegistry = {
   taskModal: TaskModalOverlay,
   addRemoteProjectModal: AddRemoteProjectModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
+  commandPaletteModal: CommandPaletteModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;
 

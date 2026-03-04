@@ -3,11 +3,8 @@ import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
-import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
-import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
-import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
@@ -15,9 +12,14 @@ import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
+import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useToast } from './use-toast';
 import { useModalContext } from '../contexts/ModalProvider';
+import {
+  useWorkspaceNavigation,
+  useWorkspaceWrapParams,
+} from '../contexts/WorkspaceNavigationContext';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -144,18 +146,11 @@ const cleanupPtyResources = async (task: Task): Promise<void> => {
 };
 
 export function useTaskManagement() {
-  const {
-    projects,
-    selectedProject,
-    setSelectedProject,
-    setShowHomeView,
-    setShowSkillsView,
-    setShowEditorMode,
-    setShowKanban,
-    activateProjectView,
-    resetTaskTrigger,
-    autoOpenTaskModalTrigger,
-  } = useProjectManagementContext();
+  const { projects, autoOpenTaskModalTrigger } = useProjectManagementContext();
+  const { navigate } = useWorkspaceNavigation();
+  const { wrapParams } = useWorkspaceWrapParams();
+  const currentProjectId = wrapParams.projectId as string | null;
+  const currentTaskId = wrapParams.taskId as string | null;
 
   const { toast } = useToast();
   const { showModal } = useModalContext();
@@ -205,29 +200,19 @@ export function useTaskManagement() {
   );
 
   const linkedGithubIssueMap = useMemo(
-    () => buildLinkedGithubIssueMap(selectedProject ? tasksByProjectId[selectedProject.id] : null),
-    [selectedProject, tasksByProjectId]
+    () => buildLinkedGithubIssueMap(currentProjectId ? tasksByProjectId[currentProjectId] : null),
+    [currentProjectId, tasksByProjectId]
   );
 
   // ---------------------------------------------------------------------------
   // Local UI state
   // ---------------------------------------------------------------------------
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
-
-  // Reset active task when project management signals a navigation away
-  useEffect(() => {
-    if (resetTaskTrigger > 0) {
-      setActiveTask(null);
-      setActiveTaskAgent(null);
-    }
-  }, [resetTaskTrigger]);
 
   // ---------------------------------------------------------------------------
   // Cache helpers
@@ -242,16 +227,11 @@ export function useTaskManagement() {
   const removeTaskFromCache = useCallback(
     (projectId: string, taskId: string, wasActive: boolean) => {
       updateTaskCache(projectId, (old) => old.filter((t) => t.id !== taskId));
-      const stored = getStoredActiveIds();
-      if (stored.taskId === taskId) {
-        saveActiveIds(stored.projectId, null);
-      }
       if (wasActive) {
-        setActiveTask(null);
-        setActiveTaskAgent(null);
+        navigate('project', { projectId });
       }
     },
-    [updateTaskCache]
+    [updateTaskCache, navigate]
   );
 
   // ---------------------------------------------------------------------------
@@ -317,74 +297,54 @@ export function useTaskManagement() {
   // ---------------------------------------------------------------------------
   // Navigation helpers
   // ---------------------------------------------------------------------------
-  const handleSelectTask = (task: Task) => {
-    const taskProject = projects.find((project) => project.id === task.projectId);
-    const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
-    if (isProjectSwitch) {
-      setShowEditorMode(false);
-    }
-    if (taskProject && selectedProject?.id !== taskProject.id) {
-      setSelectedProject(taskProject);
-    }
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setShowKanban(false);
-    setActiveTask(task);
-    setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(task.projectId, task.id);
-  };
+  const handleSelectTask = useCallback(
+    (task: Task) => {
+      navigate('task', { projectId: task.projectId, taskId: task.id });
+      const taskProject = projects.find((p) => p.id === task.projectId);
+      if (taskProject) {
+        prewarmWorktreeReserve(
+          taskProject.id,
+          taskProject.path,
+          taskProject.gitInfo?.isGitRepo,
+          taskProject.gitInfo?.baseRef || 'HEAD'
+        );
+      }
+    },
+    [navigate, projects]
+  );
 
   const handleNextTask = useCallback(() => {
     if (allTasks.length === 0) return;
-    const currentIndex = activeTask
-      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+    const currentIndex = currentTaskId
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === currentTaskId)
       : -1;
     const nextIndex = (currentIndex + 1) % allTasks.length;
     const { task, project } = allTasks[nextIndex];
-    if (!selectedProject || selectedProject.id !== project.id) {
-      setShowEditorMode(false);
-      setShowKanban(false);
-    }
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setActiveTask(task);
-    setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(project.id, task.id);
-  }, [allTasks, activeTask, selectedProject]);
+    navigate('task', { projectId: project.id, taskId: task.id });
+  }, [allTasks, currentTaskId, navigate]);
 
   const handlePrevTask = useCallback(() => {
     if (allTasks.length === 0) return;
-    const currentIndex = activeTask
-      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === activeTask.id)
+    const currentIndex = currentTaskId
+      ? allTasks.findIndex((t: { task: Task; project: Project }) => t.task.id === currentTaskId)
       : -1;
     const prevIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
     const { task, project } = allTasks[prevIndex];
-    if (!selectedProject || selectedProject.id !== project.id) {
-      setShowEditorMode(false);
-      setShowKanban(false);
-    }
-    setSelectedProject(project);
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setActiveTask(task);
-    setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(project.id, task.id);
-  }, [allTasks, activeTask, selectedProject]);
+    navigate('task', { projectId: project.id, taskId: task.id });
+  }, [allTasks, currentTaskId, navigate]);
 
   const handleNewTask = useCallback(() => {
-    if (selectedProject) {
+    if (currentProjectId) {
       openTaskModal();
     }
-  }, [selectedProject, openTaskModal]);
+  }, [currentProjectId, openTaskModal]);
 
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
-      const targetProject = projects.find((p) => p.id === project.id) || project;
-      activateProjectView(targetProject);
+      navigate('project', { projectId: project.id });
       openTaskModal();
     },
-    [activateProjectView, projects, openTaskModal]
+    [navigate, openTaskModal]
   );
 
   // ---------------------------------------------------------------------------
@@ -524,7 +484,7 @@ export function useTaskManagement() {
     onMutate: ({ project, task }) => {
       if (deletingTaskIdsRef.current.has(task.id)) return { blocked: true };
       deletingTaskIdsRef.current.add(task.id);
-      const wasActive = activeTask?.id === task.id;
+      const wasActive = currentTaskId === task.id;
       removeTaskFromCache(project.id, task.id, wasActive);
       return { task, wasActive, blocked: false };
     },
@@ -608,7 +568,7 @@ export function useTaskManagement() {
     onMutate: ({ project, task }) => {
       if (archivingTaskIdsRef.current.has(task.id)) return { blocked: true };
       archivingTaskIdsRef.current.add(task.id);
-      const wasActive = activeTask?.id === task.id;
+      const wasActive = currentTaskId === task.id;
       removeTaskFromCache(project.id, task.id, wasActive);
       return { task, wasActive, blocked: false };
     },
@@ -782,22 +742,13 @@ export function useTaskManagement() {
           return updated;
         })
       );
-      setActiveTask((prev) => {
-        if (prev?.id !== task.id) return prev;
-        const updated = { ...prev, name: newName, branch: newBranch };
-        if (updated.metadata?.nameGenerated) {
-          updated.metadata = { ...updated.metadata, nameGenerated: null };
-        }
-        return updated;
-      });
       return { task }; // snapshot for rollback
     },
-    onError: async (_err, { project, task }, context) => {
+    onError: async (_err, { project }, context) => {
       const { log } = await import('../lib/logger');
       log.error('Failed to rename task:', _err as any);
       // Rollback optimistic update
       queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
-      setActiveTask((prev) => (prev?.id === task.id ? (context?.task ?? prev) : prev));
       toast({
         title: 'Error',
         description: _err instanceof Error ? _err.message : 'Could not rename task.',
@@ -868,9 +819,7 @@ export function useTaskManagement() {
       };
 
       updateTaskCache(params.project.id, (old) => [optimisticTask, ...old]);
-      setActiveTask(optimisticTask);
-      setActiveTaskAgent(isMultiAgent ? null : getAgentForTask(optimisticTask));
-      saveActiveIds(params.project.id, optimisticId);
+      navigate('task', { projectId: params.project.id, taskId: optimisticId });
       return { optimisticTask };
     },
     onSuccess: ({ task, warning }, params, context) => {
@@ -879,9 +828,8 @@ export function useTaskManagement() {
       updateTaskCache(params.project.id, (old) =>
         old.map((t) => (t.id === optimisticTask?.id ? task : t))
       );
-      setActiveTask((current) => (current?.id === optimisticTask?.id ? task : current));
-      setActiveTaskAgent(getAgentForTask(task));
-      saveActiveIds(task.projectId, task.id);
+      // Update navigation to the real task ID
+      navigate('task', { projectId: task.projectId, taskId: task.id });
       queryClient.invalidateQueries({ queryKey: ['tasks', params.project.id] });
       if (warning) {
         toast({ title: 'Warning', description: warning });
@@ -891,8 +839,8 @@ export function useTaskManagement() {
       const { optimisticTask } = context ?? {};
       if (optimisticTask) {
         updateTaskCache(params.project.id, (old) => old.filter((t) => t.id !== optimisticTask.id));
-        setActiveTask((current) => (current?.id === optimisticTask.id ? null : current));
       }
+      navigate('project', { projectId: params.project.id });
       queryClient.invalidateQueries({ queryKey: ['tasks', params.project.id] });
       setIsCreatingTask(false);
       toast({
@@ -917,10 +865,11 @@ export function useTaskManagement() {
       baseRef?: string,
       nameGenerated?: boolean
     ) => {
-      if (!selectedProject) return;
+      const project = projects.find((p) => p.id === currentProjectId);
+      if (!project) return;
       setIsCreatingTask(true);
       createTaskMutation.mutate({
-        project: selectedProject,
+        project,
         taskName,
         initialPrompt,
         agentRuns,
@@ -933,7 +882,7 @@ export function useTaskManagement() {
         baseRef,
       });
     },
-    [selectedProject, createTaskMutation]
+    [currentProjectId, projects, createTaskMutation]
   );
 
   const handleTaskInterfaceReady = useCallback(() => {
@@ -978,10 +927,6 @@ export function useTaskManagement() {
   }, [autoOpenTaskModalTrigger, openTaskModal]);
 
   return {
-    activeTask,
-    setActiveTask,
-    activeTaskAgent,
-    setActiveTaskAgent,
     allTasks,
     tasksByProjectId,
     archivedTasksByProjectId,

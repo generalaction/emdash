@@ -1,43 +1,42 @@
 import { useMemo } from 'react';
 import { useAppContext } from '../contexts/AppContextProvider';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import type { Project } from '../types/app';
 
 /**
- * Derives SSH connection info for the currently selected project.
+ * Derives SSH connection info for the given project.
  * Works for both projects that explicitly store remote fields and for
  * legacy projects where remoteness is inferred from the path heuristic.
  */
-export function useProjectRemoteInfo(): {
+export function useProjectRemoteInfo(project: Project | null): {
   connectionId: string | null;
   remotePath: string | null;
 } {
   const { platform } = useAppContext();
-  const { selectedProject } = useProjectManagementContext();
 
   const connectionId = useMemo((): string | null => {
-    if (!selectedProject) return null;
-    if (selectedProject.sshConnectionId) return selectedProject.sshConnectionId;
+    if (!project) return null;
+    if (project.sshConnectionId) return project.sshConnectionId;
 
-    const alias = selectedProject.name;
+    const alias = project.name;
     if (typeof alias !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(alias)) return null;
 
     // Back-compat: on macOS/Windows a /home/... path is almost certainly remote.
-    const p = selectedProject.path || '';
+    const p = project.path || '';
     const looksRemoteByPath =
       platform === 'darwin' || platform === 'win32' ? p.startsWith('/home/') : false;
 
-    if (selectedProject.isRemote || looksRemoteByPath) {
+    if (project.isRemote || looksRemoteByPath) {
       return `ssh-config:${encodeURIComponent(alias)}`;
     }
     return null;
-  }, [selectedProject, platform]);
+  }, [project, platform]);
 
   const remotePath = useMemo((): string | null => {
-    if (!selectedProject) return null;
-    if (selectedProject.remotePath) return selectedProject.remotePath;
-    if (connectionId) return selectedProject.path;
-    return selectedProject.isRemote ? selectedProject.path : null;
-  }, [selectedProject, connectionId]);
+    if (!project) return null;
+    if (project.remotePath) return project.remotePath;
+    if (connectionId) return project.path;
+    return project.isRemote ? project.path : null;
+  }, [project, connectionId]);
 
   return { connectionId, remotePath };
 }

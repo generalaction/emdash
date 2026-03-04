@@ -3,7 +3,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { FIRST_LAUNCH_KEY } from './constants/layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
@@ -13,6 +12,12 @@ import { TaskManagementProvider } from './contexts/TaskManagementContext';
 import { ModalProvider } from './contexts/ModalProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
+import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
+import BrowserProvider from './providers/BrowserProvider';
+import { RightSidebarProvider } from './components/ui/right-sidebar';
+import { SidebarProvider } from './components/ui/sidebar';
+
+export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 
 const queryClient = new QueryClient();
 
@@ -29,11 +34,7 @@ export function App() {
     if (isFirstLaunchBool) {
       return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
-    return (
-      <WorkspaceViewProvider>
-        <Workspace />
-      </WorkspaceViewProvider>
-    );
+    return <Workspace />;
   };
 
   return (
@@ -42,15 +43,27 @@ export function App() {
         <WorkspaceLayoutContextProvider>
           <AppContextProvider>
             <GithubContextProvider>
-              <ProjectManagementProvider>
-                <TaskManagementProvider>
-                  <AppSettingsProvider>
-                    <ThemeProvider>
-                      <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                    </ThemeProvider>
-                  </AppSettingsProvider>
-                </TaskManagementProvider>
-              </ProjectManagementProvider>
+              {/* WorkspaceViewProvider must be above data providers so navigate() is available
+                  inside ProjectManagementProvider and TaskManagementProvider hooks */}
+              <WorkspaceViewProvider>
+                <ProjectManagementProvider>
+                  <TaskManagementProvider>
+                    <AppSettingsProvider>
+                      <KeyboardSettingsProvider>
+                        <BrowserProvider>
+                          <SidebarProvider>
+                            <RightSidebarProvider>
+                              <ThemeProvider>
+                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                              </ThemeProvider>
+                            </RightSidebarProvider>
+                          </SidebarProvider>
+                        </BrowserProvider>
+                      </KeyboardSettingsProvider>
+                    </AppSettingsProvider>
+                  </TaskManagementProvider>
+                </ProjectManagementProvider>
+              </WorkspaceViewProvider>
             </GithubContextProvider>
           </AppContextProvider>
         </WorkspaceLayoutContextProvider>

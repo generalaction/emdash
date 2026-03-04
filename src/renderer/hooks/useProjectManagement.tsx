@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
 import { pickDefaultBranch } from '../components/BranchSelect';
-import { saveActiveIds } from '../constants/layout';
 import {
   computeBaseRef,
   getProjectRepoKey,
@@ -16,6 +15,7 @@ import { useModalContext } from '../contexts/ModalProvider';
 import { useAppContext } from '../contexts/AppContextProvider';
 import { useGithubContext } from '../contexts/GithubContextProvider';
 import { useToast } from './use-toast';
+import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 
 // ---------------------------------------------------------------------------
 // Shared helper — build a Project object from a local git path.
@@ -87,22 +87,10 @@ export const useProjectManagement = () => {
   const { toast } = useToast();
   const { showModal } = useModalContext();
   const queryClient = useQueryClient();
+  const { navigate } = useWorkspaceNavigation();
 
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  // Always start on home view (e.g. after app restart)
-  const [showHomeView, setShowHomeView] = useState<boolean>(true);
-  const [showSkillsView, setShowSkillsView] = useState(false);
-  const [showEditorMode, setShowEditorMode] = useState(false);
-  const [showKanban, setShowKanban] = useState(false);
-  // Trigger counters — incremented to signal task management to reset active task / auto-open modal
-  const [resetTaskTrigger, setResetTaskTrigger] = useState(0);
+  // Trigger counter — incremented to signal task management to auto-open task modal
   const [autoOpenTaskModalTrigger, setAutoOpenTaskModalTrigger] = useState(0);
-  const [projectBranchOptions, setProjectBranchOptions] = useState<
-    Array<{ value: string; label: string }>
-  >([]);
-  const [projectDefaultBranch, setProjectDefaultBranch] = useState<string>('main');
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
-  const [hasResolvedBranchOptions, setHasResolvedBranchOptions] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Project list query — React Query is the single source of truth
@@ -143,19 +131,13 @@ export const useProjectManagement = () => {
       await rpc.db.deleteProject(project.id);
     },
     onMutate: (project) => {
-      // Optimistically remove from cache
       queryClient.setQueryData<Project[]>(['projects'], (old = []) =>
         old.filter((p) => p.id !== project.id)
       );
-      if (selectedProject?.id === project.id) {
-        setSelectedProject(null);
-        setResetTaskTrigger((t) => t + 1);
-        setShowHomeView(true);
-        saveActiveIds(null, null);
-      }
+      // Navigate home when deleting the currently active project
+      navigate('home');
     },
-    onError: (_err, project, _ctx) => {
-      // Rollback optimistic removal
+    onError: (_err) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       void import('../lib/logger').then(({ log }) => {
         log.error('Delete project failed:', _err as any);
@@ -177,76 +159,6 @@ export const useProjectManagement = () => {
       toast({ title: 'Project deleted', description: `"${project.name}" was removed.` });
     },
   });
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-  const prewarmReserveForBaseRef = useCallback(
-    (projectId: string, projectPath: string, isGitRepo: boolean | undefined, baseRef?: string) => {
-      if (!isGitRepo) return;
-      const requestedBaseRef = (baseRef || '').trim() || 'HEAD';
-      window.electronAPI
-        .worktreeEnsureReserve({
-          projectId,
-          projectPath,
-          baseRef: requestedBaseRef,
-        })
-        .catch(() => {});
-    },
-    []
-  );
-
-  const activateProjectView = useCallback(
-    (project: Project) => {
-      void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
-        captureTelemetry('project_view_opened');
-      });
-      setSelectedProject(project);
-      setShowHomeView(false);
-      setShowSkillsView(false);
-      setResetTaskTrigger((t) => t + 1);
-      setShowEditorMode(false);
-      setShowKanban(false);
-      saveActiveIds(project.id, null);
-      prewarmReserveForBaseRef(
-        project.id,
-        project.path,
-        project.gitInfo?.isGitRepo,
-        project.gitInfo?.baseRef || 'HEAD'
-      );
-    },
-    [prewarmReserveForBaseRef]
-  );
-
-  // ---------------------------------------------------------------------------
-  // Navigation
-  // ---------------------------------------------------------------------------
-  const handleGoHome = () => {
-    setSelectedProject(null);
-    setShowHomeView(true);
-    setShowSkillsView(false);
-    setResetTaskTrigger((t) => t + 1);
-    setShowEditorMode(false);
-    setShowKanban(false);
-    saveActiveIds(null, null);
-  };
-
-  const handleGoToSkills = () => {
-    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('skills_view_opened');
-    });
-    setSelectedProject(null);
-    setShowHomeView(false);
-    setShowSkillsView(true);
-    setResetTaskTrigger((t) => t + 1);
-    setShowEditorMode(false);
-    setShowKanban(false);
-    saveActiveIds(null, null);
-  };
-
-  const handleSelectProject = (project: Project) => {
-    activateProjectView(project);
-  };
 
   // ---------------------------------------------------------------------------
   // Project actions — open / new / clone / remote
@@ -275,7 +187,7 @@ export const useProjectManagement = () => {
             (p) => getProjectRepoKey(p, platform) === built.repoKey
           );
           if (existingProject) {
-            activateProjectView(existingProject);
+            navigate('project', { projectId: existingProject.id });
             toast({
               title: 'Project already open',
               description: `"${existingProject.name}" is already in the sidebar.`,
@@ -287,7 +199,7 @@ export const useProjectManagement = () => {
           void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
             captureTelemetry('project_added_success', { source: 'open' });
           });
-          activateProjectView(built.projectToSave);
+          navigate('project', { projectId: built.projectToSave.id });
         } catch (error) {
           const { log } = await import('../lib/logger');
           log.error('Git detection error:', error as any);
@@ -367,7 +279,7 @@ export const useProjectManagement = () => {
           (p) => getProjectRepoKey(p, platform) === built.repoKey
         );
         if (existingProject) {
-          activateProjectView(existingProject);
+          navigate('project', { projectId: existingProject.id });
           return;
         }
 
@@ -376,7 +288,7 @@ export const useProjectManagement = () => {
           captureTelemetry('project_clone_success');
           captureTelemetry('project_added_success', { source: 'clone' });
         });
-        activateProjectView(built.projectToSave);
+        navigate('project', { projectId: built.projectToSave.id });
       } catch (error) {
         const { log } = await import('../lib/logger');
         log.error('Failed to load cloned project:', error);
@@ -387,7 +299,7 @@ export const useProjectManagement = () => {
         });
       }
     },
-    [projects, isAuthenticated, activateProjectView, platform, toast, addProjectMutation]
+    [projects, isAuthenticated, navigate, platform, toast, addProjectMutation]
   );
 
   const handleNewProjectSuccess = useCallback(
@@ -403,7 +315,7 @@ export const useProjectManagement = () => {
           (p) => getProjectRepoKey(p, platform) === built.repoKey
         );
         if (existingProject) {
-          activateProjectView(existingProject);
+          navigate('project', { projectId: existingProject.id });
           return;
         }
 
@@ -416,7 +328,7 @@ export const useProjectManagement = () => {
           title: 'Project created successfully!',
           description: `${built.projectToSave.name} has been added to your projects.`,
         });
-        activateProjectView(built.projectToSave);
+        navigate('project', { projectId: built.projectToSave.id });
 
         const isGithubRemote = /github\.com[:/]/i.test(built.remoteUrl);
         if (!isAuthenticated || !isGithubRemote) {
@@ -432,7 +344,7 @@ export const useProjectManagement = () => {
         });
       }
     },
-    [projects, isAuthenticated, activateProjectView, platform, toast, addProjectMutation]
+    [projects, isAuthenticated, navigate, platform, toast, addProjectMutation]
   );
 
   const handleDeleteProject = (project: Project) => {
@@ -457,7 +369,7 @@ export const useProjectManagement = () => {
         const existingProject = projects.find((p) => getProjectRepoKey(p) === repoKey);
 
         if (existingProject) {
-          activateProjectView(existingProject);
+          navigate('project', { projectId: existingProject.id });
           toast({
             title: 'Project already open',
             description: `"${existingProject.name}" is already in the sidebar.`,
@@ -486,7 +398,7 @@ export const useProjectManagement = () => {
           title: 'Remote project added successfully!',
           description: `${project.name} on ${remoteProject.host} has been added to your projects.`,
         });
-        activateProjectView(project);
+        navigate('project', { projectId: project.id });
       } catch (error) {
         const { log } = await import('../lib/logger');
         log.error('Failed to save remote project:', error);
@@ -497,139 +409,16 @@ export const useProjectManagement = () => {
         });
       }
     },
-    [projects, activateProjectView, toast, addProjectMutation]
+    [projects, navigate, toast, addProjectMutation]
   );
 
   const handleAddRemoteProject = useCallback(() => {
     showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
   }, [showModal, handleRemoteProjectSuccess]);
 
-  // ---------------------------------------------------------------------------
-  // Branch loading for the selected project
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!selectedProject) {
-      setProjectBranchOptions([]);
-      setProjectDefaultBranch('main');
-      setHasResolvedBranchOptions(false);
-      return;
-    }
-
-    const currentRef = selectedProject.gitInfo?.baseRef;
-    const initialBranch = currentRef || 'main';
-    setProjectBranchOptions([{ value: initialBranch, label: initialBranch }]);
-    setProjectDefaultBranch(initialBranch);
-    setHasResolvedBranchOptions(false);
-
-    let cancelled = false;
-    const loadBranches = async () => {
-      setIsLoadingBranches(true);
-      try {
-        let options: { value: string; label: string }[];
-
-        if (selectedProject.isRemote && selectedProject.sshConnectionId) {
-          const result = await window.electronAPI.sshExecuteCommand(
-            selectedProject.sshConnectionId,
-            'git branch -a --format="%(refname:short)"',
-            selectedProject.path
-          );
-          if (cancelled) return;
-          if (result.exitCode === 0 && result.stdout) {
-            const branches = result.stdout
-              .split('\n')
-              .map((b) => b.trim())
-              .filter((b) => b.length > 0 && !b.includes('HEAD'));
-            options = branches.map((b) => ({ value: b, label: b }));
-          } else {
-            options = [];
-          }
-        } else {
-          const res = await window.electronAPI.listRemoteBranches({
-            projectPath: selectedProject.path,
-          });
-          if (cancelled) return;
-          if (res.success && res.branches) {
-            options = res.branches.map((b) => ({
-              value: b.ref,
-              label: b.remote ? b.label : `${b.branch} (local)`,
-            }));
-          } else {
-            options = [];
-          }
-        }
-
-        if (!cancelled && options.length > 0) {
-          setProjectBranchOptions(options);
-          const defaultBranch = pickDefaultBranch(options, currentRef);
-          setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
-        }
-      } catch (error) {
-        console.error('Failed to load branches:', error);
-      } finally {
-        if (!cancelled) {
-          setIsLoadingBranches(false);
-          setHasResolvedBranchOptions(true);
-        }
-      }
-    };
-
-    void loadBranches();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProject]);
-
-  // Keep reserves warm for the currently selected base ref.
-  useEffect(() => {
-    if (!selectedProject) return;
-    if (!hasResolvedBranchOptions) return;
-    if (isLoadingBranches) return;
-    const preferredBaseRef = (projectDefaultBranch || '').trim();
-    const hasPreferredRef = projectBranchOptions.some(
-      (option) => option.value === preferredBaseRef
-    );
-    const fallbackBaseRef = (selectedProject.gitInfo?.baseRef || '').trim() || 'HEAD';
-    const baseRefForPrewarm = hasPreferredRef ? preferredBaseRef : fallbackBaseRef;
-    prewarmReserveForBaseRef(
-      selectedProject.id,
-      selectedProject.path,
-      selectedProject.gitInfo?.isGitRepo,
-      baseRefForPrewarm
-    );
-  }, [
-    selectedProject?.id,
-    selectedProject?.path,
-    selectedProject?.gitInfo?.isGitRepo,
-    selectedProject?.gitInfo?.baseRef,
-    hasResolvedBranchOptions,
-    isLoadingBranches,
-    projectDefaultBranch,
-    projectBranchOptions,
-    prewarmReserveForBaseRef,
-  ]);
-
   return {
     projects,
-    selectedProject,
-    setSelectedProject,
-    showHomeView,
-    setShowHomeView,
-    showSkillsView,
-    setShowSkillsView,
-    showEditorMode,
-    setShowEditorMode,
-    showKanban,
-    setShowKanban,
-    resetTaskTrigger,
     autoOpenTaskModalTrigger,
-    handleGoToSkills,
-    projectBranchOptions,
-    projectDefaultBranch,
-    setProjectDefaultBranch,
-    isLoadingBranches,
-    activateProjectView,
-    handleGoHome,
-    handleSelectProject,
     handleOpenProject,
     handleNewProjectClick,
     handleCloneProjectClick,

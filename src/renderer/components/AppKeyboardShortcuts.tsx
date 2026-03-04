@@ -5,44 +5,30 @@ import { useTheme } from '../hooks/useTheme';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useModalContext } from '../contexts/ModalProvider';
+import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
 
-export interface AppKeyboardShortcutsProps {
-  showCommandPalette: boolean;
-  showSettings: boolean;
-  handleToggleCommandPalette: () => void;
-  handleOpenSettings: () => void;
-  handleCloseCommandPalette: () => void;
-  handleCloseSettings: () => void;
-  handleToggleKanban: () => void;
-  handleToggleEditor: () => void;
-  handleOpenInEditor: () => void;
-}
-
-const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
-  showCommandPalette,
-  showSettings,
-  handleToggleCommandPalette,
-  handleOpenSettings,
-  handleCloseCommandPalette,
-  handleCloseSettings,
-  handleToggleKanban,
-  handleToggleEditor,
-  handleOpenInEditor,
-}) => {
+const AppKeyboardShortcuts: React.FC = () => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { settings: keyboardSettings } = useKeyboardSettings();
   const { handleNextTask, handlePrevTask, handleNewTask } = useTaskManagementContext();
+  const { showModal, activeModalId, closeModal } = useModalContext();
+  const { navigate } = useWorkspaceNavigation();
+  const { currentView } = useWorkspaceSlots();
+
+  const isCommandPaletteOpen = activeModalId === 'commandPaletteModal';
+  const isSettingsOpen = currentView === 'settings';
 
   useKeyboardShortcuts({
-    onToggleCommandPalette: handleToggleCommandPalette,
-    onOpenSettings: handleOpenSettings,
+    onToggleCommandPalette: () => showModal('commandPaletteModal', {}),
+    onOpenSettings: () => navigate('settings'),
     onToggleLeftSidebar: toggleLeftSidebar,
     onToggleRightSidebar: toggleRightSidebar,
     onToggleTheme: toggleTheme,
-    onToggleKanban: handleToggleKanban,
-    onToggleEditor: handleToggleEditor,
+    onToggleKanban: () => {},
+    onToggleEditor: () => {},
     onNextProject: handleNextTask,
     onPrevProject: handlePrevTask,
     onNewTask: handleNewTask,
@@ -54,14 +40,14 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
       window.dispatchEvent(
         new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
       ),
-    onOpenInEditor: handleOpenInEditor,
-    onCloseModal: showCommandPalette
-      ? handleCloseCommandPalette
-      : showSettings
-        ? handleCloseSettings
+    onOpenInEditor: () => {},
+    onCloseModal: isCommandPaletteOpen
+      ? closeModal
+      : isSettingsOpen
+        ? () => navigate('home')
         : undefined,
-    isCommandPaletteOpen: showCommandPalette,
-    isSettingsOpen: showSettings,
+    isCommandPaletteOpen,
+    isSettingsOpen,
     customKeyboardSettings: keyboardSettings ?? undefined,
   });
 

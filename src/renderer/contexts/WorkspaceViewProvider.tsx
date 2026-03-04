@@ -1,13 +1,31 @@
+import { ComponentType, Fragment, useCallback, useMemo, type ReactNode } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { ProjectViewWrapper } from './CurrentProjectProvider';
+import { TaskViewWrapper } from './CurrentTaskProvider';
+import { HomeTitlebar, HomeMainPanel } from '../views/home-view';
+import { SkillsTitlebar, SkillsMainPanel } from '../views/skills-view';
+import { ProjectTitlebar, ProjectMainPanel } from '../views/project-view';
+import { TaskTitlebar, TaskMainPanel, TaskRightSidebar } from '../views/task-view';
+import { SettingsViewWrapper, SettingsTitlebar, SettingsMainPanel } from '../views/settings-view';
 import {
-  ComponentType,
-  createContext,
-  Fragment,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+  WorkspaceNavigateContext,
+  WorkspaceSlotsContext,
+  WorkspaceWrapParamsContext,
+} from './WorkspaceNavigationContext';
+import type {
+  SlotsContextValue,
+  WrapParamsContextValue,
+  NavigateFn,
+} from './WorkspaceNavigationContext';
+import type { SettingsPageTab } from '../components/SettingsPage';
+
+// Re-export hooks and types that consumers need
+export {
+  useWorkspaceNavigation,
+  useWorkspaceSlots,
+  useWorkspaceWrapParams,
+  isCurrentView,
+} from './WorkspaceNavigationContext';
 
 type ViewDefinition<TParams extends object = Record<never, never>> = {
   WrapView?: ComponentType<{ children: ReactNode } & TParams>;
@@ -16,19 +34,34 @@ type ViewDefinition<TParams extends object = Record<never, never>> = {
   RightPanel?: ComponentType;
 };
 
-// view registry
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const views = {
-  settings: {
-    WrapView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    TitlebarSlot: () => <div>settings titlebarSlot</div>,
-    MainPanel: () => <div>settings mainPanel</div>,
-    RightPanel: () => <div>settings rightPanel</div>,
+  home: {
+    TitlebarSlot: HomeTitlebar,
+    MainPanel: HomeMainPanel,
   },
   skills: {
-    WrapView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    TitlebarSlot: () => <div>skills titlebarSlot</div>,
-    MainPanel: () => <div>skills mainPanel</div>,
-    RightPanel: () => <div>skills rightPanel</div>,
+    TitlebarSlot: SkillsTitlebar,
+    MainPanel: SkillsMainPanel,
+  },
+  project: {
+    WrapView: ProjectViewWrapper,
+    TitlebarSlot: ProjectTitlebar,
+    MainPanel: ProjectMainPanel,
+  },
+  task: {
+    WrapView: TaskViewWrapper,
+    TitlebarSlot: TaskTitlebar,
+    MainPanel: TaskMainPanel,
+    RightPanel: TaskRightSidebar,
+  },
+  settings: {
+    WrapView: SettingsViewWrapper as ComponentType<{
+      children: ReactNode;
+      tab?: SettingsPageTab;
+    }>,
+    TitlebarSlot: SettingsTitlebar,
+    MainPanel: SettingsMainPanel,
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;
@@ -44,48 +77,37 @@ type NavArgs<TId extends ViewId> = keyof WrapParams<TId> extends never
   ? [viewId: TId]
   : [viewId: TId, params: WrapParams<TId>];
 
-type NavigateFn = <TId extends ViewId>(...args: NavArgs<TId>) => void;
+export type NavigateFnTyped = <TId extends ViewId>(...args: NavArgs<TId>) => void;
 
 type ViewState = {
   [K in ViewId]: { viewId: K; wrapParams: WrapParams<K> };
 }[ViewId];
 
-type SlotsContextValue = {
-  WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
-  TitlebarSlot: ComponentType;
-  MainPanel: ComponentType;
-  RightPanel: ComponentType;
-  currentView: ViewId;
-};
-
-type WrapParamsContextValue = {
-  wrapParams: Record<string, unknown>;
-};
-
-const WorkspaceNavigateContext = createContext<NavigateFn | undefined>(undefined);
-const WorkspaceSlotsContext = createContext<SlotsContextValue | undefined>(undefined);
-const WorkspaceWrapParamsContext = createContext<WrapParamsContextValue | undefined>(undefined);
+const VIEW_STATE_KEY = 'emdash:view-state';
+const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as ViewState;
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
-  const [viewState, setViewState] = useState<ViewState>({
-    viewId: 'skills',
-    wrapParams: {},
-  });
+  const [viewState, setViewState] = useLocalStorage<ViewState>(VIEW_STATE_KEY, DEFAULT_VIEW_STATE);
 
-  const navigate = useCallback((...args: unknown[]) => {
-    const [viewId, params] = args as [ViewId, Record<string, unknown>?];
-    setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
-  }, []) as NavigateFn;
+  const navigate = useCallback(
+    (...args: unknown[]) => {
+      const [viewId, params] = args as [ViewId, Record<string, unknown>?];
+      setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
+    },
+    [setViewState]
+  ) as NavigateFnTyped;
 
   const slotsValue = useMemo((): SlotsContextValue => {
-    const def = views[viewState.viewId];
+    const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
+      viewState.viewId
+    ];
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
       >,
-      TitlebarSlot: def.TitlebarSlot,
+      TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      RightPanel: def.RightPanel,
+      RightPanel: def.RightPanel ?? null,
       currentView: viewState.viewId,
     };
   }, [viewState.viewId]);
@@ -98,7 +120,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <WorkspaceNavigateContext.Provider value={navigate}>
+    <WorkspaceNavigateContext.Provider value={navigate as unknown as NavigateFn}>
       <WorkspaceSlotsContext.Provider value={slotsValue}>
         <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
           {children}
@@ -108,27 +130,4 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useWorkspaceSlots() {
-  const context = useContext(WorkspaceSlotsContext);
-  if (!context) {
-    throw new Error('useWorkspaceSlots must be used within a WorkspaceSlotsContextProvider');
-  }
-  return context;
-}
-
-export function useWorkspaceWrapParams() {
-  const context = useContext(WorkspaceWrapParamsContext);
-  if (!context) {
-    throw new Error(
-      'useWorkspaceWrapParams must be used within a WorkspaceWrapParamsContextProvider'
-    );
-  }
-  return context;
-}
-
-export function useWorkspaceNavigation() {
-  const navigate = useContext(WorkspaceNavigateContext);
-  if (!navigate)
-    throw new Error('useWorkspaceNavigation must be used within a WorkspaceViewProvider');
-  return { navigate };
-}
+export type { ViewId, ViewState };

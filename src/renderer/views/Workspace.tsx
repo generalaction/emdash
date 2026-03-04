@@ -1,16 +1,21 @@
-import { SidebarProvider } from '@/components/ui/sidebar';
 import { WorkspaceLayout } from '@/components/WorkspaceLayout';
+import { WorkspaceEffects } from '@/components/WorkspaceEffects';
 import { useWorkspaceSlots, useWorkspaceWrapParams } from '@/contexts/WorkspaceViewProvider';
+import { ModalRenderer } from '@/components/ModalRenderer';
+import { useTheme } from '@/hooks/useTheme';
 
 export function Workspace() {
+  useTheme();
   const { WrapView } = useWorkspaceSlots();
   const { wrapParams } = useWorkspaceWrapParams();
   return (
-    <SidebarProvider>
+    <>
+      <WorkspaceEffects />
       <WrapView {...wrapParams}>
         <WorkspaceSlots />
       </WrapView>
-    </SidebarProvider>
+      <ModalRenderer />
+    </>
   );
 }
 
@@ -20,7 +25,7 @@ function WorkspaceSlots() {
     <WorkspaceLayout
       titlebarSlot={<TitlebarSlot />}
       mainPanel={<MainPanel />}
-      rightPanel={<RightPanel />}
+      rightPanel={RightPanel ? <RightPanel /> : null}
     />
   );
 }

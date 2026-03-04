@@ -693,15 +693,19 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [conversations, activeConversationId, handleSwitchChat]);
 
-  // Close active chat tab on Cmd+W
+  // Close active chat tab on Cmd+W (native menu or custom event)
   useEffect(() => {
-    const handleCloseActiveChat = () => {
+    const closeActiveTab = () => {
       if (activeConversationId) {
         handleCloseChat(activeConversationId);
       }
     };
-    window.addEventListener('emdash:close-active-chat', handleCloseActiveChat);
-    return () => window.removeEventListener('emdash:close-active-chat', handleCloseActiveChat);
+    const cleanupIpc = window.electronAPI.onMenuCloseTab?.(closeActiveTab);
+    window.addEventListener('emdash:close-active-chat', closeActiveTab);
+    return () => {
+      cleanupIpc?.();
+      window.removeEventListener('emdash:close-active-chat', closeActiveTab);
+    };
   }, [activeConversationId, handleCloseChat]);
 
   const isTerminal = agentMeta[agent]?.terminalOnly === true;

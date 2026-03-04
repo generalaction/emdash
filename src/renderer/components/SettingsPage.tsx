@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
-import { Button } from './ui/button';
 
 // Import existing settings cards
 import TelemetryCard from './TelemetryCard';
@@ -95,14 +94,10 @@ interface SectionConfig {
   component: React.ReactNode;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab }) => {
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const taskSettings = useTaskSettings();
-
-  useEffect(() => {
-    setActiveTab(initialTab || 'general');
-  }, [initialTab]);
 
   // Load CLI agent statuses
   useEffect(() => {
@@ -145,17 +140,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       off?.();
     };
   }, []);
-
-  // Handle Escape key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   const handleDocsClick = useCallback(() => {
     window.electronAPI.openExternal('https://docs.emdash.sh');
@@ -278,16 +262,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
                 Manage your account settings and set preferences.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-              aria-label="Close settings"
-            >
-              <X className="h-4 w-4" />
-            </Button>
           </div>
           <Separator />
         </div>

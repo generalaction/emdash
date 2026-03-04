@@ -23,6 +23,7 @@ import {
   Archive,
   RotateCcw,
   ChevronRight,
+  Settings,
 } from 'lucide-react';
 import SidebarEmptyState from '../SidebarEmptyState';
 import { TaskItem } from '../TaskItem';
@@ -34,6 +35,12 @@ import type { Task } from '../../types/chat';
 import type { ConnectionState } from '../ssh';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
+import {
+  useWorkspaceNavigation,
+  useWorkspaceSlots,
+  useWorkspaceWrapParams,
+  isCurrentView,
+} from '../../contexts/WorkspaceNavigationContext';
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
@@ -47,7 +54,6 @@ interface LeftSidebarProps {
     isMobile: boolean;
     setOpen: (next: boolean) => void;
   }) => void;
-  onCloseSettingsPage?: () => void;
 }
 
 const isRemoteProject = (project: Project): boolean => {
@@ -87,21 +93,14 @@ const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
 });
 ProjectItem.displayName = 'ProjectItem';
 
-export const LeftSidebar: React.FC<LeftSidebarProps> = ({
-  onSidebarContextChange,
-  onCloseSettingsPage,
-}) => {
+export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange }) => {
   const { open, isMobile, setOpen } = useSidebar();
-  const {
-    projects,
-    selectedProject,
-    showHomeView: isHomeView,
-    showSkillsView: isSkillsView,
-    handleSelectProject: onSelectProject,
-    handleGoHome: onGoHome,
-    handleOpenProject: onOpenProject,
-    handleGoToSkills: onGoToSkills,
-  } = useProjectManagementContext();
+  const { projects, handleOpenProject: onOpenProject } = useProjectManagementContext();
+  const { navigate } = useWorkspaceNavigation();
+  const { currentView } = useWorkspaceSlots();
+  const { wrapParams } = useWorkspaceWrapParams();
+  const currentProjectId = wrapParams.projectId as string | null;
+  const currentTaskId = wrapParams.taskId as string | null;
 
   // --- Project order (localStorage only — context holds raw DB order) ---
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
@@ -126,7 +125,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   );
 
   const {
-    activeTask,
     tasksByProjectId,
     archivedTasksByProjectId,
     handleSelectTask: onSelectTask,
@@ -188,14 +186,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
 
-  const handleNavigationWithCloseSettings = useCallback(
-    (callback: () => void) => {
-      onCloseSettingsPage?.();
-      callback();
-    },
-    [onCloseSettingsPage]
-  );
-
   return (
     <div className="relative h-full">
       <Sidebar className="!w-full lg:border-r-0">
@@ -204,11 +194,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                className={`min-w-0 ${isHomeView ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                className={`min-w-0 ${isCurrentView(currentView, 'home') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
               >
                 <Button
                   variant="ghost"
-                  onClick={() => handleNavigationWithCloseSettings(onGoHome)}
+                  onClick={() => navigate('home')}
                   aria-label="Home"
                   className="w-full justify-start"
                 >
@@ -217,24 +207,38 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {onGoToSkills && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  className={`min-w-0 ${isSkillsView ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                className={`min-w-0 ${isCurrentView(currentView, 'skills') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+              >
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate('skills')}
+                  aria-label="Skills"
+                  className="w-full justify-start"
                 >
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleNavigationWithCloseSettings(onGoToSkills)}
-                    aria-label="Skills"
-                    className="w-full justify-start"
-                  >
-                    <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium">Skills</span>
-                  </Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
+                  <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                  <span className="text-sm font-medium">Skills</span>
+                </Button>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                className={`min-w-0 ${isCurrentView(currentView, 'settings') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+              >
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate('settings')}
+                  aria-label="Settings"
+                  className="w-full justify-start"
+                >
+                  <Settings className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                  <span className="text-sm font-medium">Settings</span>
+                </Button>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent className="flex flex-col">
@@ -253,7 +257,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 >
                   {(project) => {
                     const typedProject = project as Project;
-                    const isProjectActive = selectedProject?.id === typedProject.id && !activeTask;
+                    const isProjectActive = currentProjectId === typedProject.id && !currentTaskId;
                     return (
                       <SidebarMenuItem>
                         <Collapsible
@@ -286,11 +290,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               type="button"
                               className="min-w-0 flex-1 truncate bg-transparent text-left text-foreground/60"
                               whileTap={{ scale: 0.97 }}
-                              onClick={() =>
-                                handleNavigationWithCloseSettings(() =>
-                                  onSelectProject(typedProject)
-                                )
-                              }
+                              onClick={() => navigate('project', { projectId: typedProject.id })}
                             >
                               <ProjectItem project={typedProject} />
                             </motion.button>
@@ -298,11 +298,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               <button
                                 type="button"
                                 className="p-0.5 text-muted-foreground hover:bg-black/5"
-                                onClick={() =>
-                                  handleNavigationWithCloseSettings(() =>
-                                    onCreateTaskForProject(typedProject)
-                                  )
-                                }
+                                onClick={() => onCreateTaskForProject(typedProject)}
                               >
                                 <Plus className="h-4 w-4" />
                               </button>
@@ -322,16 +318,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                     (pinnedTaskIds.has(a.id) ? 1 : 0)
                                 )
                                 .map((task) => {
-                                  const isActive = activeTask?.id === task.id;
+                                  const isActive = currentTaskId === task.id;
                                   return (
                                     <motion.div
                                       key={task.id}
                                       whileTap={{ scale: 0.97 }}
-                                      onClick={() =>
-                                        handleNavigationWithCloseSettings(() =>
-                                          onSelectTask?.(task)
-                                        )
-                                      }
+                                      onClick={() => onSelectTask?.(task)}
                                       className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
                                     >
                                       <TaskItem

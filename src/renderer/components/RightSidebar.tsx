@@ -10,7 +10,8 @@ import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
-import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
+
+const RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY = 'emdash.layout.right-sidebar-vertical';
 
 export interface RightSidebarTask {
   id: string;
