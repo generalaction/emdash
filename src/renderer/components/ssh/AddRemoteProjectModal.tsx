@@ -1111,7 +1111,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const result = await window.electronAPI.openProject();
+                          const result = await window.electronAPI.openFile({
+                            title: 'Select SSH Private Key',
+                            message: 'Select your SSH private key file',
+                          });
                           if (result.success && result.path) {
                             updateField('privateKeyPath', result.path);
                           }

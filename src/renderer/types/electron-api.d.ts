@@ -301,6 +301,15 @@ declare global {
         path?: string;
         error?: string;
       }>;
+      openFile: (args?: {
+        title?: string;
+        message?: string;
+        filters?: Electron.FileFilter[];
+      }) => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+      }>;
       getProjectSettings: (projectId: string) => Promise<{
         success: boolean;
         settings?: ProjectSettingsPayload;
@@ -1312,6 +1321,15 @@ export interface ElectronAPI {
 
   // Project management
   openProject: () => Promise<{
+    success: boolean;
+    path?: string;
+    error?: string;
+  }>;
+  openFile: (args?: {
+    title?: string;
+    message?: string;
+    filters?: Electron.FileFilter[];
+  }) => Promise<{
     success: boolean;
     path?: string;
     error?: string;
