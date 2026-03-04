@@ -1,9 +1,8 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useWorkspaceLayoutContext } from '@/contexts/WorkspaceLayoutProvider';
 import { cn } from '@/lib/utils';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const TITLEBAR_HEIGHT = '36px';
 const LEFT_PANEL_DEFAULT_SIZE = 20;
@@ -74,27 +73,31 @@ export function WorkspaceLayout({
               {mainPanel}
             </div>
           </ResizablePanel>
-          <ResizableHandle
-            withHandle
-            onDragging={(d) => handleDragging('right', d)}
-            className={cn(
-              'cursor-col-resize items-center justify-center transition-colors hover:bg-border/80',
-              isRightOpen ? 'flex' : 'hidden'
-            )}
-          />
-          <ResizablePanel
-            ref={rightPanelRef}
-            defaultSize={RIGHT_PANEL_DEFAULT_SIZE}
-            minSize={RIGHT_SIDEBAR_MIN_SIZE}
-            maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-            collapsedSize={0}
-            onCollapse={() => setIsRightOpen(false)}
-            onExpand={() => setIsRightOpen(true)}
-            collapsible
-            order={3}
-          >
-            {rightPanel ?? null}
-          </ResizablePanel>
+          {rightPanel && (
+            <>
+              <ResizableHandle
+                withHandle
+                onDragging={(d) => handleDragging('right', d)}
+                className={cn(
+                  'cursor-col-resize items-center justify-center transition-colors hover:bg-border/80',
+                  isRightOpen ? 'flex' : 'hidden'
+                )}
+              />
+              <ResizablePanel
+                ref={rightPanelRef}
+                defaultSize={RIGHT_PANEL_DEFAULT_SIZE}
+                minSize={RIGHT_SIDEBAR_MIN_SIZE}
+                maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+                collapsedSize={0}
+                onCollapse={() => setIsRightOpen(false)}
+                onExpand={() => setIsRightOpen(true)}
+                collapsible
+                order={3}
+              >
+                {rightPanel ?? null}
+              </ResizablePanel>
+            </>
+          )}
         </ResizablePanelGroup>
       </div>
     </div>

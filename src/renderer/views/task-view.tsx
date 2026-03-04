@@ -4,7 +4,6 @@ import MultiAgentTask from '@/components/MultiAgentTask';
 import RightSidebar from '@/components/RightSidebar';
 import TitlebarContext from '@/components/titlebar/TitlebarContext';
 import TaskCreationLoading from '@/components/TaskCreationLoading';
-import BrowserToggleButton from '@/components/titlebar/BrowserToggleButton';
 import OpenInMenu from '@/components/titlebar/OpenInMenu';
 import { useCurrentProject } from '@/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@/contexts/CurrentTaskProvider';
@@ -27,9 +26,6 @@ export function TaskTitlebar() {
   const currentPath = isTaskMultiAgent
     ? null
     : task?.path || (project?.isRemote ? project?.remotePath : project?.path) || null;
-  const taskId = task?.id || null;
-  const taskPath = task?.path || null;
-  const projectPath = project?.path || null;
 
   const projectWithTasks = project
     ? { ...project, tasks: tasksByProjectId[project.id] ?? project.tasks ?? [] }
@@ -58,9 +54,6 @@ export function TaskTitlebar() {
           isRemote={project?.isRemote || false}
           sshConnectionId={project?.sshConnectionId || null}
         />
-      ) : null}
-      {taskId && !isTaskMultiAgent ? (
-        <BrowserToggleButton taskId={taskId} taskPath={taskPath} parentProjectPath={projectPath} />
       ) : null}
     </Titlebar>
   );

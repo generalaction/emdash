@@ -88,11 +88,7 @@ interface SectionConfig {
   component: React.ReactNode;
 }
 
-export const SettingsPage: React.FC = ({
-  initialTab = 'general',
-}: {
-  initialTab?: SettingsPageTab;
-}) => {
+export function SettingsPage({ initialTab = 'general' }: { initialTab?: SettingsPageTab }) {
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab);
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const taskSettings = useTaskSettings();
@@ -328,4 +324,4 @@ export const SettingsPage: React.FC = ({
       </div>
     </div>
   );
-};
+}

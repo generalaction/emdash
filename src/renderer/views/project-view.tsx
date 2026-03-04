@@ -6,6 +6,7 @@ import { useProjectManagementContext } from '@/contexts/ProjectManagementProvide
 import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useWorkspaceNavigation } from '@/contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '@/hooks/useProjectBranchOptions';
+import OpenInMenu from '@/components/titlebar/OpenInMenu';
 
 export function ProjectTitlebar() {
   const project = useCurrentProject();
@@ -15,6 +16,8 @@ export function ProjectTitlebar() {
 
   const tasks = project ? (tasksByProjectId[project.id] ?? []) : [];
   const projectWithTasks = project ? { ...project, tasks } : null;
+
+  const currentPath = project?.isRemote ? project?.remotePath : project?.path || null;
 
   return (
     <Titlebar>
@@ -34,6 +37,14 @@ export function ProjectTitlebar() {
           />
         </div>
       </div>
+      {currentPath && (
+        <OpenInMenu
+          path={currentPath}
+          align="right"
+          isRemote={project?.isRemote || false}
+          sshConnectionId={project?.sshConnectionId || null}
+        />
+      )}
     </Titlebar>
   );
 }
@@ -49,7 +60,7 @@ export function ProjectMainPanel() {
     handleArchiveTask,
     handleRestoreTask,
   } = useTaskManagementContext();
-  const { projectBranchOptions, projectDefaultBranch, isLoadingBranches, setProjectDefaultBranch } =
+  const { projectBranchOptions, isLoadingBranches, setProjectDefaultBranch } =
     useProjectBranchOptions(project);
 
   if (!project) {
