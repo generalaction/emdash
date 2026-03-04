@@ -126,7 +126,10 @@ function parseNdjson(text: string): Array<{ login: string; avatar_url?: string }
   for (const line of (text || '').trim().split('\n')) {
     if (!line.trim()) continue;
     try {
-      results.push(JSON.parse(line));
+      const obj = JSON.parse(line);
+      if (typeof obj?.login === 'string' && obj.login) {
+        results.push(obj);
+      }
     } catch {}
   }
   return results;

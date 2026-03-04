@@ -76,7 +76,8 @@ export function ReviewersSection({
   const requestedLogins = new Set(reviewers.map((r) => r.login));
 
   useEffect(() => {
-    if (!open || collaborators.length > 0) return;
+    if (!open) return;
+    setCollaborators([]);
     setCollabLoading(true);
     setCollabError(false);
     window.electronAPI
