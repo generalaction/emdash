@@ -329,78 +329,79 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
       <div className="bg-muted px-3 py-2">
-        {hasChanges ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex shrink-0 items-center gap-1 text-xs">
-              <span className="font-medium text-green-600 dark:text-green-400">
-                +{totalChanges.additions}
-              </span>
-              <span className="text-muted-foreground">&middot;</span>
-              <span className="font-medium text-red-600 dark:text-red-400">
-                -{totalChanges.deletions}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {onOpenChanges && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 px-2 text-xs"
-                  title="View all changes and history"
-                  onClick={() => onOpenChanges(undefined, safeTaskPath)}
-                >
-                  <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Changes</span>
-                </Button>
-              )}
+        <div className="flex w-full items-center justify-between gap-2">
+          <div className="flex shrink-0 items-center gap-1 text-xs">
+            {hasChanges ? (
+              <>
+                <span className="font-medium text-green-600 dark:text-green-400">
+                  +{totalChanges.additions}
+                </span>
+                <span className="text-muted-foreground">&middot;</span>
+                <span className="font-medium text-red-600 dark:text-red-400">
+                  -{totalChanges.deletions}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
+                <span className="text-muted-foreground">&middot;</span>
+                <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+              </>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {onOpenChanges && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 px-2 text-xs"
+                title="View all changes and history"
+                onClick={() => onOpenChanges(undefined, safeTaskPath)}
+              >
+                <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Changes</span>
+              </Button>
+            )}
+            {hasChanges ? (
               <PrActionButton
                 mode={prMode}
                 onModeChange={selectPrMode}
                 onExecute={handlePrAction}
                 isLoading={isActionLoading}
               />
-            </div>
+            ) : isPrLoading ? (
+              <div className="flex items-center justify-center p-1">
+                <Spinner size="sm" className="h-3.5 w-3.5" />
+              </div>
+            ) : pr ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (pr.url) window.electronAPI?.openExternal?.(pr.url);
+                }}
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+              >
+                {pr.isDraft
+                  ? 'Draft'
+                  : String(pr.state).toUpperCase() === 'OPEN'
+                    ? 'View PR'
+                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                <ArrowUpRight className="size-3" />
+              </button>
+            ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
+              <PrActionButton
+                mode={prMode}
+                onModeChange={selectPrMode}
+                onExecute={handlePrAction}
+                isLoading={isActionLoading || branchStatusLoading}
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground">No PR for this task</span>
+            )}
           </div>
-        ) : (
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-center gap-2 p-2">
-              <span className="text-sm font-medium text-foreground">Changes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {isPrLoading ? (
-                <div className="flex items-center justify-center p-1">
-                  <Spinner size="sm" className="h-3.5 w-3.5" />
-                </div>
-              ) : pr ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (pr.url) window.electronAPI?.openExternal?.(pr.url);
-                  }}
-                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-                >
-                  {pr.isDraft
-                    ? 'Draft'
-                    : String(pr.state).toUpperCase() === 'OPEN'
-                      ? 'View PR'
-                      : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-                  <ArrowUpRight className="size-3" />
-                </button>
-              ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
-                <PrActionButton
-                  mode={prMode}
-                  onModeChange={selectPrMode}
-                  onExecute={handlePrAction}
-                  isLoading={isActionLoading || branchStatusLoading}
-                />
-              ) : (
-                <span className="text-xs text-muted-foreground">No PR for this task</span>
-              )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {pr && hasChanges && (
