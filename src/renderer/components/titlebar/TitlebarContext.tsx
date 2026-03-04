@@ -1,6 +1,7 @@
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { Project, Task } from '../../types/app';
+import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 
 interface TitlebarContextProps {
   projects: Project[];
@@ -17,11 +18,13 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
   onSelectProject,
   onSelectTask,
 }) => {
+  const { tasksByProjectId } = useTaskManagementContext();
+
   if (!selectedProject) {
     return <div />;
   }
 
-  const tasks = selectedProject?.tasks ?? [];
+  const tasks = selectedProject ? (tasksByProjectId[selectedProject.id] ?? []) : [];
   const projectValue = selectedProject.id;
   const noTaskValue = '__no_task_selected__';
   const taskValue = activeTask?.id ?? noTaskValue;

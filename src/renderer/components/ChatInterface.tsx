@@ -28,6 +28,7 @@ import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import type { Project } from '../types/app';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 declare const window: Window & {
   electronAPI: {
@@ -64,6 +65,7 @@ const ChatInterface: React.FC<Props> = ({
 }) => {
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
+  const { tasksByProjectId } = useTaskManagementContext();
   const [isAgentInstalled, setIsAgentInstalled] = useState<boolean | null>(null);
   const [agentStatuses, setAgentStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
@@ -863,11 +865,12 @@ const ChatInterface: React.FC<Props> = ({
       const generated = generateTaskName(message);
       if (!generated) return;
 
-      const existingNames = (project.tasks || []).map((t) => t.name);
+      const projectTasks = project ? (tasksByProjectId[project.id] ?? []) : [];
+      const existingNames = projectTasks.map((t) => t.name);
       const uniqueName = ensureUniqueTaskName(generated, existingNames);
       void onRenameTask(project, task, uniqueName);
     },
-    [project, task, onRenameTask]
+    [project, task, onRenameTask, tasksByProjectId]
   );
 
   // Whether to enable first-message capture for this task

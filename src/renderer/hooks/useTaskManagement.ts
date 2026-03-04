@@ -382,9 +382,12 @@ export function useTaskManagement() {
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
       activateProjectView(targetProject);
-      openTaskModal();
+      // Pass the project ID explicitly to avoid stale closure issues
+      showModal('taskModal', {
+        targetProjectId: targetProject.id,
+      });
     },
-    [activateProjectView, projects, openTaskModal]
+    [activateProjectView, projects, showModal]
   );
 
   // ---------------------------------------------------------------------------
@@ -915,12 +918,18 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      targetProjectId?: string
     ) => {
-      if (!selectedProject) return;
+      // Use explicitly passed project ID or fall back to selectedProject
+      const targetProject = targetProjectId
+        ? projects.find((p) => p.id === targetProjectId)
+        : selectedProject;
+
+      if (!targetProject) return;
       setIsCreatingTask(true);
       createTaskMutation.mutate({
-        project: selectedProject,
+        project: targetProject,
         taskName,
         initialPrompt,
         agentRuns,
@@ -933,7 +942,7 @@ export function useTaskManagement() {
         baseRef,
       });
     },
-    [selectedProject, createTaskMutation]
+    [selectedProject, projects, createTaskMutation]
   );
 
   const handleTaskInterfaceReady = useCallback(() => {
@@ -965,7 +974,8 @@ export function useTaskManagement() {
           result.autoApprove,
           result.useWorktree,
           result.baseRef,
-          result.nameGenerated
+          result.nameGenerated,
+          result.targetProjectId
         ),
     });
   };

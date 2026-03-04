@@ -26,20 +26,31 @@ const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { projects, handleSelectProject, handleOpenProject } = useProjectManagementContext();
-  const { handleSelectTask } = useTaskManagementContext();
+  const { handleSelectTask, tasksByProjectId } = useTaskManagementContext();
+
+  // Populate projects with their tasks from tasksByProjectId
+  const projectsWithTasks = React.useMemo(
+    () =>
+      projects.map((project) => ({
+        ...project,
+        tasks: tasksByProjectId[project.id] ?? [],
+      })),
+    [projects, tasksByProjectId]
+  );
 
   return (
     <CommandPalette
       isOpen={isOpen}
       onClose={onClose}
-      projects={projects as any}
+      projects={projectsWithTasks as any}
       onSelectProject={(projectId) => {
         const project = projects.find((p) => p.id === projectId);
         if (project) handleSelectProject(project);
       }}
       onSelectTask={(projectId, taskId) => {
+        const tasks = tasksByProjectId[projectId] ?? [];
+        const task = tasks.find((w: Task) => w.id === taskId);
         const project = projects.find((p) => p.id === projectId);
-        const task = project?.tasks?.find((w: Task) => w.id === taskId);
         if (project && task) {
           handleSelectProject(project);
           handleSelectTask(task);
