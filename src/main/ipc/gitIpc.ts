@@ -121,6 +121,17 @@ function validateTaskPath(taskPath: string | undefined): string | null {
   return null;
 }
 
+function parseNdjson(text: string): Array<{ login: string; avatar_url?: string }> {
+  const results: Array<{ login: string; avatar_url?: string }> = [];
+  for (const line of (text || '').trim().split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      results.push(JSON.parse(line));
+    } catch {}
+  }
+  return results;
+}
+
 const broadcastGitStatusChange = (taskPath: string, error?: string) => {
   const windows = BrowserWindow.getAllWindows();
   windows.forEach((window) => {
@@ -2351,6 +2362,99 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       const result = await gitSoftResetLastCommit(args.taskPath);
       broadcastGitStatusChange(args.taskPath);
       return { success: true, subject: result.subject, body: result.body };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Get PR reviewers (requested + review states) via GitHub CLI
+  ipcMain.handle('git:get-pr-reviewers', async (_, args: { taskPath: string }) => {
+    const { taskPath } = args || ({} as { taskPath: string });
+    try {
+      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+      if (remoteProject) {
+        const connId = remoteProject.sshConnectionId;
+        const result = await remoteGitService.execGh(
+          connId,
+          taskPath,
+          'pr view --json reviewRequests,reviews,number'
+        );
+        if (result.exitCode !== 0) {
+          const msg = result.stderr || '';
+          if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
+            return { success: true, reviewRequests: [], reviews: [] };
+          }
+          return { success: false, error: msg || 'Failed to query reviewers' };
+        }
+        const data = result.stdout.trim()
+          ? JSON.parse(result.stdout.trim())
+          : { reviewRequests: [], reviews: [], number: 0 };
+        return {
+          success: true,
+          reviewRequests: data.reviewRequests || [],
+          reviews: data.reviews || [],
+        };
+      }
+
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+      try {
+        const { stdout } = await execFileAsync(
+          'gh',
+          ['pr', 'view', '--json', 'reviewRequests,reviews,number'],
+          { cwd: taskPath }
+        );
+        const data = stdout.trim()
+          ? JSON.parse(stdout.trim())
+          : { reviewRequests: [], reviews: [], number: 0 };
+        return {
+          success: true,
+          reviewRequests: data.reviewRequests || [],
+          reviews: data.reviews || [],
+        };
+      } catch (err) {
+        const msg = String(err);
+        if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
+          return { success: true, reviewRequests: [], reviews: [] };
+        }
+        throw err;
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Git: Get repo collaborators for reviewer picker
+  ipcMain.handle('git:get-repo-collaborators', async (_, args: { taskPath: string }) => {
+    const { taskPath } = args || ({} as { taskPath: string });
+    try {
+      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+      if (remoteProject) {
+        const connId = remoteProject.sshConnectionId;
+        const result = await remoteGitService.execGh(
+          connId,
+          taskPath,
+          "api repos/{owner}/{repo}/collaborators --jq '.[] | {login: .login, avatar_url: .avatar_url}'"
+        );
+        if (result.exitCode !== 0) {
+          return { success: false, error: result.stderr || 'Failed to fetch collaborators' };
+        }
+        const collaborators = parseNdjson(result.stdout);
+        return { success: true, collaborators };
+      }
+
+      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+      const { stdout } = await execFileAsync(
+        'gh',
+        [
+          'api',
+          'repos/{owner}/{repo}/collaborators',
+          '--jq',
+          '.[] | {login: .login, avatar_url: .avatar_url}',
+        ],
+        { cwd: taskPath }
+      );
+      const collaborators = parseNdjson(stdout);
+      return { success: true, collaborators };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
