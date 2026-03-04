@@ -12,6 +12,7 @@ import { ProjectManagementProvider } from './contexts/ProjectManagementProvider'
 import { TaskManagementProvider } from './contexts/TaskManagementContext';
 import { ModalProvider } from './contexts/ModalProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
+import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
 
 const queryClient = new QueryClient();
 
@@ -28,7 +29,11 @@ export function App() {
     if (isFirstLaunchBool) {
       return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
-    return <Workspace />;
+    return (
+      <WorkspaceViewProvider>
+        <Workspace />
+      </WorkspaceViewProvider>
+    );
   };
 
   return (
