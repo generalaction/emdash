@@ -1,30 +1,32 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { useAgentEvents } from '../hooks/useAgentEvents';
+import { useEffect, useRef } from 'react';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
+import { useWorkspaceSlots, useWorkspaceWrapParams } from '../contexts/WorkspaceViewProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
-import { activityStore } from '../lib/activityStore';
+import { useAgent } from '../contexts/AgentProvider';
 import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';
 import { soundPlayer } from '../lib/soundPlayer';
-import type { AgentEvent } from '@shared/events/agentEvents';
 import { events } from '../lib/rpc';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 
 /**
  * WorkspaceEffects mounts all persistent global side effects:
- * - Agent event listener (sounds + activity store)
+ * - Sound player settings sync
  * - Update notifier
- * - IPC listeners: menu actions, notification focus, Undo/Redo, etc.
- * Renders nothing.
+ * - IPC listeners: notification focus, menu actions, Undo/Redo, etc.
+ * Renders nothing. Agent event subscription is handled by AgentProvider.
  */
 export function WorkspaceEffects() {
   const { showModal } = useModalContext();
   const { navigate } = useWorkspaceNavigation();
   const { allTasks } = useTaskManagementContext();
   const { settings } = useAppSettings();
+  const { dismissNotifications } = useAgent();
+  const { currentView } = useWorkspaceSlots();
+  const { wrapParams } = useWorkspaceWrapParams();
 
   // Sync sound player enabled state from settings
   useEffect(() => {
@@ -34,11 +36,12 @@ export function WorkspaceEffects() {
     soundPlayer.setEnabled(masterEnabled && soundOn);
   }, [settings?.notifications]);
 
-  // Agent event handling: sounds + activity store
-  const handleAgentEvent = useCallback((event: AgentEvent) => {
-    activityStore.handleAgentEvent(event);
-  }, []);
-  useAgentEvents(handleAgentEvent);
+  // Dismiss notifications when the user navigates to a task
+  useEffect(() => {
+    if (currentView === 'task' && typeof wrapParams.taskId === 'string') {
+      dismissNotifications(wrapParams.taskId);
+    }
+  }, [currentView, wrapParams.taskId, dismissNotifications]);
 
   // Show toast on update availability
   useUpdateNotifier({
@@ -56,9 +59,10 @@ export function WorkspaceEffects() {
     return events.on(notificationFocusTaskChannel, ({ taskId }) => {
       const entry = allTasksRef.current.find((t) => t.task.id === taskId);
       if (!entry) return;
+      dismissNotifications(taskId);
       navigate('task', { projectId: entry.task.projectId, taskId: entry.task.id });
     });
-  }, [navigate]);
+  }, [navigate, dismissNotifications]);
 
   // Native menu: "Settings"
   useEffect(() => {

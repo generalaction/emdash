@@ -3,9 +3,19 @@ import type { Task } from '../../types/app';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import { useTaskBusy } from '../../hooks/useTaskBusy';
+import { useAgent } from '../../contexts/AgentProvider';
+import type { NotificationType } from '@shared/events/agentEvents';
 import AgentTooltip from './AgentTooltip';
 import AgentLogo from '../AgentLogo';
 import { Spinner } from '../ui/spinner';
+import { AlertCircle } from 'lucide-react';
+
+function notificationLabel(type: NotificationType): string {
+  if (type === 'permission_prompt') return 'Waiting for permission';
+  if (type === 'idle_prompt') return 'Waiting for input';
+  if (type === 'elicitation_dialog') return 'Agent has a question';
+  return 'Needs attention';
+}
 
 function resolveAgent(taskId: string): UiAgent | null {
   try {
@@ -37,6 +47,12 @@ const KanbanCard: React.FC<{
 
   const handleClick = () => onOpen?.(ws);
   const busy = useTaskBusy(ws.id);
+  const { notificationsByTaskId } = useAgent();
+  const pendingNotifications = notificationsByTaskId[ws.id] ?? [];
+  const needsAttention = pendingNotifications.length > 0;
+  const attentionTitle = needsAttention
+    ? pendingNotifications.map((n) => notificationLabel(n.type)).join(', ')
+    : undefined;
 
   return (
     <AgentTooltip
@@ -70,9 +86,14 @@ const KanbanCard: React.FC<{
             <div className="mt-0.5 text-[11px] text-muted-foreground">{ws.branch}</div>
           </div>
 
-          {agents.length > 0 && (SHOW_AGENT_LOGOS || busy) ? (
+          {agents.length > 0 && (SHOW_AGENT_LOGOS || busy || needsAttention) ? (
             <div className="flex shrink-0 items-center gap-1">
               {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
+              {needsAttention ? (
+                <span title={attentionTitle} aria-label={attentionTitle}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                </span>
+              ) : null}
               {SHOW_AGENT_LOGOS
                 ? agents.slice(0, 3).map((a) => {
                     const asset = agentAssets[a];
@@ -105,10 +126,15 @@ const KanbanCard: React.FC<{
                 </span>
               ) : null}
             </div>
-          ) : asset ? (
-            SHOW_AGENT_LOGOS ? (
-              <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0 text-[11px] leading-none text-muted-foreground">
-                {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
+          ) : busy || needsAttention ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {busy ? <Spinner size="sm" className="shrink-0 text-muted-foreground" /> : null}
+              {needsAttention ? (
+                <span title={attentionTitle} aria-label={attentionTitle}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                </span>
+              ) : null}
+              {asset && SHOW_AGENT_LOGOS ? (
                 <AgentLogo
                   logo={asset.logo}
                   alt={asset.alt}
@@ -116,10 +142,8 @@ const KanbanCard: React.FC<{
                   invertInDark={asset.invertInDark}
                   className="h-3.5 w-3.5 shrink-0 rounded-sm"
                 />
-              </span>
-            ) : busy ? (
-              <Spinner size="sm" className="shrink-0 text-muted-foreground" />
-            ) : null
+              ) : null}
+            </div>
           ) : null}
         </div>
 

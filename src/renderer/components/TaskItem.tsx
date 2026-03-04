@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowUpRight, AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
+import { AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
+import { useAgent } from '../contexts/AgentProvider';
+import type { NotificationType } from '@shared/events/agentEvents';
 
 import PrPreviewTooltip from './PrPreviewTooltip';
 import TaskDeleteButton from './TaskDeleteButton';
@@ -19,6 +21,13 @@ import {
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();
+}
+
+function notificationLabel(type: NotificationType): string {
+  if (type === 'permission_prompt') return 'Waiting for permission';
+  if (type === 'idle_prompt') return 'Waiting for input';
+  if (type === 'elicitation_dialog') return 'Agent has a question';
+  return 'Needs attention';
 }
 
 function formatCompactDate(dateStr?: string): string {
@@ -76,6 +85,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isRunning = useTaskBusy(task.id);
+  const { notificationsByTaskId } = useAgent();
+  const pendingNotifications = notificationsByTaskId[task.id] ?? [];
+  const needsAttention = pendingNotifications.length > 0;
+  const attentionTitle = needsAttention
+    ? pendingNotifications.map((n) => notificationLabel(n.type)).join(', ')
+    : undefined;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -241,6 +256,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {(isRunning || task.status === 'running') && (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+        )}
+        {needsAttention && (
+          <span title={attentionTitle} aria-label={attentionTitle}>
+            <AlertCircle className="h-3 w-3 flex-shrink-0 text-amber-500" />
+          </span>
         )}
         {isEditing ? (
           <input

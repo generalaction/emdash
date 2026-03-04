@@ -13,6 +13,10 @@ class ActivityStore {
   private states = new Map<string, boolean>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private busySince = new Map<string, number>();
+  // PTY subscriptions shared across all JS subscribers for a given (wsId, kind).
+  // Prevents N×21 classifyActivity calls when N components watch the same workspace.
+  private ptyKindOffs = new Map<string, Map<PtyIdKind, Array<() => void>>>();
+  private refCount = new Map<string, number>();
 
   private armTimer(wsId: string) {
     const prev = this.timers.get(wsId);
@@ -72,6 +76,44 @@ class ActivityStore {
     }
   }
 
+  private ensurePtyKind(wsId: string, kind: PtyIdKind): void {
+    let kindMap = this.ptyKindOffs.get(wsId);
+    if (!kindMap) {
+      kindMap = new Map();
+      this.ptyKindOffs.set(wsId, kindMap);
+    }
+    if (kindMap.has(kind)) return;
+
+    const offs: Array<() => void> = [];
+    for (const prov of PROVIDER_IDS) {
+      const ptyId = makePtyId(prov, kind, wsId);
+      offs.push(
+        events.on(
+          ptyDataChannel,
+          (chunk) => {
+            try {
+              const signal = classifyActivity(prov, chunk || '');
+              if (signal === 'busy') this.setBusy(wsId, true, true);
+              else if (signal === 'idle') this.setBusy(wsId, false, true);
+              else if (this.states.get(wsId)) this.armTimer(wsId);
+            } catch {}
+          },
+          ptyId
+        ),
+        events.on(
+          ptyExitChannel,
+          () => {
+            try {
+              this.setBusy(wsId, false, true);
+            } catch {}
+          },
+          ptyId
+        )
+      );
+    }
+    kindMap.set(kind, offs);
+  }
+
   setTaskBusy(wsId: string, busy: boolean) {
     this.setBusy(wsId, busy, false);
   }
@@ -95,44 +137,16 @@ class ActivityStore {
     const set = this.listeners.get(wsId) || new Set<Listener>();
     set.add(fn);
     this.listeners.set(wsId, set);
-    // emit current
     fn(this.states.get(wsId) || false);
+
     // `kinds` can be narrowed by callers for performance:
     // - task-level busy: { kinds: ['main'] } (default)
     // - conversation-level busy: { kinds: ['chat'] }
-    const offDirect: Array<() => void> = [];
-    const offExitDirect: Array<() => void> = [];
-    const kinds = opts?.kinds?.length ? opts.kinds : (['main'] as const);
-    for (const prov of PROVIDER_IDS) {
-      for (const kind of kinds) {
-        const ptyId = makePtyId(prov, kind, wsId);
-        offDirect.push(
-          events.on(
-            ptyDataChannel,
-            (chunk) => {
-              try {
-                const signal = classifyActivity(prov, chunk || '');
-                if (signal === 'busy') this.setBusy(wsId, true, true);
-                else if (signal === 'idle') this.setBusy(wsId, false, true);
-                else if (this.states.get(wsId)) this.armTimer(wsId);
-              } catch {}
-            },
-            ptyId
-          )
-        );
-        offExitDirect.push(
-          events.on(
-            ptyExitChannel,
-            () => {
-              try {
-                this.setBusy(wsId, false, true);
-              } catch {}
-            },
-            ptyId
-          )
-        );
-      }
+    const kinds: ReadonlyArray<PtyIdKind> = opts?.kinds?.length ? opts.kinds : ['main'];
+    for (const kind of kinds) {
+      this.ensurePtyKind(wsId, kind);
     }
+    this.refCount.set(wsId, (this.refCount.get(wsId) ?? 0) + 1);
 
     return () => {
       const s = this.listeners.get(wsId);
@@ -140,8 +154,19 @@ class ActivityStore {
         s.delete(fn);
         if (s.size === 0) this.listeners.delete(wsId);
       }
-      for (const off of offDirect) off();
-      for (const off of offExitDirect) off();
+      const count = (this.refCount.get(wsId) ?? 1) - 1;
+      if (count <= 0) {
+        this.refCount.delete(wsId);
+        const kindMap = this.ptyKindOffs.get(wsId);
+        if (kindMap) {
+          for (const offs of kindMap.values()) {
+            for (const off of offs) off();
+          }
+          this.ptyKindOffs.delete(wsId);
+        }
+      } else {
+        this.refCount.set(wsId, count);
+      }
     };
   }
 }

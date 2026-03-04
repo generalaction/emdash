@@ -13,6 +13,7 @@ import { ModalProvider } from './contexts/ModalProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
 import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
+import { AgentProvider } from './contexts/AgentProvider';
 import BrowserProvider from './providers/BrowserProvider';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { SidebarProvider } from './components/ui/sidebar';
@@ -49,17 +50,19 @@ export function App() {
                 <ProjectManagementProvider>
                   <TaskManagementProvider>
                     <AppSettingsProvider>
-                      <KeyboardSettingsProvider>
-                        <BrowserProvider>
-                          <SidebarProvider>
-                            <RightSidebarProvider>
-                              <ThemeProvider>
-                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                              </ThemeProvider>
-                            </RightSidebarProvider>
-                          </SidebarProvider>
-                        </BrowserProvider>
-                      </KeyboardSettingsProvider>
+                      <AgentProvider>
+                        <KeyboardSettingsProvider>
+                          <BrowserProvider>
+                            <SidebarProvider>
+                              <RightSidebarProvider>
+                                <ThemeProvider>
+                                  <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                </ThemeProvider>
+                              </RightSidebarProvider>
+                            </SidebarProvider>
+                          </BrowserProvider>
+                        </KeyboardSettingsProvider>
+                      </AgentProvider>
                     </AppSettingsProvider>
                   </TaskManagementProvider>
                 </ProjectManagementProvider>
