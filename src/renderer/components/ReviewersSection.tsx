@@ -37,6 +37,18 @@ function ReviewStateBadge({ state }: { state: ReviewerState }) {
           Requested
         </span>
       );
+    case 'COMMENTED':
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+          Commented
+        </span>
+      );
+    case 'DISMISSED':
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          Dismissed
+        </span>
+      );
     default:
       return null;
   }
@@ -64,7 +76,7 @@ export function ReviewersSection({
   const requestedLogins = new Set(reviewers.map((r) => r.login));
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || collaborators.length > 0) return;
     setCollabLoading(true);
     setCollabError(false);
     window.electronAPI
@@ -85,6 +97,7 @@ export function ReviewersSection({
     : collaborators.slice(0, 4);
 
   const handleToggle = (login: string) => {
+    if (isReadOnly) return;
     if (requestedLogins.has(login)) {
       onRemove(login);
     } else {
@@ -93,6 +106,7 @@ export function ReviewersSection({
   };
 
   const handleManualAdd = () => {
+    if (isReadOnly) return;
     const login = manualLogin.trim();
     if (!login) return;
     onAdd(login);

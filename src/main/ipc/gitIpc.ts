@@ -2371,6 +2371,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:get-pr-reviewers', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });
     try {
+      const pathErr = validateTaskPath(taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
       if (remoteProject) {
         const connId = remoteProject.sshConnectionId;
@@ -2427,6 +2429,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:get-repo-collaborators', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });
     try {
+      const pathErr = validateTaskPath(taskPath);
+      if (pathErr) return { success: false, error: pathErr };
       const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
       if (remoteProject) {
         const connId = remoteProject.sshConnectionId;
@@ -2464,13 +2468,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:add-pr-reviewer', async (_, args: { taskPath: string; login: string }) => {
     const { taskPath, login } = args || ({} as { taskPath: string; login: string });
     try {
+      const pathErr = validateTaskPath(taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      if (!/^[a-zA-Z0-9][-a-zA-Z0-9]{0,38}$/.test(login)) {
+        return { success: false, error: 'Invalid GitHub login' };
+      }
       const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
       if (remoteProject) {
         const connId = remoteProject.sshConnectionId;
         const result = await remoteGitService.execGh(
           connId,
           taskPath,
-          `pr edit --add-reviewer ${login}`
+          `pr edit --add-reviewer ${quoteGhArg(login)}`
         );
         if (result.exitCode !== 0) {
           return { success: false, error: result.stderr || 'Failed to add reviewer' };
@@ -2490,13 +2499,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:remove-pr-reviewer', async (_, args: { taskPath: string; login: string }) => {
     const { taskPath, login } = args || ({} as { taskPath: string; login: string });
     try {
+      const pathErr = validateTaskPath(taskPath);
+      if (pathErr) return { success: false, error: pathErr };
+      if (!/^[a-zA-Z0-9][-a-zA-Z0-9]{0,38}$/.test(login)) {
+        return { success: false, error: 'Invalid GitHub login' };
+      }
       const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
       if (remoteProject) {
         const connId = remoteProject.sshConnectionId;
         const result = await remoteGitService.execGh(
           connId,
           taskPath,
-          `pr edit --remove-reviewer ${login}`
+          `pr edit --remove-reviewer ${quoteGhArg(login)}`
         );
         if (result.exitCode !== 0) {
           return { success: false, error: result.stderr || 'Failed to remove reviewer' };
