@@ -63,11 +63,7 @@ interface TaskAdvancedSettingsProps {
   selectedGitlabIssue: GitLabIssueSummary | null;
   onGitlabIssueChange: (issue: GitLabIssueSummary | null) => void;
   isGitlabConnected: boolean | null;
-  onGitlabConnect: (credentials: {
-    instanceUrl: string;
-    token: string;
-    projectPathOverride?: string;
-  }) => Promise<void>;
+  onGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
@@ -121,7 +117,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const [gitlabSetupOpen, setGitlabSetupOpen] = useState(false);
   const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
   const [gitlabToken, setGitlabToken] = useState('');
-  const [gitlabProjectPathOverride, setGitlabProjectPathOverride] = useState('');
   const [gitlabConnectionError, setGitlabConnectionError] = useState<string | null>(null);
 
   const handleLinearConnect = useCallback(async () => {
@@ -162,16 +157,14 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       await onGitlabConnect({
         instanceUrl: gitlabInstanceUrl.trim(),
         token: gitlabToken.trim(),
-        projectPathOverride: gitlabProjectPathOverride.trim() || undefined,
       });
       setGitlabSetupOpen(false);
       setGitlabInstanceUrl('');
       setGitlabToken('');
-      setGitlabProjectPathOverride('');
     } catch (error: any) {
       setGitlabConnectionError(error?.message || 'Failed to connect.');
     }
-  }, [gitlabInstanceUrl, gitlabToken, gitlabProjectPathOverride, onGitlabConnect]);
+  }, [gitlabInstanceUrl, gitlabToken, onGitlabConnect]);
 
   const handleLinearIssueChange = useCallback(
     (issue: LinearIssueSummary | null) => {
@@ -602,12 +595,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
               <GitLabSetupForm
                 instanceUrl={gitlabInstanceUrl}
                 token={gitlabToken}
-                projectPathOverride={gitlabProjectPathOverride}
                 onChange={(u) => {
                   if (typeof u.instanceUrl === 'string') setGitlabInstanceUrl(u.instanceUrl);
                   if (typeof u.token === 'string') setGitlabToken(u.token);
-                  if (typeof u.projectPathOverride === 'string')
-                    setGitlabProjectPathOverride(u.projectPathOverride);
                 }}
                 onClose={() => setGitlabSetupOpen(false)}
                 canSubmit={!!(gitlabInstanceUrl.trim() && gitlabToken.trim())}

@@ -22,11 +22,7 @@ interface IntegrationStatus {
 
   // GitLab
   isGitlabConnected: boolean | null;
-  handleGitlabConnect: (credentials: {
-    instanceUrl: string;
-    token: string;
-    projectPathOverride?: string;
-  }) => Promise<void>;
+  handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -156,7 +152,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   );
 
   const handleGitlabConnect = useCallback(
-    async (credentials: { instanceUrl: string; token: string; projectPathOverride?: string }) => {
+    async (credentials: { instanceUrl: string; token: string }) => {
       const res = await window.electronAPI.gitlabSaveCredentials?.(credentials);
       if (res?.success) {
         setIsGitlabConnected(true);

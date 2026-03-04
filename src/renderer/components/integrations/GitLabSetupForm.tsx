@@ -7,10 +7,7 @@ import AgentLogo from '../AgentLogo';
 interface Props {
   instanceUrl: string;
   token: string;
-  projectPathOverride: string;
-  onChange: (
-    update: Partial<{ instanceUrl: string; token: string; projectPathOverride: string }>
-  ) => void;
+  onChange: (update: Partial<{ instanceUrl: string; token: string }>) => void;
   onSubmit: () => void | Promise<void>;
   onClose: () => void;
   canSubmit: boolean;
@@ -22,7 +19,6 @@ interface Props {
 const GitLabSetupForm: React.FC<Props> = ({
   instanceUrl,
   token,
-  projectPathOverride,
   onChange,
   onSubmit,
   onClose,
@@ -58,14 +54,6 @@ const GitLabSetupForm: React.FC<Props> = ({
           placeholder="Personal access token"
           value={token}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ token: e.target.value })}
-          className="h-9 w-full"
-        />
-        <Input
-          placeholder="group/subgroup/project (optional override)"
-          value={projectPathOverride}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            onChange({ projectPathOverride: e.target.value })
-          }
           className="h-9 w-full"
         />
       </div>

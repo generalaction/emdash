@@ -5,7 +5,7 @@ import { log } from '../lib/logger';
 export function registerGitlabIpc() {
   ipcMain.handle(
     'gitlab:saveCredentials',
-    async (_e, args: { instanceUrl: string; token: string; projectPathOverride?: string }) => {
+    async (_e, args: { instanceUrl: string; token: string }) => {
       const instanceUrl = String(args?.instanceUrl || '').trim();
       const token = String(args?.token || '').trim();
       if (!instanceUrl || !token) {

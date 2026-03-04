@@ -868,14 +868,12 @@ declare global {
       gitlabSaveCredentials?: (args: {
         instanceUrl: string;
         token: string;
-        projectPathOverride?: string;
       }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
       gitlabClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
       gitlabCheckConnection?: () => Promise<{
         success: boolean;
         username?: string;
         instanceUrl?: string;
-        projectPathOverride?: string;
         error?: string;
       }>;
       gitlabInitialFetch?: (

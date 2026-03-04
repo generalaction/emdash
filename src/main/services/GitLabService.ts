@@ -6,8 +6,6 @@ import { exec } from 'child_process';
 
 const execAsync = promisify(exec);
 
-const GITLAB_OFFICIAL_URL = 'https://gitlab.com';
-
 interface GitLabIssueSummary {
   id: number;
   iid: number; // project-scoped issue number
@@ -40,7 +38,7 @@ export class GitLabService {
       if (siteUrl.length == 0 || token.length == 0) {
         return { success: false, error: 'Instance URL and token are required' };
       }
-      const regex = /^https?:\/\/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/?$/;
+      const regex = /^https?:\/\/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d{1,5})?\/?$/;
       if (!regex.test(siteUrl)) {
         return { success: false, error: 'Invalid URL format' };
       }
@@ -156,13 +154,13 @@ export class GitLabService {
       const { siteUrl } = await this.requireAuth();
       const instanceHost = new URL(siteUrl).hostname.toLowerCase();
 
-      const { stdout, stderr } = await this.execCmd('git remote get-url origin', {
+      const { stdout } = await this.execCmd('git remote get-url origin', {
         cwd: projectPath,
       });
-      if (stderr !== '') {
-        return { success: false, error: stderr };
-      }
       const remoteUrl = stdout.trim();
+      if (!remoteUrl) {
+        return { success: false, error: 'No remote URL found for origin' };
+      }
 
       let remoteHost: string | undefined;
       let slug: string | undefined;

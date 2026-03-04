@@ -495,11 +495,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
   // GitLab integration
-  gitlabSaveCredentials: (args: {
-    instanceUrl: string;
-    token: string;
-    projectPathOverride?: string;
-  }) => ipcRenderer.invoke('gitlab:saveCredentials', args),
+  gitlabSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('gitlab:saveCredentials', args),
   gitlabClearCredentials: () => ipcRenderer.invoke('gitlab:clearCredentials'),
   gitlabCheckConnection: () => ipcRenderer.invoke('gitlab:checkConnection'),
   gitlabInitialFetch: (projectPath: string, limit?: number) =>

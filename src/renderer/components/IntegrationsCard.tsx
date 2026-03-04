@@ -69,7 +69,6 @@ const IntegrationsCard: React.FC = () => {
   // GitLab state
   const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
   const [gitlabToken, setGitlabToken] = useState('');
-  const [gitlabProjectPathOverride, setGitlabProjectPathOverride] = useState('');
   const [gitlabLoading, setGitlabLoading] = useState(false);
 
   // Error states
@@ -252,13 +251,11 @@ const IntegrationsCard: React.FC = () => {
       const res = await window.electronAPI.gitlabSaveCredentials?.({
         instanceUrl: gitlabInstanceUrl.trim(),
         token: gitlabToken.trim(),
-        projectPathOverride: gitlabProjectPathOverride.trim() || undefined,
       });
       if (res?.success) {
         setGitlabConnected(true);
         setGitlabInstanceUrl('');
         setGitlabToken('');
-        setGitlabProjectPathOverride('');
         setIntegrationSetupModal(null);
       } else {
         setGitlabError(res?.error || 'Failed to connect.');
@@ -268,7 +265,7 @@ const IntegrationsCard: React.FC = () => {
     } finally {
       setGitlabLoading(false);
     }
-  }, [gitlabInstanceUrl, gitlabToken, gitlabProjectPathOverride]);
+  }, [gitlabInstanceUrl, gitlabToken]);
 
   const handleGitlabDisconnect = useCallback(async () => {
     try {
@@ -277,7 +274,6 @@ const IntegrationsCard: React.FC = () => {
         setGitlabConnected(false);
         setGitlabInstanceUrl('');
         setGitlabToken('');
-        setGitlabProjectPathOverride('');
         setIntegrationSetupModal(null);
       }
     } catch (error) {
@@ -531,12 +527,9 @@ const IntegrationsCard: React.FC = () => {
                 <GitLabSetupForm
                   instanceUrl={gitlabInstanceUrl}
                   token={gitlabToken}
-                  projectPathOverride={gitlabProjectPathOverride}
                   onChange={(u) => {
                     if (typeof u.instanceUrl === 'string') setGitlabInstanceUrl(u.instanceUrl);
                     if (typeof u.token === 'string') setGitlabToken(u.token);
-                    if (typeof u.projectPathOverride === 'string')
-                      setGitlabProjectPathOverride(u.projectPathOverride);
                   }}
                   onClose={() => {
                     setIntegrationSetupModal(null);
