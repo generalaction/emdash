@@ -33,9 +33,10 @@ import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { execFile } from 'child_process';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import path from 'path';
 import { quoteShellArg } from '../utils/shellEscape';
+import { agentEventService } from './AgentEventService';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -100,10 +101,51 @@ function bufferedSendPtyData(id: string, chunk: string): void {
   ptyDataTimers.set(id, t);
 }
 
+/**
+ * Deterministic port in the ephemeral range (49152–65535) derived from ptyId.
+ * Used for the reverse SSH tunnel so the remote hook can reach the local
+ * AgentEventService.
+ */
+function pickReverseTunnelPort(ptyId: string): number {
+  const hash = createHash('sha256').update(ptyId).digest();
+  const value = hash.readUInt16BE(0); // 0–65535
+  return 49152 + (value % (65535 - 49152 + 1));
+}
+
+/**
+ * Build a single shell command that writes `.claude/settings.local.json` on
+ * the remote with Notification and Stop hook entries.
+ *
+ * The returned string is meant to be executed via `execFileAsync('ssh', ...)`
+ * (an ssh exec channel), NOT injected as PTY keystrokes.  This avoids
+ * terminal line-buffer corruption that garbles long lines typed into the PTY.
+ *
+ * The JSON uses `$EMDASH_HOOK_PORT` etc. as literal text — they are expanded
+ * at hook runtime by the user's shell, not at write time.
+ */
+function buildRemoteHookConfigCommand(cwd: string): string {
+  const notificationCmd = ClaudeHookService.makeHookCommand('notification');
+  const stopCmd = ClaudeHookService.makeHookCommand('stop');
+
+  const config = {
+    hooks: {
+      Notification: [{ hooks: [{ type: 'command', command: notificationCmd }] }],
+      Stop: [{ hooks: [{ type: 'command', command: stopCmd }] }],
+    },
+  };
+
+  const json = JSON.stringify(config);
+  const dir = `${cwd}/.claude`;
+  const filePath = `${dir}/settings.local.json`;
+
+  return `mkdir -p ${quoteShellArg(dir)} && printf '%s\\n' ${quoteShellArg(json)} > ${quoteShellArg(filePath)}`;
+}
+
 function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
   tmux?: { sessionName: string };
+  preProviderCommands?: string[];
 }): string {
   const lines: string[] = [];
   if (args.cwd) {
@@ -111,24 +153,29 @@ function buildRemoteInitKeystrokes(args: {
     // If `cd` fails, the shell will print its own error message.
     lines.push(`cd ${quoteShellArg(args.cwd)}`);
   }
+
+  // Insert any pre-provider setup commands (e.g. export statements for hook env vars)
+  if (args.preProviderCommands?.length) {
+    lines.push(...args.preProviderCommands);
+  }
+
   if (args.provider) {
     const cli = args.provider.cli;
     const install = args.provider.installCommand ? ` Install: ${args.provider.installCommand}` : '';
     const msg = `emdash: ${cli} not found on remote.${install}`;
-    // Run the check inside a POSIX shell so it works even if the user's login shell isn't POSIX
-    // (e.g. fish). PATH/env vars come from the interactive login shell started by `ssh`.
+    const providerCmd = args.provider.cmd;
 
     if (args.tmux) {
       // When tmux is enabled, wrap the provider command in a named tmux session.
       // tmux new-session -As creates-or-attaches in one command.
       // Falls back to running without tmux if tmux isn't installed on the remote.
       const tmuxName = quoteShellArg(args.tmux.sessionName);
-      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(args.provider.cmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${args.provider.cmd}; fi; else printf '%s\\n' ${quoteShellArg(
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(providerCmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
       lines.push(`sh -c ${quoteShellArg(shScript)}`);
     } else {
-      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${args.provider.cmd}; else printf '%s\\n' ${quoteShellArg(
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${providerCmd}; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
       lines.push(`sh -c ${quoteShellArg(shScript)}`);
@@ -808,6 +855,40 @@ export function registerPtyIpc(): void {
           const resolvedConfig = resolveProviderCommandConfig(providerId);
           const mergedEnv = resolvedConfig?.env ? { ...resolvedConfig.env, ...env } : env;
 
+          // Set up reverse SSH tunnel for hook events if the local hook
+          // server is running. This lets the remote agent call back to
+          // the local AgentEventService via the tunnel.
+          const preProviderCommands: string[] = [];
+          const hookPort = agentEventService.getPort();
+          if (hookPort > 0) {
+            const remotePort = pickReverseTunnelPort(id);
+            ssh.args.push('-R', `127.0.0.1:${remotePort}:127.0.0.1:${hookPort}`);
+
+            // Use short `export` lines instead of a long `env K=V ...` prefix.
+            // Each line is resilient to SSH MOTD interleaving and the exports
+            // are inherited by the provider process launched via `exec`.
+            preProviderCommands.push(
+              `export EMDASH_HOOK_PORT=${quoteShellArg(String(remotePort))}`,
+              `export EMDASH_HOOK_TOKEN=${quoteShellArg(agentEventService.getToken())}`,
+              `export EMDASH_PTY_ID=${quoteShellArg(id)}`
+            );
+
+            // For Claude, write hook config on the remote via ssh exec
+            // (not keystroke injection — long JSON lines get corrupted by
+            // terminal line-buffer limits when typed into the PTY).
+            if (providerId === 'claude' && cwd) {
+              try {
+                const hookCmd = buildRemoteHookConfigCommand(cwd);
+                await execFileAsync('ssh', [...ssh.args, ssh.target, hookCmd]);
+              } catch (err: any) {
+                log.warn('ptyIpc:startDirect failed to write remote hook config', {
+                  id,
+                  error: err?.message || String(err),
+                });
+              }
+            }
+          }
+
           const proc = startSshPty({
             id,
             target: ssh.target,
@@ -841,6 +922,7 @@ export function registerPtyIpc(): void {
             cwd,
             provider: remoteProvider,
             tmux: tmuxOpt,
+            preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
           });
           if (remoteInit) {
             proc.write(remoteInit);
