@@ -1027,7 +1027,7 @@ export async function startPty(options: {
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
-  const useCwd = cwd || process.cwd() || os.homedir();
+  const useCwd = cwd || os.homedir();
 
   // Build a clean environment instead of inheriting process.env wholesale.
   //

@@ -74,7 +74,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     : projectPath
       ? `global::${projectPath}`
       : 'global::home';
-  const globalTerminals = useTaskTerminals(globalKey, effectiveCwd, { defaultCwd: effectiveCwd });
+  const globalTerminals = useTaskTerminals(globalKey, effectiveCwd);
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
