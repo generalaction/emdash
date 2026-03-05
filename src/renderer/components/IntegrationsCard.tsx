@@ -18,7 +18,6 @@ import {
 } from './ui/dialog';
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
-import { useModalContext } from '../contexts/ModalProvider';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -40,8 +39,8 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 };
 
 const IntegrationsCard: React.FC = () => {
-  const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubContext();
-  const { showModal, closeModal } = useModalContext();
+  const { authenticated, isLoading, githubLoading, handleGithubConnect, logout } =
+    useGithubContext();
 
   // Connection states
   const [linearConnected, setLinearConnected] = useState(false);
@@ -63,7 +62,6 @@ const IntegrationsCard: React.FC = () => {
   const [jiraLoading, setJiraLoading] = useState(false);
 
   // Error states
-  const [githubError, setGithubError] = useState<string | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   // Check connection statuses on mount
@@ -89,60 +87,6 @@ const IntegrationsCard: React.FC = () => {
     void checkLinear();
     void checkJira();
   }, []);
-
-  // GitHub handlers
-  const handleGithubConnect = useCallback(async () => {
-    setGithubError(null);
-    try {
-      if (!installed) {
-        // Auto-install gh CLI
-        try {
-          await rpc.github.installCLI();
-        } catch (err) {
-          setGithubError(
-            `Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`
-          );
-          return;
-        }
-        await checkStatus();
-      }
-
-      showModal('githubDeviceFlowModal', {
-        onSuccess: async () => {
-          let attempts = 0;
-          const maxAttempts = 15;
-          while (attempts < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            const status = await checkStatus();
-            if (status?.authenticated) break;
-            attempts++;
-          }
-        },
-        onError: (error) => setGithubError(error),
-      });
-      const result = await login();
-
-      if (!result?.success) {
-        setGithubError(result?.error || 'Could not connect.');
-        closeModal();
-      }
-    } catch (error) {
-      console.error('GitHub connect failed:', error);
-      setGithubError('Could not connect.');
-      closeModal();
-    }
-  }, [checkStatus, login, installed, showModal, closeModal]);
-
-  const handleGithubDisconnect = useCallback(async () => {
-    setGithubError(null);
-    try {
-      await logout();
-      await checkStatus();
-    } catch (error) {
-      console.error('GitHub logout failed:', error);
-      setGithubError('Could not disconnect.');
-    }
-  }, [logout, checkStatus]);
 
   // Linear handlers
   const handleLinearConnect = useCallback(async () => {
@@ -200,8 +144,8 @@ const IntegrationsCard: React.FC = () => {
       } else {
         setJiraError(res?.error || 'Failed to connect.');
       }
-    } catch (e: any) {
-      setJiraError(e?.message || 'Failed to connect.');
+    } catch (e) {
+      setJiraError((e as Error)?.message || 'Failed to connect.');
     } finally {
       setJiraLoading(false);
     }
@@ -229,9 +173,9 @@ const IntegrationsCard: React.FC = () => {
       description: 'Connect your repositories',
       logoSvg: githubSvg,
       connected: authenticated,
-      loading: isLoading,
+      loading: isLoading || githubLoading,
       onConnect: handleGithubConnect,
-      onDisconnect: handleGithubDisconnect,
+      onDisconnect: logout,
     },
     {
       id: 'linear',
@@ -309,13 +253,6 @@ const IntegrationsCard: React.FC = () => {
           </div>
         ))}
       </div>
-
-      {/* GitHub error (shown inline since GitHub has no modal) */}
-      {githubError && (
-        <p className="text-xs text-destructive" role="alert">
-          GitHub: {githubError}
-        </p>
-      )}
 
       {/* Integration setup modal */}
       <Dialog
