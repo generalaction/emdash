@@ -695,6 +695,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
+
+  // Workspace provisioning
+  workspaceProvision: (args: {
+    taskId: string;
+    repoUrl: string;
+    branch: string;
+    baseRef: string;
+    provisionCommand: string;
+    projectPath: string;
+  }) => ipcRenderer.invoke('workspace:provision', args),
+  workspaceCancel: (args: { instanceId: string }) => ipcRenderer.invoke('workspace:cancel', args),
+  workspaceTerminate: (args: {
+    instanceId: string;
+    terminateCommand: string;
+    projectPath: string;
+    env?: Record<string, string>;
+  }) => ipcRenderer.invoke('workspace:terminate', args),
+  workspaceStatus: (args: { taskId: string }) => ipcRenderer.invoke('workspace:status', args),
+  onWorkspaceProvisionProgress: (
+    listener: (data: { instanceId: string; line: string }) => void
+  ) => {
+    const channel = 'workspace:provision-progress';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { instanceId: string; line: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onWorkspaceProvisionComplete: (
+    listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => {
+    const channel = 'workspace:provision-complete';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { instanceId: string; status: string; error?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 });
 
 // Type definitions for the exposed API

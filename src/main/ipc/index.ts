@@ -22,6 +22,7 @@ import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { registerWorkspaceIpc } from './workspaceIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 
@@ -63,4 +64,5 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerWorkspaceIpc();
 }
