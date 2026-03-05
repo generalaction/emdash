@@ -225,6 +225,13 @@ vi.mock('../../main/services/ClaudeHookService', () => ({
   ClaudeHookService: {
     writeHookConfig: vi.fn(),
     makeHookCommand: vi.fn((type: string) => `mock-hook-command-${type}`),
+    mergeHookEntries: vi.fn((existing: Record<string, any>) => {
+      existing.hooks = {
+        Notification: [{ hooks: [{ type: 'command', command: 'mock-hook-command-notification' }] }],
+        Stop: [{ hooks: [{ type: 'command', command: 'mock-hook-command-stop' }] }],
+      };
+      return existing;
+    }),
   },
 }));
 

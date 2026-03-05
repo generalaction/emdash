@@ -23,31 +23,14 @@ export class ClaudeHookService {
     );
   }
 
-  static writeHookConfig(worktreePath: string): void {
-    const claudeDir = path.join(worktreePath, '.claude');
-    const settingsPath = path.join(claudeDir, 'settings.local.json');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let existing: Record<string, any> = {};
-    try {
-      const content = fs.readFileSync(settingsPath, 'utf-8');
-      existing = JSON.parse(content);
-    } catch {
-      // File doesn't exist or isn't valid JSON — start fresh
-    }
-
-    // Ensure .claude directory exists
-    try {
-      fs.mkdirSync(claudeDir, { recursive: true });
-    } catch {
-      // May already exist
-    }
-
-    // Merge our hook entries alongside any user-defined hooks.
-    // Claude Code hook format: [{ matcher?, hooks: [{ type, command }] }]
-    // We identify our own entries by the EMDASH_HOOK_PORT marker in the
-    // command string, strip them out, then append a fresh one. This is
-    // idempotent across restarts and preserves user hooks.
+  /**
+   * Merge emdash hook entries into an existing settings object.
+   * Strips old emdash entries (identified by the EMDASH_HOOK_PORT marker),
+   * preserves user-defined hooks, and appends fresh Notification + Stop entries.
+   * Returns the mutated object.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static mergeHookEntries(existing: Record<string, any>): Record<string, any> {
     const hooks = existing.hooks || {};
 
     for (const eventType of ['Notification', 'Stop'] as const) {
@@ -64,6 +47,29 @@ export class ClaudeHookService {
     }
 
     existing.hooks = hooks;
+    return existing;
+  }
+
+  static writeHookConfig(worktreePath: string): void {
+    const claudeDir = path.join(worktreePath, '.claude');
+    const settingsPath = path.join(claudeDir, 'settings.local.json');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let existing: Record<string, any> = {};
+    try {
+      const content = fs.readFileSync(settingsPath, 'utf-8');
+      existing = JSON.parse(content);
+    } catch {
+      // File doesn't exist or isn't valid JSON — start fresh
+    }
+
+    try {
+      fs.mkdirSync(claudeDir, { recursive: true });
+    } catch {
+      // May already exist
+    }
+
+    ClaudeHookService.mergeHookEntries(existing);
 
     try {
       fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2) + '\n');

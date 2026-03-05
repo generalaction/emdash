@@ -143,23 +143,7 @@ async function writeRemoteHookConfig(
     // File doesn't exist, isn't valid JSON, or ssh failed — start fresh
   }
 
-  // Merge hook entries: strip old emdash entries (identified by
-  // EMDASH_HOOK_PORT marker), then append fresh ones.  Preserves
-  // user-defined hooks and all other settings.
-  const hooks = existing.hooks || {};
-  for (const eventType of ['Notification', 'Stop'] as const) {
-    const prev: unknown[] = Array.isArray(hooks[eventType]) ? hooks[eventType] : [];
-    const userEntries = prev.filter(
-      (entry: any) => !JSON.stringify(entry).includes('EMDASH_HOOK_PORT')
-    );
-    userEntries.push({
-      hooks: [
-        { type: 'command', command: ClaudeHookService.makeHookCommand(eventType.toLowerCase()) },
-      ],
-    });
-    hooks[eventType] = userEntries;
-  }
-  existing.hooks = hooks;
+  ClaudeHookService.mergeHookEntries(existing);
 
   const json = JSON.stringify(existing, null, 2);
   await execFileAsync('ssh', [
