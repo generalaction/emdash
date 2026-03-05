@@ -89,6 +89,12 @@ const buildProviderCliArgsMock = vi.fn((opts: any) => {
   }
   return args;
 });
+const getProviderRuntimeCliArgsMock = vi.fn((opts: any) => {
+  if (opts.providerId !== 'codex' || agentEventGetPortMock() <= 0) {
+    return [];
+  }
+  return ['-c', 'notify=["sh","-lc","mock-codex-notify","sh"]'];
+});
 const resolveProviderCommandConfigMock = vi.fn();
 const getPtyMock = vi.fn((id: string) => ptys.get(id));
 const writePtyMock = vi.fn((id: string, data: string) => {
@@ -158,6 +164,7 @@ vi.mock('../../main/services/ptyManager', () => ({
   }),
   parseShellArgs: parseShellArgsMock,
   buildProviderCliArgs: buildProviderCliArgsMock,
+  getProviderRuntimeCliArgs: getProviderRuntimeCliArgsMock,
   resolveProviderCommandConfig: resolveProviderCommandConfigMock,
   killTmuxSession: vi.fn(),
   getTmuxSessionName: vi.fn(() => ''),
@@ -257,6 +264,7 @@ describe('ptyIpc notification lifecycle', () => {
     onDirectCliExitCallback = null;
     lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
+    getProviderRuntimeCliArgsMock.mockClear();
   });
 
   function createSender() {
@@ -561,6 +569,7 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).toContain('export EMDASH_HOOK_TOKEN=');
     expect(written).toContain('export EMDASH_PTY_ID=');
     expect(written).toContain('test-hook-token');
+    expect(written).toContain('notify=["sh","-lc","mock-codex-notify","sh"]');
   });
 
   it('does not add reverse tunnel when hook port is 0', async () => {
@@ -595,6 +604,7 @@ describe('ptyIpc notification lifecycle', () => {
     expect(proc).toBeDefined();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).not.toContain('EMDASH_HOOK_PORT=');
+    expect(written).not.toContain('mock-codex-notify');
   });
 
   it('writes Claude hook config on remote via ssh exec for claude provider', async () => {
