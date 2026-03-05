@@ -195,24 +195,20 @@ export class ForgejoService {
   }
 
   private async fetchIssues(ownerRepo: string, limit: number = 10): Promise<ForgejoIssueSummary[]> {
-    try {
-      const { siteUrl, token } = await this.requireAuth();
-      if (!siteUrl || !token) {
-        throw new Error('Forgejo is not configured');
-      }
-      const url = new URL(`${siteUrl}/api/v1/repos/${ownerRepo}/issues`);
-      url.searchParams.set('state', 'open');
-      url.searchParams.set('type', 'issues');
-      url.searchParams.set('limit', String(limit));
-      const response = await this.doRequest(url, token, 'GET');
-      if (!response.ok) {
-        throw new Error('Could not fetch issues');
-      }
-      const data = (await response.json()) as any[];
-      return this.normalizeIssues(data);
-    } catch (e: any) {
-      throw e;
+    const { siteUrl, token } = await this.requireAuth();
+    if (!siteUrl || !token) {
+      throw new Error('Forgejo is not configured');
     }
+    const url = new URL(`${siteUrl}/api/v1/repos/${ownerRepo}/issues`);
+    url.searchParams.set('state', 'open');
+    url.searchParams.set('type', 'issues');
+    url.searchParams.set('limit', String(limit));
+    const response = await this.doRequest(url, token, 'GET');
+    if (!response.ok) {
+      throw new Error('Could not fetch issues');
+    }
+    const data = (await response.json()) as any[];
+    return this.normalizeIssues(data);
   }
 
   private normalizeIssues(issues: any[]): ForgejoIssueSummary[] {
@@ -270,7 +266,7 @@ export class ForgejoService {
       const keytar = await import('keytar');
       const token = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
       if (!token) {
-        throw new Error('Token does not set');
+        throw new Error('Token not set');
       }
       return { siteUrl: creds.siteUrl, token: token };
     } catch (e: any) {
@@ -296,13 +292,9 @@ export class ForgejoService {
   }
 
   private writeCreds(creds: ForgejoCreds): void {
-    try {
-      const { siteUrl } = creds;
-      const obj: any = { siteUrl };
-      writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
-    } catch (error) {
-      log.error('Failed to write Forgejo credentials:', error);
-    }
+    const { siteUrl } = creds;
+    const obj: any = { siteUrl };
+    writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
   }
 
   private readCreds(): ForgejoCreds | null {
