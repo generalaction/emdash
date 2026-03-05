@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
@@ -504,8 +503,8 @@ export const useProjectManagement = () => {
     },
     [projects, activateProjectView, toast, addProjectMutation]
   );
-  
-      const handleAddRemoteProject = useCallback(() => {
+
+  const handleAddRemoteProject = useCallback(() => {
     showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
   }, [showModal, handleRemoteProjectSuccess]);
 
@@ -573,7 +572,7 @@ export const useProjectManagement = () => {
   }, [selectedProject]);
 
   // Initial load when project changes
-    useEffect(() => {
+  useEffect(() => {
     if (!selectedProject) {
       setProjectBranchOptions([]);
       setProjectDefaultBranch('main');
@@ -589,7 +588,6 @@ export const useProjectManagement = () => {
 
     void refreshBranches();
   }, [selectedProject, refreshBranches]);
-
 
   // Keep reserves warm for the currently selected base ref.
   useEffect(() => {
