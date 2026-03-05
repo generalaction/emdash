@@ -16,7 +16,6 @@ import {
 import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
 
 interface Props {
-  defaultUrl?: string;
   taskId?: string | null;
   taskPath?: string | null;
   parentProjectPath?: string | null;

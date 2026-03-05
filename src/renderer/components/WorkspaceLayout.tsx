@@ -2,7 +2,6 @@ import { ReactNode } from 'react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useWorkspaceLayoutContext } from '@/contexts/WorkspaceLayoutProvider';
 import { cn } from '@/lib/utils';
-import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 
 const LEFT_PANEL_DEFAULT_SIZE = 20;
 const RIGHT_PANEL_DEFAULT_SIZE = 20;
@@ -13,27 +12,12 @@ const RIGHT_SIDEBAR_MIN_SIZE = 16;
 const RIGHT_SIDEBAR_MAX_SIZE = 50;
 
 interface WorkspaceLayoutProps {
-  titlebarSlot: ReactNode;
-  mainPanel: ReactNode;
-  rightPanel?: ReactNode;
+  leftSidebar: ReactNode;
+  mainContent: ReactNode;
 }
 
-export function WorkspaceLayout({
-  titlebarSlot,
-  mainPanel,
-  rightPanel = null,
-}: WorkspaceLayoutProps) {
-  const {
-    leftPanelRef,
-    rightPanelRef,
-    handleDragging,
-    setIsLeftOpen,
-    setIsRightOpen,
-    isRightOpen,
-    isLeftOpen,
-  } = useWorkspaceLayoutContext();
-
-  const hasRight = Boolean(rightPanel);
+export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
+  const { leftPanelRef, handleDragging, setIsLeftOpen, isLeftOpen } = useWorkspaceLayoutContext();
 
   return (
     <ResizablePanelGroup
@@ -52,7 +36,7 @@ export function WorkspaceLayout({
         onExpand={() => setIsLeftOpen(true)}
         collapsible
       >
-        <LeftSidebar />
+        {leftSidebar}
       </ResizablePanel>
       <ResizableHandle
         withHandle
@@ -62,45 +46,64 @@ export function WorkspaceLayout({
           isLeftOpen ? 'flex' : 'hidden'
         )}
       />
-      <ResizablePanel minSize={MAIN_PANEL_MIN_SIZE}>
-        <div className="flex h-full flex-col bg-background text-foreground">
-          {titlebarSlot}
-          <ResizablePanelGroup
-            autoSaveId="workspace-inner"
-            direction="horizontal"
-            className="flex-1 overflow-hidden"
-            storage={localStorage}
-          >
-            <ResizablePanel minSize={MAIN_PANEL_MIN_SIZE}>
-              <div className="flex h-full flex-col overflow-hidden">{mainPanel}</div>
-            </ResizablePanel>
-            {hasRight && (
-              <>
-                <ResizableHandle
-                  withHandle
-                  onDragging={(d) => handleDragging('right', d)}
-                  className={cn(
-                    'cursor-col-resize items-center justify-center transition-colors hover:bg-border/80',
-                    isRightOpen ? 'flex' : 'hidden'
-                  )}
-                />
-                <ResizablePanel
-                  ref={rightPanelRef}
-                  defaultSize={RIGHT_PANEL_DEFAULT_SIZE}
-                  minSize={RIGHT_SIDEBAR_MIN_SIZE}
-                  maxSize={RIGHT_SIDEBAR_MAX_SIZE}
-                  collapsedSize={0}
-                  onCollapse={() => setIsRightOpen(false)}
-                  onExpand={() => setIsRightOpen(true)}
-                  collapsible
-                >
-                  {rightPanel}
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
-        </div>
-      </ResizablePanel>
+      <ResizablePanel minSize={MAIN_PANEL_MIN_SIZE}>{mainContent}</ResizablePanel>
     </ResizablePanelGroup>
+  );
+}
+
+interface WorkspaceContentLayoutProps {
+  titlebarSlot: ReactNode;
+  mainPanel: ReactNode;
+  rightPanel?: ReactNode;
+}
+
+export function WorkspaceContentLayout({
+  titlebarSlot,
+  mainPanel,
+  rightPanel = null,
+}: WorkspaceContentLayoutProps) {
+  const { rightPanelRef, handleDragging, setIsRightOpen, isRightOpen } =
+    useWorkspaceLayoutContext();
+
+  const hasRight = Boolean(rightPanel);
+
+  return (
+    <div className="flex h-full flex-col bg-background text-foreground">
+      {titlebarSlot}
+      <ResizablePanelGroup
+        autoSaveId="workspace-inner"
+        direction="horizontal"
+        className="flex-1 overflow-hidden"
+        storage={localStorage}
+      >
+        <ResizablePanel minSize={MAIN_PANEL_MIN_SIZE}>
+          <div className="flex h-full flex-col overflow-hidden">{mainPanel}</div>
+        </ResizablePanel>
+        {hasRight && (
+          <>
+            <ResizableHandle
+              withHandle
+              onDragging={(d) => handleDragging('right', d)}
+              className={cn(
+                'cursor-col-resize items-center justify-center transition-colors hover:bg-border/80',
+                isRightOpen ? 'flex' : 'hidden'
+              )}
+            />
+            <ResizablePanel
+              ref={rightPanelRef}
+              defaultSize={RIGHT_PANEL_DEFAULT_SIZE}
+              minSize={RIGHT_SIDEBAR_MIN_SIZE}
+              maxSize={RIGHT_SIDEBAR_MAX_SIZE}
+              collapsedSize={0}
+              onCollapse={() => setIsRightOpen(false)}
+              onExpand={() => setIsRightOpen(true)}
+              collapsible
+            >
+              {rightPanel}
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
+    </div>
   );
 }
