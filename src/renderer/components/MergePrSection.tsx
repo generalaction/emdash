@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Timer, XCircle } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';
 import { Badge } from './ui/badge';
@@ -165,6 +165,7 @@ export function MergePrSection({
 }) {
   const { toast } = useToast();
   const [isMerging, setIsMerging] = useState(false);
+  const [isTogglingAutoMerge, setIsTogglingAutoMerge] = useState(false);
   const [strategy, setStrategy] = useState<MergeStrategy>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMergeStrategy');
@@ -182,6 +183,14 @@ export function MergePrSection({
       : '';
   const showBypassToggle =
     mergeUiState?.kind === 'blocked' &&
+    (mergeState === 'BLOCKED' || mergeState === 'HAS_HOOKS' || mergeState === 'UNSTABLE');
+
+  const isAutoMergeEnabled = !!activePr?.autoMergeRequest;
+  // Show automerge option when PR is blocked by checks/protections (not conflicts or draft)
+  const showAutoMerge =
+    mergeUiState &&
+    !isAutoMergeEnabled &&
+    mergeUiState.kind === 'blocked' &&
     (mergeState === 'BLOCKED' || mergeState === 'HAS_HOOKS' || mergeState === 'UNSTABLE');
 
   if (!activePr || !mergeUiState) return null;
@@ -244,6 +253,54 @@ export function MergePrSection({
     }
   };
 
+  const toggleAutoMerge = async () => {
+    setIsTogglingAutoMerge(true);
+    try {
+      if (isAutoMergeEnabled) {
+        const res = await window.electronAPI.disableAutoMerge({
+          taskPath,
+          prNumber: activePr.number,
+        });
+        if (res?.success) {
+          toast({ title: 'Auto-merge disabled' });
+        } else {
+          toast({
+            title: 'Failed to disable auto-merge',
+            description: formatMergeError(res?.error),
+            variant: 'destructive',
+          });
+        }
+      } else {
+        const res = await window.electronAPI.enableAutoMerge({
+          taskPath,
+          prNumber: activePr.number,
+          strategy,
+        });
+        if (res?.success) {
+          toast({
+            title: 'Auto-merge enabled',
+            description: `Will ${strategy} when all checks pass.`,
+          });
+        } else {
+          toast({
+            title: 'Failed to enable auto-merge',
+            description: formatMergeError(res?.error),
+            variant: 'destructive',
+          });
+        }
+      }
+      await refreshPr();
+    } catch {
+      toast({
+        title: 'Auto-merge toggle failed',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingAutoMerge(false);
+    }
+  };
+
   const disabled = isMerging || !mergeUiState.canMerge;
   const isMerged = mergeUiState.kind === 'merged';
   const showDisabledTooltip = !isMerged && !isMerging && !mergeUiState.canMerge;
@@ -255,10 +312,33 @@ export function MergePrSection({
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium text-foreground">Merge Pull Request</span>
-            <StatusBadge state={mergeUiState} />
+            {isAutoMergeEnabled ? (
+              <Badge variant="outline">
+                <Timer className="h-3 w-3 text-amber-500" />
+                Auto-merge
+              </Badge>
+            ) : (
+              <StatusBadge state={mergeUiState} />
+            )}
           </div>
         </div>
-        {showBypassToggle && (
+        {isAutoMergeEnabled && (
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              Will merge automatically when all checks pass
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              disabled={isTogglingAutoMerge}
+              onClick={toggleAutoMerge}
+            >
+              {isTogglingAutoMerge ? <Spinner size="sm" /> : 'Cancel'}
+            </Button>
+          </div>
+        )}
+        {!isAutoMergeEnabled && showBypassToggle && (
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground" title="Attempts `gh pr merge --admin`">
               {adminOverride ? 'Bypass enabled' : 'Merge without waiting'}
@@ -283,77 +363,97 @@ export function MergePrSection({
               Merged
             </span>
           </Button>
-        ) : (
-          <div className="flex w-full min-w-0">
-            {showDisabledTooltip ? (
-              <TooltipProvider delayDuration={120}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="min-w-0 flex-1">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-8 w-full justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
-                        disabled
-                      >
-                        Merge pull request
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">{disabledTooltipText}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                className="h-8 min-w-0 flex-1 justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
-                disabled={disabled}
-                onClick={doMerge}
-                title={disabled ? mergeUiState.title : 'Merge via GitHub'}
-              >
-                {isMerging ? <Spinner size="sm" /> : 'Merge pull request'}
-              </Button>
-            )}
-            <Popover>
-              <PopoverTrigger asChild>
+        ) : isAutoMergeEnabled ? null : (
+          <>
+            <div className="flex w-full min-w-0">
+              {showDisabledTooltip ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="min-w-0 flex-1">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-8 w-full justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
+                          disabled
+                        >
+                          Merge pull request
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{disabledTooltipText}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
                 <Button
                   variant="default"
                   size="sm"
-                  className="h-8 w-10 shrink-0 rounded-l-none px-0 disabled:opacity-100"
-                  disabled={isMerging}
-                  title="Select merge method"
+                  className="h-8 min-w-0 flex-1 justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
+                  disabled={disabled}
+                  onClick={doMerge}
+                  title={disabled ? mergeUiState.title : 'Merge via GitHub'}
                 >
-                  <ChevronDown className="h-4 w-4" />
+                  {isMerging ? <Spinner size="sm" /> : 'Merge pull request'}
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 p-1">
-                {MERGE_STRATEGIES.map((opt) => (
-                  <PopoverClose key={opt.id} asChild>
-                    <button
-                      type="button"
-                      className="w-full rounded px-2 py-2 text-left hover:bg-accent"
-                      onClick={() => setAndPersistStrategy(opt.id)}
-                    >
-                      <div className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center">
-                          {strategy === opt.id ? (
-                            <Check className="h-4 w-4 text-foreground" />
-                          ) : null}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-foreground">{opt.title}</div>
-                          <div className="mt-0.5 text-xs text-muted-foreground">
-                            {opt.description}
+              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 w-10 shrink-0 rounded-l-none px-0 disabled:opacity-100"
+                    disabled={isMerging}
+                    title="Select merge method"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-1">
+                  {MERGE_STRATEGIES.map((opt) => (
+                    <PopoverClose key={opt.id} asChild>
+                      <button
+                        type="button"
+                        className="w-full rounded px-2 py-2 text-left hover:bg-accent"
+                        onClick={() => setAndPersistStrategy(opt.id)}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center">
+                            {strategy === opt.id ? (
+                              <Check className="h-4 w-4 text-foreground" />
+                            ) : null}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground">{opt.title}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              {opt.description}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </button>
-                  </PopoverClose>
-                ))}
-              </PopoverContent>
-            </Popover>
-          </div>
+                      </button>
+                    </PopoverClose>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </div>
+            {showAutoMerge && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-full justify-center px-2 text-xs"
+                disabled={isTogglingAutoMerge}
+                onClick={toggleAutoMerge}
+              >
+                {isTogglingAutoMerge ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Timer className="h-3.5 w-3.5" />
+                    Enable auto-merge
+                  </span>
+                )}
+              </Button>
+            )}
+          </>
         )}
         {mergeUiState.kind === 'conflicts' && (
           <div>
