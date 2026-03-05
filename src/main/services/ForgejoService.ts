@@ -37,8 +37,13 @@ export class ForgejoService {
       if (siteUrl.length === 0 || token.length === 0) {
         return { success: false, error: 'Instance URL and token are required' };
       }
-      const regex = /^https?:\/\/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d{1,5})?\/?$/;
-      if (!regex.test(siteUrl)) {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(siteUrl);
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+          return { success: false, error: 'Invalid URL format' };
+        }
+      } catch {
         return { success: false, error: 'Invalid URL format' };
       }
       if (siteUrl[siteUrl.length - 1] === '/') {
