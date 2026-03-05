@@ -8,6 +8,7 @@ import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
 import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
 import { rpc } from '../lib/rpc';
+import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
 
 interface Props {
   selectedIssue: JiraIssueSummary | null;
@@ -36,13 +37,13 @@ const JiraIssueSelector: React.FC<Props> = ({
   const isMountedRef = useRef(true);
   const [visibleCount, setVisibleCount] = useState(10);
 
+  const { isJiraConnected } = useIntegrationsContext();
   const canList = typeof window !== 'undefined';
   const issuesLoaded = availableIssues.length > 0;
-  const [isConnected, setIsConnected] = useState<boolean | null>(null);
   // Only disable when explicitly disabled, or when not connected and we can't load
   const isDisabled =
     disabled ||
-    (isConnected === false ? isLoadingIssues || !!issueListError || !issuesLoaded : false);
+    (isJiraConnected === false ? isLoadingIssues || !!issueListError || !issuesLoaded : false);
 
   useEffect(() => () => void (isMountedRef.current = false), []);
 
@@ -59,22 +60,6 @@ const JiraIssueSelector: React.FC<Props> = ({
       setVisibleCount(10);
     }
   }, [isOpen, onIssueChange]);
-
-  // Check connection so we can show better guidance when listing fails
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      try {
-        const res = await rpc.jira.checkConnection();
-        if (!cancel) setIsConnected(!!res?.connected);
-      } catch {
-        if (!cancel) setIsConnected(null);
-      }
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, []);
 
   const loadIssues = useCallback(async () => {
     if (!canList) return;

@@ -147,6 +147,7 @@ export class DatabaseService {
       // Register this connection as the shared Drizzle client so all data
       // access uses the same SQLite handle — no second connection opened.
       const { db } = createDrizzleClient({ database: this.db, cacheResult: true });
+
       migrate(db, { migrationsFolder: migrationsPath });
       this.validateSchemaContract();
     } catch (initError) {
@@ -161,13 +162,9 @@ export class DatabaseService {
     }
   }
 
-  getLastMigrationSummary(): null {
-    return null;
-  }
-
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+    const { db } = getDrizzleClient();
     const gitRemote = project.gitInfo.remote ?? null;
     const gitBranch = project.gitInfo.branch ?? null;
     const baseRef = this.computeBaseRef(

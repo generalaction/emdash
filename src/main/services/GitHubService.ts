@@ -15,6 +15,7 @@ import {
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/types/github';
+import keytar from 'keytar';
 
 const execAsync = promisify(exec);
 
@@ -969,7 +970,7 @@ export class GitHubService {
     name: string;
     description?: string;
   }): Promise<void> {
-    const { repoUrl, localPath, name, description } = params;
+    const { localPath, name, description } = params;
 
     try {
       // Ensure the directory exists (clone should have created it, but just in case)
@@ -1045,7 +1046,6 @@ export class GitHubService {
       // Clear keychain token
       (async () => {
         try {
-          const keytar = await import('keytar');
           await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
         } catch (error) {
           console.error('Failed to clear keychain token:', error);
@@ -1059,7 +1059,6 @@ export class GitHubService {
    */
   private async storeToken(token: string): Promise<void> {
     try {
-      const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, token);
     } catch (error) {
       console.error('Failed to store token:', error);
@@ -1072,7 +1071,6 @@ export class GitHubService {
    */
   private async getStoredToken(): Promise<string | null> {
     try {
-      const keytar = await import('keytar');
       return await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
     } catch (error) {
       console.error('Failed to retrieve token:', error);

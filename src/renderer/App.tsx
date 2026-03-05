@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
+import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementProvider';
 import { ModalProvider } from './contexts/ModalProvider';
@@ -44,29 +45,31 @@ export function App() {
         <WorkspaceLayoutContextProvider>
           <AppContextProvider>
             <GithubContextProvider>
-              {/* WorkspaceViewProvider must be above data providers so navigate() is available
+              <IntegrationsProvider>
+                {/* WorkspaceViewProvider must be above data providers so navigate() is available
                   inside ProjectManagementProvider and TaskManagementProvider hooks */}
-              <WorkspaceViewProvider>
-                <ProjectManagementProvider>
-                  <TaskManagementProvider>
-                    <AppSettingsProvider>
-                      <AgentProvider>
-                        <KeyboardSettingsProvider>
-                          <BrowserProvider>
-                            <SidebarProvider>
-                              <RightSidebarProvider>
-                                <ThemeProvider>
-                                  <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                </ThemeProvider>
-                              </RightSidebarProvider>
-                            </SidebarProvider>
-                          </BrowserProvider>
-                        </KeyboardSettingsProvider>
-                      </AgentProvider>
-                    </AppSettingsProvider>
-                  </TaskManagementProvider>
-                </ProjectManagementProvider>
-              </WorkspaceViewProvider>
+                <WorkspaceViewProvider>
+                  <ProjectManagementProvider>
+                    <TaskManagementProvider>
+                      <AppSettingsProvider>
+                        <AgentProvider>
+                          <KeyboardSettingsProvider>
+                            <BrowserProvider>
+                              <SidebarProvider>
+                                <RightSidebarProvider>
+                                  <ThemeProvider>
+                                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                  </ThemeProvider>
+                                </RightSidebarProvider>
+                              </SidebarProvider>
+                            </BrowserProvider>
+                          </KeyboardSettingsProvider>
+                        </AgentProvider>
+                      </AppSettingsProvider>
+                    </TaskManagementProvider>
+                  </ProjectManagementProvider>
+                </WorkspaceViewProvider>
+              </IntegrationsProvider>
             </GithubContextProvider>
           </AppContextProvider>
         </WorkspaceLayoutContextProvider>

@@ -1,10 +1,25 @@
 import { app, BrowserWindow, dialog } from 'electron';
-import { join } from 'path';
-import os from 'os';
-import { execSync } from 'child_process';
+import { join } from 'node:path';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
 import dotenv from 'dotenv';
 import fixPath from 'fix-path';
 import { initializeShellEnvironment } from './utils/shellEnv';
+import { createMainWindow } from './app/window';
+import { registerAppLifecycle } from './app/lifecycle';
+import { setupApplicationMenu } from './app/menu';
+import { registerAllIpc } from './ipc';
+import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
+import { connectionsService } from './services/ConnectionsService';
+import { autoUpdateService } from './services/AutoUpdateService';
+import { worktreePoolService } from './services/WorktreePoolService';
+import { ptyPoolService } from './services/PtyPoolService';
+import { sshService } from './services/ssh/SshService';
+import { taskLifecycleService } from './services/TaskLifecycleService';
+import { agentEventService } from './services/AgentEventService';
+import * as telemetry from './telemetry';
+import { errorTracking } from './errorTracking';
+import { rmSync } from 'node:fs';
 
 // Load .env from project root (optional - silently skipped if missing)
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
@@ -103,22 +118,6 @@ try {
   console.log('[main] Failed to initialize shell environment:', error);
 }
 
-import { createMainWindow } from './app/window';
-import { registerAppLifecycle } from './app/lifecycle';
-import { setupApplicationMenu } from './app/menu';
-import { registerAllIpc } from './ipc';
-import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
-import { connectionsService } from './services/ConnectionsService';
-import { autoUpdateService } from './services/AutoUpdateService';
-import { worktreePoolService } from './services/WorktreePoolService';
-import { ptyPoolService } from './services/PtyPoolService';
-import { sshService } from './services/ssh/SshService';
-import { taskLifecycleService } from './services/TaskLifecycleService';
-import { agentEventService } from './services/AgentEventService';
-import * as telemetry from './telemetry';
-import { errorTracking } from './errorTracking';
-import { rmSync } from 'node:fs';
-
 // Set app name for macOS dock and menu bar
 app.setName('Emdash');
 
@@ -156,7 +155,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
     'icon-dock.png'
   );
   try {
-    app.dock.setIcon(iconPath);
+    app.dock?.setIcon(iconPath);
   } catch (err) {
     console.warn('Failed to set dock icon:', err);
   }
@@ -165,7 +164,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
 // App bootstrap
 app.whenReady().then(async () => {
   const resetLocalDatabase = async (dbPath: string) => {
-    await databaseService.close().catch(() => {});
+    databaseService.close();
     for (const filePath of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
       rmSync(filePath, { force: true });
     }
@@ -246,25 +245,6 @@ app.whenReady().then(async () => {
 
   // Initialize error tracking
   await errorTracking.init();
-
-  try {
-    const summary = databaseService.getLastMigrationSummary();
-    const toBucket = (n: number) => (n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2-3' : '>3');
-    telemetry.capture('db_setup', {
-      outcome: dbInitOk ? 'success' : 'failure',
-      ...(dbInitOk
-        ? {
-            applied_migrations: summary?.appliedCount ?? 0,
-            applied_migrations_bucket: toBucket(summary?.appliedCount ?? 0),
-            recovered: summary?.recovered === true,
-          }
-        : {
-            error_type: dbInitErrorType ?? 'unknown',
-          }),
-    });
-  } catch {
-    // telemetry must never crash the app
-  }
 
   // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
   let localProjectPathsForReserveCleanup: string[] = [];

@@ -154,8 +154,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   // True when the name was derived from context (prompt/issue) — already descriptive
   const nameFromContextRef = useRef(false);
 
-  // Integration connections — always active since component only mounts when open
-  const integrations = useIntegrationStatus(true);
+  const integrations = useIntegrationStatus();
 
   // Computed values
   const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);

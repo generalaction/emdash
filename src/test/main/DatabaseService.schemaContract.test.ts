@@ -30,7 +30,7 @@ describe('DatabaseService schema contract', () => {
   it('passes when all required invariants exist', () => {
     vi.spyOn(service as any, 'tableExists').mockReturnValue(true);
     vi.spyOn(service as any, 'tableHasColumn').mockImplementation(
-      (tableName: string, columnName: string) => {
+      (tableName: unknown, columnName: unknown) => {
         return (
           (tableName === 'projects' && columnName === 'base_ref') ||
           (tableName === 'conversations' && columnName === 'task_id')
@@ -44,7 +44,7 @@ describe('DatabaseService schema contract', () => {
   it('throws typed mismatch error when projects.base_ref is missing', () => {
     vi.spyOn(service as any, 'tableExists').mockReturnValue(true);
     vi.spyOn(service as any, 'tableHasColumn').mockImplementation(
-      (tableName: string, columnName: string) => {
+      (tableName: unknown, columnName: unknown) => {
         return tableName === 'conversations' && columnName === 'task_id';
       }
     );
@@ -63,7 +63,7 @@ describe('DatabaseService schema contract', () => {
   });
 
   it('collects multiple missing invariants', () => {
-    vi.spyOn(service as any, 'tableExists').mockImplementation((tableName: string) => {
+    vi.spyOn(service as any, 'tableExists').mockImplementation((tableName: unknown) => {
       return tableName !== 'tasks';
     });
     vi.spyOn(service as any, 'tableHasColumn').mockReturnValue(false);

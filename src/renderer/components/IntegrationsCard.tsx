@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Check, Plus, Loader2 } from 'lucide-react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
-import { rpc } from '../lib/rpc';
+import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
 import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
@@ -41,130 +41,67 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 const IntegrationsCard: React.FC = () => {
   const { authenticated, isLoading, githubLoading, handleGithubConnect, logout } =
     useGithubContext();
-
-  // Connection states
-  const [linearConnected, setLinearConnected] = useState(false);
-  const [jiraConnected, setJiraConnected] = useState(false);
+  const {
+    isLinearConnected,
+    isLinearLoading,
+    connectLinear,
+    disconnectLinear,
+    isJiraConnected,
+    isJiraLoading,
+    connectJira,
+    disconnectJira,
+  } = useIntegrationsContext();
 
   // Modal state: which integration setup is open
   const [integrationSetupModal, setIntegrationSetupModal] = useState<null | 'linear' | 'jira'>(
     null
   );
 
-  // Linear state
+  // Linear form state
   const [linearInput, setLinearInput] = useState('');
-  const [linearLoading, setLinearLoading] = useState(false);
+  const [linearError, setLinearError] = useState<string | null>(null);
 
-  // Jira state
+  // Jira form state
   const [jiraSite, setJiraSite] = useState('');
   const [jiraEmail, setJiraEmail] = useState('');
   const [jiraToken, setJiraToken] = useState('');
-  const [jiraLoading, setJiraLoading] = useState(false);
-
-  // Error states
-  const [linearError, setLinearError] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
-  // Check connection statuses on mount
-  useEffect(() => {
-    const checkLinear = async () => {
-      try {
-        const result = await rpc.linear.checkConnection();
-        setLinearConnected(!!result?.connected);
-      } catch {
-        setLinearConnected(false);
-      }
-    };
 
-    const checkJira = async () => {
-      try {
-        const result = await rpc.jira.checkConnection();
-        setJiraConnected(!!result?.connected);
-      } catch {
-        setJiraConnected(false);
-      }
-    };
-
-    void checkLinear();
-    void checkJira();
+  const closeModal = useCallback(() => {
+    setIntegrationSetupModal(null);
+    setLinearInput('');
+    setLinearError(null);
+    setJiraSite('');
+    setJiraEmail('');
+    setJiraToken('');
+    setJiraError(null);
   }, []);
 
-  // Linear handlers
   const handleLinearConnect = useCallback(async () => {
     const token = linearInput.trim();
     if (!token) return;
-
-    setLinearLoading(true);
     setLinearError(null);
-
     try {
-      const result = await rpc.linear.saveToken(token);
-      if (result?.success) {
-        setLinearConnected(true);
-        setLinearInput('');
-        setIntegrationSetupModal(null);
-      } else {
-        setLinearError(result?.error || 'Could not connect. Try again.');
-      }
+      await connectLinear(token);
+      closeModal();
     } catch (error) {
-      console.error('Linear connect failed:', error);
-      setLinearError('Could not connect. Try again.');
-    } finally {
-      setLinearLoading(false);
+      setLinearError((error as Error).message || 'Could not connect. Try again.');
     }
-  }, [linearInput]);
+  }, [linearInput, connectLinear, closeModal]);
 
-  const handleLinearDisconnect = useCallback(async () => {
-    try {
-      const result = await rpc.linear.clearToken();
-      if (result?.success) {
-        setLinearConnected(false);
-        setLinearInput('');
-      }
-    } catch (error) {
-      console.error('Linear disconnect failed:', error);
-    }
-  }, []);
-
-  // Jira handlers
   const handleJiraSubmit = useCallback(async () => {
     setJiraError(null);
-    setJiraLoading(true);
     try {
-      const res = await rpc.jira.saveCredentials({
+      await connectJira({
         siteUrl: jiraSite.trim(),
         email: jiraEmail.trim(),
         token: jiraToken.trim(),
       });
-      if (res?.success) {
-        setJiraConnected(true);
-        setJiraSite('');
-        setJiraEmail('');
-        setJiraToken('');
-        setIntegrationSetupModal(null);
-      } else {
-        setJiraError(res?.error || 'Failed to connect.');
-      }
-    } catch (e) {
-      setJiraError((e as Error)?.message || 'Failed to connect.');
-    } finally {
-      setJiraLoading(false);
-    }
-  }, [jiraSite, jiraEmail, jiraToken]);
-
-  const handleJiraDisconnect = useCallback(async () => {
-    try {
-      const result = await rpc.jira.clearCredentials();
-      if (result?.success) {
-        setJiraConnected(false);
-        setJiraSite('');
-        setJiraEmail('');
-        setJiraToken('');
-        setIntegrationSetupModal(null);
-      }
+      closeModal();
     } catch (error) {
-      console.error('Jira disconnect failed:', error);
+      setJiraError((error as Error).message || 'Failed to connect.');
     }
-  }, []);
+  }, [jiraSite, jiraEmail, jiraToken, connectJira, closeModal]);
 
   const integrations = [
     {
@@ -182,26 +119,20 @@ const IntegrationsCard: React.FC = () => {
       name: 'Linear',
       description: 'Work on Linear tickets',
       logoSvg: linearSvg,
-      connected: linearConnected,
-      loading: linearLoading,
-      onConnect: () => {
-        setLinearError(null);
-        setIntegrationSetupModal('linear');
-      },
-      onDisconnect: handleLinearDisconnect,
+      connected: !!isLinearConnected,
+      loading: isLinearLoading,
+      onConnect: () => setIntegrationSetupModal('linear'),
+      onDisconnect: disconnectLinear,
     },
     {
       id: 'jira',
       name: 'Jira',
       description: 'Work on Jira tickets',
       logoSvg: jiraSvg,
-      connected: jiraConnected,
-      loading: jiraLoading,
-      onConnect: () => {
-        setJiraError(null);
-        setIntegrationSetupModal('jira');
-      },
-      onDisconnect: handleJiraDisconnect,
+      connected: !!isJiraConnected,
+      loading: isJiraLoading,
+      onConnect: () => setIntegrationSetupModal('jira'),
+      onDisconnect: disconnectJira,
     },
   ];
 
@@ -255,16 +186,7 @@ const IntegrationsCard: React.FC = () => {
       </div>
 
       {/* Integration setup modal */}
-      <Dialog
-        open={integrationSetupModal !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIntegrationSetupModal(null);
-            setLinearError(null);
-            setJiraError(null);
-          }
-        }}
-      >
+      <Dialog open={integrationSetupModal !== null} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="max-w-md">
           {integrationSetupModal === 'linear' && (
             <>
@@ -281,13 +203,13 @@ const IntegrationsCard: React.FC = () => {
                   value={linearInput}
                   onChange={(e) => setLinearInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && linearInput.trim() && !linearLoading) {
+                    if (e.key === 'Enter' && linearInput.trim() && !isLinearLoading) {
                       void handleLinearConnect();
                     }
                   }}
                   placeholder="Enter Linear API key"
                   className="h-9"
-                  disabled={linearLoading}
+                  disabled={isLinearLoading}
                   autoFocus
                 />
                 {linearError && (
@@ -297,24 +219,16 @@ const IntegrationsCard: React.FC = () => {
                 )}
               </div>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIntegrationSetupModal(null);
-                    setLinearError(null);
-                  }}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   onClick={() => void handleLinearConnect()}
-                  disabled={!linearInput.trim() || linearLoading}
+                  disabled={!linearInput.trim() || isLinearLoading}
                 >
-                  {linearLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLinearLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Connect
                 </Button>
               </DialogFooter>
@@ -340,10 +254,7 @@ const IntegrationsCard: React.FC = () => {
                     if (typeof u.email === 'string') setJiraEmail(u.email);
                     if (typeof u.token === 'string') setJiraToken(u.token);
                   }}
-                  onClose={() => {
-                    setIntegrationSetupModal(null);
-                    setJiraError(null);
-                  }}
+                  onClose={closeModal}
                   canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
                   error={jiraError}
                   onSubmit={handleJiraSubmit}
@@ -352,15 +263,7 @@ const IntegrationsCard: React.FC = () => {
                 />
               </div>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIntegrationSetupModal(null);
-                    setJiraError(null);
-                  }}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel
                 </Button>
                 <Button
@@ -368,10 +271,10 @@ const IntegrationsCard: React.FC = () => {
                   size="sm"
                   onClick={() => void handleJiraSubmit()}
                   disabled={
-                    !(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim()) || jiraLoading
+                    !(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim()) || isJiraLoading
                   }
                 >
-                  {jiraLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isJiraLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Connect
                 </Button>
               </DialogFooter>
@@ -379,8 +282,6 @@ const IntegrationsCard: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* GitHub Device Flow Modal */}
     </>
   );
 };
