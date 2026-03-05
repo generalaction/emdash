@@ -104,12 +104,23 @@ function bufferedSendPtyData(id: string, chunk: string): void {
 
 // Detect GitHub PR URLs in terminal output for instant PR status refresh
 const PR_URL_RE = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/;
+const PR_EMIT_COOLDOWN_MS = 5000;
+const lastPrEmit = new Map<string, number>();
 
 function maybeEmitPrUrlDetected(id: string, chunk: string): void {
+  // Skip SSH PTYs and any PTY without a known cwd to avoid unnecessary work
+  const cwd = getPtyCwd(id);
+  if (!cwd) return;
+
   const match = chunk.match(PR_URL_RE);
-  if (match) {
-    safeSendToOwner(id, 'pty:pr-url-detected', { id, url: match[0], cwd: getPtyCwd(id) });
-  }
+  if (!match) return;
+
+  // Rate-limit to prevent repeated refreshes from terminal output containing PR URLs
+  const now = Date.now();
+  if (now - (lastPrEmit.get(id) ?? 0) < PR_EMIT_COOLDOWN_MS) return;
+  lastPrEmit.set(id, now);
+
+  safeSendToOwner(id, 'pty:pr-url-detected', { id, url: match[0], cwd });
 }
 
 /**
