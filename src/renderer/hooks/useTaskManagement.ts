@@ -449,11 +449,15 @@ export function useTaskManagement() {
       } catch {}
 
       const sessionIds = [...mainSessionIds, ...chatSessionIds];
-      await Promise.allSettled(
+      for (const sessionId of sessionIds) {
+        try {
+          terminalSessionRegistry.dispose(sessionId);
+        } catch {}
+      }
+      // Snapshot cleanup is best-effort; run it in the background so delete completion
+      // is not blocked on potentially slow IPC or disk work.
+      void Promise.allSettled(
         sessionIds.map(async (sessionId) => {
-          try {
-            terminalSessionRegistry.dispose(sessionId);
-          } catch {}
           try {
             await window.electronAPI.ptyClearSnapshot({ id: sessionId });
           } catch {}
@@ -511,11 +515,13 @@ export function useTaskManagement() {
         );
       }
 
-      for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
-        try {
-          await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
-        } catch {}
-      }
+      await Promise.allSettled(
+        getLifecycleTaskIds(task).map(async (lifecycleTaskId) => {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
+        })
+      );
 
       void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
         captureTelemetry('task_deleted');
