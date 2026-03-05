@@ -278,12 +278,8 @@ export class ForgejoService {
     }
   }
 
-  private writeCreds(creds: ForgejoCreds) {
-    try {
-      writeFileSync(this.CONF_FILE, JSON.stringify({ siteUrl: creds.siteUrl }), 'utf8');
-    } catch (error) {
-      console.error('Failed to write Forgejo credentials:', error);
-    }
+  private writeCreds(creds: ForgejoCreds): void {
+    writeFileSync(this.CONF_FILE, JSON.stringify({ siteUrl: creds.siteUrl }), 'utf8');
   }
 
   private readCreds(): ForgejoCreds | null {
