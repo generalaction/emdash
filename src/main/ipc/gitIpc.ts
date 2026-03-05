@@ -522,6 +522,55 @@ export function registerGitIpc() {
     return { success: true, url: url || undefined, output: out };
   }
 
+  // ── Shared merge helpers ────────────────────────────────────────────
+
+  /** Detect the default branch (tries gh CLI, falls back to git symbolic-ref, then 'main'). */
+  async function detectDefaultBranch(cwd: string): Promise<string> {
+    try {
+      const { stdout } = await execAsync(
+        'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+        { cwd }
+      );
+      if (stdout?.trim()) return stdout.trim();
+    } catch {
+      // gh not available — try git-based detection
+      try {
+        const { stdout: symRef } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+          cwd,
+        });
+        const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
+        if (match?.[1]) return match[1];
+      } catch {
+        // fall through
+      }
+    }
+    return 'main';
+  }
+
+  /** Get the current branch name (empty string when in detached HEAD). */
+  async function getCurrentBranch(cwd: string): Promise<string> {
+    const { stdout } = await execAsync('git branch --show-current', { cwd });
+    return (stdout || '').trim();
+  }
+
+  /**
+   * Stage all changes and commit with the given message.
+   * No-ops when the working tree is clean. Swallows "nothing to commit" errors.
+   */
+  async function stageAndCommit(cwd: string, message: string): Promise<void> {
+    const { stdout: statusOut } = await execAsync('git status --porcelain --untracked-files=all', {
+      cwd,
+    });
+    if (!statusOut?.trim()) return;
+    await execAsync('git add -A', { cwd });
+    try {
+      await execAsync(`git commit -m ${JSON.stringify(message)}`, { cwd });
+    } catch (e) {
+      const msg = String(e);
+      if (!/nothing to commit/i.test(msg)) throw e;
+    }
+  }
+
   // Helper: merge-to-main for remote SSH projects
   async function mergeToMainRemote(
     connectionId: string,
@@ -2008,21 +2057,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       // Get current and default branch names
-      const { stdout: currentOut } = await execAsync('git branch --show-current', {
-        cwd: taskPath,
-      });
-      const currentBranch = (currentOut || '').trim();
-
-      let defaultBranch = 'main';
-      try {
-        const { stdout } = await execAsync(
-          'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-          { cwd: taskPath }
-        );
-        if (stdout?.trim()) defaultBranch = stdout.trim();
-      } catch {
-        // gh not available or not a GitHub repo - fall back to 'main'
-      }
+      const currentBranch = await getCurrentBranch(taskPath);
+      const defaultBranch = await detectDefaultBranch(taskPath);
 
       // Validate: on a valid feature branch
       if (!currentBranch) {
@@ -2036,19 +2072,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       // Stage and commit any pending changes
-      const { stdout: statusOut } = await execAsync(
-        'git status --porcelain --untracked-files=all',
-        { cwd: taskPath }
-      );
-      if (statusOut?.trim()) {
-        await execAsync('git add -A', { cwd: taskPath });
-        try {
-          await execAsync('git commit -m "chore: prepare for merge to main"', { cwd: taskPath });
-        } catch (e) {
-          const msg = String(e);
-          if (!/nothing to commit/i.test(msg)) throw e;
-        }
-      }
+      await stageAndCommit(taskPath, 'chore: prepare for merge to main');
 
       // Push branch (set upstream if needed)
       try {
@@ -2132,31 +2156,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       try {
         // Get current and default branch names
-        const { stdout: currentOut } = await execAsync('git branch --show-current', {
-          cwd: taskPath,
-        });
-        const currentBranch = (currentOut || '').trim();
-
-        let defaultBranch = 'main';
-        try {
-          const { stdout } = await execAsync(
-            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-            { cwd: taskPath }
-          );
-          if (stdout?.trim()) defaultBranch = stdout.trim();
-        } catch {
-          // gh not available - try git-based detection
-          try {
-            const { stdout: symRef } = await execAsync(
-              'git symbolic-ref refs/remotes/origin/HEAD',
-              { cwd: taskPath }
-            );
-            const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
-            if (match?.[1]) defaultBranch = match[1];
-          } catch {
-            // Fall back to 'main'
-          }
-        }
+        const currentBranch = await getCurrentBranch(taskPath);
+        const defaultBranch = await detectDefaultBranch(taskPath);
 
         // Validate: on a valid feature branch
         if (!currentBranch) {
@@ -2170,21 +2171,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
 
         // Stage and commit any pending changes
-        const { stdout: statusOut } = await execAsync(
-          'git status --porcelain --untracked-files=all',
-          { cwd: taskPath }
-        );
-        if (statusOut?.trim()) {
-          await execAsync('git add -A', { cwd: taskPath });
-          try {
-            await execAsync(`git commit -m ${JSON.stringify('chore: prepare for local merge')}`, {
-              cwd: taskPath,
-            });
-          } catch (e) {
-            const errStr = String(e);
-            if (!/nothing to commit/i.test(errStr)) throw e;
-          }
-        }
+        await stageAndCommit(taskPath, 'chore: prepare for local merge');
 
         // Find the main repo path (worktree's parent repo)
         const { stdout: gitCommonDir } = await execAsync('git rev-parse --git-common-dir', {
