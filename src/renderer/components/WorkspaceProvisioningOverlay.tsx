@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import type { Task } from '../types/app';
 import type { Project } from '../types/app';
+import { useToast } from '../hooks/use-toast';
 
 type ProvisioningStatus = 'provisioning' | 'error' | 'ready' | null;
 
@@ -21,6 +22,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
   const [status, setStatus] = useState<ProvisioningStatus>(null);
   const [lines, setLines] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { toast } = useToast();
   const logEndRef = useRef<HTMLDivElement>(null);
   // Track the instanceId so we can filter events for this task's workspace only
   const instanceIdRef = useRef<string | null>(null);
@@ -72,6 +74,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
         if (data.status === 'ready') {
           setStatus('ready');
+          toast({ title: 'Workspace connected', description: 'Remote workspace is ready.' });
         } else {
           setStatus('error');
           setErrorMessage(data.error || 'Workspace provisioning failed.');

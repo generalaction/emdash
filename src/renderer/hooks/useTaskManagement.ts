@@ -84,7 +84,11 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
  * If the task has a workspace provider, terminate the remote workspace instance.
  * Best-effort — logs warnings but does not throw.
  */
-const terminateWorkspaceIfNeeded = async (project: Project, task: Task): Promise<void> => {
+const terminateWorkspaceIfNeeded = async (
+  project: Project,
+  task: Task,
+  toastFn?: (opts: { title: string; description: string }) => void
+): Promise<void> => {
   const workspaceConfig = task.metadata?.workspace;
   if (!workspaceConfig?.terminateCommand) return;
 
@@ -99,6 +103,10 @@ const terminateWorkspaceIfNeeded = async (project: Project, task: Task): Promise
       instanceId: instance.id,
       terminateCommand: workspaceConfig.terminateCommand,
       projectPath: project.path,
+    });
+    toastFn?.({
+      title: 'Workspace terminated',
+      description: 'Remote workspace has been shut down.',
     });
   } catch (err) {
     const { log } = await import('../lib/logger');
@@ -429,7 +437,7 @@ export function useTaskManagement() {
       await runLifecycleTeardownBestEffort(project, task, 'delete', options);
 
       // Terminate remote workspace if this task used workspace provisioning
-      await terminateWorkspaceIfNeeded(project, task);
+      await terminateWorkspaceIfNeeded(project, task, toast);
 
       try {
         const { initialPromptSentKey } = await import('../lib/keys');
@@ -624,7 +632,7 @@ export function useTaskManagement() {
       await runLifecycleTeardownBestEffort(project, task, 'archive', options);
 
       // Terminate remote workspace if this task used workspace provisioning
-      await terminateWorkspaceIfNeeded(project, task);
+      await terminateWorkspaceIfNeeded(project, task, toast);
 
       await rpc.db.archiveTask(task.id);
 
