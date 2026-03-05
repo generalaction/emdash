@@ -339,18 +339,6 @@ export const useProjectManagement = () => {
     void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('project_clone_clicked');
     });
-    if (!isAuthenticated || !ghInstalled) {
-      toast({
-        title: 'GitHub authentication required',
-        variant: 'destructive',
-        action: (
-          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-            Connect GitHub
-          </ToastAction>
-        ),
-      });
-      return;
-    }
     showModal('cloneFromUrlModal', { onSuccess: handleCloneSuccess });
   };
 
