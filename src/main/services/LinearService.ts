@@ -27,6 +27,17 @@ export class LinearService {
   private readonly SERVICE_NAME = 'emdash-linear';
   private readonly ACCOUNT_NAME = 'api-token';
 
+  private sortIssuesByMostRecent<T extends { updatedAt?: string | null }>(issues: T[]): T[] {
+    return [...issues].sort((a, b) => {
+      const aUpdatedAt = a.updatedAt ? Date.parse(a.updatedAt) : Number.NaN;
+      const bUpdatedAt = b.updatedAt ? Date.parse(b.updatedAt) : Number.NaN;
+      const aTimestamp = Number.isFinite(aUpdatedAt) ? aUpdatedAt : 0;
+      const bTimestamp = Number.isFinite(bUpdatedAt) ? bUpdatedAt : 0;
+
+      return bTimestamp - aTimestamp;
+    });
+  }
+
   async saveToken(
     token: string
   ): Promise<{ success: boolean; workspaceName?: string; error?: string }> {
@@ -125,7 +136,7 @@ export class LinearService {
       limit: sanitizedLimit,
     });
 
-    return response?.issues?.nodes ?? [];
+    return this.sortIssuesByMostRecent(response?.issues?.nodes ?? []);
   }
 
   async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
@@ -170,7 +181,7 @@ export class LinearService {
         }
       );
 
-      return searchResponse?.searchIssues?.nodes ?? [];
+      return this.sortIssuesByMostRecent(searchResponse?.searchIssues?.nodes ?? []);
     } catch (error) {
       console.error('[Linear] searchIssues error:', error);
       return [];
