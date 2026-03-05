@@ -6,7 +6,6 @@ import { getDrizzleClient } from '../db/drizzleClient';
 import { workspaceInstances, sshConnections, type WorkspaceInstanceRow } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { sshService } from './ssh/SshService';
-import type { SshConfig } from '../../shared/ssh/types';
 
 /** Default timeout for provision/terminate scripts (5 minutes). */
 const PROVISION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -288,15 +287,11 @@ export class WorkspaceProviderService extends EventEmitter {
         })
         .where(eq(workspaceInstances.id, instanceId));
 
-      // Verify SSH connectivity before marking as ready.
-      try {
-        const sshConfig = this.buildSshConfig(connectionId, output);
-        await sshService.connect(sshConfig);
-      } catch (sshErr) {
-        const msg = sshErr instanceof Error ? sshErr.message : String(sshErr);
-        throw new Error(`Workspace provisioned but SSH connection failed: ${msg}`);
-      }
-
+      // Skip ssh2-based verification — the terminal uses system `ssh` which
+      // reads ~/.ssh/config and the macOS keychain agent.  ssh2 cannot do
+      // either, so verification would false-negative for SSH config aliases
+      // and macOS agent-stored keys.  If SSH is actually unreachable the
+      // user will see it fail in the terminal and can retry.
       await this.updateStatus(instanceId, 'ready');
       this.emit('provision-complete', { instanceId, status: 'ready' });
     } catch (err) {
@@ -422,7 +417,7 @@ export class WorkspaceProviderService extends EventEmitter {
 
     await db.insert(sshConnections).values({
       id: connectionId,
-      name: `workspace-${output.host}`,
+      name: `workspace-${instanceId.slice(0, 8)}-${output.host}`,
       host: output.host,
       port: output.port ?? 22,
       username: output.username ?? process.env.USER ?? 'root',
@@ -433,18 +428,6 @@ export class WorkspaceProviderService extends EventEmitter {
     });
 
     return connectionId;
-  }
-
-  private buildSshConfig(connectionId: string, output: ProvisionOutput): SshConfig {
-    return {
-      id: connectionId,
-      name: `workspace-${output.host}`,
-      host: output.host,
-      port: output.port ?? 22,
-      username: output.username ?? process.env.USER ?? 'root',
-      authType: 'agent',
-      useAgent: true,
-    };
   }
 
   private async updateStatus(
