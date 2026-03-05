@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { promisify } from 'util';
 
 const execCalls: string[] = [];
+let issueListStdout = '[]';
+let issueSearchStdout = '[]';
 
 vi.mock('child_process', () => {
   const execImpl = (command: string, options?: any, callback?: any) => {
@@ -28,6 +30,12 @@ vi.mock('child_process', () => {
           avatar_url: '',
         })
       );
+    } else if (command.startsWith('gh issue list')) {
+      if (command.includes('--search')) {
+        respond(issueSearchStdout);
+      } else {
+        respond(issueListStdout);
+      }
     } else {
       respond('');
     }
@@ -75,6 +83,8 @@ import { GitHubService } from '../../main/services/GitHubService';
 describe('GitHubService.isAuthenticated', () => {
   beforeEach(() => {
     execCalls.length = 0;
+    issueListStdout = '[]';
+    issueSearchStdout = '[]';
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
     getPasswordMock.mockResolvedValue(null);
@@ -89,5 +99,31 @@ describe('GitHubService.isAuthenticated', () => {
     expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
     expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
     expect(setPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('sorts listed issues by updatedAt descending', async () => {
+    issueListStdout = JSON.stringify([
+      { number: 11, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
+      { number: 12, title: 'Newest', updatedAt: '2026-03-03T12:00:00.000Z' },
+      { number: 13, title: 'No timestamp', updatedAt: null },
+    ]);
+
+    const service = new GitHubService();
+    const issues = await service.listIssues('/tmp/repo', 50);
+
+    expect(issues.map((issue) => issue.number)).toEqual([12, 11, 13]);
+  });
+
+  it('sorts searched issues by updatedAt descending', async () => {
+    issueSearchStdout = JSON.stringify([
+      { number: 101, title: 'Stale', updatedAt: '2026-03-02T08:00:00.000Z' },
+      { number: 102, title: 'Fresh', updatedAt: '2026-03-04T08:00:00.000Z' },
+      { number: 103, title: 'Bad date', updatedAt: 'invalid' },
+    ]);
+
+    const service = new GitHubService();
+    const issues = await service.searchIssues('/tmp/repo', 'query', 20);
+
+    expect(issues.map((issue) => issue.number)).toEqual([102, 101, 103]);
   });
 });

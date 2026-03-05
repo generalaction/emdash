@@ -88,17 +88,11 @@ const cleanupPtyResources = async (task: Task): Promise<void> => {
       for (const v of variants) {
         const id = `${v.worktreeId}-main`;
         mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
       }
     } else {
       for (const provider of TERMINAL_PROVIDER_IDS) {
         const id = makePtyId(provider, 'main', task.id);
         mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
       }
     }
 
@@ -109,24 +103,25 @@ const cleanupPtyResources = async (task: Task): Promise<void> => {
         if (!conv.isMain && conv.provider) {
           const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
           chatSessionIds.push(chatId);
-          try {
-            window.electronAPI.ptyKill?.(chatId);
-          } catch {}
         }
       }
     } catch {}
 
     const sessionIds = [...mainSessionIds, ...chatSessionIds];
-    await Promise.allSettled(
-      sessionIds.map(async (sessionId) => {
-        try {
-          terminalSessionRegistry.dispose(sessionId);
-        } catch {}
-        try {
-          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-        } catch {}
-      })
-    );
+    for (const sessionId of sessionIds) {
+      try {
+        terminalSessionRegistry.dispose(sessionId);
+      } catch {}
+    }
+    if (sessionIds.length > 0) {
+      try {
+        await window.electronAPI.ptyCleanupSessions({
+          ids: sessionIds,
+          clearSnapshots: true,
+          waitForSnapshots: false,
+        });
+      } catch {}
+    }
 
     const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
     const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
@@ -420,17 +415,11 @@ export function useTaskManagement() {
         for (const v of variants) {
           const id = `${v.worktreeId}-main`;
           mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
         }
       } else {
         for (const provider of TERMINAL_PROVIDER_IDS) {
           const id = makePtyId(provider, 'main', task.id);
           mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
         }
       }
 
@@ -441,24 +430,25 @@ export function useTaskManagement() {
           if (!conv.isMain && conv.provider) {
             const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
             chatSessionIds.push(chatId);
-            try {
-              window.electronAPI.ptyKill?.(chatId);
-            } catch {}
           }
         }
       } catch {}
 
       const sessionIds = [...mainSessionIds, ...chatSessionIds];
-      await Promise.allSettled(
-        sessionIds.map(async (sessionId) => {
-          try {
-            terminalSessionRegistry.dispose(sessionId);
-          } catch {}
-          try {
-            await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-          } catch {}
-        })
-      );
+      for (const sessionId of sessionIds) {
+        try {
+          terminalSessionRegistry.dispose(sessionId);
+        } catch {}
+      }
+      if (sessionIds.length > 0) {
+        try {
+          await window.electronAPI.ptyCleanupSessions({
+            ids: sessionIds,
+            clearSnapshots: true,
+            waitForSnapshots: false,
+          });
+        } catch {}
+      }
 
       const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
       const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
@@ -511,11 +501,13 @@ export function useTaskManagement() {
         );
       }
 
-      for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
-        try {
-          await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
-        } catch {}
-      }
+      await Promise.allSettled(
+        getLifecycleTaskIds(task).map(async (lifecycleTaskId) => {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
+        })
+      );
 
       void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
         captureTelemetry('task_deleted');

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { isActivePr, PrInfo } from '../lib/prStatus';
-import { refreshPrStatus } from '../lib/prStatusStore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isActivePr, type PrInfo } from '../lib/prStatus';
+import { getCachedPrStatus, refreshPrStatus } from '../lib/prStatusStore';
+import { getCachedGitStatus } from '../lib/gitStatusCache';
 
 type TaskRef = { id: string; name: string; path: string };
 
@@ -14,98 +15,218 @@ type RiskState = Record<
     behind: number;
     error?: string;
     pr?: PrInfo | null;
+    prKnown: boolean;
   }
 >;
 
-export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
+export const DELETE_RISK_SCAN_FRESH_MS = 10_000;
+
+function hasDeleteRisk(status?: {
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  ahead: number;
+  behind: number;
+  error?: string;
+  pr?: PrInfo | null;
+}) {
+  if (!status) return false;
+  return (
+    status.staged > 0 ||
+    status.unstaged > 0 ||
+    status.untracked > 0 ||
+    status.ahead > 0 ||
+    !!status.error ||
+    !!(status.pr && isActivePr(status.pr))
+  );
+}
+
+type UseDeleteRisksOptions = {
+  eagerPrRefresh?: boolean;
+};
+
+export function useDeleteRisks(
+  tasks: TaskRef[],
+  enabled: boolean,
+  options?: UseDeleteRisksOptions
+) {
   const [risks, setRisks] = useState<RiskState>({});
+  const [scannedAtById, setScannedAtById] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const requestIdRef = useRef(0);
+  const inFlightCountRef = useRef(0);
+  const eagerPrRefresh = options?.eagerPrRefresh ?? true;
+
+  const scanRisks = useCallback(
+    async (options?: { force?: boolean }): Promise<RiskState> => {
+      if (!enabled || tasks.length === 0) {
+        requestIdRef.current += 1;
+        inFlightCountRef.current = 0;
+        setRisks({});
+        setScannedAtById({});
+        setLoading(false);
+        setLoaded(false);
+        return {};
+      }
+
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+      inFlightCountRef.current += 1;
+      setLoading(true);
+
+      try {
+        const includePr = options?.force || eagerPrRefresh;
+        try {
+          const bulkRes = await (window as any).electronAPI?.getDeleteRisks?.({
+            targets: tasks.map((task) => ({ id: task.id, taskPath: task.path })),
+            includePr,
+          });
+
+          if (bulkRes?.success && bulkRes.risks && typeof bulkRes.risks === 'object') {
+            const entries = tasks.map((task) => {
+              const item = bulkRes.risks[task.id] || {};
+              return [
+                task.id,
+                {
+                  staged: typeof item.staged === 'number' ? item.staged : 0,
+                  unstaged: typeof item.unstaged === 'number' ? item.unstaged : 0,
+                  untracked: typeof item.untracked === 'number' ? item.untracked : 0,
+                  ahead: typeof item.ahead === 'number' ? item.ahead : 0,
+                  behind: typeof item.behind === 'number' ? item.behind : 0,
+                  error: typeof item.error === 'string' ? item.error : undefined,
+                  pr: item.pr ?? null,
+                  prKnown: item.prKnown === true,
+                },
+              ] as const;
+            });
+
+            const next = Object.fromEntries(entries);
+            if (requestIdRef.current === requestId) {
+              setRisks(next);
+              const scannedAt = Date.now();
+              setScannedAtById(
+                Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+              );
+              setLoaded(true);
+            }
+
+            return next;
+          }
+        } catch {
+          // Fallback to per-task scan below
+        }
+
+        const entries = await Promise.all(
+          tasks.map(async (ws) => {
+            try {
+              const [statusRes, infoRes, rawPr] = await Promise.allSettled([
+                getCachedGitStatus(ws.path, { force: options?.force }),
+                (window as any).electronAPI?.getGitInfo?.(ws.path),
+                options?.force || eagerPrRefresh
+                  ? refreshPrStatus(ws.path)
+                  : Promise.resolve(getCachedPrStatus(ws.path)),
+              ]);
+
+              let staged = 0;
+              let unstaged = 0;
+              let untracked = 0;
+              if (
+                statusRes.status === 'fulfilled' &&
+                statusRes.value?.success &&
+                statusRes.value.changes
+              ) {
+                for (const change of statusRes.value.changes) {
+                  if (change.status === 'untracked') {
+                    untracked += 1;
+                  } else if (change.isStaged) {
+                    staged += 1;
+                  } else {
+                    unstaged += 1;
+                  }
+                }
+              }
+
+              const ahead =
+                infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
+                  ? infoRes.value.aheadCount
+                  : 0;
+              const behind =
+                infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
+                  ? infoRes.value.behindCount
+                  : 0;
+              const prKnown = rawPr.status === 'fulfilled' && rawPr.value !== undefined;
+              const prValue = prKnown ? rawPr.value : null;
+              const pr = isActivePr(prValue) ? prValue : null;
+
+              return [
+                ws.id,
+                {
+                  staged,
+                  unstaged,
+                  untracked,
+                  ahead,
+                  behind,
+                  error:
+                    statusRes.status === 'fulfilled'
+                      ? statusRes.value?.error
+                      : statusRes.reason?.message || String(statusRes.reason || ''),
+                  pr,
+                  prKnown,
+                },
+              ] as const;
+            } catch (error: any) {
+              return [
+                ws.id,
+                {
+                  staged: 0,
+                  unstaged: 0,
+                  untracked: 0,
+                  ahead: 0,
+                  behind: 0,
+                  error: error?.message || String(error),
+                  pr: null,
+                  prKnown: false,
+                },
+              ] as const;
+            }
+          })
+        );
+
+        const next = Object.fromEntries(entries);
+        if (requestIdRef.current === requestId) {
+          setRisks(next);
+          const scannedAt = Date.now();
+          setScannedAtById(
+            Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+          );
+          setLoaded(true);
+        }
+
+        return next;
+      } finally {
+        inFlightCountRef.current = Math.max(0, inFlightCountRef.current - 1);
+        setLoading(inFlightCountRef.current > 0);
+      }
+    },
+    [eagerPrRefresh, enabled, tasks]
+  );
 
   useEffect(() => {
     if (!enabled || tasks.length === 0) {
+      requestIdRef.current += 1;
+      inFlightCountRef.current = 0;
       setRisks({});
+      setScannedAtById({});
       setLoading(false);
       setLoaded(false);
       return;
     }
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const next: RiskState = {};
-      for (const ws of tasks) {
-        try {
-          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-            (window as any).electronAPI?.getGitStatus?.(ws.path),
-            (window as any).electronAPI?.getGitInfo?.(ws.path),
-            refreshPrStatus(ws.path),
-          ]);
-
-          let staged = 0;
-          let unstaged = 0;
-          let untracked = 0;
-          if (
-            statusRes.status === 'fulfilled' &&
-            statusRes.value?.success &&
-            statusRes.value.changes
-          ) {
-            for (const change of statusRes.value.changes) {
-              if (change.status === 'untracked') {
-                untracked += 1;
-              } else if (change.isStaged) {
-                staged += 1;
-              } else {
-                unstaged += 1;
-              }
-            }
-          }
-
-          const ahead =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
-              ? infoRes.value.aheadCount
-              : 0;
-          const behind =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
-              ? infoRes.value.behindCount
-              : 0;
-          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
-          const pr = isActivePr(prValue) ? prValue : null;
-
-          next[ws.id] = {
-            staged,
-            unstaged,
-            untracked,
-            ahead,
-            behind,
-            error:
-              statusRes.status === 'fulfilled'
-                ? statusRes.value?.error
-                : statusRes.reason?.message || String(statusRes.reason || ''),
-            pr,
-          };
-        } catch (error: any) {
-          next[ws.id] = {
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            ahead: 0,
-            behind: 0,
-            error: error?.message || String(error),
-            pr: null,
-          };
-        }
-      }
-      if (!cancelled) {
-        setRisks(next);
-        setLoading(false);
-        setLoaded(true);
-      }
-    };
-    void load();
+    void scanRisks();
     return () => {
-      cancelled = true;
+      requestIdRef.current += 1;
     };
-  }, [enabled, tasks]);
+  }, [enabled, tasks, scanRisks]);
 
   const hasData = loaded && Object.keys(risks).length > 0;
   const summary = useMemo(() => {
@@ -114,14 +235,7 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
     for (const ws of tasks) {
       const status = risks[ws.id];
       if (!status) continue;
-      const dirty =
-        status.staged > 0 ||
-        status.unstaged > 0 ||
-        status.untracked > 0 ||
-        status.ahead > 0 ||
-        !!status.error ||
-        (status.pr && isActivePr(status.pr));
-      if (dirty) {
+      if (hasDeleteRisk(status)) {
         riskyIds.add(ws.id);
         const parts = [
           status.staged > 0
@@ -149,5 +263,10 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
     return { riskyIds, summaries };
   }, [risks, tasks]);
 
-  return { risks, loading, summary, hasData };
+  const refresh = useCallback(
+    async (options?: { force?: boolean }) => scanRisks({ force: options?.force ?? true }),
+    [scanRisks]
+  );
+
+  return { risks, scannedAtById, loading, summary, hasData, refresh };
 }
