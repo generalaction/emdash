@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import { formatUpdaterError } from '../lib/updaterError';
 import { autoUpdateService } from './AutoUpdateService';
 
@@ -80,7 +80,6 @@ export function registerUpdateIpc() {
 
   ipcMain.handle('update:open-latest', async () => {
     try {
-      const { shell } = require('electron');
       await shell.openExternal(getLatestDownloadUrl());
       // Gracefully quit after opening the external download link so the user can install
       setTimeout(() => {

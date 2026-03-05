@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../errorTracking';
+import { getAppSettings } from '../settings';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
@@ -189,7 +190,6 @@ export class WorktreeService {
     const hash = this.generateShortHash();
 
     try {
-      const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
       branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
@@ -330,7 +330,6 @@ export class WorktreeService {
       // Compute managed prefixes based on configured prefix
       let managedPrefixes: string[] = ['emdash', 'agent', 'pr', 'orch'];
       try {
-        const { getAppSettings } = await import('../settings');
         const settings = getAppSettings();
         const p = settings?.repository?.branchPrefix;
         if (p) managedPrefixes = Array.from(new Set([p, ...managedPrefixes]));

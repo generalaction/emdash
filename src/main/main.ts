@@ -1,24 +1,20 @@
-// Load .env FIRST before any imports that might use it
-// Use explicit path to ensure .env is loaded from project root
-try {
-  const path = require('path');
-  const envPath = path.join(__dirname, '..', '..', '.env');
-  require('dotenv').config({ path: envPath });
-} catch (error) {
-  // dotenv is optional - no error if .env doesn't exist
-}
-
 import { app, BrowserWindow, dialog } from 'electron';
+import { join } from 'path';
+import os from 'os';
+import { execSync } from 'child_process';
+import dotenv from 'dotenv';
+import fixPath from 'fix-path';
 import { initializeShellEnvironment } from './utils/shellEnv';
+
+// Load .env from project root (optional - silently skipped if missing)
+dotenv.config({ path: join(__dirname, '..', '..', '.env') });
+
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
-  // Lazy import to avoid bundler complaints if not present on other platforms
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const fixPath = require('fix-path');
-  if (typeof fixPath === 'function') fixPath();
+  fixPath();
 } catch {
-  // no-op if fix-path isn't available at runtime
+  // no-op if fix-path isn't available
 }
 
 if (process.platform === 'darwin') {
@@ -32,7 +28,6 @@ if (process.platform === 'darwin') {
 
   // As a last resort, ask the user's login shell for PATH and merge it in.
   try {
-    const { execSync } = require('child_process');
     const shell = process.env.SHELL || '/bin/zsh';
     const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
     if (loginPath) {
@@ -49,13 +44,11 @@ if (process.platform === 'darwin') {
 
 if (process.platform === 'linux') {
   try {
-    const os = require('os');
-    const path = require('path');
     const homeDir = os.homedir();
     const extras = [
-      path.join(homeDir, '.nvm/versions/node', process.version, 'bin'),
-      path.join(homeDir, '.npm-global/bin'),
-      path.join(homeDir, '.local/bin'),
+      join(homeDir, '.nvm/versions/node', process.version, 'bin'),
+      join(homeDir, '.npm-global/bin'),
+      join(homeDir, '.local/bin'),
       '/usr/local/bin',
     ];
     const cur = process.env.PATH || '';
@@ -66,7 +59,6 @@ if (process.platform === 'linux') {
     process.env.PATH = parts.join(':');
 
     try {
-      const { execSync } = require('child_process');
       const shell = process.env.SHELL || '/bin/bash';
       const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, {
         encoding: 'utf8',
@@ -93,7 +85,7 @@ if (process.platform === 'linux') {
 
 if (process.platform === 'win32') {
   // Ensure npm global binaries are in PATH for Windows
-  const npmPath = require('path').join(process.env.APPDATA || '', 'npm');
+  const npmPath = join(process.env.APPDATA || '', 'npm');
   const cur = process.env.PATH || '';
   const parts = cur.split(';').filter(Boolean);
   if (npmPath && !parts.includes(npmPath)) {
@@ -125,7 +117,6 @@ import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
-import { join } from 'path';
 import { rmSync } from 'node:fs';
 
 // Set app name for macOS dock and menu bar
@@ -156,7 +147,6 @@ app.on('second-instance', () => {
 if (process.platform === 'darwin' && !app.isPackaged) {
   const iconPath = join(
     __dirname,
-    '..',
     '..',
     '..',
     'src',

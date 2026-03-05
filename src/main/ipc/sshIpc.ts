@@ -10,6 +10,8 @@ import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
 import { parseSshConfigFile, resolveIdentityAgent } from '../utils/sshConfigParser';
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -209,18 +211,16 @@ export function registerSshIpc() {
           if (config.authType === 'password') {
             connectConfig.password = config.password;
           } else if (config.authType === 'key' && config.privateKeyPath) {
-            const fs = require('fs');
-            const os = require('os');
             try {
               // Expand ~ to home directory
               let keyPath = config.privateKeyPath;
               if (keyPath.startsWith('~/')) {
-                keyPath = keyPath.replace('~', os.homedir());
+                keyPath = keyPath.replace('~', homedir());
               } else if (keyPath === '~') {
-                keyPath = os.homedir();
+                keyPath = homedir();
               }
 
-              connectConfig.privateKey = fs.readFileSync(keyPath);
+              connectConfig.privateKey = readFileSync(keyPath);
               if (config.passphrase) {
                 connectConfig.passphrase = config.passphrase;
               }

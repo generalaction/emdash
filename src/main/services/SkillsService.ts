@@ -418,9 +418,8 @@ export class SkillsService {
 
   private async loadBundledCatalog(): Promise<CatalogIndex> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const bundled = require('./skills/bundled-catalog.json') as CatalogIndex;
-      return bundled;
+      const { default: bundled } = await import('./skills/bundled-catalog.json');
+      return bundled as CatalogIndex;
     } catch {
       return { version: 1, lastUpdated: new Date().toISOString(), skills: [] };
     }

@@ -146,30 +146,26 @@ const readPackageVersion = async (packageJsonPath: string): Promise<string | nul
 };
 
 const resolveAppVersion = async (): Promise<string> => {
-  // In development, we need to look for package.json in the project root.
-  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+  // app.getVersion() reads package.json correctly in both dev (project root) and production
+  try {
+    const version = app.getVersion();
+    if (version && version !== '0.0.0') return version;
+  } catch {
+    // fall through
+  }
 
-  const possiblePaths = isDev
-    ? [
-        join(__dirname, '../../../../package.json'), // from dist/main/main/ipc in dev
-        join(__dirname, '../../../package.json'), // alternative dev path
-        join(process.cwd(), 'package.json'), // current working directory
-      ]
-    : [
-        join(__dirname, '../../package.json'), // from dist/main/ipc in production
-        join(app.getAppPath(), 'package.json'), // production build
-      ];
+  // Fallback: read package.json directly from out/main/
+  const possiblePaths = [
+    join(__dirname, '../../package.json'), // from out/main/
+    join(process.cwd(), 'package.json'),
+    join(app.getAppPath(), 'package.json'),
+  ];
 
   for (const packageJsonPath of possiblePaths) {
     const version = await readPackageVersion(packageJsonPath);
     if (version) {
       return version;
     }
-  }
-
-  // In dev, never use app.getVersion() as it returns Electron version.
-  if (isDev) {
-    return UNKNOWN_VERSION;
   }
 
   try {

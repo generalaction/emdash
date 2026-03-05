@@ -1,7 +1,7 @@
 ---
 default_branch: main
 package_manager: pnpm
-node_version: "22.20.0"
+node_version: "24.14.0"
 start_command: "pnpm run d"
 dev_command: "pnpm run dev"
 build_command: "pnpm run build"
@@ -29,7 +29,7 @@ Cross-platform Electron app that orchestrates multiple CLI coding agents (Claude
 
 ### Tech Stack
 
-- **Runtime**: Electron 30.5.1, Node.js >=20.0.0 <23.0.0 (recommended: 22.20.0 via `.nvmrc`)
+- **Runtime**: Electron 40.7.0, Node.js >=24.0.0 (recommended: 24.14.0 via `.nvmrc`)
 - **Frontend**: React 18, TypeScript 5.3, Vite 5, Tailwind CSS 3
 - **Backend**: Node.js, TypeScript, Drizzle ORM 0.32, SQLite3 5.1
 - **Editor**: Monaco Editor 0.55, **Terminal**: @xterm/xterm 6.0 + node-pty 1.0
@@ -39,7 +39,7 @@ Cross-platform Electron app that orchestrates multiple CLI coding agents (Claude
 
 ## Quickstart
 
-1. `nvm use` (installs Node 22.20.0 if missing) or install Node 22.x manually.
+1. `nvm use` (installs Node 24.14.0 if missing) or install Node 24.x manually.
 2. `pnpm run d` to install dependencies and launch Electron + Vite.
 3. If `pnpm run d` fails mid-stream, rerun `pnpm install`, then `pnpm run dev` (main + renderer).
 
@@ -337,7 +337,7 @@ All optional:
 - `tsconfig.json` — Renderer/shared TypeScript config (`module: ESNext`, `noEmit: true` — Vite does compilation)
 - `tsconfig.main.json` — Main process TypeScript config (`module: CommonJS` — required by Electron main)
 - `tailwind.config.js` — Tailwind configuration
-- `.nvmrc` — Node version (22.20.0)
+- `.nvmrc` — Node version (24.14.0)
 - Electron Builder config is in `package.json` under `"build"` key
 
 ## Pre-PR Checklist

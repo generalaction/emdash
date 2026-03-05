@@ -1,8 +1,19 @@
-import os from 'os';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
+import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFile, execSync, execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import type { IPty } from 'node-pty';
+
+// Lazy-loaded singleton for node-pty (native module compiled for Electron)
+let _nodePty: typeof import('node-pty') | undefined;
+function getNodePty(): typeof import('node-pty') {
+  if (!_nodePty) {
+    const _require = createRequire(import.meta.url);
+    _nodePty = _require('node-pty') as typeof import('node-pty');
+  }
+  return _nodePty;
+}
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
@@ -133,7 +144,6 @@ export function getTmuxSessionName(ptyId: string): string {
 export function killTmuxSession(ptyId: string): void {
   const sessionName = getTmuxSessionName(ptyId);
   try {
-    const { execFile } = require('child_process');
     execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
       if (!err) {
         log.info('ptyManager:tmux - killed session', { sessionName });
@@ -518,13 +528,7 @@ export function startSshPty(options: {
 
   const { id, target, sshArgs = [], remoteInitCommand, cols = 120, rows = 32, env } = options;
 
-  // Lazy load native module
-  let pty: typeof import('node-pty');
-  try {
-    pty = require('node-pty');
-  } catch (e: any) {
-    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
-  }
+  const pty = getNodePty();
 
   // Build a minimal environment; include SSH_AUTH_SOCK so agent works.
   const useEnv: Record<string, string> = {
@@ -733,13 +737,7 @@ export function startDirectPty(options: {
     useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
   }
 
-  // Lazy load native module
-  let pty: typeof import('node-pty');
-  try {
-    pty = require('node-pty');
-  } catch (e: any) {
-    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
-  }
+  const pty = getNodePty();
 
   const spawnSpec = resolveWindowsPtySpawn(cliPath, cliArgs);
   const proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
@@ -851,9 +849,6 @@ export async function startPty(options: {
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { execSync } = require('child_process');
-
       // Try .cmd first (npm globals are typically .cmd files)
       let resolved = '';
       try {
@@ -875,14 +870,8 @@ export async function startPty(options: {
       if (resolved && !resolved.match(/\.(exe|cmd|bat)$/i)) {
         // If no executable extension, try appending .cmd
         const cmdPath = resolved + '.cmd';
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const fs = require('fs');
-          if (fs.existsSync(cmdPath)) {
-            resolved = cmdPath;
-          }
-        } catch {
-          // Ignore fs errors
+        if (fs.existsSync(cmdPath)) {
+          resolved = cmdPath;
         }
       }
 
@@ -894,14 +883,7 @@ export async function startPty(options: {
     }
   }
 
-  // Lazy load native module at call time to prevent startup crashes
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  let pty: typeof import('node-pty');
-  try {
-    pty = require('node-pty');
-  } catch (e: any) {
-    throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
-  }
+  const pty = getNodePty();
 
   // Provide sensible defaults for interactive shells so they render prompts.
   // For provider CLIs, spawn the user's shell and run the provider command via -c,
@@ -1008,7 +990,6 @@ export async function startPty(options: {
   if (tmux && process.platform !== 'win32') {
     let tmuxAvailable = false;
     try {
-      const { execFileSync } = require('child_process');
       execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
       tmuxAvailable = true;
     } catch {

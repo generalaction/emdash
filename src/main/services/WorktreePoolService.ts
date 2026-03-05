@@ -3,7 +3,9 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import os from 'os';
 import { log } from '../lib/logger';
+import { getAppSettings } from '../settings';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
 const execFileAsync = promisify(execFile);
@@ -283,7 +285,6 @@ export class WorktreePoolService {
    * Transform a reserve worktree into a task worktree
    */
   private async transformReserve(reserve: ReserveWorktree, taskName: string): Promise<ClaimResult> {
-    const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
     const prefix = settings?.repository?.branchPrefix || 'emdash';
 
@@ -568,7 +569,7 @@ export class WorktreePoolService {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Find all worktree directories that might contain reserves
-    const homedir = require('os').homedir();
+    const homedir = os.homedir();
     const projectWorktreeDirs = projectPaths.map((projectPath) =>
       path.join(projectPath, '..', 'worktrees')
     );

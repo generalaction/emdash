@@ -262,8 +262,8 @@ class ErrorTracking {
 
   private async fetchGithubUsername(): Promise<string | null> {
     try {
-      // Lazy import to avoid circular dependencies
-      const { githubService } = require('./services/GitHubService');
+      // Dynamic import to break circular dependency: GitHubService → errorTracking → telemetry
+      const { githubService } = await import('./services/GitHubService');
       const user = await githubService.getCurrentUser();
       return user?.login || null;
     } catch {

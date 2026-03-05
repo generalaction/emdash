@@ -1,3 +1,4 @@
+/// <reference types="electron-vite/node" />
 import { ipcMain } from 'electron';
 import { events } from '../events';
 import { planEventChannel, type PlanEvent } from '@shared/events/appEvents';
@@ -5,6 +6,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { FsListWorkerResponse } from '../types/fsListWorker';
+import workerPath from '../workers/fsListWorker?modulePath';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
 import { sshService } from './ssh/SshService';
@@ -121,7 +123,6 @@ export function registerFsIpc(): void {
       }
 
       const requestId = (prev?.requestId ?? 0) + 1;
-      const workerPath = path.join(__dirname, '..', 'workers', 'fsListWorker.js');
       const worker = new Worker(workerPath);
       const state: ListWorkerState = { worker, requestId, canceled: false };
       listWorkersBySender.set(senderId, state);

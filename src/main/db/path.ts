@@ -1,4 +1,4 @@
-import { existsSync, renameSync } from 'fs';
+import { existsSync, renameSync, readdirSync, realpathSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { app } from 'electron';
 
@@ -64,7 +64,6 @@ export const databaseFilenames = {
 };
 
 export function resolveMigrationsPath(): string | null {
-  const { realpathSync } = require('fs');
   const appPath = app.getAppPath();
   const resourcesPath = process.resourcesPath ?? appPath;
 
@@ -105,7 +104,7 @@ export function resolveMigrationsPath(): string | null {
 
     // Development paths
     join(process.cwd(), 'drizzle'),
-    join(__dirname, '..', '..', '..', 'drizzle'),
+    join(__dirname, '..', '..', 'drizzle'), // from out/main/ in dev
 
     // Handle translocated apps on macOS
     ...(process.platform === 'darwin' && appPath.includes('AppTranslocation')
@@ -120,7 +119,7 @@ export function resolveMigrationsPath(): string | null {
     if (existsSync(candidate)) {
       // Verify it's actually a directory with migration files
       try {
-        const files = require('fs').readdirSync(candidate);
+        const files = readdirSync(candidate);
         if (files.some((f: string) => f.endsWith('.sql'))) {
           console.log(`Found migrations at: ${candidate}`);
           return candidate;

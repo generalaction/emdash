@@ -1,29 +1,11 @@
 import { app } from 'electron';
-// Optional build-time defaults for distribution bundles
-// Resolve robustly across dev and packaged layouts.
-let appConfig: { posthogHost?: string; posthogKey?: string } = {};
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
+import rawAppConfig from './appConfig.json';
 
-function loadAppConfig(): { posthogHost?: string; posthogKey?: string } {
-  try {
-    const dir = __dirname; // e.g., dist/main/main in dev builds
-    const candidates = [
-      join(dir, 'appConfig.json'), // dist/main/main/appConfig.json
-      join(dir, '..', 'appConfig.json'), // dist/main/appConfig.json (CI injection path)
-    ];
-    for (const p of candidates) {
-      if (existsSync(p)) {
-        const raw = readFileSync(p, 'utf8');
-        return JSON.parse(raw);
-      }
-    }
-  } catch {
-    // fall through
-  }
-  return {};
-}
-appConfig = loadAppConfig();
+// Build-time defaults from appConfig.json (bundled by electron-vite)
+const appConfig: { posthogHost?: string; posthogKey?: string } = rawAppConfig;
 
 type TelemetryEvent =
   // App lifecycle
@@ -204,10 +186,8 @@ function loadOrCreateState(): {
 
 function cryptoRandomId(): string {
   try {
-    const { randomUUID } = require('crypto');
     return randomUUID();
   } catch {
-    // Very old Node fallback; not expected in Electron 28+
     return Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 }
@@ -304,8 +284,8 @@ function sanitizeEventAndProps(event: TelemetryEvent, props: Record<string, any>
  */
 async function getGithubUsername(): Promise<string | null> {
   try {
-    // Lazy import to avoid circular dependencies
-    const { githubService } = require('./services/GitHubService');
+    // Dynamic import to break circular dependency: GitHubService → errorTracking → telemetry
+    const { githubService } = await import('./services/GitHubService');
     const user = await githubService.getCurrentUser();
     return user?.login || null;
   } catch {

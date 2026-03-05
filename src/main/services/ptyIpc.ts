@@ -36,8 +36,10 @@ import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { quoteShellArg } from '../utils/shellEscape';
 
 // ---------------------------------------------------------------------------
@@ -459,18 +461,10 @@ export function registerPtyIpc(): void {
           } else if (shouldSkipResume === undefined) {
             if (cwd && shell) {
               try {
-                const fs = require('fs');
-                const os = require('os');
-                const crypto = require('crypto');
-
                 const isClaudeOrSimilar = shell.includes('claude') || shell.includes('aider');
 
                 if (isClaudeOrSimilar) {
-                  const cwdHash = crypto
-                    .createHash('sha256')
-                    .update(cwd)
-                    .digest('hex')
-                    .slice(0, 16);
+                  const cwdHash = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
                   const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
                   const pathBasedName = cwd.replace(/\//g, '-');
                   const claudePathDir = path.join(

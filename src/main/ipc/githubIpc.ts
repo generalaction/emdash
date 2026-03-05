@@ -8,7 +8,9 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { homedir } from 'os';
+import { createHash } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
+import { getAppSettings } from '../settings';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();
@@ -158,7 +160,7 @@ export function registerGithubIpc() {
       const cacheRoot = path.join(app.getPath('userData'), 'repo-cache');
       if (!fs.existsSync(cacheRoot)) fs.mkdirSync(cacheRoot, { recursive: true });
       const norm = (u: string) => u.replace(/\.git$/i, '').trim();
-      const cacheKey = require('crypto').createHash('sha1').update(norm(repoUrl)).digest('hex');
+      const cacheKey = createHash('sha1').update(norm(repoUrl)).digest('hex');
       const mirrorPath = path.join(cacheRoot, `${cacheKey}.mirror`);
 
       if (!fs.existsSync(mirrorPath)) {
@@ -428,7 +430,6 @@ export function registerGithubIpc() {
         }
 
         // Get project directory from settings
-        const { getAppSettings } = await import('../settings');
         const settings = getAppSettings();
         const projectDir =
           settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');

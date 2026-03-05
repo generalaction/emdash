@@ -5,6 +5,13 @@ import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { errorTracking } from '../errorTracking';
 import {
+  existsSync,
+  readFileSync as fsReadFileSync,
+  writeFileSync as fsWriteFileSync,
+} from 'node:fs';
+import { join as pathJoin } from 'node:path';
+import { createHash as cryptoCreateHash } from 'node:crypto';
+import {
   projects as projectsTable,
   tasks as tasksTable,
   conversations as conversationsTable,
@@ -1186,13 +1193,9 @@ export class DatabaseService {
     migrationsFolder: string
   ): Promise<Map<number, string> | null> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require('node:fs');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const path = require('node:path');
-      const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
-      if (!fs.existsSync(journalPath)) return null;
-      const parsed: unknown = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+      const journalPath = pathJoin(migrationsFolder, 'meta', '_journal.json');
+      if (!existsSync(journalPath)) return null;
+      const parsed: unknown = JSON.parse(fsReadFileSync(journalPath, 'utf8'));
       if (!parsed || typeof parsed !== 'object') return null;
       const entries = (parsed as { entries?: unknown }).entries;
       if (!Array.isArray(entries)) return null;
@@ -1218,16 +1221,9 @@ export class DatabaseService {
     tag: string
   ): Promise<void> {
     // Only mark if the SQL file + journal entry exist.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('node:fs');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const path = require('node:path');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const crypto = require('node:crypto');
-
-    const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
-    if (!fs.existsSync(journalPath)) return;
-    const journalParsed: unknown = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    const journalPath = pathJoin(migrationsFolder, 'meta', '_journal.json');
+    if (!existsSync(journalPath)) return;
+    const journalParsed: unknown = JSON.parse(fsReadFileSync(journalPath, 'utf8'));
     const entries = (journalParsed as { entries?: unknown }).entries;
     if (!Array.isArray(entries)) return;
     const entry = entries.find((e) => {
@@ -1236,10 +1232,10 @@ export class DatabaseService {
     }) as { when?: unknown } | undefined;
     if (!entry) return;
 
-    const sqlPath = path.join(migrationsFolder, `${tag}.sql`);
-    if (!fs.existsSync(sqlPath)) return;
-    const contents = fs.readFileSync(sqlPath, 'utf8');
-    const hash = crypto.createHash('sha256').update(contents).digest('hex');
+    const sqlPath = pathJoin(migrationsFolder, `${tag}.sql`);
+    if (!existsSync(sqlPath)) return;
+    const contents = fsReadFileSync(sqlPath, 'utf8');
+    const hash = cryptoCreateHash('sha256').update(contents).digest('hex');
 
     if (applied.has(hash)) return;
     const createdAt = typeof entry.when === 'number' ? entry.when : Date.now();

@@ -10,7 +10,7 @@ export function createMainWindow(): BrowserWindow {
   // In development, resolve icon from src/assets
   // In production (packaged), electron-builder handles the icon
   const iconPath = isDev
-    ? join(__dirname, '..', '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo.png')
+    ? join(__dirname, '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo.png')
     : undefined;
 
   mainWindow = new BrowserWindow({
@@ -23,22 +23,23 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // Required for ESM preload scripts (.mjs)
+      sandbox: false,
       // Allow using <webview> in renderer for in‑app browser pane.
       // The webview runs in a separate process; nodeIntegration remains disabled.
       webviewTag: true,
-      // __dirname here resolves to dist/main/main/app at runtime (dev)
-      // Preload is emitted to dist/main/main/preload.js
-      preload: join(__dirname, '..', 'preload.js'),
+      // __dirname resolves to out/main/ at runtime; preload is at out/preload/index.mjs
+      preload: join(__dirname, '../preload/index.mjs'),
     },
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
     show: false,
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
     // Serve renderer over an HTTP origin in production so embeds work.
-    const rendererRoot = join(app.getAppPath(), 'dist', 'renderer');
+    const rendererRoot = join(app.getAppPath(), 'out', 'renderer');
     void ensureRendererServer(rendererRoot)
       .then((url: string) => {
         if (mainWindow && !mainWindow.isDestroyed()) {

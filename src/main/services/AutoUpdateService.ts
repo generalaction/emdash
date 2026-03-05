@@ -1,7 +1,12 @@
 import { app, BrowserWindow } from 'electron';
-import { autoUpdater, UpdateInfo } from 'electron-updater';
+import _electronUpdater from 'electron-updater';
+import type { UpdateInfo } from 'electron-updater';
 import { log } from '../lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const { autoUpdater } = _electronUpdater;
 
 // Update check intervals (in milliseconds)
 const UPDATE_CHECK_INTERVALS = {
@@ -83,23 +88,19 @@ class AutoUpdateService {
 
   private getAppVersion(): string {
     try {
-      const { readFileSync } = require('fs');
-      const { join } = require('path');
+      // app.getVersion() reads from package.json in both dev and production
+      const version = app.getVersion();
+      if (version) return version;
 
-      // In development, look for package.json in project root
-      const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-
-      const possiblePaths = isDev
-        ? [
-            join(__dirname, '../../../../package.json'), // from dist/main/main/services
-            join(__dirname, '../../../package.json'),
-            join(process.cwd(), 'package.json'),
-          ]
-        : [join(app.getAppPath(), 'package.json')];
-
-      for (const path of possiblePaths) {
+      // Fallback: read package.json directly (dev environment)
+      const possiblePaths = [
+        join(__dirname, '../../package.json'), // from out/main/
+        join(process.cwd(), 'package.json'),
+        join(app.getAppPath(), 'package.json'),
+      ];
+      for (const pkgPath of possiblePaths) {
         try {
-          const packageJson = JSON.parse(readFileSync(path, 'utf-8'));
+          const packageJson = JSON.parse(readFileSync(pkgPath, 'utf-8'));
           if (packageJson.name === 'emdash' && packageJson.version) {
             return packageJson.version;
           }
@@ -107,11 +108,9 @@ class AutoUpdateService {
           continue;
         }
       }
-
-      // Fallback: hardcoded version for dev
-      return '0.3.46';
+      return '0.0.0';
     } catch {
-      return '0.3.46';
+      return '0.0.0';
     }
   }
 
