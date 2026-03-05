@@ -20,6 +20,18 @@ const ptys = new Map<string, MockProc>();
 const notificationCtor = vi.fn();
 const notificationShow = vi.fn();
 const telemetryCaptureMock = vi.fn();
+const agentEventGetPortMock = vi.fn(() => 12345);
+const agentEventGetTokenMock = vi.fn(() => 'test-hook-token');
+const execFileMock = vi.fn(
+  (
+    _cmd: string,
+    _args: string[],
+    _opts: any,
+    cb: (err: any, stdout: string, stderr: string) => void
+  ) => {
+    cb(null, '', '');
+  }
+);
 let onDirectCliExitCallback: ((id: string, cwd: string) => void) | null = null;
 let lastSshPtyStartOpts: any = null;
 
@@ -147,6 +159,9 @@ vi.mock('../../main/services/ptyManager', () => ({
   parseShellArgs: parseShellArgsMock,
   buildProviderCliArgs: buildProviderCliArgsMock,
   resolveProviderCommandConfig: resolveProviderCommandConfigMock,
+  killTmuxSession: vi.fn(),
+  getTmuxSessionName: vi.fn(() => ''),
+  getPtyTmuxSessionName: vi.fn(() => ''),
 }));
 
 vi.mock('../../main/lib/logger', () => ({
@@ -197,6 +212,38 @@ vi.mock('../../main/services/DatabaseService', () => ({
 
 vi.mock('../../main/services/ClaudeConfigService', () => ({
   maybeAutoTrustForClaude: vi.fn(),
+}));
+
+vi.mock('../../main/services/AgentEventService', () => ({
+  agentEventService: {
+    getPort: agentEventGetPortMock,
+    getToken: agentEventGetTokenMock,
+  },
+}));
+
+vi.mock('../../main/services/ClaudeHookService', () => ({
+  ClaudeHookService: {
+    writeHookConfig: vi.fn(),
+    makeHookCommand: vi.fn((type: string) => `mock-hook-command-${type}`),
+    mergeHookEntries: vi.fn((existing: Record<string, any>) => {
+      existing.hooks = {
+        Notification: [{ hooks: [{ type: 'command', command: 'mock-hook-command-notification' }] }],
+        Stop: [{ hooks: [{ type: 'command', command: 'mock-hook-command-stop' }] }],
+      };
+      return existing;
+    }),
+  },
+}));
+
+vi.mock('../../main/services/LifecycleScriptsService', () => ({
+  lifecycleScriptsService: {
+    getShellSetup: vi.fn(() => undefined),
+    getTmuxEnabled: vi.fn(() => false),
+  },
+}));
+
+vi.mock('child_process', () => ({
+  execFile: execFileMock,
 }));
 
 describe('ptyIpc notification lifecycle', () => {
@@ -271,6 +318,8 @@ describe('ptyIpc notification lifecycle', () => {
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
     expect(lastSshPtyStartOpts?.target).toBe('remote-alias');
     expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+
+    // Advance past the SSH MOTD delay before checking writes
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
@@ -470,5 +519,158 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).toContain('codex-remote;echo');
     expect(written).toContain("'\\''codex-remote;echo'\\''");
     expect(written).not.toContain('command -v codex-remote;echo');
+  });
+
+  it('adds reverse SSH tunnel and hook env for remote pty:startDirect', async () => {
+    agentEventGetPortMock.mockReturnValue(12345);
+    agentEventGetTokenMock.mockReturnValue('test-hook-token');
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-hook');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+
+    // SSH args should contain reverse tunnel flag
+    const sshArgs: string[] = lastSshPtyStartOpts?.sshArgs ?? [];
+    const dashRIndex = sshArgs.indexOf('-R');
+    expect(dashRIndex).toBeGreaterThanOrEqual(0);
+    const tunnelSpec = sshArgs[dashRIndex + 1];
+    expect(tunnelSpec).toMatch(/^127\.0\.0\.1:\d+:127\.0\.0\.1:12345$/);
+
+    // Init keystrokes should contain hook env var exports
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain('export EMDASH_HOOK_PORT=');
+    expect(written).toContain('export EMDASH_HOOK_TOKEN=');
+    expect(written).toContain('export EMDASH_PTY_ID=');
+    expect(written).toContain('test-hook-token');
+  });
+
+  it('does not add reverse tunnel when hook port is 0', async () => {
+    agentEventGetPortMock.mockReturnValue(0);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-no-hook');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+
+    const sshArgs: string[] = lastSshPtyStartOpts?.sshArgs ?? [];
+    expect(sshArgs).not.toContain('-R');
+
+    // No hook env in keystrokes
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).not.toContain('EMDASH_HOOK_PORT=');
+  });
+
+  it('writes Claude hook config on remote via ssh exec for claude provider', async () => {
+    agentEventGetPortMock.mockReturnValue(12345);
+    agentEventGetTokenMock.mockReturnValue('test-hook-token');
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('claude', 'main', 'task-remote-claude-hook');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'claude',
+        cwd: '/home/user/project',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+
+    // Hook config is written via ssh exec (execFile), not PTY keystrokes
+    const sshExecCalls = execFileMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'ssh' && typeof c[1]?.[c[1].length - 1] === 'string'
+    );
+    const hookConfigCall = sshExecCalls.find((c: any[]) => {
+      const cmd = c[1][c[1].length - 1];
+      return cmd.includes('settings.local.json') && cmd.includes('mkdir -p');
+    });
+    expect(hookConfigCall).toBeDefined();
+
+    // PTY keystrokes should NOT contain the hook config (it went via ssh exec)
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).not.toContain('settings.local.json');
+  });
+
+  it('does not write hook config on remote for non-claude provider', async () => {
+    agentEventGetPortMock.mockReturnValue(12345);
+    agentEventGetTokenMock.mockReturnValue('test-hook-token');
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-codex-no-hook-config');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+
+    // No ssh exec call for hook config
+    const hookConfigCalls = execFileMock.mock.calls.filter(
+      (c: any[]) =>
+        c[0] === 'ssh' &&
+        typeof c[1]?.[c[1].length - 1] === 'string' &&
+        c[1][c[1].length - 1].includes('settings.local.json')
+    );
+    expect(hookConfigCalls).toHaveLength(0);
   });
 });
