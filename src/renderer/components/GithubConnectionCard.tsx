@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { RefreshCcw, LogOut, ExternalLink } from 'lucide-react';
-import { useGithubAuth } from '../hooks/useGithubAuth';
+import { useGithubContext } from '../contexts/GithubContextProvider';
 
 type GithubConnectionStatus = 'connected' | 'disconnected' | 'missing';
 
@@ -13,7 +13,8 @@ interface GithubConnectionCardProps {
 const INSTALL_URL = 'https://cli.github.com/manual/installation';
 
 const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusChange }) => {
-  const { installed, authenticated, user, isLoading, login, logout, checkStatus } = useGithubAuth();
+  const { installed, authenticated, user, isLoading, login, logout, checkStatus } =
+    useGithubContext();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState(false);

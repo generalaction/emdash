@@ -36,58 +36,6 @@ export function convertDiffLinesToMonacoFormat(lines: DiffLine[]): {
   };
 }
 
-export type DiffSegment = {
-  type: 'add' | 'del';
-  startLine: number;
-  endLine: number;
-};
-
-export function buildDiffSegments(lines: DiffLine[]): DiffSegment[] {
-  const segments: DiffSegment[] = [];
-  let originalLine = 1;
-  let modifiedLine = 1;
-  let current: DiffSegment | null = null;
-
-  const flush = () => {
-    if (current) {
-      segments.push(current);
-      current = null;
-    }
-  };
-
-  for (const line of lines) {
-    if (line.type === 'context') {
-      originalLine += 1;
-      modifiedLine += 1;
-      flush();
-      continue;
-    }
-
-    if (line.type === 'add') {
-      const offset = modifiedLine;
-      if (!current || current.type !== 'add') {
-        flush();
-        current = { type: 'add', startLine: offset, endLine: offset };
-      } else {
-        current.endLine = offset;
-      }
-      modifiedLine += 1;
-    } else if (line.type === 'del') {
-      const offset = originalLine;
-      if (!current || current.type !== 'del') {
-        flush();
-        current = { type: 'del', startLine: offset, endLine: offset };
-      } else {
-        current.endLine = offset;
-      }
-      originalLine += 1;
-    }
-  }
-
-  flush();
-  return segments;
-}
-
 /**
  * Map file extensions to Monaco Editor language IDs
  * Monaco uses different IDs than Prism in some cases

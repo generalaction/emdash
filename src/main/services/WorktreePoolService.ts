@@ -214,10 +214,15 @@ export class WorktreePoolService {
     // so the worktree is created from up-to-date code, not a stale local branch.
     const resolvedRef = await this.resolveToRemoteRef(projectPath, baseRef);
 
-    // Create the worktree
-    await execFileAsync('git', ['worktree', 'add', '-b', reserveBranch, reservePath, resolvedRef], {
-      cwd: projectPath,
-    });
+    // Create the worktree with --no-track to prevent auto-tracking base ref
+    // Tracking is set explicitly via push --set-upstream when the reserve is claimed
+    await execFileAsync(
+      'git',
+      ['worktree', 'add', '--no-track', '-b', reserveBranch, reservePath, resolvedRef],
+      {
+        cwd: projectPath,
+      }
+    );
 
     const reserveId = this.stableIdFromPath(reservePath);
     const reserve: ReserveWorktree = {

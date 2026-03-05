@@ -445,13 +445,7 @@ export function registerGitIpc() {
     }
     outputs.push('git push: success');
 
-    // Resolve repo + branches
-    const repoResult = await remoteGitService.execGh(
-      connectionId,
-      taskPath,
-      'repo view --json nameWithOwner -q .nameWithOwner'
-    );
-    const repoNameWithOwner = (repoResult.stdout || '').trim();
+    // Resolve branches
     const currentBranch = await remoteGitService.getCurrentBranch(connectionId, taskPath);
     const defaultBranch = await remoteGitService.getDefaultBranchName(connectionId, taskPath);
 
@@ -472,7 +466,6 @@ export function registerGitIpc() {
 
     // Build gh pr create command
     const flags: string[] = [];
-    if (repoNameWithOwner) flags.push(`--repo ${quoteGhArg(repoNameWithOwner)}`);
     if (title) flags.push(`--title ${quoteGhArg(title)}`);
     // Can't use --body-file on remote, use --body instead
     if (prBody && !shouldUseFill) flags.push(`--body ${quoteGhArg(prBody)}`);
@@ -480,10 +473,7 @@ export function registerGitIpc() {
     if (head) {
       flags.push(`--head ${quoteGhArg(head)}`);
     } else if (currentBranch) {
-      const headRef = repoNameWithOwner
-        ? `${repoNameWithOwner.split('/')[0]}:${currentBranch}`
-        : currentBranch;
-      flags.push(`--head ${quoteGhArg(headRef)}`);
+      flags.push(`--head ${quoteGhArg(currentBranch)}`);
     }
     if (draft) flags.push('--draft');
     if (web) flags.push('--web');
@@ -953,32 +943,6 @@ export function registerGitIpc() {
           }
         }
 
-        // Resolve repo owner/name (prefer gh, fallback to parsing origin url)
-        let repoNameWithOwner = '';
-        try {
-          const { stdout: repoOut } = await execAsync(
-            'gh repo view --json nameWithOwner -q .nameWithOwner',
-            { cwd: taskPath }
-          );
-          repoNameWithOwner = (repoOut || '').trim();
-        } catch {
-          try {
-            const { stdout: urlOut } = await execAsync('git remote get-url origin', {
-              cwd: taskPath,
-            });
-            const url = (urlOut || '').trim();
-            // Handle both SSH and HTTPS forms
-            const m =
-              url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?$/i) ||
-              url.match(/([^/:]+)[:/]([^/]+)\/([^/.]+)(?:\.git)?$/i);
-            if (m) {
-              const owner = m[1].includes('github.com') ? m[1].split('github.com').pop() : m[1];
-              const repo = m[2] || m[3];
-              repoNameWithOwner = `${owner}/${repo}`.replace(/^\/*/, '');
-            }
-          } catch {}
-        }
-
         // Determine current branch and default base branch (fallback to main)
         let currentBranch = '';
         try {
@@ -1023,9 +987,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           // Non-fatal; continue
         }
 
-        // Build gh pr create command with explicit repo/base/head for reliability
+        // Build gh pr create command
         const flags: string[] = [];
-        if (repoNameWithOwner) flags.push(`--repo ${JSON.stringify(repoNameWithOwner)}`);
         if (title) flags.push(`--title ${JSON.stringify(title)}`);
 
         // Use temp file for body to properly handle newlines and multiline content
@@ -1052,11 +1015,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         if (head) {
           flags.push(`--head ${JSON.stringify(head)}`);
         } else if (currentBranch) {
-          // Prefer owner:branch form when repo is known; otherwise branch name
-          const headRef = repoNameWithOwner
-            ? `${repoNameWithOwner.split('/')[0]}:${currentBranch}`
-            : currentBranch;
-          flags.push(`--head ${JSON.stringify(headRef)}`);
+          flags.push(`--head ${JSON.stringify(currentBranch)}`);
         }
         if (draft) flags.push('--draft');
         if (web) flags.push('--web');

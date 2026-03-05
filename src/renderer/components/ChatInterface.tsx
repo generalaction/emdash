@@ -21,7 +21,6 @@ import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
-import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
@@ -78,8 +77,6 @@ const ChatInterface: React.FC<Props> = ({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
-  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
@@ -518,7 +515,7 @@ const ChatInterface: React.FC<Props> = ({
   );
 
   const handleCloseChat = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string) => {
       if (conversations.length <= 1) {
         toast({
           title: 'Cannot Close',
@@ -528,52 +525,39 @@ const ChatInterface: React.FC<Props> = ({
         return;
       }
 
-      // Show the delete confirmation modal
-      setChatToDelete(conversationId);
-      setShowDeleteChatModal(true);
-    },
-    [conversations.length, toast]
-  );
+      // Dispose the terminal for this chat
+      const convToDelete = conversations.find((c) => c.id === conversationId);
+      const convAgent = (convToDelete?.provider || agent) as Agent;
+      const terminalToDispose = makePtyId(convAgent, 'chat', conversationId);
+      terminalSessionRegistry.dispose(terminalToDispose);
 
-  const handleConfirmDeleteChat = useCallback(async () => {
-    if (!chatToDelete) return;
+      await rpc.db.deleteConversation(conversationId);
 
-    // Only dispose the terminal when actually deleting the chat
-    // Find the conversation to get its provider
-    const convToDelete = conversations.find((c) => c.id === chatToDelete);
-    const convAgent = (convToDelete?.provider || agent) as Agent;
-    const terminalToDispose = makePtyId(convAgent, 'chat', chatToDelete);
-    terminalSessionRegistry.dispose(terminalToDispose);
-
-    await rpc.db.deleteConversation(chatToDelete);
-
-    // Reload conversations
-    const updatedConversations = await rpc.db.getConversations(task.id);
-    setConversations(updatedConversations);
-    // Switch to another chat if we deleted the active one
-    if (chatToDelete === activeConversationId && updatedConversations.length > 0) {
-      const newActive = updatedConversations[0];
-      await rpc.db.setActiveConversation({
-        taskId: task.id,
-        conversationId: newActive.id,
-      });
-      setActiveConversationId(newActive.id);
-      // Update provider if needed
-      if (newActive.provider) {
-        setAgent(newActive.provider as Agent);
+      // Reload conversations
+      const updatedConversations = await rpc.db.getConversations(task.id);
+      setConversations(updatedConversations);
+      // Switch to another chat if we deleted the active one
+      if (conversationId === activeConversationId && updatedConversations.length > 0) {
+        const newActive = updatedConversations[0];
+        await rpc.db.setActiveConversation({
+          taskId: task.id,
+          conversationId: newActive.id,
+        });
+        setActiveConversationId(newActive.id);
+        // Update provider if needed
+        if (newActive.provider) {
+          setAgent(newActive.provider as Agent);
+        }
       }
-    }
 
-    try {
-      window.dispatchEvent(
-        new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-      );
-    } catch {}
-
-    // Clear the state
-    setChatToDelete(null);
-    setShowDeleteChatModal(false);
-  }, [chatToDelete, conversations, agent, task.id, activeConversationId]);
+      try {
+        window.dispatchEvent(
+          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        );
+      } catch {}
+    },
+    [conversations, agent, task.id, activeConversationId, toast]
+  );
 
   // Persist last-selected agent per task (including Droid)
   useEffect(() => {
@@ -908,16 +892,6 @@ const ChatInterface: React.FC<Props> = ({
           onClose={() => setShowCreateChatModal(false)}
           onCreateChat={handleCreateChat}
           installedAgents={installedAgents}
-        />
-
-        <DeleteChatModal
-          open={showDeleteChatModal}
-          onOpenChange={setShowDeleteChatModal}
-          onConfirm={handleConfirmDeleteChat}
-          onCancel={() => {
-            setChatToDelete(null);
-            setShowDeleteChatModal(false);
-          }}
         />
 
         <div className="flex min-h-0 flex-1 flex-col">

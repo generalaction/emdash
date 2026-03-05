@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
+import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
 
 type LifecycleScripts = {
@@ -16,6 +17,7 @@ type ConfigShape = Record<string, unknown> & {
   preservePatterns?: string[];
   scripts?: Partial<LifecycleScripts>;
   shellSetup?: string;
+  tmux?: boolean;
 };
 
 interface ConfigEditorModalProps {
@@ -99,6 +101,12 @@ function applyShellSetup(config: ConfigShape, shellSetup: string): ConfigShape {
   return { ...rest, shellSetup: trimmed };
 }
 
+function applyTmux(config: ConfigShape, tmux: boolean): ConfigShape {
+  const { tmux: _tmux, ...rest } = config;
+  if (!tmux) return rest;
+  return { ...rest, tmux: true };
+}
+
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
@@ -113,6 +121,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalPreservePatternsInput, setOriginalPreservePatternsInput] = useState('');
   const [shellSetup, setShellSetup] = useState('');
   const [originalShellSetup, setOriginalShellSetup] = useState('');
+  const [tmux, setTmux] = useState(false);
+  const [originalTmux, setOriginalTmux] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,9 +140,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const normalizedConfigContent = useMemo(() => {
     const withPatterns = applyPreservePatterns(config, preservePatterns);
     const withShellSetup = applyShellSetup(withPatterns, shellSetup);
-    const withScripts = applyScripts(withShellSetup, scripts);
+    const withTmux = applyTmux(withShellSetup, tmux);
+    const withScripts = applyScripts(withTmux, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, shellSetup, scripts]);
+  }, [config, preservePatterns, shellSetup, tmux, scripts]);
 
   const scriptsDirty = useMemo(
     () =>
@@ -140,18 +151,21 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       scripts.run !== originalScripts.run ||
       scripts.teardown !== originalScripts.teardown ||
       preservePatternsInput !== originalPreservePatternsInput ||
-      shellSetup !== originalShellSetup,
+      shellSetup !== originalShellSetup ||
+      tmux !== originalTmux,
     [
       originalShellSetup,
       originalPreservePatternsInput,
       originalScripts.run,
       originalScripts.setup,
       originalScripts.teardown,
+      originalTmux,
       shellSetup,
       preservePatternsInput,
       scripts.run,
       scripts.setup,
       scripts.teardown,
+      tmux,
     ]
   );
 
@@ -184,6 +198,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const nextScripts = scriptsFromConfig(parsed);
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
       const nextShellSetup = typeof parsed.shellSetup === 'string' ? parsed.shellSetup : '';
+      const nextTmux = parsed.tmux === true;
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);
@@ -191,6 +206,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
       setShellSetup(nextShellSetup);
       setOriginalShellSetup(nextShellSetup);
+      setTmux(nextTmux);
+      setOriginalTmux(nextTmux);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
@@ -199,6 +216,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalPreservePatternsInput('');
       setShellSetup('');
       setOriginalShellSetup('');
+      setTmux(false);
+      setOriginalTmux(false);
       setError(err instanceof Error ? err.message : 'Failed to load config');
       setLoadFailed(true);
     } finally {
@@ -241,13 +260,17 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       }
 
       const nextConfig = applyScripts(
-        applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
+        applyTmux(
+          applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
+          tmux
+        ),
         scripts
       );
       setConfig(nextConfig);
       setOriginalScripts(scripts);
       setOriginalPreservePatternsInput(preservePatternsInput);
       setOriginalShellSetup(shellSetup);
+      setOriginalTmux(tmux);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -265,6 +288,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     preservePatterns,
     projectPath,
     scripts,
+    tmux,
   ]);
 
   return (
@@ -325,6 +349,24 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 <p className="text-xs text-muted-foreground">
                   Runs in every terminal before the shell starts.
                 </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="config-tmux">tmux session persistence</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Wrap agent sessions in tmux so they survive disconnects and restarts.
+                  </p>
+                </div>
+                <Switch
+                  id="config-tmux"
+                  checked={tmux}
+                  onCheckedChange={(checked) => {
+                    setTmux(checked);
+                    setError(null);
+                  }}
+                  disabled={isSaving}
+                />
               </div>
 
               <div className="space-y-2">

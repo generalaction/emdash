@@ -4,7 +4,7 @@ import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
 import type { Task } from '../types/app';
-import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 export interface CommandPaletteWrapperProps {

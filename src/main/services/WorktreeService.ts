@@ -231,10 +231,11 @@ export class WorktreeService {
         baseRefInfo
       );
 
-      // Create the worktree
+      // Create the worktree with --no-track to prevent auto-tracking base ref
+      // Tracking is set explicitly via push --set-upstream after creation
       const { stdout, stderr } = await execFileAsync(
         'git',
-        ['worktree', 'add', '-b', branchName, worktreePath, fetchedBaseRef.fullRef],
+        ['worktree', 'add', '--no-track', '-b', branchName, worktreePath, fetchedBaseRef.fullRef],
         { cwd: projectPath }
       );
 

@@ -9,10 +9,18 @@ import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 export interface AppKeyboardShortcutsProps {
   showCommandPalette: boolean;
   showSettings: boolean;
+  showBrowser: boolean;
+  showDiffViewer: boolean;
+  showEditor: boolean;
+  showKanban: boolean;
   handleToggleCommandPalette: () => void;
   handleOpenSettings: () => void;
   handleCloseCommandPalette: () => void;
   handleCloseSettings: () => void;
+  handleCloseBrowser: () => void;
+  handleCloseDiffViewer: () => void;
+  handleCloseEditor: () => void;
+  handleCloseKanban: () => void;
   handleToggleKanban: () => void;
   handleToggleEditor: () => void;
   handleOpenInEditor: () => void;
@@ -21,10 +29,18 @@ export interface AppKeyboardShortcutsProps {
 const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   showCommandPalette,
   showSettings,
+  showBrowser,
+  showDiffViewer,
+  showEditor,
+  showKanban,
   handleToggleCommandPalette,
   handleOpenSettings,
   handleCloseCommandPalette,
   handleCloseSettings,
+  handleCloseBrowser,
+  handleCloseDiffViewer,
+  handleCloseEditor,
+  handleCloseKanban,
   handleToggleKanban,
   handleToggleEditor,
   handleOpenInEditor,
@@ -55,13 +71,22 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
         new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
       ),
     onOpenInEditor: handleOpenInEditor,
-    onCloseModal: showCommandPalette
-      ? handleCloseCommandPalette
-      : showSettings
-        ? handleCloseSettings
-        : undefined,
+    onCloseModal: (
+      [
+        [showCommandPalette, handleCloseCommandPalette],
+        [showSettings, handleCloseSettings],
+        [showBrowser, handleCloseBrowser],
+        [showDiffViewer, handleCloseDiffViewer],
+        [showEditor, handleCloseEditor],
+        [showKanban, handleCloseKanban],
+      ] as const
+    ).find(([open]) => open)?.[1],
     isCommandPaletteOpen: showCommandPalette,
     isSettingsOpen: showSettings,
+    isBrowserOpen: showBrowser,
+    isDiffViewerOpen: showDiffViewer,
+    isEditorOpen: showEditor,
+    isKanbanOpen: showKanban,
     customKeyboardSettings: keyboardSettings ?? undefined,
   });
 

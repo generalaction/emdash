@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useGithubAuth } from '../../hooks/useGithubAuth';
+import { useGithubContext } from '../../contexts/GithubContextProvider';
 
 interface IntegrationStatus {
   // Linear
@@ -34,7 +34,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     authenticated: githubAuthenticated,
     login: githubLogin,
     isLoading: githubLoading,
-  } = useGithubAuth();
+  } = useGithubContext();
 
   const isGithubConnected = githubInstalled && githubAuthenticated;
 

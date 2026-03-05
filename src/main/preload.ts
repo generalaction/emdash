@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
+  ptyKillTmux: (id: string) =>
+    ipcRenderer.invoke('pty:killTmux', { id }) as Promise<{ ok: boolean; error?: string }>,
 
   // Direct PTY spawn (no shell wrapper, bypasses shell config loading)
   ptyStartDirect: (opts: {
@@ -245,6 +247,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
     ipcRenderer.invoke('lifecycle:teardown', args),
   lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleGetLogs: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getLogs', args),
   lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
   onLifecycleEvent: (listener: (data: any) => void) => {
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
@@ -307,6 +310,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  openFile: (args?: { title?: string; message?: string; filters?: Electron.FileFilter[] }) =>
+    ipcRenderer.invoke('project:openFile', args),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
