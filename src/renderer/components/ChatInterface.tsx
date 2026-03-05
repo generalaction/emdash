@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { events } from '../lib/rpc';
-import { ptyStartedChannel, providerStatusUpdatedChannel } from '@shared/events/appEvents';
+import {
+  ptyStartedChannel,
+  providerStatusUpdatedChannel,
+  menuCloseTabChannel,
+} from '@shared/events/appEvents';
 import { Plus, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
@@ -28,12 +32,6 @@ import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import type { Project } from '../types/app';
 import { useConversations } from '../contexts/ConversationsProvider';
-
-declare const window: Window & {
-  electronAPI: {
-    saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
-  };
-};
 
 interface Props {
   task: Task;
@@ -206,7 +204,7 @@ const ChatInterface: React.FC<Props> = ({
 
     const send = () => {
       try {
-        (window as any).electronAPI?.ptyInput?.({
+        window.electronAPI.ptyInput({
           id: terminalId,
           data: `${meta.autoStartCommand}\n`,
         });
@@ -239,13 +237,12 @@ const ChatInterface: React.FC<Props> = ({
 
   const runInstallCommand = useCallback(
     (cmd: string) => {
-      const api: any = (window as any).electronAPI;
       const targetId = activeTerminalId;
       if (!targetId) return;
 
       const send = () => {
         try {
-          api?.ptyInput?.({ id: targetId, data: `${cmd}\n` });
+          window.electronAPI.ptyInput({ id: targetId, data: `${cmd}\n` });
           return true;
         } catch (error) {
           console.error('Failed to run install command', error);
@@ -308,7 +305,7 @@ const ChatInterface: React.FC<Props> = ({
           'mistral',
         ];
         if (last && (validAgents as string[]).includes(last)) {
-          setAgent(last as Agent);
+          setAgent(last);
         } else {
           setAgent('codex');
         }
@@ -370,7 +367,6 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     let cancelled = false;
     let refreshCheckRequested = false;
-    const api: any = (window as any).electronAPI;
 
     const applyStatuses = (statuses: Record<string, any> | undefined | null) => {
       if (!statuses) return;
@@ -382,7 +378,7 @@ const ChatInterface: React.FC<Props> = ({
 
     const maybeRefreshAgentStatus = async (statuses?: Record<string, any> | undefined | null) => {
       if (cancelled || refreshCheckRequested) return;
-      if (!api?.getProviderStatuses) return;
+      if (!rpc.connections.getStatuses) return;
 
       const status = statuses?.[agent];
       const hasEntry = Boolean(status);
@@ -397,7 +393,7 @@ const ChatInterface: React.FC<Props> = ({
 
       refreshCheckRequested = true;
       try {
-        const refreshed = await api.getProviderStatuses({ refresh: true, providers: [agent] });
+        const refreshed = await rpc.connections.getStatuses({ refresh: true, providers: [agent] });
         if (cancelled) return;
         if (refreshed?.success) {
           applyStatuses(refreshed.statuses ?? {});
@@ -408,12 +404,12 @@ const ChatInterface: React.FC<Props> = ({
     };
 
     const load = async () => {
-      if (!api?.getProviderStatuses) {
+      if (!rpc.connections.getStatuses) {
         setIsAgentInstalled(false);
         return;
       }
       try {
-        const res = await api.getProviderStatuses();
+        const res = await rpc.connections.getStatuses();
         if (cancelled) return;
         if (res?.success) {
           applyStatuses(res.statuses ?? {});
@@ -483,10 +479,10 @@ const ChatInterface: React.FC<Props> = ({
         handleCloseChat(activeConversationId);
       }
     };
-    const cleanupIpc = window.electronAPI.onMenuCloseTab?.(closeActiveTab);
+    const cleanupIpc = events.on(menuCloseTabChannel, closeActiveTab);
     window.addEventListener('emdash:close-active-chat', closeActiveTab);
     return () => {
-      cleanupIpc?.();
+      cleanupIpc();
       window.removeEventListener('emdash:close-active-chat', closeActiveTab);
     };
   }, [activeConversationId, handleCloseChat]);
@@ -533,17 +529,7 @@ const ChatInterface: React.FC<Props> = ({
       return linearContent;
     }
 
-    const gh = (md as any)?.githubIssue as
-      | {
-          number: number;
-          title?: string;
-          url?: string;
-          state?: string;
-          assignees?: any[];
-          labels?: any[];
-          body?: string;
-        }
-      | undefined;
+    const gh = md?.githubIssue;
     if (gh) {
       const parts: string[] = [];
       const line1 = `Linked GitHub issue: #${gh.number}${gh.title ? ` — ${gh.title}` : ''}`;
@@ -553,7 +539,7 @@ const ChatInterface: React.FC<Props> = ({
       try {
         const as = Array.isArray(gh.assignees)
           ? gh.assignees
-              .map((a: any) => a?.name || a?.login)
+              .map((a) => a?.name || a?.login)
               .filter(Boolean)
               .join(', ')
           : '';
@@ -562,7 +548,7 @@ const ChatInterface: React.FC<Props> = ({
       try {
         const ls = Array.isArray(gh.labels)
           ? gh.labels
-              .map((l: any) => l?.name)
+              .map((l) => l?.name)
               .filter(Boolean)
               .join(', ')
           : '';
@@ -584,7 +570,7 @@ const ChatInterface: React.FC<Props> = ({
       return ghContent;
     }
 
-    const j = md?.jiraIssue as any;
+    const j = md?.jiraIssue;
     if (j) {
       const lines: string[] = [];
       const l1 = `Linked Jira issue: ${j.key}${j.summary ? ` — ${j.summary}` : ''}`;
@@ -808,7 +794,7 @@ const ChatInterface: React.FC<Props> = ({
                       terminalId={terminalId}
                       installCommand={getInstallCommandForProvider(agent as any)}
                       onRunInstall={runInstallCommand}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      onOpenExternal={(url) => rpc.app.openExternal(url)}
                       mode="missing"
                     />
                   );
@@ -816,11 +802,11 @@ const ChatInterface: React.FC<Props> = ({
                 if (cliStartError) {
                   return (
                     <InstallBanner
-                      agent={agent as any}
+                      agent={agent}
                       terminalId={terminalId}
                       installCommand={null}
                       onRunInstall={runInstallCommand}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                      onOpenExternal={(url) => rpc.app.openExternal(url)}
                       mode="start_failed"
                       details={cliStartError}
                     />

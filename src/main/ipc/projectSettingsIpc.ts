@@ -1,7 +1,7 @@
-import { ipcMain } from 'electron';
 import { log } from '../lib/logger';
 import { projectSettingsService } from '../services/ProjectSettingsService';
 import { worktreeService } from '../services/WorktreeService';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 type ProjectSettingsArgs = { projectId: string };
 type UpdateProjectSettingsArgs = { projectId: string; baseRef: string };
@@ -12,8 +12,8 @@ const resolveProjectId = (input: ProjectSettingsArgs | string | undefined): stri
   return input.projectId;
 };
 
-export function registerProjectSettingsIpc() {
-  ipcMain.handle('projectSettings:get', async (_event, args: ProjectSettingsArgs | string) => {
+export const projectSettingsController = createRPCController({
+  get: async (args: ProjectSettingsArgs | string) => {
     try {
       const projectId = resolveProjectId(args);
       if (!projectId) {
@@ -28,66 +28,59 @@ export function registerProjectSettingsIpc() {
       log.error('Failed to get project settings', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  },
 
-  ipcMain.handle(
-    'projectSettings:update',
-    async (_event, args: UpdateProjectSettingsArgs | undefined) => {
-      try {
-        const projectId = args?.projectId;
-        const baseRef = args?.baseRef;
-        if (!projectId) {
-          throw new Error('projectId is required');
-        }
-        if (typeof baseRef !== 'string') {
-          throw new Error('baseRef is required');
-        }
-        const trimmed = baseRef.trim();
-        if (!trimmed) {
-          throw new Error('baseRef cannot be empty');
-        }
-        const settings = await projectSettingsService.updateProjectSettings(projectId, {
-          baseRef: trimmed,
-        });
-        return { success: true, settings };
-      } catch (error) {
-        log.error('Failed to update project settings', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+  update: async (args: UpdateProjectSettingsArgs | undefined) => {
+    try {
+      const projectId = args?.projectId;
+      const baseRef = args?.baseRef;
+      if (!projectId) {
+        throw new Error('projectId is required');
       }
+      if (typeof baseRef !== 'string') {
+        throw new Error('baseRef is required');
+      }
+      const trimmed = baseRef.trim();
+      if (!trimmed) {
+        throw new Error('baseRef cannot be empty');
+      }
+      const settings = await projectSettingsService.updateProjectSettings(projectId, {
+        baseRef: trimmed,
+      });
+      return { success: true, settings };
+    } catch (error) {
+      log.error('Failed to update project settings', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  );
+  },
 
-  ipcMain.handle(
-    'projectSettings:fetchBaseRef',
-    async (
-      _event,
-      args:
-        | {
-            projectId: string;
-            projectPath: string;
-          }
-        | undefined
-    ) => {
-      try {
-        const projectId = args?.projectId;
-        const projectPath = args?.projectPath;
-        if (!projectId) {
-          throw new Error('projectId is required');
+  fetchBaseRef: async (
+    args:
+      | {
+          projectId: string;
+          projectPath: string;
         }
-        if (!projectPath) {
-          throw new Error('projectPath is required');
-        }
-        const info = await worktreeService.fetchLatestBaseRef(projectPath, projectId);
-        return {
-          success: true,
-          baseRef: info.fullRef,
-          remote: info.remote,
-          branch: info.branch,
-        };
-      } catch (error) {
-        log.error('Failed to fetch base branch', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      | undefined
+  ) => {
+    try {
+      const projectId = args?.projectId;
+      const projectPath = args?.projectPath;
+      if (!projectId) {
+        throw new Error('projectId is required');
       }
+      if (!projectPath) {
+        throw new Error('projectPath is required');
+      }
+      const info = await worktreeService.fetchLatestBaseRef(projectPath, projectId);
+      return {
+        success: true,
+        baseRef: info.fullRef,
+        remote: info.remote,
+        branch: info.branch,
+      };
+    } catch (error) {
+      log.error('Failed to fetch base branch', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  );
-}
+  },
+});

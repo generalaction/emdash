@@ -1,4 +1,5 @@
 import React from 'react';
+import { rpc } from '../lib/rpc';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
@@ -38,7 +39,7 @@ export const TaskContextBadges: React.FC<Props> = ({
   const handleIssueClick = (url?: string) => {
     if (!url) return;
     try {
-      window.electronAPI?.openExternal?.(url);
+      rpc.app.openExternal(url);
     } catch (e) {
       console.error('Failed to open external link:', e);
     }

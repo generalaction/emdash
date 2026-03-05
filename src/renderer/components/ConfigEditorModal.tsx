@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
+import { rpc } from '../lib/rpc';
 
 type LifecycleScripts = {
   setup: string;
@@ -181,13 +182,14 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       if (isRemote && sshConnectionId) {
         const configPath = `${projectPath}/.emdash.json`;
         try {
-          content = await window.electronAPI.sshReadFile(sshConnectionId, configPath);
+          const readResult = await rpc.ssh.readFile(sshConnectionId, configPath);
+          content = readResult.success ? (readResult.content ?? '{}') : '{}';
         } catch {
           // File doesn't exist yet on remote — treat as empty config
           content = '{}';
         }
       } else {
-        const result = await window.electronAPI.getProjectConfig(projectPath);
+        const result = await rpc.fs.getProjectConfig({ projectPath });
         if (!result.success || !result.content) {
           throw new Error(result.error || 'Failed to load config');
         }
@@ -248,12 +250,12 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     try {
       if (isRemote && sshConnectionId) {
         const configPath = `${projectPath}/.emdash.json`;
-        await window.electronAPI.sshWriteFile(sshConnectionId, configPath, normalizedConfigContent);
+        await rpc.ssh.writeFile(sshConnectionId, configPath, normalizedConfigContent);
       } else {
-        const result = await window.electronAPI.saveProjectConfig(
+        const result = await rpc.fs.saveProjectConfig({
           projectPath,
-          normalizedConfigContent
-        );
+          content: normalizedConfigContent,
+        });
         if (!result.success) {
           throw new Error(result.error || 'Failed to save config');
         }
@@ -421,7 +423,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 variant="link"
                 size="sm"
                 className="h-auto p-0 text-xs underline-offset-2 hover:underline"
-                onClick={() => window.electronAPI.openExternal(PROJECT_CONFIG_DOCS_URL)}
+                onClick={() => rpc.app.openExternal(PROJECT_CONFIG_DOCS_URL)}
               >
                 Check docs for examples ↗
               </Button>

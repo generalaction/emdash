@@ -1,7 +1,8 @@
 import { app, clipboard, ipcMain, shell } from 'electron';
-import { exec, execFile } from 'child_process';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { createRPCController } from '../../shared/ipc/rpc';
+import { exec, execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import {
@@ -191,28 +192,8 @@ const getCachedAppVersion = (): Promise<string> => {
   return cachedAppVersionPromise;
 };
 
-export function registerAppIpc() {
-  void getCachedAppVersion();
-
-  ipcMain.handle('app:undo', async (event) => {
-    try {
-      event.sender.undo();
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  ipcMain.handle('app:redo', async (event) => {
-    try {
-      event.sender.redo();
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  ipcMain.handle('app:openExternal', async (_event, url: string) => {
+export const appController = createRPCController({
+  openExternal: async (url: string) => {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
 
@@ -237,9 +218,9 @@ export function registerAppIpc() {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  },
 
-  ipcMain.handle('app:clipboard-write-text', async (_event, text: string) => {
+  clipboardWriteText: async (text: string) => {
     try {
       if (typeof text !== 'string') throw new Error('Invalid clipboard text');
       clipboard.writeText(text);
@@ -247,258 +228,238 @@ export function registerAppIpc() {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  },
 
-  ipcMain.handle('app:paste', async (event) => {
-    try {
-      const webContents = event.sender;
-      if (!webContents) {
-        return { success: false, error: 'No webContents available' };
-      }
-      webContents.paste();
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+  openIn: async (args: {
+    app: OpenInAppId;
+    path: string;
+    isRemote?: boolean;
+    sshConnectionId?: string | null;
+  }) => {
+    const target = args?.path;
+    const appId = args?.app;
+    const isRemote = args?.isRemote || false;
+    const sshConnectionId = args?.sshConnectionId;
+
+    if (!target || typeof target !== 'string' || !appId) {
+      return { success: false, error: 'Invalid arguments' };
     }
-  });
-
-  ipcMain.handle(
-    'app:openIn',
-    async (
-      _event,
-      args: {
-        app: OpenInAppId;
-        path: string;
-        isRemote?: boolean;
-        sshConnectionId?: string | null;
+    try {
+      const platform = process.platform as PlatformKey;
+      const appConfig = getAppById(appId);
+      if (!appConfig) {
+        return { success: false, error: 'Invalid app ID' };
       }
-    ) => {
-      const target = args?.path;
-      const appId = args?.app;
-      const isRemote = args?.isRemote || false;
-      const sshConnectionId = args?.sshConnectionId;
 
-      if (!target || typeof target !== 'string' || !appId) {
-        return { success: false, error: 'Invalid arguments' };
+      const platformConfig = appConfig.platforms?.[platform];
+      const label = getResolvedLabel(appConfig, platform);
+      if (!platformConfig && !appConfig.alwaysAvailable) {
+        return { success: false, error: `${label} is not available on this platform.` };
       }
-      try {
-        const platform = process.platform as PlatformKey;
-        const appConfig = getAppById(appId);
-        if (!appConfig) {
-          return { success: false, error: 'Invalid app ID' };
-        }
 
-        const platformConfig = appConfig.platforms?.[platform];
-        const label = getResolvedLabel(appConfig, platform);
-        if (!platformConfig && !appConfig.alwaysAvailable) {
-          return { success: false, error: `${label} is not available on this platform.` };
-        }
+      // Handle remote SSH connections for supported editors and terminals
+      if (isRemote && sshConnectionId) {
+        try {
+          const connection = await databaseService.getSshConnection(sshConnectionId);
+          if (!connection) {
+            return { success: false, error: 'SSH connection not found' };
+          }
 
-        // Handle remote SSH connections for supported editors and terminals
-        if (isRemote && sshConnectionId) {
-          try {
-            const connection = await databaseService.getSshConnection(sshConnectionId);
-            if (!connection) {
-              return { success: false, error: 'SSH connection not found' };
-            }
+          // Construct remote SSH URL or command based on the app
+          // Security: Escape all user-controlled values to prevent command injection
+          if (appId === 'vscode') {
+            // VS Code Remote SSH URL format:
+            // vscode://vscode-remote/ssh-remote+user%40hostname/path
+            const remoteUrl = buildRemoteEditorUrl(
+              'vscode',
+              connection.host,
+              connection.username,
+              target
+            );
+            await shell.openExternal(remoteUrl);
+            return { success: true };
+          } else if (appId === 'cursor') {
+            // Cursor uses its own URL scheme for remote SSH
+            const remoteUrl = buildRemoteEditorUrl(
+              'cursor',
+              connection.host,
+              connection.username,
+              target
+            );
+            await shell.openExternal(remoteUrl);
+            return { success: true };
+          } else if (appId === 'terminal' && platform === 'darwin') {
+            // macOS Terminal.app - execute SSH command
+            const sshCommand = buildRemoteSshCommand({
+              host: connection.host,
+              username: connection.username,
+              port: connection.port,
+              targetPath: target,
+            });
+            const escapedCommand = escapeAppleScriptString(sshCommand);
 
-            // Construct remote SSH URL or command based on the app
-            // Security: Escape all user-controlled values to prevent command injection
-            if (appId === 'vscode') {
-              // VS Code Remote SSH URL format:
-              // vscode://vscode-remote/ssh-remote+user%40hostname/path
-              const remoteUrl = buildRemoteEditorUrl(
-                'vscode',
-                connection.host,
-                connection.username,
-                target
-              );
-              await shell.openExternal(remoteUrl);
-              return { success: true };
-            } else if (appId === 'cursor') {
-              // Cursor uses its own URL scheme for remote SSH
-              const remoteUrl = buildRemoteEditorUrl(
-                'cursor',
-                connection.host,
-                connection.username,
-                target
-              );
-              await shell.openExternal(remoteUrl);
-              return { success: true };
-            } else if (appId === 'terminal' && platform === 'darwin') {
-              // macOS Terminal.app - execute SSH command
-              const sshCommand = buildRemoteSshCommand({
-                host: connection.host,
-                username: connection.username,
-                port: connection.port,
-                targetPath: target,
-              });
-              const escapedCommand = escapeAppleScriptString(sshCommand);
+            await execFileCommand('osascript', [
+              '-e',
+              `tell application "Terminal" to do script "${escapedCommand}"`,
+              '-e',
+              'tell application "Terminal" to activate',
+            ]);
+            return { success: true };
+          } else if (appId === 'iterm2' && platform === 'darwin') {
+            // iTerm2 - execute SSH command
+            const sshCommand = buildRemoteSshCommand({
+              host: connection.host,
+              username: connection.username,
+              port: connection.port,
+              targetPath: target,
+            });
+            const escapedCommand = escapeAppleScriptString(sshCommand);
 
-              await execFileCommand('osascript', [
-                '-e',
-                `tell application "Terminal" to do script "${escapedCommand}"`,
-                '-e',
-                'tell application "Terminal" to activate',
-              ]);
-              return { success: true };
-            } else if (appId === 'iterm2' && platform === 'darwin') {
-              // iTerm2 - execute SSH command
-              const sshCommand = buildRemoteSshCommand({
-                host: connection.host,
-                username: connection.username,
-                port: connection.port,
-                targetPath: target,
-              });
-              const escapedCommand = escapeAppleScriptString(sshCommand);
+            await execFileCommand('osascript', [
+              '-e',
+              `tell application "iTerm" to create window with default profile command "${escapedCommand}"`,
+              '-e',
+              'tell application "iTerm" to activate',
+            ]);
+            return { success: true };
+          } else if (appId === 'warp' && platform === 'darwin') {
+            // Warp - use URL scheme with SSH command
+            const sshCommand = buildRemoteSshCommand({
+              host: connection.host,
+              username: connection.username,
+              port: connection.port,
+              targetPath: target,
+            });
+            await shell.openExternal(
+              `warp://action/new_window?cmd=${encodeURIComponent(sshCommand)}`
+            );
+            return { success: true };
+          } else if (appId === 'ghostty') {
+            // Ghostty - execute SSH command directly.
+            // Prefer remote login shell behavior for normal prompt/init scripts while
+            // keeping deterministic fallbacks when SHELL is missing or invalid.
+            // Compatibility note: many remote hosts don't ship xterm-ghostty terminfo.
+            // The argv builder falls back to TERM=xterm-256color only when current TERM
+            // isn't supported, keeping TUIs (e.g. ranger) working without always downgrading.
+            const ghosttyExecArgs = buildGhosttyRemoteExecArgs({
+              host: connection.host,
+              username: connection.username,
+              port: connection.port,
+              targetPath: target,
+            });
 
-              await execFileCommand('osascript', [
-                '-e',
-                `tell application "iTerm" to create window with default profile command "${escapedCommand}"`,
-                '-e',
-                'tell application "iTerm" to activate',
-              ]);
-              return { success: true };
-            } else if (appId === 'warp' && platform === 'darwin') {
-              // Warp - use URL scheme with SSH command
-              const sshCommand = buildRemoteSshCommand({
-                host: connection.host,
-                username: connection.username,
-                port: connection.port,
-                targetPath: target,
-              });
-              await shell.openExternal(
-                `warp://action/new_window?cmd=${encodeURIComponent(sshCommand)}`
-              );
-              return { success: true };
-            } else if (appId === 'ghostty') {
-              // Ghostty - execute SSH command directly.
-              // Prefer remote login shell behavior for normal prompt/init scripts while
-              // keeping deterministic fallbacks when SHELL is missing or invalid.
-              // Compatibility note: many remote hosts don't ship xterm-ghostty terminfo.
-              // The argv builder falls back to TERM=xterm-256color only when current TERM
-              // isn't supported, keeping TUIs (e.g. ranger) working without always downgrading.
-              const ghosttyExecArgs = buildGhosttyRemoteExecArgs({
-                host: connection.host,
-                username: connection.username,
-                port: connection.port,
-                targetPath: target,
-              });
+            const attempts =
+              platform === 'darwin'
+                ? [
+                    {
+                      file: 'open',
+                      args: [
+                        '-n',
+                        '-b',
+                        'com.mitchellh.ghostty',
+                        '--args',
+                        '-e',
+                        ...ghosttyExecArgs,
+                      ],
+                    },
+                    {
+                      file: 'open',
+                      args: ['-na', 'Ghostty', '--args', '-e', ...ghosttyExecArgs],
+                    },
+                    { file: 'ghostty', args: ['-e', ...ghosttyExecArgs] },
+                  ]
+                : [{ file: 'ghostty', args: ['-e', ...ghosttyExecArgs] }];
 
-              const attempts =
-                platform === 'darwin'
-                  ? [
-                      {
-                        file: 'open',
-                        args: [
-                          '-n',
-                          '-b',
-                          'com.mitchellh.ghostty',
-                          '--args',
-                          '-e',
-                          ...ghosttyExecArgs,
-                        ],
-                      },
-                      {
-                        file: 'open',
-                        args: ['-na', 'Ghostty', '--args', '-e', ...ghosttyExecArgs],
-                      },
-                      { file: 'ghostty', args: ['-e', ...ghosttyExecArgs] },
-                    ]
-                  : [{ file: 'ghostty', args: ['-e', ...ghosttyExecArgs] }];
-
-              let lastError: unknown = null;
-              for (const attempt of attempts) {
-                try {
-                  await execFileCommand(attempt.file, attempt.args);
-                  return { success: true };
-                } catch (error) {
-                  lastError = error;
-                }
+            let lastError: unknown = null;
+            for (const attempt of attempts) {
+              try {
+                await execFileCommand(attempt.file, attempt.args);
+                return { success: true };
+              } catch (error) {
+                lastError = error;
               }
-
-              if (lastError instanceof Error) throw lastError;
-              throw new Error('Unable to launch Ghostty');
-            } else if (appConfig.supportsRemote) {
-              // App claims to support remote but we don't have a handler
-              return {
-                success: false,
-                error: `Remote SSH not yet implemented for ${label}`,
-              };
             }
-          } catch (error) {
+
+            if (lastError instanceof Error) throw lastError;
+            throw new Error('Unable to launch Ghostty');
+          } else if (appConfig.supportsRemote) {
+            // App claims to support remote but we don't have a handler
             return {
               success: false,
-              error: `Failed to open remote connection: ${error instanceof Error ? error.message : String(error)}`,
+              error: `Remote SSH not yet implemented for ${label}`,
             };
           }
-        }
-
-        const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
-
-        // Handle URL-based apps (like Warp)
-        if (platformConfig?.openUrls) {
-          for (const urlTemplate of platformConfig.openUrls) {
-            const url = urlTemplate
-              .replace('{{path_url}}', encodeURIComponent(target))
-              .replace('{{path}}', target);
-            try {
-              await shell.openExternal(url);
-              return { success: true };
-            } catch (error) {
-              void error;
-            }
-          }
+        } catch (error) {
           return {
             success: false,
-            error: `${label} is not installed or its URI scheme is not registered on this platform.`,
+            error: `Failed to open remote connection: ${error instanceof Error ? error.message : String(error)}`,
           };
         }
-
-        // Handle command-based apps
-        const commands = platformConfig?.openCommands || [];
-        let command = '';
-
-        if (commands.length > 0) {
-          command = commands
-            .map((cmd: string) => {
-              // Chain both replacements: first {{path}}, then {{path_raw}}
-              return cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target);
-            })
-            .join(' || ');
-        }
-
-        if (!command) {
-          return { success: false, error: 'Unsupported platform or app' };
-        }
-
-        if (appConfig.autoInstall) {
-          try {
-            const settings = getAppSettings();
-            if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
-              void ensureProjectPrepared(target).catch(() => {});
-            }
-          } catch {}
-        }
-
-        await new Promise<void>((resolve, reject) => {
-          exec(command, { cwd: target, env: buildExternalToolEnv() }, (err) => {
-            if (err) return reject(err);
-            resolve();
-          });
-        });
-        return { success: true };
-      } catch (error) {
-        const appConfig = getAppById(appId);
-        const catchLabel = appConfig
-          ? getResolvedLabel(appConfig, process.platform as PlatformKey)
-          : appId;
-        return { success: false, error: `Unable to open in ${catchLabel}` };
       }
-    }
-  );
 
-  ipcMain.handle('app:checkInstalledApps', async () => {
+      const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+
+      // Handle URL-based apps (like Warp)
+      if (platformConfig?.openUrls) {
+        for (const urlTemplate of platformConfig.openUrls) {
+          const url = urlTemplate
+            .replace('{{path_url}}', encodeURIComponent(target))
+            .replace('{{path}}', target);
+          try {
+            await shell.openExternal(url);
+            return { success: true };
+          } catch (error) {
+            void error;
+          }
+        }
+        return {
+          success: false,
+          error: `${label} is not installed or its URI scheme is not registered on this platform.`,
+        };
+      }
+
+      // Handle command-based apps
+      const commands = platformConfig?.openCommands || [];
+      let command = '';
+
+      if (commands.length > 0) {
+        command = commands
+          .map((cmd: string) => {
+            // Chain both replacements: first {{path}}, then {{path_raw}}
+            return cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target);
+          })
+          .join(' || ');
+      }
+
+      if (!command) {
+        return { success: false, error: 'Unsupported platform or app' };
+      }
+
+      if (appConfig.autoInstall) {
+        try {
+          const settings = getAppSettings();
+          if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
+            void ensureProjectPrepared(target).catch(() => {});
+          }
+        } catch {}
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        exec(command, { cwd: target, env: buildExternalToolEnv() }, (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
+      return { success: true };
+    } catch (error) {
+      const appConfig = getAppById(appId);
+      const catchLabel = appConfig
+        ? getResolvedLabel(appConfig, process.platform as PlatformKey)
+        : appId;
+      return { success: false, error: `Unable to open in ${catchLabel}` };
+    }
+  },
+  checkInstalledApps: async () => {
     const platform = process.platform as PlatformKey;
     const availability: Record<string, boolean> = {};
 
@@ -592,9 +553,9 @@ export function registerAppIpc() {
     }
 
     return availability;
-  });
+  },
 
-  ipcMain.handle('app:listInstalledFonts', async (_event, args?: { refresh?: boolean }) => {
+  listInstalledFonts: async (args?: { refresh?: boolean }) => {
     const refresh = Boolean(args?.refresh);
     const now = Date.now();
     if (
@@ -617,10 +578,44 @@ export function registerAppIpc() {
         cached: Boolean(cachedInstalledFonts),
       };
     }
+  },
+
+  getAppVersion: () => getCachedAppVersion(),
+  getElectronVersion: () => process.versions.electron,
+  getPlatform: () => process.platform,
+});
+
+export function registerAppIpc() {
+  void getCachedAppVersion();
+
+  ipcMain.handle('app:undo', async (event) => {
+    try {
+      event.sender.undo();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   });
 
-  // App metadata
-  ipcMain.handle('app:getAppVersion', () => getCachedAppVersion());
-  ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
-  ipcMain.handle('app:getPlatform', () => process.platform);
+  ipcMain.handle('app:redo', async (event) => {
+    try {
+      event.sender.redo();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('app:paste', async (event) => {
+    try {
+      const webContents = event.sender;
+      if (!webContents) {
+        return { success: false, error: 'No webContents available' };
+      }
+      webContents.paste();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }

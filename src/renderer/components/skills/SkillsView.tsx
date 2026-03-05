@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { RefreshCw, Search, Plus, Loader2, Sparkles } from 'lucide-react';
+import { RefreshCw, Search, Plus, Loader2 } from 'lucide-react';
+import { rpc } from '../../lib/rpc';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -61,7 +62,7 @@ const SkillsView: React.FC = () => {
 
     setIsCreating(true);
     try {
-      const result = await window.electronAPI.skillsCreate({
+      const result = await rpc.skills.create({
         name: trimmedName,
         description: newDescription.trim(),
         content: newContent.trim(),
@@ -86,7 +87,7 @@ const SkillsView: React.FC = () => {
   };
 
   const handleOpenTerminal = (skillPath: string) => {
-    window.electronAPI.openIn({ app: 'terminal', path: skillPath });
+    rpc.app.openIn({ app: 'terminal', path: skillPath });
   };
 
   if (isLoading) {

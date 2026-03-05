@@ -1,3 +1,5 @@
+import { rpc } from './rpc';
+
 export type GitStatusChange = {
   path: string;
   status: string;
@@ -42,7 +44,7 @@ export async function getCachedGitStatus(
   latestRequestId.set(taskPath, requestId);
   const promise = (async () => {
     try {
-      const res = await window.electronAPI.getGitStatus(taskPath);
+      const res = await rpc.git.getStatus(taskPath);
       const result = res ?? {
         success: false,
         error: 'Failed to load git status',

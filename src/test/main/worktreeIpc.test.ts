@@ -83,11 +83,13 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
   });
 
   async function getHandler() {
-    const { registerWorktreeIpc } = await import('../../main/services/worktreeIpc');
-    registerWorktreeIpc();
-    const handler = ipcHandleHandlers.get('worktree:claimReserveAndSaveTask');
+    const { worktreeController } = await import('../../main/services/worktreeIpc');
+    const handler = worktreeController.claimReserveAndSaveTask;
     expect(handler).toBeTypeOf('function');
-    return handler!;
+    return ((_event: unknown, args: unknown) => (handler as (a: unknown) => unknown)(args)) as (
+      event: unknown,
+      args: unknown
+    ) => unknown;
   }
 
   it('claims reserve and persists task in one handler call', async () => {
@@ -224,8 +226,8 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
       }
     );
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('db save failed');
+    expect((result as { success: boolean; error: string }).success).toBe(false);
+    expect((result as { success: boolean; error: string }).error).toContain('db save failed');
   });
 
   it('rejects remote projects without claiming or saving', async () => {

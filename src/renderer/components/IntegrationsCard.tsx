@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Plus, Loader2 } from 'lucide-react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
+import { rpc } from '../lib/rpc';
 import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
@@ -69,7 +70,7 @@ const IntegrationsCard: React.FC = () => {
   useEffect(() => {
     const checkLinear = async () => {
       try {
-        const result = await window.electronAPI.linearCheckConnection?.();
+        const result = await rpc.linear.checkConnection();
         setLinearConnected(!!result?.connected);
       } catch {
         setLinearConnected(false);
@@ -78,7 +79,7 @@ const IntegrationsCard: React.FC = () => {
 
     const checkJira = async () => {
       try {
-        const result = await window.electronAPI.jiraCheckConnection?.();
+        const result = await rpc.jira.checkConnection();
         setJiraConnected(!!result?.connected);
       } catch {
         setJiraConnected(false);
@@ -95,7 +96,7 @@ const IntegrationsCard: React.FC = () => {
     try {
       if (!installed) {
         // Auto-install gh CLI
-        const installResult = await window.electronAPI.githubInstallCLI();
+        const installResult = await rpc.github.installCLI();
         if (!installResult.success) {
           setGithubError(
             `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`
@@ -151,7 +152,7 @@ const IntegrationsCard: React.FC = () => {
     setLinearError(null);
 
     try {
-      const result = await window.electronAPI.linearSaveToken?.(token);
+      const result = await rpc.linear.saveToken(token);
       if (result?.success) {
         setLinearConnected(true);
         setLinearInput('');
@@ -169,7 +170,7 @@ const IntegrationsCard: React.FC = () => {
 
   const handleLinearDisconnect = useCallback(async () => {
     try {
-      const result = await window.electronAPI.linearClearToken?.();
+      const result = await rpc.linear.clearToken();
       if (result?.success) {
         setLinearConnected(false);
         setLinearInput('');
@@ -184,8 +185,7 @@ const IntegrationsCard: React.FC = () => {
     setJiraError(null);
     setJiraLoading(true);
     try {
-      const api: any = window.electronAPI;
-      const res = await api?.jiraSaveCredentials?.({
+      const res = await rpc.jira.saveCredentials({
         siteUrl: jiraSite.trim(),
         email: jiraEmail.trim(),
         token: jiraToken.trim(),
@@ -208,8 +208,7 @@ const IntegrationsCard: React.FC = () => {
 
   const handleJiraDisconnect = useCallback(async () => {
     try {
-      const api: any = window.electronAPI;
-      const result = await api?.jiraClearCredentials?.();
+      const result = await rpc.jira.clearCredentials();
       if (result?.success) {
         setJiraConnected(false);
         setJiraSite('');

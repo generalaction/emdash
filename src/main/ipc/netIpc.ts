@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
 import net from 'node:net';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 function probePort(host: string, port: number, timeoutMs = 800): Promise<boolean> {
   return new Promise((resolve) => {
@@ -37,17 +37,14 @@ function probePort(host: string, port: number, timeoutMs = 800): Promise<boolean
   });
 }
 
-export function registerNetIpc() {
-  ipcMain.handle(
-    'net:probePorts',
-    async (_e, host: string, ports: number[], timeoutMs?: number) => {
-      const h = (host || 'localhost').trim() || 'localhost';
-      const ps = Array.isArray(ports) ? ports.map((p) => Number(p)).filter((p) => p > 0) : [];
-      const t = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 800;
-      if (!ps.length) return { reachable: [] };
-      const results = await Promise.all(ps.map((p) => probePort(h, p, t)));
-      const reachable = ps.filter((_, i) => !!results[i]);
-      return { reachable };
-    }
-  );
-}
+export const netController = createRPCController({
+  probePorts: async (host: string, ports: number[], timeoutMs?: number) => {
+    const h = (host || 'localhost').trim() || 'localhost';
+    const ps = Array.isArray(ports) ? ports.map((p) => Number(p)).filter((p) => p > 0) : [];
+    const t = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 800;
+    if (!ps.length) return { reachable: [] };
+    const results = await Promise.all(ps.map((p) => probePort(h, p, t)));
+    const reachable = ps.filter((_, i) => !!results[i]);
+    return { reachable };
+  },
+});

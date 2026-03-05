@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { rpc } from '../../lib/rpc';
 import { Spinner } from '../ui/spinner';
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -198,7 +199,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const loadSshConfig = useCallback(async () => {
     setIsLoadingSshConfig(true);
     try {
-      const result = await window.electronAPI.sshGetConfig();
+      const result = await rpc.ssh.getSshConfig();
       if (result.success && result.hosts) {
         setSshConfigHosts(result.hosts);
       }
@@ -214,9 +215,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const loadSavedConnections = useCallback(async () => {
     setIsLoadingSavedConnections(true);
     try {
-      const connections = await window.electronAPI.sshGetConnections();
-      if (Array.isArray(connections)) {
-        setSavedConnections(connections as typeof savedConnections);
+      const connResult = await rpc.ssh.getConnections();
+      if (connResult.success && connResult.connections) {
+        setSavedConnections(connResult.connections as typeof savedConnections);
       }
     } catch (error) {
       console.debug('Failed to load saved connections:', error);
@@ -228,7 +229,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const deleteSavedConnection = useCallback(
     async (id: string) => {
       try {
-        await window.electronAPI.sshDeleteConnection(id);
+        await rpc.ssh.deleteConnection(id);
         if (selectedSavedConnection === id) {
           setSelectedSavedConnection(null);
           setUseExistingConnection(false);
@@ -402,7 +403,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
       };
 
-      const result = await window.electronAPI.sshTestConnection(testConfig);
+      const result = await rpc.ssh.testConnection(testConfig);
       setTestResult(result);
       setDebugLogs(result.debugLogs || []);
 
@@ -460,14 +461,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setBrowseError(null);
 
       try {
-        const result = await window.electronAPI.sshListFiles(connectionId, path);
-        // Handle both old array format and new object format for backward compatibility
-        const entries: FileEntry[] =
-          result && typeof result === 'object' && 'files' in result
-            ? (result.files as FileEntry[]) || []
-            : Array.isArray(result)
-              ? (result as FileEntry[])
-              : [];
+        const result = await rpc.ssh.listFiles(connectionId, path);
+        const entries: FileEntry[] = result.files ?? [];
         // Sort: directories first, then files, alphabetically
         const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
           if (a.type === 'directory' && b.type !== 'directory') return -1;
@@ -506,7 +501,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
       // Connect using the saved connection ID
       try {
-        const connId = await window.electronAPI.sshConnect(conn.id);
+        const connectResult = await rpc.ssh.connect(conn.id);
+        const connId = connectResult.connectionId!;
         setConnectionId(connId);
         setCurrentStep('path');
 
@@ -515,13 +511,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         setIsBrowsing(true);
         setBrowseError(null);
         try {
-          const result = await window.electronAPI.sshListFiles(connId, homePath);
-          const entries: FileEntry[] =
-            result && typeof result === 'object' && 'files' in result
-              ? (result.files as FileEntry[]) || []
-              : Array.isArray(result)
-                ? (result as FileEntry[])
-                : [];
+          const result = await rpc.ssh.listFiles(connId, homePath);
+          const entries: FileEntry[] = result.files ?? [];
           const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
             if (a.type === 'directory' && b.type !== 'directory') return -1;
             if (a.type !== 'directory' && b.type === 'directory') return 1;
@@ -605,10 +596,11 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
         };
 
-        const connId = await window.electronAPI.sshConnect({
+        const connectResult2 = await rpc.ssh.connect({
           ...connectConfig,
           id: connectionId || undefined,
         });
+        const connId = connectResult2.connectionId!;
         setConnectionId(connId);
 
         // Browse directly with connId since connectionId state hasn't updated yet
@@ -616,13 +608,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         setIsBrowsing(true);
         setBrowseError(null);
         try {
-          const result = await window.electronAPI.sshListFiles(connId, homePath);
-          const entries: FileEntry[] =
-            result && typeof result === 'object' && 'files' in result
-              ? (result.files as FileEntry[]) || []
-              : Array.isArray(result)
-                ? (result as FileEntry[])
-                : [];
+          const result = await rpc.ssh.listFiles(connId, homePath);
+          const entries: FileEntry[] = result.files ?? [];
           const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
             if (a.type === 'directory' && b.type !== 'directory') return -1;
             if (a.type !== 'directory' && b.type === 'directory') return 1;
@@ -651,12 +638,14 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         setIsCreatingRepo(true);
         setErrors({});
         try {
-          const createdPath = await window.electronAPI.sshInitRepo(
+          const initResult = await rpc.ssh.initRepo(
             connectionId,
             formData.remotePath.replace(/\/+$/, ''),
             newRepoName.trim()
           );
-          updateField('remotePath', createdPath);
+          if (!initResult.success)
+            throw new Error(initResult.error || 'Failed to create repository');
+          updateField('remotePath', initResult.path!);
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Failed to create repository';
           setErrors({ general: msg });
@@ -669,12 +658,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         setErrors({});
         try {
           const targetPath = `${formData.remotePath.replace(/\/+$/, '')}/${cloneDirName.trim()}`;
-          const clonedPath = await window.electronAPI.sshCloneRepo(
-            connectionId,
-            cloneUrl.trim(),
-            targetPath
-          );
-          updateField('remotePath', clonedPath);
+          const cloneResult = await rpc.ssh.cloneRepo(connectionId, cloneUrl.trim(), targetPath);
+          if (!cloneResult.success)
+            throw new Error(cloneResult.error || 'Failed to clone repository');
+          updateField('remotePath', cloneResult.path!);
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Failed to clone repository';
           setErrors({ general: msg });
@@ -758,14 +745,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
         };
 
-        const savedConfig = await window.electronAPI.sshSaveConnection(saveConfig);
+        const saveResult = await rpc.ssh.saveConnection(saveConfig);
+        if (!saveResult.success) throw new Error(saveResult.error || 'Failed to save connection');
 
         onSuccess({
           id: Date.now().toString(),
           name: projectName,
           path: formData.remotePath,
           host: formData.host,
-          connectionId: savedConfig.id!,
+          connectionId: saveResult.connection!.id!,
         });
       }
 
@@ -789,7 +777,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   // Handle close
   const handleClose = useCallback(() => {
     if (connectionId) {
-      void window.electronAPI.sshDisconnect(connectionId);
+      void rpc.ssh.disconnect(connectionId);
     }
     onClose();
   }, [connectionId, onClose]);
@@ -1111,7 +1099,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const result = await window.electronAPI.openProject();
+                          const result = await rpc.project.open();
                           if (result.success && result.path) {
                             updateField('privateKeyPath', result.path);
                           }

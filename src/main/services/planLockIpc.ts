@@ -1,10 +1,6 @@
-import { ipcMain } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
-
-function isWindows() {
-  return process.platform === 'win32';
-}
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 function isSymlink(p: string) {
   try {
@@ -129,19 +125,13 @@ function releaseLock(root: string): { success: boolean; restored: number; error?
   }
 }
 
-export function registerPlanLockIpc(): void {
-  ipcMain.handle('plan:lock', async (_e, taskPath: string) => {
-    if (isWindows()) {
-      // Best-effort: still attempt chmod; ACL hardening could be added with icacls in a future pass
-      return applyLock(taskPath);
-    }
+export const planLockController = createRPCController({
+  lock: async (taskPath: string) => {
+    // Best-effort on Windows: still attempt chmod; ACL hardening could be added with icacls in a future pass
     return applyLock(taskPath);
-  });
+  },
 
-  ipcMain.handle('plan:unlock', async (_e, taskPath: string) => {
-    if (isWindows()) {
-      return releaseLock(taskPath);
-    }
+  unlock: async (taskPath: string) => {
     return releaseLock(taskPath);
-  });
-}
+  },
+});

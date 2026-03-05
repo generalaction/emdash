@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { rpc } from '../lib/rpc';
 
 export interface PullRequestSummary {
   number: number;
@@ -26,7 +27,7 @@ export function usePullRequests(projectPath?: string, enabled: boolean = true) {
     setLoading(true);
     setError(null);
     try {
-      const response = await window.electronAPI.githubListPullRequests(projectPath);
+      const response = await rpc.github.listPullRequests({ projectPath });
       if (response?.success) {
         const items = Array.isArray(response.prs) ? response.prs : [];
         const mapped = items

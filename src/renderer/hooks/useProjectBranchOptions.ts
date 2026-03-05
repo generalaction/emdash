@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { pickDefaultBranch, type BranchOption } from '../components/BranchSelect';
 import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
 import type { Project } from '../types/app';
+import { rpc } from '../lib/rpc';
 
 interface ProjectBranchOptions {
   projectBranchOptions: BranchOption[];
@@ -36,7 +37,7 @@ export function useProjectBranchOptions(project: Project | null): ProjectBranchO
       try {
         let options: BranchOption[];
         if (project.isRemote && project.sshConnectionId) {
-          const result = await window.electronAPI.sshExecuteCommand(
+          const result = await rpc.ssh.executeCommand(
             project.sshConnectionId,
             'git branch -a --format="%(refname:short)"',
             project.path
@@ -52,7 +53,7 @@ export function useProjectBranchOptions(project: Project | null): ProjectBranchO
             options = [];
           }
         } else {
-          const res = await window.electronAPI.listRemoteBranches({ projectPath: project.path });
+          const res = await rpc.git.listRemoteBranches({ projectPath: project.path });
           if (cancelled) return;
           if (res.success && res.branches) {
             options = res.branches.map((b) => ({
@@ -96,10 +97,7 @@ export function useProjectBranchOptions(project: Project | null): ProjectBranchO
     const baseRefForPrewarm = hasPreferredRef ? preferredBaseRef : fallbackBaseRef;
     prewarmWorktreeReserve(project.id, project.path, project.gitInfo?.isGitRepo, baseRefForPrewarm);
   }, [
-    project?.id,
-    project?.path,
-    project?.gitInfo?.isGitRepo,
-    project?.gitInfo?.baseRef,
+    project,
     hasResolvedBranchOptions,
     isLoadingBranches,
     projectDefaultBranch,

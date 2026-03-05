@@ -1,4 +1,5 @@
 import React from 'react';
+import { rpc } from '../lib/rpc';
 
 type BrowserController = {
   isOpen: boolean;
@@ -38,11 +39,8 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
       captureTelemetry('browser_preview_url_navigated');
     });
     try {
-      const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserLoadURL === 'function') {
-        api.browserLoadURL(next);
-        return;
-      }
+      void rpc.browser.loadURL(next);
+      return;
     } catch {}
     const el = ensureRef();
     try {
@@ -88,33 +86,24 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const goBack = React.useCallback(() => {
     try {
-      const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserGoBack === 'function') {
-        api.browserGoBack();
-        return;
-      }
+      void rpc.browser.goBack();
+      return;
     } catch {}
     const el = ensureRef();
     if (el && el.canGoBack()) el.goBack();
   }, []);
   const goForward = React.useCallback(() => {
     try {
-      const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserGoForward === 'function') {
-        api.browserGoForward();
-        return;
-      }
+      void rpc.browser.goForward();
+      return;
     } catch {}
     const el = ensureRef();
     if (el && el.canGoForward()) el.goForward();
   }, []);
   const reload = React.useCallback(() => {
     try {
-      const api: any = (window as any).electronAPI;
-      if (api && typeof api.browserReload === 'function') {
-        api.browserReload();
-        return;
-      }
+      void rpc.browser.reload();
+      return;
     } catch {}
     const el = ensureRef();
     if (el) el.reload();

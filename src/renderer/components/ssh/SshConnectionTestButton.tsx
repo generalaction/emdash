@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/colla
 import { cn } from '@/lib/utils';
 import { Play, CheckCircle2, XCircle, Zap, ChevronDown, Copy, Check } from 'lucide-react';
 import type { ConnectionTestResult } from '@shared/ssh/types';
+import { rpc } from '../../lib/rpc';
 
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 
@@ -38,7 +39,7 @@ export const SshConnectionTestButton: React.FC<Props> = ({
       // For testing, we need the full config - this would need to be fetched or passed in
       // For now, we'll call the test with just the ID and let the main process handle it
       // TODO: Fetch connection details or update IPC to accept just ID
-      const testResult = await window.electronAPI.sshTestConnection({
+      const testResult = await rpc.ssh.testConnection({
         id: connectionId,
         name: '',
         host: '',

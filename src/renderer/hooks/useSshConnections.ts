@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { SshConnection, SshConnectionConfig } from '../components/ssh';
 import type { ConnectionState, SshConfigHost } from '../../shared/ssh/types';
+import { rpc } from '../lib/rpc';
 
 export interface UseSshConnectionsResult {
   connections: SshConnection[];
@@ -30,14 +31,15 @@ export function useSshConnections(): UseSshConnectionsResult {
   // Fetch all connections
   const fetchConnections = useCallback(async () => {
     try {
-      // The API returns an array directly, not wrapped in { success, connections }
-      const result = (await window.electronAPI.sshGetConnections()) as unknown as SshConnection[];
-      if (Array.isArray(result)) {
+      const result = await rpc.ssh.getConnections();
+      if (result.success && result.connections) {
         // Merge with cached states
-        const mergedConnections = result.map((conn: SshConnection) => ({
-          ...conn,
-          state: stateCache.get(conn.id) || 'disconnected',
-        }));
+        const mergedConnections = (result.connections as SshConnection[]).map(
+          (conn: SshConnection) => ({
+            ...conn,
+            state: stateCache.get(conn.id) || 'disconnected',
+          })
+        );
         setConnections(mergedConnections);
       }
     } catch (err) {
@@ -74,8 +76,8 @@ export function useSshConnections(): UseSshConnectionsResult {
 
       for (const conn of connections) {
         try {
-          // The API returns the state string directly
-          const state = (await window.electronAPI.sshGetState(conn.id)) as ConnectionState;
+          const stateResult = await rpc.ssh.getState(conn.id);
+          const state = stateResult.state as ConnectionState;
           if (state && stateCache.get(conn.id) !== state) {
             stateCache.set(conn.id, state);
             newStates.set(conn.id, state);
@@ -122,16 +124,13 @@ export function useSshConnections(): UseSshConnectionsResult {
           ...config,
           name,
         };
-        // The API returns the connection directly, not wrapped in { success, connection }
-        const result = (await window.electronAPI.sshSaveConnection(
-          saveConfig
-        )) as unknown as SshConnection;
+        const saveResult = await rpc.ssh.saveConnection(saveConfig);
 
-        if (result && result.id) {
+        if (saveResult.success && saveResult.connection) {
           await fetchConnections(); // Refresh the list
-          return result;
+          return saveResult.connection as unknown as SshConnection;
         } else {
-          throw new Error('Failed to save connection');
+          throw new Error(saveResult.error || 'Failed to save connection');
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Failed to create connection');
@@ -162,16 +161,13 @@ export function useSshConnections(): UseSshConnectionsResult {
           ...updates,
         };
 
-        // The API returns the connection directly
-        const result = (await window.electronAPI.sshSaveConnection(
-          updated
-        )) as unknown as SshConnection;
+        const updateResult = await rpc.ssh.saveConnection(updated);
 
-        if (result && result.id) {
+        if (updateResult.success && updateResult.connection) {
           await fetchConnections(); // Refresh the list
-          return result;
+          return updateResult.connection as unknown as SshConnection;
         } else {
-          throw new Error('Failed to update connection');
+          throw new Error(updateResult.error || 'Failed to update connection');
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Failed to update connection');
@@ -190,7 +186,7 @@ export function useSshConnections(): UseSshConnectionsResult {
       setIsLoading(true);
       setError(null);
       try {
-        await window.electronAPI.sshDeleteConnection(id);
+        await rpc.ssh.deleteConnection(id);
 
         // Remove from cache
         stateCache.delete(id);
@@ -232,11 +228,7 @@ export function useSshConnections(): UseSshConnectionsResult {
           useAgent: connection.useAgent,
         };
 
-        // sshTestConnection returns { success, error?, latency? }
-        const result = (await window.electronAPI.sshTestConnection(testConfig)) as {
-          success: boolean;
-          error?: string;
-        };
+        const result = await rpc.ssh.testConnection(testConfig);
 
         return {
           success: result.success,
@@ -267,11 +259,7 @@ export function useSshConnections(): UseSshConnectionsResult {
         return null;
       }
 
-      const result = (await window.electronAPI.sshGetSshConfigHost(hostAlias)) as {
-        success: boolean;
-        host?: SshConfigHost;
-        error?: string;
-      };
+      const result = await rpc.ssh.getSshConfigHost(hostAlias);
 
       if (result.success && result.host) {
         return result.host;

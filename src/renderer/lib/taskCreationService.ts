@@ -33,13 +33,13 @@ async function runSetupOnCreate(
   taskName: string
 ): Promise<void> {
   try {
-    const result = await window.electronAPI.lifecycleSetup({
+    const result = await rpc.lifecycle.setup({
       taskId,
       taskPath,
       projectPath,
       taskName,
     });
-    if (!result?.success && !result?.skipped) {
+    if (!result?.success && !(result as { skipped?: boolean })?.skipped) {
       const { log } = await import('./logger');
       log.warn(`Setup script failed for task "${taskName}"`, result?.error);
     }
@@ -254,7 +254,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           let worktreeId: string;
 
           if (useWorktree) {
-            const worktreeResult = await window.electronAPI.worktreeCreate({
+            const worktreeResult = await rpc.worktree.create({
               projectPath: project.path,
               taskName: variantName,
               projectId: project.id,
@@ -289,8 +289,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       // Clean up any worktrees created before the failure
       for (const variant of variants) {
         if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
-          window.electronAPI
-            .worktreeRemove({ projectPath: project.path, worktreeId: variant.worktreeId })
+          rpc.worktree
+            .remove({ projectPath: project.path, worktreeId: variant.worktreeId })
             .catch(() => {});
         }
       }
@@ -334,8 +334,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       log.error('Failed to save multi-agent task:', saveErr);
       for (const variant of variants) {
         if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
-          window.electronAPI
-            .worktreeRemove({ projectPath: project.path, worktreeId: variant.worktreeId })
+          rpc.worktree
+            .remove({ projectPath: project.path, worktreeId: variant.worktreeId })
             .catch(() => {});
         }
       }
@@ -369,7 +369,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   let warning: string | undefined;
 
   if (useWorktree) {
-    const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
+    const claimAndSaveResult = await rpc.worktree.claimReserveAndSaveTask({
       projectId: project.id,
       projectPath: project.path,
       taskName,
@@ -394,7 +394,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
         warning = `Could not switch to ${baseRef}. Task created on default branch.`;
       }
     } else {
-      const worktreeResult = await window.electronAPI.worktreeCreate({
+      const worktreeResult = await rpc.worktree.create({
         projectPath: project.path,
         taskName,
         projectId: project.id,
@@ -403,7 +403,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (!worktreeResult.success) {
         throw new Error(worktreeResult.error || 'Failed to create worktree');
       }
-      const worktree = worktreeResult.worktree;
+      const worktree = worktreeResult.worktree!;
       branch = worktree.branch;
       path = worktree.path;
       taskId = worktree.id;

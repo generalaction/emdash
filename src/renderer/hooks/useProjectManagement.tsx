@@ -31,7 +31,7 @@ async function buildProjectFromGitPath(
   repoKey: string;
   isGitRepo: boolean;
 } | null> {
-  const gitInfo = await window.electronAPI.getGitInfo(gitPath);
+  const gitInfo = await rpc.project.getGitInfo(gitPath);
   const selectedPath = gitInfo.path || gitPath;
   const repoCanonicalPath = gitInfo.rootPath || selectedPath;
   const repoKey = normalizePathForComparison(repoCanonicalPath, platform);
@@ -60,7 +60,7 @@ async function buildProjectFromGitPath(
     selectedPath,
     remoteUrl,
     isAuthenticated,
-    window.electronAPI.connectToGitHub
+    rpc.github.connect
   );
 
   const projectToSave = withRepoKey(
@@ -121,8 +121,8 @@ export const useProjectManagement = () => {
 
   const deleteProjectMutation = useMutation({
     mutationFn: async (project: Project) => {
-      await window.electronAPI
-        .worktreeRemoveReserve({
+      await rpc.worktree
+        .removeReserve({
           projectId: project.id,
           projectPath: project.path,
           isRemote: project.isRemote,
@@ -168,7 +168,7 @@ export const useProjectManagement = () => {
       captureTelemetry('project_add_clicked');
     });
     try {
-      const result = await window.electronAPI.openProject();
+      const result = await rpc.project.open();
       if (result.success && result.path) {
         try {
           const built = await buildProjectFromGitPath(result.path, platform ?? '', isAuthenticated);

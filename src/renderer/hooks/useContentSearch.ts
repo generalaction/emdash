@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { rpc } from '../lib/rpc';
 
 // Constants - No magic numbers
 const SEARCH_DEBOUNCE_MS = 400; // Balanced for performance and responsiveness
@@ -77,12 +78,12 @@ export function useContentSearch(
 
       try {
         const remote = connectionId && remotePath ? { connectionId, remotePath } : undefined;
-        const result = await window.electronAPI.fsSearchContent(
-          rootPath,
+        const result = await rpc.fs.searchContent({
+          root: rootPath,
           query,
-          { caseSensitive, maxResults },
-          remote
-        );
+          options: { caseSensitive, maxResults },
+          ...remote,
+        });
 
         if (!result.success) {
           throw new Error(result.error || 'Search failed');

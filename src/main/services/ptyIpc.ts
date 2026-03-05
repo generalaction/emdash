@@ -1,4 +1,5 @@
-import { app, ipcMain, WebContents, BrowserWindow } from 'electron';
+import { app, ipcMain } from 'electron';
+import { createRPCController } from '../../shared/ipc/rpc';
 import { events } from '../events';
 import { ptyStartedChannel, shellSessionStartedChannel } from '@shared/events/appEvents';
 import {
@@ -597,16 +598,7 @@ export function registerPtyIpc(): void {
         maybeMarkProviderStart(id);
 
         // Signal that PTY is ready
-        try {
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach((w) => {
-            try {
-              if (!w.webContents.isDestroyed()) {
-                w.webContents.send('pty:started', { id });
-              }
-            } catch {}
-          });
-        } catch {}
+        events.emit(ptyStartedChannel, { id });
 
         return { ok: true, tmux };
       } catch (err: any) {
@@ -682,92 +674,6 @@ export function registerPtyIpc(): void {
   });
 
   // Kill a tmux session by PTY ID (used during task deletion cleanup)
-  ipcMain.handle('pty:killTmux', async (_event, args: { id: string }) => {
-    try {
-      killTmuxSession(args.id);
-      return { ok: true };
-    } catch (e) {
-      log.error('pty:killTmux error', { id: args.id, error: e });
-      return { ok: false, error: String(e) };
-    }
-  });
-
-  ipcMain.handle('pty:snapshot:get', async (_event, args: { id: string }) => {
-    try {
-      const snapshot = await terminalSnapshotService.getSnapshot(args.id);
-      return { ok: true, snapshot };
-    } catch (error: any) {
-      log.error('pty:snapshot:get failed', { id: args.id, error });
-      return { ok: false, error: error?.message || String(error) };
-    }
-  });
-
-  ipcMain.handle(
-    'pty:snapshot:save',
-    async (_event, args: { id: string; payload: TerminalSnapshotPayload }) => {
-      const { id, payload } = args;
-      const result = await terminalSnapshotService.saveSnapshot(id, payload);
-      if (!result.ok) {
-        log.warn('pty:snapshot:save failed', { id, error: result.error });
-      }
-      return result;
-    }
-  );
-
-  ipcMain.handle('pty:snapshot:clear', async (_event, args: { id: string }) => {
-    await terminalSnapshotService.deleteSnapshot(args.id);
-    return { ok: true };
-  });
-
-  ipcMain.handle('terminal:getTheme', async () => {
-    try {
-      const config = detectAndLoadTerminalConfig();
-      if (config) {
-        return { ok: true, config };
-      }
-      return { ok: false, error: 'No terminal configuration found' };
-    } catch (error: any) {
-      log.error('terminal:getTheme failed', { error });
-      return { ok: false, error: error?.message || String(error) };
-    }
-  });
-
-  // SCP file transfer to SSH remote (for file drop on SSH terminals)
-  ipcMain.handle(
-    'pty:scp-to-remote',
-    async (
-      _event,
-      args: { connectionId: string; localPaths: string[] }
-    ): Promise<{ success: boolean; remotePaths?: string[]; error?: string }> => {
-      try {
-        const ssh = await resolveSshInvocation(args.connectionId);
-        const scpArgs = buildScpArgs(ssh.args);
-        const remoteDir = '/tmp/emdash-images';
-
-        // Ensure remote directory exists
-        await execFileAsync('ssh', [...ssh.args, ssh.target, `mkdir -p ${remoteDir}`]);
-
-        // Transfer each file individually so UUID-prefixed names avoid collisions
-        // (batching into one scp call would lose uniqueness for same-named files)
-        const remotePaths: string[] = [];
-        for (const localPath of args.localPaths) {
-          const remoteName = `${randomUUID()}-${path.basename(localPath)}`;
-          const remotePath = `${remoteDir}/${remoteName}`;
-          await execFileAsync('scp', [...scpArgs, localPath, `${ssh.target}:${remotePath}`]);
-          remotePaths.push(remotePath);
-        }
-
-        return { success: true, remotePaths };
-      } catch (err: any) {
-        log.error('pty:scp-to-remote failed', {
-          connectionId: args.connectionId,
-          error: err?.message || err,
-        });
-        return { success: false, error: String(err?.message || err) };
-      }
-    }
-  );
-
   // Start a PTY by spawning CLI directly (no shell wrapper)
   // This is faster but falls back to shell-based spawn if CLI path unknown
   ipcMain.handle(
@@ -1032,6 +938,84 @@ export function registerPtyIpc(): void {
     }
   );
 }
+
+export const ptyController = createRPCController({
+  killTmux: async (args: { id: string }) => {
+    try {
+      killTmuxSession(args.id);
+      return { ok: true };
+    } catch (e) {
+      log.error('pty:killTmux error', { id: args.id, error: e });
+      return { ok: false, error: String(e) };
+    }
+  },
+
+  snapshotGet: async (args: { id: string }) => {
+    try {
+      const snapshot = await terminalSnapshotService.getSnapshot(args.id);
+      return { ok: true, snapshot };
+    } catch (error: unknown) {
+      log.error('pty:snapshot:get failed', { id: args.id, error });
+      return { ok: false, error: (error as Error)?.message || String(error) };
+    }
+  },
+
+  snapshotSave: async (args: { id: string; payload: TerminalSnapshotPayload }) => {
+    const { id, payload } = args;
+    const result = await terminalSnapshotService.saveSnapshot(id, payload);
+    if (!result.ok) {
+      log.warn('pty:snapshot:save failed', { id, error: result.error });
+    }
+    return result;
+  },
+
+  snapshotClear: async (args: { id: string }) => {
+    await terminalSnapshotService.deleteSnapshot(args.id);
+    return { ok: true };
+  },
+
+  terminalGetTheme: async () => {
+    try {
+      const config = detectAndLoadTerminalConfig();
+      if (config) {
+        return { ok: true, config };
+      }
+      return { ok: false, error: 'No terminal configuration found' };
+    } catch (error: unknown) {
+      log.error('terminal:getTheme failed', { error });
+      return { ok: false, error: (error as Error)?.message || String(error) };
+    }
+  },
+
+  scpToRemote: async (args: {
+    connectionId: string;
+    localPaths: string[];
+  }): Promise<{ success: boolean; remotePaths?: string[]; error?: string }> => {
+    try {
+      const ssh = await resolveSshInvocation(args.connectionId);
+      const scpArgs = buildScpArgs(ssh.args);
+      const remoteDir = '/tmp/emdash-images';
+
+      await execFileAsync('ssh', [...ssh.args, ssh.target, `mkdir -p ${remoteDir}`]);
+
+      const remotePaths: string[] = [];
+      for (const localPath of args.localPaths) {
+        const remoteName = `${randomUUID()}-${path.basename(localPath)}`;
+        const remotePath = `${remoteDir}/${remoteName}`;
+        await execFileAsync('scp', [...scpArgs, localPath, `${ssh.target}:${remotePath}`]);
+        remotePaths.push(remotePath);
+      }
+
+      return { success: true, remotePaths };
+    } catch (err: unknown) {
+      log.error('pty:scp-to-remote failed', {
+        connectionId: args.connectionId,
+        error: (err as Error)?.message || err,
+      });
+      return { success: false, error: String((err as Error)?.message || err) };
+    }
+  },
+});
 
 function parseProviderPty(id: string): {
   providerId: ProviderId;

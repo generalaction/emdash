@@ -1,6 +1,7 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, shell } from 'electron';
 import { formatUpdaterError } from '../lib/updaterError';
 import { autoUpdateService } from './AutoUpdateService';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
 const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';
@@ -29,59 +30,45 @@ function getLatestDownloadUrl(): string {
   }
 }
 
-export function registerUpdateIpc() {
-  // AutoUpdateService handles all initialization and event listeners
-
-  ipcMain.handle('update:check', async () => {
+export const updateController = createRPCController({
+  check: async () => {
     try {
-      // Always skip in dev mode - no exceptions
       if (isDev) {
-        return {
-          success: false,
-          error: DEV_HINT_CHECK,
-          devDisabled: true,
-        } as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return { success: false, error: DEV_HINT_CHECK, devDisabled: true } as any;
       }
-      // Delegate to AutoUpdateService to avoid race conditions
       const result = await autoUpdateService.checkForUpdates(false);
       return { success: true, result: result ?? null };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:download', async () => {
+  download: async () => {
     try {
-      // Always skip in dev mode - no exceptions
       if (isDev) {
-        return {
-          success: false,
-          error: DEV_HINT_DOWNLOAD,
-          devDisabled: true,
-        } as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return { success: false, error: DEV_HINT_DOWNLOAD, devDisabled: true } as any;
       }
-      // Delegate to AutoUpdateService to avoid race conditions
       await autoUpdateService.downloadUpdate();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:quit-and-install', async () => {
+  quitAndInstall: async () => {
     try {
-      // Delegate to AutoUpdateService which handles rollback info
       autoUpdateService.quitAndInstall();
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:open-latest', async () => {
+  openLatest: async () => {
     try {
       await shell.openExternal(getLatestDownloadUrl());
-      // Gracefully quit after opening the external download link so the user can install
       setTimeout(() => {
         try {
           app.quit();
@@ -91,54 +78,53 @@ export function registerUpdateIpc() {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  },
 
-  // Expose app version for simple comparisons on renderer
-  ipcMain.handle('update:get-version', () => app.getVersion());
+  getVersion: () => app.getVersion(),
 
-  // Enhanced IPC handlers for AutoUpdateService
-  ipcMain.handle('update:get-state', async () => {
+  getState: async () => {
     try {
       const state = autoUpdateService.getState();
       return { success: true, data: state };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:get-settings', async () => {
+  getSettings: async () => {
     try {
       const settings = autoUpdateService.getSettings();
       return { success: true, data: settings };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:update-settings', async (_event, settings: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateSettings: async (settings: any) => {
     try {
       await autoUpdateService.updateSettings(settings);
       return { success: true };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:get-release-notes', async () => {
+  getReleaseNotes: async () => {
     try {
       const notes = await autoUpdateService.fetchReleaseNotes();
       return { success: true, data: notes };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
+  },
 
-  ipcMain.handle('update:check-now', async () => {
+  checkNow: async () => {
     try {
       const result = await autoUpdateService.checkForUpdates(false);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };
     }
-  });
-}
+  },
+});

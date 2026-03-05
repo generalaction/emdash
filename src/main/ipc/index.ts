@@ -1,66 +1,79 @@
-import { registerPtyIpc } from '../services/ptyIpc';
-import { registerWorktreeIpc } from '../services/worktreeIpc';
-import { registerFsIpc } from '../services/fsIpc';
-import { registerLifecycleIpc } from '../services/lifecycleIpc';
-import { registerAppIpc } from './appIpc';
-import { registerProjectIpc } from './projectIpc';
-import { registerProjectSettingsIpc } from './projectSettingsIpc';
-import { registerGithubIpc } from './githubIpc';
+import { registerPtyIpc, ptyController } from '../services/ptyIpc';
+import { worktreeController } from '../services/worktreeIpc';
+import { registerFsIpc, fsController } from '../services/fsIpc';
+import { lifecycleController, registerLifecycleEvents } from '../services/lifecycleIpc';
+import { registerAppIpc, appController } from './appIpc';
+import { githubController } from './githubIpc';
 import { databaseController } from './dbIpc';
-import { registerDebugIpc } from './debugIpc';
-import { registerGitIpc } from './gitIpc';
-import { registerLinearIpc } from './linearIpc';
-import { registerConnectionsIpc } from './connectionsIpc';
-import { registerUpdateIpc } from '../services/updateIpc';
-import { registerTelemetryIpc } from './telemetryIpc';
-import { registerJiraIpc } from './jiraIpc';
-import { registerPlanLockIpc } from '../services/planLockIpc';
+import { registerGitIpc, gitController } from './gitIpc';
+import { updateController } from '../services/updateIpc';
 import { appSettingsController } from './settingsIpc';
-import { registerHostPreviewIpc } from './hostPreviewIpc';
-import { registerBrowserIpc } from './browserIpc';
-import { registerNetIpc } from './netIpc';
-import { registerLineCommentsIpc } from './lineCommentsIpc';
-import { registerSshIpc } from './sshIpc';
-import { registerSkillsIpc } from './skillsIpc';
+import { hostPreviewController, registerHostPreviewEvents } from './hostPreviewIpc';
+import { registerSshIpc, sshController } from './sshIpc';
+import { jiraController } from './jiraIpc';
+import { linearController } from './linearIpc';
+import { connectionsController } from './connectionsIpc';
+import { telemetryController } from './telemetryIpc';
+import { debugController } from './debugIpc';
+import { netController } from './netIpc';
+import { lineCommentsController } from './lineCommentsIpc';
+import { skillsController } from './skillsIpc';
+import { projectSettingsController } from './projectSettingsIpc';
+import { planLockController } from '../services/planLockIpc';
+import { browserController } from './browserIpc';
+import { projectController } from './projectIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
   appSettings: appSettingsController,
+  app: appController,
+  worktree: worktreeController,
+  fs: fsController,
+  lifecycle: lifecycleController,
+  update: updateController,
+  hostPreview: hostPreviewController,
+  pty: ptyController,
+  github: githubController,
+  jira: jiraController,
+  linear: linearController,
+  connections: connectionsController,
+  telemetry: telemetryController,
+  debug: debugController,
+  net: netController,
+  lineComments: lineCommentsController,
+  skills: skillsController,
+  projectSettings: projectSettingsController,
+  planLock: planLockController,
+  browser: browserController,
+  project: projectController,
+  ssh: sshController,
+  git: gitController,
 });
 
 export type RpcRouter = typeof rpcRouter;
 
 export function registerAllIpc() {
-  // Register RPC
+  // Register RPC router
   registerRPCRouter(rpcRouter, ipcMain);
 
-  // Core app/utility IPC
+  // Remaining manual IPC (app:undo, app:redo, app:paste require event.sender)
   registerAppIpc();
-  registerDebugIpc();
-  registerTelemetryIpc();
-  registerUpdateIpc();
 
-  // Domain IPC
-  registerProjectIpc();
-  registerProjectSettingsIpc();
-  registerGithubIpc();
-  registerGitIpc();
-  registerHostPreviewIpc();
-  registerBrowserIpc();
-  registerNetIpc();
-  registerLineCommentsIpc();
+  // Event subscriptions (forward service events to renderer windows)
+  registerLifecycleEvents();
+  registerHostPreviewEvents();
 
-  // Existing modules
-  registerPtyIpc();
-  registerWorktreeIpc();
+  // fs:list (uses event.sender for per-sender worker cancellation)
   registerFsIpc();
-  registerLifecycleIpc();
-  registerLinearIpc();
-  registerConnectionsIpc();
-  registerJiraIpc();
-  registerPlanLockIpc();
+
+  // PTY IPC (pty:start, pty:startDirect use event.sender; pty:input/resize/kill are fire-and-forget)
+  registerPtyIpc();
+
+  // registerGitIpc is now a no-op (all handlers migrated to gitController)
+  registerGitIpc();
+
+  // SSH monitor reconnect side effects
   registerSshIpc();
-  registerSkillsIpc();
 }

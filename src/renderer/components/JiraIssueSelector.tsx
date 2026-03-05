@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import { type JiraIssueSummary } from '../types/jira';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
 import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
+import { rpc } from '../lib/rpc';
 
 interface Props {
   selectedIssue: JiraIssueSummary | null;
@@ -35,7 +36,7 @@ const JiraIssueSelector: React.FC<Props> = ({
   const isMountedRef = useRef(true);
   const [visibleCount, setVisibleCount] = useState(10);
 
-  const canList = typeof window !== 'undefined' && !!window.electronAPI?.jiraInitialFetch;
+  const canList = typeof window !== 'undefined';
   const issuesLoaded = availableIssues.length > 0;
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   // Only disable when explicitly disabled, or when not connected and we can't load
@@ -64,8 +65,7 @@ const JiraIssueSelector: React.FC<Props> = ({
     let cancel = false;
     (async () => {
       try {
-        const api: any = (window as any).electronAPI;
-        const res = await api?.jiraCheckConnection?.();
+        const res = await rpc.jira.checkConnection();
         if (!cancel) setIsConnected(!!res?.connected);
       } catch {
         if (!cancel) setIsConnected(null);
@@ -78,16 +78,9 @@ const JiraIssueSelector: React.FC<Props> = ({
 
   const loadIssues = useCallback(async () => {
     if (!canList) return;
-    const api = window.electronAPI;
-    if (!api?.jiraInitialFetch) {
-      setAvailableIssues([]);
-      setIssueListError('Jira issue list unavailable in this build.');
-      setHasRequestedIssues(true);
-      return;
-    }
     setIsLoadingIssues(true);
     try {
-      const result = await api.jiraInitialFetch(50);
+      const result = await rpc.jira.initialFetch(50);
       if (!isMountedRef.current) return;
       if (!result?.success) throw new Error(result?.error || 'Failed to load Jira issues.');
       setAvailableIssues(result.issues ?? []);
@@ -114,11 +107,9 @@ const JiraIssueSelector: React.FC<Props> = ({
       setIsSearching(false);
       return;
     }
-    const api = window.electronAPI;
-    if (!api?.jiraSearchIssues) return;
     setIsSearching(true);
     try {
-      const result = await api.jiraSearchIssues(term.trim(), 20);
+      const result = await rpc.jira.searchIssues(term.trim(), 20);
       if (!isMountedRef.current) return;
       setSearchResults(result?.success ? (result.issues ?? []) : []);
       if (result?.success) {

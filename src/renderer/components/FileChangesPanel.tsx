@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../lib/rpc';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
@@ -225,7 +226,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
+        const res = await rpc.git.getBranchStatus({ taskPath: safeTaskPath });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -246,7 +247,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const handleMergeToMain = async () => {
     setIsMergingToMain(true);
     try {
-      const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
+      const result = await rpc.git.mergeToMain({ taskPath: safeTaskPath });
       if (result.success) {
         toast({
           title: 'Merged to Main',
@@ -376,7 +377,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (pr.url) window.electronAPI?.openExternal?.(pr.url);
+                    if (pr.url) rpc.app.openExternal(pr.url);
                   }}
                   className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                   title={`${pr.title || 'Pull Request'} (#${pr.number})`}

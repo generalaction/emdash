@@ -6,6 +6,12 @@ import { Check, Copy, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
 import type { BaseModalProps } from '@/contexts/ModalProvider';
+import { rpc, events } from '../lib/rpc';
+import {
+  githubAuthDeviceCodeChannel,
+  githubAuthSuccessChannel,
+  githubAuthErrorChannel,
+} from '@shared/events/githubEvents';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;
@@ -56,7 +62,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
   // Subscribe to auth events from main process
   useEffect(() => {
     // Device code received - display to user
-    const cleanupDeviceCode = window.electronAPI.onGithubAuthDeviceCode((data) => {
+    const cleanupDeviceCode = events.on(githubAuthDeviceCodeChannel, (data) => {
       setUserCode(data.userCode);
       setVerificationUri(data.verificationUri);
       setExpiresIn(data.expiresIn);
@@ -82,14 +88,14 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
           setBrowserOpening(false);
           if (!hasOpenedBrowser.current) {
             hasOpenedBrowser.current = true;
-            window.electronAPI.openExternal(data.verificationUri);
+            rpc.app.openExternal(data.verificationUri);
           }
         }, 3000);
       }
     });
 
     // Auth successful
-    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+    const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
       setSuccess(true);
       setUser(data.user);
 
@@ -109,7 +115,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
     });
 
     // Auth error
-    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+    const cleanupError = events.on(githubAuthErrorChannel, (data) => {
       setError(data.message || data.error);
 
       if (onError) {
@@ -203,13 +209,13 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
 
   const openGitHub = () => {
     if (verificationUri) {
-      window.electronAPI.openExternal(verificationUri);
+      rpc.app.openExternal(verificationUri);
     }
   };
 
   const handleClose = () => {
     // Cancel auth flow in main process (polling continues in background)
-    window.electronAPI.githubCancelAuth();
+    rpc.github.authCancel();
     onClose();
   };
 
@@ -378,9 +384,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
                 Having{' '}
                 <button
                   onClick={() =>
-                    window.electronAPI.openExternal(
-                      'https://github.com/generalaction/emdash/issues'
-                    )
+                    rpc.app.openExternal('https://github.com/generalaction/emdash/issues')
                   }
                   className="text-primary hover:underline focus:underline focus:outline-none"
                 >

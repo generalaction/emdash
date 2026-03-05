@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { rpc } from '../../lib/rpc';
 import { Spinner } from '../ui/spinner';
 import { cn } from '@/lib/utils';
 import { FolderOpen, Eye, EyeOff, Server, User, Lock, Key, Shield, Download } from 'lucide-react';
@@ -64,7 +65,7 @@ export const SshConnectionForm: React.FC<Props> = ({
   useEffect(() => {
     const loadSshConfigHosts = async () => {
       try {
-        const result = (await window.electronAPI.sshGetConfig()) as {
+        const result = (await rpc.ssh.getSshConfig()) as {
           success: boolean;
           hosts?: Array<{
             host: string;
@@ -206,7 +207,7 @@ export const SshConnectionForm: React.FC<Props> = ({
 
   const handleSelectKeyFile = useCallback(async () => {
     try {
-      const result = await window.electronAPI.openProject();
+      const result = await rpc.project.open();
       if (result.success && result.path) {
         handleChange('privateKeyPath', result.path);
       }

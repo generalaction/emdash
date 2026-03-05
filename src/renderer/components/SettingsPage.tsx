@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { events } from '../lib/rpc';
+import { rpc, events } from '../lib/rpc';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { ExternalLink } from 'lucide-react';
 import { Separator } from './ui/separator';
@@ -107,9 +107,9 @@ export function SettingsPage({ initialTab = 'general' }: { initialTab?: Settings
     };
 
     const loadCachedStatuses = async () => {
-      if (!window?.electronAPI?.getProviderStatuses) return;
+      // getProviderStatuses migrated to rpc.connections.getStatuses
       try {
-        const result = await window.electronAPI.getProviderStatuses();
+        const result = await rpc.connections.getStatuses();
         if (cancelled) return;
         if (result?.success && result.statuses) {
           applyCachedStatuses(result.statuses);
@@ -135,7 +135,7 @@ export function SettingsPage({ initialTab = 'general' }: { initialTab?: Settings
   }, []);
 
   const handleDocsClick = useCallback(() => {
-    window.electronAPI.openExternal('https://docs.emdash.sh');
+    rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
   const tabs: Array<{

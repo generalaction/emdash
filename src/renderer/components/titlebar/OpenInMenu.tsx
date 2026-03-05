@@ -67,7 +67,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
           app: appId,
           path,
           isRemote,
-          sshConnectionId,
+          sshConnectionId: sshConnectionId ?? undefined,
         });
         if (!res?.success) {
           toast({

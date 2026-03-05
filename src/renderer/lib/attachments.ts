@@ -1,4 +1,5 @@
 // Helpers for extracting @mentions and assembling attachment blocks
+import { rpc } from './rpc';
 
 export function extractMentions(text: string): string[] {
   const re = /@[\w\-.\/]+/g;
@@ -51,7 +52,7 @@ export async function buildAttachmentsSection(
   const parts: string[] = [];
   for (const rel of limited) {
     try {
-      const res = await window.electronAPI.fsRead(rootPath, rel, MAX_BYTES_PER_FILE);
+      const res = await rpc.fs.read({ root: rootPath, relPath: rel, maxBytes: MAX_BYTES_PER_FILE });
       if (res.success && typeof res.content === 'string') {
         const lang = getFenceLang(rel);
         const header = `File: ${rel}${res.truncated ? ` (truncated to ${MAX_BYTES_PER_FILE} bytes)` : ''}`;

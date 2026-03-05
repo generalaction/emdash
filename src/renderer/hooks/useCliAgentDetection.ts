@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS } from '../components/CliAgentsList';
-import { events } from '../lib/rpc';
+import { rpc, events } from '../lib/rpc';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 
 type CachedAgentStatus = {
@@ -71,9 +71,8 @@ export function useCliAgentDetection() {
     };
 
     const loadCachedStatuses = async () => {
-      if (!window?.electronAPI?.getProviderStatuses) return;
       try {
-        const result = await window.electronAPI.getProviderStatuses();
+        const result = await rpc.connections.getStatuses();
         if (cancelled) return;
         if (result?.success && result.statuses) {
           applyCachedStatuses(result.statuses);
@@ -99,17 +98,11 @@ export function useCliAgentDetection() {
   }, []);
 
   const fetchCliAgents = useCallback(async () => {
-    if (!window?.electronAPI?.getProviderStatuses) {
-      setCliAgents(createDefaultCliAgents());
-      setCliError('Agent status detection is unavailable in this build.');
-      return;
-    }
-
     setCliLoading(true);
     setCliError(null);
 
     try {
-      const result = await window.electronAPI.getProviderStatuses({ refresh: true });
+      const result = await rpc.connections.getStatuses({ refresh: true });
       if (result?.success && result.statuses) {
         const agents = mapAgentStatusesToCli(result.statuses);
         setCliAgents((prev) => mergeCliAgents([...prev, ...agents]));

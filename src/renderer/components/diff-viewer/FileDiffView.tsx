@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import type { DiffLine } from '../../hooks/useFileDiff';
@@ -99,7 +100,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
 
     const load = async () => {
       try {
-        const diffRes = await window.electronAPI.getFileDiff({
+        const diffRes = await rpc.git.getFileDiff({
           taskPath,
           filePath,
         });
@@ -116,7 +117,11 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         // The agent may still be writing while we render, so this ensures
         // we show the latest version rather than a stale backend snapshot.
         try {
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+          const readRes = await rpc.fs.read({
+            root: taskPath,
+            relPath: filePath,
+            maxBytes: 2 * 1024 * 1024,
+          });
           if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
             modifiedContent = readRes.content.replace(/\n$/, '');
           }
@@ -224,7 +229,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     try {
       // Ensure trailing newline (Monaco strips it, but POSIX files should end with one)
       const content = modifiedDraft.endsWith('\n') ? modifiedDraft : modifiedDraft + '\n';
-      const res = await window.electronAPI.fsWriteFile(taskPath, filePath, content, true);
+      const res = await rpc.fs.write({ root: taskPath, relPath: filePath, content, mkdirs: true });
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to save file');
       }

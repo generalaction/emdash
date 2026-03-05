@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ConnectionState } from '../components/ssh';
 import type { Project } from '../types/app';
+import { rpc } from '../lib/rpc';
 
 export interface UseRemoteProjectResult {
   isRemote: boolean;
@@ -30,7 +31,7 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   const [connectionState, setConnectionState] = useState<ConnectionState>(() => {
     if (!project) return 'disconnected';
     // Check if this is a remote project
-    const isRemote = (project as any).isRemote || (project as any).sshConnectionId;
+    const isRemote = project.isRemote || project.sshConnectionId;
     if (!isRemote) return 'disconnected';
     return connectionStateCache.get(project.id) || 'disconnected';
   });
@@ -41,11 +42,8 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   const isMountedRef = useRef(true);
 
   // Determine if this is a remote project
-  const isRemote = Boolean(
-    project && ((project as any).isRemote || (project as any).sshConnectionId)
-  );
-  const connectionId =
-    project && (project as any).sshConnectionId ? (project as any).sshConnectionId : null;
+  const isRemote = Boolean(project && (project.isRemote || project.sshConnectionId));
+  const connectionId = project && project.sshConnectionId ? project.sshConnectionId : null;
 
   // Update connection state and cache
   const updateConnectionState = useCallback(
@@ -71,17 +69,15 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
     updateConnectionState('connecting');
 
     try {
-      // The API returns the connectionId string directly
-      const result = await window.electronAPI.sshConnect(connectionId);
+      const result = await rpc.ssh.connect(connectionId);
 
       if (!isMountedRef.current) return;
 
-      // sshConnect returns the connectionId on success, throws on error
-      if (result) {
+      if (result.success && result.connectionId) {
         updateConnectionState('connected');
         connectionAttempts.set(connectionId, 0);
       } else {
-        throw new Error('Connection failed');
+        throw new Error(result.error || 'Connection failed');
       }
     } catch (err) {
       if (!isMountedRef.current) return;
@@ -104,7 +100,7 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
 
     setIsLoading(true);
     try {
-      await window.electronAPI.sshDisconnect(connectionId);
+      await rpc.ssh.disconnect(connectionId);
       if (isMountedRef.current) {
         updateConnectionState('disconnected');
         setError(null);
@@ -150,13 +146,9 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
 
     const fetchConnectionDetails = async () => {
       try {
-        // The API returns an array directly
-        const result = (await window.electronAPI.sshGetConnections()) as Array<{
-          id: string;
-          host: string;
-        }>;
-        if (Array.isArray(result)) {
-          const conn = result.find((c) => c.id === connectionId);
+        const result = await rpc.ssh.getConnections();
+        if (result.success && result.connections) {
+          const conn = result.connections.find((c) => c.id === connectionId);
           if (conn) {
             setHost(conn.host);
           }
@@ -199,9 +191,9 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
 
     const checkHealth = async () => {
       try {
-        // The API returns the state string directly
-        const state = (await window.electronAPI.sshGetState(connectionId)) as ConnectionState;
-        if (isMountedRef.current && state !== connectionState) {
+        const stateResult = await rpc.ssh.getState(connectionId);
+        const state = stateResult.state as ConnectionState;
+        if (isMountedRef.current && state && state !== connectionState) {
           updateConnectionState(state);
         }
       } catch (err) {

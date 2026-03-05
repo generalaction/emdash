@@ -3,6 +3,8 @@ import { Globe } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useBrowser } from '@/providers/BrowserProvider';
+import { events, rpc } from '@/lib/rpc';
+import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import {
   getLastUrl,
   setLastUrl,
@@ -26,16 +28,14 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
     const p = (path || '').trim();
     if (!p) return false;
     try {
-      const res = await (window as any).electronAPI?.fsList?.(p, {
+      const res = await window.electronAPI.fsList(p, {
         includeDirs: true,
         maxEntries: 2000,
       });
       const items = Array.isArray(res?.items) ? res.items : [];
-      const hasNodeModules = items.some(
-        (x: any) => x?.path === 'node_modules' && x?.type === 'dir'
-      );
+      const hasNodeModules = items.some((x) => x.path === 'node_modules' && x.type === 'dir');
       if (hasNodeModules) return false;
-      const pkg = await (window as any).electronAPI?.fsRead?.(p, 'package.json', 1024 * 64);
+      const pkg = await rpc.fs.read({ root: p, relPath: 'package.json', maxBytes: 1024 * 64 });
       return !!pkg?.success;
     } catch {
       return false;
@@ -44,7 +44,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
 
   // Auto-open when host preview emits a URL for this task
   useEffect(() => {
-    const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
+    const off = events.on(hostPreviewEventChannel, (data) => {
       try {
         if (data?.type === 'url' && data?.taskId && data?.url) {
           if (taskId && data.taskId !== taskId) return;
@@ -72,11 +72,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
         }
       } catch {}
     });
-    return () => {
-      try {
-        off?.();
-      } catch {}
-    };
+    return () => off();
   }, [browser, taskId]);
 
   const handleClick = React.useCallback(async () => {

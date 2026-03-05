@@ -9,6 +9,7 @@ import { Spinner } from './ui/spinner';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
 import { LinearStatusPill } from './LinearStatusPill';
 import AgentLogo from './AgentLogo';
+import { rpc } from '../lib/rpc';
 
 interface LinearIssueSelectorProps {
   selectedIssue: LinearIssueSummary | null;
@@ -42,7 +43,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   const [visibleCount, setVisibleCount] = useState(10);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const canListLinear = typeof window !== 'undefined' && !!window.electronAPI?.linearInitialFetch;
+  const canListLinear = typeof window !== 'undefined';
   const issuesLoaded = availableIssues.length > 0;
   const isDisabled = disabled || isLoadingIssues || !!issueListError || !issuesLoaded;
 
@@ -84,18 +85,10 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       return;
     }
 
-    const api = window.electronAPI;
-    if (!api?.linearInitialFetch) {
-      setAvailableIssues([]);
-      setIssueListError('Linear issue list unavailable in this build.');
-      setHasRequestedIssues(true);
-      return;
-    }
-
     setIsLoadingIssues(true);
     try {
       // Fetch a generous set from Linear; UI renders 10 initially
-      const result = await api.linearInitialFetch(50);
+      const result = await rpc.linear.initialFetch(50);
       if (!isMountedRef.current) return;
       if (!result?.success) {
         throw new Error(result?.error || 'Failed to load Linear issues.');
@@ -125,14 +118,9 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
       return;
     }
 
-    const api = window.electronAPI;
-    if (!api?.linearSearchIssues) {
-      return;
-    }
-
     setIsSearching(true);
     try {
-      const result = await api.linearSearchIssues(term.trim(), 20);
+      const result = await rpc.linear.searchIssues(term.trim(), 20);
       if (!isMountedRef.current) return;
       if (result?.success) {
         setSearchResults(result.issues ?? []);

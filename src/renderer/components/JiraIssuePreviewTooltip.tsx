@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { ExternalLink, User, Folder } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import type { JiraIssueSummary } from '../types/jira';
+import { rpc } from '../lib/rpc';
 
 type Props = {
   issue: JiraIssueSummary | null;
@@ -147,9 +148,9 @@ export const JiraIssuePreviewTooltip: React.FC<Props> = ({ issue, children, side
                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.electronAPI?.openExternal && issue.url) {
+                    if (issue.url) {
                       e.preventDefault();
-                      window.electronAPI.openExternal(issue.url);
+                      rpc.app.openExternal(issue.url);
                     }
                   }}
                 >

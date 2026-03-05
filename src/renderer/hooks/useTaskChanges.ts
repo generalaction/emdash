@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCachedGitStatus } from '@/lib/gitStatusCache';
-import { events } from '../lib/rpc';
+import { events, rpc } from '../lib/rpc';
 import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface TaskChange {
@@ -240,20 +240,16 @@ export function useTaskChanges(
 
   useEffect(() => {
     if (!taskPath) return;
-    const api = window.electronAPI;
     let off: (() => void) | undefined;
     let watchId: string | undefined;
     let disposed = false;
 
-    const watchPromise = api.watchGitStatus
-      ? api.watchGitStatus(taskPath)
-      : Promise.resolve({ success: false });
-
-    watchPromise
-      .then((res: { success?: boolean; watchId?: string }) => {
+    rpc.git
+      .watchStatus(taskPath)
+      .then((res: any) => {
         if (disposed) {
-          if (res?.success && res.watchId && api.unwatchGitStatus) {
-            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
+          if (res?.success && res.watchId) {
+            rpc.git.unwatchStatus(taskPath, res.watchId).catch(() => {});
           }
           return;
         }
@@ -276,8 +272,8 @@ export function useTaskChanges(
     return () => {
       disposed = true;
       off?.();
-      if (api.unwatchGitStatus && watchId) {
-        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
+      if (watchId) {
+        rpc.git.unwatchStatus(taskPath, watchId).catch(() => {});
       }
     };
   }, [taskPath, fetchChanges]);

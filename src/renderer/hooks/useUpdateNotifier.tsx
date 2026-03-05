@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { rpc } from '../lib/rpc';
 import { useToast } from './use-toast';
 import { ToastAction } from '@/components/ui/toast';
 
@@ -63,7 +64,7 @@ export function useUpdateNotifier(opts: Options = {}) {
     if (checkOnMount) {
       (async () => {
         try {
-          await window.electronAPI.checkForUpdates?.();
+          await rpc.update.check();
         } catch {}
       })();
     }

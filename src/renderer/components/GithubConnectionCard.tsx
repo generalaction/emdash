@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { RefreshCcw, LogOut, ExternalLink } from 'lucide-react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
+import { rpc } from '../lib/rpc';
 
 type GithubConnectionStatus = 'connected' | 'disconnected' | 'missing';
 
@@ -33,7 +34,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
 
   useEffect(() => {
     // Check if CLI is installed on mount
-    window.electronAPI.githubCheckCLIInstalled().then(setCLIInstalled);
+    rpc.github.checkCLIInstalled().then(setCLIInstalled);
   }, []);
 
   useEffect(() => {
@@ -52,14 +53,14 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     setIsError(false);
 
     // Check if gh CLI is installed
-    const cliPresent = await window.electronAPI.githubCheckCLIInstalled();
+    const cliPresent = await rpc.github.checkCLIInstalled();
 
     if (!cliPresent) {
       // Offer to install
       setMessage('GitHub CLI not found. Installing...');
       setIsInstalling(true);
 
-      const installResult = await window.electronAPI.githubInstallCLI();
+      const installResult = await rpc.github.installCLI();
       setIsInstalling(false);
 
       if (!installResult.success) {
@@ -115,7 +116,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
 
   const handleInstall = useCallback(async () => {
     try {
-      await window.electronAPI.openExternal(INSTALL_URL);
+      await rpc.app.openExternal(INSTALL_URL);
     } catch (error) {
       console.error('Failed to open GitHub CLI install docs:', error);
     }

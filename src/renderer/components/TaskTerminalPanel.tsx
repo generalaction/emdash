@@ -18,6 +18,8 @@ import {
 import type { Agent } from '../types';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
+import { rpc, events } from '../lib/rpc';
+import { lifecycleEventChannel } from '@shared/events/lifecycleEvents';
 
 interface Task {
   id: string;
@@ -105,7 +107,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       defaultBranch,
       portSeed,
     });
-  }, [task?.id, task?.name, task?.path, projectPath, defaultBranch, portSeed]);
+  }, [task, projectPath, defaultBranch, portSeed]);
 
   useEffect(() => {
     activeTaskIdRef.current = task?.id ?? null;
@@ -114,10 +116,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const refreshLifecycleState = useCallback(async () => {
     const taskId = task?.id;
     if (!taskId) return;
-    const api = window.electronAPI as any;
-    if (typeof api?.lifecycleGetState !== 'function') return;
     try {
-      const res = await api.lifecycleGetState({ taskId });
+      const res = await rpc.lifecycle.getState({ taskId });
       if (activeTaskIdRef.current !== taskId) return;
       if (!res?.success || !res.state) return;
       if (res.state.run?.status) setRunStatus(res.state.run.status);
@@ -134,18 +134,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     setLifecycleLogs({ setup: [], run: [], teardown: [] });
     if (!task) return;
 
-    const api = window.electronAPI as any;
     let cancelled = false;
 
     void refreshLifecycleState();
 
-    if (typeof api?.onLifecycleEvent !== 'function') {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const off = api.onLifecycleEvent((evt: any) => {
+    const off = events.on(lifecycleEventChannel, (evt) => {
       if (!evt || evt.taskId !== task.id) return;
       const phase =
         evt.phase === 'setup' || evt.phase === 'run' || evt.phase === 'teardown'
@@ -211,16 +204,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       if (evt.status === 'exit') {
         void (async () => {
           if (cancelled) return;
-          const apiInner = window.electronAPI as any;
-          if (typeof apiInner?.lifecycleGetState === 'function') {
-            try {
-              const res = await apiInner.lifecycleGetState({ taskId: task.id });
-              if (!cancelled && res?.success && res.state?.run?.status) {
-                setRunStatus(res.state.run.status);
-                return;
-              }
-            } catch {}
-          }
+          try {
+            const res = await rpc.lifecycle.getState({ taskId: task.id });
+            if (!cancelled && res?.success && res.state?.run?.status) {
+              setRunStatus(res.state.run.status);
+              return;
+            }
+          } catch {}
           if (cancelled) return;
           if (evt.exitCode === 0) setRunStatus('succeeded');
           else if (typeof evt.exitCode === 'number') setRunStatus('failed');
@@ -231,7 +221,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
     return () => {
       cancelled = true;
-      off?.();
+      off();
     };
   }, [task?.id, refreshLifecycleState]);
 
@@ -264,25 +254,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;
-    const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
       if (selection.selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({
+        await rpc.lifecycle.setup({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else if (selection.selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({
+        await rpc.lifecycle.teardown({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else {
-        await api.lifecycleRunStart?.({
+        await rpc.lifecycle.runStart({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
@@ -295,28 +284,20 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [
-    task?.id,
-    task?.name,
-    task?.path,
-    projectPath,
-    selection.selectedLifecycle,
-    refreshLifecycleState,
-  ]);
+  }, [task, projectPath, selection.selectedLifecycle, refreshLifecycleState]);
 
   const handleStop = useCallback(async () => {
     if (!task) return;
-    const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
-      await api.lifecycleRunStop?.({ taskId: task.id });
+      await rpc.lifecycle.runStop({ taskId: task.id });
     } catch (error) {
       console.error('Failed to stop run phase:', error);
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [task?.id, refreshLifecycleState]);
+  }, [task, refreshLifecycleState]);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -345,7 +326,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   useEffect(() => {
     void (async () => {
       try {
-        const result = await window.electronAPI.terminalGetTheme();
+        const result = await rpc.pty.terminalGetTheme();
         if (result?.ok && result.config?.theme) setNativeTheme(result.config.theme);
       } catch (error) {
         console.warn('Failed to load native terminal theme', error);

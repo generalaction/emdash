@@ -3,6 +3,12 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { useModalContext } from './ModalProvider';
 import { useAppContext } from './AppContextProvider';
+import { rpc, events } from '../lib/rpc';
+import {
+  githubAuthSuccessChannel,
+  githubAuthErrorChannel,
+  githubAuthUserUpdatedChannel,
+} from '@shared/events/githubEvents';
 
 type GithubUser = any;
 
@@ -49,7 +55,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     isSuccess,
   } = useQuery({
     queryKey: GITHUB_STATUS_KEY,
-    queryFn: () => window.electronAPI.githubGetStatus(),
+    queryFn: () => rpc.github.getStatus(),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -63,11 +69,11 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const needsGhAuth = isInitialized && installed && !authenticated;
 
   const loginMutation = useMutation({
-    mutationFn: () => window.electronAPI.githubAuth(),
+    mutationFn: () => rpc.github.auth(),
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => window.electronAPI.githubLogout(),
+    mutationFn: () => rpc.github.logout(),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY }),
   });
 
@@ -76,7 +82,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const checkStatus = useCallback(async () => {
     return queryClient.fetchQuery({
       queryKey: GITHUB_STATUS_KEY,
-      queryFn: () => window.electronAPI.githubGetStatus(),
+      queryFn: () => rpc.github.getStatus(),
       staleTime: 0,
     });
   }, [queryClient]);
@@ -112,13 +118,13 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   // Subscribe to GitHub auth IPC events from the main process
   useEffect(() => {
-    const cleanupSuccess = window.electronAPI.onGithubAuthSuccess((data) => {
+    const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
       void handleDeviceFlowSuccess(data.user);
     });
-    const cleanupError = window.electronAPI.onGithubAuthError((data) => {
+    const cleanupError = events.on(githubAuthErrorChannel, (data) => {
       handleDeviceFlowError(data.message || data.error);
     });
-    const cleanupUserUpdated = window.electronAPI.onGithubAuthUserUpdated(() => {
+    const cleanupUserUpdated = events.on(githubAuthUserUpdatedChannel, () => {
       void checkStatus();
     });
 
@@ -135,7 +141,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
     try {
       setGithubStatusMessage('Checking for GitHub CLI...');
-      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
+      const cliInstalled = await rpc.github.checkCLIInstalled();
 
       if (!cliInstalled) {
         let installMessage = 'Installing GitHub CLI...';
@@ -148,7 +154,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         }
 
         setGithubStatusMessage(installMessage);
-        const installResult = await window.electronAPI.githubInstallCLI();
+        const installResult = await rpc.github.installCLI();
 
         if (!installResult.success) {
           setGithubLoading(false);

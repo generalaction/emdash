@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } fr
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
+import { rpc } from '../lib/rpc';
 
 type Props = {
   id: string;
@@ -121,8 +122,8 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       if (!container) return;
 
       const handleLinkClick = (url: string) => {
-        if (!url || !window.electronAPI?.openExternal) return;
-        window.electronAPI.openExternal(url).catch((error) => {
+        if (!url) return;
+        rpc.app.openExternal(url).catch((error) => {
           log.warn('failed to open external link', { url, error });
         });
       };
@@ -228,7 +229,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         if (remoteRef.current?.connectionId) {
           // SSH terminal: transfer files to remote first via scp
           try {
-            const result = await window.electronAPI.ptyScpToRemote({
+            const result = await rpc.pty.scpToRemote({
               connectionId: remoteRef.current.connectionId,
               localPaths: paths,
             });

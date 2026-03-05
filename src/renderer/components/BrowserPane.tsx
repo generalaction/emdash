@@ -7,6 +7,8 @@ import { Spinner } from './ui/spinner';
 import { Button } from './ui/button';
 import { setLastUrl, setRunning } from '@/lib/previewStorage';
 import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@/lib/previewNetwork';
+import { rpc, events } from '@/lib/rpc';
+import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
@@ -77,8 +79,8 @@ const BrowserPane: React.FC<{
     if (prev && cur && prev !== cur) {
       try {
         // Clear and hide browser view immediately when switching worktrees
-        (window as any).electronAPI?.browserClear?.();
-        (window as any).electronAPI?.browserHide?.();
+        void rpc.browser.clear();
+        void rpc.browser.hide();
         setRunning(prev, false);
         // Reset task URL tracking to force reload
         lastTaskUrlRef.current = null;
@@ -103,7 +105,7 @@ const BrowserPane: React.FC<{
   }, [taskId, clearUrl, hideSpinner]);
 
   React.useEffect(() => {
-    const off = (window as any).electronAPI?.onHostPreviewEvent?.((data: any) => {
+    const off = events.on(hostPreviewEventChannel, (data: any) => {
       try {
         if (!data || !taskId || data.taskId !== taskId) return;
         if (data.type === 'setup') {
@@ -140,11 +142,7 @@ const BrowserPane: React.FC<{
         }
       } catch {}
     });
-    return () => {
-      try {
-        off?.();
-      } catch {}
-    };
+    return () => off();
   }, [taskId, navigate, showSpinner, hideSpinner]);
 
   // Verify URL reachability with TCP probe (30s grace window for slow compilers)
@@ -168,11 +166,7 @@ const BrowserPane: React.FC<{
         let isReachable = false;
         while (!cancelled && Date.now() < deadline) {
           try {
-            const res = await (window as any).electronAPI?.netProbePorts?.(
-              host,
-              [port],
-              PROBE_TIMEOUT_MS
-            );
+            const res = await rpc.net.probePorts(host, [port], PROBE_TIMEOUT_MS);
             isReachable = !!(res && Array.isArray(res.reachable) && res.reachable.length > 0);
             if (isReachable) break;
           } catch {}
@@ -200,7 +194,7 @@ const BrowserPane: React.FC<{
     if (!url) return;
     showSpinner();
     try {
-      (window as any).electronAPI?.browserReload?.();
+      void rpc.browser.reload();
     } catch {}
   }, [url, showSpinner]);
 
@@ -251,7 +245,7 @@ const BrowserPane: React.FC<{
     if (!shouldShow) {
       visibilityTimeoutRef.current = setTimeout(() => {
         try {
-          (window as any).electronAPI?.browserHide?.();
+          void rpc.browser.hide();
           lastBoundsRef.current = null;
         } catch {}
         visibilityTimeoutRef.current = null;
@@ -265,14 +259,14 @@ const BrowserPane: React.FC<{
         if (hasBoundsChanged(bounds)) {
           lastBoundsRef.current = bounds;
           try {
-            (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+            void rpc.browser.show({ ...bounds, url: url || undefined });
             setTimeout(() => {
               const updatedBounds = computeBounds();
               if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
                 if (hasBoundsChanged(updatedBounds)) {
                   lastBoundsRef.current = updatedBounds;
                   try {
-                    (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
+                    void rpc.browser.setBounds(updatedBounds);
                   } catch {}
                 }
               }
@@ -288,7 +282,7 @@ const BrowserPane: React.FC<{
         if (hasBoundsChanged(bounds)) {
           lastBoundsRef.current = bounds;
           try {
-            (window as any).electronAPI?.browserSetBounds?.(bounds);
+            void rpc.browser.setBounds(bounds);
           } catch {}
         }
       }
@@ -304,7 +298,7 @@ const BrowserPane: React.FC<{
         visibilityTimeoutRef.current = null;
       }
       try {
-        (window as any).electronAPI?.browserHide?.();
+        void rpc.browser.hide();
       } catch {}
       window.removeEventListener('resize', onResize);
       try {
@@ -335,13 +329,13 @@ const BrowserPane: React.FC<{
         lastTaskUrlRef.current = taskUrlKey;
 
         try {
-          (window as any).electronAPI?.browserClear?.();
+          void rpc.browser.clear();
         } catch {}
 
         const timeoutId = setTimeout(() => {
           try {
             // Force reload when task changes to ensure fresh content
-            (window as any).electronAPI?.browserLoadURL?.(url, isTaskChange);
+            void rpc.browser.loadURL(url, isTaskChange);
           } catch {}
         }, URL_LOAD_DELAY_MS);
         return () => clearTimeout(timeoutId);
@@ -407,10 +401,10 @@ const BrowserPane: React.FC<{
     if (!url) return;
     try {
       // Clear and reload to force fresh content
-      (window as any).electronAPI?.browserClear?.();
+      void rpc.browser.clear();
       setTimeout(() => {
         try {
-          (window as any).electronAPI?.browserLoadURL?.(url, true);
+          void rpc.browser.loadURL(url, true);
         } catch {}
       }, 100);
     } catch {}
@@ -425,7 +419,7 @@ const BrowserPane: React.FC<{
       if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
     } catch {}
     try {
-      (window as any).electronAPI?.browserHide?.();
+      void rpc.browser.hide();
     } catch {}
     try {
       clearUrl();
@@ -521,7 +515,7 @@ const BrowserPane: React.FC<{
           <button
             className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-xs hover:bg-muted"
             title="Open in system browser"
-            onClick={() => address && window.electronAPI.openExternal(address)}
+            onClick={() => address && rpc.app.openExternal(address)}
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>

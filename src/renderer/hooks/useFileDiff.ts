@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { rpc } from '../lib/rpc';
 
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
@@ -18,7 +19,7 @@ export function useFileDiff(
       setLoading(true);
       setError(null);
       try {
-        const res = await window.electronAPI.getFileDiff({ taskPath, filePath });
+        const res = await rpc.git.getFileDiff({ taskPath, filePath });
         if (!cancelled) {
           if (res?.success && res.diff) setLines(res.diff.lines);
           else setError(res?.error || 'Failed to load diff');

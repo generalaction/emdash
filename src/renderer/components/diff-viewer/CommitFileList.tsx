@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { splitPath } from './pathUtils';
 
 interface CommitFile {
@@ -38,7 +39,7 @@ export const CommitFileList: React.FC<CommitFileListProps> = ({
 
     const load = async () => {
       try {
-        const res = await window.electronAPI.gitGetCommitFiles({ taskPath, commitHash });
+        const res = await rpc.git.getCommitFiles({ taskPath, commitHash });
         if (!cancelled && res?.success && res.files) {
           setFiles(res.files);
           // Auto-select the first file

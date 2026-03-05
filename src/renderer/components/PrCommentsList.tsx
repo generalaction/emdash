@@ -1,6 +1,7 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
 import type { PrCommentsStatus, PrComment } from '../lib/prCommentsStatus';
 import { formatRelativeTime } from '../lib/prCommentsStatus';
+import { rpc } from '../lib/rpc';
 
 function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
   switch (state) {
@@ -43,7 +44,7 @@ function CommentItem({ comment, prUrl }: { comment: PrComment; prUrl?: string })
   return (
     <div
       className="min-w-0 cursor-pointer px-4 py-2.5 transition-colors hover:bg-muted/50"
-      onClick={() => prUrl && window.electronAPI?.openExternal?.(prUrl)}
+      onClick={() => prUrl && rpc.app.openExternal(prUrl)}
     >
       <div className="flex items-center gap-2">
         <img

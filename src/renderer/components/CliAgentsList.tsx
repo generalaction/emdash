@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { CliAgentStatus } from '../types/connections';
 import { PROVIDERS } from '@shared/providers/registry';
 import { agentAssets } from '@/providers/assets';
+import { rpc } from '../lib/rpc';
 
 interface CliAgentsListProps {
   agents: CliAgentStatus[];
@@ -29,16 +30,15 @@ const ICON_BUTTON =
 const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => void) => {
   const logo = agentAssets[agent.id as keyof typeof agentAssets]?.logo;
 
-  const handleNameClick =
-    agent.docUrl && window?.electronAPI?.openExternal
-      ? async () => {
-          try {
-            await window.electronAPI.openExternal(agent.docUrl!);
-          } catch (openError) {
-            console.error(`Failed to open ${agent.name} docs:`, openError);
-          }
+  const handleNameClick = agent.docUrl
+    ? async () => {
+        try {
+          await rpc.app.openExternal(agent.docUrl!);
+        } catch (openError) {
+          console.error(`Failed to open ${agent.name} docs:`, openError);
         }
-      : undefined;
+      }
+    : undefined;
 
   const isDetected = agent.status === 'connected';
   const indicatorClass = isDetected ? 'bg-emerald-500' : 'bg-muted-foreground/50';

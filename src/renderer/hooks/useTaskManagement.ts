@@ -54,7 +54,7 @@ const runSetupForTask = async (task: Task, projectPath: string): Promise<void> =
   const targets = getLifecycleTargets(task);
   await Promise.allSettled(
     targets.map((target) =>
-      window.electronAPI.lifecycleSetup({
+      rpc.lifecycle.setup({
         taskId: target.taskId,
         taskPath: target.taskPath,
         projectPath,
@@ -199,14 +199,12 @@ export function useTaskManagement() {
     const issues: string[] = [];
 
     await Promise.allSettled(
-      lifecycleTargets.map((target) =>
-        window.electronAPI.lifecycleRunStop({ taskId: target.taskId })
-      )
+      lifecycleTargets.map((target) => rpc.lifecycle.runStop({ taskId: target.taskId }))
     );
 
     for (const target of lifecycleTargets) {
       try {
-        const teardownPromise = window.electronAPI.lifecycleTeardown({
+        const teardownPromise = rpc.lifecycle.teardown({
           taskId: target.taskId,
           taskPath: target.taskPath,
           projectPath: targetProject.path,
@@ -221,7 +219,7 @@ export function useTaskManagement() {
           issues.push(`${target.label}: timeout`);
           continue;
         }
-        if (!result?.success && !result?.skipped) {
+        if (!result?.success && !(result as { skipped?: boolean })?.skipped) {
           issues.push(`${target.label}: ${result?.error || 'teardown script failed'}`);
         }
       } catch (error) {
@@ -339,12 +337,11 @@ export function useTaskManagement() {
           );
         } else {
           promises.unshift(
-            window.electronAPI.worktreeRemove({
+            rpc.worktree.remove({
               projectPath: project.path,
               worktreeId: task.id,
               worktreePath: task.path,
               branch: task.branch,
-              taskName: task.name,
             })
           );
         }
@@ -372,7 +369,7 @@ export function useTaskManagement() {
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
         try {
-          await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          await rpc.lifecycle.clearTask({ taskId: lifecycleTaskId });
         } catch {}
       }
 
@@ -455,7 +452,7 @@ export function useTaskManagement() {
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
         try {
-          await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          await rpc.lifecycle.clearTask({ taskId: lifecycleTaskId });
         } catch {}
       }
 
@@ -590,7 +587,7 @@ export function useTaskManagement() {
       let branchRenamed = false;
 
       if (newBranch !== oldBranch) {
-        const branchResult = await window.electronAPI.renameBranch({
+        const branchResult = await rpc.git.renameBranch({
           repoPath: task.path,
           oldBranch,
           newBranch,
@@ -615,7 +612,7 @@ export function useTaskManagement() {
       } catch (err) {
         if (branchRenamed) {
           try {
-            await window.electronAPI.renameBranch({
+            await rpc.git.renameBranch({
               repoPath: task.path,
               oldBranch: newBranch,
               newBranch: oldBranch,

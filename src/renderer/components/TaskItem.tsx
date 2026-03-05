@@ -18,6 +18,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from './ui/context-menu';
+import { rpc } from '../lib/rpc';
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();
@@ -174,7 +175,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (pr.url) window.electronAPI.openExternal(pr.url);
+          if (pr.url) rpc.app.openExternal(pr.url);
         }}
         className="inline-flex items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         title={`${pr.title || 'Pull Request'} (#${pr.number})`}

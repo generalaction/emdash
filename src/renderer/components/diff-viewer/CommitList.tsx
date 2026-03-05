@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { ArrowUp, Tag } from 'lucide-react';
 
 interface Commit {
@@ -73,7 +74,7 @@ export const CommitList: React.FC<CommitListProps> = ({
 
     const load = async () => {
       try {
-        const res = await window.electronAPI.gitGetLog({ taskPath, maxCount: PAGE_SIZE });
+        const res = await rpc.git.getLog({ taskPath, maxCount: PAGE_SIZE });
         if (!cancelled && res?.success && res.commits) {
           setCommits(res.commits);
           setAheadCount(res.aheadCount);
@@ -108,7 +109,7 @@ export const CommitList: React.FC<CommitListProps> = ({
     if (!taskPath || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const res = await window.electronAPI.gitGetLog({
+      const res = await rpc.git.getLog({
         taskPath,
         maxCount: PAGE_SIZE,
         skip: commits.length,

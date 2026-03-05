@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { rpc } from '../../lib/rpc';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import type { FileChange } from '../../hooks/useFileChanges';
@@ -49,9 +50,9 @@ const FileSection: React.FC<FileSectionProps> = ({
       if (!taskPath) return;
       try {
         if (checked) {
-          await window.electronAPI.stageFile({ taskPath, filePath: file.path });
+          await rpc.git.stageFile({ taskPath, filePath: file.path });
         } else {
-          await window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+          await rpc.git.unstageFile({ taskPath, filePath: file.path });
         }
       } catch (err) {
         console.error('Staging failed:', err);

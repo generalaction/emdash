@@ -1,10 +1,11 @@
-import { ipcMain, dialog } from 'electron';
-import { join } from 'path';
-import * as fs from 'fs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { dialog } from 'electron';
+import { join } from 'node:path';
+import * as fs from 'node:fs';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 const execAsync = promisify(exec);
 const DEFAULT_REMOTE = 'origin';
@@ -57,8 +58,8 @@ const detectDefaultBranch = async (projectPath: string, remote?: string | null) 
   }
 };
 
-export function registerProjectIpc() {
-  ipcMain.handle('project:open', async () => {
+export const projectController = createRPCController({
+  open: async () => {
     try {
       const result = await dialog.showOpenDialog(getMainWindow()!, {
         title: 'Open Project',
@@ -74,15 +75,12 @@ export function registerProjectIpc() {
       return { success: true, path: projectPath };
     } catch (error) {
       console.error('Failed to open project:', error);
-
-      // Track project open errors
       await errorTracking.captureProjectError(error, 'open');
-
       return { success: false, error: 'Failed to open project directory' };
     }
-  });
+  },
 
-  ipcMain.handle('git:getInfo', async (_, projectPath: string) => {
+  getGitInfo: async (projectPath: string) => {
     try {
       const resolveRealPath = async (target: string) => {
         try {
@@ -177,5 +175,5 @@ export function registerProjectIpc() {
       console.error('Failed to get Git info:', error);
       return { isGitRepo: false, error: 'Failed to read Git information', path: projectPath };
     }
-  });
-}
+  },
+});

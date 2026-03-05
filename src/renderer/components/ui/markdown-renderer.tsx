@@ -7,6 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
+import { rpc } from '../../lib/rpc';
 
 type Variant = 'full' | 'compact';
 
@@ -42,8 +43,8 @@ const ResolvedImage: React.FC<{ src: string; alt: string; rootPath: string; file
   useEffect(() => {
     let cancelled = false;
     const relPath = fileDir ? `${fileDir}/${src}` : src;
-    window.electronAPI
-      .fsReadImage(rootPath, relPath)
+    rpc.fs
+      .readImage({ root: rootPath, relPath })
       .then((result: any) => {
         if (cancelled) return;
         if (result.success && result.dataUrl) {
@@ -136,9 +137,9 @@ function useFullComponents(isDark: boolean, rootPath?: string, fileDir?: string)
       a: ({ href, children }: any) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
         const handleClick = (e: React.MouseEvent) => {
-          if (isHttp && typeof window !== 'undefined' && window.electronAPI?.openExternal) {
+          if (isHttp) {
             e.preventDefault();
-            window.electronAPI.openExternal(href).catch(() => {});
+            rpc.app.openExternal(href).catch(() => {});
           }
         };
         return (
@@ -232,9 +233,9 @@ function useCompactComponents() {
       a: ({ href, children }: any) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
         const handleClick = (e: React.MouseEvent) => {
-          if (isHttp && typeof window !== 'undefined' && window.electronAPI?.openExternal) {
+          if (isHttp) {
             e.preventDefault();
-            window.electronAPI.openExternal(href).catch(() => {});
+            rpc.app.openExternal(href).catch(() => {});
           }
         };
         return (

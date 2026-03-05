@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { rpc } from '../lib/rpc';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';
@@ -213,7 +214,7 @@ export function MergePrSection({
   const doMerge = async () => {
     setIsMerging(true);
     try {
-      const res = await window.electronAPI.mergePr({
+      const res = await rpc.git.mergePr({
         taskPath,
         prNumber: activePr.number,
         strategy,

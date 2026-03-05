@@ -133,7 +133,7 @@ export class TerminalSessionManager {
       if (options.onLinkClick) {
         options.onLinkClick(uri);
       } else {
-        window.electronAPI.openExternal(uri).catch((error) => {
+        rpc.app.openExternal(uri).catch((error) => {
           log.warn('Failed to open external link', { uri, error });
         });
       }
@@ -675,13 +675,7 @@ export class TerminalSessionManager {
    * Used for Ctrl+Shift+V on Linux.
    */
   private pasteFromClipboard() {
-    const paste = window.electronAPI?.paste;
-    if (typeof paste !== 'function') {
-      log.warn('Terminal paste API unavailable', { id: this.id });
-      return;
-    }
-
-    void paste().catch((error: unknown) => {
+    void window.electronAPI.paste().catch((error: unknown) => {
       log.warn('Failed to paste to terminal', {
         id: this.id,
         error,
@@ -956,10 +950,9 @@ export class TerminalSessionManager {
 
   private async fetchSnapshot(): Promise<any | null> {
     if (this.options.disableSnapshots) return null;
-    if (!window.electronAPI.ptyGetSnapshot) return null;
 
     try {
-      const response = await window.electronAPI.ptyGetSnapshot({ id: this.id });
+      const response = await rpc.pty.snapshotGet({ id: this.id });
       if (!response?.ok || !response.snapshot?.data) return null;
       if (response.snapshot.version && response.snapshot.version !== TERMINAL_SNAPSHOT_VERSION) {
         return null;
@@ -1131,7 +1124,6 @@ export class TerminalSessionManager {
   }
 
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {
-    if (!window.electronAPI.ptySaveSnapshot) return Promise.resolve();
     if (this.disposed) return Promise.resolve();
     // Skip snapshots for non-main chats
     if (this.options.disableSnapshots) return Promise.resolve();
@@ -1155,7 +1147,7 @@ export class TerminalSessionManager {
           stats: { ...this.metrics.snapshot(), reason },
         };
 
-        const result = await window.electronAPI.ptySaveSnapshot({
+        const result = await rpc.pty.snapshotSave({
           id: this.id,
           payload,
         });

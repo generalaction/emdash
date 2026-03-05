@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createContext, ReactNode, useContext } from 'react';
+import { rpc } from '../lib/rpc';
 
 type AppContextValue = {
   platform?: string;
@@ -13,21 +14,21 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   const { data: platform } = useQuery({
     queryKey: ['app:platform'],
     staleTime: 60_000,
-    queryFn: () => window.electronAPI.getPlatform(),
+    queryFn: () => rpc.app.getPlatform(),
     refetchOnWindowFocus: false,
   });
 
   const { data: appVersion } = useQuery({
     queryKey: ['app:version'],
     staleTime: 60_000,
-    queryFn: () => window.electronAPI.getAppVersion(),
+    queryFn: () => rpc.app.getAppVersion(),
     refetchOnWindowFocus: false,
   });
 
   const { data: electronVersion } = useQuery({
     queryKey: ['app:electronVersion'],
     staleTime: 60_000,
-    queryFn: () => window.electronAPI.getElectronVersion(),
+    queryFn: () => rpc.app.getElectronVersion(),
     refetchOnWindowFocus: false,
   });
 

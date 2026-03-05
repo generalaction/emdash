@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
 import type { FileChange } from '../../hooks/useFileChanges';
@@ -57,7 +58,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
 
   const fetchBranch = useCallback(async () => {
     if (!taskPath) return;
-    const result = await window.electronAPI.getBranchStatus({ taskPath });
+    const result = await rpc.git.getBranchStatus({ taskPath });
     if (result.success) {
       if (result.branch) setBranch(result.branch);
       if (typeof result.ahead === 'number') setAheadCount(result.ahead);
@@ -67,7 +68,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
 
   const fetchLatestCommit = useCallback(async () => {
     if (!taskPath) return;
-    const result = await window.electronAPI.gitGetLatestCommit({ taskPath });
+    const result = await rpc.git.getLatestCommit({ taskPath });
     if (result.success) {
       setLatestCommit(result.commit ?? null);
     }
@@ -96,7 +97,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
       const message = description.trim()
         ? `${commitMessage.trim()}\n\n${description.trim()}`
         : commitMessage.trim();
-      const result = await window.electronAPI.gitCommit({ taskPath, message });
+      const result = await rpc.git.commit({ taskPath, message });
       if (result.success) {
         setCommitMessage('');
         setDescription('');
@@ -127,7 +128,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     if (!taskPath || !hasUnpushed || isPushing) return;
     setIsPushing(true);
     try {
-      const result = await window.electronAPI.gitPush({ taskPath });
+      const result = await rpc.git.push({ taskPath });
       if (!result?.success) {
         toast({
           title: 'Push failed',
@@ -152,7 +153,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     if (!taskPath || isPulling) return;
     setIsPulling(true);
     try {
-      const result = await window.electronAPI.gitPull({ taskPath });
+      const result = await rpc.git.pull({ taskPath });
       if (!result?.success) {
         toast({
           title: 'Pull failed',
@@ -178,7 +179,7 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     if (!taskPath || isUndoing) return;
     setIsUndoing(true);
     try {
-      const result = await window.electronAPI.gitSoftReset({ taskPath });
+      const result = await rpc.git.softReset({ taskPath });
       if (result.success) {
         if (result.subject) setCommitMessage(result.subject);
         if (result.body) setDescription(result.body);

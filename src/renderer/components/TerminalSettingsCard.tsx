@@ -5,6 +5,7 @@ import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Switch } from './ui/switch';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { rpc } from '../lib/rpc';
 
 type FontOption = {
   id: string;
@@ -90,7 +91,7 @@ const TerminalSettingsCard: React.FC = () => {
     if (loadingFonts || installedFonts !== null) return;
     setLoadingFonts(true);
     try {
-      const result = await window.electronAPI.listInstalledFonts();
+      const result = await rpc.app.listInstalledFonts();
       if (result?.success && Array.isArray(result.fonts) && result.fonts.length) {
         setInstalledFonts(dedupeAndSort(result.fonts));
       } else {

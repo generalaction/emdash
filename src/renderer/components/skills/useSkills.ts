@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { CatalogSkill, CatalogIndex } from '@shared/skills/types';
 import { useToast } from '@/hooks/use-toast';
+import { rpc } from '../../lib/rpc';
 
 export function useSkills() {
   const { toast } = useToast();
@@ -14,7 +15,7 @@ export function useSkills() {
 
   const loadCatalog = useCallback(async () => {
     try {
-      const result = await window.electronAPI.skillsGetCatalog();
+      const result = await rpc.skills.getCatalog();
       if (result.success && result.data) {
         setCatalog(result.data);
       }
@@ -32,7 +33,7 @@ export function useSkills() {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const result = await window.electronAPI.skillsRefreshCatalog();
+      const result = await rpc.skills.refreshCatalog();
       if (result.success && result.data) {
         setCatalog(result.data);
       }
@@ -55,7 +56,7 @@ export function useSkills() {
       });
 
       try {
-        const result = await window.electronAPI.skillsInstall({ skillId });
+        const result = await rpc.skills.install({ skillId });
         if (!result.success) {
           // Revert optimistic update
           setCatalog((prev) => {
@@ -109,7 +110,7 @@ export function useSkills() {
       });
 
       try {
-        const result = await window.electronAPI.skillsUninstall({ skillId });
+        const result = await rpc.skills.uninstall({ skillId });
         if (!result.success) {
           toast({
             title: 'Uninstall failed',
@@ -145,7 +146,7 @@ export function useSkills() {
     setShowDetailModal(true);
     // Load full detail
     try {
-      const result = await window.electronAPI.skillsGetDetail({ skillId: skill.id });
+      const result = await rpc.skills.getDetail({ skillId: skill.id });
       if (result.success && result.data) {
         setSelectedSkill(result.data);
       }

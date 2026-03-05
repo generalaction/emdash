@@ -7,6 +7,7 @@ import { Label } from './ui/label';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
+import { rpc } from '../lib/rpc';
 
 interface NewProjectModalProps {
   onClose: () => void;
@@ -37,7 +38,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
     let cancel = false;
     (async () => {
       try {
-        const result = await window.electronAPI.githubGetOwners();
+        const result = await rpc.github.getOwners();
         if (cancel) return;
         if (result.success && result.owners) {
           setOwners(result.owners);
@@ -84,7 +85,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
     setIsValidating(true);
     validationTimeoutRef.current = setTimeout(async () => {
       try {
-        const result = await window.electronAPI.githubValidateRepoName(repoName.trim(), owner);
+        const result = await rpc.github.validateRepoName(repoName.trim(), owner);
         setIsValidating(false);
         if (!result.success || !result.valid) {
           setValidationError(result.error || 'Invalid repository name');
@@ -131,7 +132,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
       setProgress('Creating repository on GitHub...');
 
       try {
-        const result = await window.electronAPI.githubCreateNewProject({
+        const result = await rpc.github.createNewProject({
           name: repoName.trim(),
           description: description.trim() || undefined,
           owner,

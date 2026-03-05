@@ -139,7 +139,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
 
         setProgress(`Cloning to ${localPath}...`);
 
-        const cloneResult = await window.electronAPI.githubCloneRepository(cleanedUrl, localPath);
+        const cloneResult = await rpc.github.cloneRepository(cleanedUrl, localPath);
 
         if (!cloneResult.success) {
           throw new Error(cloneResult.error || 'Failed to clone repository');

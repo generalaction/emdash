@@ -1,45 +1,40 @@
-import { ipcMain } from 'electron';
 import JiraService from '../services/JiraService';
+import { createRPCController } from '../../shared/ipc/rpc';
 
-const jira = new JiraService();
+const jiraService = new JiraService();
 
-export function registerJiraIpc() {
-  ipcMain.handle(
-    'jira:saveCredentials',
-    async (_e, args: { siteUrl: string; email: string; token: string }) => {
-      const siteUrl = String(args?.siteUrl || '').trim();
-      const email = String(args?.email || '').trim();
-      const token = String(args?.token || '').trim();
-      if (!siteUrl || !email || !token) {
-        return { success: false, error: 'Site URL, email, and API token are required.' };
-      }
-      return jira.saveCredentials(siteUrl, email, token);
+export const jiraController = createRPCController({
+  saveCredentials: async (args: { siteUrl: string; email: string; token: string }) => {
+    const siteUrl = String(args?.siteUrl || '').trim();
+    const email = String(args?.email || '').trim();
+    const token = String(args?.token || '').trim();
+    if (!siteUrl || !email || !token) {
+      return { success: false, error: 'Site URL, email, and API token are required.' };
     }
-  );
+    return jiraService.saveCredentials(siteUrl, email, token);
+  },
 
-  ipcMain.handle('jira:clearCredentials', async () => jira.clearCredentials());
-  ipcMain.handle('jira:checkConnection', async () => jira.checkConnection());
+  clearCredentials: async () => jiraService.clearCredentials(),
 
-  ipcMain.handle('jira:initialFetch', async (_e, limit?: number) => {
+  checkConnection: async () => jiraService.checkConnection(),
+
+  initialFetch: async (limit?: number) => {
     try {
-      const issues = await jira.initialFetch(
+      const issues = await jiraService.initialFetch(
         typeof limit === 'number' && Number.isFinite(limit) ? limit : 50
       );
       return { success: true, issues };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
     }
-  });
+  },
 
-  ipcMain.handle('jira:searchIssues', async (_e, searchTerm: string, limit?: number) => {
+  searchIssues: async (searchTerm: string, limit?: number) => {
     try {
-      // Use enhanced search that supports direct key lookups
-      const issues = await jira.smartSearchIssues(searchTerm, limit ?? 20);
+      const issues = await jiraService.smartSearchIssues(searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
     }
-  });
-}
-
-export default registerJiraIpc;
+  },
+});

@@ -3,6 +3,7 @@ import { Folder, GitBranch } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import type { PrInfo } from '../lib/prStatus';
+import { rpc } from '../lib/rpc';
 
 type Props = {
   tasks: Array<{ name: string; pr: PrInfo }>;
@@ -14,7 +15,7 @@ export const DeletePrNotice: React.FC<Props> = ({ tasks }) => {
   const handleOpen = (url?: string) => {
     if (!url) return;
     try {
-      window.electronAPI.openExternal(url);
+      rpc.app.openExternal(url);
     } catch {}
   };
 

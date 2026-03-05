@@ -7,6 +7,7 @@ import {
   type PlatformKey,
 } from '@shared/openInApps';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { rpc } from '../lib/rpc';
 
 export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;
@@ -30,7 +31,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
     const load = async () => {
       let platform: PlatformKey = 'darwin';
       try {
-        platform = ((await window.electronAPI?.getPlatform?.()) as PlatformKey) || 'darwin';
+        platform = ((await rpc.app.getPlatform()) as unknown as PlatformKey) || 'darwin';
       } catch {}
 
       const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
@@ -54,8 +55,8 @@ export function useOpenInApps(): UseOpenInAppsResult {
   useEffect(() => {
     const fetchAvailability = async () => {
       try {
-        const apps = await window.electronAPI?.checkInstalledApps?.();
-        if (apps) setAvailability(apps);
+        const apps = await rpc.app.checkInstalledApps();
+        if (apps) setAvailability(apps as Record<string, boolean>);
       } catch (e) {
         console.error('Failed to check installed apps:', e);
       } finally {

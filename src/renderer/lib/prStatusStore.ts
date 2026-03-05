@@ -1,4 +1,5 @@
 import type { PrStatus } from './prStatus';
+import { rpc } from './rpc';
 
 type Listener = (pr: PrStatus | null, isLoading: boolean) => void;
 
@@ -8,7 +9,7 @@ const pending = new Map<string, Promise<PrStatus | null>>();
 
 async function fetchPrStatus(taskPath: string): Promise<PrStatus | null> {
   try {
-    const res = await window.electronAPI.getPrStatus({ taskPath });
+    const res = await rpc.git.getPrStatus({ taskPath });
     if (res?.success && res.pr) {
       return res.pr as PrStatus;
     }

@@ -1,14 +1,15 @@
-import { ipcMain, app } from 'electron';
+import { app } from 'electron';
 import { log } from '../lib/logger';
+import { createRPCController } from '../../shared/ipc/rpc';
 import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import * as path from 'path';
-import * as fs from 'fs';
-import { homedir } from 'os';
-import { createHash } from 'crypto';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { quoteShellArg } from '../utils/shellEscape';
 import { getAppSettings } from '../settings';
 
@@ -22,8 +23,8 @@ const slugify = (name: string) =>
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
-export function registerGithubIpc() {
-  ipcMain.handle('github:connect', async (_, projectPath: string) => {
+export const githubController = createRPCController({
+  connect: async (projectPath: string) => {
     try {
       // Check if GitHub CLI is authenticated
       const isAuth = await githubService.isAuthenticated();
@@ -54,20 +55,18 @@ export function registerGithubIpc() {
       log.error('Failed to connect to GitHub:', error);
       return { success: false, error: 'Failed to connect to GitHub' };
     }
-  });
+  },
 
-  // Start Device Flow authentication with automatic background polling
-  ipcMain.handle('github:auth', async () => {
+  auth: async () => {
     try {
       return await githubService.startDeviceFlowAuth();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
       return { success: false, error: 'Authentication failed' };
     }
-  });
+  },
 
-  // Cancel ongoing authentication
-  ipcMain.handle('github:auth:cancel', async () => {
+  authCancel: async () => {
     try {
       githubService.cancelAuth();
       return { success: true };
@@ -75,19 +74,18 @@ export function registerGithubIpc() {
       log.error('Failed to cancel GitHub auth:', error);
       return { success: false, error: 'Failed to cancel' };
     }
-  });
+  },
 
-  ipcMain.handle('github:isAuthenticated', async () => {
+  isAuthenticated: async () => {
     try {
       return await githubService.isAuthenticated();
     } catch (error) {
       log.error('GitHub authentication check failed:', error);
       return false;
     }
-  });
+  },
 
-  // GitHub status: installed + authenticated + user
-  ipcMain.handle('github:getStatus', async () => {
+  getStatus: async () => {
     try {
       let installed = true;
       try {
@@ -114,9 +112,9 @@ export function registerGithubIpc() {
       log.error('GitHub status check failed:', error);
       return { installed: false, authenticated: false };
     }
-  });
+  },
 
-  ipcMain.handle('github:getUser', async () => {
+  getUser: async () => {
     try {
       const token = await (githubService as any)['getStoredToken']();
       if (!token) return null;
@@ -125,9 +123,9 @@ export function registerGithubIpc() {
       log.error('Failed to get user info:', error);
       return null;
     }
-  });
+  },
 
-  ipcMain.handle('github:getRepositories', async () => {
+  getRepositories: async () => {
     try {
       const token = await (githubService as any)['getStoredToken']();
       if (!token) throw new Error('Not authenticated');
@@ -136,9 +134,9 @@ export function registerGithubIpc() {
       log.error('Failed to get repositories:', error);
       return [];
     }
-  });
+  },
 
-  ipcMain.handle('github:cloneRepository', async (_, repoUrl: string, localPath: string) => {
+  cloneRepository: async (repoUrl: string, localPath: string) => {
     const q = (s: string) => JSON.stringify(s);
     try {
       // Opt-out flag for safety or debugging
@@ -185,9 +183,9 @@ export function registerGithubIpc() {
         return { success: false, error: e2 instanceof Error ? e2.message : 'Clone failed' };
       }
     }
-  });
+  },
 
-  ipcMain.handle('github:logout', async () => {
+  logout: async () => {
     try {
       await githubService.logout();
       return { success: true };
@@ -195,10 +193,9 @@ export function registerGithubIpc() {
       log.error('Failed to logout:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Logout failed' };
     }
-  });
+  },
 
-  // GitHub issues: list/search/get for the repository at projectPath
-  ipcMain.handle('github:issues:list', async (_e, projectPath: string, limit?: number) => {
+  issuesList: async (projectPath: string, limit?: number) => {
     if (!projectPath) return { success: false, error: 'Project path is required' };
     try {
       const issues = await githubService.listIssues(projectPath, limit ?? 50);
@@ -207,26 +204,23 @@ export function registerGithubIpc() {
       const message = error instanceof Error ? error.message : 'Unable to list issues';
       return { success: false, error: message };
     }
-  });
+  },
 
-  ipcMain.handle(
-    'github:issues:search',
-    async (_e, projectPath: string, searchTerm: string, limit?: number) => {
-      if (!projectPath) return { success: false, error: 'Project path is required' };
-      if (!searchTerm || typeof searchTerm !== 'string') {
-        return { success: false, error: 'Search term is required' };
-      }
-      try {
-        const issues = await githubService.searchIssues(projectPath, searchTerm, limit ?? 20);
-        return { success: true, issues };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to search issues';
-        return { success: false, error: message };
-      }
+  issuesSearch: async (projectPath: string, searchTerm: string, limit?: number) => {
+    if (!projectPath) return { success: false, error: 'Project path is required' };
+    if (!searchTerm || typeof searchTerm !== 'string') {
+      return { success: false, error: 'Search term is required' };
     }
-  );
+    try {
+      const issues = await githubService.searchIssues(projectPath, searchTerm, limit ?? 20);
+      return { success: true, issues };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to search issues';
+      return { success: false, error: message };
+    }
+  },
 
-  ipcMain.handle('github:issues:get', async (_e, projectPath: string, number: number) => {
+  issuesGet: async (projectPath: string, number: number) => {
     if (!projectPath) return { success: false, error: 'Project path is required' };
     if (!number || !Number.isFinite(number)) {
       return { success: false, error: 'Issue number is required' };
@@ -238,9 +232,9 @@ export function registerGithubIpc() {
       const message = error instanceof Error ? error.message : 'Unable to get issue';
       return { success: false, error: message };
     }
-  });
+  },
 
-  ipcMain.handle('github:listPullRequests', async (_, args: { projectPath: string }) => {
+  listPullRequests: async (args: { projectPath: string }) => {
     const projectPath = args?.projectPath;
     if (!projectPath) {
       return { success: false, error: 'Project path is required' };
@@ -255,80 +249,74 @@ export function registerGithubIpc() {
         error instanceof Error ? error.message : 'Unable to list pull requests via GitHub CLI';
       return { success: false, error: message };
     }
-  });
+  },
 
-  ipcMain.handle(
-    'github:createPullRequestWorktree',
-    async (
-      _,
-      args: {
-        projectPath: string;
-        projectId: string;
-        prNumber: number;
-        prTitle?: string;
-        taskName?: string;
-        branchName?: string;
-      }
-    ) => {
-      const { projectPath, projectId, prNumber } = args || ({} as typeof args);
+  createPullRequestWorktree: async (args: {
+    projectPath: string;
+    projectId: string;
+    prNumber: number;
+    prTitle?: string;
+    taskName?: string;
+    branchName?: string;
+  }) => {
+    const { projectPath, projectId, prNumber } = args || ({} as typeof args);
 
-      if (!projectPath || !projectId || !prNumber) {
-        return { success: false, error: 'Missing required parameters' };
-      }
-
-      const defaultSlug = slugify(args.prTitle || `pr-${prNumber}`) || `pr-${prNumber}`;
-      const taskName =
-        args.taskName && args.taskName.trim().length > 0
-          ? args.taskName.trim()
-          : `pr-${prNumber}-${defaultSlug}`;
-      const branchName = args.branchName || `pr/${prNumber}`;
-
-      try {
-        const currentWorktrees = await worktreeService.listWorktrees(projectPath);
-        const existing = currentWorktrees.find((wt) => wt.branch === branchName);
-
-        if (existing) {
-          return { success: true, worktree: existing, branchName, taskName: existing.name };
-        }
-
-        await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
-
-        const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
-        const slug = slugify(taskName) || `pr-${prNumber}`;
-        let worktreePath = path.join(worktreesDir, slug);
-
-        if (fs.existsSync(worktreePath)) {
-          worktreePath = path.join(worktreesDir, `${slug}-${Date.now()}`);
-        }
-
-        const worktree = await worktreeService.createWorktreeFromBranch(
-          projectPath,
-          taskName,
-          branchName,
-          projectId,
-          { worktreePath }
-        );
-
-        return { success: true, worktree, branchName, taskName };
-      } catch (error) {
-        log.error('Failed to create PR worktree:', error);
-        const message =
-          error instanceof Error ? error.message : 'Unable to create PR worktree via GitHub CLI';
-        return { success: false, error: message };
-      }
+    if (!projectPath || !projectId || !prNumber) {
+      return { success: false, error: 'Missing required parameters' };
     }
-  );
 
-  ipcMain.handle('github:checkCLIInstalled', async () => {
+    const defaultSlug = slugify(args.prTitle || `pr-${prNumber}`) || `pr-${prNumber}`;
+    const taskName =
+      args.taskName && args.taskName.trim().length > 0
+        ? args.taskName.trim()
+        : `pr-${prNumber}-${defaultSlug}`;
+    const branchName = args.branchName || `pr/${prNumber}`;
+
+    try {
+      const currentWorktrees = await worktreeService.listWorktrees(projectPath);
+      const existing = currentWorktrees.find((wt) => wt.branch === branchName);
+
+      if (existing) {
+        return { success: true, worktree: existing, branchName, taskName: existing.name };
+      }
+
+      await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
+
+      const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
+      const slug = slugify(taskName) || `pr-${prNumber}`;
+      let worktreePath = path.join(worktreesDir, slug);
+
+      if (fs.existsSync(worktreePath)) {
+        worktreePath = path.join(worktreesDir, `${slug}-${Date.now()}`);
+      }
+
+      const worktree = await worktreeService.createWorktreeFromBranch(
+        projectPath,
+        taskName,
+        branchName,
+        projectId,
+        { worktreePath }
+      );
+
+      return { success: true, worktree, branchName, taskName };
+    } catch (error) {
+      log.error('Failed to create PR worktree:', error);
+      const message =
+        error instanceof Error ? error.message : 'Unable to create PR worktree via GitHub CLI';
+      return { success: false, error: message };
+    }
+  },
+
+  checkCLIInstalled: async () => {
     try {
       return await githubCLIInstaller.isInstalled();
     } catch (error) {
       log.error('Failed to check gh CLI installation:', error);
       return false;
     }
-  });
+  },
 
-  ipcMain.handle('github:installCLI', async () => {
+  installCLI: async () => {
     try {
       return await githubCLIInstaller.install();
     } catch (error) {
@@ -338,9 +326,9 @@ export function registerGithubIpc() {
         error: error instanceof Error ? error.message : 'Installation failed',
       };
     }
-  });
+  },
 
-  ipcMain.handle('github:getOwners', async () => {
+  getOwners: async () => {
     try {
       const owners = await githubService.getOwners();
       return { success: true, owners };
@@ -351,9 +339,9 @@ export function registerGithubIpc() {
         error: error instanceof Error ? error.message : 'Failed to get owners',
       };
     }
-  });
+  },
 
-  ipcMain.handle('github:validateRepoName', async (_, name: string, owner: string) => {
+  validateRepoName: async (name: string, owner: string) => {
     try {
       // First validate format
       const formatValidation = githubService.validateRepositoryName(name);
@@ -389,130 +377,124 @@ export function registerGithubIpc() {
         error: error instanceof Error ? error.message : 'Validation failed',
       };
     }
-  });
+  },
 
-  ipcMain.handle(
-    'github:createNewProject',
-    async (
-      _,
-      params: {
-        name: string;
-        description?: string;
-        owner: string;
-        isPrivate: boolean;
-        gitignoreTemplate?: string;
-      }
-    ) => {
-      let githubRepoCreated = false;
-      let localDirCreated = false;
-      let repoUrl: string | undefined;
-      let localPath: string | undefined;
+  createNewProject: async (params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    gitignoreTemplate?: string;
+  }) => {
+    let githubRepoCreated = false;
+    let localDirCreated = false;
+    let repoUrl: string | undefined;
+    let localPath: string | undefined;
 
-      try {
-        const { name, description, owner, isPrivate, gitignoreTemplate } = params;
+    try {
+      const { name, description, owner, isPrivate, gitignoreTemplate } = params;
 
-        // Validate inputs
-        const formatValidation = githubService.validateRepositoryName(name);
-        if (!formatValidation.valid) {
-          return {
-            success: false,
-            error: formatValidation.error || 'Invalid repository name',
-          };
-        }
-
-        // Check if repo already exists
-        const exists = await githubService.checkRepositoryExists(owner, name);
-        if (exists) {
-          return {
-            success: false,
-            error: `Repository ${owner}/${name} already exists`,
-          };
-        }
-
-        // Get project directory from settings
-        const settings = getAppSettings();
-        const projectDir =
-          settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');
-
-        // Ensure project directory exists
-        if (!fs.existsSync(projectDir)) {
-          fs.mkdirSync(projectDir, { recursive: true });
-        }
-
-        localPath = path.join(projectDir, name);
-        if (fs.existsSync(localPath)) {
-          return {
-            success: false,
-            error: `Directory ${localPath} already exists`,
-          };
-        }
-
-        // Create GitHub repository
-        const repoInfo = await githubService.createRepository({
-          name,
-          description,
-          owner,
-          isPrivate,
-        });
-        githubRepoCreated = true;
-        repoUrl = repoInfo.url;
-
-        // Clone repository
-        const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
-        if (!cloneResult.success) {
-          // Cleanup: delete GitHub repo on clone failure
-          try {
-            // Security: Use quoteShellArg to prevent command injection
-            const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
-            await execAsync(`gh repo delete ${repoRef} --yes`, {
-              timeout: 10000,
-            });
-          } catch (cleanupError) {
-            log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
-          }
-          return {
-            success: false,
-            error: cloneResult.error || 'Failed to clone repository',
-          };
-        }
-        localDirCreated = true;
-
-        // Initialize project (create README, commit, push)
-        await githubService.initializeNewProject({
-          repoUrl,
-          localPath,
-          name,
-          description,
-        });
-
-        // TODO: Add .gitignore if template specified (for future enhancement)
-
-        return {
-          success: true,
-          projectPath: localPath,
-          repoUrl,
-          fullName: repoInfo.fullName,
-          defaultBranch: repoInfo.defaultBranch,
-        };
-      } catch (error) {
-        log.error('Failed to create new project:', error);
-
-        // Cleanup on failure
-        if (localDirCreated && localPath && fs.existsSync(localPath)) {
-          try {
-            fs.rmSync(localPath, { recursive: true, force: true });
-          } catch (cleanupError) {
-            log.warn('Failed to cleanup local directory:', cleanupError);
-          }
-        }
-
+      // Validate inputs
+      const formatValidation = githubService.validateRepositoryName(name);
+      if (!formatValidation.valid) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to create project',
-          githubRepoCreated, // Inform frontend about orphaned repo
-          repoUrl,
+          error: formatValidation.error || 'Invalid repository name',
         };
       }
+
+      // Check if repo already exists
+      const exists = await githubService.checkRepositoryExists(owner, name);
+      if (exists) {
+        return {
+          success: false,
+          error: `Repository ${owner}/${name} already exists`,
+        };
+      }
+
+      // Get project directory from settings
+      const settings = getAppSettings();
+      const projectDir =
+        settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');
+
+      // Ensure project directory exists
+      if (!fs.existsSync(projectDir)) {
+        fs.mkdirSync(projectDir, { recursive: true });
+      }
+
+      localPath = path.join(projectDir, name);
+      if (fs.existsSync(localPath)) {
+        return {
+          success: false,
+          error: `Directory ${localPath} already exists`,
+        };
+      }
+
+      // Create GitHub repository
+      const repoInfo = await githubService.createRepository({
+        name,
+        description,
+        owner,
+        isPrivate,
+      });
+      githubRepoCreated = true;
+      repoUrl = repoInfo.url;
+
+      // Clone repository
+      const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
+      if (!cloneResult.success) {
+        // Cleanup: delete GitHub repo on clone failure
+        try {
+          // Security: Use quoteShellArg to prevent command injection
+          const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
+          await execAsync(`gh repo delete ${repoRef} --yes`, {
+            timeout: 10000,
+          });
+        } catch (cleanupError) {
+          log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+        }
+        return {
+          success: false,
+          error: cloneResult.error || 'Failed to clone repository',
+        };
+      }
+      localDirCreated = true;
+
+      // Initialize project (create README, commit, push)
+      await githubService.initializeNewProject({
+        repoUrl,
+        localPath,
+        name,
+        description,
+      });
+
+      // TODO: Add .gitignore if template specified (for future enhancement)
+
+      return {
+        success: true,
+        projectPath: localPath,
+        repoUrl,
+        fullName: repoInfo.fullName,
+        defaultBranch: repoInfo.defaultBranch,
+      };
+    } catch (error) {
+      log.error('Failed to create new project:', error);
+
+      // Cleanup on failure
+      if (localDirCreated && localPath && fs.existsSync(localPath)) {
+        try {
+          fs.rmSync(localPath, { recursive: true, force: true });
+        } catch (cleanupError) {
+          log.warn('Failed to cleanup local directory:', cleanupError);
+        }
+      }
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create project',
+        githubRepoCreated, // Inform frontend about orphaned repo
+        repoUrl,
+      };
     }
-  );
-}
+  },
+});

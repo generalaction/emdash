@@ -6,6 +6,7 @@ import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
 import { LinearStatusPill } from './LinearStatusPill';
+import { rpc } from '../lib/rpc';
 
 type Props = {
   issue: LinearIssueSummary | null;
@@ -121,9 +122,9 @@ export const LinearIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.electronAPI?.openExternal && issue.url) {
+                    if (issue.url) {
                       e.preventDefault();
-                      window.electronAPI.openExternal(issue.url);
+                      rpc.app.openExternal(issue.url);
                     }
                   }}
                 >

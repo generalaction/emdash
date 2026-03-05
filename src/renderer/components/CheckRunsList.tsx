@@ -3,6 +3,7 @@ import githubIcon from '../../assets/images/github.png';
 import type { CheckRunsStatus, CheckRun, CheckRunBucket } from '../lib/checkRunStatus';
 import { formatCheckDuration } from '../lib/checkRunStatus';
 import { Badge } from './ui/badge';
+import { rpc } from '../lib/rpc';
 
 function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
@@ -40,7 +41,7 @@ function CheckRunItem({ check }: { check: CheckRun }) {
             type="button"
             className="text-muted-foreground transition-colors hover:text-foreground"
             title="Open in GitHub"
-            onClick={() => check.link && window.electronAPI?.openExternal?.(check.link)}
+            onClick={() => check.link && rpc.app.openExternal(check.link)}
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>

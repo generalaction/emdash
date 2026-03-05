@@ -3,8 +3,17 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { GITHUB_CONFIG } from '../config/github.config';
-import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
+import { events } from '../events';
+import {
+  githubAuthDeviceCodeChannel,
+  githubAuthPollingChannel,
+  githubAuthSlowDownChannel,
+  githubAuthSuccessChannel,
+  githubAuthErrorChannel,
+  githubAuthCancelledChannel,
+  githubAuthUserUpdatedChannel,
+} from '@shared/events/githubEvents';
 
 const execAsync = promisify(exec);
 
@@ -103,13 +112,8 @@ export class GitHubService {
     const deviceCodeResult = await this.requestDeviceCode();
 
     if (!deviceCodeResult.success || !deviceCodeResult.device_code) {
-      // Emit error to renderer
-      const mainWindow = getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send('github:auth:error', {
-          error: deviceCodeResult.error || 'Failed to request device code',
-        });
-      }
+      const errMsg = deviceCodeResult.error || 'Failed to request device code';
+      events.emit(githubAuthErrorChannel, { error: errMsg, message: errMsg });
       return deviceCodeResult;
     }
 
@@ -121,15 +125,12 @@ export class GitHubService {
     // Give renderer time to mount modal and subscribe to events
     // Then emit device code for display
     setTimeout(() => {
-      const mainWindow = getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send('github:auth:device-code', {
-          userCode: deviceCodeResult.user_code,
-          verificationUri: deviceCodeResult.verification_uri,
-          expiresIn: deviceCodeResult.expires_in,
-          interval: this.currentInterval,
-        });
-      }
+      events.emit(githubAuthDeviceCodeChannel, {
+        userCode: deviceCodeResult.user_code,
+        verificationUri: deviceCodeResult.verification_uri,
+        expiresIn: deviceCodeResult.expires_in,
+        interval: this.currentInterval,
+      });
     }, 100); // 100ms delay to ensure modal is mounted
 
     // Start background polling
@@ -156,13 +157,10 @@ export class GitHubService {
       // Check if expired
       if (Date.now() >= expiresAt) {
         this.stopPolling();
-        const mainWindow = getMainWindow();
-        if (mainWindow) {
-          mainWindow.webContents.send('github:auth:error', {
-            error: 'expired_token',
-            message: 'Authorization code expired. Please try again.',
-          });
-        }
+        events.emit(githubAuthErrorChannel, {
+          error: 'expired_token',
+          message: 'Authorization code expired. Please try again.',
+        });
         return;
       }
 
@@ -178,31 +176,18 @@ export class GitHubService {
             await errorTracking.updateGithubUsername(result.user.login);
           }
 
-          const mainWindow = getMainWindow();
-          if (mainWindow) {
-            mainWindow.webContents.send('github:auth:success', {
-              token: result.token,
-              user: result.user || undefined,
-            });
-          }
+          events.emit(githubAuthSuccessChannel, {
+            token: result.token,
+            user: result.user || undefined,
+          });
         } else if (result.error) {
-          const mainWindow = getMainWindow();
-
           if (result.error === 'authorization_pending') {
             // Still waiting - emit polling status
-            if (mainWindow) {
-              mainWindow.webContents.send('github:auth:polling', {
-                status: 'waiting',
-              });
-            }
+            events.emit(githubAuthPollingChannel, { status: 'waiting' });
           } else if (result.error === 'slow_down') {
             // GitHub wants us to slow down
             this.currentInterval += 5;
-            if (mainWindow) {
-              mainWindow.webContents.send('github:auth:slow-down', {
-                newInterval: this.currentInterval,
-              });
-            }
+            events.emit(githubAuthSlowDownChannel, { newInterval: this.currentInterval });
 
             // Restart interval with new timing
             if (this.pollingInterval) {
@@ -210,32 +195,23 @@ export class GitHubService {
               this.pollingInterval = setInterval(poll, this.currentInterval * 1000);
             }
           } else if (result.error === 'expired_token') {
-            // Code expired
             this.stopPolling();
-            if (mainWindow) {
-              mainWindow.webContents.send('github:auth:error', {
-                error: 'expired_token',
-                message: 'Authorization code expired. Please try again.',
-              });
-            }
+            events.emit(githubAuthErrorChannel, {
+              error: 'expired_token',
+              message: 'Authorization code expired. Please try again.',
+            });
           } else if (result.error === 'access_denied') {
-            // User denied
             this.stopPolling();
-            if (mainWindow) {
-              mainWindow.webContents.send('github:auth:error', {
-                error: 'access_denied',
-                message: 'Authorization was cancelled.',
-              });
-            }
+            events.emit(githubAuthErrorChannel, {
+              error: 'access_denied',
+              message: 'Authorization was cancelled.',
+            });
           } else {
-            // Unknown error
             this.stopPolling();
-            if (mainWindow) {
-              mainWindow.webContents.send('github:auth:error', {
-                error: result.error,
-                message: `Authentication failed: ${result.error}`,
-              });
-            }
+            events.emit(githubAuthErrorChannel, {
+              error: result.error,
+              message: `Authentication failed: ${result.error}`,
+            });
           }
         }
       } catch (error) {
@@ -244,13 +220,10 @@ export class GitHubService {
         // Track polling errors
         await errorTracking.captureGitHubError(error, 'poll_device_code');
 
-        const mainWindow = getMainWindow();
-        if (mainWindow) {
-          mainWindow.webContents.send('github:auth:error', {
-            error: 'network_error',
-            message: 'Network error during authentication. Please try again.',
-          });
-        }
+        events.emit(githubAuthErrorChannel, {
+          error: 'network_error',
+          message: 'Network error during authentication. Please try again.',
+        });
         this.stopPolling();
       }
     };
@@ -278,10 +251,7 @@ export class GitHubService {
    */
   cancelAuth(): void {
     this.stopPolling();
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send('github:auth:cancelled', {});
-    }
+    events.emit(githubAuthCancelledChannel, undefined);
   }
 
   /**
@@ -386,11 +356,8 @@ export class GitHubService {
           // Silent fail - gh CLI might not be installed
         }
 
-        const mainWindow = getMainWindow();
-        if (user && mainWindow) {
-          mainWindow.webContents.send('github:auth:user-updated', {
-            user: user,
-          });
+        if (user) {
+          events.emit(githubAuthUserUpdatedChannel, { user });
         }
 
         return {

@@ -10,6 +10,7 @@ import IntegrationRow from './IntegrationRow';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { rpc } from '../lib/rpc';
 
 export default function HiddenToolsSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
@@ -23,7 +24,8 @@ export default function HiddenToolsSettingsCard() {
     const init = async () => {
       let platform: PlatformKey = 'darwin';
       try {
-        platform = ((await window.electronAPI?.getPlatform?.()) as PlatformKey) || 'darwin';
+        const platformRes = await rpc.app.getPlatform();
+        platform = (platformRes as unknown as PlatformKey) || 'darwin';
       } catch {}
 
       const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
@@ -39,8 +41,8 @@ export default function HiddenToolsSettingsCard() {
       setLabels(loadedLabels);
 
       try {
-        const appsResult = await window.electronAPI?.checkInstalledApps?.();
-        if (appsResult) setAvailability(appsResult);
+        const appsResult = await rpc.app.checkInstalledApps();
+        if (appsResult) setAvailability(appsResult as Record<string, boolean>);
       } catch {}
     };
     void init();

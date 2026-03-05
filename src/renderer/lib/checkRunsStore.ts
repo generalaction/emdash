@@ -1,4 +1,5 @@
 import type { CheckRunsStatus, CheckRun } from './checkRunStatus';
+import { rpc } from './rpc';
 import { buildCheckRunsStatus } from './checkRunStatus';
 
 type Listener = (status: CheckRunsStatus | null) => void;
@@ -9,7 +10,7 @@ const pending = new Map<string, Promise<CheckRunsStatus | null>>();
 
 async function fetchCheckRuns(taskPath: string): Promise<CheckRunsStatus | null> {
   try {
-    const res = await window.electronAPI.getCheckRuns({ taskPath });
+    const res = await rpc.git.getCheckRuns({ taskPath });
     if (res?.success && res.checks) {
       return buildCheckRunsStatus(res.checks as CheckRun[]);
     }

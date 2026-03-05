@@ -1,3 +1,5 @@
+import { rpc } from './rpc';
+
 /** Fires a worktree reserve pre-warm for the given project + base ref. */
 export function prewarmWorktreeReserve(
   projectId: string,
@@ -7,7 +9,5 @@ export function prewarmWorktreeReserve(
 ): void {
   if (!isGitRepo) return;
   const requestedBaseRef = (baseRef || '').trim() || 'HEAD';
-  window.electronAPI
-    .worktreeEnsureReserve({ projectId, projectPath, baseRef: requestedBaseRef })
-    .catch(() => {});
+  rpc.worktree.ensureReserve({ projectId, projectPath, baseRef: requestedBaseRef }).catch(() => {});
 }

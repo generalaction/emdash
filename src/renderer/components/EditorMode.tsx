@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { rpc } from '../lib/rpc';
 import {
   X,
   RefreshCw,
@@ -258,7 +259,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   // Load file content
   const loadFile = async (filePath: string) => {
     try {
-      const result = await window.electronAPI.fsRead(taskPath, filePath);
+      const result = await rpc.fs.read({ root: taskPath, relPath: filePath });
 
       if (result.success && result.content !== undefined) {
         setFileContent(result.content);
@@ -283,12 +284,12 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
     const fullSavePath = `${taskPath}/${selectedFile}`;
 
     try {
-      const result = await window.electronAPI.fsWriteFile(
-        taskPath,
-        selectedFile,
-        fileContent,
-        true
-      );
+      const result = await rpc.fs.write({
+        root: taskPath,
+        relPath: selectedFile,
+        content: fileContent,
+        mkdirs: true,
+      });
 
       if (!result.success) {
         alert(`Failed to save file: ${result.error}\nPath: ${fullSavePath}`);

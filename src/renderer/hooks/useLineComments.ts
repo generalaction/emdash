@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { LineComment } from '../types/electron-api';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
+import { rpc } from '../lib/rpc';
 
 type TaskState = {
   comments: LineComment[];
@@ -79,7 +80,7 @@ class LineCommentsStore {
     const request = (async () => {
       this.setState(taskId, (prev) => ({ ...prev, isLoading: true, error: null }));
       try {
-        const result = await window.electronAPI.lineCommentsGet({ taskId });
+        const result = await rpc.lineComments.get({ taskId });
         if (result.success && result.comments) {
           const nextComments = result.comments ?? [];
           this.setState(taskId, (prev) => ({
@@ -116,7 +117,7 @@ class LineCommentsStore {
 
   async createComment(taskId: string, input: CreateCommentInput): Promise<string | null> {
     if (!taskId) return null;
-    const result = await window.electronAPI.lineCommentsCreate({
+    const result = await rpc.lineComments.create({
       taskId,
       filePath: input.filePath,
       lineNumber: input.lineNumber,
@@ -133,7 +134,7 @@ class LineCommentsStore {
 
   async updateComment(taskId: string, id: string, content: string): Promise<boolean> {
     if (!taskId) return false;
-    const result = await window.electronAPI.lineCommentsUpdate({ id, content });
+    const result = await rpc.lineComments.update({ id, content });
     if (result.success) {
       await this.refresh(taskId);
       return true;
@@ -143,7 +144,7 @@ class LineCommentsStore {
 
   async deleteComment(taskId: string, id: string): Promise<boolean> {
     if (!taskId) return false;
-    const result = await window.electronAPI.lineCommentsDelete(id);
+    const result = await rpc.lineComments.delete(id);
     if (result.success) {
       await this.refresh(taskId);
       return true;
@@ -153,7 +154,7 @@ class LineCommentsStore {
 
   async markSent(taskId: string, commentIds: string[]): Promise<boolean> {
     if (!taskId || commentIds.length === 0) return false;
-    const result = await window.electronAPI.lineCommentsMarkSent(commentIds);
+    const result = await rpc.lineComments.markSent(commentIds);
     if (result.success) {
       await this.refresh(taskId);
       return true;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { rpc } from '../lib/rpc';
 
 type TelemetryState = {
   prefEnabled: boolean;
@@ -20,7 +21,7 @@ export function useTelemetryConsent() {
   const refresh = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
-      const res = await window.electronAPI.getTelemetryStatus?.();
+      const res = await rpc.telemetry.getStatus();
       if (res?.success && res.status) {
         const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
         setState({
@@ -41,7 +42,7 @@ export function useTelemetryConsent() {
     async (enabled: boolean) => {
       setState((prev) => ({ ...prev, prefEnabled: enabled }));
       try {
-        await window.electronAPI.setTelemetryEnabled(enabled);
+        await rpc.telemetry.setEnabled(enabled);
       } catch {
         // ignore, refresh will reconcile
       }

@@ -197,7 +197,7 @@ function TaskRow({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (pr.url) window.electronAPI.openExternal(pr.url);
+                  if (pr.url) rpc.app.openExternal(pr.url);
                 }}
                 className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 title={`${pr.title || 'Pull Request'} (#${pr.number})`}
@@ -667,8 +667,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       for (const ws of selectedTasks) {
         try {
           const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-            window.electronAPI.getGitStatus(ws.path),
-            window.electronAPI.getGitInfo(ws.path),
+            rpc.git.getStatus(ws.path),
+            rpc.project.getGitInfo(ws.path),
             project.isRemote ? Promise.resolve(null) : refreshPrStatus(ws.path),
           ]);
 
@@ -757,7 +757,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       setBaseBranch(trimmed);
       setIsSavingBaseBranch(true);
       try {
-        const res = await window.electronAPI.updateProjectSettings({
+        const res = await rpc.projectSettings.update({
           projectId: project.id,
           baseRef: trimmed,
         });
@@ -806,9 +806,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       transition={{ duration: 0.1, ease: 'easeInOut' }}
                       className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       onClick={() =>
-                        window.electronAPI.openExternal(
-                          `https://github.com/${project.githubInfo?.repository}`
-                        )
+                        rpc.app.openExternal(`https://github.com/${project.githubInfo?.repository}`)
                       }
                     >
                       <Github className="size-3.5" />

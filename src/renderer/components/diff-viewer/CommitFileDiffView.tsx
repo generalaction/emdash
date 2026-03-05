@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
@@ -47,7 +48,7 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
 
     const load = async () => {
       try {
-        const res = await window.electronAPI.gitGetCommitFileDiff({
+        const res = await rpc.git.getCommitFileDiff({
           taskPath,
           commitHash,
           filePath,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { rpc } from '../lib/rpc';
 import { useTheme } from '@/hooks/useTheme';
 
 // Constants for timing and delays
@@ -67,7 +68,7 @@ export function useEditorDiffDecorations({
 
     try {
       // Get the diff from git
-      const result = await window.electronAPI.getFileDiff({ taskPath, filePath: relativePath });
+      const result = await rpc.git.getFileDiff({ taskPath, filePath: relativePath });
 
       if (!result.success || !result.diff || !result.diff.lines) {
         return [];

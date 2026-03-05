@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
+import { rpc } from '../../lib/rpc';
 
 interface IntegrationStatus {
   // Linear
@@ -42,13 +43,8 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   useEffect(() => {
     if (!isOpen) return;
     let cancel = false;
-    const api = window.electronAPI as any;
-    if (!api?.linearCheckConnection) {
-      setIsLinearConnected(false);
-      return;
-    }
-    api
-      .linearCheckConnection()
+    rpc.linear
+      .checkConnection()
       .then((res: any) => {
         if (!cancel) setIsLinearConnected(!!res?.connected);
       })
@@ -64,13 +60,8 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   useEffect(() => {
     if (!isOpen) return;
     let cancel = false;
-    const api = window.electronAPI as any;
-    if (!api?.jiraCheckConnection) {
-      setIsJiraConnected(false);
-      return;
-    }
-    api
-      .jiraCheckConnection()
+    rpc.jira
+      .checkConnection()
       .then((res: any) => {
         if (!cancel) setIsJiraConnected(!!res?.connected);
       })
@@ -83,10 +74,10 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   }, [isOpen]);
 
   const handleLinearConnect = useCallback(async (apiKey: string) => {
-    if (!apiKey || !window?.electronAPI?.linearSaveToken) {
+    if (!apiKey) {
       throw new Error('Invalid API key');
     }
-    const result = await window.electronAPI.linearSaveToken(apiKey);
+    const result = await rpc.linear.saveToken(apiKey);
     if (result?.success) {
       setIsLinearConnected(true);
     } else {
@@ -97,7 +88,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const handleGithubConnect = useCallback(async () => {
     if (!githubInstalled) {
       try {
-        await window.electronAPI.openExternal('https://cli.github.com/manual/installation');
+        await rpc.app.openExternal('https://cli.github.com/manual/installation');
       } catch (error) {
         console.error('Failed to open GitHub CLI install docs:', error);
       }
@@ -113,8 +104,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
 
   const handleJiraConnect = useCallback(
     async (credentials: { siteUrl: string; email: string; token: string }) => {
-      const api = window.electronAPI as any;
-      const res = await api?.jiraSaveCredentials?.(credentials);
+      const res = await rpc.jira.saveCredentials(credentials);
       if (res?.success) {
         setIsJiraConnected(true);
       } else {

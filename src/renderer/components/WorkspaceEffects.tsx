@@ -9,7 +9,13 @@ import { useAgent } from '../contexts/AgentProvider';
 import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';
 import { soundPlayer } from '../lib/soundPlayer';
 import { events } from '../lib/rpc';
-import { notificationFocusTaskChannel } from '@shared/events/appEvents';
+import {
+  notificationFocusTaskChannel,
+  menuOpenSettingsChannel,
+  menuCheckForUpdatesChannel,
+  menuUndoChannel,
+  menuRedoChannel,
+} from '@shared/events/appEvents';
 import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 
 /**
@@ -66,25 +72,21 @@ export function WorkspaceEffects() {
 
   // Native menu: "Settings"
   useEffect(() => {
-    return window.electronAPI.onMenuOpenSettings?.(() => {
-      navigate('settings');
-    });
+    return events.on(menuOpenSettingsChannel, () => navigate('settings'));
   }, [navigate]);
 
   // Native menu: "Check for Updates"
   useEffect(() => {
-    return window.electronAPI.onMenuCheckForUpdates?.(() => {
-      showModal('updateModal', {});
-    });
+    return events.on(menuCheckForUpdatesChannel, () => showModal('updateModal', {}));
   }, [showModal]);
 
   // Native menu: Undo/Redo — tries active Monaco editor first, falls back to native undo API
   useEffect(() => {
-    const cleanupUndo = window.electronAPI.onMenuUndo?.(() => handleMenuUndo());
-    const cleanupRedo = window.electronAPI.onMenuRedo?.(() => handleMenuRedo());
+    const cleanupUndo = events.on(menuUndoChannel, () => handleMenuUndo());
+    const cleanupRedo = events.on(menuRedoChannel, () => handleMenuRedo());
     return () => {
-      cleanupUndo?.();
-      cleanupRedo?.();
+      cleanupUndo();
+      cleanupRedo();
     };
   }, []);
 

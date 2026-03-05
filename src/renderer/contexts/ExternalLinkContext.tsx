@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import ExternalLinkModal from '../components/ExternalLinkModal';
+import { rpc } from '../lib/rpc';
 
 interface ExternalLinkContextType {
   openLinkModal: (url: string) => void;
@@ -31,7 +32,7 @@ export const ExternalLinkProvider: React.FC<ExternalLinkProviderProps> = ({ chil
   const handleConfirm = useCallback(() => {
     if (currentUrl) {
       // Use electron's shell API to open the URL safely in the default browser
-      window.electronAPI?.openExternal?.(currentUrl).catch((error: any) => {
+      rpc.app.openExternal(currentUrl).catch((error) => {
         console.error('Failed to open external link:', error);
       });
     }

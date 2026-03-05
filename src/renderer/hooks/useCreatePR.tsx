@@ -3,6 +3,7 @@ import { useToast } from './use-toast';
 import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
+import { rpc } from '../lib/rpc';
 type CreatePROptions = {
   taskPath: string;
   commitMessage?: string;
@@ -126,8 +127,8 @@ export function useCreatePR() {
                   const { captureTelemetry } = await import('../lib/telemetryClient');
                   captureTelemetry('pr_viewed');
                 })();
-                if (prUrl && window.electronAPI?.openExternal) {
-                  window.electronAPI.openExternal(prUrl);
+                if (prUrl) {
+                  rpc.app.openExternal(prUrl);
                 }
               }}
             >
@@ -178,8 +179,8 @@ export function useCreatePR() {
                     const { captureTelemetry } = await import('../lib/telemetryClient');
                     captureTelemetry('pr_viewed');
                   })();
-                  if (prUrl && window.electronAPI?.openExternal) {
-                    window.electronAPI.openExternal(prUrl);
+                  if (prUrl) {
+                    rpc.app.openExternal(prUrl);
                   }
                 }}
               >

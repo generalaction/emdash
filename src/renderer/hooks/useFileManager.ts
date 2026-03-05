@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { rpc } from '../lib/rpc';
 import { AUTO_SAVE_DELAY } from '@/constants/file-explorer';
 import { dispatchFileChangeEvent, subscribeToFileChanges } from '@/lib/fileChangeEvents';
 import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
@@ -79,7 +80,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
       try {
         // For image files, load as base64
         if (isImageFile(filePath)) {
-          const result = await window.electronAPI.fsReadImage(taskPath, filePath, remote);
+          const result = await rpc.fs.readImage({ root: taskPath, relPath: filePath, ...remote });
 
           if (result.success && result.dataUrl) {
             const file: ManagedFile = {
@@ -106,7 +107,7 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
         }
 
         // Load text file
-        const result = await window.electronAPI.fsRead(taskPath, filePath, undefined, remote);
+        const result = await rpc.fs.read({ root: taskPath, relPath: filePath, ...remote });
 
         if (result.success && result.content !== undefined) {
           const file: ManagedFile = {
@@ -142,13 +143,13 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
       setIsSaving(true);
 
       try {
-        const result = await window.electronAPI.fsWriteFile(
-          taskPath,
-          targetPath,
-          file.content,
-          true,
-          remote
-        );
+        const result = await rpc.fs.write({
+          root: taskPath,
+          relPath: targetPath,
+          content: file.content,
+          mkdirs: true,
+          ...remote,
+        });
 
         if (result.success) {
           setOpenFiles((prev) => {

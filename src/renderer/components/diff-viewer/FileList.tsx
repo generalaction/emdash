@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { rpc } from '../../lib/rpc';
 import { Undo2 } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import {
@@ -45,12 +46,12 @@ export const FileList: React.FC<FileListProps> = ({
     if (!taskPath) return;
     try {
       if (checked) {
-        await window.electronAPI.stageAllFiles({ taskPath });
+        await rpc.git.stageAllFiles({ taskPath });
       } else {
         await Promise.all(
           fileChanges
             .filter((f) => f.isStaged)
-            .map((f) => window.electronAPI.unstageFile({ taskPath, filePath: f.path }))
+            .map((f) => rpc.git.unstageFile({ taskPath, filePath: f.path }))
         );
       }
     } catch (err) {
@@ -65,9 +66,9 @@ export const FileList: React.FC<FileListProps> = ({
       await Promise.all(
         files.map((file) => {
           if (checked && !file.isStaged) {
-            return window.electronAPI.stageFile({ taskPath, filePath: file.path });
+            return rpc.git.stageFile({ taskPath, filePath: file.path });
           } else if (!checked && file.isStaged) {
-            return window.electronAPI.unstageFile({ taskPath, filePath: file.path });
+            return rpc.git.unstageFile({ taskPath, filePath: file.path });
           }
           return Promise.resolve();
         })
@@ -82,9 +83,9 @@ export const FileList: React.FC<FileListProps> = ({
     if (!taskPath) return;
     try {
       if (checked) {
-        await window.electronAPI.stageFile({ taskPath, filePath });
+        await rpc.git.stageFile({ taskPath, filePath });
       } else {
-        await window.electronAPI.unstageFile({ taskPath, filePath });
+        await rpc.git.unstageFile({ taskPath, filePath });
       }
     } catch (err) {
       console.error('Staging failed:', err);
@@ -95,7 +96,7 @@ export const FileList: React.FC<FileListProps> = ({
   const executeRestore = async () => {
     if (!taskPath || !restoreTarget) return;
     try {
-      await window.electronAPI.revertFile({ taskPath, filePath: restoreTarget });
+      await rpc.git.revertFile({ taskPath, filePath: restoreTarget });
       setRestoreTarget(null);
       await onRefreshChanges?.();
     } catch (err) {

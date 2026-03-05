@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron';
 import {
   capture,
   captureException,
@@ -7,6 +6,7 @@ import {
   setTelemetryEnabledViaUser,
   setOnboardingSeen,
 } from '../telemetry';
+import { createRPCController } from '../../shared/ipc/rpc';
 
 // Events allowed from renderer process
 // Main process-only events (app_started, app_closed, app_window_focused, github_connection_triggered,
@@ -93,8 +93,8 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   'default_provider_changed',
 ]);
 
-export function registerTelemetryIpc() {
-  ipcMain.handle('telemetry:capture', async (_event, args: { event: string; properties?: any }) => {
+export const telemetryController = createRPCController({
+  capture: async (args: { event: string; properties?: any }) => {
     try {
       if (!isTelemetryEnabled()) return { success: false, disabled: true };
       const ev = String(args?.event || '') as any;
@@ -104,18 +104,13 @@ export function registerTelemetryIpc() {
       const props =
         args?.properties && typeof args.properties === 'object' ? args.properties : undefined;
 
-      // Handle $exception events specially for PostHog error tracking
       if (ev === '$exception') {
-        // Extract error details from properties
         const errorMessage = props?.$exception_message || 'Unknown error';
         const error = new Error(errorMessage);
         error.stack = props?.$exception_stack_trace_raw || '';
         error.name = props?.$exception_type || 'Error';
-
-        // Call captureException with the error and additional properties
         captureException(error, props);
       } else {
-        // Regular telemetry events
         capture(ev, props);
       }
 
@@ -123,31 +118,31 @@ export function registerTelemetryIpc() {
     } catch (e: any) {
       return { success: false, error: e?.message || 'capture_failed' };
     }
-  });
+  },
 
-  ipcMain.handle('telemetry:get-status', async () => {
+  getStatus: async () => {
     try {
       return { success: true, status: getTelemetryStatus() };
     } catch (e: any) {
       return { success: false, error: e?.message || 'status_failed' };
     }
-  });
+  },
 
-  ipcMain.handle('telemetry:set-enabled', async (_event, enabled: boolean) => {
+  setEnabled: async (enabled: boolean) => {
     try {
       setTelemetryEnabledViaUser(Boolean(enabled));
       return { success: true, status: getTelemetryStatus() };
     } catch (e: any) {
       return { success: false, error: e?.message || 'update_failed' };
     }
-  });
+  },
 
-  ipcMain.handle('telemetry:set-onboarding-seen', async (_event, flag: boolean) => {
+  setOnboardingSeen: async (flag: boolean) => {
     try {
       setOnboardingSeen(Boolean(flag));
       return { success: true, status: getTelemetryStatus() };
     } catch (e: any) {
       return { success: false, error: e?.message || 'update_failed' };
     }
-  });
-}
+  },
+});

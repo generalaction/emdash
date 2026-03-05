@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { rpc } from '../lib/rpc';
 
 type DownloadProgress = { percent?: number; transferred?: number; total?: number };
 
@@ -66,7 +67,7 @@ export function useUpdater() {
 
   const check = useCallback(async () => {
     setState({ status: 'checking' });
-    const res: any = await window.electronAPI?.checkForUpdates?.();
+    const res: any = await rpc.update.check();
     if (!res) {
       return updaterUnavailableResult(setState);
     }
@@ -81,7 +82,7 @@ export function useUpdater() {
 
   const download = useCallback(async () => {
     // Don't change state to downloading immediately - wait for backend confirmation
-    const res: any = await window.electronAPI?.downloadUpdate?.();
+    const res: any = await rpc.update.download();
     if (!res) {
       return updaterUnavailableResult(setState);
     }
@@ -96,7 +97,7 @@ export function useUpdater() {
 
   const install = useCallback(async () => {
     setState({ status: 'installing' });
-    const res: any = await window.electronAPI?.quitAndInstallUpdate?.();
+    const res: any = await rpc.update.quitAndInstall();
     if (!res) {
       return updaterUnavailableResult(setState);
     }
@@ -107,7 +108,7 @@ export function useUpdater() {
   }, []);
 
   const openLatest = useCallback(async () => {
-    const res: any = await window.electronAPI?.openLatestDownload?.();
+    const res: any = await rpc.update.openLatest();
     if (!res) {
       return updaterUnavailableResult(setState);
     }

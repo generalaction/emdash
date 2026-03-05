@@ -8,6 +8,7 @@ import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import type { ProviderCustomConfig } from '../types/electron-api';
+import { rpc } from '../lib/rpc';
 
 interface CustomCommandModalProps {
   isOpen: boolean;
@@ -72,7 +73,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     const loadConfig = async () => {
       setLoading(true);
       try {
-        const result = await window.electronAPI.getProviderCustomConfig?.(providerId);
+        const result = await rpc.connections.getCustomConfig(providerId);
         if (result?.success && result.config) {
           const env = result.config.env;
           const envEntries: EnvEntry[] =
@@ -153,7 +154,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         form.envEntries.every((e) => !e.key.trim());
 
       if (isDefault) {
-        await window.electronAPI.updateProviderCustomConfig?.(providerId, undefined);
+        await rpc.connections.updateCustomConfig(providerId, undefined);
         setHasCustomConfig(false);
       } else {
         const config: ProviderCustomConfig = {
@@ -165,7 +166,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
           initialPromptFlag: form.initialPromptFlag,
           env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         };
-        await window.electronAPI.updateProviderCustomConfig?.(providerId, config);
+        await rpc.connections.updateCustomConfig(providerId, config);
         setHasCustomConfig(true);
       }
       onClose();

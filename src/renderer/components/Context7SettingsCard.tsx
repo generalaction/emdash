@@ -7,6 +7,7 @@ import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import FeedbackModal from './FeedbackModal';
 import context7Logo from '../../assets/images/context7.png';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { rpc } from '../lib/rpc';
 
 const Context7SettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
@@ -58,7 +59,7 @@ const Context7SettingsCard: React.FC = () => {
                       variant="link"
                       size="sm"
                       className="h-auto p-0 text-xs underline-offset-2 hover:underline"
-                      onClick={() => window.electronAPI.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
+                      onClick={() => rpc.app.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
                     >
                       Docs ↗
                     </Button>

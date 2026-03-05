@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { ExternalLink, Users, Tag } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import type { GitHubIssueSummary } from '../types/github';
+import { rpc } from '../lib/rpc';
 
 type Props = {
   issue: GitHubIssueSummary | null;
@@ -140,9 +141,9 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.electronAPI?.openExternal && issue.url) {
+                    if (issue.url) {
                       e.preventDefault();
-                      window.electronAPI.openExternal(issue.url);
+                      rpc.app.openExternal(issue.url);
                     }
                   }}
                 >
