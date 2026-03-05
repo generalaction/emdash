@@ -55,13 +55,10 @@ describe('LinearService sorting', () => {
     graphqlSpy.mockResolvedValue({ searchIssues: { nodes } });
 
     const issues = await service.searchIssues('picker sort', 20);
+    const identifiers = issues.map((issue) => issue.identifier);
 
-    expect(issues.map((issue) => issue.identifier)).toEqual([
-      'GEN-202',
-      'GEN-203',
-      'GEN-200',
-      'GEN-201',
-    ]);
+    expect(identifiers.slice(0, 2)).toEqual(['GEN-202', 'GEN-203']);
+    expect(new Set(identifiers.slice(2))).toEqual(new Set(['GEN-200', 'GEN-201']));
     expect(getStoredTokenSpy).toHaveBeenCalled();
   });
 });

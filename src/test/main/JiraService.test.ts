@@ -94,4 +94,31 @@ describe('JiraService sorting', () => {
     expect(result.map((issue) => issue.key)).toEqual(['GEN-22', 'GEN-21', 'GEN-23']);
     expect(requireAuthSpy).toHaveBeenCalled();
   });
+
+  it('sorts searchIssues results by updatedAt descending', async () => {
+    const issues: JiraRawIssue[] = [
+      {
+        id: '20',
+        key: 'GEN-31',
+        fields: { summary: 'Older', updated: '2026-03-02T08:00:00.000Z' },
+      },
+      {
+        id: '21',
+        key: 'GEN-32',
+        fields: { summary: 'Newest', updated: '2026-03-06T08:00:00.000Z' },
+      },
+      {
+        id: '22',
+        key: 'GEN-33',
+        fields: { summary: 'No date', updated: null },
+      },
+    ];
+
+    searchRawSpy.mockResolvedValue(issues);
+
+    const result = await service.searchIssues('query', 20);
+
+    expect(result.map((issue) => issue.key)).toEqual(['GEN-32', 'GEN-31', 'GEN-33']);
+    expect(requireAuthSpy).toHaveBeenCalled();
+  });
 });

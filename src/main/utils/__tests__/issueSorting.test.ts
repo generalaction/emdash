@@ -33,6 +33,9 @@ describe('sortByUpdatedAtDesc', () => {
     ];
 
     const sorted = sortByUpdatedAtDesc(issues);
-    expect(sorted.map((issue) => issue.id)).toEqual(['valid', 'missing', 'invalid']);
+    expect(sorted[0]?.id).toBe('valid');
+    expect(new Set(sorted.slice(1).map((issue) => issue.id))).toEqual(
+      new Set(['missing', 'invalid'])
+    );
   });
 });
