@@ -38,7 +38,6 @@ interface Props {
   agent?: Agent;
   className?: string;
   projectPath?: string;
-  fallbackCwd?: string;
   remote?: {
     connectionId: string;
     projectPath?: string;
@@ -54,7 +53,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   agent,
   className,
   projectPath,
-  fallbackCwd,
   remote,
   defaultBranch,
   portSeed,
@@ -66,9 +64,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
   // Global terminals are scoped per variant (or project when no task) so each
   // agent worktree gets its own global terminal and simultaneous variants don't conflict.
-  const effectiveCwd = projectPath || fallbackCwd;
-  // Use a stable key for the home page case so terminals aren't orphaned when
-  // fallbackCwd resolves asynchronously from app settings.
+  const effectiveCwd = projectPath;
+  // Use a stable key for the home page case so terminals aren't orphaned.
   const globalKey = task?.path
     ? `global::${task.path}`
     : projectPath
@@ -685,7 +682,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 <TerminalPane
                   ref={(r) => setTerminalRef(terminal.id, r)}
                   id={terminal.id}
-                  cwd={terminal.cwd || projectPath || fallbackCwd}
+                  cwd={terminal.cwd || projectPath}
                   remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
                   variant={
                     effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'

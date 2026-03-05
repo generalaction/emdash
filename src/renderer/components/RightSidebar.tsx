@@ -299,12 +299,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               )}
             </div>
           ) : (
-            <TaskTerminalPanel
-              task={null}
-              agent={undefined}
-              fallbackCwd={settings?.projects?.defaultDirectory}
-              className="h-full min-h-0"
-            />
+            <TaskTerminalPanel task={null} agent={undefined} className="h-full min-h-0" />
           )}
         </div>
       </TaskScopeProvider>
