@@ -53,8 +53,10 @@ vi.mock('../../main/settings', () => ({
 }));
 
 vi.mock('../../shared/providers/registry', () => ({
-  PROVIDER_IDS: ['claude', 'codex'],
-  getProvider: vi.fn((id: string) => ({ name: id === 'codex' ? 'Codex' : 'Claude' })),
+  PROVIDER_IDS: ['claude', 'codex', 'opencode'],
+  getProvider: vi.fn((id: string) => ({
+    name: id === 'codex' ? 'Codex' : id === 'opencode' ? 'OpenCode' : 'Claude',
+  })),
 }));
 
 vi.mock('../../main/services/DatabaseService', () => ({
@@ -190,5 +192,17 @@ describe('AgentEventService notification click', () => {
     expect(status).toBe(200);
     expect(notificationInstances).toHaveLength(1);
     expect(notificationInstances[0].options.body).toBe('Your agent is waiting for input');
+  });
+
+  it('uses provider-supplied notification messages when present', async () => {
+    const ptyId = makePtyId('claude', 'main', 'task-999');
+    const status = await postEvent(service.getPort(), service.getToken(), ptyId, 'notification', {
+      notificationType: 'idle_prompt',
+      message: 'OpenCode is ready for your input',
+    });
+
+    expect(status).toBe(200);
+    expect(notificationInstances).toHaveLength(1);
+    expect(notificationInstances[0].options.body).toBe('OpenCode is ready for your input');
   });
 });

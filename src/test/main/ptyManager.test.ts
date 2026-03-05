@@ -5,10 +5,10 @@ const getProviderCustomConfigMock = vi.fn();
 const fsReadFileSyncMock = vi.fn();
 const fsExistsSyncMock = vi.fn();
 const fsWriteFileSyncMock = vi.fn();
+const fsMkdirSyncMock = vi.fn();
 const fsStatSyncMock = vi.fn();
 const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
-const fsMkdirSyncMock = vi.fn();
 const agentEventGetPortMock = vi.fn(() => 0);
 const agentEventGetTokenMock = vi.fn(() => '');
 
@@ -43,10 +43,10 @@ vi.mock('fs', () => {
     readFileSync: (...args: any[]) => fsReadFileSyncMock(...args),
     existsSync: (...args: any[]) => fsExistsSyncMock(...args),
     writeFileSync: (...args: any[]) => fsWriteFileSyncMock(...args),
+    mkdirSync: (...args: any[]) => fsMkdirSyncMock(...args),
     statSync: (...args: any[]) => fsStatSyncMock(...args),
     accessSync: (...args: any[]) => fsAccessSyncMock(...args),
     readdirSync: (...args: any[]) => fsReaddirSyncMock(...args),
-    mkdirSync: (...args: any[]) => fsMkdirSyncMock(...args),
     constants: { X_OK: 1 },
   };
   return { ...fsMock, default: fsMock };
@@ -76,6 +76,8 @@ describe('ptyManager provider command resolution', () => {
     getProviderCustomConfigMock.mockReturnValue(undefined);
     agentEventGetPortMock.mockReturnValue(0);
     agentEventGetTokenMock.mockReturnValue('');
+    fsMkdirSyncMock.mockImplementation(() => undefined);
+    fsWriteFileSyncMock.mockImplementation(() => undefined);
   });
 
   it('resolves provider command config from custom settings', async () => {
@@ -233,6 +235,41 @@ describe('ptyManager provider command resolution', () => {
       expect.stringContaining('param([string]$payload)')
     );
     expect(fsMkdirSyncMock).toHaveBeenCalled();
+  });
+
+  it('injects OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'opencode-main-task-123',
+      providerId: 'opencode',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBe(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123'
+    );
+    expect(fsMkdirSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins',
+      { recursive: true }
+    );
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins/emdash-notify.js',
+      expect.stringContaining('session.idle')
+    );
+  });
+
+  it('does not inject OPENCODE_CONFIG_DIR for non-OpenCode PTYs', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'codex-main-task-shell',
+      providerId: 'codex',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBeUndefined();
+    expect(fsWriteFileSyncMock).not.toHaveBeenCalled();
   });
 });
 

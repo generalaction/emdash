@@ -10,6 +10,7 @@ import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
+import { OpenCodeHookService } from './OpenCodeHookService';
 
 /**
  * Environment variables to pass through for agent authentication.
@@ -65,6 +66,36 @@ type PtyRecord = {
 const ptys = new Map<string, PtyRecord>();
 const MIN_PTY_COLS = 2;
 const MIN_PTY_ROWS = 1;
+
+function applyAgentEventHookEnv(env: Record<string, string>, ptyId: string): void {
+  const hookPort = agentEventService.getPort();
+  if (hookPort <= 0) return;
+
+  env['EMDASH_HOOK_PORT'] = String(hookPort);
+  env['EMDASH_PTY_ID'] = ptyId;
+  env['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
+}
+
+function applyOpenCodeRuntimeEnv(
+  env: Record<string, string>,
+  ptyId: string,
+  providerId?: string
+): void {
+  if (providerId !== 'opencode') return;
+
+  env['OPENCODE_CONFIG_DIR'] = OpenCodeHookService.writeLocalPlugin(ptyId);
+}
+
+export function applyProviderRuntimeEnv(
+  env: Record<string, string>,
+  options: {
+    ptyId: string;
+    providerId?: string;
+  }
+): void {
+  applyAgentEventHookEnv(env, options.ptyId);
+  applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+}
 
 function getWindowsEssentialEnv(): Record<string, string> {
   const home = os.homedir();
@@ -1028,13 +1059,7 @@ export function startDirectPty(options: {
     }
   }
 
-  // Pass agent event hook env vars so CLI hooks can call back to Emdash
-  const hookPort = agentEventService.getPort();
-  if (hookPort > 0) {
-    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
-    useEnv['EMDASH_PTY_ID'] = id;
-    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
-  }
+  applyProviderRuntimeEnv(useEnv, { ptyId: id, providerId });
 
   // Lazy load native module
   let pty: typeof import('node-pty');
@@ -1140,13 +1165,7 @@ export async function startPty(options: {
     ...(env || {}),
   };
 
-  // Pass agent event hook env vars so CLI hooks can call back to Emdash
-  const hookPort = agentEventService.getPort();
-  if (hookPort > 0) {
-    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
-    useEnv['EMDASH_PTY_ID'] = id;
-    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
-  }
+  applyProviderRuntimeEnv(useEnv, { ptyId: id });
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -1216,6 +1235,7 @@ export async function startPty(options: {
       if (provider) {
         const resolvedConfig = resolveProviderCommandConfig(provider.id);
         const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
+        applyProviderRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
 
         // Build the provider command with flags
         const cliArgs: string[] = [];

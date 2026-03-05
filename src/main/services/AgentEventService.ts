@@ -188,7 +188,7 @@ class AgentEventService {
       if (event.type === 'stop') {
         const notification = new Notification({
           title: `${providerName}${titleSuffix}`,
-          body: 'Your agent has finished working',
+          body: event.payload.message?.trim() || 'Your agent has finished working',
           silent: true,
         });
         addClickHandler(notification);
@@ -198,7 +198,7 @@ class AgentEventService {
         if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
           const notification = new Notification({
             title: `${providerName}${titleSuffix}`,
-            body: 'Your agent is waiting for input',
+            body: event.payload.message?.trim() || 'Your agent is waiting for input',
             silent: true,
           });
           addClickHandler(notification);

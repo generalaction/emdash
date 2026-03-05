@@ -30,6 +30,7 @@ import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
+import { OpenCodeHookService } from './OpenCodeHookService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -164,6 +165,25 @@ async function writeRemoteHookConfig(
     sshTarget,
     `mkdir -p ${quoteShellArg(dir)} && printf '%s\\n' ${quoteShellArg(json)} > ${quoteShellArg(filePath)}`,
   ]);
+}
+
+async function writeRemoteOpenCodePlugin(
+  sshArgs: string[],
+  sshTarget: string,
+  ptyId: string
+): Promise<string> {
+  const configDir = OpenCodeHookService.getRemoteConfigDir(ptyId);
+  const pluginsDir = `${configDir}/plugins`;
+  const pluginPath = `${pluginsDir}/emdash-notify.js`;
+  const pluginSource = OpenCodeHookService.getPluginSource();
+
+  await execFileAsync('ssh', [
+    ...sshArgs,
+    sshTarget,
+    `mkdir -p "${pluginsDir}" && printf '%s\\n' ${quoteShellArg(pluginSource)} > "${pluginPath}"`,
+  ]);
+
+  return configDir;
 }
 
 function buildRemoteInitKeystrokes(args: {
@@ -923,10 +943,22 @@ export function registerPtyIpc(): void {
           const resolvedConfig = resolveProviderCommandConfig(providerId);
           const mergedEnv = resolvedConfig?.env ? { ...resolvedConfig.env, ...env } : env;
 
+          const preProviderCommands: string[] = [];
+          if (providerId === 'opencode') {
+            try {
+              const remoteConfigDir = await writeRemoteOpenCodePlugin(ssh.args, ssh.target, id);
+              preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${remoteConfigDir}"`);
+            } catch (err: any) {
+              log.warn('ptyIpc:startDirect failed to write remote OpenCode plugin', {
+                id,
+                error: err?.message || String(err),
+              });
+            }
+          }
+
           // Set up reverse SSH tunnel for hook events if the local hook
           // server is running. This lets the remote agent call back to
           // the local AgentEventService via the tunnel.
-          const preProviderCommands: string[] = [];
           const hookPort = agentEventService.getPort();
           if (hookPort > 0) {
             const remotePort = pickReverseTunnelPort(id);
