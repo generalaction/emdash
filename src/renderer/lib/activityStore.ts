@@ -1,101 +1,104 @@
 import { classifyActivity } from './activityClassifier';
 import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
-import { type PtyIdKind, makePtyId } from '@shared/ptyId';
+import { makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/appEvents';
 import { events } from './rpc';
 
-type Listener = (busy: boolean) => void;
+export type ActivityPayload = { busy: boolean; conversationId: string | null };
+type Listener = (payload: ActivityPayload) => void;
 
 class ActivityStore {
   private listeners = new Map<string, Set<Listener>>();
   private states = new Map<string, boolean>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private busySince = new Map<string, number>();
-  // PTY subscriptions shared across all JS subscribers for a given (wsId, kind).
-  // Prevents N×21 classifyActivity calls when N components watch the same workspace.
-  private ptyKindOffs = new Map<string, Map<PtyIdKind, Array<() => void>>>();
+  // PTY channel subscriptions keyed by conversationId.
+  // Shared across all JS subscribers to prevent N×21 classifyActivity calls.
+  private convOffs = new Map<string, Array<() => void>>();
+  // Maps taskId → Set<conversationId> that are currently being watched.
+  private taskConvIds = new Map<string, Set<string>>();
+  // ref-count per taskId
   private refCount = new Map<string, number>();
 
-  private armTimer(wsId: string) {
-    const prev = this.timers.get(wsId);
+  private armTimer(taskId: string, conversationId: string | null) {
+    const prev = this.timers.get(taskId);
     if (prev) clearTimeout(prev);
-    const t = setTimeout(() => this.setBusy(wsId, false, true), CLEAR_BUSY_MS);
-    this.timers.set(wsId, t);
+    const t = setTimeout(() => this.setBusy(taskId, false, conversationId, true), CLEAR_BUSY_MS);
+    this.timers.set(taskId, t);
   }
 
-  private setBusy(wsId: string, busy: boolean, fromEvent = false) {
-    const current = this.states.get(wsId) || false;
-    // If setting busy: clear timers and record start
+  private setBusy(taskId: string, busy: boolean, conversationId: string | null, fromEvent = false) {
+    const current = this.states.get(taskId) || false;
     if (busy) {
-      const prev = this.timers.get(wsId);
+      const prev = this.timers.get(taskId);
       if (prev) clearTimeout(prev);
-      this.timers.delete(wsId);
-      this.busySince.set(wsId, Date.now());
+      this.timers.delete(taskId);
+      this.busySince.set(taskId, Date.now());
       if (!current) {
-        this.states.set(wsId, true);
-        this.emit(wsId, true);
+        this.states.set(taskId, true);
+        this.emit(taskId, true, conversationId);
       }
       return;
     }
 
-    // busy === false: honor hold window so spinner is visible
-    const started = this.busySince.get(wsId) || 0;
+    // busy === false: honor hold window so spinner stays visible briefly
+    const started = this.busySince.get(taskId) || 0;
     const elapsed = started ? Date.now() - started : BUSY_HOLD_MS;
     const remaining = elapsed < BUSY_HOLD_MS ? BUSY_HOLD_MS - elapsed : 0;
 
     const clearNow = () => {
-      const prev = this.timers.get(wsId);
+      const prev = this.timers.get(taskId);
       if (prev) clearTimeout(prev);
-      this.timers.delete(wsId);
-      this.busySince.delete(wsId);
-      if (this.states.get(wsId) !== false) {
-        this.states.set(wsId, false);
-        this.emit(wsId, false);
+      this.timers.delete(taskId);
+      this.busySince.delete(taskId);
+      if (this.states.get(taskId) !== false) {
+        this.states.set(taskId, false);
+        this.emit(taskId, false, conversationId);
       }
     };
 
     if (remaining > 0) {
-      const prev = this.timers.get(wsId);
+      const prev = this.timers.get(taskId);
       if (prev) clearTimeout(prev);
       const t = setTimeout(clearNow, remaining);
-      this.timers.set(wsId, t);
+      this.timers.set(taskId, t);
     } else {
       clearNow();
     }
   }
 
-  private emit(wsId: string, busy: boolean) {
-    const ls = this.listeners.get(wsId);
+  private emit(taskId: string, busy: boolean, conversationId: string | null) {
+    const ls = this.listeners.get(taskId);
     if (!ls) return;
+    const payload: ActivityPayload = { busy, conversationId };
     for (const fn of ls) {
       try {
-        fn(busy);
+        fn(payload);
       } catch {}
     }
   }
 
-  private ensurePtyKind(wsId: string, kind: PtyIdKind): void {
-    let kindMap = this.ptyKindOffs.get(wsId);
-    if (!kindMap) {
-      kindMap = new Map();
-      this.ptyKindOffs.set(wsId, kindMap);
-    }
-    if (kindMap.has(kind)) return;
+  /**
+   * Ensure PTY data/exit channels are subscribed for a given conversationId.
+   * Subscribes to {prov}-conv-{conversationId} for all known providers.
+   */
+  private ensureConversation(taskId: string, conversationId: string): void {
+    if (this.convOffs.has(conversationId)) return;
 
     const offs: Array<() => void> = [];
     for (const prov of PROVIDER_IDS) {
-      const ptyId = makePtyId(prov, kind, wsId);
+      const ptyId = makePtyId(prov, conversationId);
       offs.push(
         events.on(
           ptyDataChannel,
           (chunk) => {
             try {
               const signal = classifyActivity(prov, chunk || '');
-              if (signal === 'busy') this.setBusy(wsId, true, true);
-              else if (signal === 'idle') this.setBusy(wsId, false, true);
-              else if (this.states.get(wsId)) this.armTimer(wsId);
+              if (signal === 'busy') this.setBusy(taskId, true, conversationId, true);
+              else if (signal === 'idle') this.setBusy(taskId, false, conversationId, true);
+              else if (this.states.get(taskId)) this.armTimer(taskId, conversationId);
             } catch {}
           },
           ptyId
@@ -104,70 +107,100 @@ class ActivityStore {
           ptyExitChannel,
           () => {
             try {
-              this.setBusy(wsId, false, true);
+              this.setBusy(taskId, false, conversationId, true);
             } catch {}
           },
           ptyId
         )
       );
     }
-    kindMap.set(kind, offs);
+    this.convOffs.set(conversationId, offs);
   }
 
-  setTaskBusy(wsId: string, busy: boolean) {
-    this.setBusy(wsId, busy, false);
+  setTaskBusy(taskId: string, busy: boolean) {
+    this.setBusy(taskId, busy, null, false);
   }
 
   handleAgentEvent(event: AgentEvent) {
-    const wsId = event.taskId;
-    if (!wsId) return;
+    const taskId = event.taskId;
+    if (!taskId) return;
+    const conversationId = event.conversationId ?? null;
 
     if (event.type === 'notification') {
       const nt = event.payload.notificationType;
-      // Agent is waiting for user input — mark idle
       if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
-        this.setBusy(wsId, false, true);
+        this.setBusy(taskId, false, conversationId, true);
       }
     } else if (event.type === 'stop') {
-      this.setBusy(wsId, false, true);
+      this.setBusy(taskId, false, conversationId, true);
     }
   }
 
-  subscribe(wsId: string, fn: Listener, opts?: { kinds?: PtyIdKind[] }) {
-    const set = this.listeners.get(wsId) || new Set<Listener>();
+  /**
+   * Subscribe to busy-state changes for a task.
+   * Pass all conversation IDs belonging to the task so the store can watch them.
+   * The listener receives { busy, conversationId } — conversationId is which conversation
+   * triggered the change (null for programmatic changes).
+   */
+  subscribe(taskId: string, fn: Listener, conversationIds: string[]): () => void {
+    const set = this.listeners.get(taskId) || new Set<Listener>();
     set.add(fn);
-    this.listeners.set(wsId, set);
-    fn(this.states.get(wsId) || false);
+    this.listeners.set(taskId, set);
+    // Emit current state immediately
+    fn({ busy: this.states.get(taskId) || false, conversationId: null });
 
-    // `kinds` can be narrowed by callers for performance:
-    // - task-level busy: { kinds: ['main'] } (default)
-    // - conversation-level busy: { kinds: ['chat'] }
-    const kinds: ReadonlyArray<PtyIdKind> = opts?.kinds?.length ? opts.kinds : ['main'];
-    for (const kind of kinds) {
-      this.ensurePtyKind(wsId, kind);
+    // Track which conversation IDs belong to this task and subscribe their channels
+    let convSet = this.taskConvIds.get(taskId);
+    if (!convSet) {
+      convSet = new Set();
+      this.taskConvIds.set(taskId, convSet);
     }
-    this.refCount.set(wsId, (this.refCount.get(wsId) ?? 0) + 1);
+    for (const convId of conversationIds) {
+      if (!convSet.has(convId)) {
+        convSet.add(convId);
+        this.ensureConversation(taskId, convId);
+      }
+    }
+
+    this.refCount.set(taskId, (this.refCount.get(taskId) ?? 0) + 1);
 
     return () => {
-      const s = this.listeners.get(wsId);
+      const s = this.listeners.get(taskId);
       if (s) {
         s.delete(fn);
-        if (s.size === 0) this.listeners.delete(wsId);
+        if (s.size === 0) this.listeners.delete(taskId);
       }
-      const count = (this.refCount.get(wsId) ?? 1) - 1;
+      const count = (this.refCount.get(taskId) ?? 1) - 1;
       if (count <= 0) {
-        this.refCount.delete(wsId);
-        const kindMap = this.ptyKindOffs.get(wsId);
-        if (kindMap) {
-          for (const offs of kindMap.values()) {
-            for (const off of offs) off();
+        this.refCount.delete(taskId);
+        // Tear down all PTY subscriptions for this task's conversations
+        const convIds = this.taskConvIds.get(taskId);
+        if (convIds) {
+          for (const convId of convIds) {
+            const offs = this.convOffs.get(convId);
+            if (offs) {
+              for (const off of offs) off();
+              this.convOffs.delete(convId);
+            }
           }
-          this.ptyKindOffs.delete(wsId);
+          this.taskConvIds.delete(taskId);
         }
       } else {
-        this.refCount.set(wsId, count);
+        this.refCount.set(taskId, count);
       }
     };
+  }
+
+  /**
+   * Add a new conversation to an already-subscribed task (e.g. when a new tab is opened).
+   * No-op if the task has no active subscribers.
+   */
+  addConversation(taskId: string, conversationId: string): void {
+    const convSet = this.taskConvIds.get(taskId);
+    if (!convSet) return; // no subscribers for this task
+    if (convSet.has(conversationId)) return;
+    convSet.add(conversationId);
+    this.ensureConversation(taskId, conversationId);
   }
 }
 

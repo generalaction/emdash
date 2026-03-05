@@ -68,6 +68,10 @@ export interface Conversation {
   isMain?: boolean;
   displayOrder?: number;
   metadata?: string | null;
+  /** Provider session UUID used for session isolation (e.g. Claude --session-id / --resume). */
+  agentSessionId?: string | null;
+  /** 'agent' for AI agent conversations, 'shell' for lifecycle/dev-server terminal sessions. */
+  type?: 'agent' | 'shell';
   createdAt: string;
   updatedAt: string;
 }
@@ -436,6 +440,8 @@ export class DatabaseService {
         isMain: conversation.isMain ? 1 : 0,
         displayOrder: conversation.displayOrder ?? 0,
         metadata: conversation.metadata ?? null,
+        agentSessionId: conversation.agentSessionId ?? null,
+        type: conversation.type ?? 'agent',
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -447,6 +453,8 @@ export class DatabaseService {
           isMain: conversation.isMain ? 1 : 0,
           displayOrder: conversation.displayOrder ?? 0,
           metadata: conversation.metadata ?? null,
+          agentSessionId: conversation.agentSessionId ?? null,
+          type: conversation.type ?? 'agent',
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -569,7 +577,8 @@ export class DatabaseService {
     taskId: string,
     title: string,
     provider?: string,
-    isMain?: boolean
+    isMain?: boolean,
+    opts?: { type?: 'agent' | 'shell' }
   ): Promise<Conversation> {
     if (this.disabled) {
       return {
@@ -581,6 +590,7 @@ export class DatabaseService {
         isMain: isMain ?? false,
         displayOrder: 0,
         metadata: null,
+        type: opts?.type ?? 'agent',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -624,6 +634,7 @@ export class DatabaseService {
       isActive: true,
       isMain: isMain ?? false,
       displayOrder: maxOrder + 1,
+      type: opts?.type ?? 'agent',
     };
 
     await this.saveConversation(newConversation);
@@ -693,6 +704,26 @@ export class DatabaseService {
     await db
       .update(conversationsTable)
       .set({ title, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(conversationsTable.id, conversationId));
+  }
+
+  async getConversationById(conversationId: string): Promise<Conversation | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+    return rows[0] ? this.mapDrizzleConversationRow(rows[0]) : null;
+  }
+
+  async updateConversationSessionId(conversationId: string, agentSessionId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(conversationsTable)
+      .set({ agentSessionId, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(conversationsTable.id, conversationId));
   }
 
@@ -956,6 +987,8 @@ export class DatabaseService {
       isMain: row.isMain !== undefined ? row.isMain === 1 : true,
       displayOrder: row.displayOrder ?? 0,
       metadata: row.metadata ?? null,
+      agentSessionId: row.agentSessionId ?? null,
+      type: (row.type as 'agent' | 'shell') ?? 'agent',
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

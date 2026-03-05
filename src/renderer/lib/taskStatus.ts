@@ -127,9 +127,13 @@ export function watchTaskPty(taskId: string): () => void {
 // and classifies chunks as busy/idle with debouncing.
 export function watchTaskActivity(taskId: string): () => void {
   wireGlobal();
-  const off = activityStore.subscribe(taskId, (isBusy) => {
-    lastActivity.set(taskId, Date.now());
-    setStatusInternal(taskId, isBusy ? 'busy' : 'idle');
-  });
+  const off = activityStore.subscribe(
+    taskId,
+    ({ busy: isBusy }) => {
+      lastActivity.set(taskId, Date.now());
+      setStatusInternal(taskId, isBusy ? 'busy' : 'idle');
+    },
+    []
+  );
   return off;
 }

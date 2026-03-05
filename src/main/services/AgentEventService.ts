@@ -2,7 +2,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { BrowserWindow, Notification } from 'electron';
 import { log } from '../lib/logger';
-import { parsePtyId, isMainPty } from '@shared/ptyId';
+import { parsePtyId } from '@shared/ptyId';
 import { getMainWindow } from '../app/window';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
@@ -69,6 +69,11 @@ class AgentEventService {
             return;
           }
 
+          // Look up the conversation to get the parent taskId
+          const { databaseService } = await import('./DatabaseService');
+          const conv = await databaseService.getConversationById(parsed.conversationId);
+          const taskId = conv?.taskId ?? parsed.conversationId;
+
           // Body is the raw Claude Code hook payload JSON
           const raw = body ? JSON.parse(body) : {};
 
@@ -84,7 +89,8 @@ class AgentEventService {
           const event: AgentEvent = {
             type: type as AgentEvent['type'],
             ptyId,
-            taskId: parsed.suffix,
+            conversationId: parsed.conversationId,
+            taskId,
             providerId: parsed.providerId,
             timestamp: Date.now(),
             payload: normalizedPayload,
@@ -133,9 +139,8 @@ class AgentEventService {
 
       const providerName = getProvider(event.providerId as ProviderId)?.name ?? event.providerId;
 
-      const isMain = isMainPty(event.ptyId);
       let taskName: string | null = null;
-      if (isMain) {
+      if (event.taskId) {
         const { databaseService } = await import('./DatabaseService');
         const task = await databaseService.getTaskById(event.taskId);
         if (task?.name) taskName = task.name;
@@ -150,7 +155,7 @@ class AgentEventService {
             if (win.isMinimized()) win.restore();
             win.show();
             win.focus();
-            if (isMain) {
+            if (event.taskId) {
               events.emit(notificationFocusTaskChannel, { taskId: event.taskId });
             }
           }

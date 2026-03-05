@@ -95,22 +95,11 @@ const ChatInterface: React.FC<Props> = ({
     }
   }, [activeConversation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update terminal ID to include conversation ID and agent - unique per conversation
+  // Each conversation has its own terminal session keyed by conversationId.
   const terminalId = useMemo(() => {
-    // Find the active conversation to check if it's the main one
-    const activeConversation = conversations.find((c) => c.id === activeConversationId);
-
-    if (activeConversation?.isMain) {
-      // Main conversations use task-based ID for backward compatibility
-      // This ensures terminal sessions persist correctly
-      return makePtyId(agent, 'main', task.id);
-    } else if (activeConversationId) {
-      // Additional conversations use conversation-specific ID
-      return makePtyId(agent, 'chat', activeConversationId);
-    }
-    // Fallback to main format if no active conversation
-    return makePtyId(agent, 'main', task.id);
-  }, [activeConversationId, agent, task.id, conversations]);
+    const convId = activeConversationId ?? conversations[0]?.id;
+    return convId ? makePtyId(agent, convId) : '';
+  }, [activeConversationId, agent, conversations]);
 
   // Claude needs consistent working directory to maintain session state
   const terminalCwd = useMemo(() => {
@@ -634,9 +623,11 @@ const ChatInterface: React.FC<Props> = ({
   // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead.
   useInitialPromptInjection({
     taskId: task.id,
+    conversationId: activeConversationId ?? '',
     providerId: agent,
     prompt: initialInjection,
     enabled:
+      !!activeConversationId &&
       isTerminal &&
       (agentMeta[agent]?.initialPromptFlag === undefined ||
         agentMeta[agent]?.useKeystrokeInjection === true),

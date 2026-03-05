@@ -11,10 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { rpc } from '../lib/rpc';
 import { activityStore } from '../lib/activityStore';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
-import { makePtyId } from '@shared/ptyId';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import type { Agent } from '../types';
 import type { Conversation } from '../../main/services/DatabaseService';
 
 export const conversationsQueryKey = (taskId: string) => ['conversations', taskId] as const;
@@ -124,7 +121,6 @@ export function ConversationsProvider({
 
   useEffect(() => {
     let cancelled = false;
-    const unsubs: Array<() => void> = [];
 
     setBusyByConversationId((prev) => {
       const next: Record<string, boolean> = {};
@@ -132,45 +128,43 @@ export function ConversationsProvider({
       return next;
     });
 
-    if (mainConversationId) {
-      unsubs.push(
-        activityStore.subscribe(taskId, (busy) => {
-          if (cancelled) return;
-          setBusyByConversationId((prev) => {
-            if (prev[mainConversationId] === busy) return prev;
-            return { ...prev, [mainConversationId]: busy };
-          });
-        })
-      );
-    }
+    if (conversations.length === 0) return;
 
-    for (const conv of conversations) {
-      if (conv.isMain) continue;
-      const convId = conv.id;
-      unsubs.push(
-        activityStore.subscribe(
-          convId,
-          (busy) => {
-            if (cancelled) return;
-            setBusyByConversationId((prev) => {
-              if (prev[convId] === busy) return prev;
-              return { ...prev, [convId]: busy };
-            });
-          },
-          { kinds: ['chat'] }
-        )
-      );
-    }
+    // Single subscription for the whole task; payload includes which conversation triggered.
+    const unsub = activityStore.subscribe(
+      taskId,
+      ({ busy, conversationId }) => {
+        if (cancelled) return;
+        if (conversationId) {
+          setBusyByConversationId((prev) => {
+            if (prev[conversationId] === busy) return prev;
+            return { ...prev, [conversationId]: busy };
+          });
+        } else {
+          // Programmatic change (e.g. setTaskBusy) — apply to all conversations
+          setBusyByConversationId((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            for (const c of conversations) {
+              if (next[c.id] !== busy) {
+                next[c.id] = busy;
+                changed = true;
+              }
+            }
+            return changed ? next : prev;
+          });
+        }
+      },
+      conversations.map((c) => c.id)
+    );
 
     return () => {
       cancelled = true;
-      for (const off of unsubs) {
-        try {
-          off();
-        } catch {}
-      }
+      try {
+        unsub();
+      } catch {}
     };
-  }, [taskId, conversations, mainConversationId]);
+  }, [taskId, conversations]);
 
   const { mutateAsync: createConversationMutation } = useMutation({
     mutationFn: ({ title, provider }: { title: string; provider: string }) =>
@@ -217,10 +211,8 @@ export function ConversationsProvider({
     onMutate: (conversationId) => {
       const snapshot = queryClient.getQueryData<Conversation[]>(conversationsQueryKey(taskId));
 
-      // Dispose the terminal for the closed chat
-      const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convAgent = (convToDelete?.provider || 'claude') as Agent;
-      terminalSessionRegistry.dispose(makePtyId(convAgent, 'chat', conversationId));
+      // Main process will kill the PTY and emit ptyKilledChannel, which TerminalSessionManager
+      // subscribes to and calls dispose(). No speculative dispose needed here.
 
       // Update active conversation before removing from cache
       if (conversationId === activeConversationId) {

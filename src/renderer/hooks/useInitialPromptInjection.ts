@@ -8,15 +8,16 @@ import { ptyDataChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
- * One-shot per task. Provider-agnostic.
+ * One-shot per conversation. Provider-agnostic.
  */
 export function useInitialPromptInjection(opts: {
   taskId: string;
+  conversationId: string;
   providerId: string; // codex | claude | ... used for PTY id prefix
   prompt?: string | null;
   enabled?: boolean;
 }) {
-  const { taskId, providerId, prompt, enabled = true } = opts;
+  const { taskId, conversationId, providerId, prompt, enabled = true } = opts;
 
   useEffect(() => {
     if (!enabled) return;
@@ -25,7 +26,7 @@ export function useInitialPromptInjection(opts: {
     const sentKey = initialPromptSentKey(taskId, providerId);
     if (localStorage.getItem(sentKey) === '1') return;
 
-    const ptyId = makePtyId(providerId as ProviderId, 'main', taskId);
+    const ptyId = makePtyId(providerId as ProviderId, conversationId);
     let sent = false;
     let idleSeen = false;
     let silenceTimer: any = null;
@@ -79,5 +80,5 @@ export function useInitialPromptInjection(opts: {
       offStarted();
       offData();
     };
-  }, [enabled, taskId, providerId, prompt]);
+  }, [enabled, taskId, conversationId, providerId, prompt]);
 }

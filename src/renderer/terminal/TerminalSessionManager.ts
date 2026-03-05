@@ -1,6 +1,11 @@
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events } from '../lib/rpc';
-import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
+import {
+  ptyDataChannel,
+  ptyExitChannel,
+  ptyStartedChannel,
+  ptyKilledChannel,
+} from '@shared/events/appEvents';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
@@ -1113,7 +1118,16 @@ export class TerminalSessionManager {
       id
     );
 
-    this.disposables.push(offData, offExit);
+    // When the main process definitively kills a PTY (e.g. on deleteConversation),
+    // dispose this session so xterm.js doesn't leak.
+    const offKilled = events.on(ptyKilledChannel, ({ id: killedId }) => {
+      if (killedId === id) {
+        offKilled();
+        this.dispose();
+      }
+    });
+
+    this.disposables.push(offData, offExit, offKilled);
   }
 
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {

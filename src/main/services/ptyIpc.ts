@@ -1,6 +1,6 @@
 import { app, ipcMain, WebContents, BrowserWindow } from 'electron';
 import { events } from '../events';
-import { ptyStartedChannel } from '@shared/events/appEvents';
+import { ptyStartedChannel, shellSessionStartedChannel } from '@shared/events/appEvents';
 import {
   startPty,
   writePty,
@@ -18,6 +18,7 @@ import {
   killTmuxSession,
   getTmuxSessionName,
   getPtyTmuxSessionName,
+  claudeSessionFileExists,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -25,7 +26,7 @@ import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import * as telemetry from '../telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
-import { parsePtyId, isChatPty } from '../../shared/ptyId';
+import { parsePtyId } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
@@ -39,8 +40,35 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { quoteShellArg } from '../utils/shellEscape';
 
-const owners = new Map<string, WebContents>();
-const listeners = new Set<string>();
+// ---------------------------------------------------------------------------
+// Session isolation — resolve CLI args from the conversations table.
+// ptyManager.ts is a pure spawner; all DB reads/writes happen here.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves session isolation CLI args for a provider that supports --session-id.
+ * Reads/writes `agentSessionId` on the conversations row in SQLite.
+ * Returns an empty array for providers without sessionIdFlag.
+ */
+async function resolveSessionArgs(
+  conversationId: string,
+  provider: import('@shared/providers/registry').ProviderDefinition,
+  cwd: string
+): Promise<string[]> {
+  if (!provider.sessionIdFlag) return [];
+  const conv = await databaseService.getConversationById(conversationId);
+  if (!conv) return [];
+  if (conv.agentSessionId && claudeSessionFileExists(conv.agentSessionId, cwd)) {
+    return ['--resume', conv.agentSessionId];
+  }
+  const uuid = randomUUID();
+  await databaseService.updateConversationSessionId(conversationId, uuid);
+  return [provider.sessionIdFlag, uuid];
+}
+
+// ---------------------------------------------------------------------------
+
+import { owners, listeners, killRegisteredPty as _killRegisteredPty } from './ptyCleanup';
 const providerPtyTimers = new Map<string, number>();
 // Map PTY IDs to provider IDs for multi-agent tracking
 const ptyProviderMap = new Map<string, ProviderId>();
@@ -416,90 +444,67 @@ export function registerPtyIpc(): void {
           return { ok: true, tmux: remoteTmux };
         }
 
-        // Determine if we should skip resume
+        // Determine if we should skip resume.
+        // Providers without per-session isolation (no sessionIdFlag) share directory-scoped state.
+        // Always start fresh to avoid all conversations sharing one provider session.
         let shouldSkipResume = skipResume;
-
-        // Check if this is an additional (non-main) chat
-        const isAdditionalChat = isChatPty(id);
-
-        if (isAdditionalChat) {
-          // Additional chats can resume if the provider supports per-session
-          // isolation (via sessionIdFlag), since each chat gets its own
-          // session UUID. Without session isolation, always start fresh to
-          // avoid all chats sharing the provider's directory-scoped state.
-          const parsed = parsePtyId(id);
-          const chatProvider = parsed ? getProvider(parsed.providerId) : null;
-          if (!chatProvider?.sessionIdFlag) {
+        {
+          const _parsedForResume = parsePtyId(id);
+          const _convProvider =
+            _parsedForResume && _parsedForResume.providerId !== 'shell'
+              ? getProvider(_parsedForResume.providerId)
+              : null;
+          if (!_convProvider?.sessionIdFlag) {
             shouldSkipResume = true;
-          }
-          // Otherwise keep shouldSkipResume from the renderer (undefined or
-          // explicitly set), which is based on whether a snapshot exists.
-        } else if (shouldSkipResume === undefined) {
-          // For main chats, check if this is a first-time start
-          // For Claude and similar providers, check if a session directory exists
-          if (cwd && shell) {
-            try {
-              const fs = require('fs');
-              const path = require('path');
-              const os = require('os');
-              const crypto = require('crypto');
+          } else if (shouldSkipResume === undefined) {
+            if (cwd && shell) {
+              try {
+                const fs = require('fs');
+                const os = require('os');
+                const crypto = require('crypto');
 
-              // Check if this is Claude by looking at the shell
-              const isClaudeOrSimilar = shell.includes('claude') || shell.includes('aider');
+                const isClaudeOrSimilar = shell.includes('claude') || shell.includes('aider');
 
-              if (isClaudeOrSimilar) {
-                // Claude stores sessions in ~/.claude/projects/ with various naming schemes
-                // Check both hash-based and path-based directory names
-                const cwdHash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-                const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
-
-                // Also check for path-based directory name (Claude's actual format)
-                // Replace path separators with hyphens for the directory name
-                const pathBasedName = cwd.replace(/\//g, '-');
-                const claudePathDir = path.join(os.homedir(), '.claude', 'projects', pathBasedName);
-
-                // Check if any Claude session directory exists for this working directory
-                const projectsDir = path.join(os.homedir(), '.claude', 'projects');
-                let sessionExists = false;
-
-                // Check if the hash-based directory exists
-                sessionExists = fs.existsSync(claudeHashDir);
-
-                // If not, check for path-based directory
-                if (!sessionExists) {
-                  sessionExists = fs.existsSync(claudePathDir);
-                }
-
-                // If still not found, scan the projects directory for any matching directory
-                if (!sessionExists && fs.existsSync(projectsDir)) {
-                  try {
-                    const dirs = fs.readdirSync(projectsDir);
-                    // Check if any directory contains part of the working directory path
-                    const cwdParts = cwd.split('/').filter((p) => p.length > 0);
-                    const lastParts = cwdParts.slice(-3).join('-'); // Use last 3 parts of path
-                    sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
-                  } catch {
-                    // Ignore scan errors
+                if (isClaudeOrSimilar) {
+                  const cwdHash = crypto
+                    .createHash('sha256')
+                    .update(cwd)
+                    .digest('hex')
+                    .slice(0, 16);
+                  const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
+                  const pathBasedName = cwd.replace(/\//g, '-');
+                  const claudePathDir = path.join(
+                    os.homedir(),
+                    '.claude',
+                    'projects',
+                    pathBasedName
+                  );
+                  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+                  let sessionExists = fs.existsSync(claudeHashDir);
+                  if (!sessionExists) sessionExists = fs.existsSync(claudePathDir);
+                  if (!sessionExists && fs.existsSync(projectsDir)) {
+                    try {
+                      const dirs = fs.readdirSync(projectsDir);
+                      const cwdParts = cwd.split('/').filter((p: string) => p.length > 0);
+                      const lastParts = cwdParts.slice(-3).join('-');
+                      sessionExists = dirs.some((dir: string) => dir.includes(lastParts));
+                    } catch {
+                      // Ignore scan errors
+                    }
                   }
+                  shouldSkipResume = !sessionExists;
+                } else {
+                  shouldSkipResume = false;
                 }
-
-                // Skip resume if no session directory exists (new task)
-                shouldSkipResume = !sessionExists;
-              } else {
-                // For other providers, default to not skipping (allow resume if supported)
+              } catch {
                 shouldSkipResume = false;
               }
-            } catch (e) {
-              // On error, default to not skipping
+            } else {
               shouldSkipResume = false;
             }
           } else {
-            // If no cwd or shell, default to not skipping
-            shouldSkipResume = false;
+            shouldSkipResume = shouldSkipResume || false;
           }
-        } else {
-          // Use the explicitly provided value
-          shouldSkipResume = shouldSkipResume || false;
         }
 
         const parsedPty = parsePtyId(id);
@@ -507,6 +512,19 @@ export function registerPtyIpc(): void {
 
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
         const tmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+
+        // Resolve session isolation args from DB (provider CLI args go in here).
+        let sessionIsolationArgs: string[] = [];
+        if (!shouldSkipResume && parsedPty) {
+          const shellProvider = getProvider(parsedPty.providerId as ProviderId);
+          if (shellProvider && cwd) {
+            sessionIsolationArgs = await resolveSessionArgs(
+              parsedPty.conversationId,
+              shellProvider,
+              cwd
+            );
+          }
+        }
 
         const proc =
           existing ??
@@ -522,6 +540,7 @@ export function registerPtyIpc(): void {
             skipResume: shouldSkipResume,
             shellSetup,
             tmux,
+            sessionIsolationArgs,
           }));
         const wc = event.sender;
         owners.set(id, wc);
@@ -863,12 +882,15 @@ export function registerPtyIpc(): void {
           return { ok: true, reused: true };
         }
 
-        // For additional chats without per-session isolation, never resume —
-        // they'd share the provider's directory-scoped session with other chats.
+        // Providers without per-session isolation would share the provider's directory-scoped
+        // session across conversations — never resume in that case.
         let effectiveResume = resume;
-        if (isChatPty(id)) {
-          const chatProvider = getProvider(providerId as ProviderId);
-          if (!chatProvider?.sessionIdFlag) {
+        {
+          const _parsedForDirect = parsePtyId(id);
+          const _convProviderDirect = _parsedForDirect
+            ? getProvider(_parsedForDirect.providerId as ProviderId)
+            : getProvider(providerId as ProviderId);
+          if (!_convProviderDirect?.sessionIdFlag) {
             effectiveResume = false;
           }
         }
@@ -889,6 +911,14 @@ export function registerPtyIpc(): void {
           }
         }
 
+        // Resolve session isolation args from the DB (no DB access in ptyManager).
+        const providerDef = getProvider(providerId as ProviderId);
+        const parsedId = parsePtyId(id);
+        const sessionIsolationArgs =
+          parsedId && providerDef
+            ? await resolveSessionArgs(parsedId.conversationId, providerDef, cwd)
+            : [];
+
         // Try direct spawn first; skip if shellSetup or tmux requires a shell wrapper
         const directProc =
           shellSetup || tmux
@@ -904,6 +934,7 @@ export function registerPtyIpc(): void {
                 env,
                 resume: effectiveResume,
                 tmux,
+                sessionIsolationArgs,
               });
 
         // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup/tmux is set
@@ -912,8 +943,7 @@ export function registerPtyIpc(): void {
         if (directProc) {
           proc = directProc;
         } else {
-          const provider = getProvider(providerId as ProviderId);
-          if (!provider?.cli) {
+          if (!providerDef?.cli) {
             return { ok: false, error: `CLI path not found for provider: ${providerId}` };
           }
           if (!shellSetup && !tmux)
@@ -921,7 +951,7 @@ export function registerPtyIpc(): void {
           proc = await startPty({
             id,
             cwd,
-            shell: provider.cli,
+            shell: providerDef.cli,
             cols,
             rows,
             autoApprove,
@@ -930,6 +960,7 @@ export function registerPtyIpc(): void {
             skipResume: !resume,
             shellSetup,
             tmux,
+            sessionIsolationArgs,
           });
           usedFallback = true;
         }
@@ -1013,8 +1044,10 @@ function parseProviderPty(id: string): {
   taskId: string;
 } | null {
   const parsed = parsePtyId(id);
-  if (!parsed) return null;
-  return { providerId: parsed.providerId, taskId: parsed.suffix };
+  if (!parsed || parsed.providerId === 'shell') return null;
+  // conversationId is used as the telemetry key — we don't have a taskId here,
+  // so we fall back to conversationId which is unique enough for telemetry dedup.
+  return { providerId: parsed.providerId as ProviderId, taskId: parsed.conversationId };
 }
 
 function providerRunKey(providerId: ProviderId, taskId: string) {
@@ -1113,3 +1146,58 @@ try {
     listeners.clear();
   });
 } catch {}
+
+// ---------------------------------------------------------------------------
+// Shell session helper — spawns a standalone PTY for lifecycle scripts
+// (setup, teardown, run/dev server).
+//
+// These sessions are NOT backed by a DB conversation record — they use a
+// self-contained UUID sessionId.  The renderer connects by subscribing to
+// shellSessionStartedChannel and using the emitted ptyId directly.
+// ---------------------------------------------------------------------------
+
+/**
+ * Spawn a standalone PTY for a lifecycle script.
+ * Wire up data buffering so the renderer terminal can receive output once it
+ * connects, and call `onExit` when the process terminates.
+ *
+ * Returns the sessionId and ptyId so callers can track the session.
+ * No database record is created.
+ */
+export async function startShellSession(args: {
+  taskId: string;
+  title: string;
+  cwd: string;
+  command: string;
+  env?: NodeJS.ProcessEnv;
+  onExit?: (exitCode: number | null) => void;
+}): Promise<{ sessionId: string; ptyId: string }> {
+  const sessionId = randomUUID();
+  const ptyId = `lifecycle-${sessionId}`;
+
+  const proc = await startPty({ id: ptyId, cwd: args.cwd, shell: args.command, env: args.env });
+
+  if (!listeners.has(ptyId)) {
+    proc.onData((data) => {
+      bufferedSendPtyData(ptyId, data);
+    });
+    proc.onExit(({ exitCode }) => {
+      flushPtyData(ptyId);
+      clearPtyData(ptyId);
+      safeSendToOwner(ptyId, `pty:exit.${ptyId}`, { exitCode });
+      owners.delete(ptyId);
+      listeners.delete(ptyId);
+      removePtyRecord(ptyId);
+      args.onExit?.(exitCode ?? null);
+    });
+    listeners.add(ptyId);
+  }
+
+  events.emit(shellSessionStartedChannel, {
+    taskId: args.taskId,
+    sessionId,
+    ptyId,
+    title: args.title,
+  });
+  return { sessionId, ptyId };
+}

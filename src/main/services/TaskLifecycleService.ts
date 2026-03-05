@@ -12,6 +12,8 @@ import {
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
 import { execFile } from 'node:child_process';
+import { killPty } from './ptyManager';
+import { startShellSession } from './ptyIpc';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,7 +26,10 @@ type LifecycleResult = {
 class TaskLifecycleService extends EventEmitter {
   private states = new Map<string, TaskLifecycleState>();
   private runProcesses = new Map<string, ChildProcess>();
+  private runPtyIds = new Map<string, string>();
   private finiteProcesses = new Map<string, Set<ChildProcess>>();
+  /** Maps taskId → Set of lifecycle PTY IDs (setup/teardown) in flight */
+  private finiteSessionPtyIds = new Map<string, Set<string>>();
   private runStartInflight = new Map<string, Promise<LifecycleResult>>();
   private setupInflight = new Map<string, Promise<LifecycleResult>>();
   private teardownInflight = new Map<string, Promise<LifecycleResult>>();
@@ -187,48 +192,40 @@ class TaskLifecycleService extends EventEmitter {
         };
         try {
           const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath, taskName);
-          const child = spawn(script, {
+          const { ptyId } = await startShellSession({
+            taskId,
+            title: phase === 'setup' ? 'Setup' : 'Teardown',
             cwd: taskPath,
-            shell: true,
+            command: script,
             env,
-            detached: true,
-          });
-          const untrackFinite = this.trackFiniteProcess(taskId, child);
-          const onData = (buf: Buffer) => {
-            const line = buf.toString();
-            this.emitLifecycleEvent(taskId, phase, 'line', { line });
-          };
-          child.stdout?.on('data', onData);
-          child.stderr?.on('data', onData);
-          child.on('error', (error) => {
-            untrackFinite();
-            const message = error?.message || String(error);
-            this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
-            finish(
-              { ok: false, error: message },
-              {
-                ...state[phase],
-                status: 'failed',
-                finishedAt: this.nowIso(),
-                error: message,
+            onExit: (exitCode) => {
+              // Remove from finite tracking
+              const finiteSet = this.finiteSessionPtyIds.get(taskId);
+              if (finiteSet) {
+                finiteSet.delete(ptyId);
+                if (finiteSet.size === 0) this.finiteSessionPtyIds.delete(taskId);
               }
-            );
+              const ok = exitCode === 0;
+              this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
+                exitCode,
+                ...(ok ? {} : { error: `Exited with code ${String(exitCode)}` }),
+              });
+              finish(
+                ok ? { ok: true } : { ok: false, error: `Exited with code ${String(exitCode)}` },
+                {
+                  ...state[phase],
+                  status: ok ? 'succeeded' : 'failed',
+                  finishedAt: this.nowIso(),
+                  exitCode,
+                  error: ok ? null : `Exited with code ${String(exitCode)}`,
+                }
+              );
+            },
           });
-          child.on('exit', (code) => {
-            untrackFinite();
-            const ok = code === 0;
-            this.emitLifecycleEvent(taskId, phase, ok ? 'done' : 'error', {
-              exitCode: code,
-              ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
-            });
-            finish(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` }, {
-              ...state[phase],
-              status: ok ? 'succeeded' : 'failed',
-              finishedAt: this.nowIso(),
-              exitCode: code,
-              error: ok ? null : `Exited with code ${String(code)}`,
-            });
-          });
+          // Track this finite PTY so clearTask can kill it
+          const finiteSet = this.finiteSessionPtyIds.get(taskId) ?? new Set<string>();
+          finiteSet.add(ptyId);
+          this.finiteSessionPtyIds.set(taskId, finiteSet);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
@@ -322,52 +319,30 @@ class TaskLifecycleService extends EventEmitter {
 
     try {
       const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath, taskName);
-      const child = spawn(script, {
+      const { ptyId } = await startShellSession({
+        taskId,
+        title: 'Dev Server',
         cwd: taskPath,
-        shell: true,
+        command: script,
         env,
-        detached: true,
+        onExit: (exitCode) => {
+          if (this.runPtyIds.get(taskId) !== ptyId) return;
+          this.runPtyIds.delete(taskId);
+          const wasStopped = this.stopIntents.has(taskId);
+          this.stopIntents.delete(taskId);
+          const cur = this.ensureState(taskId);
+          cur.run = {
+            ...cur.run,
+            status: wasStopped ? 'idle' : exitCode === 0 ? 'succeeded' : 'failed',
+            finishedAt: this.nowIso(),
+            exitCode,
+            pid: null,
+            error: wasStopped || exitCode === 0 ? null : `Exited with code ${String(exitCode)}`,
+          };
+          this.emitLifecycleEvent(taskId, 'run', 'exit', { exitCode });
+        },
       });
-      this.runProcesses.set(taskId, child);
-      state.run.pid = child.pid ?? null;
-
-      const onData = (buf: Buffer) => {
-        const line = buf.toString();
-        this.emitLifecycleEvent(taskId, 'run', 'line', { line });
-      };
-      child.stdout?.on('data', onData);
-      child.stderr?.on('data', onData);
-      child.on('error', (error) => {
-        if (this.runProcesses.get(taskId) !== child) return;
-        this.runProcesses.delete(taskId);
-        this.stopIntents.delete(taskId);
-        const message = error?.message || String(error);
-        const cur = this.ensureState(taskId);
-        cur.run = {
-          ...cur.run,
-          status: 'failed',
-          finishedAt: this.nowIso(),
-          error: message,
-        };
-        this.emitLifecycleEvent(taskId, 'run', 'error', { error: message });
-      });
-      child.on('exit', (code) => {
-        if (this.runProcesses.get(taskId) !== child) return;
-        this.runProcesses.delete(taskId);
-        const wasStopped = this.stopIntents.has(taskId);
-        this.stopIntents.delete(taskId);
-        const cur = this.ensureState(taskId);
-        cur.run = {
-          ...cur.run,
-          status: wasStopped ? 'idle' : code === 0 ? 'succeeded' : 'failed',
-          finishedAt: this.nowIso(),
-          exitCode: code,
-          pid: null,
-          error: wasStopped || code === 0 ? null : `Exited with code ${String(code)}`,
-        };
-        this.emitLifecycleEvent(taskId, 'run', 'exit', { exitCode: code });
-      });
-
+      this.runPtyIds.set(taskId, ptyId);
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -384,17 +359,21 @@ class TaskLifecycleService extends EventEmitter {
   }
 
   stopRun(taskId: string): LifecycleResult {
-    const proc = this.runProcesses.get(taskId);
-    if (!proc) return { ok: true, skipped: true };
+    const ptyId = this.runPtyIds.get(taskId);
+    const legacyProc = this.runProcesses.get(taskId);
+    if (!ptyId && !legacyProc) return { ok: true, skipped: true };
 
     this.stopIntents.add(taskId);
     try {
-      this.killProcessTree(proc, 'SIGTERM');
-      setTimeout(() => {
-        const current = this.runProcesses.get(taskId);
-        if (!current || current !== proc) return;
-        this.killProcessTree(proc, 'SIGKILL');
-      }, 8_000);
+      if (ptyId) {
+        killPty(ptyId);
+      } else if (legacyProc) {
+        this.killProcessTree(legacyProc, 'SIGTERM');
+        setTimeout(() => {
+          if (this.runProcesses.get(taskId) !== legacyProc) return;
+          this.killProcessTree(legacyProc, 'SIGKILL');
+        }, 8_000);
+      }
       return { ok: true };
     } catch (error) {
       this.stopIntents.delete(taskId);
@@ -428,25 +407,26 @@ class TaskLifecycleService extends EventEmitter {
         await setupRun.catch(() => {});
       }
 
-      // Ensure a managed run process is stopped before teardown starts.
-      const existingRun = this.runProcesses.get(taskId);
-      if (existingRun) {
+      // Ensure a managed run process/PTY is stopped before teardown starts.
+      const hasRun = this.runPtyIds.has(taskId) || this.runProcesses.has(taskId);
+      if (hasRun) {
         this.stopRun(taskId);
+        // Wait for the run PTY (or legacy process) to exit, up to 10s.
         await new Promise<void>((resolve) => {
-          let done = false;
-          const finish = () => {
-            if (done) return;
-            done = true;
-            resolve();
+          const startMs = Date.now();
+          const poll = () => {
+            if (!this.runPtyIds.has(taskId) && !this.runProcesses.has(taskId)) {
+              resolve();
+              return;
+            }
+            if (Date.now() - startMs >= 10_000) {
+              log.warn('Timed out waiting for run PTY to exit before teardown', { taskId });
+              resolve();
+              return;
+            }
+            setTimeout(poll, 200);
           };
-          const timer = setTimeout(() => {
-            log.warn('Timed out waiting for run process to exit before teardown', { taskId });
-            finish();
-          }, 10_000);
-          existingRun.once('exit', () => {
-            clearTimeout(timer);
-            finish();
-          });
+          poll();
         });
       }
       return this.runFinite(taskId, taskPath, projectPath, 'teardown', taskName);
@@ -478,12 +458,30 @@ class TaskLifecycleService extends EventEmitter {
       }
     }
 
+    const ptyId = this.runPtyIds.get(taskId);
+    if (ptyId) {
+      try {
+        killPty(ptyId);
+      } catch {}
+      this.runPtyIds.delete(taskId);
+    }
+
     const proc = this.runProcesses.get(taskId);
     if (proc) {
       try {
         this.killProcessTree(proc, 'SIGTERM');
       } catch {}
       this.runProcesses.delete(taskId);
+    }
+
+    const finitePtys = this.finiteSessionPtyIds.get(taskId);
+    if (finitePtys) {
+      for (const ptyId of finitePtys) {
+        try {
+          killPty(ptyId);
+        } catch {}
+      }
+      this.finiteSessionPtyIds.delete(taskId);
     }
 
     const finite = this.finiteProcesses.get(taskId);
@@ -498,6 +496,12 @@ class TaskLifecycleService extends EventEmitter {
   }
 
   shutdown(): void {
+    for (const [taskId, ptyId] of this.runPtyIds.entries()) {
+      try {
+        this.stopIntents.add(taskId);
+        killPty(ptyId);
+      } catch {}
+    }
     for (const [taskId, proc] of this.runProcesses.entries()) {
       try {
         this.stopIntents.add(taskId);
@@ -511,7 +515,9 @@ class TaskLifecycleService extends EventEmitter {
         } catch {}
       }
     }
+    this.runPtyIds.clear();
     this.runProcesses.clear();
+    this.finiteSessionPtyIds.clear();
     this.finiteProcesses.clear();
     this.runStartInflight.clear();
     this.setupInflight.clear();

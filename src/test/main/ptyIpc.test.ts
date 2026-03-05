@@ -228,7 +228,7 @@ describe('ptyIpc notification lifecycle', () => {
     const start = ipcHandleHandlers.get('pty:start');
     expect(start).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-quit');
+    const id = makePtyId('codex', 'conv-task-quit');
     await start!(
       { sender: createSender() },
       { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 }
@@ -255,7 +255,7 @@ describe('ptyIpc notification lifecycle', () => {
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
     expect(startDirect).toBeTypeOf('function');
 
-    const id = makePtyId('claude', 'main', 'task-remote');
+    const id = makePtyId('claude', 'conv-task-remote');
     await startDirect!(
       { sender: createSender() },
       {
@@ -290,7 +290,7 @@ describe('ptyIpc notification lifecycle', () => {
     const start = ipcHandleHandlers.get('pty:start');
     expect(start).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-success');
+    const id = makePtyId('codex', 'conv-task-success');
     await start!(
       { sender: createSender() },
       { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 }
@@ -315,7 +315,7 @@ describe('ptyIpc notification lifecycle', () => {
     expect(startDirect).toBeTypeOf('function');
     expect(ptyInput).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-respawn');
+    const id = makePtyId('codex', 'conv-task-respawn');
     const sender = createSender();
     const result = await startDirect!(
       { sender },
@@ -348,7 +348,7 @@ describe('ptyIpc notification lifecycle', () => {
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
     expect(startDirect).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-no-replacement');
+    const id = makePtyId('codex', 'conv-task-no-replacement');
     const sender = createSender();
     const result = await startDirect!(
       { sender },
@@ -392,7 +392,7 @@ describe('ptyIpc notification lifecycle', () => {
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
     expect(startDirect).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-remote-custom');
+    const id = makePtyId('codex', 'conv-task-remote-custom');
     const sender = createSender();
     const result = await startDirect!(
       { sender },
@@ -447,7 +447,7 @@ describe('ptyIpc notification lifecycle', () => {
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
     expect(startDirect).toBeTypeOf('function');
 
-    const id = makePtyId('codex', 'main', 'task-remote-metachar');
+    const id = makePtyId('codex', 'conv-task-remote-metachar');
     const sender = createSender();
     const result = await startDirect!(
       { sender },

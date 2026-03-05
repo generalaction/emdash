@@ -96,6 +96,8 @@ export const conversations = sqliteTable(
     isMain: integer('is_main').notNull().default(0), // 1 if this is the main/primary chat (gets full persistence)
     displayOrder: integer('display_order').notNull().default(0), // Order in the tab bar
     metadata: text('metadata'), // JSON for additional chat-specific data
+    agentSessionId: text('agent_session_id'), // Provider session UUID (e.g. Claude --session-id); replaces pty-session-map.json
+    type: text('type').notNull().default('agent'), // 'agent' | 'shell'
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

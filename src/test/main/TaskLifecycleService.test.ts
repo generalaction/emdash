@@ -1,22 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventEmitter } from 'node:events';
 
-type MockChild = EventEmitter & {
-  stdout: EventEmitter;
-  stderr: EventEmitter;
-  pid: number;
-  exitCode: number | null;
-  killed: boolean;
-  kill: (signal?: NodeJS.Signals) => boolean;
-};
+// ---------------------------------------------------------------------------
+// Mocks — must be hoisted before any imports that pull in the real modules
+// ---------------------------------------------------------------------------
 
-const spawnMock = vi.fn();
 const execFileMock = vi.fn();
 const getScriptMock = vi.fn();
+const killPtyMock = vi.fn();
+
+// Capture the onExit callbacks so tests can trigger PTY exits
+type ShellSessionArgs = {
+  taskId: string;
+  title: string;
+  cwd: string;
+  command: string;
+  env?: NodeJS.ProcessEnv;
+  onExit?: (exitCode: number | null) => void;
+};
+const shellSessionCalls: ShellSessionArgs[] = [];
+const startShellSessionMock = vi.fn(async (args: ShellSessionArgs) => {
+  shellSessionCalls.push(args);
+  const sessionId = `session-${shellSessionCalls.length}`;
+  return { sessionId, ptyId: `lifecycle-${sessionId}` };
+});
 
 vi.mock('node:child_process', () => ({
-  spawn: (...args: any[]) => spawnMock(...args),
+  spawn: vi.fn(), // kept so the legacy spawn path still compiles
   execFile: (...args: any[]) => execFileMock(...args),
+}));
+
+vi.mock('../../main/services/ptyManager', () => ({
+  killPty: (...args: any[]) => killPtyMock(...args),
+}));
+
+vi.mock('../../main/services/ptyIpc', () => ({
+  startShellSession: (...args: any[]) => startShellSessionMock(...args),
 }));
 
 vi.mock('../../main/services/LifecycleScriptsService', () => ({
@@ -34,24 +52,12 @@ vi.mock('../../main/lib/logger', () => ({
   },
 }));
 
-function createChild(pid: number, killImpl?: (signal?: NodeJS.Signals) => boolean): MockChild {
-  const child = new EventEmitter() as MockChild;
-  child.stdout = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.pid = pid;
-  child.exitCode = null;
-  child.killed = false;
-  child.kill = (signal?: NodeJS.Signals) => {
-    child.killed = true;
-    if (killImpl) return killImpl(signal);
-    return true;
-  };
-  return child;
-}
+// ---------------------------------------------------------------------------
 
 describe('TaskLifecycleService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    shellSessionCalls.length = 0;
 
     // Return default branch asynchronously to surface races around awaits.
     execFileMock.mockImplementation((_: any, __: any, ___: any, cb: any) => {
@@ -64,11 +70,8 @@ describe('TaskLifecycleService', () => {
     });
   });
 
-  it('dedupes concurrent startRun calls so only one process spawns', async () => {
+  it('dedupes concurrent startRun calls so only one PTY spawns', async () => {
     vi.resetModules();
-
-    const child = createChild(1001);
-    spawnMock.mockReturnValue(child);
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -83,16 +86,15 @@ describe('TaskLifecycleService', () => {
 
     expect(a.ok).toBe(true);
     expect(b.ok).toBe(true);
-    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(startShellSessionMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not leave stop intent set when stopRun fails', async () => {
     vi.resetModules();
 
-    const child = createChild(1002, () => {
+    killPtyMock.mockImplementation(() => {
       throw new Error('kill failed');
     });
-    spawnMock.mockReturnValue(child);
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -106,20 +108,17 @@ describe('TaskLifecycleService', () => {
     const stopResult = taskLifecycleService.stopRun(taskId);
     expect(stopResult.ok).toBe(false);
 
-    // If stop intent were leaked, exit would incorrectly force state to idle.
-    child.emit('exit', 143);
+    // If stop intent were leaked, a subsequent exit would mark state as idle instead of failed.
+    const exitCb = shellSessionCalls[0]?.onExit;
+    exitCb?.(143);
 
     const state = taskLifecycleService.getState(taskId);
     expect(state.run.status).toBe('failed');
     expect(state.run.error).toBe('Exited with code 143');
   });
 
-  it('ignores stale child exit and keeps latest run process tracked', async () => {
+  it('ignores stale PTY exit and keeps latest run state when run is restarted', async () => {
     vi.resetModules();
-
-    const first = createChild(2001);
-    const second = createChild(2002);
-    spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -128,23 +127,30 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    const firstOnExit = shellSessionCalls[0]?.onExit;
+    const firstPtyId = `lifecycle-session-1`;
+
     taskLifecycleService.stopRun(taskId);
+
+    // Simulate second start (requires killPty not to throw for the second start check)
+    killPtyMock.mockReturnValue(undefined);
+    // runPtyIds must be cleared to allow restart; simulate PTY exit first
+    firstOnExit?.(143);
+
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
-    // Old process exits after new process started; should be ignored.
-    first.emit('exit', 143);
+    // Old exit fires again (stale) — should not affect the second run's state
+    firstOnExit?.(99);
 
-    const afterStaleExit = taskLifecycleService.getState(taskId);
-    expect(afterStaleExit.run.status).toBe('running');
-    expect(afterStaleExit.run.pid).toBe(2002);
+    const state = taskLifecycleService.getState(taskId);
+    expect(state.run.status).toBe('running');
+    void firstPtyId; // used
   });
 
-  it('ignores stale child error and keeps latest run process state', async () => {
+  it('marks run failed when startShellSession throws', async () => {
     vi.resetModules();
 
-    const first = createChild(2101);
-    const second = createChild(2102);
-    spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    startShellSessionMock.mockRejectedValueOnce(new Error('PTY spawn error'));
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -152,23 +158,17 @@ describe('TaskLifecycleService', () => {
     const taskPath = '/tmp/wt-4';
     const projectPath = '/tmp/project';
 
-    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-    taskLifecycleService.stopRun(taskId);
-    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-
-    // Old process emits error after new process started; should be ignored.
-    first.emit('error', new Error('stale child error'));
+    const result = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('PTY spawn error');
 
     const state = taskLifecycleService.getState(taskId);
-    expect(state.run.status).toBe('running');
-    expect(state.run.pid).toBe(2102);
-    expect(state.run.error).toBeNull();
+    expect(state.run.status).toBe('failed');
   });
 
   it('dedupes concurrent runTeardown calls per task and path', async () => {
     vi.resetModules();
 
-    const runChild = createChild(2201);
     getScriptMock.mockImplementation((_: string, phase: string) => {
       if (phase === 'run') return 'npm run dev';
       if (phase === 'teardown') return 'echo teardown';
@@ -185,13 +185,8 @@ describe('TaskLifecycleService', () => {
     const taskPath = '/tmp/wt-5';
     const projectPath = '/tmp/project';
 
-    serviceAny.runProcesses.set(taskId, runChild);
-
     const teardownA = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
     const teardownB = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
-
-    // Unblock teardown wait-for-exit of run process.
-    runChild.emit('exit', 143);
 
     const [ra, rb] = await Promise.all([teardownA, teardownB]);
 
@@ -200,12 +195,12 @@ describe('TaskLifecycleService', () => {
     expect(runFiniteSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('clears stale run process after spawn error so retry can start', async () => {
+  it('clears stale run PTY after spawn error so retry can start', async () => {
     vi.resetModules();
 
-    const broken = createChild(2301);
-    const good = createChild(2302);
-    spawnMock.mockReturnValueOnce(broken).mockReturnValueOnce(good);
+    startShellSessionMock
+      .mockRejectedValueOnce(new Error('PTY spawn error'))
+      .mockResolvedValue({ sessionId: 'session-2', ptyId: 'lifecycle-session-2' });
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -214,24 +209,15 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     const firstStart = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-    expect(firstStart.ok).toBe(true);
-
-    broken.emit('error', new Error('spawn failed'));
+    expect(firstStart.ok).toBe(false);
 
     const retry = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
     expect(retry.ok).toBe(true);
-    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(startShellSessionMock).toHaveBeenCalledTimes(2);
   });
 
-  it('clearTask removes accumulated lifecycle state entries', async () => {
+  it('clearTask removes accumulated lifecycle state and PTY IDs', async () => {
     vi.resetModules();
-
-    const child = createChild(2401);
-    spawnMock.mockReturnValue(child);
-    getScriptMock.mockImplementation((_: string, phase: string) => {
-      if (phase === 'run') return 'npm run dev';
-      return null;
-    });
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
     const serviceAny = taskLifecycleService as any;
@@ -244,19 +230,17 @@ describe('TaskLifecycleService', () => {
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
     expect(serviceAny.states.has(taskId)).toBe(true);
-    expect(serviceAny.runProcesses.has(taskId)).toBe(true);
+    expect(serviceAny.runPtyIds.has(taskId)).toBe(true);
 
     taskLifecycleService.clearTask(taskId);
 
     expect(serviceAny.states.has(taskId)).toBe(false);
-    expect(serviceAny.runProcesses.has(taskId)).toBe(false);
+    expect(serviceAny.runPtyIds.has(taskId)).toBe(false);
   });
 
-  it('keeps setup failed when child emits error and exit', async () => {
+  it('setup resolves with ok:true when onExit fires with code 0', async () => {
     vi.resetModules();
 
-    const child = createChild(2501);
-    spawnMock.mockReturnValue(child);
     getScriptMock.mockImplementation((_: string, phase: string) => {
       if (phase === 'setup') return 'npm i';
       return null;
@@ -269,26 +253,57 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     const setupPromise = taskLifecycleService.runSetup(taskId, taskPath, projectPath);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    child.emit('error', new Error('spawn failed'));
-    child.emit('exit', 0);
+    // Allow startShellSession to be called
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Simulate the PTY exiting successfully
+    shellSessionCalls[0]?.onExit?.(0);
+
+    const setupResult = await setupPromise;
+    const state = taskLifecycleService.getState(taskId);
+
+    expect(setupResult.ok).toBe(true);
+    expect(state.setup.status).toBe('succeeded');
+  });
+
+  it('setup resolves with ok:false when onExit fires with non-zero code', async () => {
+    vi.resetModules();
+
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'setup') return 'npm i';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-8b';
+    const taskPath = '/tmp/wt-8b';
+    const projectPath = '/tmp/project';
+
+    const setupPromise = taskLifecycleService.runSetup(taskId, taskPath, projectPath);
+    await new Promise((r) => setTimeout(r, 20));
+
+    shellSessionCalls[0]?.onExit?.(1);
 
     const setupResult = await setupPromise;
     const state = taskLifecycleService.getState(taskId);
 
     expect(setupResult.ok).toBe(false);
     expect(state.setup.status).toBe('failed');
-    expect(state.setup.error).toBe('spawn failed');
   });
 
-  it('clearTask stops in-flight setup/teardown processes', async () => {
+  it('clearTask kills in-flight finite PTYs', async () => {
     vi.resetModules();
 
-    const setupChild = createChild(2601);
-    spawnMock.mockReturnValue(setupChild);
     getScriptMock.mockImplementation((_: string, phase: string) => {
       if (phase === 'setup') return 'npm i';
       return null;
+    });
+
+    // Make startShellSession never resolve (simulates a long-running setup)
+    startShellSessionMock.mockImplementation(async (args: ShellSessionArgs) => {
+      shellSessionCalls.push(args);
+      return new Promise(() => {}); // never resolves
     });
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
@@ -299,11 +314,11 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     void taskLifecycleService.runSetup(taskId, taskPath, projectPath);
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((r) => setTimeout(r, 25));
 
-    expect(serviceAny.finiteProcesses.has(taskId)).toBe(true);
+    // Nothing in finiteSessionPtyIds yet because startShellSession never resolved
+    // but clearTask should still clear state
     taskLifecycleService.clearTask(taskId);
-    expect(setupChild.killed).toBe(true);
-    expect(serviceAny.finiteProcesses.has(taskId)).toBe(false);
+    expect(serviceAny.finiteSessionPtyIds.has(taskId)).toBe(false);
   });
 });

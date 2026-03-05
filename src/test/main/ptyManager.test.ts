@@ -194,82 +194,23 @@ describe('ptyManager provider command resolution', () => {
   });
 });
 
-describe('stale Claude session detection', () => {
-  const SESSION_MAP_PATH = '/tmp/emdash-test/pty-session-map.json';
+describe('claudeSessionFileExists', () => {
   const TEST_CWD = '/tmp/test-worktree';
   const TEST_UUID = 'test-uuid-00000000-0000-0000-0000';
-  const PTY_ID = 'claude-main-task123';
 
-  let applySessionIsolation: typeof import('../../main/services/ptyManager').applySessionIsolation;
-  let resetSessionMap: typeof import('../../main/services/ptyManager')._resetSessionMapForTest;
-  let claudeProvider: any;
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    fsWriteFileSyncMock.mockImplementation(() => {});
-
-    // Load module once (avoid vi.resetModules — dynamic require('electron') isn't
-    // intercepted after module reset). Use _resetSessionMapForTest to clear
-    // the in-memory cache between tests instead.
-    const mod = await import('../../main/services/ptyManager');
-    applySessionIsolation = mod.applySessionIsolation;
-    resetSessionMap = mod._resetSessionMapForTest;
-    resetSessionMap(SESSION_MAP_PATH);
-
-    const { PROVIDERS } = await import('../../shared/providers/registry');
-    claudeProvider = PROVIDERS.find((p) => p.id === 'claude')!;
   });
 
-  it('resumes when session file exists and cwd matches', () => {
-    const sessionMap = {
-      [PTY_ID]: { uuid: TEST_UUID, cwd: TEST_CWD },
-    };
-    fsReadFileSyncMock.mockReturnValue(JSON.stringify(sessionMap));
-    fsExistsSyncMock.mockImplementation((p: string) => {
-      if (p.endsWith(`${TEST_UUID}.jsonl`)) return true;
-      return false;
-    });
-
-    const cliArgs: string[] = [];
-    const result = applySessionIsolation(cliArgs, claudeProvider, PTY_ID, TEST_CWD, true);
-
-    expect(result).toBe(true);
-    expect(cliArgs).toContain('--resume');
-    expect(cliArgs).toContain(TEST_UUID);
-  });
-
-  it('does not resume when session file is missing', () => {
-    const sessionMap = {
-      [PTY_ID]: { uuid: TEST_UUID, cwd: TEST_CWD },
-    };
-    fsReadFileSyncMock.mockReturnValue(JSON.stringify(sessionMap));
-    fsExistsSyncMock.mockReturnValue(false);
-
-    const cliArgs: string[] = [];
-    const result = applySessionIsolation(cliArgs, claudeProvider, PTY_ID, TEST_CWD, true);
-
-    expect(result).toBe(false);
-    expect(cliArgs).not.toContain('--resume');
-    expect(cliArgs).not.toContain(TEST_UUID);
-    // Stale entry must be evicted from the persisted session map
-    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(SESSION_MAP_PATH, JSON.stringify({}));
-  });
-
-  it('treats cwd mismatch as stale session', () => {
-    const sessionMap = {
-      [PTY_ID]: { uuid: TEST_UUID, cwd: '/tmp/old-worktree' },
-    };
-    fsReadFileSyncMock.mockReturnValue(JSON.stringify(sessionMap));
-    // File may exist, but cwd mismatch should still be treated as stale
+  it('returns true when session jsonl file exists', async () => {
+    const { claudeSessionFileExists } = await import('../../main/services/ptyManager');
     fsExistsSyncMock.mockReturnValue(true);
+    expect(claudeSessionFileExists(TEST_UUID, TEST_CWD)).toBe(true);
+  });
 
-    const cliArgs: string[] = [];
-    const result = applySessionIsolation(cliArgs, claudeProvider, PTY_ID, TEST_CWD, true);
-
-    expect(result).toBe(false);
-    expect(cliArgs).not.toContain('--resume');
-    expect(cliArgs).not.toContain(TEST_UUID);
-    // Stale entry must be evicted from the persisted session map
-    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(SESSION_MAP_PATH, JSON.stringify({}));
+  it('returns false when session jsonl file is missing', async () => {
+    const { claudeSessionFileExists } = await import('../../main/services/ptyManager');
+    fsExistsSyncMock.mockReturnValue(false);
+    expect(claudeSessionFileExists(TEST_UUID, TEST_CWD)).toBe(false);
   });
 });

@@ -1,10 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
-import { makePtyId } from '@shared/ptyId';
-import type { ProviderId } from '@shared/providers/registry';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
@@ -82,67 +79,21 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
   return linked;
 };
 
-const cleanupPtyResources = async (task: Task): Promise<void> => {
+// Renderer-side cleanup: clears taskTerminalsStore entries.
+// PTY kills and snapshot deletion are handled by the main process (ptyCleanup.ts)
+// which is triggered by the deleteTask/archiveTask RPC handlers in dbIpc.ts.
+const cleanupRendererResources = (task: Task): void => {
   try {
-    const variants = task.metadata?.multiAgent?.variants || [];
-    const mainSessionIds: string[] = [];
-    if (variants.length > 0) {
-      for (const v of variants) {
-        const id = `${v.worktreeId}-main`;
-        mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
-      }
-    } else {
-      for (const provider of TERMINAL_PROVIDER_IDS) {
-        const id = makePtyId(provider, 'main', task.id);
-        mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
-      }
-    }
-
-    const chatSessionIds: string[] = [];
-    try {
-      const conversations = await rpc.db.getConversations(task.id);
-      for (const conv of conversations) {
-        if (!conv.isMain && conv.provider) {
-          const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
-          chatSessionIds.push(chatId);
-          try {
-            window.electronAPI.ptyKill?.(chatId);
-          } catch {}
-        }
-      }
-    } catch {}
-
-    const sessionIds = [...mainSessionIds, ...chatSessionIds];
-    await Promise.allSettled(
-      sessionIds.map(async (sessionId) => {
-        try {
-          terminalSessionRegistry.dispose(sessionId);
-        } catch {}
-        try {
-          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-        } catch {}
-      })
-    );
-
-    const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
+    const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v: any) => v.path);
     const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
-    for (const path of pathsToClean) {
-      disposeTaskTerminals(`${task.id}::${path}`);
+    for (const p of pathsToClean) {
+      disposeTaskTerminals(`${task.id}::${p}`);
       if (task.useWorktree !== false) {
-        disposeTaskTerminals(`global::${path}`);
+        disposeTaskTerminals(`global::${p}`);
       }
     }
     disposeTaskTerminals(task.id);
-  } catch (err) {
-    const { log } = await import('../lib/logger');
-    log.error('Error cleaning up PTY resources:', err as any);
-  }
+  } catch {}
 };
 
 export function useTaskManagement() {
@@ -374,61 +325,9 @@ export function useTaskManagement() {
         } catch {}
       } catch {}
 
-      const variants = task.metadata?.multiAgent?.variants || [];
-      const mainSessionIds: string[] = [];
-      if (variants.length > 0) {
-        for (const v of variants) {
-          const id = `${v.worktreeId}-main`;
-          mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
-        }
-      } else {
-        for (const provider of TERMINAL_PROVIDER_IDS) {
-          const id = makePtyId(provider, 'main', task.id);
-          mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
-        }
-      }
-
-      const chatSessionIds: string[] = [];
-      try {
-        const conversations = await rpc.db.getConversations(task.id);
-        for (const conv of conversations) {
-          if (!conv.isMain && conv.provider) {
-            const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
-            chatSessionIds.push(chatId);
-            try {
-              window.electronAPI.ptyKill?.(chatId);
-            } catch {}
-          }
-        }
-      } catch {}
-
-      const sessionIds = [...mainSessionIds, ...chatSessionIds];
-      await Promise.allSettled(
-        sessionIds.map(async (sessionId) => {
-          try {
-            terminalSessionRegistry.dispose(sessionId);
-          } catch {}
-          try {
-            await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-          } catch {}
-        })
-      );
-
-      const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
-      const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
-      for (const path of pathsToClean) {
-        disposeTaskTerminals(`${task.id}::${path}`);
-        if (task.useWorktree !== false) {
-          disposeTaskTerminals(`global::${path}`);
-        }
-      }
-      disposeTaskTerminals(task.id);
+      // PTY kills and snapshot cleanup are handled by the main process via deleteTask RPC.
+      // Only clean up renderer-side state here.
+      cleanupRendererResources(task);
 
       const shouldRemoveWorktree = task.useWorktree !== false;
       const promises: Promise<any>[] = [rpc.db.deleteTask(task.id)];
@@ -549,8 +448,7 @@ export function useTaskManagement() {
       task: Task;
       options?: { silent?: boolean };
     }) => {
-      // PTY cleanup in background — don't block the UI
-      void cleanupPtyResources(task);
+      cleanupRendererResources(task);
 
       await runLifecycleTeardownBestEffort(project, task, 'archive', options);
       await rpc.db.archiveTask(task.id);

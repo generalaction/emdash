@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { worktreeService } from './WorktreeService';
 import { worktreePoolService } from './WorktreePoolService';
+import { ptyPoolService } from './PtyPoolService';
 import { databaseService, type Project } from './DatabaseService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { projects as projectsTable } from '../db/schema';
@@ -285,6 +286,8 @@ export function registerWorktreeIpc(): void {
         }
         // Fire and forget - don't await, just start the process
         worktreePoolService.ensureReserve(args.projectId, args.projectPath, args.baseRef);
+        // Pre-warm a shell PTY for this project's path
+        ptyPoolService.ensureReserve(args.projectPath);
         return { success: true };
       } catch (error) {
         console.error('Failed to ensure reserve:', error);

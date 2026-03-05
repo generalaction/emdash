@@ -60,6 +60,7 @@ vi.mock('../../shared/providers/registry', () => ({
 vi.mock('../../main/services/DatabaseService', () => ({
   databaseService: {
     getTaskById: vi.fn(async () => ({ name: 'My Task' })),
+    getConversationById: vi.fn(async (id: string) => ({ id, taskId: `task-for-${id}` })),
   },
 }));
 
@@ -113,8 +114,9 @@ describe('AgentEventService notification click', () => {
     service?.stop();
   });
 
-  it('click handler focuses window and sends focus-task IPC for main PTY', async () => {
-    const ptyId = makePtyId('claude', 'main', 'task-123');
+  it('click handler focuses window and sends focus-task IPC', async () => {
+    const convId = 'conv-123';
+    const ptyId = makePtyId('claude', convId);
     const status = await postEvent(service.getPort(), service.getToken(), ptyId, 'stop');
     expect(status).toBe(200);
     expect(notificationInstances).toHaveLength(1);
@@ -135,11 +137,14 @@ describe('AgentEventService notification click', () => {
     expect(mockWin.show).toHaveBeenCalled();
     expect(mockWin.focus).toHaveBeenCalled();
     expect(mockWin.restore).not.toHaveBeenCalled();
-    expect(mockWin.webContents.send).toHaveBeenCalledWith('notification:focus-task', 'task-123');
+    expect(mockWin.webContents.send).toHaveBeenCalledWith(
+      'notification:focus-task',
+      `task-for-${convId}`
+    );
   });
 
   it('restores minimized window on click', async () => {
-    const ptyId = makePtyId('claude', 'main', 'task-456');
+    const ptyId = makePtyId('claude', 'conv-456');
     await postEvent(service.getPort(), service.getToken(), ptyId, 'stop');
 
     const mockWin = {
@@ -157,8 +162,8 @@ describe('AgentEventService notification click', () => {
     expect(mockWin.restore).toHaveBeenCalled();
   });
 
-  it('does not send focus-task IPC for chat PTY', async () => {
-    const ptyId = makePtyId('claude', 'chat', 'conv-789');
+  it('shows notification for permission prompt event', async () => {
+    const ptyId = makePtyId('claude', 'conv-789');
     await postEvent(service.getPort(), service.getToken(), ptyId, 'notification', {
       notification_type: 'permission_prompt',
     });

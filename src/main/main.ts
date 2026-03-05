@@ -119,6 +119,7 @@ import { databaseService, DatabaseSchemaMismatchError } from './services/Databas
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { ptyPoolService } from './services/PtyPoolService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
@@ -356,6 +357,8 @@ app.on('before-quit', () => {
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});
+  // Kill all pre-warmed pool PTYs
+  ptyPoolService.cleanup();
 
   // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});

@@ -4,6 +4,7 @@ import { databaseService } from '../services/DatabaseService';
 import type { Conversation, Message, Project, Task } from '../services/DatabaseService';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { log } from '../lib/logger';
+import { cleanupTaskPtys, cleanupConversationPty } from '../services/ptyCleanup';
 
 export const databaseController = createRPCController({
   getProjects: (): Promise<Project[]> => databaseService.getProjects(),
@@ -18,9 +19,15 @@ export const databaseController = createRPCController({
 
   deleteProject: (projectId: string): Promise<void> => databaseService.deleteProject(projectId),
 
-  deleteTask: (taskId: string): Promise<void> => databaseService.deleteTask(taskId),
+  deleteTask: async (taskId: string): Promise<void> => {
+    await cleanupTaskPtys(taskId);
+    await databaseService.deleteTask(taskId);
+  },
 
-  archiveTask: (taskId: string): Promise<void> => databaseService.archiveTask(taskId),
+  archiveTask: async (taskId: string): Promise<void> => {
+    await cleanupTaskPtys(taskId);
+    await databaseService.archiveTask(taskId);
+  },
 
   restoreTask: (taskId: string): Promise<void> => databaseService.restoreTask(taskId),
 
@@ -44,8 +51,11 @@ export const databaseController = createRPCController({
   }): Promise<Conversation> =>
     databaseService.createConversation(args.taskId, args.title, args.provider, args.isMain),
 
-  deleteConversation: (conversationId: string): Promise<void> =>
-    databaseService.deleteConversation(conversationId),
+  deleteConversation: async (conversationId: string): Promise<void> => {
+    const conv = await databaseService.getConversationById(conversationId);
+    if (conv?.provider) cleanupConversationPty(conversationId, conv.provider);
+    await databaseService.deleteConversation(conversationId);
+  },
 
   reorderConversations: (args: { taskId: string; conversationIds: string[] }): Promise<void> =>
     databaseService.reorderConversations(args.taskId, args.conversationIds),

@@ -51,28 +51,32 @@ const KanbanBoard: React.FC<{
       offs.push(off);
 
       // Auto-complete: when activity goes idle, schedule move to Done after a grace period.
-      const un = activityStore.subscribe(ws.id, (isBusy) => {
-        const existing = idleTimers.get(ws.id);
-        if (isBusy) {
-          if (existing) {
-            clearTimeout(existing);
-            idleTimers.delete(ws.id);
+      const un = activityStore.subscribe(
+        ws.id,
+        ({ busy: isBusy }) => {
+          const existing = idleTimers.get(ws.id);
+          if (isBusy) {
+            if (existing) {
+              clearTimeout(existing);
+              idleTimers.delete(ws.id);
+            }
+            return;
           }
-          return;
-        }
-        // schedule auto-move to done if currently in-progress
-        if (existing) clearTimeout(existing);
-        const t = setTimeout(() => {
-          setStatusMap((prev) => {
-            const cur = prev[ws.id] || 'todo';
-            if (cur !== 'in-progress') return prev;
-            setStatus(ws.id, 'done');
-            return { ...prev, [ws.id]: 'done' };
-          });
-          idleTimers.delete(ws.id);
-        }, 10_000);
-        idleTimers.set(ws.id, t as any);
-      });
+          // schedule auto-move to done if currently in-progress
+          if (existing) clearTimeout(existing);
+          const t = setTimeout(() => {
+            setStatusMap((prev) => {
+              const cur = prev[ws.id] || 'todo';
+              if (cur !== 'in-progress') return prev;
+              setStatus(ws.id, 'done');
+              return { ...prev, [ws.id]: 'done' };
+            });
+            idleTimers.delete(ws.id);
+          }, 10_000);
+          idleTimers.set(ws.id, t as any);
+        },
+        []
+      );
       offs.push(un);
     }
 
@@ -83,9 +87,13 @@ const KanbanBoard: React.FC<{
           ptyExitChannel,
           () => {
             let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
+            const un = activityStore.subscribe(
+              ws.id,
+              ({ busy: b }) => {
+                currentlyBusy = b;
+              },
+              []
+            );
             un?.();
             if (currentlyBusy) return;
             setStatusMap((prev) => {
@@ -130,9 +138,13 @@ const KanbanBoard: React.FC<{
           if (hasChanges && !cancelled) {
             // Do not auto-complete while busy
             let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
+            const un = activityStore.subscribe(
+              ws.id,
+              ({ busy: b }) => {
+                currentlyBusy = b;
+              },
+              []
+            );
             un?.();
             if (currentlyBusy) continue;
             setStatusMap((prev) => {
@@ -181,9 +193,13 @@ const KanbanBoard: React.FC<{
           if (hasPr && !cancelled) {
             // Do not auto-complete while busy
             let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
+            const un = activityStore.subscribe(
+              ws.id,
+              ({ busy: b }) => {
+                currentlyBusy = b;
+              },
+              []
+            );
             un?.();
             if (currentlyBusy) continue;
             setStatusMap((prev) => {
@@ -233,9 +249,13 @@ const KanbanBoard: React.FC<{
           }
           if (ahead > 0 && !cancelled) {
             let currentlyBusy = false;
-            const un = activityStore.subscribe(ws.id, (b) => {
-              currentlyBusy = b;
-            });
+            const un = activityStore.subscribe(
+              ws.id,
+              ({ busy: b }) => {
+                currentlyBusy = b;
+              },
+              []
+            );
             un?.();
             if (currentlyBusy) continue;
             setStatusMap((prev) => {

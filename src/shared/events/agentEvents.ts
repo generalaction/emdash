@@ -11,6 +11,9 @@ export type NotificationType =
 export interface AgentEvent {
   type: AgentEventType;
   ptyId: string;
+  /** The conversation that triggered this event. */
+  conversationId: string;
+  /** The task that owns this conversation. */
   taskId: string;
   providerId: string;
   timestamp: number;
