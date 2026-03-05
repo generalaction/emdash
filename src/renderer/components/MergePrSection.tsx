@@ -186,6 +186,15 @@ export function MergePrSection({
     (mergeState === 'BLOCKED' || mergeState === 'HAS_HOOKS' || mergeState === 'UNSTABLE');
 
   const isAutoMergeEnabled = !!activePr?.autoMergeRequest;
+  const autoMergeMethod = activePr?.autoMergeRequest?.mergeMethod?.toUpperCase();
+  const autoMergeLabel =
+    autoMergeMethod === 'SQUASH'
+      ? 'squash'
+      : autoMergeMethod === 'REBASE'
+        ? 'rebase'
+        : autoMergeMethod === 'MERGE'
+          ? 'merge'
+          : null;
   // Show automerge option when PR is blocked by checks/protections (not conflicts or draft)
   const showAutoMerge =
     mergeUiState &&
@@ -255,6 +264,7 @@ export function MergePrSection({
 
   const toggleAutoMerge = async () => {
     setIsTogglingAutoMerge(true);
+    let succeeded = false;
     try {
       if (isAutoMergeEnabled) {
         const res = await window.electronAPI.disableAutoMerge({
@@ -263,6 +273,7 @@ export function MergePrSection({
         });
         if (res?.success) {
           toast({ title: 'Auto-merge disabled' });
+          succeeded = true;
         } else {
           toast({
             title: 'Failed to disable auto-merge',
@@ -281,6 +292,7 @@ export function MergePrSection({
             title: 'Auto-merge enabled',
             description: `Will ${strategy} when all checks pass.`,
           });
+          succeeded = true;
         } else {
           toast({
             title: 'Failed to enable auto-merge',
@@ -289,7 +301,6 @@ export function MergePrSection({
           });
         }
       }
-      await refreshPr();
     } catch {
       toast({
         title: 'Auto-merge toggle failed',
@@ -298,6 +309,9 @@ export function MergePrSection({
       });
     } finally {
       setIsTogglingAutoMerge(false);
+    }
+    if (succeeded) {
+      await refreshPr();
     }
   };
 
@@ -315,7 +329,7 @@ export function MergePrSection({
             {isAutoMergeEnabled ? (
               <Badge variant="outline">
                 <Timer className="h-3 w-3 text-amber-500" />
-                Auto-merge
+                Auto-merge{autoMergeLabel ? ` (${autoMergeLabel})` : ''}
               </Badge>
             ) : (
               <StatusBadge state={mergeUiState} />
@@ -325,7 +339,7 @@ export function MergePrSection({
         {isAutoMergeEnabled && (
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Will merge automatically when all checks pass
+              Will {autoMergeLabel ?? 'merge'} automatically when all checks pass
             </div>
             <Button
               variant="ghost"
