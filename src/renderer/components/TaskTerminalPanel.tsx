@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Plus, Play, Square, X } from 'lucide-react';
+import { Plus, Play, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { useTerminalSelection } from '../hooks/useTerminalSelection';
@@ -38,6 +38,7 @@ interface Props {
   agent?: Agent;
   className?: string;
   projectPath?: string;
+  fallbackCwd?: string;
   remote?: {
     connectionId: string;
     projectPath?: string;
@@ -53,6 +54,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   agent,
   className,
   projectPath,
+  fallbackCwd,
   remote,
   defaultBranch,
   portSeed,
@@ -64,8 +66,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
   // Global terminals are scoped per variant (or project when no task) so each
   // agent worktree gets its own global terminal and simultaneous variants don't conflict.
-  const globalKey = task?.path ? `global::${task.path}` : `global::${projectPath}`;
-  const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
+  const effectiveCwd = projectPath || fallbackCwd;
+  const globalKey = task?.path ? `global::${task.path}` : `global::${effectiveCwd || 'home'}`;
+  const globalTerminals = useTaskTerminals(globalKey, effectiveCwd, { defaultCwd: effectiveCwd });
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
@@ -245,7 +248,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const isRunSelection = !selection.selectedLifecycle || selection.selectedLifecycle === 'run';
   const selectedTerminalScope = useMemo(() => {
     if (selection.parsed?.mode === 'task') return 'WORKTREE';
-    if (selection.parsed?.mode === 'global') return 'GLOBAL';
+    if (selection.parsed?.mode === 'global') return 'PROJECT';
     return null;
   }, [selection.parsed?.mode]);
 
@@ -401,18 +404,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     return { ...defaultTheme, ...nativeTheme };
   }, [nativeTheme, defaultTheme]);
 
-  if (!task && !projectPath) {
-    return (
-      <div className={`flex h-full flex-col items-center justify-center bg-muted ${className}`}>
-        <Bot className="mb-2 h-8 w-8 text-muted-foreground" />
-        <h3 className="mb-1 text-sm text-muted-foreground">No Task Selected</h3>
-        <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
-          Select a task to view its terminal
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
@@ -465,10 +456,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               </SelectGroup>
             )}
 
-            {projectPath && (
+            {(projectPath || fallbackCwd || (!task && !projectPath)) && (
               <SelectGroup>
                 <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">Global</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground">Project</span>
                   <button
                     type="button"
                     className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -479,10 +470,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         const { captureTelemetry } = await import('../lib/telemetryClient');
                         captureTelemetry('terminal_new_terminal_created', { scope: 'global' });
                       })();
-                      const newId = globalTerminals.createTerminal({ cwd: projectPath });
+                      const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
                       selection.onCreateTerminal('global', newId);
                     }}
-                    title="New global terminal"
+                    title="New project terminal"
                   >
                     <Plus className="h-3 w-3" />
                   </button>
@@ -684,7 +675,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 <TerminalPane
                   ref={(r) => setTerminalRef(terminal.id, r)}
                   id={terminal.id}
-                  cwd={terminal.cwd || projectPath}
+                  cwd={terminal.cwd || projectPath || fallbackCwd}
                   remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
                   variant={
                     effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
