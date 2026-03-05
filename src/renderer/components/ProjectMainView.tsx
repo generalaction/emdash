@@ -355,6 +355,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
   const [requiresDeleteAcknowledge, setRequiresDeleteAcknowledge] = useState(false);
   const [showDeleteWarnings, setShowDeleteWarnings] = useState(false);
+  const [showDeleteActionSpinner, setShowDeleteActionSpinner] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
@@ -698,6 +699,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       setRequiresDeleteAcknowledge(false);
       setShowDeleteWarnings(false);
       setIsCheckingDeleteRisks(false);
+      setShowDeleteActionSpinner(false);
     }
   }, [showDeleteDialog]);
 
@@ -706,6 +708,16 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     setRequiresDeleteAcknowledge(false);
     setShowDeleteWarnings(false);
   }, [selectedIds]);
+
+  useEffect(() => {
+    const busy = isDeleting || isCheckingDeleteRisks;
+    if (!busy) {
+      setShowDeleteActionSpinner(false);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setShowDeleteActionSpinner(true), 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [isCheckingDeleteRisks, isDeleting]);
 
   // Sync baseBranch when branchOptions change
   useEffect(() => {
@@ -1132,9 +1144,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
               onClick={handleConfirmBulkDelete}
               disabled={deleteDisabled}
             >
-              {isDeleting || isCheckingDeleteRisks ? (
-                <Spinner className="mr-2 h-4 w-4" size="sm" />
-              ) : null}
+              {showDeleteActionSpinner ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

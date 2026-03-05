@@ -66,6 +66,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   const [showWarnings, setShowWarnings] = React.useState(false);
   const [requiresAcknowledge, setRequiresAcknowledge] = React.useState(false);
   const [isCheckingRisks, setIsCheckingRisks] = React.useState(false);
+  const [showActionSpinner, setShowActionSpinner] = React.useState(false);
   const targets = useMemo(
     () => [{ id: taskId, name: taskName, path: taskPath }],
     [taskId, taskName, taskPath]
@@ -107,8 +108,19 @@ export const TaskDeleteButton: React.FC<Props> = ({
       setShowWarnings(false);
       setRequiresAcknowledge(false);
       setIsCheckingRisks(false);
+      setShowActionSpinner(false);
     }
   }, [open]);
+
+  React.useEffect(() => {
+    const busy = isDeleting || isCheckingRisks;
+    if (!busy) {
+      setShowActionSpinner(false);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setShowActionSpinner(true), 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [isCheckingRisks, isDeleting]);
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -258,7 +270,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
               } catch {}
             }}
           >
-            {isDeleting || isCheckingRisks ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
+            {showActionSpinner ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>
