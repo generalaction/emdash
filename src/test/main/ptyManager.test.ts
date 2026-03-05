@@ -8,6 +8,8 @@ const fsWriteFileSyncMock = vi.fn();
 const fsStatSyncMock = vi.fn();
 const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
+const agentEventGetPortMock = vi.fn(() => 0);
+const agentEventGetTokenMock = vi.fn(() => '');
 
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
@@ -56,8 +58,8 @@ vi.mock('electron', () => ({
 
 vi.mock('../../main/services/AgentEventService', () => ({
   agentEventService: {
-    getPort: () => 0,
-    getToken: () => '',
+    getPort: () => agentEventGetPortMock(),
+    getToken: () => agentEventGetTokenMock(),
   },
 }));
 
@@ -70,6 +72,8 @@ describe('ptyManager provider command resolution', () => {
       path: '/usr/local/bin/codex',
     });
     getProviderCustomConfigMock.mockReturnValue(undefined);
+    agentEventGetPortMock.mockReturnValue(0);
+    agentEventGetTokenMock.mockReturnValue('');
   });
 
   it('resolves provider command config from custom settings', async () => {
@@ -191,6 +195,21 @@ describe('ptyManager provider command resolution', () => {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
       }
     }
+  });
+
+  it('adds Codex notify runtime config when hooks are enabled', async () => {
+    agentEventGetPortMock.mockReturnValue(43123);
+    agentEventGetTokenMock.mockReturnValue('hook-token');
+
+    const { getProviderRuntimeCliArgs } = await import('../../main/services/ptyManager');
+    const args = getProviderRuntimeCliArgs({
+      providerId: 'codex',
+    });
+
+    expect(args).toContain('-c');
+    const notifyArg = args.find((arg) => arg.startsWith('notify='));
+    expect(notifyArg).toContain('X-Emdash-Event-Type: notification');
+    expect(notifyArg).toContain('$EMDASH_HOOK_PORT');
   });
 });
 

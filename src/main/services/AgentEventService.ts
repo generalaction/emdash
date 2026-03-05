@@ -66,17 +66,28 @@ class AgentEventService {
             return;
           }
 
-          // Body is the raw Claude Code hook payload JSON
+          // Body is the raw provider hook payload JSON
           const raw = body ? JSON.parse(body) : {};
 
           // Normalize snake_case fields from provider hooks to camelCase
           const normalizedPayload = {
             ...raw,
-            notificationType: raw.notification_type ?? raw.notificationType,
-            lastAssistantMessage: raw.last_assistant_message ?? raw.lastAssistantMessage,
+            notificationType:
+              raw.notification_type ??
+              raw.notificationType ??
+              (type === 'notification' &&
+              parsed.providerId === 'codex' &&
+              raw.type === 'agent-turn-complete'
+                ? 'idle_prompt'
+                : undefined),
+            lastAssistantMessage:
+              raw.last_assistant_message ??
+              raw.lastAssistantMessage ??
+              raw['last-assistant-message'],
           };
           delete normalizedPayload.notification_type;
           delete normalizedPayload.last_assistant_message;
+          delete normalizedPayload['last-assistant-message'];
 
           const event: AgentEvent = {
             type: type as AgentEvent['type'],

@@ -523,6 +523,12 @@ type ProviderCliArgsOptions = {
   useKeystrokeInjection?: boolean;
 };
 
+type ProviderRuntimeCliArgsOptions = {
+  providerId: string;
+  target?: 'local' | 'remote';
+  platform?: NodeJS.Platform;
+};
+
 export function resolveProviderCommandConfig(
   providerId: string
 ): ResolvedProviderCommandConfig | null {
@@ -603,6 +609,60 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
   }
 
   return args;
+}
+
+function makePosixCodexNotifyCommand(): string[] {
+  const script =
+    `printf '%s' "$1" | ` +
+    `curl -sf -X POST ` +
+    `-H 'Content-Type: application/json' ` +
+    `-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ` +
+    `-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ` +
+    `-H 'X-Emdash-Event-Type: notification' ` +
+    `-d @- ` +
+    `"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true`;
+
+  return ['sh', '-lc', script, 'sh'];
+}
+
+function makeWindowsCodexNotifyCommand(): string[] {
+  const script =
+    `$payload = $args[0]; ` +
+    `try { ` +
+    `Invoke-WebRequest -UseBasicParsing -Method POST ` +
+    `-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') ` +
+    `-Headers @{ ` +
+    `'Content-Type' = 'application/json'; ` +
+    `'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; ` +
+    `'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; ` +
+    `'X-Emdash-Event-Type' = 'notification' ` +
+    `} -Body $payload | Out-Null ` +
+    `} catch { exit 0 }`;
+
+  return ['powershell.exe', '-NoProfile', '-Command', script];
+}
+
+function makeCodexNotifyConfigValue(target: 'local' | 'remote', platform: NodeJS.Platform): string {
+  const notifyCommand =
+    target === 'remote' || platform !== 'win32'
+      ? makePosixCodexNotifyCommand()
+      : makeWindowsCodexNotifyCommand();
+
+  return `notify=${JSON.stringify(notifyCommand)}`;
+}
+
+export function getProviderRuntimeCliArgs(options: ProviderRuntimeCliArgsOptions): string[] {
+  const { providerId, target = 'local', platform = process.platform } = options;
+
+  if (providerId !== 'codex') {
+    return [];
+  }
+
+  if (agentEventService.getPort() <= 0) {
+    return [];
+  }
+
+  return ['-c', makeCodexNotifyConfigValue(target, platform)];
 }
 
 const resolvedCommandPathCache = new Map<string, string | null>();
@@ -905,6 +965,7 @@ export function startDirectPty(options: {
         useKeystrokeInjection: provider.useKeystrokeInjection,
       })
     );
+    cliArgs.push(...getProviderRuntimeCliArgs({ providerId }));
   }
 
   // Build minimal environment - just what the CLI needs
@@ -1161,6 +1222,7 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
+        cliArgs.push(...getProviderRuntimeCliArgs({ providerId: provider.id }));
 
         if (resolvedConfig?.env) {
           for (const [k, v] of Object.entries(resolvedConfig.env)) {
