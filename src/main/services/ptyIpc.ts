@@ -182,15 +182,15 @@ function buildRemoteInitKeystrokes(args: {
       // tmux new-session -As creates-or-attaches in one command.
       // Falls back to running without tmux if tmux isn't installed on the remote.
       const tmuxName = quoteShellArg(args.tmux.sessionName);
-      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(providerCmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -ilc ${quoteShellArg(providerCmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
-      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+      lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
     } else {
       const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${providerCmd}; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
-      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+      lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
     }
   }
 
