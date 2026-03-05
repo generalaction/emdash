@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { Separator } from './ui/separator';
-import type { SettingsPageTab } from '../hooks/useModalState';
 import type { CliAgentStatus } from '../types/connections';
-import { BASE_CLI_AGENTS } from './CliAgentsList';
+import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
 import { Button } from './ui/button';
 
 // Import existing settings cards
@@ -23,10 +22,18 @@ import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
+import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
-import CliAgentsList from './CliAgentsList';
 import { useTaskSettings } from '../hooks/useTaskSettings';
+
+export type SettingsPageTab =
+  | 'general'
+  | 'clis-models'
+  | 'integrations'
+  | 'repository'
+  | 'interface'
+  | 'docs';
 
 // Helper functions from SettingsModal
 const createDefaultCliAgents = (): CliAgentStatus[] =>
@@ -88,7 +95,7 @@ interface SectionConfig {
   component: React.ReactNode;
 }
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const taskSettings = useTaskSettings();
@@ -245,6 +252,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
             <div className="flex flex-col gap-8 rounded-xl border border-muted p-4">
               <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
+              <TaskHoverActionCard />
             </div>
           ),
         },
@@ -350,5 +358,3 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
     </div>
   );
 };
-
-export default SettingsPage;

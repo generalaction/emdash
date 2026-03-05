@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Spinner } from '../ui/spinner';
@@ -45,7 +45,6 @@ type TestStatus = 'idle' | 'testing' | 'success' | 'error';
 type RepoMode = 'pick' | 'create' | 'clone';
 
 interface AddRemoteProjectModalProps {
-  isOpen: boolean;
   onClose: () => void;
   onSuccess: (project: {
     id: string;
@@ -85,7 +84,6 @@ interface FormErrors {
 }
 
 export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
-  isOpen,
   onClose,
   onSuccess,
 }) => {
@@ -151,51 +149,50 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   });
 
   // Reset form when modal opens and load SSH config
+  // Reset form and load data on mount (component only mounts when modal is open)
   useEffect(() => {
-    if (isOpen) {
-      setCurrentStep('connection');
-      setFormData({
-        name: '',
-        host: '',
-        port: 22,
-        username: '',
-        authType: 'password',
-        password: '',
-        privateKeyPath: '',
-        passphrase: '',
-        remotePath: '',
-      });
-      setErrors({});
-      setTouched({});
-      setTestStatus('idle');
-      setTestResult(null);
-      setDebugLogs([]);
-      setDebugLogsOpen(false);
-      setDebugLogsCopied(false);
-      setFileEntries([]);
-      setBrowseError(null);
-      setConnectionId(null);
-      setSshConfigSelection('');
-      setSavedConnections([]);
-      setSelectedSavedConnection(null);
-      setUseExistingConnection(false);
-      setRepoMode('pick');
-      setNewRepoName('');
-      setCloneUrl('');
-      setCloneDirName('');
-      setCloneDirManuallyEdited(false);
-      setIsCreatingRepo(false);
-      setIsCloningRepo(false);
+    setCurrentStep('connection');
+    setFormData({
+      name: '',
+      host: '',
+      port: 22,
+      username: '',
+      authType: 'password',
+      password: '',
+      privateKeyPath: '',
+      passphrase: '',
+      remotePath: '',
+    });
+    setErrors({});
+    setTouched({});
+    setTestStatus('idle');
+    setTestResult(null);
+    setDebugLogs([]);
+    setDebugLogsOpen(false);
+    setDebugLogsCopied(false);
+    setFileEntries([]);
+    setBrowseError(null);
+    setConnectionId(null);
+    setSshConfigSelection('');
+    setSavedConnections([]);
+    setSelectedSavedConnection(null);
+    setUseExistingConnection(false);
+    setRepoMode('pick');
+    setNewRepoName('');
+    setCloneUrl('');
+    setCloneDirName('');
+    setCloneDirManuallyEdited(false);
+    setIsCreatingRepo(false);
+    setIsCloningRepo(false);
 
-      // Load SSH config hosts and saved connections
-      void loadSshConfig();
-      void loadSavedConnections();
+    // Load SSH config hosts and saved connections
+    void loadSshConfig();
+    void loadSavedConnections();
 
-      import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-        captureTelemetry('remote_project_modal_opened');
-      });
-    }
-  }, [isOpen]);
+    import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('remote_project_modal_opened');
+    });
+  }, []);
 
   // Load SSH config from ~/.ssh/config
   const loadSshConfig = useCallback(async () => {
@@ -790,18 +787,12 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   ]);
 
   // Handle close
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open && !isSubmitting) {
-        // Clean up connection if we're closing
-        if (connectionId) {
-          void window.electronAPI.sshDisconnect(connectionId);
-        }
-        onClose();
-      }
-    },
-    [isSubmitting, connectionId, onClose]
-  );
+  const handleClose = useCallback(() => {
+    if (connectionId) {
+      void window.electronAPI.sshDisconnect(connectionId);
+    }
+    onClose();
+  }, [connectionId, onClose]);
 
   // Step indicators — omit auth step when reusing an existing connection
   const steps: { id: WizardStep; label: string; icon: React.ElementType }[] = useExistingConnection
@@ -1120,7 +1111,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const result = await window.electronAPI.openProject();
+                          const result = await window.electronAPI.openFile({
+                            title: 'Select SSH Private Key',
+                            message: 'Select your SSH private key file',
+                          });
                           if (result.success && result.path) {
                             updateField('privateKeyPath', result.path);
                           }
@@ -1517,142 +1511,147 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg md:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Add Remote Project</DialogTitle>
-          <DialogDescription>
-            Connect to a remote server via SSH to work on your project.
-          </DialogDescription>
-        </DialogHeader>
+    <DialogContent
+      className="max-w-lg md:max-w-2xl"
+      onInteractOutside={(e) => {
+        if (isSubmitting) e.preventDefault();
+        else handleClose();
+      }}
+      onEscapeKeyDown={(e) => {
+        if (isSubmitting) e.preventDefault();
+        else handleClose();
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Add Remote Project</DialogTitle>
+        <DialogDescription>
+          Connect to a remote server via SSH to work on your project.
+        </DialogDescription>
+      </DialogHeader>
 
-        <Separator />
+      <Separator />
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 py-2">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            const isActive = index === currentStepIndex;
-            const isCompleted = index < currentStepIndex;
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 py-2">
+        {steps.map((step, index) => {
+          const Icon = step.icon;
+          const isActive = index === currentStepIndex;
+          const isCompleted = index < currentStepIndex;
 
-            return (
-              <React.Fragment key={step.id}>
-                <div
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-sm border-2 text-xs font-medium',
-                    isActive && 'border-primary bg-primary text-primary-foreground',
-                    isCompleted && 'border-primary bg-primary/10 text-primary',
-                    !isActive && !isCompleted && 'border-muted text-muted-foreground'
-                  )}
-                >
-                  {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                </div>
-                {index < steps.length - 1 && (
-                  <ChevronRight
-                    className={cn(
-                      'h-4 w-4',
-                      isCompleted ? 'text-primary' : 'text-muted-foreground'
-                    )}
-                  />
+          return (
+            <React.Fragment key={step.id}>
+              <div
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-sm border-2 text-xs font-medium',
+                  isActive && 'border-primary bg-primary text-primary-foreground',
+                  isCompleted && 'border-primary bg-primary/10 text-primary',
+                  !isActive && !isCompleted && 'border-muted text-muted-foreground'
                 )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+              >
+                {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+              </div>
+              {index < steps.length - 1 && (
+                <ChevronRight
+                  className={cn('h-4 w-4', isCompleted ? 'text-primary' : 'text-muted-foreground')}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
 
-        {/* Step title */}
-        <div>
-          <h3 className="text-lg font-medium">{steps[currentStepIndex]?.label}</h3>
-        </div>
+      {/* Step title */}
+      <div>
+        <h3 className="text-lg font-medium">{steps[currentStepIndex]?.label}</h3>
+      </div>
 
-        {/* Error display (hidden on auth step where test result badge already shows it) */}
-        {errors.general && currentStep !== 'auth' && (
-          <Badge
-            variant="outline"
-            className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
-          >
-            <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-            <span className="whitespace-pre-wrap break-words">{errors.general}</span>
-          </Badge>
-        )}
-
-        {/* Step content */}
-        <div className="min-w-0 py-2">{renderStepContent()}</div>
-
-        {/* Navigation buttons */}
-        <div
-          className={cn(
-            'flex gap-2',
-            currentStep === 'connection' ? 'justify-end' : 'justify-between'
-          )}
+      {/* Error display (hidden on auth step where test result badge already shows it) */}
+      {errors.general && currentStep !== 'auth' && (
+        <Badge
+          variant="outline"
+          className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
         >
-          <Button
-            type="button"
-            variant="outline"
-            onClick={currentStep === 'connection' ? onClose : handleBack}
-            disabled={isSubmitting}
-          >
-            {currentStep === 'connection' ? (
-              'Cancel'
+          <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+          <span className="whitespace-pre-wrap break-words">{errors.general}</span>
+        </Badge>
+      )}
+
+      {/* Step content */}
+      <div className="min-w-0 py-2">{renderStepContent()}</div>
+
+      {/* Navigation buttons */}
+      <div
+        className={cn(
+          'flex gap-2',
+          currentStep === 'connection' ? 'justify-end' : 'justify-between'
+        )}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          onClick={currentStep === 'connection' ? onClose : handleBack}
+          disabled={isSubmitting}
+        >
+          {currentStep === 'connection' ? (
+            'Cancel'
+          ) : (
+            <>
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Back
+            </>
+          )}
+        </Button>
+
+        {currentStep === 'confirm' ? (
+          <Button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Saving...
+              </>
             ) : (
               <>
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                Back
+                <Check className="mr-1 h-4 w-4" />
+                {useExistingConnection ? 'Add Project' : 'Save Connection'}
               </>
             )}
           </Button>
-
-          {currentStep === 'confirm' ? (
-            <Button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Check className="mr-1 h-4 w-4" />
-                  {useExistingConnection ? 'Add Project' : 'Save Connection'}
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => void handleNext()}
-              disabled={
-                isSubmitting ||
-                (currentStep === 'auth' && testStatus === 'testing') ||
-                isCreatingRepo ||
-                isCloningRepo
-              }
-            >
-              {currentStep === 'auth' && testStatus === 'testing' ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  Testing...
-                </>
-              ) : isCreatingRepo ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : isCloningRepo ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  Cloning...
-                </>
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        ) : (
+          <Button
+            type="button"
+            onClick={() => void handleNext()}
+            disabled={
+              isSubmitting ||
+              (currentStep === 'auth' && testStatus === 'testing') ||
+              isCreatingRepo ||
+              isCloningRepo
+            }
+          >
+            {currentStep === 'auth' && testStatus === 'testing' ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Testing...
+              </>
+            ) : isCreatingRepo ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : isCloningRepo ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Cloning...
+              </>
+            ) : (
+              <>
+                Next
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </DialogContent>
   );
 };
 

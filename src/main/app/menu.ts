@@ -65,7 +65,13 @@ export function setupApplicationMenu(): void {
               { type: 'separator' as const },
             ]
           : []),
-        isMac ? { role: 'close' as const } : { role: 'quit' as const },
+        isMac
+          ? {
+              label: 'Close Tab',
+              accelerator: 'CmdOrCtrl+W',
+              click: () => sendToRenderer('menu:close-tab'),
+            }
+          : { role: 'quit' as const },
       ],
     },
     // Edit menu
@@ -95,6 +101,8 @@ export function setupApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
+        { role: 'reload' as const },
+        { role: 'forceReload' as const },
         { role: 'toggleDevTools' as const },
         { type: 'separator' as const },
         { role: 'resetZoom' as const },

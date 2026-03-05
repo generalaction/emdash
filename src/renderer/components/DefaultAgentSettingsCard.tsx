@@ -1,49 +1,24 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { AgentSelector } from './AgentSelector';
 import type { Agent } from '../types';
 import { isValidProviderId } from '@shared/providers/registry';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
 const DefaultAgentSettingsCard: React.FC = () => {
-  const [defaultAgent, setDefaultAgent] = useState<Agent>(DEFAULT_AGENT);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
+  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
 
-  const load = useCallback(async () => {
-    try {
-      const res = await window.electronAPI.getSettings();
-      if (res?.success && res.settings?.defaultProvider) {
-        const agent = res.settings.defaultProvider;
-        setDefaultAgent(isValidProviderId(agent) ? (agent as Agent) : DEFAULT_AGENT);
-      } else {
-        setDefaultAgent(DEFAULT_AGENT);
-      }
-    } catch {
-      setDefaultAgent(DEFAULT_AGENT);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const defaultAgent: Agent = isValidProviderId(settings?.defaultProvider)
+    ? (settings!.defaultProvider as Agent)
+    : DEFAULT_AGENT;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const save = useCallback(async (agent: Agent) => {
-    setSaving(true);
+  const handleChange = (agent: Agent) => {
     void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('default_agent_changed', { agent });
     });
-    try {
-      const res = await window.electronAPI.updateSettings({ defaultProvider: agent });
-      if (res?.success && res.settings?.defaultProvider) {
-        setDefaultAgent(res.settings.defaultProvider as Agent);
-      }
-    } finally {
-      setSaving(false);
-    }
-  }, []);
+    updateSettings({ defaultProvider: agent });
+  };
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -56,10 +31,7 @@ const DefaultAgentSettingsCard: React.FC = () => {
       <div className="w-[183px] flex-shrink-0">
         <AgentSelector
           value={defaultAgent}
-          onChange={(agent) => {
-            setDefaultAgent(agent);
-            void save(agent);
-          }}
+          onChange={handleChange}
           disabled={loading || saving}
           className="w-full"
         />

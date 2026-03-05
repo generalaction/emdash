@@ -15,7 +15,7 @@ import { registerUpdateIpc } from '../services/updateIpc';
 import { registerTelemetryIpc } from './telemetryIpc';
 import { registerJiraIpc } from './jiraIpc';
 import { registerPlanLockIpc } from '../services/planLockIpc';
-import { registerSettingsIpc } from './settingsIpc';
+import { appSettingsController } from './settingsIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
@@ -24,9 +24,11 @@ import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
+import { registerGitlabIpc } from './gitlabIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
+  appSettings: appSettingsController,
 });
 
 export type RpcRouter = typeof rpcRouter;
@@ -40,7 +42,6 @@ export function registerAllIpc() {
   registerDebugIpc();
   registerTelemetryIpc();
   registerUpdateIpc();
-  registerSettingsIpc();
 
   // Domain IPC
   registerProjectIpc();
@@ -63,4 +64,5 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerGitlabIpc();
 }

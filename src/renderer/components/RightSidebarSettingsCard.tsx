@@ -1,40 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Switch } from './ui/switch';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const RightSidebarSettingsCard: React.FC = () => {
-  const [autoRightSidebarBehavior, setAutoRightSidebarBehavior] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { settings, updateSettings, isLoading: loading } = useAppSettings();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await window.electronAPI.getSettings();
-        if (result.success && result.settings) {
-          setAutoRightSidebarBehavior(
-            Boolean(result.settings.interface?.autoRightSidebarBehavior ?? false)
-          );
-        }
-      } catch (error) {
-        console.error('Failed to load right sidebar settings:', error);
-      }
-      setLoading(false);
-    })();
-  }, []);
+  const { interface: interfaceSettings } = settings ?? {};
 
-  const updateAutoRightSidebarBehavior = async (next: boolean) => {
-    setAutoRightSidebarBehavior(next);
-    try {
-      await window.electronAPI.updateSettings({
-        interface: { autoRightSidebarBehavior: next },
-      });
-      // Dispatch custom event to notify App.tsx of the setting change
-      window.dispatchEvent(
-        new CustomEvent('autoRightSidebarBehaviorChanged', { detail: { enabled: next } })
-      );
-    } catch (error) {
-      console.error('Failed to update right sidebar setting:', error);
-    }
-  };
+  const autoRightSidebarBehavior = interfaceSettings?.autoRightSidebarBehavior ?? false;
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -48,8 +21,11 @@ const RightSidebarSettingsCard: React.FC = () => {
       </div>
       <Switch
         checked={autoRightSidebarBehavior}
+        defaultChecked={autoRightSidebarBehavior}
         disabled={loading}
-        onCheckedChange={updateAutoRightSidebarBehavior}
+        onCheckedChange={(checked) =>
+          updateSettings({ interface: { autoRightSidebarBehavior: checked } })
+        }
       />
     </div>
   );

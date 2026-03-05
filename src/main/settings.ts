@@ -1,10 +1,16 @@
 import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
-import { homedir } from 'os';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+
+export type DeepPartial<T> = {
+  [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
+};
+
+export type AppSettingsUpdate = DeepPartial<AppSettings>;
 
 const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 const IS_MAC = process.platform === 'darwin';
@@ -47,6 +53,7 @@ export interface KeyboardSettings {
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
+  taskHoverAction?: 'delete' | 'archive';
 }
 
 /**
@@ -101,6 +108,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -172,10 +180,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   interface: {
     autoRightSidebarBehavior: false,
     theme: 'system',
+    taskHoverAction: 'delete',
   },
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -300,9 +310,9 @@ export function getAppSettings(): AppSettings {
 /**
  * Update settings and persist to disk. Partial updates are deeply merged.
  */
-export function updateAppSettings(partial: Partial<AppSettings>): AppSettings {
+export function updateAppSettings(partial: AppSettingsUpdate): AppSettings {
   const current = getAppSettings();
-  const merged = deepMerge(current, partial);
+  const merged = deepMerge(current, partial as Partial<AppSettings>);
   const next = normalizeSettings(merged);
   if (partial.keyboard) {
     assertNoKeyboardShortcutConflicts(next.keyboard);
@@ -324,7 +334,7 @@ export function persistSettings(settings: AppSettings) {
 /**
  * Coerce and validate settings for robustness and forward-compatibility.
  */
-function normalizeSettings(input: AppSettings): AppSettings {
+export function normalizeSettings(input: AppSettings): AppSettings {
   const out: AppSettings = {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
@@ -486,6 +496,7 @@ function normalizeSettings(input: AppSettings): AppSettings {
     theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
       ? iface.theme
       : DEFAULT_SETTINGS.interface!.theme,
+    taskHoverAction: iface?.taskHoverAction === 'archive' ? 'archive' : 'delete',
   };
 
   // Provider custom configs
@@ -527,7 +538,8 @@ function normalizeSettings(input: AppSettings): AppSettings {
   // Terminal
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
-  out.terminal = { fontFamily };
+  const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
+  out.terminal = { fontFamily, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;

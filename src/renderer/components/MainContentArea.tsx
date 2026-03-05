@@ -5,83 +5,53 @@ import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
-import SettingsPage from './SettingsPage';
+import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
-import type { Agent } from '../types';
-import type { Project, Task } from '../types/app';
-import type { SettingsPageTab } from '../hooks/useModalState';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
 
 interface MainContentAreaProps {
-  selectedProject: Project | null;
-  activeTask: Task | null;
-  activeTaskAgent: Agent | null;
-  isCreatingTask: boolean;
-  onTaskInterfaceReady: () => void;
-  showKanban: boolean;
-  showHomeView: boolean;
-  showSkillsView: boolean;
   showSettingsPage: boolean;
   settingsPageInitialTab?: SettingsPageTab;
   handleCloseSettingsPage?: () => void;
-  projectDefaultBranch: string;
-  projectBranchOptions: Array<{ value: string; label: string }>;
-  isLoadingBranches: boolean;
-  setProjectDefaultBranch: (branch: string) => void;
-  handleSelectTask: (task: Task) => void;
-  handleDeleteTask: (
-    project: Project,
-    task: Task,
-    options?: { silent?: boolean }
-  ) => Promise<boolean>;
-  handleArchiveTask: (
-    project: Project,
-    task: Task,
-    options?: { silent?: boolean }
-  ) => Promise<boolean>;
-  handleRestoreTask?: (project: Project, task: Task) => Promise<void>;
-  handleDeleteProject: (project: Project) => Promise<void>;
-  handleOpenProject: () => void;
-  handleNewProjectClick: () => void;
-  handleCloneProjectClick: () => void;
-  handleAddRemoteProject: () => void;
-  setShowTaskModal: (show: boolean) => void;
-  setShowKanban: (show: boolean) => void;
-  projectRemoteConnectionId?: string | null;
-  projectRemotePath?: string | null;
-  onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
-  selectedProject,
-  activeTask,
-  activeTaskAgent,
-  isCreatingTask,
-  onTaskInterfaceReady,
-  showKanban,
-  showHomeView,
-  showSkillsView,
   showSettingsPage,
   settingsPageInitialTab,
   handleCloseSettingsPage,
-  projectDefaultBranch,
-  projectBranchOptions,
-  isLoadingBranches,
-  setProjectDefaultBranch,
-  handleSelectTask,
-  handleDeleteTask,
-  handleArchiveTask,
-  handleRestoreTask,
-  handleDeleteProject,
-  handleOpenProject,
-  handleNewProjectClick,
-  handleCloneProjectClick,
-  handleAddRemoteProject,
-  setShowTaskModal,
-  setShowKanban,
-  projectRemoteConnectionId,
-  projectRemotePath,
-  onRenameTask,
 }) => {
+  const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
+    useProjectRemoteInfo();
+  const {
+    selectedProject,
+    showHomeView,
+    showSkillsView,
+    showKanban,
+    setShowKanban,
+    projectDefaultBranch,
+    projectBranchOptions,
+    isLoadingBranches,
+    setProjectDefaultBranch,
+    handleDeleteProject,
+    handleOpenProject,
+    handleNewProjectClick,
+    handleCloneProjectClick,
+    handleAddRemoteProject,
+  } = useProjectManagementContext();
+  const {
+    activeTask,
+    activeTaskAgent,
+    isCreatingTask,
+    handleTaskInterfaceReady: onTaskInterfaceReady,
+    openTaskModal,
+    handleSelectTask,
+    handleDeleteTask,
+    handleArchiveTask,
+    handleRestoreTask,
+    handleRenameTask: onRenameTask,
+  } = useTaskManagementContext();
   if (showSettingsPage) {
     return (
       <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-background">
@@ -102,7 +72,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
             handleSelectTask(ws);
             setShowKanban(false);
           }}
-          onCreateTask={() => setShowTaskModal(true)}
+          onCreateTask={() => openTaskModal()}
         />
       </div>
     );
@@ -156,7 +126,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
         ) : (
           <ProjectMainView
             project={selectedProject}
-            onCreateTask={() => setShowTaskModal(true)}
+            onCreateTask={() => openTaskModal()}
             activeTask={activeTask}
             onSelectTask={handleSelectTask}
             onDeleteTask={handleDeleteTask}

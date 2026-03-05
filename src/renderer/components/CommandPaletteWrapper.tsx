@@ -3,16 +3,14 @@ import CommandPalette from '../components/CommandPalette';
 import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useTheme } from '../hooks/useTheme';
-import type { Project, Task } from '../types/app';
+import type { Task } from '../types/app';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 export interface CommandPaletteWrapperProps {
   isOpen: boolean;
   onClose: () => void;
-  projects: Project[];
-  handleSelectProject: (project: Project) => void;
-  handleSelectTask: (task: Task) => void;
   handleGoHome: () => void;
-  handleOpenProject: () => void;
   handleOpenSettings: () => void;
   handleOpenKeyboardShortcuts: () => void;
 }
@@ -20,17 +18,15 @@ export interface CommandPaletteWrapperProps {
 const CommandPaletteWrapper: React.FC<CommandPaletteWrapperProps> = ({
   isOpen,
   onClose,
-  projects,
-  handleSelectProject,
-  handleSelectTask,
   handleGoHome,
-  handleOpenProject,
   handleOpenSettings,
   handleOpenKeyboardShortcuts,
 }) => {
   const { toggle: toggleLeftSidebar } = useSidebar();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
+  const { projects, handleSelectProject, handleOpenProject } = useProjectManagementContext();
+  const { handleSelectTask } = useTaskManagementContext();
 
   return (
     <CommandPalette

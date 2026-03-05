@@ -1,16 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import {
-  Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from './ui/dialog';
+import type { BaseModalProps } from '@/contexts/ModalProvider';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
-import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
@@ -21,20 +20,35 @@ import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
-import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
+import { type GitLabIssueSummary } from '../types/gitlab';
 import {
   generateFriendlyTaskName,
   normalizeTaskName,
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
-import BranchSelect, { type BranchOption } from './BranchSelect';
+import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { rpc } from '@/lib/rpc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
+export interface CreateTaskResult {
+  name: string;
+  initialPrompt?: string;
+  agentRuns?: AgentRun[];
+  linkedLinearIssue?: LinearIssueSummary | null;
+  linkedGithubIssue?: GitHubIssueSummary | null;
+  linkedJiraIssue?: JiraIssueSummary | null;
+  autoApprove?: boolean;
+  useWorktree?: boolean;
+  baseRef?: string;
+  nameGenerated?: boolean;
+}
+
 interface TaskModalProps {
-  isOpen: boolean;
   onClose: () => void;
   onCreateTask: (
     name: string,
@@ -48,27 +62,56 @@ interface TaskModalProps {
     baseRef?: string,
     nameGenerated?: boolean
   ) => void;
-  projectName: string;
-  defaultBranch: string;
-  existingNames?: string[];
-  linkedGithubIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
-  projectPath?: string;
-  branchOptions?: BranchOption[];
-  isLoadingBranches?: boolean;
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({
-  isOpen,
-  onClose,
-  onCreateTask,
-  projectName,
-  defaultBranch,
-  existingNames = [],
-  linkedGithubIssueMap,
-  projectPath,
-  branchOptions = [],
-  isLoadingBranches = false,
-}) => {
+export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
+
+export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
+  return (
+    <TaskModal
+      onClose={onClose}
+      onCreateTask={(
+        name,
+        initialPrompt,
+        agentRuns,
+        linkedLinearIssue,
+        linkedGithubIssue,
+        linkedJiraIssue,
+        autoApprove,
+        useWorktree,
+        baseRef,
+        nameGenerated
+      ) =>
+        onSuccess({
+          name,
+          initialPrompt,
+          agentRuns,
+          linkedLinearIssue,
+          linkedGithubIssue,
+          linkedJiraIssue,
+          autoApprove,
+          useWorktree,
+          baseRef,
+          nameGenerated,
+        })
+      }
+    />
+  );
+}
+
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+  const {
+    selectedProject,
+    projectDefaultBranch: defaultBranch,
+    projectBranchOptions: branchOptions,
+    isLoadingBranches,
+    refreshBranches,
+  } = useProjectManagementContext();
+  const { linkedGithubIssueMap } = useTaskManagementContext();
+
+  const projectName = selectedProject?.name || '';
+  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
+  const projectPath = selectedProject?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
@@ -81,6 +124,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [selectedLinearIssue, setSelectedLinearIssue] = useState<LinearIssueSummary | null>(null);
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
+  const [selectedGitlabIssue, setSelectedGitlabIssue] = useState<GitLabIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
 
@@ -90,10 +134,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const taskNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isOpen && !userChangedBranchRef.current) {
+    if (!userChangedBranchRef.current) {
       setSelectedBranch(defaultBranch);
     }
-  }, [isOpen, defaultBranch]);
+  }, [defaultBranch]);
 
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value);
@@ -109,8 +153,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
   // True when the name was derived from context (prompt/issue) — already descriptive
   const nameFromContextRef = useRef(false);
 
-  // Integration connections
-  const integrations = useIntegrationStatus(isOpen);
+  // Integration connections — always active since component only mounts when open
+  const integrations = useIntegrationStatus(true);
 
   // Computed values
   const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);
@@ -143,6 +187,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       setSelectedJiraIssue(null);
+      setSelectedGitlabIssue(null);
       setInitialPrompt('');
     }
   }, [hasInitialPromptSupport]);
@@ -152,10 +197,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
     if (!hasAutoApproveSupport && autoApprove) setAutoApprove(false);
   }, [hasAutoApproveSupport, autoApprove]);
 
-  // Reset form and load settings when modal opens
+  // Reset form and load settings on mount
   useEffect(() => {
-    if (!isOpen) return;
-
+    void refreshBranches();
     // Reset state
     setTaskName('');
     setAutoGeneratedName('');
@@ -166,6 +210,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setSelectedLinearIssue(null);
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
+    setSelectedGitlabIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
     userHasTypedRef.current = false;
@@ -184,9 +229,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
     // Load settings
     let cancel = false;
-    window.electronAPI.getSettings().then((res) => {
+    rpc.appSettings.get().then((settings) => {
       if (cancel) return;
-      const settings = res?.success ? res.settings : undefined;
 
       const settingsAgent = settings?.defaultProvider;
       const agent: Agent = isValidProviderId(settingsAgent)
@@ -210,11 +254,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
     return () => {
       cancel = true;
     };
-  }, [isOpen]);
+  }, []);
 
   // Auto-generate name from context (prompt / linked issue) with debounce
   useEffect(() => {
-    if (!isOpen || !autoGenerateName || userHasTypedRef.current) return;
+    if (!autoGenerateName || userHasTypedRef.current) return;
 
     // Immediate for issue linking, debounced for typed prompts
     const hasIssue = !!(selectedLinearIssue || selectedGithubIssue || selectedJiraIssue);
@@ -238,7 +282,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
     return () => clearTimeout(timer);
   }, [
-    isOpen,
     autoGenerateName,
     initialPrompt,
     selectedLinearIssue,
@@ -323,102 +366,104 @@ const TaskModal: React.FC<TaskModalProps> = ({
   }, []);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
-        onOpenAutoFocus={handleOpenAutoFocus}
-      >
-        <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
-          <DialogDescription className="text-xs">
-            Create a task and open the agent workspace.
-          </DialogDescription>
-          <div className="space-y-1 pt-1">
-            <p className="text-sm font-medium text-foreground">{projectName}</p>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">from</span>
-              {branchOptions.length > 0 ? (
-                <BranchSelect
-                  value={selectedBranch}
-                  onValueChange={handleBranchChange}
-                  options={branchOptions}
-                  isLoading={isLoadingBranches}
-                  variant="ghost"
-                />
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
-                </span>
-              )}
-            </div>
+    <DialogContent
+      className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
+      onOpenAutoFocus={handleOpenAutoFocus}
+    >
+      <DialogHeader>
+        <DialogTitle>New Task</DialogTitle>
+        <DialogDescription className="text-xs">
+          Create a task and open the agent workspace.
+        </DialogDescription>
+        <div className="space-y-1 pt-1">
+          <p className="text-sm font-medium text-foreground">{projectName}</p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">from</span>
+            {branchOptions.length > 0 ? (
+              <BranchSelect
+                value={selectedBranch}
+                onValueChange={handleBranchChange}
+                options={branchOptions}
+                isLoading={isLoadingBranches}
+                variant="ghost"
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
+              </span>
+            )}
           </div>
-        </DialogHeader>
+        </div>
+      </DialogHeader>
 
-        <Separator />
+      <Separator />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="task-name" className="mb-2 block">
-              Task name (optional)
-            </Label>
-            <SlugInput
-              ref={taskNameInputRef}
-              id="task-name"
-              value={taskName}
-              onChange={handleNameChange}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => {
-                setTouched(true);
-                setIsFocused(false);
-              }}
-              placeholder="refactor-api-routes"
-              maxLength={MAX_TASK_NAME_LENGTH}
-              className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
-              aria-invalid={touched && !!error && !isFocused}
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Label className="shrink-0">Agent</Label>
-            <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
-          </div>
-
-          <TaskAdvancedSettings
-            isOpen={isOpen}
-            projectPath={projectPath}
-            useWorktree={useWorktree}
-            onUseWorktreeChange={setUseWorktree}
-            autoApprove={autoApprove}
-            onAutoApproveChange={setAutoApprove}
-            hasAutoApproveSupport={hasAutoApproveSupport}
-            initialPrompt={initialPrompt}
-            onInitialPromptChange={setInitialPrompt}
-            hasInitialPromptSupport={hasInitialPromptSupport}
-            selectedLinearIssue={selectedLinearIssue}
-            onLinearIssueChange={setSelectedLinearIssue}
-            isLinearConnected={integrations.isLinearConnected}
-            onLinearConnect={integrations.handleLinearConnect}
-            selectedGithubIssue={selectedGithubIssue}
-            onGithubIssueChange={setSelectedGithubIssue}
-            linkedGithubIssueMap={linkedGithubIssueMap}
-            isGithubConnected={integrations.isGithubConnected}
-            onGithubConnect={integrations.handleGithubConnect}
-            githubLoading={integrations.githubLoading}
-            githubInstalled={integrations.githubInstalled}
-            selectedJiraIssue={selectedJiraIssue}
-            onJiraIssueChange={setSelectedJiraIssue}
-            isJiraConnected={integrations.isJiraConnected}
-            onJiraConnect={integrations.handleJiraConnect}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="task-name" className="mb-2 block">
+            Task name (optional)
+          </Label>
+          <SlugInput
+            ref={taskNameInputRef}
+            id="task-name"
+            value={taskName}
+            onChange={handleNameChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              setTouched(true);
+              setIsFocused(false);
+            }}
+            placeholder="refactor-api-routes"
+            maxLength={MAX_TASK_NAME_LENGTH}
+            className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
+            aria-invalid={touched && !!error && !isFocused}
           />
+        </div>
 
-          <DialogFooter>
-            <Button type="submit" disabled={!!error}>
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <div className="flex items-center gap-4">
+          <Label className="shrink-0">Agent</Label>
+          <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
+        </div>
+
+        <TaskAdvancedSettings
+          isOpen={true}
+          projectPath={projectPath}
+          useWorktree={useWorktree}
+          onUseWorktreeChange={setUseWorktree}
+          autoApprove={autoApprove}
+          onAutoApproveChange={setAutoApprove}
+          hasAutoApproveSupport={hasAutoApproveSupport}
+          initialPrompt={initialPrompt}
+          onInitialPromptChange={setInitialPrompt}
+          hasInitialPromptSupport={hasInitialPromptSupport}
+          selectedLinearIssue={selectedLinearIssue}
+          onLinearIssueChange={setSelectedLinearIssue}
+          isLinearConnected={integrations.isLinearConnected}
+          onLinearConnect={integrations.handleLinearConnect}
+          selectedGithubIssue={selectedGithubIssue}
+          onGithubIssueChange={setSelectedGithubIssue}
+          linkedGithubIssueMap={linkedGithubIssueMap}
+          isGithubConnected={integrations.isGithubConnected}
+          onGithubConnect={integrations.handleGithubConnect}
+          githubLoading={integrations.githubLoading}
+          githubInstalled={integrations.githubInstalled}
+          selectedJiraIssue={selectedJiraIssue}
+          onJiraIssueChange={setSelectedJiraIssue}
+          isJiraConnected={integrations.isJiraConnected}
+          onJiraConnect={integrations.handleJiraConnect}
+          selectedGitlabIssue={selectedGitlabIssue}
+          onGitlabIssueChange={setSelectedGitlabIssue}
+          isGitlabConnected={integrations.isGitlabConnected}
+          onGitlabConnect={integrations.handleGitlabConnect}
+        />
+
+        <DialogFooter>
+          <Button type="submit" disabled={!!error}>
+            Create
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 };
 

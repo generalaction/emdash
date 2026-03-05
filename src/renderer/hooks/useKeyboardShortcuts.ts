@@ -487,12 +487,17 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         // Command palette is blocking; settings behaves like a page and should
         // not force-close for global shortcuts.
         const isCommandPaletteOpen = Boolean(handlers.isCommandPaletteOpen);
-        const hasClosableOverlay = Boolean(
-          handlers.isCommandPaletteOpen || handlers.isSettingsOpen
+        const hasClosableView = Boolean(
+          handlers.isCommandPaletteOpen ||
+            handlers.isSettingsOpen ||
+            handlers.isBrowserOpen ||
+            handlers.isDiffViewerOpen ||
+            handlers.isEditorOpen ||
+            handlers.isKanbanOpen
         );
 
-        // Modal-priority shortcuts (like Escape) only work when an overlay is open
-        if (shortcut.priority === 'modal' && !hasClosableOverlay) continue;
+        // Modal-priority shortcuts (like Escape) only work when a closable view is open
+        if (shortcut.priority === 'modal' && !hasClosableView) continue;
 
         // Global shortcuts
         if (shortcut.priority === 'global') {

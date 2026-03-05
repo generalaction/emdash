@@ -188,6 +188,11 @@ declare global {
         };
         error?: string;
       }>;
+      lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        logs?: { setup: string[]; run: string[]; teardown: string[] };
+        error?: string;
+      }>;
       lifecycleClearTask: (args: {
         taskId: string;
       }) => Promise<{ success: boolean; error?: string }>;
@@ -339,8 +344,6 @@ declare global {
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
-      getSettings: () => Promise<any>;
-      updateSettings: (settings: any) => Promise<void>;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
         taskName?: string;

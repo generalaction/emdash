@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import ExternalLinkModal from '../components/ExternalLinkModal';
-import { shell } from 'electron';
 
 interface ExternalLinkContextType {
   openLinkModal: (url: string) => void;

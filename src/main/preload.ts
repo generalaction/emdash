@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
+  ptyKillTmux: (id: string) =>
+    ipcRenderer.invoke('pty:killTmux', { id }) as Promise<{ ok: boolean; error?: string }>,
 
   // Direct PTY spawn (no shell wrapper, bypasses shell config loading)
   ptyStartDirect: (opts: {
@@ -154,11 +156,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onNotificationFocusTask: (listener: (taskId: string) => void) => {
+    const channel = 'notification:focus-task';
+    const wrapped = (_: Electron.IpcRendererEvent, taskId: string) => listener(taskId);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
-
-  // App settings
-  getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
 
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => {
@@ -181,6 +185,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuRedo: (listener: () => void) => {
     const channel = 'menu:redo';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onMenuCloseTab: (listener: () => void) => {
+    const channel = 'menu:close-tab';
     const wrapped = () => listener();
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
@@ -246,6 +256,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
     ipcRenderer.invoke('lifecycle:teardown', args),
   lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleGetLogs: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getLogs', args),
   lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
   onLifecycleEvent: (listener: (data: any) => void) => {
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
@@ -308,6 +319,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  openFile: (args?: { title?: string; message?: string; filters?: Electron.FileFilter[] }) =>
+    ipcRenderer.invoke('project:openFile', args),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
@@ -335,6 +348,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:unstage-file', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
+  gitCommit: (args: { taskPath: string; message: string }) =>
+    ipcRenderer.invoke('git:commit', args),
+  gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
+  gitPull: (args: { taskPath: string }) => ipcRenderer.invoke('git:pull', args),
+  gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) =>
+    ipcRenderer.invoke('git:get-log', args),
+  gitGetLatestCommit: (args: { taskPath: string }) =>
+    ipcRenderer.invoke('git:get-latest-commit', args),
+  gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
+    ipcRenderer.invoke('git:get-commit-files', args),
+  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
+    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
     commitMessage?: string;
@@ -480,6 +506,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
+  // GitLab integration
+  gitlabSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('gitlab:saveCredentials', args),
+  gitlabClearCredentials: () => ipcRenderer.invoke('gitlab:clearCredentials'),
+  gitlabCheckConnection: () => ipcRenderer.invoke('gitlab:checkConnection'),
+  gitlabInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:initialFetch', { projectPath, limit }),
+  gitlabSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>

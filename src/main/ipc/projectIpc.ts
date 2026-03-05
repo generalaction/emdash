@@ -82,6 +82,29 @@ export function registerProjectIpc() {
     }
   });
 
+  ipcMain.handle(
+    'project:openFile',
+    async (_, args?: { title?: string; message?: string; filters?: Electron.FileFilter[] }) => {
+      try {
+        const result = await dialog.showOpenDialog(getMainWindow()!, {
+          title: args?.title || 'Select File',
+          properties: ['openFile'],
+          message: args?.message || 'Select a file',
+          filters: args?.filters,
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, error: 'No file selected' };
+        }
+
+        return { success: true, path: result.filePaths[0] };
+      } catch (error) {
+        console.error('Failed to open file dialog:', error);
+        return { success: false, error: 'Failed to open file selector' };
+      }
+    }
+  );
+
   ipcMain.handle('git:getInfo', async (_, projectPath: string) => {
     try {
       const resolveRealPath = async (target: string) => {

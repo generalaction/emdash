@@ -33,7 +33,7 @@
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 21 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
+Emdash supports 22 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
 
 **Develop on remote servers via SSH**
 
@@ -74,12 +74,13 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports twenty-one CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
+Emdash currently supports twenty-two CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
 | [Amp](https://ampcode.com/manual) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
+| [Autohand Code](https://autohand.ai/code/) | ✅ Supported | <code>npm install -g autohand-cli</code> |
 | [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
 | [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
 | [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
