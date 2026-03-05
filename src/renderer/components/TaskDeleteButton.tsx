@@ -70,7 +70,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   // Only check for deletion risks if the task uses a worktree.
   // Tasks running directly on the main branch (useWorktree === false) don't need risk assessment
   // since they don't have isolated changes that could be lost.
-  const { risks, loading, hasData } = useDeleteRisks(targets, open && useWorktree);
+  const { risks, loading } = useDeleteRisks(targets, open && useWorktree);
   const status = risks[taskId] || {
     staged: 0,
     unstaged: 0,

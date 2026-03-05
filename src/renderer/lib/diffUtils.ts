@@ -3,7 +3,6 @@
  */
 
 import type { DiffLine } from '../hooks/useFileDiff';
-import { getLanguageFromPath } from './languageUtils';
 
 /**
  * Convert DiffLine[] format to original/modified strings for Monaco Editor

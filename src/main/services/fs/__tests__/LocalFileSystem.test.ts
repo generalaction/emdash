@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { LocalFileSystem } from '../LocalFileSystem';
-import { FileSystemError, FileSystemErrorCodes } from '../types';
+import { FileSystemError } from '../types';
 
 describe('LocalFileSystem', () => {
   let tempDir: string;

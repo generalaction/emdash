@@ -47,7 +47,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
     [tasks]
   );
 
-  const { risks, loading, hasData } = useDeleteRisks(targets, open);
+  const { risks, loading } = useDeleteRisks(targets, open);
 
   // Tasks with uncommitted/unpushed changes BUT NO PR
   const tasksWithUncommittedWork = tasks.filter((ws) => {

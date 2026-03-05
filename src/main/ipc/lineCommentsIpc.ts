@@ -1,4 +1,3 @@
-import { log } from '../lib/logger';
 import { databaseService } from '../services/DatabaseService';
 import { formatCommentsForAgent } from '../../shared/lineComments';
 import { createRPCController } from '../../shared/ipc/rpc';

@@ -304,7 +304,7 @@ function CodeEditorMainPanel() {
       }
 
       defineMonacoThemes(monaco);
-      configureMonacoEditor(editor, monaco);
+      configureMonacoEditor(editor);
       editor.updateOptions({ glyphMargin: true });
 
       addMonacoKeyboardShortcuts(editor, monaco, {

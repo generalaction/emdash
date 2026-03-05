@@ -25,11 +25,11 @@ class ActivityStore {
   private armTimer(taskId: string, conversationId: string | null) {
     const prev = this.timers.get(taskId);
     if (prev) clearTimeout(prev);
-    const t = setTimeout(() => this.setBusy(taskId, false, conversationId, true), CLEAR_BUSY_MS);
+    const t = setTimeout(() => this.setBusy(taskId, false, conversationId), CLEAR_BUSY_MS);
     this.timers.set(taskId, t);
   }
 
-  private setBusy(taskId: string, busy: boolean, conversationId: string | null, fromEvent = false) {
+  private setBusy(taskId: string, busy: boolean, conversationId: string | null) {
     const current = this.states.get(taskId) || false;
     if (busy) {
       const prev = this.timers.get(taskId);
@@ -96,8 +96,8 @@ class ActivityStore {
           (chunk) => {
             try {
               const signal = classifyActivity(prov, chunk || '');
-              if (signal === 'busy') this.setBusy(taskId, true, conversationId, true);
-              else if (signal === 'idle') this.setBusy(taskId, false, conversationId, true);
+              if (signal === 'busy') this.setBusy(taskId, true, conversationId);
+              else if (signal === 'idle') this.setBusy(taskId, false, conversationId);
               else if (this.states.get(taskId)) this.armTimer(taskId, conversationId);
             } catch {}
           },
@@ -107,7 +107,7 @@ class ActivityStore {
           ptyExitChannel,
           () => {
             try {
-              this.setBusy(taskId, false, conversationId, true);
+              this.setBusy(taskId, false, conversationId);
             } catch {}
           },
           ptyId
@@ -118,7 +118,7 @@ class ActivityStore {
   }
 
   setTaskBusy(taskId: string, busy: boolean) {
-    this.setBusy(taskId, busy, null, false);
+    this.setBusy(taskId, busy, null);
   }
 
   handleAgentEvent(event: AgentEvent) {
@@ -129,10 +129,10 @@ class ActivityStore {
     if (event.type === 'notification') {
       const nt = event.payload.notificationType;
       if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
-        this.setBusy(taskId, false, conversationId, true);
+        this.setBusy(taskId, false, conversationId);
       }
     } else if (event.type === 'stop') {
-      this.setBusy(taskId, false, conversationId, true);
+      this.setBusy(taskId, false, conversationId);
     }
   }
 

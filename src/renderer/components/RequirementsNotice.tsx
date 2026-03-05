@@ -2,15 +2,10 @@ import React from 'react';
 
 type Props = {
   showGithubRequirement: boolean;
-  needsGhInstall: boolean;
   needsGhAuth: boolean;
 };
 
-const RequirementsNotice: React.FC<Props> = ({
-  showGithubRequirement,
-  needsGhInstall,
-  needsGhAuth,
-}) => {
+const RequirementsNotice: React.FC<Props> = ({ showGithubRequirement, needsGhAuth }) => {
   return (
     <div className="mx-auto max-w-2xl space-y-4 text-sm text-muted-foreground">
       {showGithubRequirement && (

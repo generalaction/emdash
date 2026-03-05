@@ -34,7 +34,7 @@ vi.mock('../../main/services/ptyManager', () => ({
 }));
 
 vi.mock('../../main/services/ptyIpc', () => ({
-  startShellSession: (...args: any[]) => startShellSessionMock(...args),
+  startShellSession: (args: ShellSessionArgs) => startShellSessionMock(args),
 }));
 
 vi.mock('../../main/services/LifecycleScriptsService', () => ({

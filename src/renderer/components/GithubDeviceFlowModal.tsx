@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
@@ -46,7 +46,6 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
   // Presentational state - updated via IPC events from main process
   const [userCode, setUserCode] = useState<string>('');
   const [verificationUri, setVerificationUri] = useState<string>('');
-  const [expiresIn, setExpiresIn] = useState<number>(900);
   const [timeRemaining, setTimeRemaining] = useState<number>(900);
   const [copied, setCopied] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -65,7 +64,6 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
     const cleanupDeviceCode = events.on(githubAuthDeviceCodeChannel, (data) => {
       setUserCode(data.userCode);
       setVerificationUri(data.verificationUri);
-      setExpiresIn(data.expiresIn);
       setTimeRemaining(data.expiresIn);
 
       // Auto-copy code

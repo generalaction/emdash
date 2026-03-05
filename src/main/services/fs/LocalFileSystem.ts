@@ -3,10 +3,9 @@
  * Wraps Node.js fs operations for local disk access with security and performance features
  */
 
-import { promises as fs, createReadStream } from 'fs';
-import type { Stats } from 'fs';
-import { join, resolve, relative, dirname, extname, sep } from 'path';
-import { createInterface } from 'readline';
+import { promises as fs, createReadStream, type Stats } from 'node:fs';
+import { join, resolve, relative, dirname, extname, sep } from 'node:path';
+import { createInterface } from 'node:readline';
 import {
   IFileSystem,
   FileListResult,
@@ -376,7 +375,6 @@ export class LocalFileSystem implements IFileSystem {
 
   async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
     const pattern = options.pattern || query;
-    const startTime = Date.now();
     const matches: SearchMatch[] = [];
     const maxResults = options.maxResults || 10000;
     const fileExtensions = options.fileExtensions;
@@ -384,10 +382,6 @@ export class LocalFileSystem implements IFileSystem {
 
     let filesSearched = 0;
     let truncated = false;
-
-    const searchRegex = caseSensitive
-      ? new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 
     let gitIgnore: GitIgnoreParser | undefined;
     try {
@@ -590,8 +584,8 @@ export class LocalFileSystem implements IFileSystem {
         mimeType,
         size: stat.size,
       };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 }

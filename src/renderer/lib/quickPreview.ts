@@ -39,13 +39,13 @@ export async function quickStartPreview(args: {
   taskPath: string;
   onPreviewUrl?: (url: string) => void;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { taskId, taskPath } = args;
+  const { taskPath } = args;
   try {
     const node = await isNodeProject(taskPath);
     if (!node) return { ok: false, error: 'Not a Node.js project (no package.json).' };
     await ensureCompose(taskPath);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

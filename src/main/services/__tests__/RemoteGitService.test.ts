@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { RemoteGitService, WorktreeInfo, GitStatus } from '../RemoteGitService';
+import { RemoteGitService } from '../RemoteGitService';
 import { SshService } from '../ssh/SshService';
-import { ExecResult } from '../../../shared/ssh/types';
+import type { ExecResult } from '../../../shared/ssh/types';
 
 // Mock SshService
 const mockExecuteCommand = vi.fn();
@@ -155,7 +155,7 @@ describe('RemoteGitService', () => {
         exitCode: 0,
       } as ExecResult);
 
-      const result = await service.createWorktree(
+      await service.createWorktree(
         'conn-1',
         '/home/user/project',
         'feature-task',
@@ -348,7 +348,7 @@ describe('RemoteGitService', () => {
         exitCode: 0,
       } as ExecResult);
 
-      const result = await service.commit('conn-1', '/home/user/project', 'Commit specific files', [
+      await service.commit('conn-1', '/home/user/project', 'Commit specific files', [
         'file1.ts',
         'file2.ts',
       ]);

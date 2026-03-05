@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, AlertTriangle, Globe } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,12 +10,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Button } from './ui/button';
 
 interface ExternalLinkModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  url: string;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -23,7 +21,6 @@ interface ExternalLinkModalProps {
 export const ExternalLinkModal: React.FC<ExternalLinkModalProps> = ({
   open,
   onOpenChange,
-  url,
   onConfirm,
   onCancel,
 }) => {
@@ -36,21 +33,6 @@ export const ExternalLinkModal: React.FC<ExternalLinkModalProps> = ({
     onOpenChange(false);
     onConfirm();
   };
-
-  // Parse the URL to display the domain
-  const getDomain = (urlString: string) => {
-    try {
-      const urlObj = new URL(urlString);
-      return urlObj.hostname;
-    } catch {
-      return urlString;
-    }
-  };
-
-  const domain = getDomain(url);
-
-  // Truncate long URLs for display
-  const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

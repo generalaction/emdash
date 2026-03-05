@@ -502,11 +502,6 @@ export function setOnDirectCliExit(callback: (id: string, cwd: string) => void):
   onDirectCliExitCallback = callback;
 }
 
-function escapeShSingleQuoted(value: string): string {
-  // Safe for embedding into a single-quoted POSIX shell string.
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
 /**
  * Spawn an interactive SSH session in a PTY.
  *

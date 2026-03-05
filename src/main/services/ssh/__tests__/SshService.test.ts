@@ -290,7 +290,7 @@ describe('SshService', () => {
       };
 
       mockCredentialService.getPassword.mockResolvedValue('testpassword');
-      mockClientInstance.connect.mockImplementation((cfg: any) => {
+      mockClientInstance.connect.mockImplementation(() => {
         const readyHandler = mockClientInstance.on.mock.calls.find(
           (call: any) => call[0] === 'ready'
         )?.[1];
@@ -315,7 +315,7 @@ describe('SshService', () => {
       };
 
       mockCredentialService.getPassword.mockResolvedValue('testpassword');
-      mockClientInstance.connect.mockImplementation((cfg: any) => {
+      mockClientInstance.connect.mockImplementation(() => {
         const readyHandler = mockClientInstance.on.mock.calls.find(
           (call: any) => call[0] === 'ready'
         )?.[1];
@@ -388,7 +388,7 @@ describe('SshService', () => {
       };
 
       mockCredentialService.getPassword.mockResolvedValue('testpassword');
-      mockClientInstance.connect.mockImplementation((cfg: any) => {
+      mockClientInstance.connect.mockImplementation(() => {
         const readyHandler = mockClientInstance.on.mock.calls.find(
           (call: any) => call[0] === 'ready'
         )?.[1];
@@ -421,7 +421,7 @@ describe('SshService', () => {
       };
 
       mockCredentialService.getPassword.mockResolvedValue('testpassword');
-      mockClientInstance.connect.mockImplementation((cfg: any) => {
+      mockClientInstance.connect.mockImplementation(() => {
         const readyHandler = mockClientInstance.on.mock.calls.find(
           (call: any) => call[0] === 'ready'
         )?.[1];
@@ -461,7 +461,7 @@ describe('SshService', () => {
       const mockStream = new EventEmitter();
       (mockStream as any).stderr = new EventEmitter();
 
-      mockClientInstance.connect.mockImplementation((cfg: any) => {
+      mockClientInstance.connect.mockImplementation(() => {
         const readyHandler = mockClientInstance.on.mock.calls.find(
           (call: any) => call[0] === 'ready'
         )?.[1];

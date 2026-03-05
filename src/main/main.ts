@@ -171,17 +171,10 @@ app.whenReady().then(async () => {
   };
 
   // Initialize database
-  let dbInitOk = false;
-  let dbInitErrorType: string | undefined;
   try {
     await databaseService.initialize();
-    dbInitOk = true;
   } catch (error) {
     const err = error as unknown;
-    const asObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
-    const code = asObj && typeof asObj.code === 'string' ? asObj.code : undefined;
-    const name = asObj && typeof asObj.name === 'string' ? asObj.name : undefined;
-    dbInitErrorType = code || name || 'unknown';
     console.error('Failed to initialize database:', error);
 
     if (err instanceof DatabaseSchemaMismatchError) {

@@ -138,21 +138,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const safeTaskPath = resolvedTaskPath ?? '';
   const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
 
-  const [showDiffModal, setShowDiffModal] = useState(false);
-  const [showAllChangesModal, setShowAllChangesModal] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
-
   // Reset selectedPath and action loading states when task changes
   useEffect(() => {
-    setSelectedPath(undefined);
     setIsMergingToMain(false);
   }, [resolvedTaskPath]);
-  const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
-  const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
-  const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
-  const [isStagingAll, setIsStagingAll] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('');
-  const [isCommitting, setIsCommitting] = useState(false);
+
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [prMode, setPrMode] = useState<PrMode>(() => {

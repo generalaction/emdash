@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 // ── mocks ────────────────────────────────────────────────────────────
 
@@ -177,7 +177,6 @@ describe('ConnectionsService – resolveStatus', () => {
     const secondCall = spawnMock.mock.calls[1];
     expect(secondCall).toBeDefined();
     // Should invoke a shell (e.g. /bin/zsh or /bin/bash) with login+interactive flags
-    const shellCmd = secondCall[0] as string;
     const shellArgs = secondCall[1] as string[];
     expect(shellArgs.some((a: string) => a.includes('claude'))).toBe(true);
     expect(shellArgs.some((a: string) => a.includes('-l'))).toBe(true);

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
-import { pickDefaultBranch } from '../components/BranchSelect';
 import {
   computeBaseRef,
   getProjectRepoKey,

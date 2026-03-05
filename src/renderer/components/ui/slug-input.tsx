@@ -38,14 +38,6 @@ const normalizeForTyping = (input: string): string =>
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-');
-
-/**
- * Fully normalizes to a final slug (strict - for submission):
- * - All of normalizeForTyping plus removes leading/trailing hyphens
- */
-const normalizeToSlug = (input: string): string =>
-  normalizeForTyping(input).replace(/^-+|-+$/g, '');
-
 /**
  * Checks if a character is valid for a slug
  */

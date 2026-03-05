@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { TerminalSnapshotPayload } from '../main/types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 
 // Expose protected methods that allow the renderer process to use

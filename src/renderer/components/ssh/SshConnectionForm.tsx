@@ -7,7 +7,6 @@ import { rpc } from '../../lib/rpc';
 import { Spinner } from '../ui/spinner';
 import { cn } from '@/lib/utils';
 import { FolderOpen, Eye, EyeOff, Server, User, Lock, Key, Shield, Download } from 'lucide-react';
-import { useSshConnections } from '../../hooks/useSshConnections';
 import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
 
 export interface SshConnectionConfig extends Omit<SshConfig, 'id'> {
@@ -39,8 +38,6 @@ export const SshConnectionForm: React.FC<Props> = ({
   onCancel,
   isSubmitting = false,
 }) => {
-  const { getSshConfigHost } = useSshConnections();
-
   const [formData, setFormData] = useState<SshConnectionConfig>({
     name: '',
     host: '',

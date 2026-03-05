@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Spinner } from './ui/spinner';
 import { GitBranch, Bot, Play, Pause, Plus } from 'lucide-react';
 
 interface Task {

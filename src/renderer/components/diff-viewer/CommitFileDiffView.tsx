@@ -22,7 +22,6 @@ export const CommitFileDiffView: React.FC<CommitFileDiffViewProps> = ({
   diffStyle,
 }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
   const [data, setData] = useState<{
     original: string;

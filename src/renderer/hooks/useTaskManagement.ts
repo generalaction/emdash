@@ -533,7 +533,7 @@ export function useTaskManagement() {
 
       return { refreshedTasks, restoredTask };
     },
-    onMutate: ({ project, task }) => {
+    onMutate: ({ task }) => {
       if (restoringTaskIdsRef.current.has(task.id)) return { blocked: true };
       restoringTaskIdsRef.current.add(task.id);
       return { blocked: false };
@@ -542,7 +542,7 @@ export function useTaskManagement() {
       if (context?.blocked) return;
       restoringTaskIdsRef.current.delete(_vars.task.id);
       const { log } = await import('../lib/logger');
-      log.error('Failed to restore task:', _err as any);
+      log.error('Failed to restore task:', _err);
       toast({
         title: 'Error',
         description: _err instanceof Error ? _err.message : 'Could not restore task.',
@@ -573,7 +573,6 @@ export function useTaskManagement() {
   // ---------------------------------------------------------------------------
   const renameTaskMutation = useMutation({
     mutationFn: async ({
-      project,
       task,
       newName,
       newBranch,
@@ -639,9 +638,9 @@ export function useTaskManagement() {
       );
       return { task }; // snapshot for rollback
     },
-    onError: async (_err, { project }, context) => {
+    onError: async (_err, { project }) => {
       const { log } = await import('../lib/logger');
-      log.error('Failed to rename task:', _err as any);
+      log.error('Failed to rename task:', _err);
       // Rollback optimistic update
       queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
       toast({

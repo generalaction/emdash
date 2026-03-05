@@ -1,6 +1,5 @@
 import React from 'react';
 import { Input } from '../ui/input';
-import { Info } from 'lucide-react';
 import jiraLogo from '../../../assets/images/jira.png';
 
 interface Props {

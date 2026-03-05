@@ -1,5 +1,4 @@
 import { ComponentType, Fragment, useCallback, useMemo, useState, type ReactNode } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 import { ProjectViewWrapper } from './CurrentProjectProvider';
 import { TaskViewWrapper } from './CurrentTaskProvider';
 import { HomeTitlebar, HomeMainPanel } from '../views/home-view';
@@ -17,7 +16,6 @@ import type {
   WrapParamsContextValue,
   NavigateFn,
 } from './WorkspaceNavigationContext';
-import type { SettingsPageTab } from '../components/SettingsPage';
 
 // Re-export hooks and types that consumers need
 export {

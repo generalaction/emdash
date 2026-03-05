@@ -42,6 +42,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { quoteShellArg } from '../utils/shellEscape';
+import { owners, listeners } from './ptyCleanup';
 
 // ---------------------------------------------------------------------------
 // Session isolation — resolve CLI args from the conversations table.
@@ -71,7 +72,6 @@ async function resolveSessionArgs(
 
 // ---------------------------------------------------------------------------
 
-import { owners, listeners, killRegisteredPty as _killRegisteredPty } from './ptyCleanup';
 const providerPtyTimers = new Map<string, number>();
 // Map PTY IDs to provider IDs for multi-agent tracking
 const ptyProviderMap = new Map<string, ProviderId>();
@@ -79,9 +79,8 @@ const ptyProviderMap = new Map<string, ProviderId>();
 const finalizedPtys = new Set<string>();
 // Track WebContents that have a 'destroyed' listener to avoid duplicates
 const wcDestroyedListeners = new Set<number>();
-let isAppQuitting = false;
 
-type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
+// type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kill';
 
 // Buffer PTY output to reduce IPC overhead (helps SSH feel less laggy)
 const ptyDataBuffers = new Map<string, string>();
@@ -380,7 +379,6 @@ export function registerPtyIpc(): void {
         skipResume?: boolean;
       }
     ) => {
-      const ptyStartTime = performance.now();
       if (process.env.EMDASH_DISABLE_PTY === '1') {
         return { ok: false, error: 'PTY disabled via EMDASH_DISABLE_PTY=1' };
       }
@@ -554,12 +552,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
-            maybeMarkProviderFinish(
-              id,
-              exitCode,
-              signal,
-              isAppQuitting ? 'app_quit' : 'process_exit'
-            );
+            maybeMarkProviderFinish(id, exitCode, signal);
             owners.delete(id);
             listeners.delete(id);
             removePtyRecord(id);
@@ -578,12 +571,7 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(
-                    ptyId,
-                    null,
-                    undefined,
-                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
-                  );
+                  maybeMarkProviderFinish(ptyId, null, undefined);
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -601,12 +589,12 @@ export function registerPtyIpc(): void {
         events.emit(ptyStartedChannel, { id });
 
         return { ok: true, tmux };
-      } catch (err: any) {
+      } catch (err) {
         log.error('pty:start FAIL', {
           id: args.id,
           cwd: args.cwd,
           shell: args.shell,
-          error: err?.message || err,
+          error: err instanceof Error ? err.message : String(err),
         });
 
         // Track PTY start errors
@@ -621,8 +609,7 @@ export function registerPtyIpc(): void {
             hasInitialPrompt: !!args.initialPrompt,
           }
         );
-
-        return { ok: false, error: String(err?.message || err) };
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
   );
@@ -660,7 +647,7 @@ export function registerPtyIpc(): void {
   ipcMain.on('pty:kill', (_event, args: { id: string }) => {
     try {
       // Ensure telemetry timers are cleared even on manual kill
-      maybeMarkProviderFinish(args.id, null, undefined, 'manual_kill');
+      maybeMarkProviderFinish(args.id, null, undefined);
       // Kill associated tmux session if this PTY was tmux-wrapped
       if (getPtyTmuxSessionName(args.id)) {
         killTmuxSession(args.id);
@@ -745,7 +732,7 @@ export function registerPtyIpc(): void {
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit.${id}`, { exitCode, signal });
-              maybeMarkProviderFinish(id, exitCode, signal, 'process_exit');
+              maybeMarkProviderFinish(id, exitCode, signal);
               owners.delete(id);
               listeners.delete(id);
               removePtyRecord(id);
@@ -876,12 +863,7 @@ export function registerPtyIpc(): void {
           proc.onExit(({ exitCode, signal }) => {
             flushPtyData(id);
             clearPtyData(id);
-            maybeMarkProviderFinish(
-              id,
-              exitCode,
-              signal,
-              isAppQuitting ? 'app_quit' : 'process_exit'
-            );
+            maybeMarkProviderFinish(id, exitCode, signal);
             // Direct-spawn CLIs can be replaced immediately by a fallback shell after exit.
             // If this PTY has already been replaced, skip cleanup so we don't delete the new PTY record.
             const current = getPty(id);
@@ -909,12 +891,7 @@ export function registerPtyIpc(): void {
             for (const [ptyId, owner] of owners.entries()) {
               if (owner === wc) {
                 try {
-                  maybeMarkProviderFinish(
-                    ptyId,
-                    null,
-                    undefined,
-                    isAppQuitting ? 'app_quit' : 'owner_destroyed'
-                  );
+                  maybeMarkProviderFinish(ptyId, null, undefined);
                   killPty(ptyId);
                 } catch {}
                 owners.delete(ptyId);
@@ -931,9 +908,12 @@ export function registerPtyIpc(): void {
         } catch {}
 
         return { ok: true, tmux };
-      } catch (err: any) {
-        log.error('pty:startDirect FAIL', { id: args.id, error: err?.message || err });
-        return { ok: false, error: String(err?.message || err) };
+      } catch (err) {
+        log.error('pty:startDirect FAIL', {
+          id: args.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
   );
@@ -1067,8 +1047,7 @@ function maybeMarkProviderStart(id: string, providerId?: ProviderId) {
 function maybeMarkProviderFinish(
   id: string,
   exitCode: number | null | undefined,
-  signal: number | undefined,
-  cause: FinishCause
+  signal: number | undefined
 ) {
   if (finalizedPtys.has(id)) return;
   finalizedPtys.add(id);
@@ -1112,11 +1091,10 @@ function maybeMarkProviderFinish(
 // Kill all PTYs on app shutdown to prevent crash loop
 try {
   app.on('before-quit', () => {
-    isAppQuitting = true;
     for (const id of Array.from(owners.keys())) {
       try {
         // Ensure telemetry timers are cleared on app quit
-        maybeMarkProviderFinish(id, null, undefined, 'app_quit');
+        maybeMarkProviderFinish(id, null, undefined);
         killPty(id);
       } catch {}
     }

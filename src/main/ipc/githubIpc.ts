@@ -382,7 +382,7 @@ export const githubController = createRPCController({
     let localPath: string | undefined;
 
     try {
-      const { name, description, owner, isPrivate, gitignoreTemplate } = params;
+      const { name, description, owner, isPrivate } = params;
 
       // Validate inputs
       const formatValidation = githubService.validateRepositoryName(name);

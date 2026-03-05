@@ -51,7 +51,6 @@ export const ExternalLinkProvider: React.FC<ExternalLinkProviderProps> = ({ chil
       <ExternalLinkModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        url={currentUrl}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />

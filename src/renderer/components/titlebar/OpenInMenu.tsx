@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { rpc } from '@/lib/rpc';
 
 interface OpenInMenuProps {
   path: string;
@@ -58,12 +59,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const callOpen = React.useCallback(
     async (appId: OpenInAppId) => {
       const label = labels[appId] || appId;
-
-      void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-        captureTelemetry('toolbar_open_in_selected', { app: appId });
-      });
       try {
-        const res = await window.electronAPI?.openIn?.({
+        const res = await rpc.app.openIn({
           app: appId,
           path,
           isRemote,
@@ -76,10 +73,10 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
             variant: 'destructive',
           });
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         toast({
           title: `Open in ${label} failed`,
-          description: e?.message || String(e),
+          description: e instanceof Error ? e.message : String(e),
           variant: 'destructive',
         });
       }

@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
-import { execSync } from 'child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { log } from '../lib/logger';
 
 export interface TerminalTheme {
@@ -164,7 +164,7 @@ function loadiTerm2Config(): TerminalConfig | null {
       });
     } catch {
       // If plutil fails, try reading as XML plist
-      return loadiTerm2ConfigXML(plistPath);
+      return null;
     }
 
     let plist: any;
@@ -179,7 +179,7 @@ function loadiTerm2Config(): TerminalConfig | null {
     // We need to find the default profile's color scheme
     const newBookmarks = plist['New Bookmarks'] || [];
     const defaultProfile = Array.isArray(newBookmarks)
-      ? newBookmarks.find((p: any) => p['Default Bookmark'] === 'Yes') || newBookmarks[0]
+      ? newBookmarks.find((p) => p['Default Bookmark'] === 'Yes') || newBookmarks[0]
       : newBookmarks;
 
     if (!defaultProfile) {
@@ -279,23 +279,6 @@ function loadiTerm2Config(): TerminalConfig | null {
     };
   } catch (error) {
     log.warn('terminalConfig:iTerm2:parseFailed', { error });
-    return null;
-  }
-}
-
-/**
- * Fallback: Try to parse iTerm2 plist as XML
- */
-function loadiTerm2ConfigXML(plistPath: string): TerminalConfig | null {
-  try {
-    const xmlContent = readFileSync(plistPath, 'utf8');
-    // Simple XML parsing for color values
-    // This is a basic implementation - could be improved
-    const colorRegex =
-      /<key>([^<]+)<\/key>\s*<dict>[\s\S]*?<key>Red Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Green Component<\/key>\s*<real>([\d.]+)<\/real>[\s\S]*?<key>Blue Component<\/key>\s*<real>([\d.]+)<\/real>/g;
-    // This is complex - for now, return null and rely on JSON conversion
-    return null;
-  } catch {
     return null;
   }
 }
@@ -467,19 +450,6 @@ function parseAlacrittyTOML(content: string): TerminalConfig | null {
   if (cursorMatch) {
     theme.cursor = cursorMatch[1];
   }
-
-  // Parse ANSI colors (simplified - Alacritty uses nested structure)
-  const ansiColors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
-  const brightColors = [
-    'bright_black',
-    'bright_red',
-    'bright_green',
-    'bright_yellow',
-    'bright_blue',
-    'bright_magenta',
-    'bright_cyan',
-    'bright_white',
-  ];
 
   const colorMap: Record<string, keyof TerminalTheme> = {
     black: 'black',
