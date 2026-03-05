@@ -17,6 +17,7 @@ import { useProjectBranchOptions } from '@/hooks/useProjectBranchOptions';
 import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
 import { getAgentForTask } from '@/lib/getAgentForTask';
+import { ConversationsProvider } from '@/contexts/ConversationsProvider';
 
 export function TaskTitlebar() {
   const project = useCurrentProject();
@@ -100,19 +101,21 @@ export function TaskMainPanel() {
           onTaskInterfaceReady={handleTaskInterfaceReady}
         />
       ) : (
-        <ChatInterface
-          task={task}
-          project={project}
-          projectName={project.name}
-          projectPath={project.path}
-          projectRemoteConnectionId={projectRemoteConnectionId}
-          projectRemotePath={projectRemotePath}
-          defaultBranch={projectDefaultBranch}
-          className="min-h-0 flex-1"
-          initialAgent={initialAgent}
-          onTaskInterfaceReady={handleTaskInterfaceReady}
-          onRenameTask={handleRenameTask}
-        />
+        <ConversationsProvider taskId={task.id} initialAgent={initialAgent}>
+          <ChatInterface
+            task={task}
+            project={project}
+            projectName={project.name}
+            projectPath={project.path}
+            projectRemoteConnectionId={projectRemoteConnectionId}
+            projectRemotePath={projectRemotePath}
+            defaultBranch={projectDefaultBranch}
+            className="min-h-0 flex-1"
+            initialAgent={initialAgent}
+            onTaskInterfaceReady={handleTaskInterfaceReady}
+            onRenameTask={handleRenameTask}
+          />
+        </ConversationsProvider>
       )}
       {isCreatingTask && (
         <div className="absolute inset-0 z-10 bg-background">

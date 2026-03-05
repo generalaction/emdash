@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { events } from '../lib/rpc';
 import { ptyStartedChannel, providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { Plus, X } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
@@ -17,19 +16,18 @@ import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
-import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
-import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import type { Project } from '../types/app';
+import { useConversations } from '../contexts/ConversationsProvider';
 
 declare const window: Window & {
   electronAPI: {
@@ -65,7 +63,6 @@ const ChatInterface: React.FC<Props> = ({
   onRenameTask,
 }) => {
   const { effectiveTheme } = useTheme();
-  const { toast } = useToast();
   const [isAgentInstalled, setIsAgentInstalled] = useState<boolean | null>(null);
   const [agentStatuses, setAgentStatuses] = useState<
     Record<string, { installed?: boolean; path?: string | null; version?: string | null }>
@@ -74,19 +71,29 @@ const ChatInterface: React.FC<Props> = ({
   const currentAgentStatus = agentStatuses[agent];
   const [cliStartError, setCliStartError] = useState<string | null>(null);
 
-  // Multi-chat state
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const {
+    conversations,
+    sortedConversations,
+    activeConversationId,
+    activeConversation,
+    mainConversationId,
+    isLoaded: conversationsLoaded,
+    busyByConversationId,
+    createConversation,
+    switchConversation,
+    closeConversation,
+  } = useConversations();
+
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
-  const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
 
-  const mainConversationId = useMemo(
-    () => conversations.find((c) => c.isMain)?.id ?? null,
-    [conversations]
-  );
+  // Sync agent from the active conversation's stored provider
+  useEffect(() => {
+    if (activeConversation?.provider) {
+      setAgent(activeConversation.provider as Agent);
+    }
+  }, [activeConversation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
@@ -128,17 +135,6 @@ const ChatInterface: React.FC<Props> = ({
         .map(([id]) => id),
     [agentStatuses]
   );
-  const sortedConversations = useMemo(
-    () =>
-      [...conversations].sort((a, b) => {
-        // Sort by display order or creation time to maintain consistent order
-        if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
-          return a.displayOrder - b.displayOrder;
-        }
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      }),
-    [conversations]
-  );
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
@@ -165,118 +161,6 @@ const ChatInterface: React.FC<Props> = ({
     readySignaledTaskIdRef.current = task.id;
     onTaskInterfaceReady();
   }, [task.id, onTaskInterfaceReady]);
-
-  // Load conversations when task changes
-  useEffect(() => {
-    const loadConversations = async () => {
-      setConversationsLoaded(false);
-      const loadedConversations = await rpc.db.getConversations(task.id);
-
-      if (loadedConversations.length > 0) {
-        setConversations(loadedConversations);
-
-        // Set active conversation
-        const active = loadedConversations.find((c: Conversation) => c.isActive);
-        if (active) {
-          setActiveConversationId(active.id);
-          // Update agent to match the active conversation
-          if (active.provider) {
-            setAgent(active.provider as Agent);
-          }
-        } else {
-          // Fallback to first conversation
-          const firstConv = loadedConversations[0];
-          setActiveConversationId(firstConv.id);
-          // Update agent to match the first conversation
-          if (firstConv.provider) {
-            setAgent(firstConv.provider as Agent);
-          }
-          await rpc.db.setActiveConversation({
-            taskId: task.id,
-            conversationId: firstConv.id,
-          });
-        }
-        setConversationsLoaded(true);
-      } else {
-        // No conversations exist - create default for backward compatibility
-        // This ensures existing tasks always have at least one conversation
-        // (preserves pre-multi-chat behavior)
-        const defaultConversation = await rpc.db.getOrCreateDefaultConversation(task.id);
-        if (defaultConversation) {
-          // For backward compatibility: use task.agentId if available, otherwise use current agent
-          // This preserves the original agent choice for tasks created before multi-chat
-          const taskAgent = task.agentId || agent;
-          const conversationWithAgent = {
-            ...defaultConversation,
-            provider: taskAgent,
-            isMain: true,
-            isActive: true,
-          };
-          setConversations([conversationWithAgent]);
-          setActiveConversationId(defaultConversation.id);
-
-          // Update the agent state to match
-          setAgent(taskAgent as Agent);
-
-          // Save the agent to the conversation
-          await rpc.db.saveConversation(conversationWithAgent);
-          setConversationsLoaded(true);
-        }
-      }
-    };
-
-    loadConversations();
-  }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
-
-  // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
-  useEffect(() => {
-    let cancelled = false;
-    const unsubs: Array<() => void> = [];
-    const conversationIds = new Set(conversations.map((c) => c.id));
-
-    setBusyByConversationId((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const id of conversationIds) next[id] = prev[id] ?? false;
-      return next;
-    });
-
-    if (mainConversationId) {
-      unsubs.push(
-        activityStore.subscribe(task.id, (busy) => {
-          if (cancelled) return;
-          setBusyByConversationId((prev) => {
-            if (prev[mainConversationId] === busy) return prev;
-            return { ...prev, [mainConversationId]: busy };
-          });
-        })
-      );
-    }
-
-    for (const conv of conversations) {
-      if (conv.isMain) continue;
-      const conversationId = conv.id;
-      unsubs.push(
-        activityStore.subscribe(
-          conversationId,
-          (busy) => {
-            if (cancelled) return;
-            setBusyByConversationId((prev) => {
-              if (prev[conversationId] === busy) return prev;
-              return { ...prev, [conversationId]: busy };
-            });
-          },
-          { kinds: ['chat'] }
-        )
-      );
-    }
-
-    return () => {
-      cancelled = true;
-      try {
-        for (const off of unsubs) off?.();
-      } catch {}
-    };
-  }, [task.id, conversations, mainConversationId]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -445,50 +329,11 @@ const ChatInterface: React.FC<Props> = ({
     }
   }, [task.id, initialAgent]);
 
-  // Chat management handlers
   const handleCreateChat = useCallback(
     async (title: string, newAgent: string) => {
-      try {
-        // Don't dispose the current terminal - each chat has its own independent session
-
-        const newConversation = await rpc.db.createConversation({
-          taskId: task.id,
-          title,
-          provider: newAgent,
-          isMain: false, // Additional chats are never main
-        });
-
-        // Reload conversations from DB
-        const dbConversations = await rpc.db.getConversations(task.id);
-        const dbIds = new Set(dbConversations.map((c: Conversation) => c.id));
-        const missingFromDb = conversations.filter((c) => !dbIds.has(c.id));
-        if (missingFromDb.length > 0) {
-          // Re-persist conversations that only existed in React state
-          for (const missing of missingFromDb) {
-            await rpc.db.saveConversation({ ...missing, isActive: false });
-          }
-          const retryConversations = await rpc.db.getConversations(task.id);
-          setConversations(retryConversations);
-        } else {
-          setConversations(dbConversations);
-        }
-        setActiveConversationId(newConversation.id);
-        setAgent(newAgent as Agent);
-        try {
-          window.dispatchEvent(
-            new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-          );
-        } catch {}
-      } catch (error) {
-        console.error('Exception creating conversation:', error);
-        toast({
-          title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to create chat',
-          variant: 'destructive',
-        });
-      }
+      await createConversation(title, newAgent);
     },
-    [task.id, toast, conversations]
+    [createConversation]
   );
 
   const handleCreateNewChat = useCallback(() => {
@@ -496,68 +341,17 @@ const ChatInterface: React.FC<Props> = ({
   }, []);
 
   const handleSwitchChat = useCallback(
-    async (conversationId: string) => {
-      // Don't dispose terminals - just switch between them
-      // Each chat maintains its own persistent terminal session
-
-      await rpc.db.setActiveConversation({
-        taskId: task.id,
-        conversationId,
-      });
-      setActiveConversationId(conversationId);
-
-      // Update provider based on conversation
-      const conv = conversations.find((c) => c.id === conversationId);
-      if (conv?.provider) {
-        setAgent(conv.provider as Agent);
-      }
+    (conversationId: string) => {
+      switchConversation(conversationId);
     },
-    [task.id, conversations]
+    [switchConversation]
   );
 
   const handleCloseChat = useCallback(
     async (conversationId: string) => {
-      if (conversations.length <= 1) {
-        toast({
-          title: 'Cannot Close',
-          description: 'Cannot close the last chat',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Dispose the terminal for this chat
-      const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convAgent = (convToDelete?.provider || agent) as Agent;
-      const terminalToDispose = makePtyId(convAgent, 'chat', conversationId);
-      terminalSessionRegistry.dispose(terminalToDispose);
-
-      await rpc.db.deleteConversation(conversationId);
-
-      // Reload conversations
-      const updatedConversations = await rpc.db.getConversations(task.id);
-      setConversations(updatedConversations);
-      // Switch to another chat if we deleted the active one
-      if (conversationId === activeConversationId && updatedConversations.length > 0) {
-        const newActive = updatedConversations[0];
-        await rpc.db.setActiveConversation({
-          taskId: task.id,
-          conversationId: newActive.id,
-        });
-        setActiveConversationId(newActive.id);
-        // Update provider if needed
-        if (newActive.provider) {
-          setAgent(newActive.provider as Agent);
-        }
-      }
-
-      try {
-        window.dispatchEvent(
-          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-        );
-      } catch {}
+      await closeConversation(conversationId);
     },
-    [conversations, agent, task.id, activeConversationId, toast]
+    [closeConversation]
   );
 
   // Persist last-selected agent per task (including Droid)

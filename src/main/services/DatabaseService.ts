@@ -63,6 +63,7 @@ export interface Conversation {
   taskId: string;
   title: string;
   provider?: string | null;
+  /** @deprecated Active conversation is tracked in localStorage on the renderer side. This field is no longer written or read. */
   isActive?: boolean;
   isMain?: boolean;
   displayOrder?: number;
@@ -607,7 +608,7 @@ export class DatabaseService {
       isMain = existingConversations.length === 0;
     }
 
-    // Deactivate other conversations
+    // @deprecated isActive deactivation — active tab is now tracked in localStorage on the renderer side
     await db
       .update(conversationsTable)
       .set({ isActive: 0 })
@@ -637,6 +638,7 @@ export class DatabaseService {
     return this.mapDrizzleConversationRow(createdRow);
   }
 
+  /** @deprecated Active conversation is tracked in localStorage on the renderer side. This method is no longer called. */
   async setActiveConversation(taskId: string, conversationId: string): Promise<void> {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
@@ -656,6 +658,7 @@ export class DatabaseService {
     });
   }
 
+  /** @deprecated Active conversation is tracked in localStorage on the renderer side. This method is no longer called. */
   async getActiveConversation(taskId: string): Promise<Conversation | null> {
     if (this.disabled) return null;
     const { db } = await getDrizzleClient();
