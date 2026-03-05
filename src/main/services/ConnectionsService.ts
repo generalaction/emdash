@@ -258,7 +258,11 @@ class ConnectionsService {
       };
     }
 
-    return { ...result, command };
+    // Never cache the shell binary path as the provider path.
+    // If provider resolution still fails here, keep `resolvedPath` null so
+    // PTY startup falls back to shell-based spawn instead of direct-spawning the shell.
+    const providerResolvedPath = this.resolveCommandPath(command);
+    return { ...result, command, resolvedPath: providerResolvedPath };
   }
 
   private async runCommand(
