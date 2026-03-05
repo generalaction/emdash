@@ -862,20 +862,12 @@ export function registerPtyIpc(): void {
           const hookPort = agentEventService.getPort();
           if (hookPort > 0) {
             const remotePort = pickReverseTunnelPort(id);
-            ssh.args.push('-R', `127.0.0.1:${remotePort}:127.0.0.1:${hookPort}`);
-
-            // Use short `export` lines instead of a long `env K=V ...` prefix.
-            // Each line is resilient to SSH MOTD interleaving and the exports
-            // are inherited by the provider process launched via `exec`.
-            preProviderCommands.push(
-              `export EMDASH_HOOK_PORT=${quoteShellArg(String(remotePort))}`,
-              `export EMDASH_HOOK_TOKEN=${quoteShellArg(agentEventService.getToken())}`,
-              `export EMDASH_PTY_ID=${quoteShellArg(id)}`
-            );
 
             // For Claude, write hook config on the remote via ssh exec
             // (not keystroke injection — long JSON lines get corrupted by
             // terminal line-buffer limits when typed into the PTY).
+            // Done before pushing -R so the exec connection doesn't
+            // unnecessarily bind the reverse tunnel port.
             if (providerId === 'claude' && cwd) {
               try {
                 const hookCmd = buildRemoteHookConfigCommand(cwd);
@@ -887,6 +879,14 @@ export function registerPtyIpc(): void {
                 });
               }
             }
+
+            ssh.args.push('-R', `127.0.0.1:${remotePort}:127.0.0.1:${hookPort}`);
+
+            preProviderCommands.push(
+              `export EMDASH_HOOK_PORT=${quoteShellArg(String(remotePort))}`,
+              `export EMDASH_HOOK_TOKEN=${quoteShellArg(agentEventService.getToken())}`,
+              `export EMDASH_PTY_ID=${quoteShellArg(id)}`
+            );
           }
 
           const proc = startSshPty({
