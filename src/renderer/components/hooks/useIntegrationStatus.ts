@@ -23,10 +23,6 @@ interface IntegrationStatus {
   // GitLab
   isGitlabConnected: boolean | null;
   handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
-
-  // Forgejo
-  isForgejoConnected: boolean | null;
-  handleForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -37,7 +33,6 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const [isLinearConnected, setIsLinearConnected] = useState<boolean | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [isGitlabConnected, setIsGitlabConnected] = useState<boolean | null>(null);
-  const [isForgejoConnected, setIsForgejoConnected] = useState<boolean | null>(null);
 
   const {
     installed: githubInstalled,
@@ -114,39 +109,6 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     };
   }, [isOpen]);
 
-  // Check Forgejo connection
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancel = false;
-    if (!window.electronAPI?.forgejoCheckConnection) {
-      setIsForgejoConnected(false);
-      return;
-    }
-    window.electronAPI
-      .forgejoCheckConnection()
-      .then((res) => {
-        if (!cancel) setIsForgejoConnected(!!res?.success);
-      })
-      .catch(() => {
-        if (!cancel) setIsForgejoConnected(false);
-      });
-    if (!api?.forgejoCheckConnection) {
-      setIsForgejoConnected(false);
-      return;
-    }
-    api
-      .forgejoCheckConnection()
-      .then((res: any) => {
-        if (!cancel) setIsForgejoConnected(!!res?.success);
-      })
-      .catch(() => {
-        if (!cancel) setIsForgejoConnected(false);
-      });
-    return () => {
-      cancel = true;
-    };
-  }, [isOpen]);
-
   const handleLinearConnect = useCallback(async (apiKey: string) => {
     if (!apiKey || !window?.electronAPI?.linearSaveToken) {
       throw new Error('Invalid API key');
@@ -201,18 +163,6 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     []
   );
 
-  const handleForgejoConnect = useCallback(
-    async (credentials: { instanceUrl: string; token: string }) => {
-      const res = await window.electronAPI.forgejoSaveCredentials?.(credentials);
-      if (res?.success) {
-        setIsForgejoConnected(true);
-      } else {
-        throw new Error(res?.error || 'Failed to connect.');
-      }
-    },
-    []
-  );
-
   return {
     isLinearConnected,
     handleLinearConnect,
@@ -224,7 +174,5 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     handleJiraConnect,
     isGitlabConnected,
     handleGitlabConnect,
-    isForgejoConnected,
-    handleForgejoConnect,
   };
 }
