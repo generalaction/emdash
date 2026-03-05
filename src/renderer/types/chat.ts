@@ -25,6 +25,11 @@ export interface TaskMetadata {
   nameGenerated?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  // When present, the task was created with a remote workspace provider
+  workspace?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

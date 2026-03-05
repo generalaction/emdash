@@ -80,6 +80,32 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
   return linked;
 };
 
+/**
+ * If the task has a workspace provider, terminate the remote workspace instance.
+ * Best-effort — logs warnings but does not throw.
+ */
+const terminateWorkspaceIfNeeded = async (project: Project, task: Task): Promise<void> => {
+  const workspaceConfig = task.metadata?.workspace;
+  if (!workspaceConfig?.terminateCommand) return;
+
+  try {
+    const statusResult = await window.electronAPI.workspaceStatus({ taskId: task.id });
+    if (!statusResult.success || !statusResult.data) return;
+
+    const instance = statusResult.data;
+    if (instance.status === 'terminated') return;
+
+    await window.electronAPI.workspaceTerminate({
+      instanceId: instance.id,
+      terminateCommand: workspaceConfig.terminateCommand,
+      projectPath: project.path,
+    });
+  } catch (err) {
+    const { log } = await import('../lib/logger');
+    log.warn('Workspace termination failed during task cleanup:', err as any);
+  }
+};
+
 const cleanupPtyResources = async (task: Task): Promise<void> => {
   try {
     const variants = task.metadata?.multiAgent?.variants || [];
@@ -402,6 +428,9 @@ export function useTaskManagement() {
     }) => {
       await runLifecycleTeardownBestEffort(project, task, 'delete', options);
 
+      // Terminate remote workspace if this task used workspace provisioning
+      await terminateWorkspaceIfNeeded(project, task);
+
       try {
         const { initialPromptSentKey } = await import('../lib/keys');
         try {
@@ -593,6 +622,10 @@ export function useTaskManagement() {
       void cleanupPtyResources(task);
 
       await runLifecycleTeardownBestEffort(project, task, 'archive', options);
+
+      // Terminate remote workspace if this task used workspace provisioning
+      await terminateWorkspaceIfNeeded(project, task);
+
       await rpc.db.archiveTask(task.id);
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
@@ -915,7 +948,9 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      useRemoteWorkspace?: boolean,
+      workspaceProvider?: { provisionCommand: string; terminateCommand: string }
     ) => {
       if (!selectedProject) return;
       setIsCreatingTask(true);
@@ -931,6 +966,8 @@ export function useTaskManagement() {
         nameGenerated,
         useWorktree,
         baseRef,
+        useRemoteWorkspace,
+        workspaceProvider,
       });
     },
     [selectedProject, createTaskMutation]
@@ -965,7 +1002,9 @@ export function useTaskManagement() {
           result.autoApprove,
           result.useWorktree,
           result.baseRef,
-          result.nameGenerated
+          result.nameGenerated,
+          result.useRemoteWorkspace,
+          result.workspaceProvider
         ),
     });
   };

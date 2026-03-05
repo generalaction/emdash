@@ -18,6 +18,13 @@ export interface CreateTaskParams {
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  /** When true, provision a remote workspace instead of creating a local worktree. */
+  useRemoteWorkspace?: boolean;
+  /** Workspace provider commands from .emdash.json — required when useRemoteWorkspace is true. */
+  workspaceProvider?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  };
 }
 
 export interface CreateTaskResult {
@@ -188,6 +195,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     nameGenerated,
     useWorktree,
     baseRef,
+    useRemoteWorkspace,
+    workspaceProvider,
   } = params;
 
   // Build prompt prefix from linked issues
@@ -368,7 +377,12 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   let taskPersistedInClaim = false;
   let warning: string | undefined;
 
-  if (useWorktree) {
+  if (useRemoteWorkspace && workspaceProvider) {
+    // Remote workspace — no local worktree, provisioning happens after task save.
+    branch = project.gitInfo.branch || 'main';
+    path = project.path;
+    taskId = `workspace-${taskName}-${Date.now()}`;
+  } else if (useWorktree) {
     const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
       projectId: project.id,
       projectPath: project.path,
@@ -414,6 +428,12 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     taskId = `direct-${taskName}-${Date.now()}`;
   }
 
+  // Attach workspace provider config to metadata so teardown can find the terminate command.
+  const finalTaskMetadata =
+    useRemoteWorkspace && workspaceProvider
+      ? { ...(taskMetadata || {}), workspace: workspaceProvider }
+      : taskMetadata;
+
   const newTask: Task = {
     id: taskId,
     projectId: project.id,
@@ -422,8 +442,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     path,
     status: 'idle',
     agentId: primaryAgent,
-    metadata: taskMetadata,
-    useWorktree,
+    metadata: finalTaskMetadata,
+    useWorktree: useRemoteWorkspace ? false : useWorktree,
   };
 
   if (!taskPersistedInClaim) {
@@ -431,8 +451,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       await rpc.db.saveTask({
         ...newTask,
         agentId: primaryAgent,
-        metadata: taskMetadata,
-        useWorktree,
+        metadata: finalTaskMetadata,
+        useWorktree: newTask.useWorktree,
       });
     } catch (saveErr) {
       const { log } = await import('./logger');
@@ -442,8 +462,27 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     }
   }
 
+  // Background: workspace provisioning (fire-and-forget; progress streamed via events)
+  if (useRemoteWorkspace && workspaceProvider) {
+    void window.electronAPI
+      .workspaceProvision({
+        taskId: newTask.id,
+        repoUrl: project.gitInfo.remote || '',
+        branch: newTask.branch,
+        baseRef: baseRef || project.gitInfo.baseRef || 'main',
+        provisionCommand: workspaceProvider.provisionCommand,
+        projectPath: project.path,
+      })
+      .catch(async (err: unknown) => {
+        const { log } = await import('./logger');
+        log.error(`Workspace provision failed for task "${newTask.name}"`, err as any);
+      });
+  }
+
   // Background: setup, telemetry, issue seeding
-  void runSetupOnCreate(newTask.id, newTask.path, project.path, newTask.name);
+  if (!useRemoteWorkspace) {
+    void runSetupOnCreate(newTask.id, newTask.path, project.path, newTask.name);
+  }
   void import('./telemetryClient').then(({ captureTelemetry }) => {
     captureTelemetry('task_created', {
       provider: (newTask.agentId as string) || 'codex',
