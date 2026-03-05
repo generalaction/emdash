@@ -515,6 +515,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('gitlab:initialFetch', { projectPath, limit }),
   gitlabSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('gitlab:searchIssues', { projectPath, searchTerm, limit }),
+  // Forgejo integration
+  forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('forgejo:saveCredentials', args),
+  forgejoClearCredentials: () => ipcRenderer.invoke('forgejo:clearCredentials'),
+  forgejoCheckConnection: () => ipcRenderer.invoke('forgejo:checkConnection'),
+  forgejoInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:initialFetch', { projectPath, limit }),
+  forgejoSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>

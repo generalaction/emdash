@@ -935,6 +935,25 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // Forgejo
+      forgejoSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      forgejoClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      forgejoCheckConnection?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      forgejoInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      forgejoSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];

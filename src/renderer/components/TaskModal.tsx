@@ -22,6 +22,7 @@ import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type GitLabIssueSummary } from '../types/gitlab';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 import {
   generateFriendlyTaskName,
   normalizeTaskName,
@@ -125,6 +126,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [selectedGitlabIssue, setSelectedGitlabIssue] = useState<GitLabIssueSummary | null>(null);
+  const [selectedForgejoIssue, setSelectedForgejoIssue] = useState<ForgejoIssueSummary | null>(
+    null
+  );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
 
@@ -188,6 +192,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       setSelectedGithubIssue(null);
       setSelectedJiraIssue(null);
       setSelectedGitlabIssue(null);
+      setSelectedForgejoIssue(null);
       setInitialPrompt('');
     }
   }, [hasInitialPromptSupport]);
@@ -211,6 +216,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
     setSelectedGitlabIssue(null);
+    setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
     userHasTypedRef.current = false;
@@ -455,6 +461,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
           onGitlabIssueChange={setSelectedGitlabIssue}
           isGitlabConnected={integrations.isGitlabConnected}
           onGitlabConnect={integrations.handleGitlabConnect}
+          selectedForgejoIssue={selectedForgejoIssue}
+          onForgejoIssueChange={setSelectedForgejoIssue}
+          isForgejoConnected={integrations.isForgejoConnected}
+          onForgejoConnect={integrations.handleForgejoConnect}
         />
 
         <DialogFooter>
