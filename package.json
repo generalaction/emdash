@@ -19,7 +19,7 @@
     "package:linux": "pnpm run build && electron-builder --linux --publish never",
     "package:win": "pnpm run build && electron-builder --win --publish never",
     "postinstall": "node scripts/postinstall.cjs",
-    "rebuild": "electron-rebuild -f -v 40.7.0 --only=sqlite3,node-pty,keytar",
+    "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty,keytar",
     "clean": "node scripts/clean.cjs",
     "reset": "pnpm run clean && pnpm install",
     "lint": "eslint . --ext .ts,.tsx",
@@ -55,7 +55,6 @@
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.16",
-    "better-sqlite3": "^12.6.0",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.2",
     "electron": "^40.7.0",
@@ -75,6 +74,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "better-sqlite3": "^12.6.0",
     "@isaacs/brace-expansion": "^5.0.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -98,7 +98,7 @@
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@tanstack/react-query": "^5.90.21",
     "@types/react-window": "^1.8.8",
-    "@types/sqlite3": "^3.1.11",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/ssh2": "^1.15.5",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-serialize": "^0.14.0",
@@ -133,7 +133,6 @@
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "sqlite3": "^5.1.7",
     "ssh2": "^1.17.0",
     "streamdown": "^1.3.0",
     "tailwind-merge": "^2.6.0",
@@ -162,7 +161,7 @@
       "drizzle/**/*"
     ],
     "asarUnpack": [
-      "node_modules/sqlite3/**",
+      "node_modules/better-sqlite3/**",
       "node_modules/node-pty/**",
       "node_modules/keytar/**",
       "**/*.node"
@@ -252,13 +251,12 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "sqlite3",
+      "better-sqlite3",
       "node-pty",
       "keytar",
       "electron"
     ],
     "ignoredBuiltDependencies": [
-      "better-sqlite3",
       "core-js",
       "cpu-features",
       "esbuild",

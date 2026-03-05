@@ -1,16 +1,10 @@
-import type sqlite3Type from 'sqlite3';
+import type BetterSqlite3 from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { readMigrationFiles } from 'drizzle-orm/migrator';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
-import { getDrizzleClient } from '../db/drizzleClient';
+import { createDrizzleClient, getDrizzleClient, resetDrizzleClient } from '../db/drizzleClient';
 import { errorTracking } from '../errorTracking';
-import {
-  existsSync,
-  readFileSync as fsReadFileSync,
-  writeFileSync as fsWriteFileSync,
-} from 'node:fs';
-import { join as pathJoin } from 'node:path';
-import { createHash as cryptoCreateHash } from 'node:crypto';
 import {
   projects as projectsTable,
   tasks as tasksTable,
@@ -92,12 +86,6 @@ export interface Message {
   metadata?: string; // JSON string for additional data
 }
 
-export interface MigrationSummary {
-  appliedCount: number;
-  totalMigrations: number;
-  recovered: boolean;
-}
-
 export class DatabaseSchemaMismatchError extends Error {
   readonly code = 'DB_SCHEMA_MISMATCH';
   readonly dbPath: string;
@@ -113,12 +101,9 @@ export class DatabaseSchemaMismatchError extends Error {
 }
 
 export class DatabaseService {
-  private static migrationsApplied = false;
-  private db: sqlite3Type.Database | null = null;
-  private sqlite3: typeof sqlite3Type | null = null;
+  private db: BetterSqlite3.Database | null = null;
   private dbPath: string;
   private disabled: boolean = false;
-  private lastMigrationSummary: MigrationSummary | null = null;
 
   constructor() {
     if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
@@ -128,51 +113,56 @@ export class DatabaseService {
   }
 
   async initialize(): Promise<void> {
-    if (this.disabled) return Promise.resolve();
-    if (!this.sqlite3) {
-      try {
-        // Dynamic import to avoid loading native module at startup
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.sqlite3 = (await import('sqlite3')) as unknown as typeof sqlite3Type;
-      } catch (e) {
-        // Track critical database initialization error
-        await errorTracking.captureDatabaseError(e, 'initialize_sqlite3_import');
-        return Promise.reject(e);
-      }
-    }
-    return new Promise((resolve, reject) => {
-      this.db = new this.sqlite3!.Database(this.dbPath, async (err) => {
-        if (err) {
-          // Track critical database connection error
-          await errorTracking.captureDatabaseError(err, 'initialize_connection', {
-            db_path: this.dbPath,
-          });
-          reject(err);
-          return;
-        }
+    if (this.disabled) return;
 
-        this.ensureMigrations()
-          .then(async () => {
-            await this.validateSchemaContract();
-            resolve();
-          })
-          .catch(async (initError) => {
-            const operation =
-              initError instanceof DatabaseSchemaMismatchError
-                ? 'initialize_schema_contract'
-                : 'initialize_migrations';
-            await errorTracking.captureDatabaseError(initError, operation, {
-              db_path: this.dbPath,
-            });
-            reject(initError);
-          });
+    const migrationsPath = resolveMigrationsPath();
+    if (!migrationsPath) {
+      throw new Error(
+        [
+          'Failed to locate database migrations folder.',
+          'This can happen when:',
+          '1. The app was installed via Homebrew (try downloading directly from GitHub)',
+          '2. The app is running from Downloads/DMG (move it to Applications)',
+          '3. The installation is incomplete or corrupted',
+          '4. Security software is blocking file access',
+          '',
+          'To fix: Try downloading and installing Emdash directly from:',
+          'https://github.com/generalaction/emdash/releases',
+        ].join('\n')
+      );
+    }
+
+    try {
+      this.db = new Database(this.dbPath);
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('busy_timeout = 5000');
+    } catch (e) {
+      await errorTracking.captureDatabaseError(e, 'initialize_connection', {
+        db_path: this.dbPath,
       });
-    });
+      throw e;
+    }
+
+    try {
+      // Register this connection as the shared Drizzle client so all data
+      // access uses the same SQLite handle — no second connection opened.
+      const { db } = createDrizzleClient({ database: this.db, cacheResult: true });
+      migrate(db, { migrationsFolder: migrationsPath });
+      this.validateSchemaContract();
+    } catch (initError) {
+      const operation =
+        initError instanceof DatabaseSchemaMismatchError
+          ? 'initialize_schema_contract'
+          : 'initialize_migrations';
+      await errorTracking.captureDatabaseError(initError, operation, {
+        db_path: this.dbPath,
+      });
+      throw initError;
+    }
   }
 
-  getLastMigrationSummary(): MigrationSummary | null {
-    return this.lastMigrationSummary;
+  getLastMigrationSummary(): null {
+    return null;
   }
 
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
@@ -1021,166 +1011,25 @@ export class DatabaseService {
     }
   }
 
-  async close(): Promise<void> {
+  close(): void {
     if (this.disabled || !this.db) return;
-
-    return new Promise((resolve, reject) => {
-      this.db!.close((err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    resetDrizzleClient();
+    this.db.close();
+    this.db = null;
   }
 
-  private async ensureMigrations(): Promise<void> {
-    if (this.disabled) return;
-    if (!this.db) throw new Error('Database not initialized');
-    if (DatabaseService.migrationsApplied) return;
-
-    const migrationsPath = resolveMigrationsPath();
-    if (!migrationsPath) {
-      // Provide a detailed error message for debugging
-      const errorMsg = [
-        'Failed to locate database migrations folder.',
-        'This can happen when:',
-        '1. The app was installed via Homebrew (try downloading directly from GitHub)',
-        '2. The app is running from Downloads/DMG (move it to Applications)',
-        '3. The installation is incomplete or corrupted',
-        '4. Security software is blocking file access',
-        '',
-        'To fix: Try downloading and installing Emdash directly from:',
-        'https://github.com/generalaction/emdash/releases',
-        '',
-      ].join('\n');
-
-      throw new Error(errorMsg);
-    }
-
-    // We run schema migrations with foreign_keys disabled.
-    // Many dev DBs were created with foreign_keys=OFF, so legacy data can contain orphans.
-    // Enabling FK enforcement mid-migration can cause schema transitions (table rebuilds) to fail.
-    await this.execSql('PRAGMA foreign_keys=OFF;');
-    try {
-      // IMPORTANT:
-      // Drizzle's built-in migrator for sqlite-proxy decides what to run based on the latest
-      // `created_at` timestamp in __drizzle_migrations. If a migration is added later but has an
-      // earlier timestamp than the latest applied migration, Drizzle will skip it forever.
-      //
-      // To make migrations robust for dev DBs (and for any DB that may have extra migrations),
-      // we apply migrations by missing hash instead of timestamp ordering.
-      const migrations = readMigrationFiles({ migrationsFolder: migrationsPath });
-      const tagByWhen = await this.tryLoadMigrationTagByWhen(migrationsPath);
-
-      await this.execSql(`
-        CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-          id SERIAL PRIMARY KEY,
-          hash text NOT NULL,
-          created_at numeric
-        )
-      `);
-
-      const appliedRows = await this.allSql<{ hash: string }>(
-        `SELECT hash FROM "__drizzle_migrations"`
-      );
-      const applied = new Set(appliedRows.map((r) => r.hash));
-
-      // Recovery: if a previous run partially applied the workspace->task migration, finish it.
-      // Symptom: `tasks` exists, `conversations` still has `workspace_id`, and `__new_conversations` exists.
-      let recovered = false;
-      if (
-        (await this.tableExists('tasks')) &&
-        (await this.tableExists('conversations')) &&
-        (await this.tableExists('__new_conversations')) &&
-        (await this.tableHasColumn('conversations', 'workspace_id')) &&
-        !(await this.tableHasColumn('conversations', 'task_id'))
-      ) {
-        // Populate new conversations table from the old one (FK enforcement is OFF, so orphans won't block)
-        await this.execSql(`
-          INSERT INTO "__new_conversations"("id", "task_id", "title", "created_at", "updated_at")
-          SELECT "id", "workspace_id", "title", "created_at", "updated_at" FROM "conversations"
-        `);
-        await this.execSql(`DROP TABLE "conversations";`);
-        await this.execSql(`ALTER TABLE "__new_conversations" RENAME TO "conversations";`);
-        await this.execSql(
-          `CREATE INDEX IF NOT EXISTS "idx_conversations_task_id" ON "conversations" ("task_id");`
-        );
-
-        // Mark the workspace->task migration as applied (even if it wasn't tracked).
-        // This prevents the hash-based runner from attempting to re-run it against a partially-migrated DB.
-        await this.ensureMigrationMarkedApplied(
-          migrationsPath,
-          applied,
-          '0002_lyrical_impossible_man'
-        );
-        recovered = true;
-      }
-
-      let appliedCount = 0;
-      for (const migration of migrations) {
-        if (applied.has(migration.hash)) continue;
-
-        const tag = tagByWhen?.get(migration.folderMillis);
-        // If the DB already reflects the workspace->task rename (e.g. user manually fixed their DB)
-        // but the migration hash wasn't recorded, mark it as applied and move on.
-        if (
-          tag === '0002_lyrical_impossible_man' &&
-          (await this.tableExists('tasks')) &&
-          !(await this.tableExists('workspaces')) &&
-          (await this.tableExists('conversations')) &&
-          (await this.tableHasColumn('conversations', 'task_id'))
-        ) {
-          await this.execSql(
-            `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`
-          );
-          applied.add(migration.hash);
-          continue;
-        }
-
-        // Execute each statement chunk (drizzle-kit uses '--> statement-breakpoint')
-        for (const statement of migration.sql) {
-          // We manage FK enforcement ourselves during migrations.
-          const trimmed = statement.trim().toUpperCase();
-          if (trimmed.startsWith('PRAGMA FOREIGN_KEYS=')) continue;
-          await this.execSql(statement);
-        }
-
-        // Record as applied (same schema as Drizzle uses)
-        await this.execSql(
-          `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`
-        );
-
-        applied.add(migration.hash);
-        appliedCount += 1;
-      }
-
-      this.lastMigrationSummary = {
-        appliedCount,
-        totalMigrations: migrations.length,
-        recovered,
-      };
-
-      DatabaseService.migrationsApplied = true;
-    } finally {
-      // Restore FK enforcement for normal operation (and ensure it's re-enabled on failure).
-      await this.execSql('PRAGMA foreign_keys=ON;');
-    }
-  }
-
-  private async validateSchemaContract(): Promise<void> {
+  private validateSchemaContract(): void {
     if (this.disabled) return;
 
     const missingInvariants: string[] = [];
 
-    if (!(await this.tableHasColumn('projects', 'base_ref'))) {
+    if (!this.tableHasColumn('projects', 'base_ref')) {
       missingInvariants.push('projects.base_ref');
     }
-    if (!(await this.tableExists('tasks'))) {
+    if (!this.tableExists('tasks')) {
       missingInvariants.push('tasks table');
     }
-    if (!(await this.tableHasColumn('conversations', 'task_id'))) {
+    if (!this.tableHasColumn('conversations', 'task_id')) {
       missingInvariants.push('conversations.task_id');
     }
 
@@ -1189,114 +1038,26 @@ export class DatabaseService {
     }
   }
 
-  private async tryLoadMigrationTagByWhen(
-    migrationsFolder: string
-  ): Promise<Map<number, string> | null> {
-    try {
-      const journalPath = pathJoin(migrationsFolder, 'meta', '_journal.json');
-      if (!existsSync(journalPath)) return null;
-      const parsed: unknown = JSON.parse(fsReadFileSync(journalPath, 'utf8'));
-      if (!parsed || typeof parsed !== 'object') return null;
-      const entries = (parsed as { entries?: unknown }).entries;
-      if (!Array.isArray(entries)) return null;
-
-      const map = new Map<number, string>();
-      for (const e of entries) {
-        if (!e || typeof e !== 'object') continue;
-        const when = (e as { when?: unknown }).when;
-        const tag = (e as { tag?: unknown }).tag;
-        if (typeof when === 'number' && typeof tag === 'string') {
-          map.set(when, tag);
-        }
-      }
-      return map;
-    } catch {
-      return null;
-    }
-  }
-
-  private async ensureMigrationMarkedApplied(
-    migrationsFolder: string,
-    applied: Set<string>,
-    tag: string
-  ): Promise<void> {
-    // Only mark if the SQL file + journal entry exist.
-    const journalPath = pathJoin(migrationsFolder, 'meta', '_journal.json');
-    if (!existsSync(journalPath)) return;
-    const journalParsed: unknown = JSON.parse(fsReadFileSync(journalPath, 'utf8'));
-    const entries = (journalParsed as { entries?: unknown }).entries;
-    if (!Array.isArray(entries)) return;
-    const entry = entries.find((e) => {
-      if (!e || typeof e !== 'object') return false;
-      return (e as { tag?: unknown }).tag === tag;
-    }) as { when?: unknown } | undefined;
-    if (!entry) return;
-
-    const sqlPath = pathJoin(migrationsFolder, `${tag}.sql`);
-    if (!existsSync(sqlPath)) return;
-    const contents = fsReadFileSync(sqlPath, 'utf8');
-    const hash = cryptoCreateHash('sha256').update(contents).digest('hex');
-
-    if (applied.has(hash)) return;
-    const createdAt = typeof entry.when === 'number' ? entry.when : Date.now();
-    await this.execSql(
-      `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${hash}', '${createdAt}')`
-    );
-    applied.add(hash);
-  }
-
-  private async tableExists(name: string): Promise<boolean> {
-    const rows = await this.allSql<{ name: string }>(
+  private tableExists(name: string): boolean {
+    const rows = this.allSql<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='${name.replace(/'/g, "''")}' LIMIT 1`
     );
     return rows.length > 0;
   }
 
-  private async tableHasColumn(tableName: string, columnName: string): Promise<boolean> {
-    if (!(await this.tableExists(tableName))) return false;
-    const rows = await this.allSql<{ name: string }>(
+  private tableHasColumn(tableName: string, columnName: string): boolean {
+    if (!this.tableExists(tableName)) return false;
+    const rows = this.allSql<{ name: string }>(
       `PRAGMA table_info("${tableName.replace(/"/g, '""')}")`
     );
     return rows.some((r) => r.name === columnName);
   }
 
-  private async allSql<T = any>(query: string): Promise<T[]> {
+  private allSql<T = any>(query: string): T[] {
     if (!this.db) throw new Error('Database not initialized');
     const trimmed = query.trim();
     if (!trimmed) return [];
-
-    return await new Promise<T[]>((resolve, reject) => {
-      this.db!.all(trimmed, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve((rows ?? []) as T[]);
-        }
-      });
-    });
-  }
-
-  private async execSql(statement: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const trimmed = statement.trim();
-    if (!trimmed) return;
-
-    await new Promise<void>((resolve, reject) => {
-      this.db!.exec(trimmed, (err) => {
-        if (err) {
-          // Handle idempotent migration cases - skip if schema already matches
-          const msg = err.message ?? '';
-          if (msg.includes('duplicate column name') || msg.includes('already exists')) {
-            // Schema change already applied, continue
-            resolve();
-            return;
-          }
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    return this.db.prepare(trimmed).all() as T[];
   }
 }
 

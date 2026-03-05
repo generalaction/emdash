@@ -74,12 +74,12 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@18.3.1)
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/react-window':
         specifier: ^1.8.8
         version: 1.8.8
-      '@types/sqlite3':
-        specifier: ^3.1.11
-        version: 3.1.11
       '@types/ssh2':
         specifier: ^1.15.5
         version: 1.15.5
@@ -98,6 +98,9 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
+      better-sqlite3:
+        specifier: ^12.6.0
+        version: 12.6.2
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -112,7 +115,7 @@ importers:
         version: 17.2.4
       drizzle-orm:
         specifier: ^0.32.1
-        version: 0.32.2(@opentelemetry/api@1.9.0)(@types/react@18.3.28)(better-sqlite3@12.6.2)(react@18.3.1)(sqlite3@5.1.7)
+        version: 0.32.2(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/react@18.3.28)(better-sqlite3@12.6.2)(react@18.3.1)(sqlite3@5.1.7)
       electron-updater:
         specifier: ^6.3.9
         version: 6.7.3
@@ -182,9 +185,6 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      sqlite3:
-        specifier: ^5.1.7
-        version: 5.1.7
       ssh2:
         specifier: ^1.17.0
         version: 1.17.0
@@ -228,9 +228,6 @@ importers:
       autoprefixer:
         specifier: ^10.4.16
         version: 10.4.24(postcss@8.5.6)
-      better-sqlite3:
-        specifier: ^12.6.0
-        version: 12.6.2
       concurrently:
         specifier: ^8.2.2
         version: 8.2.2
@@ -2016,6 +2013,9 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/better-sqlite3@7.6.13':
+    resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
+
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
 
@@ -2194,9 +2194,6 @@ packages:
 
   '@types/semver@7.7.1':
     resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
-
-  '@types/sqlite3@3.1.11':
-    resolution: {integrity: sha512-KYF+QgxAnnAh7DWPdNDroxkDI3/MspH1NMx6m/N/6fT1G6+jvsw4/ZePt8R8cr7ta58aboeTfYFBDxTJ5yv15w==}
 
   '@types/ssh2@1.15.5':
     resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==}
@@ -7785,6 +7782,10 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.0
 
+  '@types/better-sqlite3@7.6.13':
+    dependencies:
+      '@types/node': 20.19.32
+
   '@types/cacheable-request@6.0.3':
     dependencies:
       '@types/http-cache-semantics': 4.2.0
@@ -8000,10 +8001,6 @@ snapshots:
       '@types/node': 20.19.32
 
   '@types/semver@7.7.1': {}
-
-  '@types/sqlite3@3.1.11':
-    dependencies:
-      '@types/node': 20.19.32
 
   '@types/ssh2@1.15.5':
     dependencies:
@@ -9258,9 +9255,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.32.2(@opentelemetry/api@1.9.0)(@types/react@18.3.28)(better-sqlite3@12.6.2)(react@18.3.1)(sqlite3@5.1.7):
+  drizzle-orm@0.32.2(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/react@18.3.28)(better-sqlite3@12.6.2)(react@18.3.1)(sqlite3@5.1.7):
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
+      '@types/better-sqlite3': 7.6.13
       '@types/react': 18.3.28
       better-sqlite3: 12.6.2
       react: 18.3.1
@@ -11339,7 +11337,8 @@ snapshots:
 
   node-addon-api@4.3.0: {}
 
-  node-addon-api@7.1.1: {}
+  node-addon-api@7.1.1:
+    optional: true
 
   node-api-version@0.2.1:
     dependencies:
@@ -12308,6 +12307,7 @@ snapshots:
     transitivePeerDependencies:
       - bluebird
       - supports-color
+    optional: true
 
   ssh2@1.17.0:
     dependencies:

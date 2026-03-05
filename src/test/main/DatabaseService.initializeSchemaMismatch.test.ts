@@ -1,69 +1,69 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type SchemaState = {
-  tables: Set<string>;
-  columnsByTable: Record<string, string[]>;
-};
+// vi.mock factories are hoisted before class definitions, so the mock class
+// must be defined via vi.hoisted() to be available when the factory runs.
+const { schemaState, MockSqliteDatabase } = vi.hoisted(() => {
+  type SqlRow = Record<string, unknown>;
 
-const schemaState: SchemaState = {
-  tables: new Set<string>(),
-  columnsByTable: {},
-};
+  const schemaState = {
+    tables: new Set<string>(),
+    columnsByTable: {} as Record<string, string[]>,
+  };
 
-type SqlRow = Record<string, unknown>;
-type AllCallback = (err: Error | null, rows?: SqlRow[]) => void;
-type ExecCallback = (err: Error | null) => void;
-type CloseCallback = (err: Error | null) => void;
+  class MockStatement {
+    constructor(private query: string) {}
 
-class MockSqliteDatabase {
-  constructor(_filePath: string, callback: (err: Error | null) => void) {
-    callback(null);
+    all(): SqlRow[] {
+      const trimmed = this.query.trim();
+
+      const tableLookup = trimmed.match(/name='([^']+)'/);
+      if (tableLookup) {
+        const tableName = tableLookup[1];
+        return schemaState.tables.has(tableName) ? [{ name: tableName }] : [];
+      }
+
+      const tableInfoLookup = trimmed.match(/^PRAGMA table_info\("([^"]+)"\)$/i);
+      if (tableInfoLookup) {
+        const tableName = tableInfoLookup[1];
+        const columns = schemaState.columnsByTable[tableName] ?? [];
+        return columns.map((name) => ({ name }));
+      }
+
+      return [];
+    }
   }
 
-  all(query: string, callback: AllCallback): void {
-    const trimmed = query.trim();
-    const tableLookup = trimmed.match(/name='([^']+)'/);
-    if (tableLookup) {
-      const tableName = tableLookup[1];
-      callback(null, schemaState.tables.has(tableName) ? [{ name: tableName }] : []);
-      return;
+  class MockSqliteDatabase {
+    constructor(_filePath: string) {}
+
+    pragma(_statement: string): unknown {
+      return null;
     }
 
-    const tableInfoLookup = trimmed.match(/^PRAGMA table_info\("([^"]+)"\)$/i);
-    if (tableInfoLookup) {
-      const tableName = tableInfoLookup[1];
-      const columns = schemaState.columnsByTable[tableName] ?? [];
-      callback(
-        null,
-        columns.map((name) => ({
-          name,
-        }))
-      );
-      return;
+    prepare(query: string): MockStatement {
+      return new MockStatement(query);
     }
 
-    callback(null, []);
+    exec(_statement: string): void {}
+
+    close(): void {}
   }
 
-  exec(_statement: string, callback: ExecCallback): void {
-    callback(null);
-  }
+  return { schemaState, MockSqliteDatabase };
+});
 
-  close(callback: CloseCallback): void {
-    callback(null);
-  }
-}
+const migrateMock = vi.hoisted(() => vi.fn());
 
-const captureDatabaseErrorMock = vi.fn();
+vi.mock('better-sqlite3', () => ({ default: MockSqliteDatabase }));
 
-vi.mock('sqlite3', () => ({
-  Database: MockSqliteDatabase,
-}));
+vi.mock('drizzle-orm/better-sqlite3/migrator', () => ({ migrate: migrateMock }));
 
 vi.mock('../../main/db/path', () => ({
   resolveDatabasePath: () => '/tmp/emdash-init-test.db',
   resolveMigrationsPath: () => '/tmp/drizzle',
 }));
+
+const captureDatabaseErrorMock = vi.fn();
 
 vi.mock('../../main/errorTracking', () => ({
   errorTracking: {
@@ -73,6 +73,8 @@ vi.mock('../../main/errorTracking', () => ({
 
 vi.mock('../../main/db/drizzleClient', () => ({
   getDrizzleClient: vi.fn(),
+  createDrizzleClient: vi.fn().mockReturnValue({ db: {}, sqlite: {}, close: vi.fn() }),
+  resetDrizzleClient: vi.fn(),
 }));
 
 import { DatabaseSchemaMismatchError, DatabaseService } from '../../main/services/DatabaseService';
@@ -91,12 +93,6 @@ describe('DatabaseService.initialize schema contract handling', () => {
     };
 
     service = new DatabaseService();
-    vi.spyOn(
-      service as unknown as {
-        ensureMigrations: () => Promise<void>;
-      },
-      'ensureMigrations'
-    ).mockResolvedValue(undefined);
   });
 
   it('rejects initialize with typed schema mismatch when projects.base_ref is missing', async () => {
@@ -107,7 +103,7 @@ describe('DatabaseService.initialize schema contract handling', () => {
       { db_path: '/tmp/emdash-init-test.db' }
     );
 
-    await service.close();
+    service.close();
   });
 
   it('resolves initialize when all required schema invariants exist', async () => {
@@ -123,23 +119,20 @@ describe('DatabaseService.initialize schema contract handling', () => {
     await expect(service.initialize()).resolves.toBeUndefined();
     expect(captureDatabaseErrorMock).not.toHaveBeenCalled();
 
-    await service.close();
+    service.close();
   });
 
   it('tracks migration failures separately from schema contract failures', async () => {
     const migrationError = new Error('migration boom');
-    vi.spyOn(
-      service as unknown as {
-        ensureMigrations: () => Promise<void>;
-      },
-      'ensureMigrations'
-    ).mockRejectedValueOnce(migrationError);
+    migrateMock.mockImplementationOnce(() => {
+      throw migrationError;
+    });
 
     await expect(service.initialize()).rejects.toThrow('migration boom');
     expect(captureDatabaseErrorMock).toHaveBeenCalledWith(migrationError, 'initialize_migrations', {
       db_path: '/tmp/emdash-init-test.db',
     });
 
-    await service.close();
+    service.close();
   });
 });
