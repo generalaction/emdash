@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
+import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 
 const execAsync = promisify(exec);
 
@@ -513,7 +514,7 @@ export class GitHubService {
       );
       const list = JSON.parse(stdout || '[]');
       if (!Array.isArray(list)) return [];
-      return list;
+      return sortByUpdatedAtDesc(list);
     } catch (error) {
       console.error('Failed to list GitHub issues:', error);
       return []; // Return empty array instead of throwing
@@ -548,7 +549,7 @@ export class GitHubService {
       );
       const list = JSON.parse(stdout || '[]');
       if (!Array.isArray(list)) return [];
-      return list;
+      return sortByUpdatedAtDesc(list);
     } catch (error) {
       // Surface empty results rather than failing hard on weird queries
       return [];
