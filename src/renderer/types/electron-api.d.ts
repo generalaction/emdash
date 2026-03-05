@@ -373,7 +373,13 @@ declare global {
             ahead: number;
             behind: number;
             error?: string;
-            pr?: any;
+            pr?: {
+              number?: number;
+              title?: string;
+              url?: string;
+              state?: string | null;
+              isDraft?: boolean;
+            } | null;
             prKnown: boolean;
           }
         >;

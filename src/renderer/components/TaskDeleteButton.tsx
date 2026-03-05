@@ -18,6 +18,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { DELETE_RISK_SCAN_FRESH_MS, useDeleteRisks } from '../hooks/useDeleteRisks';
+import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
 import { isActivePr } from '../lib/prStatus';
 
@@ -58,6 +59,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   onExternalOpenChange,
   hideTrigger = false,
 }) => {
+  const { toast } = useToast();
   const [internalOpen, setInternalOpen] = React.useState(false);
   const isControlled = externalOpen !== undefined;
   const open = isControlled ? externalOpen : internalOpen;
@@ -74,7 +76,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   // Only check for deletion risks if the task uses a worktree.
   // Tasks running directly on the main branch (useWorktree === false) don't need risk assessment
   // since they don't have isolated changes that could be lost.
-  const { risks, scannedAtById, refresh } = useDeleteRisks(targets, useWorktree, {
+  const { risks, scannedAtById, refresh } = useDeleteRisks(targets, open && useWorktree, {
     eagerPrRefresh: false,
   });
   const status = risks[taskId] || {
@@ -260,6 +262,14 @@ export const TaskDeleteButton: React.FC<Props> = ({
                     return;
                   }
                   setRequiresAcknowledge(false);
+                } catch (error) {
+                  toast({
+                    title: 'Could not verify delete risks',
+                    description:
+                      error instanceof Error ? error.message : 'Please try deleting again.',
+                    variant: 'destructive',
+                  });
+                  return;
                 } finally {
                   setIsCheckingRisks(false);
                 }

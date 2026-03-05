@@ -55,11 +55,14 @@ export function useDeleteRisks(
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const requestIdRef = useRef(0);
+  const inFlightCountRef = useRef(0);
   const eagerPrRefresh = options?.eagerPrRefresh ?? true;
 
   const scanRisks = useCallback(
     async (options?: { force?: boolean }): Promise<RiskState> => {
       if (!enabled || tasks.length === 0) {
+        requestIdRef.current += 1;
+        inFlightCountRef.current = 0;
         setRisks({});
         setScannedAtById({});
         setLoading(false);
@@ -69,144 +72,150 @@ export function useDeleteRisks(
 
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;
+      inFlightCountRef.current += 1;
       setLoading(true);
 
-      const includePr = options?.force || eagerPrRefresh;
       try {
-        const bulkRes = await (window as any).electronAPI?.getDeleteRisks?.({
-          targets: tasks.map((task) => ({ id: task.id, taskPath: task.path })),
-          includePr,
-        });
-
-        if (bulkRes?.success && bulkRes.risks && typeof bulkRes.risks === 'object') {
-          const entries = tasks.map((task) => {
-            const item = bulkRes.risks[task.id] || {};
-            return [
-              task.id,
-              {
-                staged: typeof item.staged === 'number' ? item.staged : 0,
-                unstaged: typeof item.unstaged === 'number' ? item.unstaged : 0,
-                untracked: typeof item.untracked === 'number' ? item.untracked : 0,
-                ahead: typeof item.ahead === 'number' ? item.ahead : 0,
-                behind: typeof item.behind === 'number' ? item.behind : 0,
-                error: typeof item.error === 'string' ? item.error : undefined,
-                pr: item.pr ?? null,
-                prKnown: item.prKnown === true,
-              },
-            ] as const;
+        const includePr = options?.force || eagerPrRefresh;
+        try {
+          const bulkRes = await (window as any).electronAPI?.getDeleteRisks?.({
+            targets: tasks.map((task) => ({ id: task.id, taskPath: task.path })),
+            includePr,
           });
 
-          const next = Object.fromEntries(entries);
-          if (requestIdRef.current === requestId) {
-            setRisks(next);
-            const scannedAt = Date.now();
-            setScannedAtById(
-              Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
-            );
-            setLoading(false);
-            setLoaded(true);
-          }
+          if (bulkRes?.success && bulkRes.risks && typeof bulkRes.risks === 'object') {
+            const entries = tasks.map((task) => {
+              const item = bulkRes.risks[task.id] || {};
+              return [
+                task.id,
+                {
+                  staged: typeof item.staged === 'number' ? item.staged : 0,
+                  unstaged: typeof item.unstaged === 'number' ? item.unstaged : 0,
+                  untracked: typeof item.untracked === 'number' ? item.untracked : 0,
+                  ahead: typeof item.ahead === 'number' ? item.ahead : 0,
+                  behind: typeof item.behind === 'number' ? item.behind : 0,
+                  error: typeof item.error === 'string' ? item.error : undefined,
+                  pr: item.pr ?? null,
+                  prKnown: item.prKnown === true,
+                },
+              ] as const;
+            });
 
-          return next;
-        }
-      } catch {
-        // Fallback to per-task scan below
-      }
-
-      const entries = await Promise.all(
-        tasks.map(async (ws) => {
-          try {
-            const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-              getCachedGitStatus(ws.path, { force: options?.force }),
-              (window as any).electronAPI?.getGitInfo?.(ws.path),
-              options?.force || eagerPrRefresh
-                ? refreshPrStatus(ws.path)
-                : Promise.resolve(getCachedPrStatus(ws.path)),
-            ]);
-
-            let staged = 0;
-            let unstaged = 0;
-            let untracked = 0;
-            if (
-              statusRes.status === 'fulfilled' &&
-              statusRes.value?.success &&
-              statusRes.value.changes
-            ) {
-              for (const change of statusRes.value.changes) {
-                if (change.status === 'untracked') {
-                  untracked += 1;
-                } else if (change.isStaged) {
-                  staged += 1;
-                } else {
-                  unstaged += 1;
-                }
-              }
+            const next = Object.fromEntries(entries);
+            if (requestIdRef.current === requestId) {
+              setRisks(next);
+              const scannedAt = Date.now();
+              setScannedAtById(
+                Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+              );
+              setLoaded(true);
             }
 
-            const ahead =
-              infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
-                ? infoRes.value.aheadCount
-                : 0;
-            const behind =
-              infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
-                ? infoRes.value.behindCount
-                : 0;
-            const prKnown = rawPr.status === 'fulfilled' && rawPr.value !== undefined;
-            const prValue = prKnown ? rawPr.value : null;
-            const pr = isActivePr(prValue) ? prValue : null;
-
-            return [
-              ws.id,
-              {
-                staged,
-                unstaged,
-                untracked,
-                ahead,
-                behind,
-                error:
-                  statusRes.status === 'fulfilled'
-                    ? statusRes.value?.error
-                    : statusRes.reason?.message || String(statusRes.reason || ''),
-                pr,
-                prKnown,
-              },
-            ] as const;
-          } catch (error: any) {
-            return [
-              ws.id,
-              {
-                staged: 0,
-                unstaged: 0,
-                untracked: 0,
-                ahead: 0,
-                behind: 0,
-                error: error?.message || String(error),
-                pr: null,
-                prKnown: false,
-              },
-            ] as const;
+            return next;
           }
-        })
-      );
+        } catch {
+          // Fallback to per-task scan below
+        }
 
-      const next = Object.fromEntries(entries);
-      if (requestIdRef.current === requestId) {
-        setRisks(next);
-        const scannedAt = Date.now();
-        setScannedAtById(
-          Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+        const entries = await Promise.all(
+          tasks.map(async (ws) => {
+            try {
+              const [statusRes, infoRes, rawPr] = await Promise.allSettled([
+                getCachedGitStatus(ws.path, { force: options?.force }),
+                (window as any).electronAPI?.getGitInfo?.(ws.path),
+                options?.force || eagerPrRefresh
+                  ? refreshPrStatus(ws.path)
+                  : Promise.resolve(getCachedPrStatus(ws.path)),
+              ]);
+
+              let staged = 0;
+              let unstaged = 0;
+              let untracked = 0;
+              if (
+                statusRes.status === 'fulfilled' &&
+                statusRes.value?.success &&
+                statusRes.value.changes
+              ) {
+                for (const change of statusRes.value.changes) {
+                  if (change.status === 'untracked') {
+                    untracked += 1;
+                  } else if (change.isStaged) {
+                    staged += 1;
+                  } else {
+                    unstaged += 1;
+                  }
+                }
+              }
+
+              const ahead =
+                infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
+                  ? infoRes.value.aheadCount
+                  : 0;
+              const behind =
+                infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
+                  ? infoRes.value.behindCount
+                  : 0;
+              const prKnown = rawPr.status === 'fulfilled' && rawPr.value !== undefined;
+              const prValue = prKnown ? rawPr.value : null;
+              const pr = isActivePr(prValue) ? prValue : null;
+
+              return [
+                ws.id,
+                {
+                  staged,
+                  unstaged,
+                  untracked,
+                  ahead,
+                  behind,
+                  error:
+                    statusRes.status === 'fulfilled'
+                      ? statusRes.value?.error
+                      : statusRes.reason?.message || String(statusRes.reason || ''),
+                  pr,
+                  prKnown,
+                },
+              ] as const;
+            } catch (error: any) {
+              return [
+                ws.id,
+                {
+                  staged: 0,
+                  unstaged: 0,
+                  untracked: 0,
+                  ahead: 0,
+                  behind: 0,
+                  error: error?.message || String(error),
+                  pr: null,
+                  prKnown: false,
+                },
+              ] as const;
+            }
+          })
         );
-        setLoading(false);
-        setLoaded(true);
-      }
 
-      return next;
+        const next = Object.fromEntries(entries);
+        if (requestIdRef.current === requestId) {
+          setRisks(next);
+          const scannedAt = Date.now();
+          setScannedAtById(
+            Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+          );
+          setLoaded(true);
+        }
+
+        return next;
+      } finally {
+        inFlightCountRef.current = Math.max(0, inFlightCountRef.current - 1);
+        setLoading(inFlightCountRef.current > 0);
+      }
     },
     [eagerPrRefresh, enabled, tasks]
   );
 
   useEffect(() => {
     if (!enabled || tasks.length === 0) {
+      requestIdRef.current += 1;
+      inFlightCountRef.current = 0;
       setRisks({});
       setScannedAtById({});
       setLoading(false);

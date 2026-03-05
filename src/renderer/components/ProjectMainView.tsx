@@ -469,12 +469,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     }
   };
 
-  const exitSelectMode = () => {
+  const exitSelectMode = useCallback(() => {
     setIsSelectMode(false);
     setSelectedIds(new Set());
-  };
+  }, []);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = useCallback(async () => {
     const toDelete = tasksInProject.filter((ws) => selectedIds.has(ws.id));
     if (toDelete.length === 0) return;
 
@@ -508,7 +508,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
     }
-  };
+  }, [
+    exitSelectMode,
+    onDeleteTask,
+    project,
+    refetchArchivedTasks,
+    selectedIds,
+    tasksInProject,
+    toast,
+  ]);
 
   const handleConfirmBulkDelete = useCallback(
     async (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -548,6 +556,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         }
 
         await handleBulkDelete();
+      } catch (error) {
+        toast({
+          title: 'Could not verify delete risks',
+          description: error instanceof Error ? error.message : 'Please try deleting again.',
+          variant: 'destructive',
+        });
       } finally {
         setIsCheckingDeleteRisks(false);
       }
@@ -562,6 +576,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
       isDeleting,
       requiresDeleteAcknowledge,
       refreshDeleteRisks,
+      toast,
     ]
   );
 
