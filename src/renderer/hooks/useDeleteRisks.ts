@@ -71,6 +71,48 @@ export function useDeleteRisks(
       requestIdRef.current = requestId;
       setLoading(true);
 
+      const includePr = options?.force || eagerPrRefresh;
+      try {
+        const bulkRes = await (window as any).electronAPI?.getDeleteRisks?.({
+          targets: tasks.map((task) => ({ id: task.id, taskPath: task.path })),
+          includePr,
+        });
+
+        if (bulkRes?.success && bulkRes.risks && typeof bulkRes.risks === 'object') {
+          const entries = tasks.map((task) => {
+            const item = bulkRes.risks[task.id] || {};
+            return [
+              task.id,
+              {
+                staged: typeof item.staged === 'number' ? item.staged : 0,
+                unstaged: typeof item.unstaged === 'number' ? item.unstaged : 0,
+                untracked: typeof item.untracked === 'number' ? item.untracked : 0,
+                ahead: typeof item.ahead === 'number' ? item.ahead : 0,
+                behind: typeof item.behind === 'number' ? item.behind : 0,
+                error: typeof item.error === 'string' ? item.error : undefined,
+                pr: item.pr ?? null,
+                prKnown: item.prKnown === true,
+              },
+            ] as const;
+          });
+
+          const next = Object.fromEntries(entries);
+          if (requestIdRef.current === requestId) {
+            setRisks(next);
+            const scannedAt = Date.now();
+            setScannedAtById(
+              Object.fromEntries(entries.map(([id]) => [id, scannedAt])) as Record<string, number>
+            );
+            setLoading(false);
+            setLoaded(true);
+          }
+
+          return next;
+        }
+      } catch {
+        // Fallback to per-task scan below
+      }
+
       const entries = await Promise.all(
         tasks.map(async (ws) => {
           try {
