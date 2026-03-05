@@ -67,7 +67,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   // Global terminals are scoped per variant (or project when no task) so each
   // agent worktree gets its own global terminal and simultaneous variants don't conflict.
   const effectiveCwd = projectPath || fallbackCwd;
-  const globalKey = task?.path ? `global::${task.path}` : `global::${effectiveCwd || 'home'}`;
+  // Use a stable key for the home page case so terminals aren't orphaned when
+  // fallbackCwd resolves asynchronously from app settings.
+  const globalKey = task?.path
+    ? `global::${task.path}`
+    : projectPath
+      ? `global::${projectPath}`
+      : 'global::home';
   const globalTerminals = useTaskTerminals(globalKey, effectiveCwd, { defaultCwd: effectiveCwd });
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
@@ -456,7 +462,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               </SelectGroup>
             )}
 
-            {(projectPath || fallbackCwd || (!task && !projectPath)) && (
+            {(projectPath || !task) && (
               <SelectGroup>
                 <div className="flex items-center justify-between px-2 py-1.5">
                   <span className="text-[10px] font-semibold text-muted-foreground">
@@ -470,7 +476,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       e.stopPropagation();
                       void (async () => {
                         const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_new_terminal_created', { scope: 'global' });
+                        captureTelemetry('terminal_new_terminal_created', {
+                          scope: projectPath ? 'project' : 'global',
+                        });
                       })();
                       const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
                       selection.onCreateTerminal('global', newId);
