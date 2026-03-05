@@ -2,6 +2,8 @@ import type { ProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
+import { type GitLabIssueSummary } from './gitlab';
+import { type ForgejoIssueSummary } from './forgejo';
 
 /** Per-agent run configuration for task creation */
 export interface AgentRun {
@@ -19,6 +21,8 @@ export interface TaskMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
+  gitlabIssue?: GitLabIssueSummary | null;
+  forgejoIssue?: ForgejoIssueSummary | null;
   initialPrompt?: string | null;
   autoApprove?: boolean | null;
   /** True when the task name was auto-generated (not manually typed by the user) */

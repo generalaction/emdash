@@ -4,6 +4,8 @@ import type { AgentRun, TaskMetadata } from '../types/chat';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
+import { type GitLabIssueSummary } from '../types/gitlab';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from './rpc';
 
 export interface CreateTaskParams {
@@ -14,6 +16,8 @@ export interface CreateTaskParams {
   linkedLinearIssue: LinearIssueSummary | null;
   linkedGithubIssue: GitHubIssueSummary | null;
   linkedJiraIssue: JiraIssueSummary | null;
+  linkedGitlabIssue: GitLabIssueSummary | null;
+  linkedForgejoIssue: ForgejoIssueSummary | null;
   autoApprove?: boolean;
   nameGenerated?: boolean;
   useWorktree: boolean;
@@ -184,6 +188,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedLinearIssue,
     linkedGithubIssue,
     linkedJiraIssue,
+    linkedGitlabIssue,
+    linkedForgejoIssue,
     autoApprove,
     nameGenerated,
     useWorktree,
@@ -204,6 +210,16 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedGithubIssue.url) parts.push(`URL: ${linkedGithubIssue.url}`);
       parts.push('');
     }
+    if (linkedGitlabIssue) {
+      parts.push(`GitLab: #${linkedGitlabIssue.iid} — ${linkedGitlabIssue.title}`);
+      if (linkedGitlabIssue.web_url) parts.push(`URL: ${linkedGitlabIssue.web_url}`);
+      parts.push('');
+    }
+    if (linkedForgejoIssue) {
+      parts.push(`Forgejo: #${linkedForgejoIssue.number} — ${linkedForgejoIssue.title}`);
+      if (linkedForgejoIssue.html_url) parts.push(`URL: ${linkedForgejoIssue.html_url}`);
+      parts.push('');
+    }
     parts.push(initialPrompt.trim());
     preparedPrompt = parts.join('\n');
   }
@@ -212,6 +228,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedLinearIssue ||
     linkedJiraIssue ||
     linkedGithubIssue ||
+    linkedGitlabIssue ||
+    linkedForgejoIssue ||
     preparedPrompt ||
     autoApprove ||
     nameGenerated
@@ -219,6 +237,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           linearIssue: linkedLinearIssue ?? null,
           jiraIssue: linkedJiraIssue ?? null,
           githubIssue: linkedGithubIssue ?? null,
+          gitlabIssue: linkedGitlabIssue ?? null,
+          forgejoIssue: linkedForgejoIssue ?? null,
           initialPrompt: preparedPrompt ?? null,
           autoApprove: autoApprove ?? null,
           nameGenerated: nameGenerated ?? null,
@@ -354,6 +374,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
       if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
       if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
+      if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
+      if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
     });
 
     return { task: finalTask };
@@ -452,6 +474,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
     if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
     if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
+    if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
+    if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
   });
   seedIssueContext(newTask.id, taskMetadata);
 

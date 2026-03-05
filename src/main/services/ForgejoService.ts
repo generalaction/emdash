@@ -3,6 +3,7 @@ import { join } from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import { log } from '../lib/logger';
 
 const execAsync = promisify(exec);
 
@@ -28,31 +29,30 @@ export class ForgejoService {
   private readonly CONF_FILE = join(app.getPath('userData'), 'forgejo.json');
 
   async saveCredentials(
-    siteUrl: string,
+    instanceUrl: string,
     token: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      siteUrl = siteUrl.trim();
+      instanceUrl = instanceUrl.trim();
       token = token.trim();
-      if (siteUrl.length === 0 || token.length === 0) {
+      if (instanceUrl.length == 0 || token.length == 0) {
         return { success: false, error: 'Instance URL and token are required' };
       }
-      let parsedUrl: URL;
       try {
-        parsedUrl = new URL(siteUrl);
+        const parsedUrl = new URL(instanceUrl);
         if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
           return { success: false, error: 'Invalid URL format' };
         }
       } catch {
         return { success: false, error: 'Invalid URL format' };
       }
-      if (siteUrl[siteUrl.length - 1] === '/') {
-        siteUrl = siteUrl.substring(0, siteUrl.length - 1);
+      if (instanceUrl[instanceUrl.length - 1] == '/') {
+        instanceUrl = instanceUrl.substring(0, instanceUrl.length - 1);
       }
 
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, token);
-      this.writeCreds({ siteUrl });
+      this.writeCreds({ siteUrl: instanceUrl });
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message };
@@ -195,20 +195,24 @@ export class ForgejoService {
   }
 
   private async fetchIssues(ownerRepo: string, limit: number = 10): Promise<ForgejoIssueSummary[]> {
-    const { siteUrl, token } = await this.requireAuth();
-    if (!siteUrl || !token) {
-      throw new Error('Forgejo is not configured');
+    try {
+      const { siteUrl, token } = await this.requireAuth();
+      if (!siteUrl || !token) {
+        throw new Error('Forgejo is not configured');
+      }
+      const url = new URL(`${siteUrl}/api/v1/repos/${ownerRepo}/issues`);
+      url.searchParams.set('state', 'open');
+      url.searchParams.set('type', 'issues');
+      url.searchParams.set('limit', String(limit));
+      const response = await this.doRequest(url, token, 'GET');
+      if (!response.ok) {
+        throw new Error('Could not fetch issues');
+      }
+      const data = (await response.json()) as any[];
+      return this.normalizeIssues(data);
+    } catch (e: any) {
+      throw e;
     }
-    const url = new URL(`${siteUrl}/api/v1/repos/${ownerRepo}/issues`);
-    url.searchParams.set('state', 'open');
-    url.searchParams.set('type', 'issues');
-    url.searchParams.set('limit', String(limit));
-    const response = await this.doRequest(url, token, 'GET');
-    if (!response.ok) {
-      throw new Error('Could not fetch issues');
-    }
-    const data = (await response.json()) as any[];
-    return this.normalizeIssues(data);
   }
 
   private normalizeIssues(issues: any[]): ForgejoIssueSummary[] {
@@ -228,11 +232,15 @@ export class ForgejoService {
   }
 
   private async execCmd(cmd: string, options?: any): Promise<{ stdout: string; stderr: string }> {
-    const result = await execAsync(cmd, { encoding: 'utf8', ...options });
-    return {
-      stdout: result.stdout.toString(),
-      stderr: result.stderr.toString(),
-    };
+    try {
+      const result = await execAsync(cmd, { encoding: 'utf8', ...options });
+      return {
+        stdout: result.stdout.toString(),
+        stderr: result.stderr.toString(),
+      };
+    } catch (e: any) {
+      throw e;
+    }
   }
 
   private async doRequest(
@@ -254,16 +262,20 @@ export class ForgejoService {
   }
 
   private async requireAuth(): Promise<{ siteUrl: string; token: string }> {
-    const creds = this.readCreds();
-    if (!creds) {
-      throw new Error('Invalid credential files');
+    try {
+      const creds = this.readCreds();
+      if (!creds) {
+        throw new Error('Invalid credential files');
+      }
+      const keytar = await import('keytar');
+      const token = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      if (!token) {
+        throw new Error('Token does not set');
+      }
+      return { siteUrl: creds.siteUrl, token: token };
+    } catch (e: any) {
+      throw new Error(e?.message);
     }
-    const keytar = await import('keytar');
-    const token = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
-    if (!token) {
-      throw new Error('Token not set');
-    }
-    return { siteUrl: creds.siteUrl, token };
   }
 
   private async getUserInfo(
@@ -284,7 +296,13 @@ export class ForgejoService {
   }
 
   private writeCreds(creds: ForgejoCreds): void {
-    writeFileSync(this.CONF_FILE, JSON.stringify({ siteUrl: creds.siteUrl }), 'utf8');
+    try {
+      const { siteUrl } = creds;
+      const obj: any = { siteUrl };
+      writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
+    } catch (error) {
+      log.error('Failed to write Forgejo credentials:', error);
+    }
   }
 
   private readCreds(): ForgejoCreds | null {
@@ -294,7 +312,7 @@ export class ForgejoService {
       const obj = JSON.parse(raw);
       return { siteUrl: obj.siteUrl };
     } catch (error) {
-      console.error('Failed to read Forgejo credentials:', error);
+      log.error('Failed to read Forgejo credentials:', error);
       return null;
     }
   }

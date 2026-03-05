@@ -13,6 +13,8 @@ import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -904,6 +906,8 @@ export function useTaskManagement() {
       linkedLinearIssue: LinearIssueSummary | null = null,
       linkedGithubIssue: GitHubIssueSummary | null = null,
       linkedJiraIssue: JiraIssueSummary | null = null,
+      linkedGitlabIssue: GitLabIssueSummary | null = null,
+      linkedForgejoIssue: ForgejoIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
@@ -919,6 +923,8 @@ export function useTaskManagement() {
         linkedLinearIssue,
         linkedGithubIssue,
         linkedJiraIssue,
+        linkedGitlabIssue,
+        linkedForgejoIssue,
         autoApprove,
         nameGenerated,
         useWorktree,
@@ -954,6 +960,8 @@ export function useTaskManagement() {
           result.linkedLinearIssue ?? null,
           result.linkedGithubIssue ?? null,
           result.linkedJiraIssue ?? null,
+          result.linkedGitlabIssue ?? null,
+          result.linkedForgejoIssue ?? null,
           result.autoApprove,
           result.useWorktree,
           result.baseRef,

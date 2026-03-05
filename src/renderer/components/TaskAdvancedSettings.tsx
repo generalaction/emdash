@@ -429,7 +429,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !isLinearConnected ||
                         !!selectedGithubIssue ||
                         !!selectedJiraIssue ||
-                        !!selectedGitlabIssue
+                        !!selectedGitlabIssue ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       autoOpen={autoOpenLinearSelector}
@@ -468,7 +469,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !isGithubConnected ||
                         !!selectedJiraIssue ||
                         !!selectedLinearIssue ||
-                        !!selectedGitlabIssue
+                        !!selectedGitlabIssue ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isGithubConnected ? 'Select a GitHub issue' : 'Select issue'}
@@ -513,7 +515,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !isJiraConnected ||
                         !!selectedLinearIssue ||
                         !!selectedGithubIssue ||
-                        !!selectedGitlabIssue
+                        !!selectedGitlabIssue ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isJiraConnected ? 'Select a Jira issue' : 'Select issue'}
