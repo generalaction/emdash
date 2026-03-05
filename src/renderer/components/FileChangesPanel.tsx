@@ -148,7 +148,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   // Reset selectedPath and action loading states when task changes
   useEffect(() => {
     setSelectedPath(undefined);
-    setIsMergingToMain(false);
+    setIsMerging(false);
   }, [resolvedTaskPath]);
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
   const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
@@ -156,7 +156,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [isStagingAll, setIsStagingAll] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
-  const [isMergingToMain, setIsMergingToMain] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [showLocalMergeConfirm, setShowLocalMergeConfirm] = useState(false);
   const [localMergeCommitMsg, setLocalMergeCommitMsg] = useState('');
@@ -268,7 +268,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     errorFallback: string;
     refreshPrAfter?: boolean;
   }) => {
-    setIsMergingToMain(true);
+    setIsMerging(true);
     try {
       const result = await opts.action();
       if (result.success) {
@@ -295,7 +295,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         variant: 'destructive',
       });
     } finally {
-      setIsMergingToMain(false);
+      setIsMerging(false);
     }
   };
 
@@ -374,7 +374,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     return null;
   }
 
-  const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMergingToMain;
+  const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMerging;
 
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>

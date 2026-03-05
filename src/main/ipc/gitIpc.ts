@@ -533,17 +533,19 @@ export function registerGitIpc() {
       );
       if (stdout?.trim()) return stdout.trim();
     } catch {
-      // gh not available — try git-based detection
-      try {
-        const { stdout: symRef } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
-          cwd,
-        });
-        const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
-        if (match?.[1]) return match[1];
-      } catch {
-        // fall through
-      }
+      // gh not available — fall through
     }
+
+    try {
+      const { stdout: symRef } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+        cwd,
+      });
+      const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
+      if (match?.[1]) return match[1];
+    } catch {
+      // fall through
+    }
+
     return 'main';
   }
 
@@ -2170,9 +2172,6 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           };
         }
 
-        // Stage and commit any pending changes
-        await stageAndCommit(taskPath, 'chore: prepare for local merge');
-
         // Find the main repo path (worktree's parent repo)
         const { stdout: gitCommonDir } = await execAsync('git rev-parse --git-common-dir', {
           cwd: taskPath,
@@ -2182,6 +2181,23 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: false, error: 'Could not determine main repository path.' };
         }
         const mainRepoPath = path.resolve(taskPath, commonDir, '..');
+
+        // Verify main repo is clean before committing worktree changes
+        if (mainRepoPath !== taskPath) {
+          const { stdout: mainStatus } = await execAsync('git status --porcelain', {
+            cwd: mainRepoPath,
+          });
+          if (mainStatus?.trim()) {
+            return {
+              success: false,
+              error:
+                'Main repository has uncommitted changes. Please commit or stash them before merging.',
+            };
+          }
+        }
+
+        // Stage and commit any pending changes
+        await stageAndCommit(taskPath, 'chore: prepare for local merge');
 
         // Switch to default branch in the main repo
         await execAsync(`git checkout ${JSON.stringify(defaultBranch)}`, { cwd: mainRepoPath });
