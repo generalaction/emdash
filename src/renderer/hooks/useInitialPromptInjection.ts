@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
-import { classifyActivity } from '../lib/activityClassifier';
+import { classifyActivity, sampleActivityChunk } from '../lib/activityClassifier';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
 
@@ -45,7 +45,7 @@ export function useInitialPromptInjection(opts: {
 
       // Heuristic: if classifier says idle, trigger a quicker send
       try {
-        const signal = classifyActivity(providerId, chunk);
+        const signal = classifyActivity(providerId, sampleActivityChunk(chunk));
         if (signal === 'idle' && !sent) {
           idleSeen = true;
           setTimeout(send, 250);
