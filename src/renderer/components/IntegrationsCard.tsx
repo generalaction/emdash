@@ -5,6 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
 import linearSvg from '../../assets/images/Linear.svg?raw';
+import gitlabSvg from '../../assets/images/GitLab.svg?raw';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -18,6 +19,8 @@ import {
 import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import { useModalContext } from '../contexts/ModalProvider';
+import GitLabSetupForm from './integrations/GitLabSetupForm';
+import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -45,11 +48,13 @@ const IntegrationsCard: React.FC = () => {
   // Connection states
   const [linearConnected, setLinearConnected] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
+  const [gitlabConnected, setGitlabConnected] = useState(false);
 
   // Modal state: which integration setup is open
-  const [integrationSetupModal, setIntegrationSetupModal] = useState<null | 'linear' | 'jira'>(
-    null
-  );
+  const [integrationSetupModal, setIntegrationSetupModal] = useState<
+    null | 'linear' | 'jira' | 'gitlab'
+  >(null);
+  const [showGithubModal, setShowGithubModal] = useState(false);
 
   // Linear state
   const [linearInput, setLinearInput] = useState('');
@@ -61,10 +66,16 @@ const IntegrationsCard: React.FC = () => {
   const [jiraToken, setJiraToken] = useState('');
   const [jiraLoading, setJiraLoading] = useState(false);
 
+  // GitLab state
+  const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
+  const [gitlabToken, setGitlabToken] = useState('');
+  const [gitlabLoading, setGitlabLoading] = useState(false);
+
   // Error states
   const [githubError, setGithubError] = useState<string | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
+  const [gitlabError, setGitlabError] = useState<string | null>(null);
   // Check connection statuses on mount
   useEffect(() => {
     const checkLinear = async () => {
@@ -85,8 +96,18 @@ const IntegrationsCard: React.FC = () => {
       }
     };
 
+    const checkGitlab = async () => {
+      try {
+        const result = await window.electronAPI.gitlabCheckConnection?.();
+        setGitlabConnected(!!result?.success);
+      } catch {
+        setGitlabConnected(false);
+      }
+    };
+
     void checkLinear();
     void checkJira();
+    void checkGitlab();
   }, []);
 
   // GitHub handlers
@@ -222,6 +243,44 @@ const IntegrationsCard: React.FC = () => {
     }
   }, []);
 
+  // GitLab handlers
+  const handleGitlabSubmit = useCallback(async () => {
+    setGitlabError(null);
+    setGitlabLoading(true);
+    try {
+      const res = await window.electronAPI.gitlabSaveCredentials?.({
+        instanceUrl: gitlabInstanceUrl.trim(),
+        token: gitlabToken.trim(),
+      });
+      if (res?.success) {
+        setGitlabConnected(true);
+        setGitlabInstanceUrl('');
+        setGitlabToken('');
+        setIntegrationSetupModal(null);
+      } else {
+        setGitlabError(res?.error || 'Failed to connect.');
+      }
+    } catch (e: any) {
+      setGitlabError(e?.message || 'Failed to connect.');
+    } finally {
+      setGitlabLoading(false);
+    }
+  }, [gitlabInstanceUrl, gitlabToken]);
+
+  const handleGitlabDisconnect = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.gitlabClearCredentials?.();
+      if (result?.success) {
+        setGitlabConnected(false);
+        setGitlabInstanceUrl('');
+        setGitlabToken('');
+        setIntegrationSetupModal(null);
+      }
+    } catch (error) {
+      console.error('GitLab disconnect failed:', error);
+    }
+  }, []);
+
   const integrations = [
     {
       id: 'github',
@@ -258,6 +317,19 @@ const IntegrationsCard: React.FC = () => {
         setIntegrationSetupModal('jira');
       },
       onDisconnect: handleJiraDisconnect,
+    },
+    {
+      id: 'gitlab',
+      name: 'GitLab',
+      description: 'Work on GitLab issues',
+      logoSvg: gitlabSvg,
+      connected: gitlabConnected,
+      loading: gitlabLoading,
+      onConnect: () => {
+        setGitlabError(null);
+        setIntegrationSetupModal('gitlab');
+      },
+      onDisconnect: handleGitlabDisconnect,
     },
   ];
 
@@ -325,6 +397,7 @@ const IntegrationsCard: React.FC = () => {
             setIntegrationSetupModal(null);
             setLinearError(null);
             setJiraError(null);
+            setGitlabError(null);
           }
         }}
       >
@@ -435,6 +508,59 @@ const IntegrationsCard: React.FC = () => {
                   }
                 >
                   {jiraLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {integrationSetupModal === 'gitlab' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Connect GitLab</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Enter your GitLab instance URL and a personal access token to connect.
+                </DialogDescription>
+              </DialogHeader>
+              <Separator />
+              <div className="space-y-4">
+                <GitLabSetupForm
+                  instanceUrl={gitlabInstanceUrl}
+                  token={gitlabToken}
+                  onChange={(u) => {
+                    if (typeof u.instanceUrl === 'string') setGitlabInstanceUrl(u.instanceUrl);
+                    if (typeof u.token === 'string') setGitlabToken(u.token);
+                  }}
+                  onClose={() => {
+                    setIntegrationSetupModal(null);
+                    setGitlabError(null);
+                  }}
+                  canSubmit={!!(gitlabInstanceUrl.trim() && gitlabToken.trim())}
+                  error={gitlabError}
+                  onSubmit={handleGitlabSubmit}
+                  hideHeader
+                  hideFooter
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationSetupModal(null);
+                    setGitlabError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleGitlabSubmit()}
+                  disabled={!(gitlabInstanceUrl.trim() && gitlabToken.trim()) || gitlabLoading}
+                >
+                  {gitlabLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Connect
                 </Button>
               </DialogFooter>

@@ -19,6 +19,10 @@ interface IntegrationStatus {
     email: string;
     token: string;
   }) => Promise<void>;
+
+  // GitLab
+  isGitlabConnected: boolean | null;
+  handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -28,6 +32,7 @@ interface IntegrationStatus {
 export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const [isLinearConnected, setIsLinearConnected] = useState<boolean | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
+  const [isGitlabConnected, setIsGitlabConnected] = useState<boolean | null>(null);
 
   const {
     installed: githubInstalled,
@@ -82,6 +87,28 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     };
   }, [isOpen]);
 
+  // Check GitLab connection
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancel = false;
+    const api = window.electronAPI as any;
+    if (!api?.gitlabCheckConnection) {
+      setIsGitlabConnected(false);
+      return;
+    }
+    api
+      .gitlabCheckConnection()
+      .then((res: any) => {
+        if (!cancel) setIsGitlabConnected(!!res?.success);
+      })
+      .catch(() => {
+        if (!cancel) setIsGitlabConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isOpen]);
+
   const handleLinearConnect = useCallback(async (apiKey: string) => {
     if (!apiKey || !window?.electronAPI?.linearSaveToken) {
       throw new Error('Invalid API key');
@@ -124,6 +151,18 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     []
   );
 
+  const handleGitlabConnect = useCallback(
+    async (credentials: { instanceUrl: string; token: string }) => {
+      const res = await window.electronAPI.gitlabSaveCredentials?.(credentials);
+      if (res?.success) {
+        setIsGitlabConnected(true);
+      } else {
+        throw new Error(res?.error || 'Failed to connect.');
+      }
+    },
+    []
+  );
+
   return {
     isLinearConnected,
     handleLinearConnect,
@@ -133,5 +172,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     handleGithubConnect,
     isJiraConnected,
     handleJiraConnect,
+    isGitlabConnected,
+    handleGitlabConnect,
   };
 }
