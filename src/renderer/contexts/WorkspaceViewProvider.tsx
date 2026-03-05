@@ -56,10 +56,7 @@ const views = {
     RightPanel: TaskRightSidebar,
   },
   settings: {
-    WrapView: SettingsViewWrapper as ComponentType<{
-      children: ReactNode;
-      tab?: SettingsPageTab;
-    }>,
+    WrapView: SettingsViewWrapper,
     TitlebarSlot: SettingsTitlebar,
     MainPanel: SettingsMainPanel,
   },
@@ -83,7 +80,6 @@ type ViewState = {
   [K in ViewId]: { viewId: K; wrapParams: WrapParams<K> };
 }[ViewId];
 
-const VIEW_STATE_KEY = 'emdash:view-state';
 const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as ViewState;
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {

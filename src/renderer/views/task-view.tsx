@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Titlebar } from '@/components/titlebar/Titlebar';
 import ChatInterface from '@/components/ChatInterface';
@@ -18,6 +18,23 @@ import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
 import { getAgentForTask } from '@/lib/getAgentForTask';
 import { ConversationsProvider } from '@/contexts/ConversationsProvider';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Brain, FileBracesCorner } from 'lucide-react';
+import { useTaskViewContext } from '@/contexts/TaskViewProvider';
+import { useCodeEditorContext } from '@/contexts/CodeEditorProvider';
+import { FileTabs } from '@/components/FileExplorer/FileTabs';
+import { EditorContent } from '@/components/FileExplorer/CodeEditor';
+import { FileTree } from '@/components/FileExplorer/FileTree';
+import { useTheme } from '@/hooks/useTheme';
+import { useEditorDiffDecorations } from '@/hooks/useEditorDiffDecorations';
+import { DEFAULT_EXCLUDE_PATTERNS, isMarkdownFile } from '@/constants/file-explorer';
+import {
+  configureMonacoTypeScript,
+  configureMonacoEditor,
+  addMonacoKeyboardShortcuts,
+} from '@/lib/monaco-config';
+import { defineMonacoThemes } from '@/lib/monaco-themes';
+import { registerActiveCodeEditor } from '@/lib/activeCodeEditor';
 
 export function TaskTitlebar() {
   const project = useCurrentProject();
@@ -25,6 +42,7 @@ export function TaskTitlebar() {
   const { projects } = useProjectManagementContext();
   const { tasksByProjectId } = useTaskManagementContext();
   const { navigate } = useWorkspaceNavigation();
+  const { view, setView } = useTaskViewContext();
 
   const isTaskMultiAgent = Boolean(task?.metadata?.multiAgent?.enabled);
   const currentPath = isTaskMultiAgent
@@ -50,14 +68,25 @@ export function TaskTitlebar() {
         />
       }
       rightSlot={
-        currentPath ? (
-          <OpenInMenu
-            path={currentPath}
-            align="right"
-            isRemote={project?.isRemote || false}
-            sshConnectionId={project?.sshConnectionId || null}
-          />
-        ) : null
+        <>
+          <ToggleGroup variant="outline" type="single" value={view} onValueChange={setView}>
+            <ToggleGroupItem value="agents">
+              <Brain className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="editor">
+              <FileBracesCorner className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {currentPath && (
+            <OpenInMenu
+              path={currentPath}
+              align="right"
+              isRemote={project?.isRemote || false}
+              sshConnectionId={project?.sshConnectionId || null}
+            />
+          )}
+        </>
       }
     />
   );
@@ -70,6 +99,7 @@ export function TaskMainPanel() {
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo(project);
   const { projectDefaultBranch } = useProjectBranchOptions(project);
+  const { view } = useTaskViewContext();
 
   if (!task || !project) {
     if (isCreatingTask) {
@@ -87,43 +117,48 @@ export function TaskMainPanel() {
   const initialAgent = getAgentForTask(task) || undefined;
   const isMultiAgent = Boolean(task.metadata?.multiAgent?.enabled);
 
-  return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {isMultiAgent ? (
-        <MultiAgentTask
-          task={task}
-          projectName={project.name}
-          projectId={project.id}
-          projectPath={project.path}
-          projectRemoteConnectionId={projectRemoteConnectionId}
-          projectRemotePath={projectRemotePath}
-          defaultBranch={projectDefaultBranch}
-          onTaskInterfaceReady={handleTaskInterfaceReady}
-        />
-      ) : (
-        <ConversationsProvider taskId={task.id} initialAgent={initialAgent}>
-          <ChatInterface
-            task={task}
-            project={project}
-            projectName={project.name}
-            projectPath={project.path}
-            projectRemoteConnectionId={projectRemoteConnectionId}
-            projectRemotePath={projectRemotePath}
-            defaultBranch={projectDefaultBranch}
-            className="min-h-0 flex-1"
-            initialAgent={initialAgent}
-            onTaskInterfaceReady={handleTaskInterfaceReady}
-            onRenameTask={handleRenameTask}
-          />
-        </ConversationsProvider>
-      )}
-      {isCreatingTask && (
-        <div className="absolute inset-0 z-10 bg-background">
-          <TaskCreationLoading />
+  switch (view) {
+    case 'agents':
+      return (
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          {isMultiAgent ? (
+            <MultiAgentTask
+              task={task}
+              projectName={project.name}
+              projectId={project.id}
+              projectPath={project.path}
+              projectRemoteConnectionId={projectRemoteConnectionId}
+              projectRemotePath={projectRemotePath}
+              defaultBranch={projectDefaultBranch}
+              onTaskInterfaceReady={handleTaskInterfaceReady}
+            />
+          ) : (
+            <ConversationsProvider taskId={task.id} initialAgent={initialAgent}>
+              <ChatInterface
+                task={task}
+                project={project}
+                projectName={project.name}
+                projectPath={project.path}
+                projectRemoteConnectionId={projectRemoteConnectionId}
+                projectRemotePath={projectRemotePath}
+                defaultBranch={projectDefaultBranch}
+                className="min-h-0 flex-1"
+                initialAgent={initialAgent}
+                onTaskInterfaceReady={handleTaskInterfaceReady}
+                onRenameTask={handleRenameTask}
+              />
+            </ConversationsProvider>
+          )}
+          {isCreatingTask && (
+            <div className="absolute inset-0 z-10 bg-background">
+              <TaskCreationLoading />
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      );
+    case 'editor':
+      return <CodeEditorMainPanel />;
+  }
 }
 
 interface DiffState {
@@ -139,6 +174,7 @@ export function TaskRightSidebar() {
     useProjectRemoteInfo(project);
   const { projectDefaultBranch } = useProjectBranchOptions(project);
   const [diffState, setDiffState] = useState<DiffState | null>(null);
+  const { view } = useTaskViewContext();
 
   useAutoPrRefresh(task?.path);
 
@@ -147,35 +183,215 @@ export function TaskRightSidebar() {
     setDiffState({ taskId: task.id, taskPath, initialFile: filePath ?? null });
   };
 
-  return (
-    <>
-      <RightSidebar
-        task={task}
-        projectPath={project?.path || null}
-        projectRemoteConnectionId={projectRemoteConnectionId}
-        projectRemotePath={projectRemotePath}
-        projectDefaultBranch={projectDefaultBranch}
-        className="lg:border-l-0"
-        onOpenChanges={handleOpenChanges}
-      />
-      <DialogPrimitive.Root open={!!diffState} onOpenChange={(open) => !open && setDiffState(null)}>
-        <DialogPrimitive.Portal>
-          <DialogPrimitive.Content
-            className="fixed inset-0 z-[200] bg-background focus:outline-none"
-            aria-describedby={undefined}
+  switch (view) {
+    case 'agents':
+      return (
+        <>
+          <RightSidebar
+            task={task}
+            projectPath={project?.path || null}
+            projectRemoteConnectionId={projectRemoteConnectionId}
+            projectRemotePath={projectRemotePath}
+            projectDefaultBranch={projectDefaultBranch}
+            className="lg:border-l-0"
+            onOpenChanges={handleOpenChanges}
+          />
+          <DialogPrimitive.Root
+            open={!!diffState}
+            onOpenChange={(open) => !open && setDiffState(null)}
           >
-            <DialogPrimitive.Title className="sr-only">Diff Viewer</DialogPrimitive.Title>
-            {diffState && (
-              <DiffViewer
-                taskId={diffState.taskId}
-                taskPath={diffState.taskPath}
-                initialFile={diffState.initialFile}
-                onClose={() => setDiffState(null)}
-              />
-            )}
-          </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
-      </DialogPrimitive.Root>
-    </>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Content
+                className="fixed inset-0 z-[200] bg-background focus:outline-none"
+                aria-describedby={undefined}
+              >
+                <DialogPrimitive.Title className="sr-only">Diff Viewer</DialogPrimitive.Title>
+                {diffState && (
+                  <DiffViewer
+                    taskId={diffState.taskId}
+                    taskPath={diffState.taskPath}
+                    initialFile={diffState.initialFile}
+                    onClose={() => setDiffState(null)}
+                  />
+                )}
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+        </>
+      );
+    case 'editor':
+      return <CodeEditorFileTree />;
+  }
+}
+
+function CodeEditorMainPanel() {
+  const {
+    openFiles,
+    activeFilePath,
+    activeFile,
+    isSaving,
+    previewMode,
+    togglePreview,
+    handleCloseFile,
+    setActiveFile,
+    saveFile,
+    saveAllFiles,
+    updateFileContent,
+    taskPath,
+    connectionId,
+    remotePath,
+  } = useCodeEditorContext();
+
+  const { effectiveTheme } = useTheme();
+  const monacoRef = useRef<any>(null);
+  const editorRef = useRef<any>(null);
+  const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const prevIsSaving = useRef(false);
+
+  const { refreshDecorations } = useEditorDiffDecorations({
+    editor: editorReady ? editorRef.current : null,
+    filePath: activeFilePath || '',
+    taskPath,
+  });
+
+  useEffect(() => {
+    if (editorReady && editorRef.current && activeFilePath && refreshDecorations) {
+      const timer = setTimeout(() => {
+        refreshDecorations();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [activeFilePath, editorReady, refreshDecorations, activeFile?.isDirty]);
+
+  useEffect(() => {
+    if (prevIsSaving.current && !isSaving && editorReady && refreshDecorations) {
+      if (editorRef.current) {
+        refreshDecorations(true);
+      }
+      const timer = setTimeout(() => {
+        refreshDecorations(true);
+      }, 800);
+      prevIsSaving.current = false;
+      return () => clearTimeout(timer);
+    }
+    prevIsSaving.current = isSaving;
+  }, [isSaving, editorReady, refreshDecorations]);
+
+  useEffect(() => {
+    const initMonaco = async () => {
+      const { loader } = await import('@monaco-editor/react');
+      loader.init().then((monaco) => {
+        if (!monacoRef.current) {
+          monacoRef.current = monaco;
+          configureMonacoTypeScript(monaco);
+          defineMonacoThemes(monaco);
+        }
+      });
+    };
+    initMonaco();
+  }, []);
+
+  const handleEditorMount = useCallback(
+    (editor: any, monaco: any) => {
+      editorRef.current = editor;
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = registerActiveCodeEditor(editor);
+
+      if (!monacoRef.current) {
+        monacoRef.current = monaco;
+        configureMonacoTypeScript(monaco);
+      }
+
+      defineMonacoThemes(monaco);
+      configureMonacoEditor(editor, monaco);
+      editor.updateOptions({ glyphMargin: true });
+
+      addMonacoKeyboardShortcuts(editor, monaco, {
+        onSave: async () => {
+          await saveFile();
+          setTimeout(() => {
+            if (refreshDecorations) {
+              refreshDecorations(true);
+            }
+          }, 700);
+        },
+        onSaveAll: saveAllFiles,
+      });
+
+      setEditorReady(true);
+      setTimeout(() => {
+        if (refreshDecorations) {
+          refreshDecorations();
+        }
+      }, 100);
+    },
+    [saveFile, saveAllFiles, refreshDecorations]
+  );
+
+  useEffect(() => {
+    return () => {
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
+    };
+  }, []);
+
+  const handleEditorChange = useCallback(
+    (value: string | undefined) => {
+      if (!activeFilePath || value === undefined) return;
+      updateFileContent(activeFilePath, value);
+    },
+    [activeFilePath, updateFileContent]
+  );
+
+  const isPreviewActive = activeFilePath
+    ? (previewMode.get(activeFilePath) ?? isMarkdownFile(activeFilePath))
+    : false;
+
+  const modelRootPath = remotePath ? `${connectionId || 'remote'}:${remotePath}` : taskPath;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <FileTabs
+        openFiles={openFiles}
+        activeFilePath={activeFilePath}
+        onTabClick={setActiveFile}
+        onTabClose={handleCloseFile}
+        previewMode={previewMode}
+        onTogglePreview={togglePreview}
+      />
+      <EditorContent
+        activeFile={activeFile}
+        effectiveTheme={effectiveTheme}
+        onEditorMount={handleEditorMount}
+        onEditorChange={handleEditorChange}
+        isPreviewActive={isPreviewActive}
+        modelRootPath={modelRootPath}
+        taskPath={taskPath}
+      />
+    </div>
+  );
+}
+
+function CodeEditorFileTree() {
+  const { taskId, taskPath, activeFilePath, loadFile, fileChanges, connectionId, remotePath } =
+    useCodeEditorContext();
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <FileTree
+        taskId={taskId}
+        rootPath={taskPath}
+        selectedFile={activeFilePath}
+        onSelectFile={loadFile}
+        onOpenFile={loadFile}
+        className="flex-1 overflow-y-auto"
+        showHiddenFiles={true}
+        excludePatterns={DEFAULT_EXCLUDE_PATTERNS}
+        fileChanges={fileChanges}
+        connectionId={connectionId}
+        remotePath={remotePath}
+      />
+    </div>
   );
 }

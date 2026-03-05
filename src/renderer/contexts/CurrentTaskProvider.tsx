@@ -2,6 +2,8 @@ import { createContext, useContext, type ReactNode } from 'react';
 import type { Task } from '../types/app';
 import { useTaskManagementContext } from './TaskManagementProvider';
 import { ProjectViewWrapper } from './CurrentProjectProvider';
+import { TaskViewProvider } from './TaskViewProvider';
+import { CodeEditorProvider } from './CodeEditorProvider';
 
 const CurrentTaskContext = createContext<Task | null>(null);
 
@@ -39,7 +41,9 @@ export function TaskViewWrapper({ children, projectId, taskId }: TaskViewWrapper
   return (
     <ProjectViewWrapper projectId={projectId}>
       <CurrentTaskProvider projectId={projectId} taskId={taskId}>
-        {children}
+        <TaskViewProvider>
+          <CodeEditorProvider>{children}</CodeEditorProvider>
+        </TaskViewProvider>
       </CurrentTaskProvider>
     </ProjectViewWrapper>
   );
