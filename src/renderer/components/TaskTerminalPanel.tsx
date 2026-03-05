@@ -248,9 +248,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const isRunSelection = !selection.selectedLifecycle || selection.selectedLifecycle === 'run';
   const selectedTerminalScope = useMemo(() => {
     if (selection.parsed?.mode === 'task') return 'WORKTREE';
-    if (selection.parsed?.mode === 'global') return 'PROJECT';
+    if (selection.parsed?.mode === 'global') return projectPath ? 'PROJECT' : 'GLOBAL';
     return null;
-  }, [selection.parsed?.mode]);
+  }, [selection.parsed?.mode, projectPath]);
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;
@@ -459,7 +459,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             {(projectPath || fallbackCwd || (!task && !projectPath)) && (
               <SelectGroup>
                 <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">Project</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground">
+                    {projectPath ? 'Project' : 'Global'}
+                  </span>
                   <button
                     type="button"
                     className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -473,7 +475,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
                       selection.onCreateTerminal('global', newId);
                     }}
-                    title="New project terminal"
+                    title={projectPath ? 'New project terminal' : 'New global terminal'}
                   >
                     <Plus className="h-3 w-3" />
                   </button>
