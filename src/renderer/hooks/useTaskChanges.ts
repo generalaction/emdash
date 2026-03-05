@@ -186,8 +186,7 @@ export function useTaskChanges(
   const clearIdleHandle = useCallback(() => {
     if (idleHandleRef.current === null) return;
     if (idleHandleModeRef.current === 'idle') {
-      const cancelIdle = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
-      cancelIdle?.(idleHandleRef.current);
+      window.cancelIdleCallback?.(idleHandleRef.current);
     } else {
       clearTimeout(idleHandleRef.current);
     }
@@ -205,13 +204,9 @@ export function useTaskChanges(
       scheduleIdleRefresh();
     };
 
-    const requestIdle = (window as any).requestIdleCallback as
-      | ((cb: () => void, options?: { timeout: number }) => number)
-      | undefined;
-
-    if (requestIdle) {
+    if (window.requestIdleCallback) {
       idleHandleModeRef.current = 'idle';
-      idleHandleRef.current = requestIdle(run, { timeout: idleIntervalMs });
+      idleHandleRef.current = window.requestIdleCallback(run, { timeout: idleIntervalMs });
     } else {
       idleHandleModeRef.current = 'timeout';
       idleHandleRef.current = window.setTimeout(run, idleIntervalMs);

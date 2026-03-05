@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { rpc } from './rpc';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 type TaskTerminal = {
@@ -289,8 +290,7 @@ function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
   });
 
   try {
-    const api: any = (window as any).electronAPI;
-    api?.ptyKill?.(terminalId);
+    window.electronAPI.ptyKill(terminalId);
   } catch {
     // ignore kill errors
   }
@@ -301,7 +301,7 @@ export function disposeTaskTerminals(taskKey: string): void {
   if (state) {
     for (const terminal of state.terminals) {
       try {
-        (window as any).electronAPI?.ptyKill?.(terminal.id);
+        window.electronAPI.ptyKill(terminal.id);
       } catch {
         // ignore kill errors
       }
@@ -311,7 +311,7 @@ export function disposeTaskTerminals(taskKey: string): void {
         // ignore dispose errors
       }
       try {
-        (window as any).electronAPI?.ptyClearSnapshot?.({ id: terminal.id });
+        void rpc.pty.snapshotClear({ id: terminal.id });
       } catch {
         // ignore snapshot errors
       }

@@ -4,14 +4,7 @@ import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
-
-export type HostPreviewEvent = {
-  type: 'url' | 'setup' | 'exit';
-  taskId: string;
-  url?: string;
-  status?: 'starting' | 'line' | 'done' | 'error';
-  line?: string;
-};
+import type { HostPreviewEvent } from '@shared/types/hostPreview';
 
 function detectPackageManager(dir: string): 'pnpm' | 'yarn' | 'npm' {
   try {

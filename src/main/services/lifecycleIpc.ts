@@ -1,6 +1,7 @@
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { log } from '../lib/logger';
 import { LIFECYCLE_PHASES } from '@shared/lifecycle';
+import type { LifecycleEvent } from '@shared/lifecycle';
 import { taskLifecycleService } from './TaskLifecycleService';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { events } from '../events';
@@ -113,8 +114,7 @@ export const lifecycleController = createRPCController({
 });
 
 export function registerLifecycleEvents(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  taskLifecycleService.onEvent((evt: any) => {
+  taskLifecycleService.onEvent((evt: LifecycleEvent) => {
     events.emit(lifecycleEventChannel, evt);
   });
 }

@@ -2,6 +2,7 @@ import { hostPreviewService } from '../services/hostPreviewService';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { events } from '../events';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
+import type { HostPreviewEvent } from '@shared/types/hostPreview';
 
 export const hostPreviewController = createRPCController({
   start: async (args: {
@@ -39,8 +40,7 @@ export const hostPreviewController = createRPCController({
 });
 
 export function registerHostPreviewEvents(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  hostPreviewService.onEvent((evt: any) => {
+  hostPreviewService.onEvent((evt: HostPreviewEvent) => {
     events.emit(hostPreviewEventChannel, evt);
   });
 }

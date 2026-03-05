@@ -18,8 +18,6 @@ export interface SshConnection {
   useAgent?: boolean;
   state?: ConnectionState;
   lastError?: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 interface Props {

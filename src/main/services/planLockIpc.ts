@@ -128,10 +128,14 @@ function releaseLock(root: string): { success: boolean; restored: number; error?
 export const planLockController = createRPCController({
   lock: async (taskPath: string) => {
     // Best-effort on Windows: still attempt chmod; ACL hardening could be added with icacls in a future pass
-    return applyLock(taskPath);
+    const result = applyLock(taskPath);
+    if (!result.success) throw new Error(result.error ?? 'Failed to apply lock');
+    return { changed: result.changed };
   },
 
   unlock: async (taskPath: string) => {
-    return releaseLock(taskPath);
+    const result = releaseLock(taskPath);
+    if (!result.success) throw new Error(result.error ?? 'Failed to release lock');
+    return { restored: result.restored };
   },
 });

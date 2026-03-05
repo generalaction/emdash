@@ -2,18 +2,6 @@
 // Only methods actually exposed by src/preload/index.ts are declared here.
 // All other IPC methods are accessed via the typed RPC client (src/renderer/lib/rpc.ts).
 
-export type LineComment = {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
-};
-
 export type ProviderCustomConfig = {
   model?: string;
   cli?: string;

@@ -39,14 +39,6 @@ export function useCreatePR() {
 
     setCreatingTaskPath(taskPath);
     try {
-      // Guard: ensure Electron bridge methods exist (prevents hard crashes in plain web builds)
-      const api: any = (window as any).electronAPI;
-      if (!api?.gitCommitAndPush || !api?.createPullRequest) {
-        const msg = 'PR creation is only available in the Electron app. Start via "pnpm run d".';
-        toast({ title: 'Create PR Unavailable', description: msg, variant: 'destructive' });
-        return { success: false, error: 'Electron bridge unavailable' } as any;
-      }
-
       // Auto-generate PR title and description if not provided
       const finalPrOptions = { ...(prOptions || {}) };
 
@@ -55,27 +47,24 @@ export function useCreatePR() {
           // Get default branch for comparison
           let defaultBranch = 'main';
           try {
-            const branchStatus = await api.getBranchStatus?.({ taskPath });
+            const branchStatus = await rpc.git.getBranchStatus({ taskPath });
             if (branchStatus?.success && branchStatus.defaultBranch) {
               defaultBranch = branchStatus.defaultBranch;
             }
           } catch {}
 
           // Generate PR content
-          if (api.generatePrContent) {
-            const generated = await api.generatePrContent({
-              taskPath,
-              base: finalPrOptions.base || defaultBranch,
-            });
+          const generated = await rpc.git.generatePrContent({
+            taskPath,
+            base: finalPrOptions.base || defaultBranch,
+          });
 
-            if (generated?.success && generated.title) {
-              finalPrOptions.title = finalPrOptions.title || generated.title;
-              finalPrOptions.body = finalPrOptions.body || generated.description || '';
-            }
+          if (generated?.success && generated.title) {
+            finalPrOptions.title = finalPrOptions.title || generated.title;
+            finalPrOptions.body = finalPrOptions.body || generated.description || '';
           }
-        } catch (error) {
+        } catch {
           // Non-fatal: continue with fallback title
-          // Silently fail - fallback title will be used
         }
       }
 
@@ -88,7 +77,7 @@ export function useCreatePR() {
       const commitMessage =
         explicitCommitMessage || finalPrOptions.title || 'chore: apply task changes';
 
-      const commitRes = await api.gitCommitAndPush({
+      const commitRes = await rpc.git.commitAndPush({
         taskPath,
         commitMessage,
         createBranchIfOnDefault,
@@ -104,7 +93,7 @@ export function useCreatePR() {
         return { success: false, error: commitRes?.error || 'Commit/push failed' } as any;
       }
 
-      const res = await api.createPullRequest({
+      const res = await rpc.git.createPr({
         taskPath,
         fill: true,
         ...finalPrOptions,

@@ -3,7 +3,7 @@ import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import { CommentWidget } from '../components/diff/comments/CommentWidget';
 import { CommentInput } from '../components/diff/comments/CommentInput';
-import type { LineComment } from '../types/electron-api';
+import type { LineComment } from '@shared/types/lineComment';
 
 interface MonacoCommentManagerOptions {
   onAddComment: (

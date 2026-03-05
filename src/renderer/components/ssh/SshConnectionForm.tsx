@@ -65,18 +65,7 @@ export const SshConnectionForm: React.FC<Props> = ({
   useEffect(() => {
     const loadSshConfigHosts = async () => {
       try {
-        const result = (await rpc.ssh.getSshConfig()) as {
-          success: boolean;
-          hosts?: Array<{
-            host: string;
-            hostname?: string;
-            user?: string;
-            port?: number;
-            identityFile?: string;
-            identityAgent?: string;
-          }>;
-          error?: string;
-        };
+        const result = await rpc.ssh.getSshConfig();
 
         if (result.success && result.hosts) {
           setSshConfigHosts(result.hosts);

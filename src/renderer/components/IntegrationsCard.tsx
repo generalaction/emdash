@@ -96,10 +96,11 @@ const IntegrationsCard: React.FC = () => {
     try {
       if (!installed) {
         // Auto-install gh CLI
-        const installResult = await rpc.github.installCLI();
-        if (!installResult.success) {
+        try {
+          await rpc.github.installCLI();
+        } catch (err) {
           setGithubError(
-            `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`
+            `Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`
           );
           return;
         }

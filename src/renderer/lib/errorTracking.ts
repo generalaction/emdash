@@ -1,3 +1,5 @@
+import { rpc } from './rpc';
+
 interface ErrorContext {
   // Component/UI context
   component?: string;
@@ -168,14 +170,7 @@ class RendererErrorTracking {
   // Private helper methods
 
   private sendToMainProcess(event: string, properties: Record<string, any>): void {
-    try {
-      const api = (window as any).electronAPI;
-      if (api?.captureTelemetry) {
-        void api.captureTelemetry(event, properties);
-      }
-    } catch {
-      // Silent fail - telemetry might not be available
-    }
+    void rpc.telemetry.capture({ event, properties });
   }
 
   private determineSeverity(

@@ -116,7 +116,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
         const installed = isInstalled(id);
         // If install needed, run setup first (only when sentinel not present)
         if (!installed && (await needsInstall(wp))) {
-          await (window as any).electronAPI?.hostPreviewSetup?.({
+          await rpc.hostPreview.setup({
             taskId: id,
             taskPath: wp,
           });
@@ -124,7 +124,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
         }
         const running = isRunning(id);
         if (!running) {
-          await (window as any).electronAPI?.hostPreviewStart?.({
+          await rpc.hostPreview.start({
             taskId: id,
             taskPath: wp,
             parentProjectPath: (parentProjectPath || '').trim(),

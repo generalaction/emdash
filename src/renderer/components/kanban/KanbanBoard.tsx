@@ -8,6 +8,7 @@ import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import { subscribeDerivedStatus, watchTaskPty, watchTaskActivity } from '../../lib/taskStatus';
 import { activityStore } from '../../lib/activityStore';
 import { refreshPrStatus } from '../../lib/prStatusStore';
+import { rpc } from '@/lib/rpc';
 import { events } from '../../lib/rpc';
 import { ptyExitChannel } from '@shared/events/appEvents';
 
@@ -129,7 +130,7 @@ const KanbanBoard: React.FC<{
         try {
           let hasChanges = false;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getGitStatus?.(p);
+            const res = await rpc.git.getStatus(p);
             if (res?.success && Array.isArray(res?.changes) && res.changes.length > 0) {
               hasChanges = true;
               break;
@@ -229,7 +230,7 @@ const KanbanBoard: React.FC<{
         const variantPaths: string[] = (() => {
           try {
             const v = ws?.metadata?.multiAgent?.variants || [];
-            if (Array.isArray(v)) return v.map((x: any) => String(x?.path || '')).filter(Boolean);
+            if (Array.isArray(v)) return v.map((x) => String(x.path)).filter(Boolean);
           } catch {}
           return [];
         })();
@@ -238,7 +239,7 @@ const KanbanBoard: React.FC<{
         try {
           let ahead = 0;
           for (const p of paths) {
-            const res = await (window as any).electronAPI?.getBranchStatus?.({ taskPath: p });
+            const res = await rpc.git.getBranchStatus({ taskPath: p });
             if (res?.success) {
               const a = Number(res?.ahead ?? 0);
               if (a > 0) {

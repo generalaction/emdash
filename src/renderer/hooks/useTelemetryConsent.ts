@@ -22,7 +22,7 @@ export function useTelemetryConsent() {
     setState((prev) => ({ ...prev, loading: true }));
     try {
       const res = await rpc.telemetry.getStatus();
-      if (res?.success && res.status) {
+      if (res?.status) {
         const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
         setState({
           prefEnabled: !Boolean(envOff) && userOptOut !== true,

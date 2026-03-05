@@ -1,4 +1,5 @@
 import { defineEvent } from '@shared/ipc/events';
+import type { GitHubUser } from '@shared/types/github';
 
 export const githubAuthDeviceCodeChannel = defineEvent<{
   userCode: string;
@@ -16,9 +17,8 @@ export const githubAuthSlowDownChannel = defineEvent<{
 }>('github:auth:slow-down');
 
 export const githubAuthSuccessChannel = defineEvent<{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   token: string;
-  user: any;
+  user: GitHubUser;
 }>('github:auth:success');
 
 export const githubAuthErrorChannel = defineEvent<{
@@ -29,6 +29,5 @@ export const githubAuthErrorChannel = defineEvent<{
 export const githubAuthCancelledChannel = defineEvent<void>('github:auth:cancelled');
 
 export const githubAuthUserUpdatedChannel = defineEvent<{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user: any;
+  user: GitHubUser;
 }>('github:auth:user-updated');

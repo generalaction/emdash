@@ -1,11 +1,10 @@
 import React from 'react';
-import type { Agent } from '../types';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import { Badge } from './ui/badge';
 import context7Logo from '../../assets/images/context7.png';
+import { rpc } from '@/lib/rpc';
 
 type Props = {
-  agent: Agent;
   enabled: boolean;
 };
 
@@ -44,9 +43,7 @@ const Context7Tooltip: React.FC<Props> = ({ enabled }) => {
           </div>
           <button
             type="button"
-            onClick={() =>
-              (window as any).electronAPI?.openExternal?.(CONTEXT7_INTEGRATION.docsUrl)
-            }
+            onClick={() => void rpc.app.openExternal(CONTEXT7_INTEGRATION.docsUrl)}
             className="text-tiny text-muted-foreground underline-offset-2 hover:underline"
           >
             Open Context7 docs ↗

@@ -4,7 +4,7 @@ import { Button } from '../../ui/button';
 import { RelativeTime } from '../../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
 import { Comment, useTextareaAutoFocus } from './CommentCard';
-import type { LineComment } from '../../../types/electron-api';
+import type { LineComment } from '@shared/types/lineComment';
 
 interface CommentWidgetProps {
   comment: LineComment;

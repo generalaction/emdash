@@ -87,10 +87,8 @@ const BrowserPane: React.FC<{
       } catch {}
     }
 
-    try {
-      // Stop all other preview servers except the new current (if any)
-      (window as any).electronAPI?.hostPreviewStopAll?.(cur || '');
-    } catch {}
+    // Stop all other preview servers except the new current (if any)
+    void rpc.hostPreview.stopAll(cur || '');
 
     if (prev !== cur) {
       try {
@@ -288,8 +286,9 @@ const BrowserPane: React.FC<{
       }
     };
     window.addEventListener('resize', onResize);
-    const ResizeObserverClass = (window as any).ResizeObserver;
-    const resizeObserver = ResizeObserverClass ? new ResizeObserverClass(() => onResize()) : null;
+    const resizeObserver = window.ResizeObserver
+      ? new window.ResizeObserver(() => onResize())
+      : null;
     if (resizeObserver && containerRef.current) resizeObserver.observe(containerRef.current);
 
     return () => {
@@ -416,7 +415,7 @@ const BrowserPane: React.FC<{
     });
     try {
       const id = (taskId || '').trim();
-      if (id) (window as any).electronAPI?.hostPreviewStop?.(id);
+      if (id) void rpc.hostPreview.stop(id);
     } catch {}
     try {
       void rpc.browser.hide();

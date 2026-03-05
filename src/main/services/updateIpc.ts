@@ -1,6 +1,7 @@
 import { app, shell } from 'electron';
 import { formatUpdaterError } from '../lib/updaterError';
 import { autoUpdateService } from './AutoUpdateService';
+import type { UpdateSettings } from './AutoUpdateService';
 import { createRPCController } from '../../shared/ipc/rpc';
 
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
@@ -101,7 +102,7 @@ export const updateController = createRPCController({
   },
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  updateSettings: async (settings: any) => {
+  updateSettings: async (settings: Partial<UpdateSettings>) => {
     try {
       await autoUpdateService.updateSettings(settings);
       return { success: true };

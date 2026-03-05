@@ -211,14 +211,12 @@ const MultiAgentTask: React.FC<Props> = ({
       if (sent) return;
       sent = true;
       try {
-        const pty = (window as any).electronAPI?.ptyInput;
-        if (!pty) return;
         // Send text + line endings first so the TUI displays the input,
         // then send a bare \r after a short delay to submit.  Sending
         // Enter separately prevents TUI "paste-detection" from swallowing it.
-        pty({ id: ptyId, data: trimmed + '\r\n' });
+        window.electronAPI.ptyInput({ id: ptyId, data: trimmed + '\r\n' });
         setTimeout(() => {
-          pty({ id: ptyId, data: '\r' });
+          window.electronAPI.ptyInput({ id: ptyId, data: '\r' });
         }, INJECT_ENTER_DELAY_MS);
       } catch {}
     };

@@ -1,7 +1,7 @@
-import { exec, spawn } from 'child_process';
-import { promisify } from 'util';
-import * as path from 'path';
-import * as fs from 'fs';
+import { exec, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { errorTracking } from '../errorTracking';
 import { events } from '../events';
@@ -14,16 +14,9 @@ import {
   githubAuthCancelledChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
+import type { GitHubUser } from '@shared/types/github';
 
 const execAsync = promisify(exec);
-
-export interface GitHubUser {
-  id: number;
-  login: string;
-  name: string;
-  email: string;
-  avatar_url: string;
-}
 
 export interface GitHubRepo {
   id: number;

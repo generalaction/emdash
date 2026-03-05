@@ -95,54 +95,34 @@ const RENDERER_ALLOWED_EVENTS = new Set([
 
 export const telemetryController = createRPCController({
   capture: async (args: { event: string; properties?: any }) => {
-    try {
-      if (!isTelemetryEnabled()) return { success: false, disabled: true };
-      const ev = String(args?.event || '') as any;
-      if (!RENDERER_ALLOWED_EVENTS.has(ev)) {
-        return { success: false, error: 'event_not_allowed' };
-      }
-      const props =
-        args?.properties && typeof args.properties === 'object' ? args.properties : undefined;
+    if (!isTelemetryEnabled()) return;
+    const ev = String(args?.event || '') as any;
+    if (!RENDERER_ALLOWED_EVENTS.has(ev)) return;
+    const props =
+      args?.properties && typeof args.properties === 'object' ? args.properties : undefined;
 
-      if (ev === '$exception') {
-        const errorMessage = props?.$exception_message || 'Unknown error';
-        const error = new Error(errorMessage);
-        error.stack = props?.$exception_stack_trace_raw || '';
-        error.name = props?.$exception_type || 'Error';
-        captureException(error, props);
-      } else {
-        capture(ev, props);
-      }
-
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'capture_failed' };
+    if (ev === '$exception') {
+      const errorMessage = props?.$exception_message || 'Unknown error';
+      const error = new Error(errorMessage);
+      error.stack = props?.$exception_stack_trace_raw || '';
+      error.name = props?.$exception_type || 'Error';
+      captureException(error, props);
+    } else {
+      capture(ev, props);
     }
   },
 
   getStatus: async () => {
-    try {
-      return { success: true, status: getTelemetryStatus() };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'status_failed' };
-    }
+    return { status: getTelemetryStatus() };
   },
 
   setEnabled: async (enabled: boolean) => {
-    try {
-      setTelemetryEnabledViaUser(Boolean(enabled));
-      return { success: true, status: getTelemetryStatus() };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'update_failed' };
-    }
+    setTelemetryEnabledViaUser(Boolean(enabled));
+    return { status: getTelemetryStatus() };
   },
 
   setOnboardingSeen: async (flag: boolean) => {
-    try {
-      setOnboardingSeen(Boolean(flag));
-      return { success: true, status: getTelemetryStatus() };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'update_failed' };
-    }
+    setOnboardingSeen(Boolean(flag));
+    return { status: getTelemetryStatus() };
   },
 });

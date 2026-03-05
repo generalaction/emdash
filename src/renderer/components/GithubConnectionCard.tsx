@@ -60,14 +60,15 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
       setMessage('GitHub CLI not found. Installing...');
       setIsInstalling(true);
 
-      const installResult = await rpc.github.installCLI();
-      setIsInstalling(false);
-
-      if (!installResult.success) {
-        setMessage(`Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`);
+      try {
+        await rpc.github.installCLI();
+      } catch (err) {
+        setIsInstalling(false);
+        setMessage(`Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`);
         setIsError(true);
         return;
       }
+      setIsInstalling(false);
 
       setMessage('GitHub CLI installed successfully!');
       setCLIInstalled(true);

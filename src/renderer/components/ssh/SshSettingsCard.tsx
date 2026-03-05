@@ -165,11 +165,7 @@ export const SshSettingsCard: React.FC<Props> = ({ onAddConnection, onManageKeys
 
         {viewState === 'list' ? (
           <SshConnectionList
-            connections={connections.map((conn) => ({
-              ...conn,
-              createdAt: conn.createdAt || new Date(),
-              updatedAt: conn.updatedAt || new Date(),
-            }))}
+            connections={connections}
             isLoading={isLoading}
             onEdit={handleEdit}
             onDelete={handleDelete}

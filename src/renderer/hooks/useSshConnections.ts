@@ -34,12 +34,12 @@ export function useSshConnections(): UseSshConnectionsResult {
       const result = await rpc.ssh.getConnections();
       if (result.success && result.connections) {
         // Merge with cached states
-        const mergedConnections = (result.connections as SshConnection[]).map(
-          (conn: SshConnection) => ({
+        const mergedConnections = (result.connections ?? [])
+          .filter((conn): conn is typeof conn & { id: string } => !!conn.id)
+          .map((conn) => ({
             ...conn,
             state: stateCache.get(conn.id) || 'disconnected',
-          })
-        );
+          }));
         setConnections(mergedConnections);
       }
     } catch (err) {

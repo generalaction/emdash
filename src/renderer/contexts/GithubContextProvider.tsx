@@ -154,14 +154,14 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         }
 
         setGithubStatusMessage(installMessage);
-        const installResult = await rpc.github.installCLI();
-
-        if (!installResult.success) {
+        try {
+          await rpc.github.installCLI();
+        } catch (err) {
           setGithubLoading(false);
           setGithubStatusMessage(undefined);
           toast({
             title: 'Installation Failed',
-            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
+            description: `Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`,
             variant: 'destructive',
           });
           return;

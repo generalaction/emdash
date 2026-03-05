@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
+import { rpc } from '@/lib/rpc';
 
 type TaskRef = { id: string; name: string; path: string };
 
@@ -36,8 +37,8 @@ export function useDeleteRisks(tasks: TaskRef[], enabled: boolean) {
       for (const ws of tasks) {
         try {
           const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-            (window as any).electronAPI?.getGitStatus?.(ws.path),
-            (window as any).electronAPI?.getGitInfo?.(ws.path),
+            rpc.git.getStatus(ws.path),
+            rpc.project.getGitInfo(ws.path),
             refreshPrStatus(ws.path),
           ]);
 

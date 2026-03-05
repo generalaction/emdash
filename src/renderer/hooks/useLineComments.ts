@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import type { LineComment } from '../types/electron-api';
+import type { LineComment } from '@shared/types/lineComment';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 import { rpc } from '../lib/rpc';
 
@@ -81,23 +81,13 @@ class LineCommentsStore {
       this.setState(taskId, (prev) => ({ ...prev, isLoading: true, error: null }));
       try {
         const result = await rpc.lineComments.get({ taskId });
-        if (result.success && result.comments) {
-          const nextComments = result.comments ?? [];
-          this.setState(taskId, (prev) => ({
-            ...prev,
-            comments: nextComments,
-            isLoading: false,
-            error: null,
-            hasLoaded: true,
-          }));
-        } else {
-          this.setState(taskId, (prev) => ({
-            ...prev,
-            isLoading: false,
-            error: result.error ?? 'Failed to load comments',
-            hasLoaded: true,
-          }));
-        }
+        this.setState(taskId, (prev) => ({
+          ...prev,
+          comments: result.comments ?? [],
+          isLoading: false,
+          error: null,
+          hasLoaded: true,
+        }));
       } catch (err) {
         this.setState(taskId, (prev) => ({
           ...prev,
@@ -117,49 +107,52 @@ class LineCommentsStore {
 
   async createComment(taskId: string, input: CreateCommentInput): Promise<string | null> {
     if (!taskId) return null;
-    const result = await rpc.lineComments.create({
-      taskId,
-      filePath: input.filePath,
-      lineNumber: input.lineNumber,
-      lineContent: input.lineContent,
-      content: input.content,
-    });
-
-    if (result.success) {
+    try {
+      const result = await rpc.lineComments.create({
+        taskId,
+        filePath: input.filePath,
+        lineNumber: input.lineNumber,
+        lineContent: input.lineContent,
+        content: input.content,
+      });
       await this.refresh(taskId);
       return result.id ?? null;
+    } catch {
+      return null;
     }
-    return null;
   }
 
   async updateComment(taskId: string, id: string, content: string): Promise<boolean> {
     if (!taskId) return false;
-    const result = await rpc.lineComments.update({ id, content });
-    if (result.success) {
+    try {
+      await rpc.lineComments.update({ id, content });
       await this.refresh(taskId);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 
   async deleteComment(taskId: string, id: string): Promise<boolean> {
     if (!taskId) return false;
-    const result = await rpc.lineComments.delete(id);
-    if (result.success) {
+    try {
+      await rpc.lineComments.delete(id);
       await this.refresh(taskId);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 
   async markSent(taskId: string, commentIds: string[]): Promise<boolean> {
     if (!taskId || commentIds.length === 0) return false;
-    const result = await rpc.lineComments.markSent(commentIds);
-    if (result.success) {
+    try {
+      await rpc.lineComments.markSent(commentIds);
       await this.refresh(taskId);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 }
 

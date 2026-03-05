@@ -4,6 +4,7 @@ import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import AgentLogo from '../AgentLogo';
 import { GitBranch } from 'lucide-react';
+import { rpc } from '@/lib/rpc';
 
 type AgentTooltipProps = {
   agents: UiAgent[];
@@ -70,17 +71,16 @@ export const AgentTooltip: React.FC<AgentTooltipProps> = ({
       if (!open) return;
       if (!taskPath) return;
       try {
-        const res = await (window as any).electronAPI?.getGitStatus?.(taskPath);
+        const res = await rpc.git.getStatus(taskPath);
         if (!res?.success || !Array.isArray(res?.changes)) {
           if (!cancelled) setDiffSummary(null);
           return;
         }
-        const filtered = (res.changes as Array<any>).filter(
-          (c) =>
-            !String(c?.path || '').startsWith('.emdash/') && String(c?.path || '') !== 'PLANNING.md'
+        const filtered = res.changes.filter(
+          (c) => !String(c.path).startsWith('.emdash/') && String(c.path) !== 'PLANNING.md'
         );
-        const additions = filtered.reduce((s, c) => s + Number(c?.additions || 0), 0);
-        const deletions = filtered.reduce((s, c) => s + Number(c?.deletions || 0), 0);
+        const additions = filtered.reduce((s, c) => s + Number(c.additions || 0), 0);
+        const deletions = filtered.reduce((s, c) => s + Number(c.deletions || 0), 0);
         const top = filtered
           .slice()
           .sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions))

@@ -33,7 +33,7 @@ export function useInitialPromptInjection(opts: {
     const send = () => {
       try {
         if (sent) return;
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
+        window.electronAPI.ptyInput({ id: ptyId, data: trimmed + '\n' });
         localStorage.setItem(sentKey, '1');
         sent = true;
       } catch {}

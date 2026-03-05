@@ -1,4 +1,4 @@
 import { defineEvent } from '@shared/ipc/events';
+import type { HostPreviewEvent } from '@shared/types/hostPreview';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const hostPreviewEventChannel = defineEvent<any>('preview:host:event');
+export const hostPreviewEventChannel = defineEvent<HostPreviewEvent>('preview:host:event');

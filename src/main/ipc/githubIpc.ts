@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { log } from '../lib/logger';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { GitHubService } from '../services/GitHubService';
+import type { GitHubUser } from '@shared/types/github';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
 import { exec } from 'node:child_process';
@@ -95,7 +96,7 @@ export const githubController = createRPCController({
       }
 
       let authenticated = false;
-      let user: any = null;
+      let user: GitHubUser | null = null;
       if (installed) {
         try {
           const { stdout } = await execAsync('gh api user');
@@ -110,7 +111,7 @@ export const githubController = createRPCController({
       return { installed, authenticated, user };
     } catch (error) {
       log.error('GitHub status check failed:', error);
-      return { installed: false, authenticated: false };
+      return { installed: false, authenticated: false, user: null };
     }
   },
 
@@ -186,13 +187,7 @@ export const githubController = createRPCController({
   },
 
   logout: async () => {
-    try {
-      await githubService.logout();
-      return { success: true };
-    } catch (error) {
-      log.error('Failed to logout:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Logout failed' };
-    }
+    await githubService.logout();
   },
 
   issuesList: async (projectPath: string, limit?: number) => {
@@ -317,14 +312,9 @@ export const githubController = createRPCController({
   },
 
   installCLI: async () => {
-    try {
-      return await githubCLIInstaller.install();
-    } catch (error) {
-      log.error('Failed to install gh CLI:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Installation failed',
-      };
+    const result = await githubCLIInstaller.install();
+    if (!result.success) {
+      throw new Error(result.error ?? 'Installation failed');
     }
   },
 

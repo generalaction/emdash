@@ -8,7 +8,7 @@ import { useTaskScope } from './TaskScopeContext';
 import { usePendingInjection } from '../hooks/usePendingInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
-import type { LineComment } from '../types/electron-api';
+import type { LineComment } from '@shared/types/lineComment';
 
 interface CommentsPopoverProps {
   taskId?: string;

@@ -635,13 +635,7 @@ export class TerminalSessionManager {
       const cleaned = this.cleanTerminalText(selected);
 
       const writeWithElectronFallback = () => {
-        const fallbackWrite = (window as any)?.electronAPI?.clipboardWriteText;
-        if (typeof fallbackWrite !== 'function') {
-          log.warn('Terminal clipboard API unavailable', { id: this.id });
-          return;
-        }
-
-        void fallbackWrite(cleaned).catch((error: unknown) => {
+        void rpc.app.clipboardWriteText(cleaned).catch((error: unknown) => {
           log.warn('Failed to copy terminal selection via Electron fallback', {
             id: this.id,
             error,
