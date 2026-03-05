@@ -12,6 +12,7 @@ import {
   setOnDirectCliExit,
   parseShellArgs,
   buildProviderCliArgs,
+  getProviderRuntimeCliArgs,
   resolveProviderCommandConfig,
   killTmuxSession,
   getTmuxSessionName,
@@ -291,6 +292,7 @@ function buildRemoteProviderInvocation(args: {
     initialPromptFlag: resolvedConfig?.initialPromptFlag ?? fallbackProvider?.initialPromptFlag,
     useKeystrokeInjection: provider?.useKeystrokeInjection,
   });
+  cliArgs.push(...getProviderRuntimeCliArgs({ providerId, target: 'remote' }));
 
   const cmdParts = [...cliCommandParts, ...cliArgs];
   const cmd = cmdParts.map(quoteShellArg).join(' ');
