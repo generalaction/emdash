@@ -2118,6 +2118,121 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   });
 
+  // Git: Local merge – merge current branch into default branch without a PR
+  ipcMain.handle(
+    'git:local-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        commitMessage?: string;
+      }
+    ) => {
+      const { taskPath, commitMessage } = args || ({} as { taskPath: string });
+
+      try {
+        // Get current and default branch names
+        const { stdout: currentOut } = await execAsync('git branch --show-current', {
+          cwd: taskPath,
+        });
+        const currentBranch = (currentOut || '').trim();
+
+        let defaultBranch = 'main';
+        try {
+          const { stdout } = await execAsync(
+            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+            { cwd: taskPath }
+          );
+          if (stdout?.trim()) defaultBranch = stdout.trim();
+        } catch {
+          // gh not available - try git-based detection
+          try {
+            const { stdout: symRef } = await execAsync(
+              'git symbolic-ref refs/remotes/origin/HEAD',
+              { cwd: taskPath }
+            );
+            const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
+            if (match?.[1]) defaultBranch = match[1];
+          } catch {
+            // Fall back to 'main'
+          }
+        }
+
+        // Validate: on a valid feature branch
+        if (!currentBranch) {
+          return { success: false, error: 'Not on a branch (detached HEAD state).' };
+        }
+        if (currentBranch === defaultBranch) {
+          return {
+            success: false,
+            error: `Already on ${defaultBranch}. Create a feature branch first.`,
+          };
+        }
+
+        // Stage and commit any pending changes
+        const { stdout: statusOut } = await execAsync(
+          'git status --porcelain --untracked-files=all',
+          { cwd: taskPath }
+        );
+        if (statusOut?.trim()) {
+          await execAsync('git add -A', { cwd: taskPath });
+          try {
+            await execAsync(`git commit -m ${JSON.stringify('chore: prepare for local merge')}`, {
+              cwd: taskPath,
+            });
+          } catch (e) {
+            const errStr = String(e);
+            if (!/nothing to commit/i.test(errStr)) throw e;
+          }
+        }
+
+        // Find the main repo path (worktree's parent repo)
+        const { stdout: gitCommonDir } = await execAsync('git rev-parse --git-common-dir', {
+          cwd: taskPath,
+        });
+        const commonDir = gitCommonDir?.trim();
+        if (!commonDir) {
+          return { success: false, error: 'Could not determine main repository path.' };
+        }
+        const mainRepoPath = path.resolve(taskPath, commonDir, '..');
+
+        // Switch to default branch in the main repo
+        await execAsync(`git checkout ${JSON.stringify(defaultBranch)}`, { cwd: mainRepoPath });
+
+        // Merge the feature branch
+        const mergeMsg = commitMessage || `Merge branch '${currentBranch}' into ${defaultBranch}`;
+        try {
+          await execAsync(
+            `git merge ${JSON.stringify(currentBranch)} -m ${JSON.stringify(mergeMsg)}`,
+            { cwd: mainRepoPath }
+          );
+        } catch (e) {
+          // Abort the merge on conflict so the repo isn't left in a dirty state
+          try {
+            await execAsync('git merge --abort', { cwd: mainRepoPath });
+          } catch {
+            // ignore abort failures
+          }
+          const errMsg = (e as { stderr?: string })?.stderr || String(e);
+          return {
+            success: false,
+            error: `Merge failed (likely conflicts): ${errMsg}`,
+          };
+        }
+
+        return {
+          success: true,
+          output: `Successfully merged '${currentBranch}' into '${defaultBranch}' locally.`,
+          defaultBranch,
+          featureBranch: currentBranch,
+        };
+      } catch (e) {
+        log.error('Failed local merge:', e);
+        return { success: false, error: (e as { message?: string })?.message || String(e) };
+      }
+    }
+  );
+
   // Git: Rename branch (local and optionally remote)
   ipcMain.handle(
     'git:rename-branch',

@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   XCircle,
   GitMerge,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -34,15 +35,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { useTaskScope } from './TaskScopeContext';
 
 type ActiveTab = 'changes' | 'checks';
-type PrMode = 'create' | 'draft' | 'merge';
+type PrMode = 'create' | 'draft' | 'merge' | 'local-merge';
 
 const PR_MODE_LABELS: Record<PrMode, string> = {
   create: 'Create PR',
   draft: 'Draft PR',
   merge: 'Merge into Main',
+  'local-merge': 'Local Merge',
 };
 
 interface PrActionButtonProps {
@@ -76,7 +80,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto min-w-0 p-0.5">
-          {(['create', 'draft', 'merge'] as PrMode[])
+          {(['create', 'draft', 'merge', 'local-merge'] as PrMode[])
             .filter((m) => m !== mode)
             .map((m) => (
               <PopoverClose key={m} asChild>
@@ -154,10 +158,18 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+  const [showLocalMergeConfirm, setShowLocalMergeConfirm] = useState(false);
+  const [localMergeCommitMsg, setLocalMergeCommitMsg] = useState('');
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
-      if (stored === 'create' || stored === 'draft' || stored === 'merge') return stored;
+      if (
+        stored === 'create' ||
+        stored === 'draft' ||
+        stored === 'merge' ||
+        stored === 'local-merge'
+      )
+        return stored;
       // Migrate from old boolean key
       if (localStorage.getItem('emdash:createPrAsDraft') === 'true') return 'draft';
       return 'create';
@@ -243,31 +255,42 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safeTaskPath, hasChanges]);
 
-  const handleMergeToMain = async () => {
+  const executeMerge = async (opts: {
+    action: () => Promise<{
+      success: boolean;
+      error?: string;
+      output?: string;
+      [k: string]: unknown;
+    }>;
+    successTitle: string;
+    successDescription: string;
+    errorTitle: string;
+    errorFallback: string;
+    refreshPrAfter?: boolean;
+  }) => {
     setIsMergingToMain(true);
     try {
-      const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
+      const result = await opts.action();
       if (result.success) {
-        toast({
-          title: 'Merged to Main',
-          description: 'Changes have been merged to main.',
-        });
+        toast({ title: opts.successTitle, description: result.output || opts.successDescription });
         await refreshChanges();
-        try {
-          await refreshPr();
-        } catch {
-          // PR refresh is best-effort
+        if (opts.refreshPrAfter) {
+          try {
+            await refreshPr();
+          } catch {
+            /* best-effort */
+          }
         }
       } else {
         toast({
-          title: 'Merge Failed',
-          description: result.error || 'Failed to merge to main.',
+          title: opts.errorTitle,
+          description: result.error || opts.errorFallback,
           variant: 'destructive',
         });
       }
-    } catch (_error) {
+    } catch {
       toast({
-        title: 'Merge Failed',
+        title: opts.errorTitle,
         description: 'An unexpected error occurred.',
         variant: 'destructive',
       });
@@ -276,9 +299,36 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
+  const handleMergeToMain = () =>
+    executeMerge({
+      action: () => window.electronAPI.mergeToMain({ taskPath: safeTaskPath }),
+      successTitle: 'Merged to Main',
+      successDescription: 'Changes have been merged to main.',
+      errorTitle: 'Merge Failed',
+      errorFallback: 'Failed to merge to main.',
+      refreshPrAfter: true,
+    });
+
+  const handleLocalMerge = () =>
+    executeMerge({
+      action: () =>
+        window.electronAPI.localMerge({
+          taskPath: safeTaskPath,
+          commitMessage: localMergeCommitMsg.trim() || undefined,
+        }),
+      successTitle: 'Local Merge Successful',
+      successDescription: 'Merged locally.',
+      errorTitle: 'Local Merge Failed',
+      errorFallback: 'Failed to merge locally.',
+    });
+
   const handlePrAction = async () => {
     if (prMode === 'merge') {
       setShowMergeConfirm(true);
+      return;
+    } else if (prMode === 'local-merge') {
+      setLocalMergeCommitMsg('');
+      setShowLocalMergeConfirm(true);
       return;
     } else {
       void (async () => {
@@ -525,6 +575,58 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             >
               <GitMerge className="mr-2 h-4 w-4" />
               Merge into Main
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={showLocalMergeConfirm} onOpenChange={setShowLocalMergeConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg">Local Merge</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+              <AlertDialogDescription className="text-sm text-yellow-700 dark:text-yellow-300">
+                This will merge your worktree branch directly into the default branch in your{' '}
+                <strong>local</strong> repository — no PR will be created and nothing will be pushed
+                to the remote. This action may be difficult to reverse.
+              </AlertDialogDescription>
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">What will happen:</p>
+              <ol className="list-inside list-decimal space-y-1 text-xs text-muted-foreground">
+                <li>Any uncommitted changes will be staged and committed</li>
+                <li>Your main repo will checkout the default branch</li>
+                <li>The worktree branch will be merged into the default branch</li>
+              </ol>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="local-merge-commit-msg" className="text-xs">
+                Commit message (optional)
+              </Label>
+              <Input
+                id="local-merge-commit-msg"
+                placeholder="Leave blank for default merge commit message"
+                value={localMergeCommitMsg}
+                onChange={(e) => setLocalMergeCommitMsg(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowLocalMergeConfirm(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowLocalMergeConfirm(false);
+                void handleLocalMerge();
+              }}
+              className="bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+            >
+              <GitMerge className="mr-2 h-4 w-4" />
+              Merge Locally
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
