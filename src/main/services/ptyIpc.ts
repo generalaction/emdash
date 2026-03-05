@@ -113,32 +113,60 @@ function pickReverseTunnelPort(ptyId: string): number {
 }
 
 /**
- * Build a single shell command that writes `.claude/settings.local.json` on
- * the remote with Notification and Stop hook entries.
+ * Write `.claude/settings.local.json` on the remote with Notification and Stop
+ * hook entries, merging with any existing content (same logic as
+ * `ClaudeHookService.writeHookConfig` locally).
  *
- * The returned string is meant to be executed via `execFileAsync('ssh', ...)`
- * (an ssh exec channel), NOT injected as PTY keystrokes.  This avoids
- * terminal line-buffer corruption that garbles long lines typed into the PTY.
- *
- * The JSON uses `$EMDASH_HOOK_PORT` etc. as literal text — they are expanded
- * at hook runtime by the user's shell, not at write time.
+ * Uses two ssh exec calls: one to read the existing file, one to write the
+ * merged result.  This avoids terminal line-buffer corruption and preserves
+ * user-defined settings and hooks.
  */
-function buildRemoteHookConfigCommand(cwd: string): string {
-  const notificationCmd = ClaudeHookService.makeHookCommand('notification');
-  const stopCmd = ClaudeHookService.makeHookCommand('stop');
-
-  const config = {
-    hooks: {
-      Notification: [{ hooks: [{ type: 'command', command: notificationCmd }] }],
-      Stop: [{ hooks: [{ type: 'command', command: stopCmd }] }],
-    },
-  };
-
-  const json = JSON.stringify(config);
+async function writeRemoteHookConfig(
+  sshArgs: string[],
+  sshTarget: string,
+  cwd: string
+): Promise<void> {
   const dir = `${cwd}/.claude`;
   const filePath = `${dir}/settings.local.json`;
 
-  return `mkdir -p ${quoteShellArg(dir)} && printf '%s\\n' ${quoteShellArg(json)} > ${quoteShellArg(filePath)}`;
+  // Read existing config (if any) from the remote
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let existing: Record<string, any> = {};
+  try {
+    const { stdout } = await execFileAsync('ssh', [
+      ...sshArgs,
+      sshTarget,
+      `cat ${quoteShellArg(filePath)} 2>/dev/null || echo '{}'`,
+    ]);
+    existing = JSON.parse(stdout.trim());
+  } catch {
+    // File doesn't exist, isn't valid JSON, or ssh failed — start fresh
+  }
+
+  // Merge hook entries: strip old emdash entries (identified by
+  // EMDASH_HOOK_PORT marker), then append fresh ones.  Preserves
+  // user-defined hooks and all other settings.
+  const hooks = existing.hooks || {};
+  for (const eventType of ['Notification', 'Stop'] as const) {
+    const prev: unknown[] = Array.isArray(hooks[eventType]) ? hooks[eventType] : [];
+    const userEntries = prev.filter(
+      (entry: any) => !JSON.stringify(entry).includes('EMDASH_HOOK_PORT')
+    );
+    userEntries.push({
+      hooks: [
+        { type: 'command', command: ClaudeHookService.makeHookCommand(eventType.toLowerCase()) },
+      ],
+    });
+    hooks[eventType] = userEntries;
+  }
+  existing.hooks = hooks;
+
+  const json = JSON.stringify(existing, null, 2);
+  await execFileAsync('ssh', [
+    ...sshArgs,
+    sshTarget,
+    `mkdir -p ${quoteShellArg(dir)} && printf '%s\\n' ${quoteShellArg(json)} > ${quoteShellArg(filePath)}`,
+  ]);
 }
 
 function buildRemoteInitKeystrokes(args: {
@@ -870,8 +898,7 @@ export function registerPtyIpc(): void {
             // unnecessarily bind the reverse tunnel port.
             if (providerId === 'claude' && cwd) {
               try {
-                const hookCmd = buildRemoteHookConfigCommand(cwd);
-                await execFileAsync('ssh', [...ssh.args, ssh.target, hookCmd]);
+                await writeRemoteHookConfig(ssh.args, ssh.target, cwd);
               } catch (err: any) {
                 log.warn('ptyIpc:startDirect failed to write remote hook config', {
                   id,
