@@ -7,9 +7,21 @@ Plug in custom shell scripts that create and destroy remote environments on dema
 
 This works with any infrastructure backend: cloud VMs, Kubernetes pods, container-based dev environments, or internal workspace platforms. You just provide the scripts.
 
-<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '48px', margin: '32px 0' }}>
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '48px',
+    margin: '32px 0',
+  }}
+>
   <img src="/media/logo-aws.png" alt="AWS" style={{ height: '40px', objectFit: 'contain' }} />
-  <img src="/media/logo-hetzner.png" alt="Hetzner" style={{ height: '40px', objectFit: 'contain' }} />
+  <img
+    src="/media/logo-hetzner.png"
+    alt="Hetzner"
+    style={{ height: '40px', objectFit: 'contain' }}
+  />
   <img src="/media/azure-logo.svg" alt="Azure" style={{ height: '40px', objectFit: 'contain' }} />
 </div>
 
@@ -25,12 +37,12 @@ This works with any infrastructure backend: cloud VMs, Kubernetes pods, containe
 
 ### Compared to Remote Projects
 
-| | [Remote Projects](/docs/remote-projects) | Workspace Provider |
-|---|---|---|
-| **Lifecycle** | Persistent server, shared across tasks | Per-task, provisioned on demand |
-| **Setup** | Manual connection in Settings | Automated via scripts |
-| **Infra management** | You manage the server | Scripts handle create/destroy |
-| **Use case** | Dedicated dev server | Ephemeral, isolated workspaces |
+|                      | [Remote Projects](/docs/remote-projects) | Workspace Provider              |
+| -------------------- | ---------------------------------------- | ------------------------------- |
+| **Lifecycle**        | Persistent server, shared across tasks   | Per-task, provisioned on demand |
+| **Setup**            | Manual connection in Settings            | Automated via scripts           |
+| **Infra management** | You manage the server                    | Scripts handle create/destroy   |
+| **Use case**         | Dedicated dev server                     | Ephemeral, isolated workspaces  |
 
 Both features share the same remote capabilities once connected: terminal access, coding agents, Git operations, and file browsing all work identically.
 
@@ -46,12 +58,12 @@ The provision script creates a workspace and outputs SSH connection details as J
 
 **Environment variables provided by Emdash:**
 
-| Variable | Description |
-|----------|-------------|
-| `EMDASH_TASK_ID` | Unique identifier for the task |
+| Variable          | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `EMDASH_TASK_ID`  | Unique identifier for the task                       |
 | `EMDASH_REPO_URL` | Repository URL (e.g., `git@github.com:org/repo.git`) |
-| `EMDASH_BRANCH` | Branch name for this task |
-| `EMDASH_BASE_REF` | Base branch (e.g., `main`) |
+| `EMDASH_BRANCH`   | Branch name for this task                            |
+| `EMDASH_BASE_REF` | Base branch (e.g., `main`)                           |
 
 **Required output (JSON to stdout):**
 
@@ -65,13 +77,13 @@ The provision script creates a workspace and outputs SSH connection details as J
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `host` | Yes | Hostname, IP address, or SSH config alias |
-| `id` | No | External identifier (passed to teardown as `EMDASH_INSTANCE_ID`) |
-| `port` | No | SSH port (default: 22) |
-| `username` | No | SSH username (default: current user) |
-| `worktreePath` | No | Path to the repository on the workspace |
+| Field          | Required | Description                                                      |
+| -------------- | -------- | ---------------------------------------------------------------- |
+| `host`         | Yes      | Hostname, IP address, or SSH config alias                        |
+| `id`           | No       | External identifier (passed to teardown as `EMDASH_INSTANCE_ID`) |
+| `port`         | No       | SSH port (default: 22)                                           |
+| `username`     | No       | SSH username (default: current user)                             |
+| `worktreePath` | No       | Path to the repository on the workspace                          |
 
 **Example provision script:**
 
@@ -104,6 +116,7 @@ EOF
 ```
 
 **Important rules:**
+
 - All log output must go to **stderr** (`>&2`) — Emdash streams these lines live in the UI
 - Only the JSON object goes to **stdout** — this is parsed for connection details
 - Exit with code **0** on success, non-zero on failure
@@ -115,8 +128,8 @@ The teardown script destroys the workspace when the task is deleted.
 
 **Environment variables provided by Emdash:**
 
-| Variable | Description |
-|----------|-------------|
+| Variable             | Description                                                             |
+| -------------------- | ----------------------------------------------------------------------- |
 | `EMDASH_INSTANCE_ID` | The `id` from your provision output (or `host` if no `id` was provided) |
 
 **Example teardown script:**
@@ -151,6 +164,7 @@ Add the workspace provider configuration to `.emdash.json` in your project root:
 ```
 
 Alternatively, configure via the Emdash UI:
+
 1. Open your project
 2. Click the **gear icon** (Project Settings)
 3. Scroll to the **Workspace Provider** section
@@ -165,6 +179,7 @@ Alternatively, configure via the Emdash UI:
 4. Create the task
 
 Emdash will:
+
 1. Show a provisioning overlay with live progress from your script's stderr
 2. Parse the JSON output to get connection details
 3. Connect the terminal to the workspace via SSH
@@ -227,6 +242,7 @@ When you delete a workspace-backed task:
 ### App Restart
 
 If Emdash is restarted while workspaces are active:
+
 - **Provisioning** instances are marked as error (the child process is gone)
 - **Ready** instances remain — the SSH connection is re-established when you open the task
 
@@ -237,6 +253,7 @@ If Emdash is restarted while workspaces are active:
 **Symptoms:** Error overlay with script output
 
 **Solutions:**
+
 1. Check the error message in the overlay — it includes the last 500 chars of stderr
 2. Run the script manually to debug:
    ```bash
@@ -252,6 +269,7 @@ If Emdash is restarted while workspaces are active:
 **Symptoms:** Terminal shows SSH error after provision succeeds
 
 **Solutions:**
+
 1. Verify you can SSH manually: `ssh <host>` (using the host from your script output)
 2. Check your `~/.ssh/config` for the host
 3. Verify your SSH agent has the right key loaded: `ssh-add -l`
@@ -266,6 +284,7 @@ Provision scripts have a 5-minute timeout and teardown scripts have a 2-minute t
 **Symptoms:** "Provision script output is not valid JSON"
 
 **Solutions:**
+
 1. Ensure **only** JSON is printed to stdout — all log messages must use `>&2`
 2. Check for stray `echo` or `printf` statements without `>&2`
 3. Validate your output: `./provision.sh 2>/dev/null | jq .`
@@ -274,24 +293,24 @@ Provision scripts have a 5-minute timeout and teardown scripts have a 2-minute t
 
 ### Provision Script
 
-| Aspect | Details |
-|--------|---------|
-| **Execution** | `bash -c <provisionCommand>` |
-| **Working directory** | Project root |
-| **Env vars** | `EMDASH_TASK_ID`, `EMDASH_REPO_URL`, `EMDASH_BRANCH`, `EMDASH_BASE_REF` |
-| **Stdout** | JSON object with at least `host` field |
-| **Stderr** | Log lines (streamed to UI) |
-| **Exit code** | 0 = success, non-zero = failure |
-| **Timeout** | 5 minutes |
+| Aspect                | Details                                                                 |
+| --------------------- | ----------------------------------------------------------------------- |
+| **Execution**         | `bash -c <provisionCommand>`                                            |
+| **Working directory** | Project root                                                            |
+| **Env vars**          | `EMDASH_TASK_ID`, `EMDASH_REPO_URL`, `EMDASH_BRANCH`, `EMDASH_BASE_REF` |
+| **Stdout**            | JSON object with at least `host` field                                  |
+| **Stderr**            | Log lines (streamed to UI)                                              |
+| **Exit code**         | 0 = success, non-zero = failure                                         |
+| **Timeout**           | 5 minutes                                                               |
 
 ### Teardown Script
 
-| Aspect | Details |
-|--------|---------|
-| **Execution** | `bash -c <terminateCommand>` |
-| **Working directory** | Project root |
-| **Env vars** | `EMDASH_INSTANCE_ID` |
-| **Stdout** | (ignored) |
-| **Stderr** | Log lines |
-| **Exit code** | 0 = success, non-zero = failure |
-| **Timeout** | 2 minutes |
+| Aspect                | Details                         |
+| --------------------- | ------------------------------- |
+| **Execution**         | `bash -c <terminateCommand>`    |
+| **Working directory** | Project root                    |
+| **Env vars**          | `EMDASH_INSTANCE_ID`            |
+| **Stdout**            | (ignored)                       |
+| **Stderr**            | Log lines                       |
+| **Exit code**         | 0 = success, non-zero = failure |
+| **Timeout**           | 2 minutes                       |
