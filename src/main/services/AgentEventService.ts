@@ -15,8 +15,9 @@ function mapProviderNotificationType(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   raw: Record<string, any>
 ): string | undefined {
-  if (raw.notification_type || raw.notificationType) {
-    return raw.notification_type ?? raw.notificationType;
+  const explicitNotificationType = raw.notification_type || raw.notificationType;
+  if (explicitNotificationType) {
+    return explicitNotificationType;
   }
 
   // Codex emits turn-complete notifications when it is ready for the next user input.
