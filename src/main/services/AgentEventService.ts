@@ -9,6 +9,24 @@ import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
 import { getAppSettings } from '../settings';
 
+function mapProviderNotificationType(
+  type: string,
+  providerId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw: Record<string, any>
+): string | undefined {
+  if (raw.notification_type || raw.notificationType) {
+    return raw.notification_type ?? raw.notificationType;
+  }
+
+  // Codex emits turn-complete notifications when it is ready for the next user input.
+  if (type === 'notification' && providerId === 'codex' && raw.type === 'agent-turn-complete') {
+    return 'idle_prompt';
+  }
+
+  return undefined;
+}
+
 class AgentEventService {
   private server: http.Server | null = null;
   private port = 0;
@@ -72,14 +90,7 @@ class AgentEventService {
           // Normalize snake_case fields from provider hooks to camelCase
           const normalizedPayload = {
             ...raw,
-            notificationType:
-              raw.notification_type ??
-              raw.notificationType ??
-              (type === 'notification' &&
-              parsed.providerId === 'codex' &&
-              raw.type === 'agent-turn-complete'
-                ? 'idle_prompt'
-                : undefined),
+            notificationType: mapProviderNotificationType(type, parsed.providerId, raw),
             lastAssistantMessage:
               raw.last_assistant_message ??
               raw.lastAssistantMessage ??

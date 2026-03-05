@@ -625,21 +625,41 @@ function makePosixCodexNotifyCommand(): string[] {
   return ['sh', '-lc', script, 'sh'];
 }
 
-function makeWindowsCodexNotifyCommand(): string[] {
-  const script =
-    `$payload = $args[0]; ` +
-    `try { ` +
-    `Invoke-WebRequest -UseBasicParsing -Method POST ` +
-    `-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') ` +
-    `-Headers @{ ` +
-    `'Content-Type' = 'application/json'; ` +
-    `'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; ` +
-    `'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; ` +
-    `'X-Emdash-Event-Type' = 'notification' ` +
-    `} -Body $payload | Out-Null ` +
-    `} catch { exit 0 }`;
+function ensureWindowsCodexNotifyScript(): string {
+  const scriptPath = path.join(os.tmpdir(), 'emdash-codex-notify.ps1');
+  const script = [
+    'param([string]$payload)',
+    'try {',
+    '  Invoke-WebRequest -UseBasicParsing -Method POST ' +
+      "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+      '-Headers @{ ' +
+      "'Content-Type' = 'application/json'; " +
+      "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
+      "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
+      "'X-Emdash-Event-Type' = 'notification' " +
+      '} -Body $payload | Out-Null',
+    '} catch {',
+    '  exit 0',
+    '}',
+    '',
+  ].join('\n');
 
-  return ['powershell.exe', '-NoProfile', '-Command', script];
+  try {
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(scriptPath, script);
+  } catch (err) {
+    log.warn('ptyManager: failed to write Codex Windows notify script', {
+      path: scriptPath,
+      error: String(err),
+    });
+  }
+
+  return scriptPath;
+}
+
+function makeWindowsCodexNotifyCommand(): string[] {
+  // Use -File so Codex's appended payload argument binds reliably as a script parameter.
+  return ['powershell.exe', '-NoProfile', '-File', ensureWindowsCodexNotifyScript()];
 }
 
 function makeCodexNotifyConfigValue(target: 'local' | 'remote', platform: NodeJS.Platform): string {

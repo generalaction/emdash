@@ -8,6 +8,7 @@ const fsWriteFileSyncMock = vi.fn();
 const fsStatSyncMock = vi.fn();
 const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
+const fsMkdirSyncMock = vi.fn();
 const agentEventGetPortMock = vi.fn(() => 0);
 const agentEventGetTokenMock = vi.fn(() => '');
 
@@ -45,6 +46,7 @@ vi.mock('fs', () => {
     statSync: (...args: any[]) => fsStatSyncMock(...args),
     accessSync: (...args: any[]) => fsAccessSyncMock(...args),
     readdirSync: (...args: any[]) => fsReaddirSyncMock(...args),
+    mkdirSync: (...args: any[]) => fsMkdirSyncMock(...args),
     constants: { X_OK: 1 },
   };
   return { ...fsMock, default: fsMock };
@@ -199,7 +201,6 @@ describe('ptyManager provider command resolution', () => {
 
   it('adds Codex notify runtime config when hooks are enabled', async () => {
     agentEventGetPortMock.mockReturnValue(43123);
-    agentEventGetTokenMock.mockReturnValue('hook-token');
 
     const { getProviderRuntimeCliArgs } = await import('../../main/services/ptyManager');
     const args = getProviderRuntimeCliArgs({
@@ -210,6 +211,28 @@ describe('ptyManager provider command resolution', () => {
     const notifyArg = args.find((arg) => arg.startsWith('notify='));
     expect(notifyArg).toContain('X-Emdash-Event-Type: notification');
     expect(notifyArg).toContain('$EMDASH_HOOK_PORT');
+  });
+
+  it('uses a PowerShell file for Codex notify runtime config on Windows', async () => {
+    agentEventGetPortMock.mockReturnValue(43123);
+
+    const { getProviderRuntimeCliArgs } = await import('../../main/services/ptyManager');
+    const args = getProviderRuntimeCliArgs({
+      providerId: 'codex',
+      platform: 'win32',
+    });
+
+    expect(args).toContain('-c');
+    const notifyArg = args.find((arg) => arg.startsWith('notify='));
+    expect(notifyArg).toContain('powershell.exe');
+    expect(notifyArg).toContain('"-File"');
+    expect(notifyArg).toContain('emdash-codex-notify.ps1');
+    expect(notifyArg).not.toContain('"sh"');
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('emdash-codex-notify.ps1'),
+      expect.stringContaining('param([string]$payload)')
+    );
+    expect(fsMkdirSyncMock).toHaveBeenCalled();
   });
 });
 
