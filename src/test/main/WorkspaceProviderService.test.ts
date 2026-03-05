@@ -356,7 +356,7 @@ describe('WorkspaceProviderService', () => {
 
       await new Promise((r) => setTimeout(r, 50));
 
-      child.stdout.emit('data', Buffer.from('{"host": "workspace-daniel-1"}'));
+      child.stdout.emit('data', Buffer.from('{"host": "workspace-test-1"}'));
       child.emit('exit', 0);
 
       await new Promise((r) => setTimeout(r, 100));
@@ -367,7 +367,7 @@ describe('WorkspaceProviderService', () => {
       // Should connect with defaults
       expect(sshConnectMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          host: 'workspace-daniel-1',
+          host: 'workspace-test-1',
           port: 22,
           authType: 'agent',
         })

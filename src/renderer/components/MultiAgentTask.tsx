@@ -18,6 +18,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 
 interface Props {
   task: Task;
@@ -51,6 +52,8 @@ const MultiAgentTask: React.FC<Props> = ({
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
+  const { connectionId: wsConnectionId } = useWorkspaceConnection(task);
+  const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
@@ -483,8 +486,8 @@ const MultiAgentTask: React.FC<Props> = ({
               <div className="flex items-center justify-end gap-2 px-3 py-1.5">
                 <OpenInMenu
                   path={v.path}
-                  isRemote={!!projectRemoteConnectionId}
-                  sshConnectionId={projectRemoteConnectionId}
+                  isRemote={!!effectiveConnectionId}
+                  sshConnectionId={effectiveConnectionId}
                   isActive={isActive}
                 />
               </div>
@@ -553,9 +556,7 @@ const MultiAgentTask: React.FC<Props> = ({
                     id={`${v.worktreeId}-main`}
                     cwd={v.path}
                     remote={
-                      projectRemoteConnectionId
-                        ? { connectionId: projectRemoteConnectionId }
-                        : undefined
+                      effectiveConnectionId ? { connectionId: effectiveConnectionId } : undefined
                     }
                     providerId={v.agent}
                     env={variantEnvs.get(v.worktreeId || v.path)}

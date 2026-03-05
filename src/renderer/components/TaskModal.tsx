@@ -45,6 +45,13 @@ export interface CreateTaskResult {
   useWorktree?: boolean;
   baseRef?: string;
   nameGenerated?: boolean;
+  /** When true, provision a remote workspace instead of creating a local worktree. */
+  useRemoteWorkspace?: boolean;
+  /** Workspace provider commands — required when useRemoteWorkspace is true. */
+  workspaceProvider?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  };
 }
 
 interface TaskModalProps {
@@ -59,7 +66,9 @@ interface TaskModalProps {
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
-    nameGenerated?: boolean
+    nameGenerated?: boolean,
+    useRemoteWorkspace?: boolean,
+    workspaceProvider?: { provisionCommand: string; terminateCommand: string }
   ) => void;
 }
 
@@ -79,7 +88,9 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
         autoApprove,
         useWorktree,
         baseRef,
-        nameGenerated
+        nameGenerated,
+        useRemoteWorkspace,
+        workspaceProvider
       ) =>
         onSuccess({
           name,
@@ -92,6 +103,8 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
           useWorktree,
           baseRef,
           nameGenerated,
+          useRemoteWorkspace,
+          workspaceProvider,
         })
       }
     />
@@ -124,6 +137,36 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [useRemoteWorkspace, setUseRemoteWorkspace] = useState(false);
+  const [workspaceProviderConfig, setWorkspaceProviderConfig] = useState<{
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null>(null);
+
+  // Load workspace provider config from .emdash.json
+  useEffect(() => {
+    if (!projectPath) return;
+    void (async () => {
+      try {
+        const result = await window.electronAPI.getProjectConfig(projectPath);
+        if (result.success && result.content) {
+          const parsed = JSON.parse(result.content);
+          if (
+            parsed?.workspaceProvider?.type === 'script' &&
+            typeof parsed.workspaceProvider.provisionCommand === 'string' &&
+            typeof parsed.workspaceProvider.terminateCommand === 'string'
+          ) {
+            setWorkspaceProviderConfig({
+              provisionCommand: parsed.workspaceProvider.provisionCommand,
+              terminateCommand: parsed.workspaceProvider.terminateCommand,
+            });
+          }
+        }
+      } catch {
+        // Config not found or invalid — no workspace provider available
+      }
+    })();
+  }, [projectPath]);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -345,9 +388,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         selectedGithubIssue,
         selectedJiraIssue,
         hasAutoApproveSupport ? autoApprove : false,
-        useWorktree,
+        useRemoteWorkspace ? false : useWorktree,
         selectedBranch,
-        isNameGenerated
+        isNameGenerated,
+        useRemoteWorkspace,
+        useRemoteWorkspace && workspaceProviderConfig ? workspaceProviderConfig : undefined
       );
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -424,6 +469,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
           projectPath={projectPath}
           useWorktree={useWorktree}
           onUseWorktreeChange={setUseWorktree}
+          useRemoteWorkspace={useRemoteWorkspace}
+          onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
+          hasWorkspaceProvider={!!workspaceProviderConfig}
           autoApprove={autoApprove}
           onAutoApproveChange={setAutoApprove}
           hasAutoApproveSupport={hasAutoApproveSupport}

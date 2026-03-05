@@ -146,7 +146,7 @@ export class SshService extends EventEmitter {
    *
    * ssh2 does not read ~/.ssh/config, so we resolve the host through
    * sshConfigParser first. This enables SSH aliases (e.g.
-   * "workspace-daniel-1") to resolve to their actual HostName, Port,
+   * "my-remote-host") to resolve to their actual HostName, Port,
    * User, and IdentityFile as defined in the user's SSH config.
    */
   private async buildConnectConfig(

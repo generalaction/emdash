@@ -9,6 +9,7 @@ import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
 
@@ -46,6 +47,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   const { collapsed } = useRightSidebar();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
+
+  // For workspace tasks, use the workspace connection instead of project-level
+  const { connectionId: wsConnectionId, remotePath: wsRemotePath } = useWorkspaceConnection(task);
+  const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
+  const effectiveRemotePath = wsRemotePath || projectRemotePath || null;
 
   const toggleVariantCollapsed = (variantKey: string) => {
     setCollapsedVariants((prev) => {
@@ -209,10 +215,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               agent={v.agent}
                               projectPath={projectPath || task?.path}
                               remote={
-                                projectRemoteConnectionId
+                                effectiveConnectionId
                                   ? {
-                                      connectionId: projectRemoteConnectionId,
-                                      projectPath: projectRemotePath || projectPath || undefined,
+                                      connectionId: effectiveConnectionId,
+                                      projectPath: effectiveRemotePath || projectPath || undefined,
                                     }
                                   : undefined
                               }
@@ -273,8 +279,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 <SingleTaskSidebar
                   task={task}
                   projectPath={projectPath}
-                  projectRemoteConnectionId={projectRemoteConnectionId}
-                  projectRemotePath={projectRemotePath}
+                  effectiveConnectionId={effectiveConnectionId}
+                  effectiveRemotePath={effectiveRemotePath}
                   projectDefaultBranch={projectDefaultBranch}
                   onOpenChanges={onOpenChanges}
                 />
@@ -302,10 +308,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       agent={undefined}
                       projectPath={projectPath || undefined}
                       remote={
-                        projectRemoteConnectionId
+                        effectiveConnectionId
                           ? {
-                              connectionId: projectRemoteConnectionId,
-                              projectPath: projectRemotePath || projectPath || undefined,
+                              connectionId: effectiveConnectionId,
+                              projectPath: effectiveRemotePath || projectPath || undefined,
                             }
                           : undefined
                       }
@@ -360,15 +366,15 @@ export default RightSidebar;
 const SingleTaskSidebar: React.FC<{
   task: RightSidebarTask;
   projectPath?: string | null;
-  projectRemoteConnectionId?: string | null;
-  projectRemotePath?: string | null;
+  effectiveConnectionId?: string | null;
+  effectiveRemotePath?: string | null;
   projectDefaultBranch?: string | null;
   onOpenChanges?: (filePath?: string, taskPath?: string) => void;
 }> = ({
   task,
   projectPath,
-  projectRemoteConnectionId,
-  projectRemotePath,
+  effectiveConnectionId,
+  effectiveRemotePath,
   projectDefaultBranch,
   onOpenChanges,
 }) => {
@@ -384,10 +390,10 @@ const SingleTaskSidebar: React.FC<{
           agent={task.agentId as Agent}
           projectPath={projectPath || task?.path}
           remote={
-            projectRemoteConnectionId
+            effectiveConnectionId
               ? {
-                  connectionId: projectRemoteConnectionId,
-                  projectPath: projectRemotePath || projectPath || undefined,
+                  connectionId: effectiveConnectionId,
+                  projectPath: effectiveRemotePath || projectPath || undefined,
                 }
               : undefined
           }

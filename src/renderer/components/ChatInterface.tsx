@@ -29,6 +29,7 @@ import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import type { Project } from '../types/app';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 
 declare const window: Window & {
   electronAPI: {
@@ -73,6 +74,10 @@ const ChatInterface: React.FC<Props> = ({
   const currentAgentStatus = agentStatuses[agent];
   const [cliStartError, setCliStartError] = useState<string | null>(null);
 
+  // Workspace-provisioned remote connection overrides
+  const { connectionId: workspaceConnectionId, remotePath: workspaceRemotePath } =
+    useWorkspaceConnection(task);
+
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -110,6 +115,25 @@ const ChatInterface: React.FC<Props> = ({
   const terminalCwd = useMemo(() => {
     return task.path;
   }, [task.path]);
+
+  // For workspace tasks, use workspace connection; otherwise use project-level connection
+  const effectiveRemote = useMemo(() => {
+    if (workspaceConnectionId) {
+      return { connectionId: workspaceConnectionId };
+    }
+    if (projectRemoteConnectionId) {
+      return { connectionId: projectRemoteConnectionId };
+    }
+    return undefined;
+  }, [workspaceConnectionId, projectRemoteConnectionId]);
+
+  // For workspace tasks, use the remote worktree path for cd on the remote machine
+  const effectiveCwd = useMemo(() => {
+    if (workspaceConnectionId && workspaceRemotePath) {
+      return workspaceRemotePath;
+    }
+    return terminalCwd;
+  }, [workspaceConnectionId, workspaceRemotePath, terminalCwd]);
 
   const taskEnv = useMemo(() => {
     if (!projectPath) return undefined;
@@ -1090,12 +1114,8 @@ const ChatInterface: React.FC<Props> = ({
                 <TerminalPane
                   ref={terminalRef}
                   id={terminalId}
-                  cwd={terminalCwd}
-                  remote={
-                    projectRemoteConnectionId
-                      ? { connectionId: projectRemoteConnectionId }
-                      : undefined
-                  }
+                  cwd={effectiveCwd}
+                  remote={effectiveRemote}
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={taskEnv}
