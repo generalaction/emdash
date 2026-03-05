@@ -118,7 +118,18 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   useEffect(() => {
     if (!isOpen) return;
     let cancel = false;
-    const api = window.electronAPI as any;
+    if (!window.electronAPI?.forgejoCheckConnection) {
+      setIsForgejoConnected(false);
+      return;
+    }
+    window.electronAPI
+      .forgejoCheckConnection()
+      .then((res) => {
+        if (!cancel) setIsForgejoConnected(!!res?.success);
+      })
+      .catch(() => {
+        if (!cancel) setIsForgejoConnected(false);
+      });
     if (!api?.forgejoCheckConnection) {
       setIsForgejoConnected(false);
       return;
