@@ -11,7 +11,6 @@ import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export interface RightSidebarTask {
   id: string;
@@ -45,7 +44,6 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
-  const { settings } = useAppSettings();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
 

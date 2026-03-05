@@ -641,33 +641,38 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               : 'bg-white'
           )}
         >
-          {taskTerminals.terminals.map((terminal) => {
-            const isActive =
-              selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
-            return (
-              <div
-                key={`task::${terminal.id}`}
-                className={cn(
-                  'absolute inset-0 h-full w-full transition-opacity',
-                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-                )}
-              >
-                <TerminalPane
-                  ref={(r) => setTerminalRef(terminal.id, r)}
-                  id={terminal.id}
-                  cwd={terminal.cwd || task?.path}
-                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
-                  env={taskEnv}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
-                  themeOverride={themeOverride}
-                  className="h-full w-full"
-                  keepAlive
-                />
-              </div>
-            );
-          })}
+          {task &&
+            taskTerminals.terminals.map((terminal) => {
+              const isActive =
+                selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
+              return (
+                <div
+                  key={`task::${terminal.id}`}
+                  className={cn(
+                    'absolute inset-0 h-full w-full transition-opacity',
+                    isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                  )}
+                >
+                  <TerminalPane
+                    ref={(r) => setTerminalRef(terminal.id, r)}
+                    id={terminal.id}
+                    cwd={terminal.cwd || task.path}
+                    remote={
+                      remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                    }
+                    env={taskEnv}
+                    variant={
+                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? 'dark'
+                        : 'light'
+                    }
+                    themeOverride={themeOverride}
+                    className="h-full w-full"
+                    keepAlive
+                  />
+                </div>
+              );
+            })}
           {globalTerminals.terminals.map((terminal) => {
             const isActive =
               selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
