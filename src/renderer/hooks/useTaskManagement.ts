@@ -215,6 +215,7 @@ export function useTaskManagement() {
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const startCreateTaskFromSidebarImplRef = useRef<(project: Project) => void>(() => {});
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -373,14 +374,9 @@ export function useTaskManagement() {
     }
   }, [selectedProject, openTaskModal]);
 
-  const handleStartCreateTaskFromSidebar = useCallback(
-    (project: Project) => {
-      const targetProject = projects.find((p) => p.id === project.id) || project;
-      activateProjectView(targetProject);
-      openTaskModal();
-    },
-    [activateProjectView, projects, openTaskModal]
-  );
+  const handleStartCreateTaskFromSidebar = useCallback((project: Project) => {
+    startCreateTaskFromSidebarImplRef.current(project);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Delete task mutation
@@ -907,12 +903,18 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      targetProjectId?: string
     ) => {
-      if (!selectedProject) return;
+      // Use explicitly passed project ID or fall back to selectedProject
+      const targetProject = targetProjectId
+        ? projects.find((p) => p.id === targetProjectId)
+        : selectedProject;
+
+      if (!targetProject) return;
       setIsCreatingTask(true);
       createTaskMutation.mutate({
-        project: selectedProject,
+        project: targetProject,
         taskName,
         initialPrompt,
         agentRuns,
@@ -925,7 +927,7 @@ export function useTaskManagement() {
         baseRef,
       });
     },
-    [selectedProject, createTaskMutation]
+    [selectedProject, projects, createTaskMutation]
   );
 
   const handleTaskInterfaceReady = useCallback(() => {
@@ -957,7 +959,31 @@ export function useTaskManagement() {
           result.autoApprove,
           result.useWorktree,
           result.baseRef,
-          result.nameGenerated
+          result.nameGenerated,
+          result.targetProjectId
+        ),
+    });
+  };
+
+  // Wire up handleStartCreateTaskFromSidebar with the latest handleCreateTask
+  startCreateTaskFromSidebarImplRef.current = (project: Project) => {
+    const targetProject = projects.find((p) => p.id === project.id) || project;
+    activateProjectView(targetProject);
+    showModal('taskModal', {
+      targetProjectId: targetProject.id,
+      onSuccess: (result) =>
+        handleCreateTask(
+          result.name,
+          result.initialPrompt,
+          result.agentRuns,
+          result.linkedLinearIssue ?? null,
+          result.linkedGithubIssue ?? null,
+          result.linkedJiraIssue ?? null,
+          result.autoApprove,
+          result.useWorktree,
+          result.baseRef,
+          result.nameGenerated,
+          result.targetProjectId
         ),
     });
   };

@@ -46,6 +46,7 @@ export interface CreateTaskResult {
   useWorktree?: boolean;
   baseRef?: string;
   nameGenerated?: boolean;
+  targetProjectId?: string;
 }
 
 interface TaskModalProps {
@@ -64,9 +65,11 @@ interface TaskModalProps {
   ) => void;
 }
 
-export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
+export interface TaskModalOverlayProps extends BaseModalProps<CreateTaskResult> {
+  targetProjectId?: string;
+}
 
-export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onSuccess, onClose, targetProjectId }: TaskModalOverlayProps) {
   return (
     <TaskModal
       onClose={onClose}
@@ -93,6 +96,7 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
           useWorktree,
           baseRef,
           nameGenerated,
+          targetProjectId,
         })
       }
     />
@@ -107,10 +111,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     isLoadingBranches,
     refreshBranches,
   } = useProjectManagementContext();
-  const { linkedGithubIssueMap } = useTaskManagementContext();
+  const { linkedGithubIssueMap, tasksByProjectId } = useTaskManagementContext();
 
   const projectName = selectedProject?.name || '';
-  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
+  const projectTasks = selectedProject ? (tasksByProjectId[selectedProject.id] ?? []) : [];
+  const existingNames = projectTasks.map((w) => w.name);
   const projectPath = selectedProject?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
