@@ -327,7 +327,7 @@ describe('ptyIpc notification lifecycle', () => {
 
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain("cd '/tmp/task'");
-    expect(written).toContain('sh -c');
+    expect(written).toContain('sh -ilc');
     expect(written).toContain('command -v');
     expect(written).toContain('claude');
   });
