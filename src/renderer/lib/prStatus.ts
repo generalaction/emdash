@@ -6,6 +6,11 @@ export type PrInfo = {
   isDraft?: boolean;
 };
 
+export type AutoMergeRequest = {
+  enabledAt?: string;
+  mergeMethod?: string;
+};
+
 export type PrStatus = PrInfo & {
   mergeStateStatus?: string;
   headRefName?: string;
@@ -13,6 +18,7 @@ export type PrStatus = PrInfo & {
   additions?: number;
   deletions?: number;
   changedFiles?: number;
+  autoMergeRequest?: AutoMergeRequest | null;
 };
 
 export const isActivePr = (pr?: PrInfo | null): pr is PrInfo => {

@@ -315,6 +315,7 @@ export function registerGitIpc() {
       'additions',
       'deletions',
       'changedFiles',
+      'autoMergeRequest',
     ];
     const fieldsStr = queryFields.join(',');
 
@@ -1309,6 +1310,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         'additions',
         'deletions',
         'changedFiles',
+        'autoMergeRequest',
       ];
       const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
       try {
@@ -1471,6 +1473,108 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  // Git: Enable auto-merge on a PR via GitHub CLI
+  ipcMain.handle(
+    'git:enable-auto-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }
+    ) => {
+      const {
+        taskPath,
+        prNumber,
+        strategy = 'merge',
+      } = (args || {}) as {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      };
+
+      try {
+        const strategyFlag =
+          strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
+        const ghArgs = ['pr', 'merge'];
+        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
+          ghArgs.push(String(prNumber));
+        }
+        ghArgs.push('--auto', strategyFlag);
+
+        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+        if (remoteProject) {
+          const result = await remoteGitService.execGh(
+            remoteProject.sshConnectionId,
+            taskPath,
+            ghArgs.join(' ')
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: (result.stderr || result.stdout || '').trim() };
+          }
+          return { success: true };
+        }
+
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return { success: true, output };
+      } catch (error) {
+        const stderr = (error as any)?.stderr;
+        const msg = stderr || (error instanceof Error ? error.message : String(error));
+        return { success: false, error: typeof msg === 'string' ? msg.trim() : String(msg) };
+      }
+    }
+  );
+
+  // Git: Disable auto-merge on a PR via GitHub CLI
+  ipcMain.handle(
+    'git:disable-auto-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        prNumber?: number;
+      }
+    ) => {
+      const { taskPath, prNumber } = (args || {}) as {
+        taskPath: string;
+        prNumber?: number;
+      };
+
+      try {
+        const ghArgs = ['pr', 'merge'];
+        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
+          ghArgs.push(String(prNumber));
+        }
+        ghArgs.push('--disable-auto');
+
+        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+        if (remoteProject) {
+          const result = await remoteGitService.execGh(
+            remoteProject.sshConnectionId,
+            taskPath,
+            ghArgs.join(' ')
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: (result.stderr || result.stdout || '').trim() };
+          }
+          return { success: true };
+        }
+
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return { success: true, output };
+      } catch (error) {
+        const stderr = (error as any)?.stderr;
+        const msg = stderr || (error instanceof Error ? error.message : String(error));
+        return { success: false, error: typeof msg === 'string' ? msg.trim() : String(msg) };
       }
     }
   );
