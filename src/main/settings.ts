@@ -88,12 +88,6 @@ export interface AppSettings {
     osNotifications: boolean;
     soundFocusMode: 'always' | 'unfocused';
   };
-  mcp?: {
-    context7?: {
-      enabled: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
@@ -148,12 +142,6 @@ const DEFAULT_SETTINGS: AppSettings = {
     sound: true,
     osNotifications: true,
     soundFocusMode: 'always',
-  },
-  mcp: {
-    context7: {
-      enabled: false,
-      installHintsDismissed: {},
-    },
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
@@ -355,12 +343,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
     },
-    mcp: {
-      context7: {
-        enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
-        installHintsDismissed: {},
-      },
-    },
   };
 
   // Repository
@@ -397,19 +379,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       rawFocusMode === 'always' || rawFocusMode === 'unfocused'
         ? rawFocusMode
         : DEFAULT_SETTINGS.notifications!.soundFocusMode,
-  };
-
-  // MCP
-  const mcp = (input as any)?.mcp || {};
-  const c7 = mcp?.context7 || {};
-  out.mcp = {
-    context7: {
-      enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
-      installHintsDismissed:
-        c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object'
-          ? { ...c7.installHintsDismissed }
-          : {},
-    },
   };
 
   // Default provider

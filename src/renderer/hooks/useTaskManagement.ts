@@ -146,6 +146,7 @@ export function useTaskManagement() {
     setSelectedProject,
     setShowHomeView,
     setShowSkillsView,
+    setShowMcpView,
     setShowEditorMode,
     setShowKanban,
     activateProjectView,
@@ -325,6 +326,7 @@ export function useTaskManagement() {
     }
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setShowKanban(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
@@ -345,6 +347,7 @@ export function useTaskManagement() {
     setSelectedProject(project);
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -364,6 +367,7 @@ export function useTaskManagement() {
     setSelectedProject(project);
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
