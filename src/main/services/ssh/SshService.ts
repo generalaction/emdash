@@ -7,7 +7,8 @@ import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
-import { resolveIdentityAgent } from '../../utils/sshConfigParser';
+import { spawn, ChildProcess } from 'child_process';
+import { resolveIdentityAgent, resolveProxyCommand } from '../../utils/sshConfigParser';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;
@@ -27,6 +28,7 @@ const POOL_WARNING_THRESHOLD = 0.8;
 export class SshService extends EventEmitter {
   private connections: ConnectionPool = {};
   private pendingConnections: Map<string, Promise<string>> = new Map();
+  private proxyProcesses: Map<string, ChildProcess> = new Map();
   private credentialService: SshCredentialService;
 
   constructor(credentialService?: SshCredentialService) {
@@ -105,6 +107,15 @@ export class SshService extends EventEmitter {
         // that was established under the same connectionId.
         if (this.connections[connectionId]?.client === client) {
           delete this.connections[connectionId];
+          const proxyProc = this.proxyProcesses.get(connectionId);
+          if (proxyProc) {
+            try {
+              proxyProc.kill();
+            } catch {
+              /* ignore */
+            }
+            this.proxyProcesses.delete(connectionId);
+          }
           this.emit('disconnected', connectionId);
         }
       });
@@ -127,6 +138,12 @@ export class SshService extends EventEmitter {
       // Build connection config
       this.buildConnectConfig(connectionId, config)
         .then((connectConfig) => {
+          // Track proxy process for cleanup on disconnect
+          const proxyProc = (connectConfig as any)._proxyProcess as ChildProcess | undefined;
+          if (proxyProc) {
+            this.proxyProcesses.set(connectionId, proxyProc);
+            delete (connectConfig as any)._proxyProcess;
+          }
           client.connect(connectConfig);
         })
         .catch((err) => {
@@ -156,6 +173,35 @@ export class SshService extends EventEmitter {
       keepaliveInterval: 60000,
       keepaliveCountMax: 3,
     };
+
+    // Check for ProxyCommand in ~/.ssh/config
+    const proxyCommand = await resolveProxyCommand(config.host, config.port);
+    console.log(
+      `[SshService] ProxyCommand for ${config.host}:${config.port}: ${proxyCommand ?? '(none)'}`
+    );
+    if (proxyCommand) {
+      const { Duplex } = await import('stream');
+      const proxyProc = spawn('sh', ['-c', proxyCommand], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      // Create a duplex stream bridging proxy stdout (read) and stdin (write)
+      const sock = new Duplex({
+        read() {},
+        write(chunk, encoding, callback) {
+          return proxyProc.stdin!.write(chunk, encoding, callback);
+        },
+        final(callback) {
+          proxyProc.stdin!.end(callback);
+        },
+      });
+      proxyProc.stdout!.on('data', (data) => sock.push(data));
+      proxyProc.stdout!.on('close', () => sock.push(null));
+      proxyProc.on('error', (err) => sock.destroy(err));
+      proxyProc.on('close', () => sock.push(null));
+
+      (connectConfig as any).sock = sock;
+      (connectConfig as any)._proxyProcess = proxyProc;
+    }
 
     switch (config.authType) {
       case 'password': {
@@ -257,6 +303,17 @@ export class SshService extends EventEmitter {
 
     // Close SSH client
     connection.client.end();
+
+    // Kill proxy process if one was used
+    const proxyProc = this.proxyProcesses.get(connectionId);
+    if (proxyProc) {
+      try {
+        proxyProc.kill();
+      } catch {
+        /* ignore */
+      }
+      this.proxyProcesses.delete(connectionId);
+    }
 
     // Remove from pool
     delete this.connections[connectionId];

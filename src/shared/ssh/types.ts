@@ -117,4 +117,5 @@ export interface SshConfigHost {
   port?: number;
   identityFile?: string;
   identityAgent?: string;
+  proxyCommand?: string;
 }

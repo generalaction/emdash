@@ -261,7 +261,10 @@
       "esbuild",
       "protobufjs",
       "ssh2"
-    ]
+    ],
+    "patchedDependencies": {
+      "ssh2@1.17.0": "patches/ssh2@1.17.0.patch"
+    }
   },
   "lint-staged": {
     "*.{ts,tsx}": [

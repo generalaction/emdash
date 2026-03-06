@@ -9,7 +9,11 @@ import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from 
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
-import { parseSshConfigFile, resolveIdentityAgent } from '../utils/sshConfigParser';
+import {
+  parseSshConfigFile,
+  resolveIdentityAgent,
+  resolveProxyCommand,
+} from '../utils/sshConfigParser';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -235,6 +239,47 @@ export function registerSshIpc() {
           } else if (config.authType === 'agent') {
             const identityAgent = await resolveIdentityAgent(config.host);
             connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
+            debugLogs.push(
+              `[emdash] authType=agent, socket=${connectConfig.agent ?? '(not found)'}`
+            );
+          }
+
+          debugLogs.push(
+            `[emdash] authType=${config.authType}, host=${config.host}, port=${config.port}, username=${config.username}`
+          );
+
+          // Check for ProxyCommand in ~/.ssh/config
+          const proxyCommand = await resolveProxyCommand(config.host, config.port);
+          debugLogs.push(`[emdash] ProxyCommand resolve: ${proxyCommand ?? '(none)'}`);
+          if (proxyCommand) {
+            const { Duplex } = await import('stream');
+            const { spawn } = await import('child_process');
+            const proxyProc = spawn('sh', ['-c', proxyCommand], {
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            const sock = new Duplex({
+              read() {},
+              write(chunk, encoding, callback) {
+                return proxyProc.stdin!.write(chunk, encoding, callback);
+              },
+              final(callback) {
+                proxyProc.stdin!.end(callback);
+              },
+            });
+            proxyProc.stdout!.on('data', (data) => sock.push(data));
+            proxyProc.stdout!.on('close', () => sock.push(null));
+            proxyProc.stderr!.on('data', (data) => {
+              debugLogs.push(`[emdash] proxy stderr: ${data.toString()}`);
+            });
+            proxyProc.on('error', (err) => {
+              debugLogs.push(`[emdash] proxy error: ${err.message}`);
+              sock.destroy(err);
+            });
+            proxyProc.on('close', (code) => {
+              debugLogs.push(`[emdash] proxy exited with code ${code}`);
+              sock.push(null);
+            });
+            (connectConfig as any).sock = sock;
           }
 
           testClient.connect(connectConfig);
