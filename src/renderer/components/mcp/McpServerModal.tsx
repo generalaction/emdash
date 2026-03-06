@@ -242,11 +242,12 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
                     onClick={() => toggleProvider(p.id)}
                     title={unsupported ? `${p.name} does not support HTTP servers` : undefined}
                     className={
-                      unsupported
+                      'gap-1.5 ' +
+                      (unsupported
                         ? 'cursor-not-allowed border-border text-muted-foreground/40'
                         : selectedProviders.has(p.id)
                           ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground hover:border-primary/50'
+                          : 'border-border text-muted-foreground hover:border-primary/50')
                     }
                   >
                     {logo && (
