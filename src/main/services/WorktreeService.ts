@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { getWorktreesBaseDir } from '../settings';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../errorTracking';
@@ -74,7 +75,17 @@ export class WorktreeService {
       return;
     }
 
+    const { getAppSettings } = await import('../settings');
+    const settings = getAppSettings();
+    const worktreesBase = getWorktreesBaseDir(
+      projectPath,
+      settings?.repository?.worktreesDirectory
+    );
+    const isUnderWorktreesBase =
+      normalizedPathToRemove.startsWith(path.resolve(worktreesBase) + path.sep) ||
+      normalizedPathToRemove === path.resolve(worktreesBase);
     const isLikelyWorktree =
+      isUnderWorktreesBase ||
       pathToRemove.includes('/worktrees/') ||
       pathToRemove.includes('\\worktrees\\') ||
       pathToRemove.includes('/.conductor/') ||
@@ -193,7 +204,11 @@ export class WorktreeService {
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
       branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
-      worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+      const worktreesBase = getWorktreesBaseDir(
+        projectPath,
+        settings?.repository?.worktreesDirectory
+      );
+      worktreePath = path.join(worktreesBase, `${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
       log.info(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -1192,9 +1207,14 @@ export class WorktreeService {
   ): Promise<WorktreeInfo> {
     const normalizedName = taskName || branchName.replace(/\//g, '-');
     const sluggedName = this.slugify(normalizedName) || 'task';
+    const { getAppSettings } = await import('../settings');
+    const settings = getAppSettings();
+    const worktreesBase = getWorktreesBaseDir(
+      projectPath,
+      settings?.repository?.worktreesDirectory
+    );
     const targetPath =
-      options?.worktreePath ||
-      path.join(projectPath, '..', `worktrees/${sluggedName}-${Date.now()}`);
+      options?.worktreePath || path.join(worktreesBase, `${sluggedName}-${Date.now()}`);
     const worktreePath = path.resolve(targetPath);
 
     if (fs.existsSync(worktreePath)) {

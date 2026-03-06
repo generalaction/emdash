@@ -38,14 +38,20 @@ vi.mock('../../main/lib/logger', () => ({
   },
 }));
 
-vi.mock('../../main/settings', () => ({
-  getAppSettings: vi.fn().mockReturnValue({
-    repository: {
-      branchPrefix: 'emdash',
-      pushOnCreate: false,
-    },
-  }),
-}));
+vi.mock('../../main/settings', () => {
+  const path = require('path');
+  return {
+    getAppSettings: vi.fn().mockReturnValue({
+      repository: {
+        branchPrefix: 'emdash',
+        pushOnCreate: false,
+        worktreesDirectory: undefined,
+      },
+    }),
+    getWorktreesBaseDir: (projectPath: string, _worktreesDirectory?: string) =>
+      path.join(projectPath, '..', 'worktrees'),
+  };
+});
 
 describe('WorktreePoolService', () => {
   let tempDir: string;

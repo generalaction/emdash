@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { log } from '../lib/logger';
+import { getAppSettings, getWorktreesBaseDir } from '../settings';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
 const execFileAsync = promisify(execFile);
@@ -49,7 +50,12 @@ export class WorktreePoolService {
 
   /** Get the reserve worktree path for a project */
   private getReservePath(projectPath: string, hash: string): string {
-    return path.join(projectPath, '..', `worktrees/${this.RESERVE_PREFIX}-${hash}`);
+    const settings = getAppSettings();
+    const worktreesBase = getWorktreesBaseDir(
+      projectPath,
+      settings?.repository?.worktreesDirectory
+    );
+    return path.join(worktreesBase, `${this.RESERVE_PREFIX}-${hash}`);
   }
 
   /** Get the reserve branch name */
@@ -291,12 +297,16 @@ export class WorktreePoolService {
     const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
     const prefix = settings?.repository?.branchPrefix || 'emdash';
+    const worktreesBase = getWorktreesBaseDir(
+      reserve.projectPath,
+      settings?.repository?.worktreesDirectory
+    );
 
     // Generate new names
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
     const newBranch = `${prefix}/${sluggedName}-${hash}`;
-    const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+    const newPath = path.join(worktreesBase, `${sluggedName}-${hash}`);
     const newId = this.stableIdFromPath(newPath);
 
     // Move the worktree (instant operation)
@@ -456,7 +466,8 @@ export class WorktreePoolService {
     projectPath: string,
     reserveBranches: Set<string>
   ): Array<{ path: string; branch: string | null }> {
-    const worktreesDir = path.join(projectPath, '..', 'worktrees');
+    const settings = getAppSettings();
+    const worktreesDir = getWorktreesBaseDir(projectPath, settings?.repository?.worktreesDirectory);
     if (!fs.existsSync(worktreesDir)) {
       return [];
     }
@@ -573,9 +584,9 @@ export class WorktreePoolService {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Find all worktree directories that might contain reserves
-    const homedir = require('os').homedir();
+    const settings = getAppSettings();
     const projectWorktreeDirs = projectPaths.map((projectPath) =>
-      path.join(projectPath, '..', 'worktrees')
+      getWorktreesBaseDir(projectPath, settings?.repository?.worktreesDirectory)
     );
     const possibleWorktreeDirs = [
       ...projectWorktreeDirs,

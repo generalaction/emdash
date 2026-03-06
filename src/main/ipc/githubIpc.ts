@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { homedir } from 'os';
+import { getAppSettings, getWorktreesBaseDir } from '../settings';
 import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
@@ -291,7 +292,11 @@ export function registerGithubIpc() {
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
 
-        const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
+        const settings = getAppSettings();
+        const worktreesDir = getWorktreesBaseDir(
+          projectPath,
+          settings?.repository?.worktreesDirectory
+        );
         const slug = slugify(taskName) || `pr-${prNumber}`;
         let worktreePath = path.join(worktreesDir, slug);
 

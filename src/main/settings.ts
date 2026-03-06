@@ -1,6 +1,6 @@
 import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { accessSync, constants, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
@@ -18,6 +18,7 @@ const IS_MAC = process.platform === 'darwin';
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
+  worktreesDirectory?: string;
 }
 
 export type ShortcutModifier =
@@ -134,6 +135,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    worktreesDirectory: undefined,
   },
   projectPrep: {
     autoInstallOnOpenInEditor: true,
@@ -317,6 +319,11 @@ export function updateAppSettings(partial: AppSettingsUpdate): AppSettings {
   if (partial.keyboard) {
     assertNoKeyboardShortcutConflicts(next.keyboard);
   }
+  const worktreesDir = next.repository?.worktreesDirectory;
+  if (worktreesDir) {
+    const err = validateWorktreesPath(worktreesDir);
+    if (err) throw new Error(err);
+  }
   persistSettings(next);
   cached = next;
   return next;
@@ -339,6 +346,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      worktreesDirectory: undefined,
     },
     projectPrep: {
       autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
@@ -368,9 +376,12 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
+  const worktreesDir =
+    typeof repo?.worktreesDirectory === 'string' ? repo.worktreesDirectory.trim() : undefined;
 
   out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
+  out.repository.worktreesDirectory = worktreesDir || undefined;
   // Project prep
   const prep = (input as any)?.projectPrep || {};
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(
@@ -578,6 +589,46 @@ export function getAllProviderCustomConfigs(): ProviderCustomConfigs {
   const configs = settings.providerConfigs ?? {};
   // Return deep copy to prevent cache corruption
   return Object.fromEntries(Object.entries(configs).map(([key, value]) => [key, { ...value }]));
+}
+
+export function validateWorktreesPath(dirPath: string): string | null {
+  const trimmed = typeof dirPath === 'string' ? dirPath.trim() : '';
+  if (!trimmed) return null;
+  let expanded = trimmed;
+  if (expanded.startsWith('~')) {
+    expanded = join(homedir(), expanded.slice(1));
+  }
+  const resolved = resolve(expanded);
+  if (existsSync(resolved)) {
+    try {
+      accessSync(resolved, constants.W_OK);
+      return null;
+    } catch {
+      return `Directory exists but is not writable: ${resolved}`;
+    }
+  }
+  const parent = dirname(resolved);
+  if (!existsSync(parent)) {
+    return `Parent directory does not exist: ${parent}`;
+  }
+  try {
+    accessSync(parent, constants.W_OK);
+    return null;
+  } catch {
+    return `Parent directory is not writable: ${parent}`;
+  }
+}
+
+export function getWorktreesBaseDir(projectPath: string, worktreesDirectory?: string): string {
+  const trimmed = typeof worktreesDirectory === 'string' ? worktreesDirectory.trim() : '';
+  if (!trimmed) {
+    return join(projectPath, '..', 'worktrees');
+  }
+  let expanded = trimmed;
+  if (expanded.startsWith('~')) {
+    expanded = join(homedir(), expanded.slice(1));
+  }
+  return isAbsolute(expanded) ? resolve(expanded) : resolve(projectPath, expanded);
 }
 
 /**
