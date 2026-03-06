@@ -78,8 +78,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isBusy = useTaskBusy(task.id);
   const taskStatus = useTaskStatus(task.id);
   const taskUnread = useTaskUnread(task.id);
-  const displayStatus =
-    taskStatus === 'unknown' && (isBusy || task.status === 'running') ? 'working' : taskStatus;
+  const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

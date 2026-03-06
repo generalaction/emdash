@@ -111,8 +111,7 @@ function TaskRow({
   const isBusy = useTaskBusy(ws.id);
   const taskStatus = useTaskStatus(ws.id);
   const taskUnread = useTaskUnread(ws.id);
-  const displayStatus =
-    taskStatus === 'unknown' && (isBusy || ws.status === 'running') ? 'working' : taskStatus;
+  const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path, enablePrStatus);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
