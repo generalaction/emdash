@@ -5,12 +5,14 @@ import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskContextBadges from './TaskContextBadges';
 import { useConversationStatus } from '../hooks/useConversationStatus';
+import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -80,6 +82,7 @@ function ConversationTabButton({
     ptySuffix: conversation.isMain ? taskId : conversation.id,
     ptyKind: conversation.isMain ? 'main' : 'chat',
   });
+  const unread = useStatusUnread(conversation.isMain ? taskId : conversation.id);
   const displayStatus = semanticStatus === 'unknown' && fallbackBusy ? 'working' : semanticStatus;
 
   return (
@@ -108,7 +111,9 @@ function ConversationTabButton({
         {agentName}
         {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
       </span>
-      {totalConversationCount > 1 ? <TaskStatusIndicator status={displayStatus} /> : null}
+      {totalConversationCount > 1 ? (
+        <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
+      ) : null}
       {totalConversationCount > 1 && (
         <span
           role="button"
@@ -364,6 +369,33 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
     };
   }, [task.id, conversations, mainConversationId]);
+
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) return;
+    agentStatusStore.markSeen(activeConversation.isMain ? task.id : activeConversation.id);
+  }, [activeConversationId, conversations, task.id]);
+
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+      return;
+    }
+
+    agentStatusStore.setActiveView({
+      taskId: task.id,
+      statusId: activeConversation.isMain ? task.id : activeConversation.id,
+    });
+
+    return () => {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+    };
+  }, [activeConversationId, conversations, task.id]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);

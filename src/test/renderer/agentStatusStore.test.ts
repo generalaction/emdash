@@ -60,6 +60,23 @@ describe('AgentStatusStore', () => {
     );
 
     expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(true);
+  });
+
+  it('does not mark unread when the event is for the currently visible status id', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('claude', 'main', 'task-1');
+
+    store.setActiveView({ taskId: 'task-1', statusId: 'task-1' });
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+
+    expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(false);
   });
 
   it('maps Claude stop events to complete', () => {
@@ -74,6 +91,7 @@ describe('AgentStatusStore', () => {
     );
 
     expect(store.getStatus('task-1').kind).toBe('complete');
+    expect(store.getUnread('task-1')).toBe(true);
   });
 
   it('maps Claude error events to error', () => {
@@ -88,6 +106,7 @@ describe('AgentStatusStore', () => {
     );
 
     expect(store.getStatus('task-1').kind).toBe('error');
+    expect(store.getUnread('task-1')).toBe(true);
   });
 
   it('clears working status to idle on PTY exit when no terminal event finalized it', () => {
@@ -99,6 +118,22 @@ describe('AgentStatusStore', () => {
     store.handlePtyExit({ ptyId });
 
     expect(store.getStatus('task-1').kind).toBe('idle');
+  });
+
+  it('clears unread when a status id is marked seen', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('claude', 'main', 'task-1');
+
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+
+    store.markSeen('task-1');
+
+    expect(store.getUnread('task-1')).toBe(false);
   });
 });
 

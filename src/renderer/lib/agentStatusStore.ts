@@ -5,6 +5,7 @@ import { classifyActivity } from './activityClassifier';
 import { mapAgentEventToStatus, mapUserInputToStatus } from './providerStatusAdapters';
 
 type Listener = (snapshot: AgentStatusSnapshot) => void;
+type UnreadListener = (unread: boolean) => void;
 
 const UNKNOWN_STATUS: AgentStatusSnapshot = {
   id: '',
@@ -16,8 +17,14 @@ const UNKNOWN_STATUS: AgentStatusSnapshot = {
 
 export class AgentStatusStore {
   private readonly listeners = new Map<string, Set<Listener>>();
+  private readonly unreadListeners = new Map<string, Set<UnreadListener>>();
   private readonly statusById = new Map<string, AgentStatusSnapshot>();
+  private readonly unreadById = new Map<string, boolean>();
   private readonly pendingSubmitPtyIds = new Set<string>();
+  private activeView: { taskId: string | null; statusId: string | null } = {
+    taskId: null,
+    statusId: null,
+  };
 
   getStatus(id: string): AgentStatusSnapshot {
     return this.statusById.get(id) ?? { ...UNKNOWN_STATUS, id };
@@ -39,6 +46,26 @@ export class AgentStatusStore {
     };
   }
 
+  getUnread(id: string): boolean {
+    return this.unreadById.get(id) ?? false;
+  }
+
+  subscribeUnread(id: string, listener: UnreadListener): () => void {
+    const listeners = this.unreadListeners.get(id) ?? new Set<UnreadListener>();
+    listeners.add(listener);
+    this.unreadListeners.set(id, listeners);
+    listener(this.getUnread(id));
+
+    return () => {
+      const current = this.unreadListeners.get(id);
+      if (!current) return;
+      current.delete(listener);
+      if (current.size === 0) {
+        this.unreadListeners.delete(id);
+      }
+    };
+  }
+
   handleAgentEvent(event: AgentEvent): void {
     const nextKind = mapAgentEventToStatus(event);
     if (!nextKind) return;
@@ -48,6 +75,12 @@ export class AgentStatusStore {
     if (!id) return;
 
     this.pendingSubmitPtyIds.delete(event.ptyId);
+    if (
+      (nextKind === 'waiting' || nextKind === 'complete' || nextKind === 'error') &&
+      !this.isVisibleStatusId(id)
+    ) {
+      this.setUnread(id, true);
+    }
     this.setStatus({
       id,
       ptyId: event.ptyId,
@@ -102,6 +135,14 @@ export class AgentStatusStore {
     });
   }
 
+  markSeen(id: string): void {
+    this.setUnread(id, false);
+  }
+
+  setActiveView(view: { taskId: string | null; statusId: string | null }): void {
+    this.activeView = view;
+  }
+
   private setStatus(args: {
     id: string;
     ptyId: string;
@@ -137,6 +178,23 @@ export class AgentStatusStore {
         listener(next);
       } catch {}
     }
+  }
+
+  private setUnread(id: string, unread: boolean): void {
+    const current = this.unreadById.get(id) ?? false;
+    if (current === unread) return;
+    this.unreadById.set(id, unread);
+    const listeners = this.unreadListeners.get(id);
+    if (!listeners) return;
+    for (const listener of listeners) {
+      try {
+        listener(unread);
+      } catch {}
+    }
+  }
+
+  private isVisibleStatusId(id: string): boolean {
+    return this.activeView.statusId === id;
   }
 }
 

@@ -8,6 +8,7 @@ import PrPreviewTooltip from './PrPreviewTooltip';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import { useTaskUnread } from '../hooks/useTaskUnread';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import {
   ContextMenu,
@@ -76,6 +77,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { pr } = usePrStatus(task.path);
   const isBusy = useTaskBusy(task.id);
   const taskStatus = useTaskStatus(task.id);
+  const taskUnread = useTaskUnread(task.id);
   const displayStatus =
     taskStatus === 'unknown' && (isBusy || task.status === 'running') ? 'working' : taskStatus;
 
@@ -189,7 +191,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <div
           className={`absolute inset-0 flex items-center justify-center transition-opacity ${showDelete && (onDelete || onArchive) && !isDeleting ? 'group-hover/task:opacity-0' : ''}`}
         >
-          <TaskStatusIndicator status={displayStatus} />
+          <TaskStatusIndicator status={displayStatus} unread={taskUnread} />
         </div>
         {showDelete && onDelete && primaryAction === 'delete' ? (
           <div className="absolute inset-0 flex items-center justify-center">

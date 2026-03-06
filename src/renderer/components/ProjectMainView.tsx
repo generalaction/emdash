@@ -49,6 +49,7 @@ import { rpc } from '../lib/rpc';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import { useTaskUnread } from '../hooks/useTaskUnread';
 import AgentLogo from './AgentLogo';
 import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
@@ -109,6 +110,7 @@ function TaskRow({
   const isArchived = Boolean(ws.archivedAt);
   const isBusy = useTaskBusy(ws.id);
   const taskStatus = useTaskStatus(ws.id);
+  const taskUnread = useTaskUnread(ws.id);
   const displayStatus =
     taskStatus === 'unknown' && (isBusy || ws.status === 'running') ? 'working' : taskStatus;
   const [isDeleting, setIsDeleting] = useState(false);
@@ -194,7 +196,7 @@ function TaskRow({
       <div onClick={handleRowClick} role="button" tabIndex={0} className={contentClasses}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex w-5 flex-shrink-0 items-center justify-center">
-            <TaskStatusIndicator status={displayStatus} />
+            <TaskStatusIndicator status={displayStatus} unread={taskUnread} />
           </div>
           <span className={`text-sm font-medium ${isArchived ? 'text-muted-foreground' : ''}`}>
             {ws.name}
