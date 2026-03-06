@@ -177,9 +177,36 @@ describe('ConnectionsService – resolveStatus', () => {
     const secondCall = spawnMock.mock.calls[1];
     expect(secondCall).toBeDefined();
     // Should invoke a shell (e.g. /bin/zsh or /bin/bash) with login+interactive flags
-    const shellCmd = secondCall[0] as string;
+    const _shellCmd = secondCall[0] as string;
     const shellArgs = secondCall[1] as string[];
     expect(shellArgs.some((a: string) => a.includes('claude'))).toBe(true);
     expect(shellArgs.some((a: string) => a.includes('-l'))).toBe(true);
+  });
+
+  it('does not cache shell path as provider path after shell fallback success', async () => {
+    const previousShell = process.env.SHELL;
+    process.env.SHELL = '/opt/homebrew/bin/fish';
+
+    execFileSyncMock.mockImplementation((resolver: string, args: string[]) => {
+      if (resolver !== 'which') throw new Error('unexpected resolver');
+      const command = args[0];
+      if (command === '/opt/homebrew/bin/fish') return '/opt/homebrew/bin/fish\n';
+      if (command === 'claude') throw new Error('not found');
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const err = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+    err.code = 'ENOENT';
+    spawnEmits({ error: err }, { stdout: '2.1.56 (Claude Code)\n', closeCode: 0 });
+
+    try {
+      const { connectionsService } = await import('../../main/services/ConnectionsService');
+      await connectionsService.checkProvider('claude', 'manual');
+    } finally {
+      process.env.SHELL = previousShell;
+    }
+
+    expect(statusMap.claude?.installed).toBe(true);
+    expect(statusMap.claude?.path).toBeNull();
   });
 });

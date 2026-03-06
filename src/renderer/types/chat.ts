@@ -29,6 +29,8 @@ export interface TaskMetadata {
   nameGenerated?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  /** Whether this task is pinned to the top of the sidebar */
+  isPinned?: boolean | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

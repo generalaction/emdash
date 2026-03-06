@@ -216,6 +216,7 @@ export function useTaskManagement() {
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
+  const pendingTaskProjectRef = useRef<Project | null>(null);
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
 
   // Reset active task when project management signals a navigation away
@@ -378,6 +379,7 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
+      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
       openTaskModal();
     },
@@ -899,7 +901,7 @@ export function useTaskManagement() {
   });
 
   const handleCreateTask = useCallback(
-    (
+    async (
       taskName: string,
       initialPrompt?: string,
       agentRuns: AgentRun[] = [{ agent: 'claude', runs: 1 }],
@@ -913,10 +915,12 @@ export function useTaskManagement() {
       baseRef?: string,
       nameGenerated?: boolean
     ) => {
-      if (!selectedProject) return;
+      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      pendingTaskProjectRef.current = null;
+      if (!targetProject) return;
       setIsCreatingTask(true);
-      createTaskMutation.mutate({
-        project: selectedProject,
+      await createTaskMutation.mutateAsync({
+        project: targetProject,
         taskName,
         initialPrompt,
         agentRuns,
@@ -949,24 +953,12 @@ export function useTaskManagement() {
     };
   }, [isCreatingTask]);
 
-  // Wire up openTaskModal with the latest handleCreateTask
+  // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
   openTaskModalImplRef.current = () => {
     showModal('taskModal', {
-      onSuccess: (result) =>
-        handleCreateTask(
-          result.name,
-          result.initialPrompt,
-          result.agentRuns,
-          result.linkedLinearIssue ?? null,
-          result.linkedGithubIssue ?? null,
-          result.linkedJiraIssue ?? null,
-          result.linkedGitlabIssue ?? null,
-          result.linkedForgejoIssue ?? null,
-          result.autoApprove,
-          result.useWorktree,
-          result.baseRef,
-          result.nameGenerated
-        ),
+      onClose: () => {
+        pendingTaskProjectRef.current = null;
+      },
     });
   };
 
@@ -976,6 +968,27 @@ export function useTaskManagement() {
       openTaskModal();
     }
   }, [autoOpenTaskModalTrigger, openTaskModal]);
+
+  // ---------------------------------------------------------------------------
+  // Pin / unpin task (persisted in task metadata)
+  // ---------------------------------------------------------------------------
+  const handlePinTask = useCallback(
+    async (task: Task) => {
+      const isPinned = !task.metadata?.isPinned;
+      const updatedMetadata = { ...task.metadata, isPinned: isPinned || null };
+      // Optimistic UI update
+      updateTaskCache(task.projectId, (old) =>
+        old.map((t) => (t.id === task.id ? { ...t, metadata: updatedMetadata } : t))
+      );
+      try {
+        await rpc.db.saveTask({ ...task, metadata: updatedMetadata });
+      } catch {
+        // Rollback on failure
+        queryClient.invalidateQueries({ queryKey: ['tasks', task.projectId] });
+      }
+    },
+    [updateTaskCache, queryClient]
+  );
 
   return {
     activeTask,
@@ -999,5 +1012,6 @@ export function useTaskManagement() {
     handleRenameTask,
     handleArchiveTask,
     handleRestoreTask,
+    handlePinTask,
   };
 }

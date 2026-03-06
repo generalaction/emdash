@@ -10,6 +10,7 @@ import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
+import { OpenCodeHookService } from './OpenCodeHookService';
 
 /**
  * Environment variables to pass through for agent authentication.
@@ -65,6 +66,46 @@ type PtyRecord = {
 const ptys = new Map<string, PtyRecord>();
 const MIN_PTY_COLS = 2;
 const MIN_PTY_ROWS = 1;
+
+function applyAgentEventHookEnv(env: Record<string, string>, ptyId: string): void {
+  const hookPort = agentEventService.getPort();
+  if (hookPort <= 0) return;
+
+  env['EMDASH_HOOK_PORT'] = String(hookPort);
+  env['EMDASH_PTY_ID'] = ptyId;
+  env['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
+}
+
+function applyOpenCodeRuntimeEnv(
+  env: Record<string, string>,
+  ptyId: string,
+  providerId?: string
+): void {
+  if (providerId !== 'opencode') return;
+
+  env['OPENCODE_CONFIG_DIR'] = OpenCodeHookService.writeLocalPlugin(ptyId);
+}
+
+function applyProviderSpecificRuntimeEnv(
+  env: Record<string, string>,
+  options: {
+    ptyId: string;
+    providerId?: string;
+  }
+): void {
+  applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+}
+
+export function applyProviderRuntimeEnv(
+  env: Record<string, string>,
+  options: {
+    ptyId: string;
+    providerId?: string;
+  }
+): void {
+  applyAgentEventHookEnv(env, options.ptyId);
+  applyProviderSpecificRuntimeEnv(env, options);
+}
 
 function getWindowsEssentialEnv(): Record<string, string> {
   const home = os.homedir();
@@ -523,6 +564,12 @@ type ProviderCliArgsOptions = {
   useKeystrokeInjection?: boolean;
 };
 
+type ProviderRuntimeCliArgsOptions = {
+  providerId: string;
+  target?: 'local' | 'remote';
+  platform?: NodeJS.Platform;
+};
+
 export function resolveProviderCommandConfig(
   providerId: string
 ): ResolvedProviderCommandConfig | null {
@@ -603,6 +650,80 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
   }
 
   return args;
+}
+
+function makePosixCodexNotifyCommand(): string[] {
+  const script =
+    `printf '%s' "$1" | ` +
+    `curl -sf -X POST ` +
+    `-H 'Content-Type: application/json' ` +
+    `-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ` +
+    `-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ` +
+    `-H 'X-Emdash-Event-Type: notification' ` +
+    `-d @- ` +
+    `"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true`;
+
+  return ['sh', '-lc', script, 'sh'];
+}
+
+function ensureWindowsCodexNotifyScript(): string {
+  const scriptPath = path.join(os.tmpdir(), 'emdash-codex-notify.ps1');
+  const script = [
+    'param([string]$payload)',
+    'try {',
+    '  Invoke-WebRequest -UseBasicParsing -Method POST ' +
+      "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+      '-Headers @{ ' +
+      "'Content-Type' = 'application/json'; " +
+      "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
+      "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
+      "'X-Emdash-Event-Type' = 'notification' " +
+      '} -Body $payload | Out-Null',
+    '} catch {',
+    '  exit 0',
+    '}',
+    '',
+  ].join('\n');
+
+  try {
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(scriptPath, script);
+  } catch (err) {
+    log.warn('ptyManager: failed to write Codex Windows notify script', {
+      path: scriptPath,
+      error: String(err),
+    });
+  }
+
+  return scriptPath;
+}
+
+function makeWindowsCodexNotifyCommand(): string[] {
+  // Use -File so Codex's appended payload argument binds reliably as a script parameter.
+  return ['powershell.exe', '-NoProfile', '-File', ensureWindowsCodexNotifyScript()];
+}
+
+function makeCodexNotifyConfigValue(target: 'local' | 'remote', platform: NodeJS.Platform): string {
+  const notifyCommand =
+    target === 'remote' || platform !== 'win32'
+      ? makePosixCodexNotifyCommand()
+      : makeWindowsCodexNotifyCommand();
+
+  return `notify=${JSON.stringify(notifyCommand)}`;
+}
+
+export function getProviderRuntimeCliArgs(options: ProviderRuntimeCliArgsOptions): string[] {
+  const { providerId, target = 'local', platform = process.platform } = options;
+
+  if (providerId !== 'codex') {
+    return [];
+  }
+
+  if (agentEventService.getPort() <= 0) {
+    return [];
+  }
+
+  return ['-c', makeCodexNotifyConfigValue(target, platform)];
 }
 
 const resolvedCommandPathCache = new Map<string, string | null>();
@@ -905,6 +1026,7 @@ export function startDirectPty(options: {
         useKeystrokeInjection: provider.useKeystrokeInjection,
       })
     );
+    cliArgs.push(...getProviderRuntimeCliArgs({ providerId }));
   }
 
   // Build minimal environment - just what the CLI needs
@@ -947,13 +1069,7 @@ export function startDirectPty(options: {
     }
   }
 
-  // Pass agent event hook env vars so CLI hooks can call back to Emdash
-  const hookPort = agentEventService.getPort();
-  if (hookPort > 0) {
-    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
-    useEnv['EMDASH_PTY_ID'] = id;
-    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
-  }
+  applyProviderRuntimeEnv(useEnv, { ptyId: id, providerId });
 
   // Lazy load native module
   let pty: typeof import('node-pty');
@@ -1027,7 +1143,7 @@ export async function startPty(options: {
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
-  const useCwd = cwd || process.cwd() || os.homedir();
+  const useCwd = cwd || os.homedir();
 
   // Build a clean environment instead of inheriting process.env wholesale.
   //
@@ -1059,13 +1175,7 @@ export async function startPty(options: {
     ...(env || {}),
   };
 
-  // Pass agent event hook env vars so CLI hooks can call back to Emdash
-  const hookPort = agentEventService.getPort();
-  if (hookPort > 0) {
-    useEnv['EMDASH_HOOK_PORT'] = String(hookPort);
-    useEnv['EMDASH_PTY_ID'] = id;
-    useEnv['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
-  }
+  applyAgentEventHookEnv(useEnv, id);
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -1135,6 +1245,7 @@ export async function startPty(options: {
       if (provider) {
         const resolvedConfig = resolveProviderCommandConfig(provider.id);
         const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
+        applyProviderSpecificRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
 
         // Build the provider command with flags
         const cliArgs: string[] = [];
@@ -1161,6 +1272,7 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
+        cliArgs.push(...getProviderRuntimeCliArgs({ providerId: provider.id }));
 
         if (resolvedConfig?.env) {
           for (const [k, v] of Object.entries(resolvedConfig.env)) {

@@ -12,6 +12,7 @@ import {
   setOnDirectCliExit,
   parseShellArgs,
   buildProviderCliArgs,
+  getProviderRuntimeCliArgs,
   resolveProviderCommandConfig,
   killTmuxSession,
   getTmuxSessionName,
@@ -29,6 +30,7 @@ import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
+import { OpenCodeHookService, OPEN_CODE_PLUGIN_FILE } from './OpenCodeHookService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -165,6 +167,25 @@ async function writeRemoteHookConfig(
   ]);
 }
 
+async function writeRemoteOpenCodePlugin(
+  sshArgs: string[],
+  sshTarget: string,
+  ptyId: string
+): Promise<string> {
+  const configDir = OpenCodeHookService.getRemoteConfigDir(ptyId);
+  const pluginsDir = `${configDir}/plugins`;
+  const pluginPath = `${pluginsDir}/${OPEN_CODE_PLUGIN_FILE}`;
+  const pluginSource = OpenCodeHookService.getPluginSource();
+
+  await execFileAsync('ssh', [
+    ...sshArgs,
+    sshTarget,
+    `mkdir -p "${pluginsDir}" && printf '%s\\n' ${quoteShellArg(pluginSource)} > "${pluginPath}"`,
+  ]);
+
+  return configDir;
+}
+
 function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
@@ -197,12 +218,12 @@ function buildRemoteInitKeystrokes(args: {
       const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(providerCmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
-      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+      lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
     } else {
       const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then exec ${providerCmd}; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
-      lines.push(`sh -c ${quoteShellArg(shScript)}`);
+      lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
     }
   }
 
@@ -291,6 +312,7 @@ function buildRemoteProviderInvocation(args: {
     initialPromptFlag: resolvedConfig?.initialPromptFlag ?? fallbackProvider?.initialPromptFlag,
     useKeystrokeInjection: provider?.useKeystrokeInjection,
   });
+  cliArgs.push(...getProviderRuntimeCliArgs({ providerId, target: 'remote' }));
 
   const cmdParts = [...cliCommandParts, ...cliArgs];
   const cmd = cmdParts.map(quoteShellArg).join(' ');
@@ -921,10 +943,22 @@ export function registerPtyIpc(): void {
           const resolvedConfig = resolveProviderCommandConfig(providerId);
           const mergedEnv = resolvedConfig?.env ? { ...resolvedConfig.env, ...env } : env;
 
+          const preProviderCommands: string[] = [];
+          if (providerId === 'opencode') {
+            try {
+              const remoteConfigDir = await writeRemoteOpenCodePlugin(ssh.args, ssh.target, id);
+              preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${remoteConfigDir}"`);
+            } catch (err: any) {
+              log.warn('ptyIpc:startDirect failed to write remote OpenCode plugin', {
+                id,
+                error: err?.message || String(err),
+              });
+            }
+          }
+
           // Set up reverse SSH tunnel for hook events if the local hook
           // server is running. This lets the remote agent call back to
           // the local AgentEventService via the tunnel.
-          const preProviderCommands: string[] = [];
           const hookPort = agentEventService.getPort();
           if (hookPort > 0) {
             const remotePort = pickReverseTunnelPort(id);

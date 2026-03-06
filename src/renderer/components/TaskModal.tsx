@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
 import {
   DialogContent,
   DialogDescription,
@@ -66,16 +67,18 @@ interface TaskModalProps {
     useWorktree?: boolean,
     baseRef?: string,
     nameGenerated?: boolean
-  ) => void;
+  ) => Promise<void>;
 }
 
 export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
 
-export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
+  const { handleCreateTask } = useTaskManagementContext();
+
   return (
     <TaskModal
       onClose={onClose}
-      onCreateTask={(
+      onCreateTask={async (
         name,
         initialPrompt,
         agentRuns,
@@ -88,22 +91,21 @@ export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) 
         useWorktree,
         baseRef,
         nameGenerated
-      ) =>
-        onSuccess({
+      ) => {
+        await handleCreateTask(
           name,
           initialPrompt,
           agentRuns,
-          linkedLinearIssue,
-          linkedGithubIssue,
-          linkedJiraIssue,
-          linkedGitlabIssue,
-          linkedForgejoIssue,
+          linkedLinearIssue ?? null,
+          linkedGithubIssue ?? null,
+          linkedJiraIssue ?? null,
+          linkedForgejoIssue ?? null,
           autoApprove,
           useWorktree,
           baseRef,
-          nameGenerated,
-        })
-      }
+          nameGenerated
+        );
+      }}
     />
   );
 }
@@ -127,6 +129,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Advanced settings state
   const [initialPrompt, setInitialPrompt] = useState('');
@@ -361,13 +364,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     // When the name was auto-generated from context (prompt/issue),
     // it's already descriptive — don't mark it for post-creation rename.
 
-    // Close modal immediately - task creation happens in background
-    // The task will appear in sidebar via optimistic UI update
-    onClose();
+    setIsCreating(true);
 
-    // Fire and forget - don't await
     try {
-      onCreateTask(
+      await onCreateTask(
         finalName,
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
         agentRuns,
@@ -381,8 +381,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         selectedBranch,
         isNameGenerated
       );
+      onClose();
     } catch (error) {
       console.error('Failed to create task:', error);
+      setIsCreating(false);
     }
   };
 
@@ -395,6 +397,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     <DialogContent
       className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
       onOpenAutoFocus={handleOpenAutoFocus}
+      onInteractOutside={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
     >
       <DialogHeader>
         <DialogTitle>New Task</DialogTitle>
@@ -488,8 +496,15 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         />
 
         <DialogFooter>
-          <Button type="submit" disabled={!!error}>
-            Create
+          <Button type="submit" disabled={!!error || isCreating} aria-busy={isCreating}>
+            {isCreating ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Creating…
+              </>
+            ) : (
+              'Create'
+            )}
           </Button>
         </DialogFooter>
       </form>
