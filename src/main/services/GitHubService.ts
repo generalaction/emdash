@@ -93,6 +93,25 @@ export class GitHubService {
     return await this.requestDeviceCode();
   }
 
+  async getLocalRepoInfo(
+    projectPath: string
+  ): Promise<{ nameWithOwner: string; defaultBranch: string } | null> {
+    if (!(await this.isAuthenticated())) return null;
+    try {
+      const { stdout } = await this.execGH(
+        'gh repo view --json name,nameWithOwner,defaultBranchRef',
+        { cwd: projectPath }
+      );
+      const info = JSON.parse(stdout);
+      return {
+        nameWithOwner: info.nameWithOwner,
+        defaultBranch: info.defaultBranchRef?.name ?? 'main',
+      };
+    } catch {
+      return null; // not a GitHub repo or gh can't reach it
+    }
+  }
+
   /**
    * Start Device Flow authentication with automatic background polling
    * Emits events to renderer for UI updates

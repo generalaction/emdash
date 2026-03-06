@@ -1,4 +1,3 @@
-/// <reference types="electron-vite/node" />
 import { ipcMain } from 'electron';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { events } from '../events';

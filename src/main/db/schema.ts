@@ -70,6 +70,7 @@ export const tasks = sqliteTable(
     metadata: text('metadata'),
     useWorktree: integer('use_worktree').notNull().default(1),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
+    setupScriptBuffer: text('setup_script_buffer'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -107,8 +108,27 @@ export const conversations = sqliteTable(
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
-    // @deprecated Index for isActive which is no longer used — retained for schema compatibility only.
     activeIdx: index('idx_conversations_active').on(table.taskId, table.isActive),
+  })
+);
+
+export const terminals = sqliteTable(
+  'terminals',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskIdIdx: index('idx_terminals_task_id').on(table.taskId),
   })
 );
 
