@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Tag } from 'lucide-react';
-import { normalizeSqliteTimestamp } from '../../lib/utils';
 
 interface Commit {
   hash: string;
@@ -28,7 +27,7 @@ interface CommitListProps {
 const PAGE_SIZE = 50;
 
 function formatRelativeDate(dateStr: string): string {
-  const date = new Date(normalizeSqliteTimestamp(dateStr));
+  const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr || '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
