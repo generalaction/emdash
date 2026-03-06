@@ -285,15 +285,20 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           taskName: task.name,
         });
       }
-      if (result && !result.success && result.error) {
+      if (result && !result.success) {
         toast({
           title: `${(selection.selectedLifecycle || 'run').charAt(0).toUpperCase()}${(selection.selectedLifecycle || 'run').slice(1)} failed`,
-          description: result.error,
+          description: result.error || 'An unknown error occurred.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Failed lifecycle play action:', error);
+      toast({
+        title: `${(selection.selectedLifecycle || 'run').charAt(0).toUpperCase()}${(selection.selectedLifecycle || 'run').slice(1)} failed`,
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
@@ -574,7 +579,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         : setupStatus === 'running'
                           ? 'Setup is still running'
                           : setupStatus === 'failed'
-                            ? 'Setup failed'
+                            ? 'Setup failed — select Setup to retry'
                             : 'Start run script'}
                 </p>
               </TooltipContent>
