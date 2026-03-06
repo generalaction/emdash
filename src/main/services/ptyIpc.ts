@@ -30,7 +30,7 @@ import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
-import { OpenCodeHookService } from './OpenCodeHookService';
+import { OpenCodeHookService, OPEN_CODE_PLUGIN_FILE } from './OpenCodeHookService';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { sshConnections as sshConnectionsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -174,7 +174,7 @@ async function writeRemoteOpenCodePlugin(
 ): Promise<string> {
   const configDir = OpenCodeHookService.getRemoteConfigDir(ptyId);
   const pluginsDir = `${configDir}/plugins`;
-  const pluginPath = `${pluginsDir}/emdash-notify.js`;
+  const pluginPath = `${pluginsDir}/${OPEN_CODE_PLUGIN_FILE}`;
   const pluginSource = OpenCodeHookService.getPluginSource();
 
   await execFileAsync('ssh', [

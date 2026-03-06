@@ -251,6 +251,7 @@ vi.mock('../../main/services/ClaudeHookService', () => ({
 }));
 
 vi.mock('../../main/services/OpenCodeHookService', () => ({
+  OPEN_CODE_PLUGIN_FILE: 'emdash-notify.js',
   OpenCodeHookService: {
     getRemoteConfigDir: openCodeGetRemoteConfigDirMock,
     getPluginSource: openCodeGetPluginSourceMock,

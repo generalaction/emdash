@@ -3,7 +3,7 @@ import path from 'path';
 import { app } from 'electron';
 import { log } from '../lib/logger';
 
-const OPEN_CODE_PLUGIN_FILE = 'emdash-notify.js';
+export const OPEN_CODE_PLUGIN_FILE = 'emdash-notify.js';
 const OPEN_CODE_IDLE_MESSAGE = 'OpenCode is ready for your input';
 const OPEN_CODE_PERMISSION_MESSAGE = 'OpenCode is waiting for permission';
 

@@ -86,6 +86,16 @@ function applyOpenCodeRuntimeEnv(
   env['OPENCODE_CONFIG_DIR'] = OpenCodeHookService.writeLocalPlugin(ptyId);
 }
 
+function applyProviderSpecificRuntimeEnv(
+  env: Record<string, string>,
+  options: {
+    ptyId: string;
+    providerId?: string;
+  }
+): void {
+  applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+}
+
 export function applyProviderRuntimeEnv(
   env: Record<string, string>,
   options: {
@@ -94,7 +104,7 @@ export function applyProviderRuntimeEnv(
   }
 ): void {
   applyAgentEventHookEnv(env, options.ptyId);
-  applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+  applyProviderSpecificRuntimeEnv(env, options);
 }
 
 function getWindowsEssentialEnv(): Record<string, string> {
@@ -1165,7 +1175,7 @@ export async function startPty(options: {
     ...(env || {}),
   };
 
-  applyProviderRuntimeEnv(useEnv, { ptyId: id });
+  applyAgentEventHookEnv(useEnv, id);
 
   // On Windows, resolve shell command to full path for node-pty
   if (process.platform === 'win32' && shell && !shell.includes('\\') && !shell.includes('/')) {
@@ -1235,7 +1245,7 @@ export async function startPty(options: {
       if (provider) {
         const resolvedConfig = resolveProviderCommandConfig(provider.id);
         const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
-        applyProviderRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
+        applyProviderSpecificRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
 
         // Build the provider command with flags
         const cliArgs: string[] = [];
