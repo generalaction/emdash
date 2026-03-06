@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
+import type { McpServer } from '../shared/mcp/types';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -723,6 +724,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
+
+  // MCP
+  mcpLoadAll: () => ipcRenderer.invoke('mcp:load-all'),
+  mcpSaveServer: (server: McpServer) => ipcRenderer.invoke('mcp:save-server', server),
+  mcpRemoveServer: (serverName: string) => ipcRenderer.invoke('mcp:remove-server', serverName),
+  mcpGetProviders: () => ipcRenderer.invoke('mcp:get-providers'),
+  mcpRefreshProviders: () => ipcRenderer.invoke('mcp:refresh-providers'),
 });
 
 // Type definitions for the exposed API
