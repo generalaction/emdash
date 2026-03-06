@@ -30,7 +30,7 @@ interface IntegrationStatus {
 }
 
 /**
- * Hook to manage integration connection status for Linear, GitHub, and Jira.
+ * Hook to manage integration connection status for Linear, GitHub, Jira, GitLab, and Plain.
  * Checks connection status when isOpen becomes true.
  */
 export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {

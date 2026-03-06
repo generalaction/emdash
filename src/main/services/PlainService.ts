@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 
 const PLAIN_API_URL = 'https://core-api.uk.plain.com/graphql/v1';
+const REQUEST_TIMEOUT_MS = 15_000;
 
 const THREAD_FIELDS = `
   id ref title previewText status priority
@@ -22,6 +23,20 @@ export interface PlainConnectionStatus {
   connected: boolean;
   workspaceName?: string;
   error?: string;
+}
+
+/** Thread shape returned by mapThread — mirrors PlainThreadSummary in renderer types. */
+export interface PlainThread {
+  id: string;
+  ref: string | null;
+  title: string;
+  description: string | null;
+  status: string | null;
+  priority: number | null;
+  customer: { id: string; fullName: string | null; email: string | null } | null;
+  labels: Array<{ id: string; name: string | null }> | null;
+  updatedAt: string | null;
+  url: string | null;
 }
 
 interface GraphQLResponse<T> {
@@ -92,7 +107,7 @@ export class PlainService {
     }
   }
 
-  async initialFetch(limit = 50, statuses?: string[]): Promise<any[]> {
+  async initialFetch(limit = 50, statuses?: string[]): Promise<PlainThread[]> {
     const token = await this.getStoredToken();
     if (!token) {
       throw new Error('Plain token not set. Connect Plain in settings first.');
@@ -133,7 +148,7 @@ export class PlainService {
     return threads;
   }
 
-  async searchThreads(searchTerm: string, limit = 20): Promise<any[]> {
+  async searchThreads(searchTerm: string, limit = 20): Promise<PlainThread[]> {
     const token = await this.getStoredToken();
     if (!token) {
       throw new Error('Plain token not set. Connect Plain in settings first.');
@@ -152,8 +167,9 @@ export class PlainService {
         return await this.fetchThreadByRef(token, trimmed.toUpperCase(), workspaceId);
       }
 
-      // Text search: fetch recent threads and filter client-side
-      const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
+      // Plain has no server-side text search — fetch a wide batch and filter client-side
+      const fetchSize = 200;
+      const resultLimit = Math.min(Math.max(limit, 1), 200);
       const query = `
         query SearchThreads($first: Int!) {
           threads(first: $first, sortBy: { field: CREATED_AT, direction: DESC }) {
@@ -164,18 +180,19 @@ export class PlainService {
 
       const response = await this.graphql<{
         threads: { edges: Array<{ node: any }> };
-      }>(token, query, { first: sanitizedLimit });
+      }>(token, query, { first: fetchSize });
 
       const lowerTerm = trimmed.toLowerCase();
       const threads = (response?.threads?.edges ?? [])
         .map((edge) => this.mapThread(edge.node, workspaceId))
         .filter(
-          (t: any) =>
+          (t) =>
             (t.title && t.title.toLowerCase().includes(lowerTerm)) ||
             (t.ref && t.ref.toLowerCase().includes(lowerTerm)) ||
             (t.customer?.fullName && t.customer.fullName.toLowerCase().includes(lowerTerm)) ||
             (t.customer?.email && t.customer.email.toLowerCase().includes(lowerTerm))
-        );
+        )
+        .slice(0, resultLimit);
 
       return threads;
     } catch (error) {
@@ -188,7 +205,7 @@ export class PlainService {
     token: string,
     ref: string,
     workspaceId: string | null
-  ): Promise<any[]> {
+  ): Promise<PlainThread[]> {
     const query = `
       query GetThreadByRef($ref: String!) {
         threadByRef(ref: $ref) { ${THREAD_FIELDS} }
@@ -204,7 +221,7 @@ export class PlainService {
     }
   }
 
-  private mapThread(node: any, workspaceId: string | null): any {
+  private mapThread(node: any, workspaceId: string | null): PlainThread {
     return {
       id: node.id,
       ref: node.ref ?? null,
@@ -316,6 +333,10 @@ export class PlainService {
           });
         }
       );
+
+      req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        req.destroy(new Error('Plain API request timed out.'));
+      });
 
       req.on('error', (error) => {
         reject(error);
