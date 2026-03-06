@@ -98,6 +98,7 @@ export interface AppSettings {
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
   };
   projects?: {
@@ -158,6 +159,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    createWorktreeByDefault: true,
     autoTrustWorktrees: true,
   },
   projects: {
@@ -422,6 +424,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    createWorktreeByDefault: Boolean(
+      tasks?.createWorktreeByDefault ?? DEFAULT_SETTINGS.tasks!.createWorktreeByDefault
     ),
     autoTrustWorktrees: Boolean(
       tasks?.autoTrustWorktrees ?? DEFAULT_SETTINGS.tasks!.autoTrustWorktrees

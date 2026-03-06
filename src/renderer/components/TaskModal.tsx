@@ -245,6 +245,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
       setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
 
+      const createWorktreeByDefault = settings?.tasks?.createWorktreeByDefault ?? true;
+      setUseWorktree(createWorktreeByDefault);
+
       // Handle auto-generate setting
       const shouldAutoGenerate = settings?.tasks?.autoGenerateName !== false;
       setAutoGenerateName(shouldAutoGenerate);
