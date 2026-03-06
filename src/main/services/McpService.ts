@@ -23,54 +23,56 @@ export class McpService {
   }
 
   async loadAll(): Promise<McpLoadAllResponse> {
-    const agentIds = getAllMcpAgentIds();
-    const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
+    return this.withWriteLock(async () => {
+      const agentIds = getAllMcpAgentIds();
+      const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
 
-    for (const agentId of agentIds) {
-      const meta = getAgentMcpMeta(agentId);
-      if (!meta) continue;
+      for (const agentId of agentIds) {
+        const meta = getAgentMcpMeta(agentId);
+        if (!meta) continue;
 
-      let rawServers: ServerMap;
-      try {
-        rawServers = await readServers(meta);
-      } catch (err) {
-        log.warn(`Failed to read MCP config for ${agentId}:`, err);
-        continue;
-      }
+        let rawServers: ServerMap;
+        try {
+          rawServers = await readServers(meta);
+        } catch (err) {
+          log.warn(`Failed to read MCP config for ${agentId}:`, err);
+          continue;
+        }
 
-      // Reverse-adapt to canonical raw format
-      const canonical = adaptReverse(meta.adapter, rawServers);
+        // Reverse-adapt to canonical raw format
+        const canonical = adaptReverse(meta.adapter, rawServers);
 
-      for (const [name, raw] of Object.entries(canonical)) {
-        const existing = serversByName.get(name);
-        if (existing) {
-          existing.providers.add(agentId);
-          // Keep richest config (more keys = richer)
-          const newServer = rawToMcpServer(name, raw, existing.providers);
-          const existingKeyCount = Object.keys(rawEntryToMcpFields(existing.server)).length;
-          const newKeyCount = Object.keys(rawEntryToMcpFields(newServer)).length;
-          if (newKeyCount > existingKeyCount) {
-            existing.server = newServer;
+        for (const [name, raw] of Object.entries(canonical)) {
+          const existing = serversByName.get(name);
+          if (existing) {
+            existing.providers.add(agentId);
+            // Keep richest config (more keys = richer)
+            const newServer = rawToMcpServer(name, raw, existing.providers);
+            const existingKeyCount = Object.keys(rawEntryToMcpFields(existing.server)).length;
+            const newKeyCount = Object.keys(rawEntryToMcpFields(newServer)).length;
+            if (newKeyCount > existingKeyCount) {
+              existing.server = newServer;
+            }
+          } else {
+            const providers = new Set([agentId]);
+            serversByName.set(name, {
+              server: rawToMcpServer(name, raw, providers),
+              providers,
+            });
           }
-        } else {
-          const providers = new Set([agentId]);
-          serversByName.set(name, {
-            server: rawToMcpServer(name, raw, providers),
-            providers,
-          });
         }
       }
-    }
 
-    const installed: McpServer[] = [];
-    for (const { server, providers } of serversByName.values()) {
-      server.providers = Array.from(providers);
-      installed.push(server);
-    }
+      const installed: McpServer[] = [];
+      for (const { server, providers } of serversByName.values()) {
+        server.providers = Array.from(providers);
+        installed.push(server);
+      }
 
-    const catalog = loadCatalog();
+      const catalog = loadCatalog();
 
-    return { installed, catalog };
+      return { installed, catalog };
+    });
   }
 
   async saveServer(server: McpServer): Promise<void> {
