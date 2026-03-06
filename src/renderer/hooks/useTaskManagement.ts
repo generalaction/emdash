@@ -897,7 +897,7 @@ export function useTaskManagement() {
   });
 
   const handleCreateTask = useCallback(
-    (
+    async (
       taskName: string,
       initialPrompt?: string,
       agentRuns: AgentRun[] = [{ agent: 'claude', runs: 1 }],
@@ -911,7 +911,7 @@ export function useTaskManagement() {
     ) => {
       if (!selectedProject) return;
       setIsCreatingTask(true);
-      createTaskMutation.mutate({
+      await createTaskMutation.mutateAsync({
         project: selectedProject,
         taskName,
         initialPrompt,
@@ -943,23 +943,9 @@ export function useTaskManagement() {
     };
   }, [isCreatingTask]);
 
-  // Wire up openTaskModal with the latest handleCreateTask
+  // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
   openTaskModalImplRef.current = () => {
-    showModal('taskModal', {
-      onSuccess: (result) =>
-        handleCreateTask(
-          result.name,
-          result.initialPrompt,
-          result.agentRuns,
-          result.linkedLinearIssue ?? null,
-          result.linkedGithubIssue ?? null,
-          result.linkedJiraIssue ?? null,
-          result.autoApprove,
-          result.useWorktree,
-          result.baseRef,
-          result.nameGenerated
-        ),
-    });
+    showModal('taskModal', {});
   };
 
   // Auto-open task modal when project management requests it
