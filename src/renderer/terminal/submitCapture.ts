@@ -1,13 +1,11 @@
-export function stripAnsiFromInput(data: string): string {
-  return data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
-}
+import { stripAnsi } from './stripAnsi';
 
 export function consumeSubmittedInputChunk(args: {
   currentInput: string;
   data: string;
   isNewlineInsert: boolean;
 }): { currentInput: string; submittedText: string | null } {
-  const clean = stripAnsiFromInput(args.data);
+  const clean = stripAnsi(args.data);
   let currentInput = args.currentInput;
   let submittedText: string | null = null;
 
