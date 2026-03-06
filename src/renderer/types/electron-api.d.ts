@@ -951,6 +951,37 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // Plain integration
+      plainSaveToken?: (token: string) => Promise<{
+        success: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainCheckConnection?: () => Promise<{
+        connected: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      plainInitialFetch?: (
+        limit?: number,
+        statuses?: string[]
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      plainSearchThreads?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];
@@ -1678,6 +1709,38 @@ export interface ElectronAPI {
   ) => Promise<{
     success: boolean;
     issues?: any[];
+    error?: string;
+  }>;
+
+  // Plain integration
+  plainSaveToken?: (token: string) => Promise<{
+    success: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainCheckConnection?: () => Promise<{
+    connected: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  plainInitialFetch?: (
+    limit?: number,
+    statuses?: string[]
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+  plainSearchThreads?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
     error?: string;
   }>;
 

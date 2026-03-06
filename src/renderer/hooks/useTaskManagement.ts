@@ -13,6 +13,7 @@ import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
+import type { PlainThreadSummary } from '../types/plain';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -906,6 +907,7 @@ export function useTaskManagement() {
       linkedLinearIssue: LinearIssueSummary | null = null,
       linkedGithubIssue: GitHubIssueSummary | null = null,
       linkedJiraIssue: JiraIssueSummary | null = null,
+      linkedPlainThread: PlainThreadSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
@@ -923,6 +925,7 @@ export function useTaskManagement() {
         linkedLinearIssue,
         linkedGithubIssue,
         linkedJiraIssue,
+        linkedPlainThread,
         autoApprove,
         nameGenerated,
         useWorktree,
