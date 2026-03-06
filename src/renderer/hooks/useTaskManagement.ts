@@ -963,6 +963,9 @@ export function useTaskManagement() {
           result.baseRef,
           result.nameGenerated
         ),
+      onClose: () => {
+        pendingTaskProjectRef.current = null;
+      },
     });
   };
 
