@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { X } from 'lucide-react';
-import { DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { X, Trash2 } from 'lucide-react';
+import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -274,24 +274,23 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="mt-6 flex items-center justify-between">
-        <div>
-          {isEdit && onRemove && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-destructive/50 text-destructive hover:bg-destructive/10"
-              onClick={handleRemove}
-            >
-              Remove
-            </Button>
-          )}
-        </div>
+      <DialogFooter className="gap-2 sm:gap-2">
+        {isEdit && onRemove && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={handleRemove}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Remove
+          </Button>
+        )}
         <Button type="button" onClick={handleSave} disabled={!canSave} size="sm">
           {saving ? (isEdit ? 'Saving...' : 'Adding...') : isEdit ? 'Save' : 'Add'}
         </Button>
-      </div>
+      </DialogFooter>
     </DialogContent>
   );
 };
