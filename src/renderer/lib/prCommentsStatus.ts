@@ -1,3 +1,5 @@
+import { normalizeSqliteTimestamp } from './utils';
+
 export interface PrCommentAuthor {
   login: string;
   avatarUrl?: string;
@@ -54,7 +56,7 @@ export function buildPrCommentsStatus(
 
 export function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
-  const date = new Date(dateStr).getTime();
+  const date = new Date(normalizeSqliteTimestamp(dateStr)).getTime();
   if (isNaN(date)) return '';
   const diffMs = now - date;
   if (diffMs < 0) return 'just now';

@@ -10,6 +10,7 @@ import { useTaskBusy } from '../hooks/useTaskBusy';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import TaskDeleteButton from './TaskDeleteButton';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
+import { normalizeSqliteTimestamp } from '../lib/utils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,7 +24,7 @@ function stopPropagation(e: React.MouseEvent): void {
 
 function formatCompactDate(dateStr?: string): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const date = new Date(normalizeSqliteTimestamp(dateStr));
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   if (diffMs < 0) return '';
