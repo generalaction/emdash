@@ -46,14 +46,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { isActivePr, type PrInfo } from '../lib/prStatus';
 import { rpc } from '../lib/rpc';
-import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
+import { useTaskBusy } from '../hooks/useTaskBusy';
+import { useTaskStatus } from '../hooks/useTaskStatus';
 import AgentLogo from './AgentLogo';
 import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { TaskStatusIndicator } from './TaskStatusIndicator';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -105,7 +107,10 @@ function TaskRow({
   enablePrStatus?: boolean;
 }) {
   const isArchived = Boolean(ws.archivedAt);
-  const isRunning = useTaskBusy(ws.id);
+  const isBusy = useTaskBusy(ws.id);
+  const taskStatus = useTaskStatus(ws.id);
+  const displayStatus =
+    taskStatus === 'unknown' && (isBusy || ws.status === 'running') ? 'working' : taskStatus;
   const [isDeleting, setIsDeleting] = useState(false);
   const { pr } = usePrStatus(ws.path, enablePrStatus);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
@@ -196,9 +201,7 @@ function TaskRow({
               Archived
             </span>
           )}
-          {(isRunning || ws.status === 'running') && (
-            <Spinner size="sm" className="size-3 text-muted-foreground" />
-          )}
+          <TaskStatusIndicator status={displayStatus} />
         </div>
 
         <div className="flex shrink-0 items-center gap-4">

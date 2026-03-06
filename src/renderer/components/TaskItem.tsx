@@ -2,13 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowUpRight, AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
-
-import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
-
 import PrPreviewTooltip from './PrPreviewTooltip';
+import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskDeleteButton from './TaskDeleteButton';
+import { useTaskStatus } from '../hooks/useTaskStatus';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import {
   ContextMenu,
@@ -75,7 +74,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 }) => {
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
-  const isRunning = useTaskBusy(task.id);
+  const isBusy = useTaskBusy(task.id);
+  const taskStatus = useTaskStatus(task.id);
+  const displayStatus =
+    taskStatus === 'unknown' && (isBusy || task.status === 'running') ? 'working' : taskStatus;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -239,9 +241,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {(isRunning || task.status === 'running') && (
-          <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-        )}
+        <TaskStatusIndicator status={displayStatus} />
         {isEditing ? (
           <input
             ref={inputRef}
