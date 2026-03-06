@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { mcpService } from '../services/McpService';
-import { getAllMcpAgentIds } from '../services/mcp/configPaths';
+import { getAllMcpAgentIds, agentSupportsHttp } from '../services/mcp/configPaths';
 import { log } from '../lib/logger';
 import type { McpServer, McpProvidersResponse } from '@shared/mcp/types';
 import { PROVIDERS } from '@shared/providers/registry';
@@ -15,6 +15,7 @@ function mapProviders(agentIds: string[]): McpProvidersResponse[] {
       id,
       name: provider?.name ?? id,
       installed: statuses[id]?.installed ?? false,
+      supportsHttp: agentSupportsHttp(id),
     };
   });
 }

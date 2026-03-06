@@ -8,6 +8,7 @@ interface AgentConfigDef {
   template: Record<string, unknown>;
   isToml: boolean;
   adapter: AdapterType;
+  supportsHttp: boolean;
 }
 
 const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
@@ -17,6 +18,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'passthrough',
+    supportsHttp: true,
   },
   cursor: {
     pathSegments: ['.cursor', 'mcp.json'],
@@ -24,6 +26,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'cursor',
+    supportsHttp: true,
   },
   codex: {
     pathSegments: ['.codex', 'config.toml'],
@@ -31,6 +34,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcp_servers: {} },
     isToml: true,
     adapter: 'codex',
+    supportsHttp: false,
   },
   amp: {
     pathSegments: ['.config', 'amp', 'settings.json'],
@@ -38,6 +42,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'passthrough',
+    supportsHttp: true,
   },
   gemini: {
     pathSegments: ['.gemini', 'settings.json'],
@@ -45,6 +50,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'gemini',
+    supportsHttp: true,
   },
   qwen: {
     pathSegments: ['.qwen', 'settings.json'],
@@ -52,6 +58,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'gemini',
+    supportsHttp: true,
   },
   opencode: {
     pathSegments: ['.config', 'opencode', 'opencode.json'],
@@ -59,6 +66,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcp: {} },
     isToml: false,
     adapter: 'opencode',
+    supportsHttp: true,
   },
   copilot: {
     pathSegments: ['.copilot', 'mcp-config.json'],
@@ -66,6 +74,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'copilot',
+    supportsHttp: true,
   },
   droid: {
     pathSegments: ['.droid', 'settings.json'],
@@ -73,6 +82,7 @@ const AGENT_CONFIGS: Record<string, AgentConfigDef> = {
     template: { mcpServers: {} },
     isToml: false,
     adapter: 'passthrough',
+    supportsHttp: true,
   },
 };
 
@@ -93,4 +103,8 @@ export function getAgentMcpMeta(agentId: string): AgentMcpMeta | undefined {
 
 export function getAllMcpAgentIds(): string[] {
   return Object.keys(AGENT_CONFIGS);
+}
+
+export function agentSupportsHttp(agentId: string): boolean {
+  return AGENT_CONFIGS[agentId]?.supportsHttp ?? true;
 }

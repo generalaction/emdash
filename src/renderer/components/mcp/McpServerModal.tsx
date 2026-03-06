@@ -130,7 +130,23 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
         {/* Transport */}
         {!isCatalog && (
           <Field label="Transport">
-            <Select value={transport} onValueChange={(v) => setTransport(v as 'stdio' | 'http')}>
+            <Select
+              value={transport}
+              onValueChange={(v) => {
+                const next = v as 'stdio' | 'http';
+                setTransport(next);
+                if (next === 'http') {
+                  setSelectedProviders((prev) => {
+                    const filtered = new Set(prev);
+                    for (const id of prev) {
+                      const prov = providers.find((p) => p.id === id);
+                      if (prov && !prov.supportsHttp) filtered.delete(id);
+                    }
+                    return filtered;
+                  });
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -153,7 +169,7 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
                 placeholder="npx"
               />
             </Field>
-            <Field label="Arguments (space-separated)">
+            <Field label="Arguments (space-separated, no quoting)">
               <Input
                 value={args}
                 onChange={(e) => setArgs(e.target.value)}
@@ -203,23 +219,35 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
           <div className="flex flex-wrap gap-2">
             {providers
               .filter((p) => p.installed)
-              .map((p) => (
-                <Button
-                  key={p.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleProvider(p.id)}
-                  className={
-                    selectedProviders.has(p.id)
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/50'
-                  }
-                >
-                  {p.name}
-                </Button>
-              ))}
+              .map((p) => {
+                const unsupported = transport === 'http' && !p.supportsHttp;
+                return (
+                  <Button
+                    key={p.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={unsupported}
+                    onClick={() => toggleProvider(p.id)}
+                    title={unsupported ? `${p.name} does not support HTTP servers` : undefined}
+                    className={
+                      unsupported
+                        ? 'cursor-not-allowed border-border text-muted-foreground/40'
+                        : selectedProviders.has(p.id)
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/50'
+                    }
+                  >
+                    {p.name}
+                  </Button>
+                );
+              })}
           </div>
+          {transport === 'http' && providers.some((p) => p.installed && !p.supportsHttp) && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Some agents don&apos;t support HTTP servers and are disabled.
+            </p>
+          )}
         </Field>
       </div>
 
