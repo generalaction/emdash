@@ -1,6 +1,7 @@
 // Updated for Codex integration
 
 import type { AgentEvent } from '../../shared/agentEvents';
+import type { AutoMergeRequest } from '../lib/prStatus';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -569,7 +570,22 @@ declare global {
           additions?: number;
           deletions?: number;
           changedFiles?: number;
+          autoMergeRequest?: AutoMergeRequest | null;
         } | null;
+        error?: string;
+      }>;
+      enableAutoMerge: (args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      disableAutoMerge: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        output?: string;
         error?: string;
       }>;
       getCheckRuns: (args: { taskPath: string }) => Promise<{
