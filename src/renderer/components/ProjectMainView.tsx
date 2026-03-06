@@ -20,6 +20,7 @@ import { Separator } from './ui/separator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';
+import { DELETE_RISK_SCAN_FRESH_MS, useDeleteRisks } from '../hooks/useDeleteRisks';
 import { ChangesBadge } from './TaskChanges';
 import { Spinner } from './ui/spinner';
 import TaskDeleteButton from './TaskDeleteButton';
@@ -43,8 +44,7 @@ import DeletePrNotice from './DeletePrNotice';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { isActivePr, PrInfo } from '../lib/prStatus';
-import { refreshPrStatus } from '../lib/prStatusStore';
+import { isActivePr, type PrInfo } from '../lib/prStatus';
 import { rpc } from '../lib/rpc';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
@@ -53,11 +53,32 @@ import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
   const trimmed = ref.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const hasDeleteRisk = (status?: {
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  ahead: number;
+  behind: number;
+  error?: string;
+  pr?: PrInfo | null;
+}): boolean => {
+  if (!status) return false;
+  return (
+    status.staged > 0 ||
+    status.unstaged > 0 ||
+    status.untracked > 0 ||
+    status.ahead > 0 ||
+    !!status.error ||
+    !!(status.pr && isActivePr(status.pr))
+  );
 };
 
 function TaskRow({
@@ -316,6 +337,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   onBaseBranchChange: onBaseBranchChangeCallback,
 }) => {
   const { toast } = useToast();
+  const { tasksByProjectId } = useTaskManagementContext();
 
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
@@ -328,13 +350,18 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isCheckingDeleteRisks, setIsCheckingDeleteRisks] = useState(false);
   const [acknowledgeDirtyDelete, setAcknowledgeDirtyDelete] = useState(false);
+  const [requiresDeleteAcknowledge, setRequiresDeleteAcknowledge] = useState(false);
+  const [showDeleteWarnings, setShowDeleteWarnings] = useState(false);
+  const [showDeleteActionSpinner, setShowDeleteActionSpinner] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showFilter, setShowFilter] = useState<'active' | 'all'>('active');
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
-  const activeTasks = project.tasks ?? [];
+  const activeTasks = tasksByProjectId[project.id] ?? [];
   const activeTasksLength = activeTasks.length;
 
   const refetchArchivedTasks = useCallback(() => {
@@ -373,62 +400,39 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     [selectedIds, tasksInProject]
   );
 
+  // Determine which bulk actions to show
+  const bulkActionState = useMemo(() => {
+    const archivedCount = selectedTasks.filter((t) => t.archivedAt).length;
+    const activeCount = selectedTasks.length - archivedCount;
+    return {
+      hasArchived: archivedCount > 0,
+      hasActive: activeCount > 0,
+      archivedCount,
+      activeCount,
+    };
+  }, [selectedTasks]);
+
   // Calculate select all checkbox state
   const allFilteredSelected =
     filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.id));
   const someFilteredSelected =
     filteredTasks.some((t) => selectedIds.has(t.id)) && !allFilteredSelected;
-  const [deleteStatus, setDeleteStatus] = useState<
-    Record<
-      string,
-      {
-        staged: number;
-        unstaged: number;
-        untracked: number;
-        ahead: number;
-        behind: number;
-        error?: string;
-        pr?: PrInfo | null;
-      }
-    >
-  >({});
-  const [deleteStatusLoading, setDeleteStatusLoading] = useState(false);
-  const deleteRisks = useMemo(() => {
-    const riskyIds = new Set<string>();
-    const summaries: Record<string, string> = {};
-    for (const ws of selectedTasks) {
-      const status = deleteStatus[ws.id];
-      if (!status) continue;
-      const dirty =
-        status.staged > 0 ||
-        status.unstaged > 0 ||
-        status.untracked > 0 ||
-        status.ahead > 0 ||
-        !!status.error ||
-        (status.pr && isActivePr(status.pr));
-      if (dirty) {
-        riskyIds.add(ws.id);
-        const parts: string[] = [];
-        if (status.staged > 0)
-          parts.push(`${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`);
-        if (status.unstaged > 0)
-          parts.push(`${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`);
-        if (status.untracked > 0)
-          parts.push(`${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`);
-        if (status.ahead > 0)
-          parts.push(`ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`);
-        if (status.behind > 0)
-          parts.push(`behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`);
-        if (status.pr && isActivePr(status.pr)) parts.push('PR open');
-        if (!parts.length && status.error) parts.push('status unavailable');
-        summaries[ws.id] = parts.join(', ');
-      }
-    }
-    return { riskyIds, summaries };
-  }, [deleteStatus, selectedTasks]);
+  const deleteRiskTargets = useMemo(
+    () =>
+      selectedTasks
+        .filter((ws) => ws.useWorktree !== false)
+        .map((ws) => ({ id: ws.id, name: ws.name, path: ws.path })),
+    [selectedTasks]
+  );
+  const {
+    risks: deleteStatus,
+    scannedAtById: deleteRiskScannedAt,
+    summary: deleteRisks,
+    refresh: refreshDeleteRisks,
+  } = useDeleteRisks(deleteRiskTargets, deleteRiskTargets.length > 0, { eagerPrRefresh: false });
   const deleteDisabled: boolean =
-    Boolean(isDeleting || deleteStatusLoading) ||
-    (deleteRisks.riskyIds.size > 0 && acknowledgeDirtyDelete !== true);
+    Boolean(isDeleting || isCheckingDeleteRisks) ||
+    (requiresDeleteAcknowledge && acknowledgeDirtyDelete !== true);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -465,12 +469,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     }
   };
 
-  const exitSelectMode = () => {
+  const exitSelectMode = useCallback(() => {
     setIsSelectMode(false);
     setSelectedIds(new Set());
-  };
+  }, []);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = useCallback(async () => {
     const toDelete = tasksInProject.filter((ws) => selectedIds.has(ws.id));
     if (toDelete.length === 0) return;
 
@@ -504,11 +508,81 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
     }
-  };
+  }, [
+    exitSelectMode,
+    onDeleteTask,
+    project,
+    refetchArchivedTasks,
+    selectedIds,
+    tasksInProject,
+    toast,
+  ]);
+
+  const handleConfirmBulkDelete = useCallback(
+    async (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+
+      if (isDeleting || isCheckingDeleteRisks) return;
+      if (deleteRiskTargets.length === 0) {
+        await handleBulkDelete();
+        return;
+      }
+      if (requiresDeleteAcknowledge && !acknowledgeDirtyDelete) {
+        setShowDeleteWarnings(true);
+        return;
+      }
+
+      setIsCheckingDeleteRisks(true);
+      try {
+        const now = Date.now();
+        const needsForceRefresh = deleteRiskTargets.some((target) => {
+          const status = deleteStatus[target.id];
+          if (!status) return true;
+          if (hasDeleteRisk(status)) return true;
+          if (!status.prKnown) return true;
+          const scannedAt = deleteRiskScannedAt[target.id] ?? 0;
+          return scannedAt <= 0 || now - scannedAt > DELETE_RISK_SCAN_FRESH_MS;
+        });
+
+        const latestRisks = needsForceRefresh
+          ? await refreshDeleteRisks({ force: true })
+          : deleteStatus;
+        const hasRisks = deleteRiskTargets.some((target) => hasDeleteRisk(latestRisks[target.id]));
+        setRequiresDeleteAcknowledge(hasRisks);
+        setShowDeleteWarnings(hasRisks);
+
+        if (hasRisks && !acknowledgeDirtyDelete) {
+          return;
+        }
+
+        await handleBulkDelete();
+      } catch (error) {
+        toast({
+          title: 'Could not verify delete risks',
+          description: error instanceof Error ? error.message : 'Please try deleting again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsCheckingDeleteRisks(false);
+      }
+    },
+    [
+      acknowledgeDirtyDelete,
+      deleteRiskTargets,
+      deleteRiskScannedAt,
+      deleteStatus,
+      handleBulkDelete,
+      isCheckingDeleteRisks,
+      isDeleting,
+      requiresDeleteAcknowledge,
+      refreshDeleteRisks,
+      toast,
+    ]
+  );
 
   const handleBulkArchive = async () => {
     if (!onArchiveTask) return;
-    const toArchive = tasksInProject.filter((ws) => selectedIds.has(ws.id));
+    const toArchive = tasksInProject.filter((ws) => selectedIds.has(ws.id) && !ws.archivedAt);
     if (toArchive.length === 0) return;
 
     setIsArchiving(true);
@@ -540,6 +614,44 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         title: archivedNames.length === 1 ? 'Task archived' : 'Tasks archived',
         description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
       });
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    const toRestore = tasksInProject.filter((ws) => selectedIds.has(ws.id) && ws.archivedAt);
+    if (toRestore.length === 0) return;
+
+    setIsRestoring(true);
+
+    const restoredNames: string[] = [];
+    for (const ws of toRestore) {
+      try {
+        if (onRestoreTask) {
+          await onRestoreTask(project, ws);
+        } else {
+          await rpc.db.restoreTask(ws.id);
+        }
+        setArchivedTasks((prev) => prev.filter((t) => t.id !== ws.id));
+        restoredNames.push(ws.name);
+      } catch {
+        // Continue restoring remaining tasks
+      }
+    }
+
+    setIsRestoring(false);
+    exitSelectMode();
+
+    if (restoredNames.length > 0) {
+      const maxNames = 3;
+      const displayNames = restoredNames.slice(0, maxNames).join(', ');
+      const remaining = restoredNames.length - maxNames;
+
+      toast({
+        title: restoredNames.length === 1 ? 'Task restored' : 'Tasks restored',
+        description: remaining > 0 ? `${displayNames} and ${remaining} more` : displayNames,
+      });
+    } else {
+      toast({ title: 'Failed to restore tasks', variant: 'destructive' });
     }
   };
 
@@ -598,89 +710,29 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
   useEffect(() => {
     if (!showDeleteDialog) {
-      setDeleteStatus({});
       setAcknowledgeDirtyDelete(false);
+      setRequiresDeleteAcknowledge(false);
+      setShowDeleteWarnings(false);
+      setIsCheckingDeleteRisks(false);
+      setShowDeleteActionSpinner(false);
+    }
+  }, [showDeleteDialog]);
+
+  useEffect(() => {
+    setAcknowledgeDirtyDelete(false);
+    setRequiresDeleteAcknowledge(false);
+    setShowDeleteWarnings(false);
+  }, [selectedIds]);
+
+  useEffect(() => {
+    const busy = isDeleting || isCheckingDeleteRisks;
+    if (!busy) {
+      setShowDeleteActionSpinner(false);
       return;
     }
-
-    let cancelled = false;
-    const loadStatus = async () => {
-      setDeleteStatusLoading(true);
-      const next: typeof deleteStatus = {};
-
-      for (const ws of selectedTasks) {
-        try {
-          const [statusRes, infoRes, rawPr] = await Promise.allSettled([
-            window.electronAPI.getGitStatus(ws.path),
-            window.electronAPI.getGitInfo(ws.path),
-            project.isRemote ? Promise.resolve(null) : refreshPrStatus(ws.path),
-          ]);
-
-          let staged = 0;
-          let unstaged = 0;
-          let untracked = 0;
-          if (
-            statusRes.status === 'fulfilled' &&
-            statusRes.value?.success &&
-            statusRes.value.changes
-          ) {
-            for (const change of statusRes.value.changes) {
-              if (change.status === 'untracked') {
-                untracked += 1;
-              } else if (change.isStaged) {
-                staged += 1;
-              } else {
-                unstaged += 1;
-              }
-            }
-          }
-
-          const ahead =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.aheadCount === 'number'
-              ? infoRes.value.aheadCount
-              : 0;
-          const behind =
-            infoRes.status === 'fulfilled' && typeof infoRes.value?.behindCount === 'number'
-              ? infoRes.value.behindCount
-              : 0;
-          const prValue = rawPr.status === 'fulfilled' ? rawPr.value : null;
-          const pr = isActivePr(prValue) ? prValue : null;
-
-          next[ws.id] = {
-            staged,
-            unstaged,
-            untracked,
-            ahead,
-            behind,
-            error:
-              statusRes.status === 'fulfilled'
-                ? statusRes.value?.error
-                : statusRes.reason?.message || String(statusRes.reason || ''),
-            pr,
-          };
-        } catch (error: any) {
-          next[ws.id] = {
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            ahead: 0,
-            behind: 0,
-            error: error?.message || String(error),
-          };
-        }
-      }
-
-      if (!cancelled) {
-        setDeleteStatus(next);
-        setDeleteStatusLoading(false);
-      }
-    };
-
-    void loadStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [showDeleteDialog, selectedTasks]);
+    const timeoutId = window.setTimeout(() => setShowDeleteActionSpinner(true), 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [isCheckingDeleteRisks, isDeleting]);
 
   // Sync baseBranch when branchOptions change
   useEffect(() => {
@@ -762,7 +814,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   {onDeleteProject ? (
                     <ProjectDeleteButton
                       projectName={project.name}
-                      tasks={project.tasks}
+                      tasks={activeTasks}
                       onConfirm={() => onDeleteProject?.(project)}
                       aria-label={`Delete project ${project.name}`}
                     />
@@ -816,28 +868,68 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         <span className="text-sm text-muted-foreground">
                           {selectedCount} selected
                         </span>
-                        {onArchiveTask && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground"
-                            onClick={handleBulkArchive}
-                            disabled={isArchiving || isDeleting || selectedCount === 0}
-                            aria-label="Archive selected"
-                          >
-                            {isArchiving ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Archive className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
+                        {onArchiveTask && bulkActionState.hasActive && (
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-muted-foreground"
+                                  onClick={handleBulkArchive}
+                                  disabled={
+                                    isArchiving || isDeleting || isRestoring || selectedCount === 0
+                                  }
+                                  aria-label="Archive selected"
+                                >
+                                  {isArchiving ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Archive className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Archive {bulkActionState.activeCount}{' '}
+                                {bulkActionState.activeCount === 1 ? 'task' : 'tasks'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {bulkActionState.hasArchived && (
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-muted-foreground"
+                                  onClick={handleBulkRestore}
+                                  disabled={
+                                    isArchiving || isDeleting || isRestoring || selectedCount === 0
+                                  }
+                                  aria-label="Unarchive selected"
+                                >
+                                  {isRestoring ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <ArchiveRestore className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Unarchive {bulkActionState.archivedCount}{' '}
+                                {bulkActionState.archivedCount === 1 ? 'task' : 'tasks'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground"
                           onClick={() => setShowDeleteDialog(true)}
-                          disabled={isDeleting || isArchiving || selectedCount === 0}
+                          disabled={isDeleting || isArchiving || isRestoring || selectedCount === 0}
                           aria-label="Delete selected"
                         >
                           {isDeleting ? (
@@ -978,29 +1070,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           </AlertDialogHeader>
           <div className="space-y-3">
             <AnimatePresence initial={false}>
-              {deleteStatusLoading ? (
-                <motion.div
-                  key="bulk-delete-loading"
-                  initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
-                >
-                  <Spinner
-                    className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground"
-                    size="sm"
-                  />
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <span className="text-sm font-semibold text-foreground">Please wait...</span>
-                    <span className="text-xs text-muted-foreground">
-                      Scanning tasks for uncommitted changes and open pull requests
-                    </span>
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-            <AnimatePresence initial={false}>
               {(() => {
                 const tasksWithUncommittedWorkOnly = selectedTasks.filter((ws) => {
                   const summary = deleteRisks.summaries[ws.id];
@@ -1010,7 +1079,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                   return true;
                 });
 
-                return tasksWithUncommittedWorkOnly.length > 0 && !deleteStatusLoading ? (
+                return showDeleteWarnings && tasksWithUncommittedWorkOnly.length > 0 ? (
                   <motion.div
                     key="bulk-risk"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -1047,7 +1116,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 const prTasks = selectedTasks
                   .map((ws) => ({ name: ws.name, pr: deleteStatus[ws.id]?.pr }))
                   .filter((w) => w.pr && isActivePr(w.pr));
-                return prTasks.length && !deleteStatusLoading ? (
+                return showDeleteWarnings && prTasks.length ? (
                   <motion.div
                     key="bulk-pr-notice"
                     initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -1062,7 +1131,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
-              {deleteRisks.riskyIds.size > 0 && !deleteStatusLoading ? (
+              {showDeleteWarnings && deleteRisks.riskyIds.size > 0 ? (
                 <motion.label
                   key="bulk-ack"
                   className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
@@ -1082,12 +1151,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </AnimatePresence>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting || isCheckingDeleteRisks}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive px-4 text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleBulkDelete}
+              onClick={handleConfirmBulkDelete}
               disabled={deleteDisabled}
             >
+              {showDeleteActionSpinner ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

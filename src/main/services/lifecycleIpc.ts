@@ -127,6 +127,16 @@ export function registerLifecycleIpc(): void {
     }
   });
 
+  ipcMain.handle('lifecycle:getLogs', async (_event, args: { taskId: string }) => {
+    try {
+      const logs = taskLifecycleService.getLogs(args.taskId);
+      return { success: true, logs };
+    } catch (error) {
+      log.error('Failed to get lifecycle logs:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   ipcMain.handle('lifecycle:clearTask', async (_event, args: { taskId: string }) => {
     try {
       taskLifecycleService.clearTask(args.taskId);

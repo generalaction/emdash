@@ -2,10 +2,16 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  parseDiffLines,
+  stripTrailingNewline,
+  MAX_DIFF_CONTENT_BYTES,
+  MAX_DIFF_OUTPUT_BYTES,
+} from '../utils/diffParser';
+import type { DiffLine, DiffResult } from '../utils/diffParser';
 
 const execFileAsync = promisify(execFile);
 const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
-const MAX_UNTRACKED_DIFF_BYTES = 512 * 1024;
 
 async function countFileNewlinesCapped(filePath: string, maxBytes: number): Promise<number | null> {
   let stat: fs.Stats;
@@ -79,11 +85,18 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
 
   if (!statusOutput.trim()) return [];
 
-  const changes: GitChange[] = [];
   const statusLines = statusOutput
     .split('\n')
     .map((l) => l.replace(/\r$/, ''))
     .filter((l) => l.length > 0);
+
+  // Parse status lines into file entries
+  const entries: Array<{
+    filePath: string;
+    status: string;
+    statusCode: string;
+    isStaged: boolean;
+  }> = [];
 
   for (const line of statusLines) {
     const statusCode = line.substring(0, 2);
@@ -99,53 +112,96 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     else if (statusCode.includes('R')) status = 'renamed';
     else if (statusCode.includes('M')) status = 'modified';
 
-    // Check if file is staged (first character of status code indicates staged changes)
     const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-    let additions = 0;
-    let deletions = 0;
+    entries.push({ filePath, status, statusCode, isStaged });
+  }
 
-    const sumNumstat = (stdout: string) => {
-      const lines = stdout
-        .trim()
-        .split('\n')
-        .filter((l) => l.trim().length > 0);
-      for (const l of lines) {
-        const p = l.split('\t');
-        if (p.length >= 2) {
-          const addStr = p[0];
-          const delStr = p[1];
-          const a = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
-          const d = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
-          additions += a;
-          deletions += d;
+  // Batch: run ONE staged numstat and ONE unstaged numstat for ALL files at once and parse the file
+  // into a map of file paths to their additions and deletions
+  // Map { filePath: { add: number, del: number } }
+  // Resolve git's rename notation to the new (destination) file path.
+  // Formats: "old.ts => new.ts" or "src/{Old => New}.tsx"
+  const resolveRenamePath = (file: string): string => {
+    if (!file.includes(' => ')) return file;
+    // In-place rename with braces: "src/{Old => New}.tsx"
+    if (file.includes('{')) {
+      return file.replace(/\{[^}]+ => ([^}]+)\}/g, '$1').replace(/\/\//g, '/');
+    }
+    // Full rename: "old.ts => new.ts"
+    return file.split(' => ').pop()!.trim();
+  };
+
+  const parseNumstatMap = (stdout: string): Map<string, { add: number; del: number }> => {
+    const map = new Map<string, { add: number; del: number }>();
+    if (!stdout || !stdout.trim()) return map;
+    for (const line of stdout.trim().split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split('\t');
+      if (parts.length >= 3) {
+        const add = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
+        const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
+        const file = resolveRenamePath(parts.slice(2).join('\t'));
+        const existing = map.get(file);
+        if (existing) {
+          existing.add += add;
+          existing.del += del;
+        } else {
+          map.set(file, { add, del });
         }
       }
-    };
+    }
+    return map;
+  };
 
-    try {
-      const staged = await execFileAsync('git', ['diff', '--numstat', '--cached', '--', filePath], {
-        cwd: taskPath,
-      });
-      if (staged.stdout && staged.stdout.trim()) sumNumstat(staged.stdout);
-    } catch {}
+  const [stagedResult, unstagedResult] = await Promise.all([
+    execFileAsync('git', ['diff', '--numstat', '--cached'], { cwd: taskPath }).catch(() => ({
+      stdout: '',
+      stderr: '',
+    })),
+    execFileAsync('git', ['diff', '--numstat'], { cwd: taskPath }).catch(() => ({
+      stdout: '',
+      stderr: '',
+    })),
+  ]);
 
-    try {
-      const unstaged = await execFileAsync('git', ['diff', '--numstat', '--', filePath], {
-        cwd: taskPath,
-      });
-      if (unstaged.stdout && unstaged.stdout.trim()) sumNumstat(unstaged.stdout);
-    } catch {}
+  const stagedMap = parseNumstatMap(stagedResult.stdout);
+  const unstagedMap = parseNumstatMap(unstagedResult.stdout);
 
-    if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-      const absPath = path.join(taskPath, filePath);
-      const count = await countFileNewlinesCapped(absPath, MAX_UNTRACKED_LINECOUNT_BYTES);
-      if (typeof count === 'number') {
-        additions = count;
-      }
+  // Count lines for untracked files in parallel
+  const untrackedEntries = entries.filter(
+    (e) => e.statusCode.includes('?') && !stagedMap.has(e.filePath) && !unstagedMap.has(e.filePath)
+  );
+  const untrackedCounts = await Promise.all(
+    untrackedEntries.map((e) =>
+      countFileNewlinesCapped(path.join(taskPath, e.filePath), MAX_UNTRACKED_LINECOUNT_BYTES)
+    )
+  );
+  const untrackedMap = new Map<string, number>();
+  untrackedEntries.forEach((e, i) => {
+    if (typeof untrackedCounts[i] === 'number') {
+      untrackedMap.set(e.filePath, untrackedCounts[i]!);
+    }
+  });
+
+  // Assemble results
+  const changes: GitChange[] = entries.map((e) => {
+    const staged = stagedMap.get(e.filePath);
+    const unstaged = unstagedMap.get(e.filePath);
+    let additions = (staged?.add ?? 0) + (unstaged?.add ?? 0);
+    const deletions = (staged?.del ?? 0) + (unstaged?.del ?? 0);
+
+    if (additions === 0 && deletions === 0 && untrackedMap.has(e.filePath)) {
+      additions = untrackedMap.get(e.filePath)!;
     }
 
-    changes.push({ path: filePath, status, additions, deletions, isStaged });
-  }
+    return {
+      path: e.filePath,
+      status: e.status,
+      additions,
+      deletions,
+      isStaged: e.isStaged,
+    };
+  });
 
   return changes;
 }
@@ -205,105 +261,99 @@ export async function revertFile(
   return { action: 'reverted' };
 }
 
-/** Headers emitted by `git diff` that should be skipped when parsing hunks. */
-const DIFF_HEADER_PREFIXES = [
-  'diff ',
-  'index ',
-  '--- ',
-  '+++ ',
-  '@@',
-  'new file mode',
-  'old file mode',
-  'deleted file mode',
-  'similarity index',
-  'rename from',
-  'rename to',
-  'Binary files',
-];
-
-type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
-
-/** Parse raw `git diff` output into structured diff lines, skipping headers. */
-function parseDiffLines(stdout: string): { lines: DiffLine[]; isBinary: boolean } {
-  const linesRaw = stdout.split('\n');
-  const result: DiffLine[] = [];
-  for (const line of linesRaw) {
-    if (!line) continue;
-    if (DIFF_HEADER_PREFIXES.some((p) => line.startsWith(p))) continue;
-    const prefix = line[0];
-    const content = line.slice(1);
-    if (prefix === '\\') continue; // skip "\ No newline at end of file" markers
-    if (prefix === ' ') result.push({ left: content, right: content, type: 'context' });
-    else if (prefix === '-') result.push({ left: content, type: 'del' });
-    else if (prefix === '+') result.push({ right: content, type: 'add' });
-    else result.push({ left: line, right: line, type: 'context' });
-  }
-  const isBinary = result.length === 0 && stdout.includes('Binary files');
-  return { lines: result, isBinary };
-}
-
-export async function getFileDiff(
-  taskPath: string,
-  filePath: string
-): Promise<{
-  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
-  isBinary?: boolean;
-}> {
+export async function getFileDiff(taskPath: string, filePath: string): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
 
+  // Helper: fetch content at HEAD with size guard
+  const getOriginalContent = async (): Promise<string | undefined> => {
+    try {
+      const { stdout } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
+        cwd: taskPath,
+        maxBuffer: MAX_DIFF_CONTENT_BYTES,
+      });
+      return stripTrailingNewline(stdout);
+    } catch {
+      return undefined;
+    }
+  };
+
+  // Helper: read current file from disk with size guard
+  const getModifiedContent = async (): Promise<string | undefined> => {
+    const content = await readFileTextCapped(path.join(taskPath, filePath), MAX_DIFF_CONTENT_BYTES);
+    return content !== null ? stripTrailingNewline(content) : undefined;
+  };
+
+  // Step 1: Run git diff
+  let diffStdout: string | undefined;
   try {
     const { stdout } = await execFileAsync(
       'git',
       ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-      { cwd: taskPath }
+      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
     );
+    diffStdout = stdout;
+  } catch {
+    // git diff failed (no HEAD, untracked file, etc.) — fall through to content-only path
+  }
 
-    const { lines: result, isBinary } = parseDiffLines(stdout);
+  // Step 2: Parse diff and check binary
+  if (diffStdout !== undefined) {
+    const { lines, isBinary } = parseDiffLines(diffStdout);
 
     if (isBinary) {
       return { lines: [], isBinary: true };
     }
 
-    if (result.length === 0) {
-      try {
-        const abs = path.join(taskPath, filePath);
-        const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
-        if (content !== null) {
-          return { lines: content.split('\n').map((l) => ({ right: l, type: 'add' as const })) };
-        }
-        const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-          cwd: taskPath,
-        });
-        return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
-      } catch {
-        return { lines: [] };
-      }
-    }
+    // Step 3: Fetch content (only for non-binary)
+    const [originalContent, modifiedContent] = await Promise.all([
+      getOriginalContent(),
+      getModifiedContent(),
+    ]);
 
-    return { lines: result };
-  } catch {
-    // The git diff against HEAD failed (e.g., untracked file, no HEAD).
-    // Try reading the file directly as an all-additions diff.
-    const abs = path.join(taskPath, filePath);
-    const content = await readFileTextCapped(abs, MAX_UNTRACKED_DIFF_BYTES);
-    if (content !== null) {
-      const lines = content.split('\n');
-      return { lines: lines.map((l) => ({ right: l, type: 'add' as const })) };
-    }
-    // File unreadable — try to show the HEAD version as all-deletions
-    try {
-      const { stdout: prev } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-        cwd: taskPath,
-      });
-      return { lines: prev.split('\n').map((l) => ({ left: l, type: 'del' as const })) };
-    } catch {
+    // Step 4: Handle empty diff (untracked or deleted file that git reports as empty diff)
+    if (lines.length === 0) {
+      if (modifiedContent !== undefined) {
+        return {
+          lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+          modifiedContent,
+        };
+      }
+      if (originalContent !== undefined) {
+        return {
+          lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+          originalContent,
+        };
+      }
       return { lines: [] };
     }
+
+    return { lines, originalContent, modifiedContent };
   }
+
+  // Fallback: git diff failed — try content-only approach
+  const [originalContent, modifiedContent] = await Promise.all([
+    getOriginalContent(),
+    getModifiedContent(),
+  ]);
+
+  if (modifiedContent !== undefined) {
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      originalContent,
+      modifiedContent,
+    };
+  }
+  if (originalContent !== undefined) {
+    return {
+      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+      originalContent,
+    };
+  }
+  return { lines: [] };
 }
 
 /** Commit staged files (no push). Returns the commit hash. */
@@ -534,15 +584,25 @@ export async function getCommitFileDiff(
   taskPath: string,
   commitHash: string,
   filePath: string
-): Promise<{
-  lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
-  isBinary?: boolean;
-}> {
+): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
+
+  // Helper: fetch content at a given ref with size guard
+  const getContentAt = async (ref: string): Promise<string | undefined> => {
+    try {
+      const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
+        cwd: taskPath,
+        maxBuffer: MAX_DIFF_CONTENT_BYTES,
+      });
+      return stripTrailingNewline(stdout);
+    } catch {
+      return undefined;
+    }
+  };
 
   // Check if this is a root commit (no parent)
   let hasParent = true;
@@ -552,42 +612,66 @@ export async function getCommitFileDiff(
     hasParent = false;
   }
 
-  let stdout: string;
-  if (hasParent) {
-    const diffArgs = [
-      'diff',
-      '--no-color',
-      '--unified=2000',
-      `${commitHash}~1`,
-      commitHash,
-      '--',
-      filePath,
-    ];
-    ({ stdout } = await execFileAsync('git', diffArgs, { cwd: taskPath }));
-  } else {
-    // For root commits, show the file content at that commit as all additions
-    try {
-      const { stdout: content } = await execFileAsync(
-        'git',
-        ['show', `${commitHash}:${filePath}`],
-        { cwd: taskPath }
-      );
-      const lines = content.split('\n');
-      return {
-        lines: lines.map((l) => ({ right: l, type: 'add' as const })),
-      };
-    } catch {
+  if (!hasParent) {
+    const modifiedContent = await getContentAt(commitHash);
+    if (modifiedContent === undefined) {
       return { lines: [] };
     }
+    if (modifiedContent === '') {
+      return { lines: [], modifiedContent };
+    }
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      modifiedContent,
+    };
   }
 
-  const { lines: result, isBinary } = parseDiffLines(stdout);
-
-  if (isBinary) {
-    return { lines: [], isBinary: true };
+  // Run diff
+  let diffStdout: string | undefined;
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
+      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
+    );
+    diffStdout = stdout;
+  } catch {
+    // diff too large or git error — fall through to content-only path
   }
 
-  return { lines: result };
+  let diffLines: DiffLine[] = [];
+  if (diffStdout !== undefined) {
+    const { lines, isBinary } = parseDiffLines(diffStdout);
+    if (isBinary) {
+      return { lines: [], isBinary: true };
+    }
+    diffLines = lines;
+  }
+
+  // Fetch content AFTER binary check to avoid fetching binary blobs
+  const [originalContent, modifiedContent] = await Promise.all([
+    getContentAt(`${commitHash}~1`),
+    getContentAt(commitHash),
+  ]);
+
+  if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
+
+  // Fallback: diff failed or empty — determine from content
+  if (modifiedContent !== undefined && modifiedContent !== '') {
+    return {
+      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+      originalContent,
+      modifiedContent,
+    };
+  }
+  if (originalContent !== undefined) {
+    return {
+      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+      originalContent,
+      modifiedContent,
+    };
+  }
+  return { lines: [], originalContent, modifiedContent };
 }
 
 /** Soft-reset the latest commit. Returns the commit message that was reset. */

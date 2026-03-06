@@ -17,7 +17,8 @@ import {
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
-import { useDeleteRisks } from '../hooks/useDeleteRisks';
+import { DELETE_RISK_SCAN_FRESH_MS, useDeleteRisks } from '../hooks/useDeleteRisks';
+import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
 import { isActivePr } from '../lib/prStatus';
 
@@ -58,11 +59,16 @@ export const TaskDeleteButton: React.FC<Props> = ({
   onExternalOpenChange,
   hideTrigger = false,
 }) => {
+  const { toast } = useToast();
   const [internalOpen, setInternalOpen] = React.useState(false);
   const isControlled = externalOpen !== undefined;
   const open = isControlled ? externalOpen : internalOpen;
   const setOpen = isControlled ? (v: boolean) => onExternalOpenChange?.(v) : setInternalOpen;
   const [acknowledge, setAcknowledge] = React.useState(false);
+  const [showWarnings, setShowWarnings] = React.useState(false);
+  const [requiresAcknowledge, setRequiresAcknowledge] = React.useState(false);
+  const [isCheckingRisks, setIsCheckingRisks] = React.useState(false);
+  const [showActionSpinner, setShowActionSpinner] = React.useState(false);
   const targets = useMemo(
     () => [{ id: taskId, name: taskName, path: taskPath }],
     [taskId, taskName, taskPath]
@@ -70,7 +76,9 @@ export const TaskDeleteButton: React.FC<Props> = ({
   // Only check for deletion risks if the task uses a worktree.
   // Tasks running directly on the main branch (useWorktree === false) don't need risk assessment
   // since they don't have isolated changes that could be lost.
-  const { risks, loading, hasData } = useDeleteRisks(targets, open && useWorktree);
+  const { risks, scannedAtById, refresh } = useDeleteRisks(targets, open && useWorktree, {
+    eagerPrRefresh: false,
+  });
   const status = risks[taskId] || {
     staged: 0,
     unstaged: 0,
@@ -79,26 +87,42 @@ export const TaskDeleteButton: React.FC<Props> = ({
     behind: 0,
     error: undefined,
     pr: null,
+    prKnown: false,
   };
 
   // Determine if deletion is risky based on uncommitted changes or active PRs.
   // Tasks on main branch (useWorktree === false) are never considered risky
   // because they don't have worktree-specific changes that would be lost.
-  const risky: boolean =
-    useWorktree &&
-    (status.staged > 0 ||
-      status.unstaged > 0 ||
-      status.untracked > 0 ||
-      status.ahead > 0 ||
-      !!status.error ||
-      !!(status.pr && isActivePr(status.pr)));
-  const disableDelete: boolean = Boolean(isDeleting || loading) || (risky && !acknowledge);
+  const hasRisk = (targetStatus: typeof status): boolean =>
+    targetStatus.staged > 0 ||
+    targetStatus.unstaged > 0 ||
+    targetStatus.untracked > 0 ||
+    targetStatus.ahead > 0 ||
+    !!targetStatus.error ||
+    !!(targetStatus.pr && isActivePr(targetStatus.pr));
+  const risky: boolean = useWorktree && hasRisk(status);
+  const disableDelete: boolean =
+    Boolean(isDeleting || isCheckingRisks) || (requiresAcknowledge && !acknowledge);
 
   React.useEffect(() => {
     if (!open) {
       setAcknowledge(false);
+      setShowWarnings(false);
+      setRequiresAcknowledge(false);
+      setIsCheckingRisks(false);
+      setShowActionSpinner(false);
     }
   }, [open]);
+
+  React.useEffect(() => {
+    const busy = isDeleting || isCheckingRisks;
+    if (!busy) {
+      setShowActionSpinner(false);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setShowActionSpinner(true), 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [isCheckingRisks, isDeleting]);
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -142,27 +166,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
         </AlertDialogHeader>
         <div className="space-y-3 text-sm">
           <AnimatePresence initial={false}>
-            {loading && useWorktree ? (
-              <motion.div
-                key="task-delete-loading"
-                initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.99 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-4 py-4"
-              >
-                <Spinner className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" size="sm" />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-sm font-semibold text-foreground">Please wait...</span>
-                  <span className="text-xs text-muted-foreground">
-                    Scanning task for uncommitted changes and open pull requests
-                  </span>
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          <AnimatePresence initial={false}>
-            {risky && !loading ? (
+            {showWarnings && (requiresAcknowledge || risky) ? (
               <motion.div
                 key="delete-risk"
                 initial={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -207,7 +211,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
             ) : null}
           </AnimatePresence>
           <AnimatePresence initial={false}>
-            {risky && !loading ? (
+            {showWarnings && requiresAcknowledge ? (
               <motion.label
                 key="ack-delete"
                 className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2"
@@ -232,14 +236,51 @@ export const TaskDeleteButton: React.FC<Props> = ({
             className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
             disabled={disableDelete}
             onClick={async (e) => {
+              e.preventDefault();
               e.stopPropagation();
+              if (requiresAcknowledge && !acknowledge) {
+                setShowWarnings(true);
+                return;
+              }
+              if (useWorktree && !showWarnings) {
+                setIsCheckingRisks(true);
+                try {
+                  const scanAgeMs = Date.now() - (scannedAtById[taskId] ?? 0);
+                  const hasFreshScan =
+                    (scannedAtById[taskId] ?? 0) > 0 && scanAgeMs <= DELETE_RISK_SCAN_FRESH_MS;
+                  const hasKnownStatus = Boolean(risks[taskId]);
+                  const hasKnownRisk = hasKnownStatus && hasRisk(status);
+                  const hasKnownPrState = hasKnownStatus && status.prKnown;
+                  const shouldForceRefresh =
+                    !hasKnownStatus || !hasKnownPrState || !hasFreshScan || hasKnownRisk;
+
+                  const latest = shouldForceRefresh ? await refresh({ force: true }) : risks;
+                  const latestStatus = latest[taskId] || status;
+                  if (hasRisk(latestStatus)) {
+                    setRequiresAcknowledge(true);
+                    setShowWarnings(true);
+                    return;
+                  }
+                  setRequiresAcknowledge(false);
+                } catch (error) {
+                  toast({
+                    title: 'Could not verify delete risks',
+                    description:
+                      error instanceof Error ? error.message : 'Please try deleting again.',
+                    variant: 'destructive',
+                  });
+                  return;
+                } finally {
+                  setIsCheckingRisks(false);
+                }
+              }
               setOpen(false);
               try {
                 await onConfirm();
               } catch {}
             }}
           >
-            {isDeleting ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
+            {showActionSpinner ? <Spinner className="mr-2 h-4 w-4" size="sm" /> : null}
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

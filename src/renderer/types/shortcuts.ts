@@ -96,6 +96,10 @@ export interface GlobalShortcutHandlers {
   // State checks
   isCommandPaletteOpen?: boolean;
   isSettingsOpen?: boolean;
+  isBrowserOpen?: boolean;
+  isDiffViewerOpen?: boolean;
+  isEditorOpen?: boolean;
+  isKanbanOpen?: boolean;
 
   // Custom keyboard settings
   customKeyboardSettings?: KeyboardSettings;

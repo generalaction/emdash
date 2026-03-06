@@ -5,50 +5,31 @@ import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
-import SettingsPage from './SettingsPage';
+import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
-import { useProjectManagementContext } from '../contexts/ProjectManagementContext';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
-
-type SettingsPageTab =
-  | 'general'
-  | 'clis-models'
-  | 'integrations'
-  | 'repository'
-  | 'interface'
-  | 'docs';
+import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
 
 interface MainContentAreaProps {
-  isCreatingTask: boolean;
-  onTaskInterfaceReady: () => void;
-  showKanban: boolean;
   showSettingsPage: boolean;
   settingsPageInitialTab?: SettingsPageTab;
   handleCloseSettingsPage?: () => void;
-  handleAddRemoteProject: () => void;
-  openTaskModal: () => void;
-  setShowKanban: (show: boolean) => void;
-  projectRemoteConnectionId?: string | null;
-  projectRemotePath?: string | null;
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
-  isCreatingTask,
-  onTaskInterfaceReady,
-  showKanban,
   showSettingsPage,
   settingsPageInitialTab,
   handleCloseSettingsPage,
-  handleAddRemoteProject,
-  openTaskModal,
-  setShowKanban,
-  projectRemoteConnectionId,
-  projectRemotePath,
 }) => {
+  const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
+    useProjectRemoteInfo();
   const {
     selectedProject,
     showHomeView,
     showSkillsView,
+    showKanban,
+    setShowKanban,
     projectDefaultBranch,
     projectBranchOptions,
     isLoadingBranches,
@@ -57,10 +38,14 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     handleOpenProject,
     handleNewProjectClick,
     handleCloneProjectClick,
+    handleAddRemoteProject,
   } = useProjectManagementContext();
   const {
     activeTask,
     activeTaskAgent,
+    isCreatingTask,
+    handleTaskInterfaceReady: onTaskInterfaceReady,
+    openTaskModal,
     handleSelectTask,
     handleDeleteTask,
     handleArchiveTask,

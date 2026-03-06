@@ -53,8 +53,8 @@ vi.mock('../../main/settings', () => ({
 }));
 
 vi.mock('../../shared/providers/registry', () => ({
-  PROVIDER_IDS: ['claude'],
-  getProvider: vi.fn(() => ({ name: 'Claude' })),
+  PROVIDER_IDS: ['claude', 'codex'],
+  getProvider: vi.fn((id: string) => ({ name: id === 'codex' ? 'Codex' : 'Claude' })),
 }));
 
 vi.mock('../../main/services/DatabaseService', () => ({
@@ -179,5 +179,16 @@ describe('AgentEventService notification click', () => {
     expect(mockWin.show).toHaveBeenCalled();
     expect(mockWin.focus).toHaveBeenCalled();
     expect(mockWin.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('maps Codex turn-complete notifications to waiting-for-input alerts', async () => {
+    const ptyId = makePtyId('codex', 'main', 'task-codex');
+    const status = await postEvent(service.getPort(), service.getToken(), ptyId, 'notification', {
+      type: 'agent-turn-complete',
+    });
+
+    expect(status).toBe(200);
+    expect(notificationInstances).toHaveLength(1);
+    expect(notificationInstances[0].options.body).toBe('Your agent is waiting for input');
   });
 });

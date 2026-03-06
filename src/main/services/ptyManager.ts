@@ -59,6 +59,7 @@ type PtyRecord = {
   kind?: 'local' | 'ssh';
   cols?: number;
   rows?: number;
+  tmuxSessionName?: string; // Set when session is wrapped in tmux
 };
 
 const ptys = new Map<string, PtyRecord>();
@@ -100,6 +101,7 @@ const DISPLAY_ENV_VARS = [
   'XDG_RUNTIME_DIR', // Contains Wayland/D-Bus sockets (e.g. /run/user/1000)
   'XDG_CURRENT_DESKTOP', // Used by xdg-open for DE detection (e.g. "GNOME")
   'XDG_SESSION_TYPE', // Used by browsers/toolkits to select X11 vs Wayland
+  'XDG_DATA_DIRS', // .desktop file search paths; includes snap/flatpak dirs set by session
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
@@ -112,6 +114,43 @@ function getDisplayEnv(): Record<string, string> {
   }
   return env;
 }
+
+// --- Tmux session helpers ---
+
+/**
+ * Derive a deterministic tmux session name from a PTY ID.
+ * Sanitizes to characters allowed by tmux (alphanumeric, `-`, `_`, `.`).
+ */
+export function getTmuxSessionName(ptyId: string): string {
+  // PTY ID format: {providerId}-main-{taskId} or {providerId}-chat-{conversationId}
+  // Prefix with "emdash-" and sanitize
+  const sanitized = ptyId.replace(/[^a-zA-Z0-9._-]/g, '-');
+  return `emdash-${sanitized}`;
+}
+
+/**
+ * Kill a tmux session by PTY ID. Fire-and-forget — ignores errors
+ * for non-existent sessions (e.g., tmux not installed or session already dead).
+ */
+export function killTmuxSession(ptyId: string): void {
+  const sessionName = getTmuxSessionName(ptyId);
+  try {
+    const { execFile } = require('child_process');
+    execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+      if (!err) {
+        log.info('ptyManager:tmux - killed session', { sessionName });
+      }
+      // Ignore errors — session may not exist or tmux not installed
+    });
+  } catch {
+    // Ignore
+  }
+}
+
+// TODO: Remote tmux cleanup will be handled by the workspace provider teardown script.
+// The PTY record doesn't currently store SSH target/args, so we can't shell out
+// `ssh <target> tmux kill-session` from here. When workspace providers land, the
+// teardown script is the right place for this.
 
 function resolveWindowsPtySpawn(
   command: string,
@@ -173,6 +212,12 @@ type SessionEntry = { uuid: string; cwd: string };
 let _sessionMapPath: string | null = null;
 let _sessionMap: Record<string, SessionEntry> | null = null;
 
+/** @internal Exported for testing. Sets session map path and clears the cache. */
+export function _resetSessionMapForTest(mapPath: string): void {
+  _sessionMapPath = mapPath;
+  _sessionMap = null;
+}
+
 function sessionMapPath(): string {
   if (!_sessionMapPath) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -192,10 +237,6 @@ function loadSessionMap(): Record<string, SessionEntry> {
   return _sessionMap!;
 }
 
-function getKnownSessionId(ptyId: string): string | undefined {
-  return loadSessionMap()[ptyId]?.uuid;
-}
-
 /** Check if the session map has entries for other chats of the same provider in the same cwd. */
 function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
   const map = loadSessionMap();
@@ -212,6 +253,26 @@ function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
     fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
   } catch (e) {
     log.warn('ptyManager: failed to persist session map', e);
+  }
+}
+
+function removeSessionId(ptyId: string): void {
+  const map = loadSessionMap();
+  delete map[ptyId];
+  try {
+    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
+  } catch (e) {
+    log.warn('ptyManager: failed to persist session map after removal', e);
+  }
+}
+
+function claudeSessionFileExists(uuid: string, cwd: string): boolean {
+  try {
+    const encoded = cwd.replace(/[:\\/]/g, '-');
+    const sessionFile = path.join(os.homedir(), '.claude', 'projects', encoded, `${uuid}.jsonl`);
+    return fs.existsSync(sessionFile);
+  } catch {
+    return false;
   }
 }
 
@@ -282,7 +343,7 @@ function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): S
  *
  * Returns true if session isolation args were added.
  */
-function applySessionIsolation(
+export function applySessionIsolation(
   cliArgs: string[],
   provider: ProviderDefinition,
   id: string,
@@ -297,10 +358,30 @@ function applySessionIsolation(
   const sessionUuid = deterministicUuid(parsed.suffix);
   const isAdditionalChat = parsed.kind === 'chat';
 
-  const knownSession = getKnownSessionId(id);
+  const entry = loadSessionMap()[id];
+  const knownSession = entry?.uuid;
   if (knownSession) {
-    cliArgs.push('--resume', knownSession);
-    return true;
+    // For Claude, validate the session still exists on disk before resuming.
+    // Also treat cwd mismatch as stale — the session belongs to a different
+    // project context and Claude would look in the wrong directory.
+    if (provider.id === 'claude') {
+      const isStale = entry.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
+      if (isStale) {
+        log.warn('ptyManager: stale session detected, creating new session', {
+          ptyId: id,
+          staleUuid: knownSession,
+        });
+        removeSessionId(id);
+        // Fall through — the decision tree below will create a new session
+        // or the caller will use generic resume flags
+      } else {
+        cliArgs.push('--resume', knownSession);
+        return true;
+      }
+    } else {
+      cliArgs.push('--resume', knownSession);
+      return true;
+    }
   }
 
   if (isAdditionalChat) {
@@ -442,6 +523,12 @@ type ProviderCliArgsOptions = {
   useKeystrokeInjection?: boolean;
 };
 
+type ProviderRuntimeCliArgsOptions = {
+  providerId: string;
+  target?: 'local' | 'remote';
+  platform?: NodeJS.Platform;
+};
+
 export function resolveProviderCommandConfig(
   providerId: string
 ): ResolvedProviderCommandConfig | null {
@@ -522,6 +609,80 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
   }
 
   return args;
+}
+
+function makePosixCodexNotifyCommand(): string[] {
+  const script =
+    `printf '%s' "$1" | ` +
+    `curl -sf -X POST ` +
+    `-H 'Content-Type: application/json' ` +
+    `-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ` +
+    `-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ` +
+    `-H 'X-Emdash-Event-Type: notification' ` +
+    `-d @- ` +
+    `"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true`;
+
+  return ['sh', '-lc', script, 'sh'];
+}
+
+function ensureWindowsCodexNotifyScript(): string {
+  const scriptPath = path.join(os.tmpdir(), 'emdash-codex-notify.ps1');
+  const script = [
+    'param([string]$payload)',
+    'try {',
+    '  Invoke-WebRequest -UseBasicParsing -Method POST ' +
+      "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+      '-Headers @{ ' +
+      "'Content-Type' = 'application/json'; " +
+      "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
+      "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
+      "'X-Emdash-Event-Type' = 'notification' " +
+      '} -Body $payload | Out-Null',
+    '} catch {',
+    '  exit 0',
+    '}',
+    '',
+  ].join('\n');
+
+  try {
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(scriptPath, script);
+  } catch (err) {
+    log.warn('ptyManager: failed to write Codex Windows notify script', {
+      path: scriptPath,
+      error: String(err),
+    });
+  }
+
+  return scriptPath;
+}
+
+function makeWindowsCodexNotifyCommand(): string[] {
+  // Use -File so Codex's appended payload argument binds reliably as a script parameter.
+  return ['powershell.exe', '-NoProfile', '-File', ensureWindowsCodexNotifyScript()];
+}
+
+function makeCodexNotifyConfigValue(target: 'local' | 'remote', platform: NodeJS.Platform): string {
+  const notifyCommand =
+    target === 'remote' || platform !== 'win32'
+      ? makePosixCodexNotifyCommand()
+      : makeWindowsCodexNotifyCommand();
+
+  return `notify=${JSON.stringify(notifyCommand)}`;
+}
+
+export function getProviderRuntimeCliArgs(options: ProviderRuntimeCliArgsOptions): string[] {
+  const { providerId, target = 'local', platform = process.platform } = options;
+
+  if (providerId !== 'codex') {
+    return [];
+  }
+
+  if (agentEventService.getPort() <= 0) {
+    return [];
+  }
+
+  return ['-c', makeCodexNotifyConfigValue(target, platform)];
 }
 
 const resolvedCommandPathCache = new Map<string, string | null>();
@@ -675,6 +836,7 @@ export function startSshPty(options: {
     USER: process.env.USER || os.userInfo().username,
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
@@ -731,9 +893,18 @@ export function startDirectPty(options: {
   initialPrompt?: string;
   env?: Record<string, string>;
   resume?: boolean;
+  tmux?: boolean;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  // Tmux wrapping requires a shell — fall back to startPty() which handles tmux.
+  if (options.tmux) {
+    log.info('ptyManager:directSpawn - tmux enabled, falling back to shell spawn', {
+      id: options.id,
+    });
+    return null;
   }
 
   const {
@@ -814,6 +985,7 @@ export function startDirectPty(options: {
         useKeystrokeInjection: provider.useKeystrokeInjection,
       })
     );
+    cliArgs.push(...getProviderRuntimeCliArgs({ providerId }));
   }
 
   // Build minimal environment - just what the CLI needs
@@ -826,6 +998,7 @@ export function startDirectPty(options: {
     // Include PATH so CLI can find its dependencies
     PATH: process.env.PATH || process.env.Path || '',
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
@@ -914,6 +1087,7 @@ export async function startPty(options: {
   initialPrompt?: string;
   skipResume?: boolean;
   shellSetup?: string;
+  tmux?: boolean;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -929,11 +1103,12 @@ export async function startPty(options: {
     initialPrompt,
     skipResume,
     shellSetup,
+    tmux,
   } = options;
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
-  const useCwd = cwd || process.cwd() || os.homedir();
+  const useCwd = cwd || os.homedir();
 
   // Build a clean environment instead of inheriting process.env wholesale.
   //
@@ -958,6 +1133,8 @@ export async function startPty(options: {
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
     ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
@@ -1065,6 +1242,7 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
+        cliArgs.push(...getProviderRuntimeCliArgs({ providerId: provider.id }));
 
         if (resolvedConfig?.env) {
           for (const [k, v] of Object.entries(resolvedConfig.env)) {
@@ -1084,38 +1262,79 @@ export async function startPty(options: {
                 .join(' ')}`
             : cliCommand;
 
+        const shellBase = (defaultShell.split('/').pop() || '').toLowerCase();
+
         // After the provider exits, exec back into the user's shell (login+interactive)
-        const resumeShell = `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
+        const resumeShell =
+          shellBase === 'fish'
+            ? `'${defaultShell.replace(/'/g, "'\\''")}' -i -l`
+            : `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
         const chainCommand = shellSetup
           ? `${shellSetup} && ${commandString}; exec ${resumeShell}`
           : `${commandString}; exec ${resumeShell}`;
 
         // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
-        const shellBase = defaultShell.split('/').pop() || '';
         if (shellBase === 'zsh') args.push('-lic', chainCommand);
         else if (shellBase === 'bash') args.push('-lic', chainCommand);
-        else if (shellBase === 'fish') args.push('-ic', chainCommand);
+        else if (shellBase === 'fish') args.push('-l', '-i', '-c', chainCommand);
         else if (shellBase === 'sh') args.push('-lc', chainCommand);
         else args.push('-c', chainCommand); // Fallback for other shells
       } else {
         // For normal shells, use login + interactive to load user configs
         if (shellSetup) {
-          const cFlag = base === 'fish' ? '-ic' : base === 'sh' ? '-lc' : '-lic';
-          const resumeShell = `'${useShell.replace(/'/g, "'\\''")}' -il`;
-          args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+          const resumeShell =
+            baseLower === 'fish'
+              ? `'${useShell.replace(/'/g, "'\\''")}' -i -l`
+              : `'${useShell.replace(/'/g, "'\\''")}' -il`;
+          if (baseLower === 'fish') {
+            args.push('-l', '-i', '-c', `${shellSetup}; exec ${resumeShell}`);
+          } else {
+            const cFlag = baseLower === 'sh' ? '-lc' : '-lic';
+            args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+          }
         } else {
-          args.push(
-            base === 'zsh' || base === 'bash' || base === 'fish' || base === 'sh' ? '-il' : '-i'
-          );
+          if (baseLower === 'fish') {
+            args.push('-i', '-l');
+          } else {
+            args.push(
+              baseLower === 'zsh' || baseLower === 'bash' || baseLower === 'sh' ? '-il' : '-i'
+            );
+          }
         }
       }
     } catch {}
   }
 
+  // When tmux is enabled, wrap the spawn in a tmux session.
+  // tmux new-session -As <name> creates or attaches to a named session.
+  // The inner shell command (with the agent CLI) runs inside tmux.
+  let tmuxSessionName: string | undefined;
+  let spawnCommand = useShell;
+  let spawnArgs = args;
+
+  if (tmux && process.platform !== 'win32') {
+    let tmuxAvailable = false;
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
+      tmuxAvailable = true;
+    } catch {
+      log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
+    }
+
+    if (tmuxAvailable) {
+      tmuxSessionName = getTmuxSessionName(id);
+      // Build: tmux new-session -As <name> -- <shell> <args...>
+      spawnCommand = 'tmux';
+      spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
+      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
+    }
+  }
+
   let proc: IPty;
   try {
-    const spawnSpec = resolveWindowsPtySpawn(useShell, args);
+    const spawnSpec = resolveWindowsPtySpawn(spawnCommand, spawnArgs);
     proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
       name: 'xterm-256color',
       cols,
@@ -1154,7 +1373,7 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc, kind: 'local', cols, rows });
+  ptys.set(id, { id, proc, kind: 'local', cols, rows, tmuxSessionName });
   return proc;
 }
 
@@ -1227,4 +1446,8 @@ export function getPty(id: string): IPty | undefined {
 
 export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
   return ptys.get(id)?.kind;
+}
+
+export function getPtyTmuxSessionName(id: string): string | undefined {
+  return ptys.get(id)?.tmuxSessionName;
 }

@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
+  ptyKillTmux: (id: string) =>
+    ipcRenderer.invoke('pty:killTmux', { id }) as Promise<{ ok: boolean; error?: string }>,
 
   // Direct PTY spawn (no shell wrapper, bypasses shell config loading)
   ptyStartDirect: (opts: {
@@ -122,6 +124,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) =>
     ipcRenderer.invoke('pty:snapshot:save', args),
   ptyClearSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:clear', args),
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => ipcRenderer.invoke('pty:cleanupSessions', args),
   onPtyExit: (id: string, listener: (info: { exitCode: number; signal?: number }) => void) => {
     const channel = `pty:exit:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, info: { exitCode: number; signal?: number }) =>
@@ -245,6 +252,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
     ipcRenderer.invoke('lifecycle:teardown', args),
   lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleGetLogs: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getLogs', args),
   lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
   onLifecycleEvent: (listener: (data: any) => void) => {
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
@@ -307,6 +315,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  openFile: (args?: { title?: string; message?: string; filters?: Electron.FileFilter[] }) =>
+    ipcRenderer.invoke('project:openFile', args),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
@@ -315,6 +325,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  getDeleteRisks: (args: {
+    targets: Array<{ id: string; taskPath: string }>;
+    includePr?: boolean;
+  }) => ipcRenderer.invoke('git:get-delete-risks', args),
   watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
   unwatchGitStatus: (taskPath: string, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
@@ -373,6 +387,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     admin?: boolean;
   }) => ipcRenderer.invoke('git:merge-pr', args),
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
+  enableAutoMerge: (args: {
+    taskPath: string;
+    prNumber?: number;
+    strategy?: 'merge' | 'squash' | 'rebase';
+  }) => ipcRenderer.invoke('git:enable-auto-merge', args),
+  disableAutoMerge: (args: { taskPath: string; prNumber?: number }) =>
+    ipcRenderer.invoke('git:disable-auto-merge', args),
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
   getPrComments: (args: { taskPath: string; prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
@@ -492,6 +513,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
+  // GitLab integration
+  gitlabSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('gitlab:saveCredentials', args),
+  gitlabClearCredentials: () => ipcRenderer.invoke('gitlab:clearCredentials'),
+  gitlabCheckConnection: () => ipcRenderer.invoke('gitlab:checkConnection'),
+  gitlabInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:initialFetch', { projectPath, limit }),
+  gitlabSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>
@@ -756,6 +786,16 @@ export interface ElectronAPI {
     payload: TerminalSnapshotPayload;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    cleaned: number;
+    failedIds: string[];
+    snapshotClearQueued: boolean;
+  }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
@@ -910,6 +950,32 @@ export interface ElectronAPI {
       deletions: number;
       diff?: string;
     }>;
+    error?: string;
+  }>;
+  getDeleteRisks: (args: {
+    targets: Array<{ id: string; taskPath: string }>;
+    includePr?: boolean;
+  }) => Promise<{
+    success: boolean;
+    risks?: Record<
+      string,
+      {
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        ahead: number;
+        behind: number;
+        error?: string;
+        pr?: {
+          number?: number;
+          title?: string;
+          url?: string;
+          state?: string | null;
+          isDraft?: boolean;
+        } | null;
+        prKnown: boolean;
+      }
+    >;
     error?: string;
   }>;
   watchGitStatus: (taskPath: string) => Promise<{

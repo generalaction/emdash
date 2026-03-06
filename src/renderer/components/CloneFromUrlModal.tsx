@@ -41,8 +41,8 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
       // Try to extract repo name from various URL formats
       let repoName = '';
 
-      // Handle https://github.com/owner/repo.git or https://github.com/owner/repo
-      const httpsMatch = cleanedUrl.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+      // Handle https://host/owner/repo.git or https://host/owner/repo
+      const httpsMatch = cleanedUrl.match(/^https?:\/\/[^/]+\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
       if (httpsMatch) {
         repoName = httpsMatch[2];
       } else {
@@ -198,7 +198,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               onBlur={() => setTouched(true)}
-              placeholder="https://github.com/owner/repo.git"
+              placeholder="https://github.com/owner/repo.git or any Git URL"
               className={`w-full ${
                 touched && error
                   ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive'

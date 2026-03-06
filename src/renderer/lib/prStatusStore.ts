@@ -51,6 +51,10 @@ export async function refreshPrStatus(taskPath: string): Promise<PrStatus | null
   }
 }
 
+export function getCachedPrStatus(taskPath: string): PrStatus | null | undefined {
+  return cache.get(taskPath);
+}
+
 /**
  * Refresh PR status for all currently subscribed task paths.
  * Used on window focus to update all visible PR buttons.

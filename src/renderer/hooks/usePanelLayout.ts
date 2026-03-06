@@ -14,6 +14,8 @@ export interface UsePanelLayoutOptions {
   showDiffViewer: boolean;
   isInitialLoadComplete: boolean;
   showHomeView: boolean;
+  showSettingsPage: boolean;
+  showSkillsView: boolean;
   selectedProject: { id: string } | null;
   activeTask: { id: string } | null;
 }
@@ -24,6 +26,8 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showDiffViewer,
     isInitialLoadComplete,
     showHomeView,
+    showSettingsPage,
+    showSkillsView,
     selectedProject,
     activeTask,
   } = opts;
@@ -248,14 +252,23 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
 
     const isHomePage = showHomeView;
     const isRepoHomePage = selectedProject !== null && activeTask === null;
-    const shouldCollapse = isHomePage || isRepoHomePage;
+    const isNonTaskView = showSettingsPage || showSkillsView;
+    const shouldCollapse = isHomePage || isRepoHomePage || isNonTaskView;
 
     if (shouldCollapse) {
       rightSidebarSetCollapsedRef.current?.(true);
     } else if (activeTask !== null) {
       rightSidebarSetCollapsedRef.current?.(false);
     }
-  }, [autoRightSidebarBehavior, isInitialLoadComplete, showHomeView, selectedProject, activeTask]);
+  }, [
+    autoRightSidebarBehavior,
+    isInitialLoadComplete,
+    showHomeView,
+    showSettingsPage,
+    showSkillsView,
+    selectedProject,
+    activeTask,
+  ]);
 
   // Sync right sidebar panel with collapsed state
   useEffect(() => {

@@ -67,14 +67,17 @@ describe('shellEnv', () => {
   describe('detectSshAuthSock', () => {
     it('should return existing SSH_AUTH_SOCK if already set', () => {
       process.env.SSH_AUTH_SOCK = '/existing/socket';
+      // On macOS, launchctl is tried first but may fail
+      mockedExecSync.mockImplementation(() => {
+        throw new Error('launchctl failed');
+      });
 
       const result = detectSshAuthSock();
 
       expect(result).toBe('/existing/socket');
-      expect(mockedExecSync).not.toHaveBeenCalled();
     });
 
-    it('should detect SSH_AUTH_SOCK from shell when not set', () => {
+    it('should detect SSH_AUTH_SOCK when not in process.env', () => {
       delete process.env.SSH_AUTH_SOCK;
       mockedExecSync.mockReturnValue('/shell/detected/socket');
 
@@ -107,6 +110,22 @@ describe('shellEnv', () => {
       expect(result).toBeTruthy();
     });
 
+    it.skipIf(process.platform !== 'darwin')(
+      'should prefer launchctl value over process.env on macOS',
+      () => {
+        process.env.SSH_AUTH_SOCK = '/private/tmp/com.apple.launchd.XXX/Listeners';
+        mockedExecSync.mockReturnValue(
+          '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock\n'
+        );
+
+        const result = detectSshAuthSock();
+
+        expect(result).toBe(
+          '/Users/test/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock'
+        );
+      }
+    );
+
     it('should return undefined when no socket is found', () => {
       delete process.env.SSH_AUTH_SOCK;
       mockedExecSync.mockImplementation(() => {
@@ -130,13 +149,16 @@ describe('shellEnv', () => {
       expect(process.env.SSH_AUTH_SOCK).toBe('/detected/socket');
     });
 
-    it('should not overwrite existing SSH_AUTH_SOCK', () => {
+    it('should fall back to existing SSH_AUTH_SOCK when launchctl fails', () => {
       process.env.SSH_AUTH_SOCK = '/existing/socket';
+      // On macOS, launchctl is tried first but may fail
+      mockedExecSync.mockImplementation(() => {
+        throw new Error('launchctl failed');
+      });
 
       initializeShellEnvironment();
 
       expect(process.env.SSH_AUTH_SOCK).toBe('/existing/socket');
-      expect(mockedExecSync).not.toHaveBeenCalled();
     });
   });
 });

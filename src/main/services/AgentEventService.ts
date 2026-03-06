@@ -9,6 +9,25 @@ import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
 import { getAppSettings } from '../settings';
 
+function mapProviderNotificationType(
+  type: string,
+  providerId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw: Record<string, any>
+): string | undefined {
+  const explicitNotificationType = raw.notification_type || raw.notificationType;
+  if (explicitNotificationType) {
+    return explicitNotificationType;
+  }
+
+  // Codex emits turn-complete notifications when it is ready for the next user input.
+  if (type === 'notification' && providerId === 'codex' && raw.type === 'agent-turn-complete') {
+    return 'idle_prompt';
+  }
+
+  return undefined;
+}
+
 class AgentEventService {
   private server: http.Server | null = null;
   private port = 0;
@@ -66,17 +85,21 @@ class AgentEventService {
             return;
           }
 
-          // Body is the raw Claude Code hook payload JSON
+          // Body is the raw provider hook payload JSON
           const raw = body ? JSON.parse(body) : {};
 
           // Normalize snake_case fields from provider hooks to camelCase
           const normalizedPayload = {
             ...raw,
-            notificationType: raw.notification_type ?? raw.notificationType,
-            lastAssistantMessage: raw.last_assistant_message ?? raw.lastAssistantMessage,
+            notificationType: mapProviderNotificationType(type, parsed.providerId, raw),
+            lastAssistantMessage:
+              raw.last_assistant_message ??
+              raw.lastAssistantMessage ??
+              raw['last-assistant-message'],
           };
           delete normalizedPayload.notification_type;
           delete normalizedPayload.last_assistant_message;
+          delete normalizedPayload['last-assistant-message'];
 
           const event: AgentEvent = {
             type: type as AgentEvent['type'],

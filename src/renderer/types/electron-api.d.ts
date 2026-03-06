@@ -1,6 +1,7 @@
 // Updated for Codex integration
 
 import type { AgentEvent } from '../../shared/agentEvents';
+import type { AutoMergeRequest } from '../lib/prStatus';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -81,7 +82,7 @@ declare global {
         autoApprove?: boolean;
         initialPrompt?: string;
         skipResume?: boolean;
-      }) => Promise<{ ok: boolean; error?: string }>;
+      }) => Promise<{ ok: boolean; tmux?: boolean; error?: string }>;
       ptyStartDirect: (opts: {
         id: string;
         providerId: string;
@@ -93,7 +94,7 @@ declare global {
         initialPrompt?: string;
         env?: Record<string, string>;
         resume?: boolean;
-      }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+      }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
       ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
         success: boolean;
         remotePaths?: string[];
@@ -102,6 +103,7 @@ declare global {
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
+      ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
       onPtyData: (id: string, listener: (data: string) => void) => () => void;
       ptyGetSnapshot: (args: { id: string }) => Promise<{
         ok: boolean;
@@ -113,6 +115,16 @@ declare global {
         error?: string;
       }>;
       ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+      ptyCleanupSessions: (args: {
+        ids: string[];
+        clearSnapshots?: boolean;
+        waitForSnapshots?: boolean;
+      }) => Promise<{
+        ok: boolean;
+        cleaned: number;
+        failedIds: string[];
+        snapshotClearQueued: boolean;
+      }>;
       onPtyExit: (
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
@@ -289,6 +301,11 @@ declare global {
         };
         error?: string;
       }>;
+      lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        logs?: { setup: string[]; run: string[]; teardown: string[] };
+        error?: string;
+      }>;
       lifecycleClearTask: (args: {
         taskId: string;
       }) => Promise<{ success: boolean; error?: string }>;
@@ -296,6 +313,15 @@ declare global {
 
       // Project management
       openProject: () => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+      }>;
+      openFile: (args?: {
+        title?: string;
+        message?: string;
+        filters?: Electron.FileFilter[];
+      }) => Promise<{
         success: boolean;
         path?: string;
         error?: string;
@@ -334,6 +360,32 @@ declare global {
         }>;
         error?: string;
       }>;
+      getDeleteRisks: (args: {
+        targets: Array<{ id: string; taskPath: string }>;
+        includePr?: boolean;
+      }) => Promise<{
+        success: boolean;
+        risks?: Record<
+          string,
+          {
+            staged: number;
+            unstaged: number;
+            untracked: number;
+            ahead: number;
+            behind: number;
+            error?: string;
+            pr?: {
+              number?: number;
+              title?: string;
+              url?: string;
+              state?: string | null;
+              isDraft?: boolean;
+            } | null;
+            prKnown: boolean;
+          }
+        >;
+        error?: string;
+      }>;
       watchGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         watchId?: string;
@@ -358,6 +410,8 @@ declare global {
             type: 'context' | 'add' | 'del';
           }>;
           isBinary?: boolean;
+          originalContent?: string;
+          modifiedContent?: string;
         };
         error?: string;
       }>;
@@ -441,6 +495,8 @@ declare global {
         diff?: {
           lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }>;
           isBinary?: boolean;
+          originalContent?: string;
+          modifiedContent?: string;
         };
         error?: string;
       }>;
@@ -514,7 +570,22 @@ declare global {
           additions?: number;
           deletions?: number;
           changedFiles?: number;
+          autoMergeRequest?: AutoMergeRequest | null;
         } | null;
+        error?: string;
+      }>;
+      enableAutoMerge: (args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      disableAutoMerge: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        output?: string;
         error?: string;
       }>;
       getCheckRuns: (args: { taskPath: string }) => Promise<{
@@ -859,6 +930,27 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // GitLab
+      gitlabSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      gitlabClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      gitlabCheckConnection?: () => Promise<{
+        success: boolean;
+        username?: string;
+        instanceUrl?: string;
+        error?: string;
+      }>;
+      gitlabInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      gitlabSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];
@@ -1126,7 +1218,7 @@ export interface ElectronAPI {
     autoApprove?: boolean;
     initialPrompt?: string;
     skipResume?: boolean;
-  }) => Promise<{ ok: boolean; error?: string }>;
+  }) => Promise<{ ok: boolean; tmux?: boolean; error?: string }>;
   ptyStartDirect: (opts: {
     id: string;
     providerId: string;
@@ -1137,7 +1229,7 @@ export interface ElectronAPI {
     initialPrompt?: string;
     env?: Record<string, string>;
     resume?: boolean;
-  }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
+  }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
   ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
     success: boolean;
     remotePaths?: string[];
@@ -1146,6 +1238,7 @@ export interface ElectronAPI {
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
+  ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onPtyData: (id: string, listener: (data: string) => void) => () => void;
   ptyGetSnapshot: (args: { id: string }) => Promise<{
     ok: boolean;
@@ -1157,6 +1250,16 @@ export interface ElectronAPI {
     error?: string;
   }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    cleaned: number;
+    failedIds: string[];
+    snapshotClearQueued: boolean;
+  }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
@@ -1301,11 +1404,25 @@ export interface ElectronAPI {
     };
     error?: string;
   }>;
+  lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    logs?: { setup: string[]; run: string[]; teardown: string[] };
+    error?: string;
+  }>;
   lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
   onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{
+    success: boolean;
+    path?: string;
+    error?: string;
+  }>;
+  openFile: (args?: {
+    title?: string;
+    message?: string;
+    filters?: Electron.FileFilter[];
+  }) => Promise<{
     success: boolean;
     path?: string;
     error?: string;

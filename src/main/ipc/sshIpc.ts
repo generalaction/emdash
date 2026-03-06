@@ -696,7 +696,9 @@ export function registerSshIpc() {
     async (): Promise<{ success: boolean; hosts?: SshConfigHost[]; error?: string }> => {
       try {
         const hosts = await parseSshConfigFile();
-        return { success: true, hosts };
+        // Filter out wildcard patterns (Host *, Host ?) — not useful in host dropdowns
+        const concreteHosts = hosts.filter((h) => !h.host.includes('*') && !h.host.includes('?'));
+        return { success: true, hosts: concreteHosts };
       } catch (err: any) {
         console.error('[sshIpc] Get SSH config error:', err);
         return { success: false, error: err.message };
@@ -717,7 +719,9 @@ export function registerSshIpc() {
         }
 
         const hosts = await parseSshConfigFile();
-        const host = hosts.find((h) => h.host.toLowerCase() === hostAlias.toLowerCase());
+        const host = hosts
+          .filter((h) => !h.host.includes('*') && !h.host.includes('?'))
+          .find((h) => h.host.toLowerCase() === hostAlias.toLowerCase());
 
         if (!host) {
           return { success: false, error: `Host alias not found: ${hostAlias}` };

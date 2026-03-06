@@ -6,6 +6,11 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { FIRST_LAUNCH_KEY } from './constants/layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppSettingsProvider } from './contexts/AppSettingsProvider';
+import { AppContextProvider } from './contexts/AppContextProvider';
+import { GithubContextProvider } from './contexts/GithubContextProvider';
+import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
+import { TaskManagementProvider } from './contexts/TaskManagementContext';
+import { ModalProvider } from './contexts/ModalProvider';
 
 const queryClient = new QueryClient();
 
@@ -27,11 +32,21 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppSettingsProvider>
-        <ThemeProvider>
-          <ErrorBoundary>{renderContent()}</ErrorBoundary>
-        </ThemeProvider>
-      </AppSettingsProvider>
+      <ModalProvider>
+        <AppContextProvider>
+          <GithubContextProvider>
+            <ProjectManagementProvider>
+              <TaskManagementProvider>
+                <AppSettingsProvider>
+                  <ThemeProvider>
+                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                  </ThemeProvider>
+                </AppSettingsProvider>
+              </TaskManagementProvider>
+            </ProjectManagementProvider>
+          </GithubContextProvider>
+        </AppContextProvider>
+      </ModalProvider>
     </QueryClientProvider>
   );
 }

@@ -28,6 +28,7 @@ import { MarkdownPreview } from './MarkdownPreview';
 import '@/styles/editor-diff.css';
 
 interface CodeEditorProps {
+  taskId: string;
   taskPath: string;
   taskName: string;
   projectName: string;
@@ -37,6 +38,7 @@ interface CodeEditorProps {
 }
 
 export default function CodeEditor({
+  taskId,
   taskPath,
   taskName,
   projectName,
@@ -63,7 +65,7 @@ export default function CodeEditor({
     closeFile,
     updateFileContent,
     setActiveFile,
-  } = useFileManager({ taskPath, connectionId, remotePath });
+  } = useFileManager({ taskId, taskPath, connectionId, remotePath });
 
   // Get file changes status from git
   const { fileChanges } = useFileChanges(taskPath);
@@ -279,6 +281,7 @@ export default function CodeEditor({
 
       <div className="flex flex-1 overflow-hidden">
         <FileExplorer
+          taskId={taskId}
           taskPath={taskPath}
           taskName={taskName}
           projectName={projectName}
@@ -319,6 +322,7 @@ export default function CodeEditor({
 }
 
 interface FileExplorerProps {
+  taskId: string;
   taskPath: string;
   taskName: string;
   projectName: string;
@@ -334,6 +338,7 @@ interface FileExplorerProps {
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
+  taskId,
   taskPath,
   taskName,
   projectName,
@@ -361,6 +366,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <FileTree
+          taskId={taskId}
           rootPath={taskPath}
           selectedFile={selectedFile}
           onSelectFile={onSelectFile}

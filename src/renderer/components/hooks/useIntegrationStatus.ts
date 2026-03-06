@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useGithubAuth } from '../../hooks/useGithubAuth';
+import { useGithubContext } from '../../contexts/GithubContextProvider';
 
 interface IntegrationStatus {
   // Linear
@@ -19,6 +19,10 @@ interface IntegrationStatus {
     email: string;
     token: string;
   }) => Promise<void>;
+
+  // GitLab
+  isGitlabConnected: boolean | null;
+  handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -28,13 +32,14 @@ interface IntegrationStatus {
 export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const [isLinearConnected, setIsLinearConnected] = useState<boolean | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
+  const [isGitlabConnected, setIsGitlabConnected] = useState<boolean | null>(null);
 
   const {
     installed: githubInstalled,
     authenticated: githubAuthenticated,
     login: githubLogin,
     isLoading: githubLoading,
-  } = useGithubAuth();
+  } = useGithubContext();
 
   const isGithubConnected = githubInstalled && githubAuthenticated;
 
@@ -76,6 +81,28 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
       })
       .catch(() => {
         if (!cancel) setIsJiraConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isOpen]);
+
+  // Check GitLab connection
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancel = false;
+    const api = window.electronAPI as any;
+    if (!api?.gitlabCheckConnection) {
+      setIsGitlabConnected(false);
+      return;
+    }
+    api
+      .gitlabCheckConnection()
+      .then((res: any) => {
+        if (!cancel) setIsGitlabConnected(!!res?.success);
+      })
+      .catch(() => {
+        if (!cancel) setIsGitlabConnected(false);
       });
     return () => {
       cancel = true;
@@ -124,6 +151,18 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     []
   );
 
+  const handleGitlabConnect = useCallback(
+    async (credentials: { instanceUrl: string; token: string }) => {
+      const res = await window.electronAPI.gitlabSaveCredentials?.(credentials);
+      if (res?.success) {
+        setIsGitlabConnected(true);
+      } else {
+        throw new Error(res?.error || 'Failed to connect.');
+      }
+    },
+    []
+  );
+
   return {
     isLinearConnected,
     handleLinearConnect,
@@ -133,5 +172,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     handleGithubConnect,
     isJiraConnected,
     handleJiraConnect,
+    isGitlabConnected,
+    handleGitlabConnect,
   };
 }

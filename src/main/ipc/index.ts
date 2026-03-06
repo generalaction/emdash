@@ -24,6 +24,7 @@ import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
+import { registerGitlabIpc } from './gitlabIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
@@ -63,4 +64,5 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerGitlabIpc();
 }

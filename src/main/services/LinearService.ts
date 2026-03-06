@@ -1,5 +1,6 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
+import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 
@@ -125,7 +126,7 @@ export class LinearService {
       limit: sanitizedLimit,
     });
 
-    return response?.issues?.nodes ?? [];
+    return sortByUpdatedAtDesc(response?.issues?.nodes ?? []);
   }
 
   async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
@@ -170,7 +171,7 @@ export class LinearService {
         }
       );
 
-      return searchResponse?.searchIssues?.nodes ?? [];
+      return sortByUpdatedAtDesc(searchResponse?.searchIssues?.nodes ?? []);
     } catch (error) {
       console.error('[Linear] searchIssues error:', error);
       return [];
