@@ -13,6 +13,12 @@ export interface McpServer {
   providers: string[];
 }
 
+/** Credential key with required/optional distinction */
+export interface CredentialKey {
+  key: string;
+  required: boolean;
+}
+
 /** Display metadata for a catalog server */
 export interface McpCatalogEntry {
   key: string;
@@ -20,7 +26,7 @@ export interface McpCatalogEntry {
   description: string;
   docsUrl: string;
   defaultConfig: RawServerEntry;
-  credentialKeys: string[];
+  credentialKeys: CredentialKey[];
 }
 
 /** Raw server entry as stored in agent config files */

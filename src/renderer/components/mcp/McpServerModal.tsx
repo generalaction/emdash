@@ -37,7 +37,9 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
 }) => {
   const isEdit = mode.type === 'edit';
   const isCatalog = mode.type === 'add-catalog';
-  const credentialKeys = isCatalog ? new Set(mode.entry.credentialKeys) : new Set<string>();
+  const credentialKeys = isCatalog
+    ? new Map(mode.entry.credentialKeys.map((c) => [c.key, c.required]))
+    : new Map<string, boolean>();
 
   const nextId = useRef(0);
   const makeId = () => nextId.current++;
@@ -298,13 +300,14 @@ function KeyValueSection({
   onChange: (entries: KVEntry[]) => void;
   addLabel: string;
   makeId: () => number;
-  credentialKeys: Set<string>;
+  credentialKeys: Map<string, boolean>;
 }) {
   return (
     <Field label={label}>
       <div className="space-y-2">
         {entries.map((entry, i) => {
           const isCredential = credentialKeys.has(entry.key);
+          const isRequired = credentialKeys.get(entry.key) === true;
           return (
             <div key={entry.id} className="flex items-center gap-2">
               <Input
@@ -325,9 +328,11 @@ function KeyValueSection({
                   onChange(next);
                 }}
                 className={`h-8 w-1/2 ${
-                  isCredential && !entry.value ? 'border-amber-400/60 bg-amber-50/10' : ''
+                  isCredential && isRequired && !entry.value
+                    ? 'border-amber-400/60 bg-amber-50/10'
+                    : ''
                 }`}
-                placeholder={isCredential ? 'Required' : 'value'}
+                placeholder={isCredential ? (isRequired ? 'Required' : 'Optional') : 'value'}
               />
               <Button
                 type="button"

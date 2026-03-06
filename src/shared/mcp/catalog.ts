@@ -1,11 +1,16 @@
 import type { RawServerEntry } from './types';
 
+export interface CredentialKeyDef {
+  key: string;
+  required: boolean;
+}
+
 export interface CatalogEntryDef {
   config: RawServerEntry;
   name: string;
   description: string;
   docsUrl: string;
-  credentialKeys: string[];
+  credentialKeys: CredentialKeyDef[];
 }
 
 export const catalogData: Record<string, CatalogEntryDef> = {
@@ -30,7 +35,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Context7',
     description: 'Fetch up-to-date documentation and code examples',
     docsUrl: 'https://github.com/upstash/context7',
-    credentialKeys: ['CONTEXT7_API_KEY'],
+    credentialKeys: [{ key: 'CONTEXT7_API_KEY', required: false }],
   },
   supabase: {
     config: {
@@ -63,7 +68,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Sentry',
     description: 'Search, query, and debug errors intelligently',
     docsUrl: 'https://docs.sentry.io/product/sentry-mcp/',
-    credentialKeys: ['SENTRY_ACCESS_TOKEN'],
+    credentialKeys: [{ key: 'SENTRY_ACCESS_TOKEN', required: true }],
   },
   stripe: {
     config: {
@@ -76,7 +81,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Stripe',
     description: 'Payment processing and financial infrastructure tools',
     docsUrl: 'https://docs.stripe.com/mcp',
-    credentialKeys: ['STRIPE_SECRET_KEY'],
+    credentialKeys: [{ key: 'STRIPE_SECRET_KEY', required: true }],
   },
   figma: {
     config: {
@@ -211,7 +216,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Exa',
     description: 'Web search and code context retrieval powered by Exa AI',
     docsUrl: 'https://docs.exa.ai/reference/exa-mcp',
-    credentialKeys: ['EXA_API_KEY'],
+    credentialKeys: [{ key: 'EXA_API_KEY', required: true }],
   },
   posthog: {
     config: {
