@@ -20,11 +20,21 @@ function makeEvent(
 }
 
 describe('AgentStatusStore', () => {
-  it('marks Claude as working after user input submission', () => {
+  it('does not mark Claude as working until output confirms the submit was accepted', () => {
     const store = new AgentStatusStore();
     const ptyId = makePtyId('claude', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
+
+    expect(store.getStatus('task-1').kind).toBe('unknown');
+  });
+
+  it('marks Claude as working after a pending submit gets a busy PTY signal', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('claude', 'main', 'task-1');
+
+    store.markUserInputSubmitted({ ptyId });
+    store.handlePtyData({ ptyId, chunk: 'Esc to interrupt' });
 
     expect(store.getStatus('task-1').kind).toBe('working');
   });
@@ -85,6 +95,7 @@ describe('AgentStatusStore', () => {
     const ptyId = makePtyId('claude', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
+    store.handlePtyData({ ptyId, chunk: 'Esc to interrupt' });
     store.handlePtyExit({ ptyId });
 
     expect(store.getStatus('task-1').kind).toBe('idle');

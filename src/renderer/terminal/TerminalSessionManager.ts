@@ -1075,6 +1075,7 @@ export class TerminalSessionManager {
 
   private setupPtyDataListener(id: string): void {
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
+      agentStatusStore.handlePtyData({ ptyId: id, chunk });
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
         this.terminal.clear();

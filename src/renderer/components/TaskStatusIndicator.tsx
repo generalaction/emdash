@@ -4,19 +4,19 @@ import { Spinner } from './ui/spinner';
 
 export function TaskStatusIndicator({ status }: { status: AgentStatusKind }) {
   if (status === 'working') {
-    return <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />;
+    return (
+      <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center">
+        <Spinner size="sm" className="h-3 w-3 text-muted-foreground" />
+      </span>
+    );
   }
 
-  if (status === 'waiting') {
-    return <span className="h-2 w-2 flex-shrink-0 rounded-full bg-orange-500" />;
-  }
-
-  if (status === 'complete') {
-    return <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" />;
-  }
-
-  if (status === 'error') {
-    return <span className="h-2 w-2 flex-shrink-0 rounded-full bg-red-500" />;
+  if (status === 'waiting' || status === 'complete' || status === 'error') {
+    return (
+      <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center">
+        <span className="h-2 w-2 rounded-full bg-blue-500" />
+      </span>
+    );
   }
 
   return null;

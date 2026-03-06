@@ -1,6 +1,7 @@
 import type { AgentStatusKind, AgentStatusSnapshot } from '@shared/agentStatus';
 import type { AgentEvent } from '@shared/agentEvents';
 import { parsePtyId } from '@shared/ptyId';
+import { classifyActivity } from './activityClassifier';
 import { mapAgentEventToStatus, mapUserInputToStatus } from './providerStatusAdapters';
 
 type Listener = (snapshot: AgentStatusSnapshot) => void;
@@ -16,6 +17,7 @@ const UNKNOWN_STATUS: AgentStatusSnapshot = {
 export class AgentStatusStore {
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly statusById = new Map<string, AgentStatusSnapshot>();
+  private readonly pendingSubmitPtyIds = new Set<string>();
 
   getStatus(id: string): AgentStatusSnapshot {
     return this.statusById.get(id) ?? { ...UNKNOWN_STATUS, id };
@@ -45,6 +47,7 @@ export class AgentStatusStore {
     const id = parsed?.suffix || event.taskId;
     if (!id) return;
 
+    this.pendingSubmitPtyIds.delete(event.ptyId);
     this.setStatus({
       id,
       ptyId: event.ptyId,
@@ -61,15 +64,29 @@ export class AgentStatusStore {
     const nextKind = mapUserInputToStatus(parsed.providerId);
     if (!nextKind) return;
 
+    this.pendingSubmitPtyIds.add(args.ptyId);
+  }
+
+  handlePtyData(args: { ptyId: string; chunk: string }): void {
+    if (!this.pendingSubmitPtyIds.has(args.ptyId)) return;
+
+    const parsed = parsePtyId(args.ptyId);
+    if (!parsed) return;
+
+    const signal = classifyActivity(parsed.providerId, args.chunk || '');
+    if (signal !== 'busy') return;
+
+    this.pendingSubmitPtyIds.delete(args.ptyId);
     this.setStatus({
       id: parsed.suffix,
       ptyId: args.ptyId,
       providerId: parsed.providerId,
-      kind: nextKind,
+      kind: 'working',
     });
   }
 
   handlePtyExit(args: { ptyId: string }): void {
+    this.pendingSubmitPtyIds.delete(args.ptyId);
     const parsed = parsePtyId(args.ptyId);
     if (!parsed) return;
 
