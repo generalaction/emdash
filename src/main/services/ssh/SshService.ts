@@ -97,6 +97,16 @@ export class SshService extends EventEmitter {
     return new Promise((resolve, reject) => {
       // Handle connection errors
       client.on('error', (err: Error) => {
+        // Clean up any proxy process for this failed connection
+        const proxyProc = this.proxyProcesses.get(connectionId);
+        if (proxyProc) {
+          try {
+            proxyProc.kill();
+          } catch {
+            /* ignore */
+          }
+          this.proxyProcesses.delete(connectionId);
+        }
         reject(err);
       });
 
@@ -176,9 +186,6 @@ export class SshService extends EventEmitter {
 
     // Check for ProxyCommand in ~/.ssh/config
     const proxyCommand = await resolveProxyCommand(config.host, config.port);
-    console.log(
-      `[SshService] ProxyCommand for ${config.host}:${config.port}: ${proxyCommand ?? '(none)'}`
-    );
     if (proxyCommand) {
       const { Duplex } = await import('stream');
       const proxyProc = spawn('sh', ['-c', proxyCommand], {
@@ -197,7 +204,6 @@ export class SshService extends EventEmitter {
       proxyProc.stdout!.on('data', (data) => sock.push(data));
       proxyProc.stdout!.on('close', () => sock.push(null));
       proxyProc.on('error', (err) => sock.destroy(err));
-      proxyProc.on('close', () => sock.push(null));
 
       (connectConfig as any).sock = sock;
       (connectConfig as any)._proxyProcess = proxyProc;

@@ -175,10 +175,20 @@ export function registerSshIpc() {
           testClient.on('ready', () => {
             const latency = Date.now() - startTime;
             testClient.end();
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: true, latency, debugLogs });
           });
 
           testClient.on('error', (err: Error) => {
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: false, error: err.message, debugLogs });
           });
 
@@ -251,19 +261,20 @@ export function registerSshIpc() {
           // Check for ProxyCommand in ~/.ssh/config
           const proxyCommand = await resolveProxyCommand(config.host, config.port);
           debugLogs.push(`[emdash] ProxyCommand resolve: ${proxyCommand ?? '(none)'}`);
+          let proxyProc: import('child_process').ChildProcess | undefined;
           if (proxyCommand) {
             const { Duplex } = await import('stream');
             const { spawn } = await import('child_process');
-            const proxyProc = spawn('sh', ['-c', proxyCommand], {
+            proxyProc = spawn('sh', ['-c', proxyCommand], {
               stdio: ['pipe', 'pipe', 'pipe'],
             });
             const sock = new Duplex({
               read() {},
               write(chunk, encoding, callback) {
-                return proxyProc.stdin!.write(chunk, encoding, callback);
+                return proxyProc!.stdin!.write(chunk, encoding, callback);
               },
               final(callback) {
-                proxyProc.stdin!.end(callback);
+                proxyProc!.stdin!.end(callback);
               },
             });
             proxyProc.stdout!.on('data', (data) => sock.push(data));
@@ -274,10 +285,6 @@ export function registerSshIpc() {
             proxyProc.on('error', (err) => {
               debugLogs.push(`[emdash] proxy error: ${err.message}`);
               sock.destroy(err);
-            });
-            proxyProc.on('close', (code) => {
-              debugLogs.push(`[emdash] proxy exited with code ${code}`);
-              sock.push(null);
             });
             (connectConfig as any).sock = sock;
           }

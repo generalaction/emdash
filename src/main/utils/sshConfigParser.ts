@@ -175,6 +175,14 @@ function hostPatternMatches(pattern: string, hostname: string): boolean {
  * Matches host entries in order (first match wins), supporting glob
  * wildcards (`*`, `?`). Replaces `%h` with the hostname and `%p`
  * with the port, matching OpenSSH token substitution behavior.
+ *
+ * NOTE: This uses a two-pass approach (specific hosts first, then
+ * wildcards) which diverges from OpenSSH's strict file-order
+ * first-match-wins semantics. In rare edge cases where a wildcard
+ * block appears before a specific host block that sets
+ * `ProxyCommand none`, the results may differ from `ssh`. A fully
+ * spec-correct implementation would require single-pass in-order
+ * matching with cumulative keyword application.
  */
 export async function resolveProxyCommand(
   hostname: string,
