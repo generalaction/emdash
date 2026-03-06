@@ -193,6 +193,9 @@ function TaskRow({
       />
       <div onClick={handleRowClick} role="button" tabIndex={0} className={contentClasses}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex w-5 flex-shrink-0 items-center justify-center">
+            <TaskStatusIndicator status={displayStatus} />
+          </div>
           <span className={`text-sm font-medium ${isArchived ? 'text-muted-foreground' : ''}`}>
             {ws.name}
           </span>
@@ -201,7 +204,6 @@ function TaskRow({
               Archived
             </span>
           )}
-          <TaskStatusIndicator status={displayStatus} />
         </div>
 
         <div className="flex shrink-0 items-center gap-4">

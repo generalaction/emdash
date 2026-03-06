@@ -185,38 +185,47 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const taskContent = (
     <div className="flex min-w-0 items-center gap-1.5">
       {/* Left icon slot — same width as the project folder icon */}
-      <div className="flex w-5 flex-shrink-0 items-center justify-center">
+      <div className="relative flex w-5 flex-shrink-0 items-center justify-center">
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-opacity ${showDelete && (onDelete || onArchive) && !isDeleting ? 'group-hover/task:opacity-0' : ''}`}
+        >
+          <TaskStatusIndicator status={displayStatus} />
+        </div>
         {showDelete && onDelete && primaryAction === 'delete' ? (
-          <TaskDeleteButton
-            taskName={task.name}
-            taskId={task.id}
-            taskPath={task.path}
-            useWorktree={task.useWorktree}
-            onConfirm={async () => {
-              try {
-                setIsDeleting(true);
-                await onDelete();
-              } finally {
-                setIsDeleting(false);
-              }
-            }}
-            isDeleting={isDeleting}
-            aria-label={`Delete Task ${task.name}`}
-            className={`!h-5 !w-5 text-muted-foreground ${isDeleting ? '' : 'opacity-0 group-hover/task:opacity-100'}`}
-          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <TaskDeleteButton
+              taskName={task.name}
+              taskId={task.id}
+              taskPath={task.path}
+              useWorktree={task.useWorktree}
+              onConfirm={async () => {
+                try {
+                  setIsDeleting(true);
+                  await onDelete();
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              isDeleting={isDeleting}
+              aria-label={`Delete Task ${task.name}`}
+              className={`!h-5 !w-5 text-muted-foreground ${isDeleting ? '' : 'opacity-0 group-hover/task:opacity-100'}`}
+            />
+          </div>
         ) : showDelete && onArchive && primaryAction === 'archive' ? (
           <>
-            <button
-              type="button"
-              className={`rounded p-0.5 text-muted-foreground hover:text-foreground ${isDeleting ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'}`}
-              aria-label={`Archive Task ${task.name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onArchive();
-              }}
-            >
-              <Archive className="h-4 w-4" />
-            </button>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button
+                type="button"
+                className={`rounded p-0.5 text-muted-foreground hover:text-foreground ${isDeleting ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'}`}
+                aria-label={`Archive Task ${task.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArchive();
+                }}
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            </div>
             {onDelete && (
               <TaskDeleteButton
                 taskName={task.name}
@@ -241,7 +250,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <TaskStatusIndicator status={displayStatus} />
         {isEditing ? (
           <input
             ref={inputRef}
