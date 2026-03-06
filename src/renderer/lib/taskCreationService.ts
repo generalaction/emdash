@@ -497,7 +497,10 @@ export async function createTask(
         if (hasIssueContext) {
           try {
             // Get or create default conversation only once
-            const conversation = await rpc.db.getOrCreateDefaultConversation(newTask.id);
+            const conversation = await rpc.db.getOrCreateDefaultConversation({
+              taskId: newTask.id,
+              provider: newTask.agentId || primaryAgent,
+            });
             if (conversation?.id) {
               conversationId = conversation.id;
             }
