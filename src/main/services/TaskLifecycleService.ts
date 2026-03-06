@@ -342,6 +342,9 @@ class TaskLifecycleService extends EventEmitter {
       return { ok: true, skipped: true };
     }
 
+    // Clear any residual stop intent so the new process's exit is not misclassified.
+    this.stopIntents.delete(taskId);
+
     const state = this.ensureState(taskId);
     state.run = {
       status: 'running',
