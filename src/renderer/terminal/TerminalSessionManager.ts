@@ -35,6 +35,10 @@ const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
+function stripAnsiFromInput(data: string): string {
+  return data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
+}
+
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
 
@@ -103,6 +107,7 @@ export class TerminalSessionManager {
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
   private inputBuffer: TerminalInputBuffer | null = null;
+  private currentSubmittedInput = '';
   private autoCopyOnSelection = false;
   private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private terminalConfigFontSize: number | null = null;
@@ -581,6 +586,8 @@ export class TerminalSessionManager {
 
     if (!filtered) return;
 
+    const submittedText = this.consumeSubmittedInput(filtered, isNewlineInsert);
+
     // Feed input to the buffer for first-message capture
     if (this.inputBuffer && !this.inputBuffer.isComplete) {
       this.inputBuffer.feed(filtered);
@@ -602,16 +609,51 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+      if ((submittedText || pendingText).trim()) {
+        agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+      }
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
       pendingInjectionManager.markUsed();
       return;
     }
 
-    if (isEnterPress && !isNewlineInsert) {
+    if (isEnterPress && !isNewlineInsert && submittedText) {
       agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
     }
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
+  }
+
+  private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
+    const clean = stripAnsiFromInput(data);
+    let submittedText: string | null = null;
+
+    for (const ch of clean) {
+      if (ch === '\r' || ch === '\n') {
+        if (isNewlineInsert) {
+          this.currentSubmittedInput += '\n';
+          continue;
+        }
+        submittedText = this.currentSubmittedInput.trim() || null;
+        this.currentSubmittedInput = '';
+        continue;
+      }
+
+      if (ch === '\x15') {
+        this.currentSubmittedInput = '';
+        continue;
+      }
+
+      if (ch === '\x7f' || ch === '\b') {
+        this.currentSubmittedInput = this.currentSubmittedInput.slice(0, -1);
+        continue;
+      }
+
+      if (ch.charCodeAt(0) >= 32) {
+        this.currentSubmittedInput += ch;
+      }
+    }
+
+    return submittedText;
   }
 
   private cleanTerminalText(text: string): string {
@@ -1075,7 +1117,6 @@ export class TerminalSessionManager {
 
   private setupPtyDataListener(id: string): void {
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
-      agentStatusStore.handlePtyData({ ptyId: id, chunk });
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
         this.terminal.clear();
