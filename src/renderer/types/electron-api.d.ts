@@ -459,6 +459,7 @@ declare global {
           subject: string;
           body: string;
           author: string;
+          authorEmail: string;
           date: string;
           isPushed: boolean;
           tags: string[];
