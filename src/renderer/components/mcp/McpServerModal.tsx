@@ -70,7 +70,10 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
         name,
         transport,
         command: transport === 'stdio' ? command : undefined,
-        args: transport === 'stdio' && args.trim() ? args.split(/\s+/) : undefined,
+        args:
+          transport === 'stdio' && args.trim()
+            ? args.split('\n').filter((a) => a.length > 0)
+            : undefined,
         url: transport === 'http' ? url : undefined,
         headers: filledHeaders.length
           ? Object.fromEntries(filledHeaders.map((e) => [e.key, e.value]))
@@ -171,12 +174,14 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
                 placeholder="npx"
               />
             </Field>
-            <Field label="Arguments (space-separated, no quoting)">
-              <Input
+            <Field label="Arguments (one per line)">
+              <textarea
                 value={args}
                 onChange={(e) => setArgs(e.target.value)}
                 disabled={isCatalog}
-                placeholder="-y my-mcp-server"
+                placeholder={'-y\nmy-mcp-server'}
+                rows={3}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
           </>
@@ -367,7 +372,7 @@ function getInitialState(mode: McpServerModalMode) {
       name: s.name,
       transport: s.transport,
       command: s.command ?? '',
-      args: s.args?.join(' ') ?? '',
+      args: s.args?.join('\n') ?? '',
       url: s.url ?? '',
       env: Object.entries(s.env ?? {}),
       headers: Object.entries(s.headers ?? {}),
@@ -383,7 +388,7 @@ function getInitialState(mode: McpServerModalMode) {
       name: mode.entry.key,
       transport: (isHttp ? 'http' : 'stdio') as 'stdio' | 'http',
       command: (cfg.command as string) ?? '',
-      args: Array.isArray(cfg.args) ? (cfg.args as string[]).join(' ') : '',
+      args: Array.isArray(cfg.args) ? (cfg.args as string[]).join('\n') : '',
       url: (cfg.url as string) ?? '',
       env: clearPlaceholders(Object.entries((cfg.env as Record<string, string>) ?? {})),
       headers: clearPlaceholders(Object.entries((cfg.headers as Record<string, string>) ?? {})),

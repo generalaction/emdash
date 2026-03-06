@@ -71,7 +71,9 @@ function fwdCursor(servers: ServerMap): ServerMap {
   return transformHttpServers(servers, (s) => {
     const url = s.url ?? '';
     const headers = s.headers ?? {};
-    return { url, headers } as RawServerEntry;
+    const result: RawServerEntry = { url, headers };
+    if (s.env && typeof s.env === 'object') result.env = s.env;
+    return result;
   });
 }
 
