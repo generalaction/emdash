@@ -20,28 +20,36 @@ function makeEvent(
 }
 
 describe('AgentStatusStore', () => {
-  it('does not mark Claude as working until output confirms the submit was accepted', () => {
+  it('marks Claude as working on submit', () => {
     const store = new AgentStatusStore();
     const ptyId = makePtyId('claude', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
 
-    expect(store.getStatus('task-1').kind).toBe('unknown');
+    expect(store.getStatus('task-1').kind).toBe('working');
   });
 
-  it('marks Claude as working after a pending submit gets a busy PTY signal', () => {
+  it('marks Codex as working on submit', () => {
     const store = new AgentStatusStore();
-    const ptyId = makePtyId('claude', 'main', 'task-1');
+    const ptyId = makePtyId('codex', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
-    store.handlePtyData({ ptyId, chunk: 'Esc to interrupt' });
+
+    expect(store.getStatus('task-1').kind).toBe('working');
+  });
+
+  it('marks OpenCode as working on submit', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('opencode', 'main', 'task-1');
+
+    store.markUserInputSubmitted({ ptyId });
 
     expect(store.getStatus('task-1').kind).toBe('working');
   });
 
   it('ignores user input for providers without semantic mapping yet', () => {
     const store = new AgentStatusStore();
-    const ptyId = makePtyId('codex', 'main', 'task-1');
+    const ptyId = makePtyId('amp', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
 
@@ -60,6 +68,54 @@ describe('AgentStatusStore', () => {
     );
 
     expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(true);
+  });
+
+  it('maps Codex turn-complete notifications to waiting', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('codex', 'main', 'task-1');
+
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        providerId: 'codex',
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+
+    expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(true);
+  });
+
+  it('maps OpenCode notification hooks to waiting', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('opencode', 'main', 'task-1');
+
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        providerId: 'opencode',
+        taskId: 'task-1',
+        payload: { notificationType: 'permission_prompt' },
+      })
+    );
+
+    expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(true);
+  });
+
+  it('maps OpenCode error events to error', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('opencode', 'main', 'task-1');
+
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        type: 'error',
+        providerId: 'opencode',
+        taskId: 'task-1',
+      })
+    );
+
+    expect(store.getStatus('task-1').kind).toBe('error');
     expect(store.getUnread('task-1')).toBe(true);
   });
 
@@ -114,7 +170,6 @@ describe('AgentStatusStore', () => {
     const ptyId = makePtyId('claude', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
-    store.handlePtyData({ ptyId, chunk: 'Esc to interrupt' });
     store.handlePtyExit({ ptyId });
 
     expect(store.getStatus('task-1').kind).toBe('idle');

@@ -1,7 +1,6 @@
 import type { AgentStatusKind, AgentStatusSnapshot } from '@shared/agentStatus';
 import type { AgentEvent } from '@shared/agentEvents';
 import { parsePtyId } from '@shared/ptyId';
-import { classifyActivity } from './activityClassifier';
 import { mapAgentEventToStatus, mapUserInputToStatus } from './providerStatusAdapters';
 
 type Listener = (snapshot: AgentStatusSnapshot) => void;
@@ -20,7 +19,6 @@ export class AgentStatusStore {
   private readonly unreadListeners = new Map<string, Set<UnreadListener>>();
   private readonly statusById = new Map<string, AgentStatusSnapshot>();
   private readonly unreadById = new Map<string, boolean>();
-  private readonly pendingSubmitPtyIds = new Set<string>();
   private activeView: { taskId: string | null; statusId: string | null } = {
     taskId: null,
     statusId: null,
@@ -74,7 +72,6 @@ export class AgentStatusStore {
     const id = parsed?.suffix || event.taskId;
     if (!id) return;
 
-    this.pendingSubmitPtyIds.delete(event.ptyId);
     if (
       (nextKind === 'waiting' || nextKind === 'complete' || nextKind === 'error') &&
       !this.isVisibleStatusId(id)
@@ -96,30 +93,15 @@ export class AgentStatusStore {
 
     const nextKind = mapUserInputToStatus(parsed.providerId);
     if (!nextKind) return;
-
-    this.pendingSubmitPtyIds.add(args.ptyId);
-  }
-
-  handlePtyData(args: { ptyId: string; chunk: string }): void {
-    if (!this.pendingSubmitPtyIds.has(args.ptyId)) return;
-
-    const parsed = parsePtyId(args.ptyId);
-    if (!parsed) return;
-
-    const signal = classifyActivity(parsed.providerId, args.chunk || '');
-    if (signal !== 'busy') return;
-
-    this.pendingSubmitPtyIds.delete(args.ptyId);
     this.setStatus({
       id: parsed.suffix,
       ptyId: args.ptyId,
       providerId: parsed.providerId,
-      kind: 'working',
+      kind: nextKind,
     });
   }
 
   handlePtyExit(args: { ptyId: string }): void {
-    this.pendingSubmitPtyIds.delete(args.ptyId);
     const parsed = parsePtyId(args.ptyId);
     if (!parsed) return;
 

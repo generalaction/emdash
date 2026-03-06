@@ -12,6 +12,7 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { consumeSubmittedInputChunk } from './submitCapture';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -103,6 +104,7 @@ export class TerminalSessionManager {
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
   private inputBuffer: TerminalInputBuffer | null = null;
+  private currentSubmittedInput = '';
   private autoCopyOnSelection = false;
   private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private terminalConfigFontSize: number | null = null;
@@ -581,6 +583,8 @@ export class TerminalSessionManager {
 
     if (!filtered) return;
 
+    const submittedText = this.consumeSubmittedInput(filtered, isNewlineInsert);
+
     // Feed input to the buffer for first-message capture
     if (this.inputBuffer && !this.inputBuffer.isComplete) {
       this.inputBuffer.feed(filtered);
@@ -602,16 +606,28 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+      if (submittedText || pendingText.trim()) {
+        agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+      }
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
       pendingInjectionManager.markUsed();
       return;
     }
 
-    if (isEnterPress && !isNewlineInsert) {
+    if (isEnterPress && !isNewlineInsert && submittedText) {
       agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
     }
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
+  }
+
+  private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
+    const result = consumeSubmittedInputChunk({
+      currentInput: this.currentSubmittedInput,
+      data,
+      isNewlineInsert,
+    });
+    this.currentSubmittedInput = result.currentInput;
+    return result.submittedText;
   }
 
   private cleanTerminalText(text: string): string {
@@ -1075,7 +1091,6 @@ export class TerminalSessionManager {
 
   private setupPtyDataListener(id: string): void {
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
-      agentStatusStore.handlePtyData({ ptyId: id, chunk });
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
         this.terminal.clear();

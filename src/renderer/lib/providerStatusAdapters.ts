@@ -2,7 +2,13 @@ import type { AgentEvent } from '@shared/agentEvents';
 import type { AgentStatusKind } from '@shared/agentStatus';
 
 export function mapAgentEventToStatus(event: AgentEvent): AgentStatusKind | null {
-  if (event.providerId !== 'claude') return null;
+  if (
+    event.providerId !== 'claude' &&
+    event.providerId !== 'codex' &&
+    event.providerId !== 'opencode'
+  ) {
+    return null;
+  }
 
   if (event.type === 'stop') return 'complete';
   if (event.type === 'error') return 'error';
@@ -21,6 +27,8 @@ export function mapAgentEventToStatus(event: AgentEvent): AgentStatusKind | null
 }
 
 export function mapUserInputToStatus(providerId: string): AgentStatusKind | null {
-  if (providerId === 'claude') return 'working';
+  if (providerId === 'claude' || providerId === 'codex' || providerId === 'opencode') {
+    return 'working';
+  }
   return null;
 }
