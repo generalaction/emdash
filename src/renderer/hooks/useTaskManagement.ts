@@ -88,17 +88,11 @@ const cleanupPtyResources = async (task: Task): Promise<void> => {
       for (const v of variants) {
         const id = `${v.worktreeId}-main`;
         mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
       }
     } else {
       for (const provider of TERMINAL_PROVIDER_IDS) {
         const id = makePtyId(provider, 'main', task.id);
         mainSessionIds.push(id);
-        try {
-          window.electronAPI.ptyKill?.(id);
-        } catch {}
       }
     }
 
@@ -109,24 +103,25 @@ const cleanupPtyResources = async (task: Task): Promise<void> => {
         if (!conv.isMain && conv.provider) {
           const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
           chatSessionIds.push(chatId);
-          try {
-            window.electronAPI.ptyKill?.(chatId);
-          } catch {}
         }
       }
     } catch {}
 
     const sessionIds = [...mainSessionIds, ...chatSessionIds];
-    await Promise.allSettled(
-      sessionIds.map(async (sessionId) => {
-        try {
-          terminalSessionRegistry.dispose(sessionId);
-        } catch {}
-        try {
-          await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-        } catch {}
-      })
-    );
+    for (const sessionId of sessionIds) {
+      try {
+        terminalSessionRegistry.dispose(sessionId);
+      } catch {}
+    }
+    if (sessionIds.length > 0) {
+      try {
+        await window.electronAPI.ptyCleanupSessions({
+          ids: sessionIds,
+          clearSnapshots: true,
+          waitForSnapshots: false,
+        });
+      } catch {}
+    }
 
     const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
     const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
@@ -219,6 +214,7 @@ export function useTaskManagement() {
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
+  const pendingTaskProjectRef = useRef<Project | null>(null);
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
 
   // Reset active task when project management signals a navigation away
@@ -381,6 +377,7 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
+      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
       openTaskModal();
     },
@@ -420,17 +417,11 @@ export function useTaskManagement() {
         for (const v of variants) {
           const id = `${v.worktreeId}-main`;
           mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
         }
       } else {
         for (const provider of TERMINAL_PROVIDER_IDS) {
           const id = makePtyId(provider, 'main', task.id);
           mainSessionIds.push(id);
-          try {
-            window.electronAPI.ptyKill?.(id);
-          } catch {}
         }
       }
 
@@ -441,24 +432,25 @@ export function useTaskManagement() {
           if (!conv.isMain && conv.provider) {
             const chatId = makePtyId(conv.provider as ProviderId, 'chat', conv.id);
             chatSessionIds.push(chatId);
-            try {
-              window.electronAPI.ptyKill?.(chatId);
-            } catch {}
           }
         }
       } catch {}
 
       const sessionIds = [...mainSessionIds, ...chatSessionIds];
-      await Promise.allSettled(
-        sessionIds.map(async (sessionId) => {
-          try {
-            terminalSessionRegistry.dispose(sessionId);
-          } catch {}
-          try {
-            await window.electronAPI.ptyClearSnapshot({ id: sessionId });
-          } catch {}
-        })
-      );
+      for (const sessionId of sessionIds) {
+        try {
+          terminalSessionRegistry.dispose(sessionId);
+        } catch {}
+      }
+      if (sessionIds.length > 0) {
+        try {
+          await window.electronAPI.ptyCleanupSessions({
+            ids: sessionIds,
+            clearSnapshots: true,
+            waitForSnapshots: false,
+          });
+        } catch {}
+      }
 
       const variantPaths = (task.metadata?.multiAgent?.variants || []).map((v) => v.path);
       const pathsToClean = variantPaths.length > 0 ? variantPaths : [task.path];
@@ -511,11 +503,13 @@ export function useTaskManagement() {
         );
       }
 
-      for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
-        try {
-          await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
-        } catch {}
-      }
+      await Promise.allSettled(
+        getLifecycleTaskIds(task).map(async (lifecycleTaskId) => {
+          try {
+            await window.electronAPI.lifecycleClearTask({ taskId: lifecycleTaskId });
+          } catch {}
+        })
+      );
 
       void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
         captureTelemetry('task_deleted');
@@ -905,7 +899,7 @@ export function useTaskManagement() {
   });
 
   const handleCreateTask = useCallback(
-    (
+    async (
       taskName: string,
       initialPrompt?: string,
       agentRuns: AgentRun[] = [{ agent: 'claude', runs: 1 }],
@@ -917,10 +911,12 @@ export function useTaskManagement() {
       baseRef?: string,
       nameGenerated?: boolean
     ) => {
-      if (!selectedProject) return;
+      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      pendingTaskProjectRef.current = null;
+      if (!targetProject) return;
       setIsCreatingTask(true);
-      createTaskMutation.mutate({
-        project: selectedProject,
+      await createTaskMutation.mutateAsync({
+        project: targetProject,
         taskName,
         initialPrompt,
         agentRuns,
@@ -951,22 +947,12 @@ export function useTaskManagement() {
     };
   }, [isCreatingTask]);
 
-  // Wire up openTaskModal with the latest handleCreateTask
+  // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
   openTaskModalImplRef.current = () => {
     showModal('taskModal', {
-      onSuccess: (result) =>
-        handleCreateTask(
-          result.name,
-          result.initialPrompt,
-          result.agentRuns,
-          result.linkedLinearIssue ?? null,
-          result.linkedGithubIssue ?? null,
-          result.linkedJiraIssue ?? null,
-          result.autoApprove,
-          result.useWorktree,
-          result.baseRef,
-          result.nameGenerated
-        ),
+      onClose: () => {
+        pendingTaskProjectRef.current = null;
+      },
     });
   };
 
@@ -976,6 +962,27 @@ export function useTaskManagement() {
       openTaskModal();
     }
   }, [autoOpenTaskModalTrigger, openTaskModal]);
+
+  // ---------------------------------------------------------------------------
+  // Pin / unpin task (persisted in task metadata)
+  // ---------------------------------------------------------------------------
+  const handlePinTask = useCallback(
+    async (task: Task) => {
+      const isPinned = !task.metadata?.isPinned;
+      const updatedMetadata = { ...task.metadata, isPinned: isPinned || null };
+      // Optimistic UI update
+      updateTaskCache(task.projectId, (old) =>
+        old.map((t) => (t.id === task.id ? { ...t, metadata: updatedMetadata } : t))
+      );
+      try {
+        await rpc.db.saveTask({ ...task, metadata: updatedMetadata });
+      } catch {
+        // Rollback on failure
+        queryClient.invalidateQueries({ queryKey: ['tasks', task.projectId] });
+      }
+    },
+    [updateTaskCache, queryClient]
+  );
 
   return {
     activeTask,
@@ -999,5 +1006,6 @@ export function useTaskManagement() {
     handleRenameTask,
     handleArchiveTask,
     handleRestoreTask,
+    handlePinTask,
   };
 }

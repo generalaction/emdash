@@ -167,9 +167,12 @@ const ChatInterface: React.FC<Props> = ({
 
   // Load conversations when task changes
   useEffect(() => {
+    let cancelled = false;
+
     const loadConversations = async () => {
       setConversationsLoaded(false);
       const loadedConversations = await rpc.db.getConversations(task.id);
+      if (cancelled) return;
 
       if (loadedConversations.length > 0) {
         setConversations(loadedConversations);
@@ -195,37 +198,38 @@ const ChatInterface: React.FC<Props> = ({
             conversationId: firstConv.id,
           });
         }
-        setConversationsLoaded(true);
+        if (!cancelled) setConversationsLoaded(true);
       } else {
         // No conversations exist - create default for backward compatibility
         // This ensures existing tasks always have at least one conversation
         // (preserves pre-multi-chat behavior)
-        const defaultConversation = await rpc.db.getOrCreateDefaultConversation(task.id);
+        const taskAgent = (task.agentId || agent) as string;
+        const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
+          taskId: task.id,
+          provider: taskAgent,
+        });
+        if (cancelled) return;
         if (defaultConversation) {
-          // For backward compatibility: use task.agentId if available, otherwise use current agent
-          // This preserves the original agent choice for tasks created before multi-chat
-          const taskAgent = task.agentId || agent;
-          const conversationWithAgent = {
-            ...defaultConversation,
-            provider: taskAgent,
-            isMain: true,
-            isActive: true,
-          };
-          setConversations([conversationWithAgent]);
+          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
+          setConversations([
+            {
+              ...defaultConversation,
+              isMain: true,
+              isActive: true,
+            },
+          ]);
           setActiveConversationId(defaultConversation.id);
-
-          // Update the agent state to match
-          setAgent(taskAgent as Agent);
-
-          // Save the agent to the conversation
-          await rpc.db.saveConversation(conversationWithAgent);
-          setConversationsLoaded(true);
+          setAgent((defaultConversation.provider || taskAgent) as Agent);
+          if (!cancelled) setConversationsLoaded(true);
         }
       }
     };
 
     loadConversations();
-  }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id, task.agentId]); // agent is intentionally not included as a dependency
 
   // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
   useEffect(() => {
@@ -540,7 +544,7 @@ const ChatInterface: React.FC<Props> = ({
 
       // Dispose the terminal for this chat
       const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convAgent = (convToDelete?.provider || agent) as Agent;
+      const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
       const terminalToDispose = makePtyId(convAgent, 'chat', conversationId);
       terminalSessionRegistry.dispose(terminalToDispose);
 
@@ -921,7 +925,7 @@ const ChatInterface: React.FC<Props> = ({
                 >
                   {sortedConversations.map((conv, index) => {
                     const isActive = conv.id === activeConversationId;
-                    const convAgent = conv.provider || agent;
+                    const convAgent = conv.provider ?? 'claude';
                     const config = agentConfig[convAgent as Agent];
                     const agentName = config?.name || convAgent;
                     const isBusy = busyByConversationId[conv.id] === true;
@@ -929,9 +933,9 @@ const ChatInterface: React.FC<Props> = ({
                     // Count how many chats use the same agent up to this point
                     const sameAgentCount = sortedConversations
                       .slice(0, index + 1)
-                      .filter((c) => (c.provider || agent) === convAgent).length;
+                      .filter((c) => (c.provider ?? 'claude') === convAgent).length;
                     const showNumber =
-                      sortedConversations.filter((c) => (c.provider || agent) === convAgent)
+                      sortedConversations.filter((c) => (c.provider ?? 'claude') === convAgent)
                         .length > 1;
 
                     return (

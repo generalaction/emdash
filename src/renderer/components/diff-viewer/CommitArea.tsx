@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Undo2, Loader2 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { subscribeToFileChanges } from '../../lib/fileChangeEvents';
@@ -128,7 +128,9 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     setIsPushing(true);
     try {
       const result = await window.electronAPI.gitPush({ taskPath });
-      if (!result?.success) {
+      if (result?.success) {
+        toast({ title: 'Pushed successfully' });
+      } else {
         toast({
           title: 'Push failed',
           description: friendlyGitError(result?.error || 'Unknown error'),
@@ -240,9 +242,16 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         <button
           onClick={() => void handleCommit()}
           disabled={!canCommit}
-          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Commit
+          {isCommitting ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Committing...
+            </>
+          ) : (
+            'Commit'
+          )}
         </button>
         <button
           onClick={() => void handlePush()}
@@ -254,8 +263,12 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
               : 'No unpushed commits'
           }
         >
-          <ArrowUp className="h-3 w-3" />
-          Push{aheadCount > 0 ? ` (${aheadCount})` : ''}
+          {isPushing ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <ArrowUp className="h-3 w-3" />
+          )}
+          {isPushing ? 'Pushing...' : <>Push{aheadCount > 0 ? ` (${aheadCount})` : ''}</>}
         </button>
         {behindCount > 0 && (
           <button

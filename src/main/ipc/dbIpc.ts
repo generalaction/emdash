@@ -33,8 +33,11 @@ export const databaseController = createRPCController({
   getConversations: (taskId: string): Promise<Conversation[]> =>
     databaseService.getConversations(taskId),
 
-  getOrCreateDefaultConversation: (taskId: string): Promise<Conversation> =>
-    databaseService.getOrCreateDefaultConversation(taskId),
+  getOrCreateDefaultConversation: (args: {
+    taskId: string;
+    provider?: string;
+  }): Promise<Conversation> =>
+    databaseService.getOrCreateDefaultConversation(args.taskId, args.provider),
 
   createConversation: (args: {
     taskId: string;

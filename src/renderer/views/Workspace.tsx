@@ -246,6 +246,8 @@ export function Workspace() {
     showDiffViewer,
     isInitialLoadComplete: projectMgmt.isInitialLoadComplete,
     showHomeView: projectMgmt.showHomeView,
+    showSettingsPage,
+    showSkillsView: projectMgmt.showSkillsView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });

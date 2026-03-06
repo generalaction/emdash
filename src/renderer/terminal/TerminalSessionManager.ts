@@ -24,6 +24,7 @@ import { rpc } from '@/lib/rpc';
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
 const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+const DEFAULT_FONT_SIZE = 13;
 const MIN_RENDERABLE_TERMINAL_WIDTH_PX = 24;
 const MIN_RENDERABLE_TERMINAL_HEIGHT_PX = 24;
 const PTY_RESIZE_DEBOUNCE_MS = 60;
@@ -112,6 +113,8 @@ export class TerminalSessionManager {
   private writeInFlight = false;
   private shouldScrollToBottomAfterWrites = false;
   private lastSlowInputLogAt = 0;
+  private terminalConfigFontSize: number | null = null;
+  private lastTheme: SessionTheme;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -121,6 +124,7 @@ export class TerminalSessionManager {
   constructor(private readonly options: TerminalSessionOptions) {
     this.initStartTime = performance.now();
     this.id = options.taskId;
+    this.lastTheme = options.theme;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -146,7 +150,7 @@ export class TerminalSessionManager {
       rows: options.initialSize.rows,
       scrollback: options.scrollbackLines,
       convertEol: true,
-      fontSize: 13,
+      fontSize: DEFAULT_FONT_SIZE,
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
@@ -164,6 +168,16 @@ export class TerminalSessionManager {
     rpc.appSettings.get().then((settings) => {
       updateCustomFont(settings?.terminal?.fontFamily);
       this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+    });
+
+    window.electronAPI.terminalGetTheme().then((result) => {
+      if (this.disposed) return;
+      const size = result?.ok && result.config?.theme?.fontSize;
+      if (typeof size === 'number' && size > 0) {
+        this.terminalConfigFontSize = size;
+        this.applyTheme(this.lastTheme);
+        this.fitPreservingViewport();
+      }
     });
 
     const handleFontChange = (e: Event) => {
@@ -467,6 +481,7 @@ export class TerminalSessionManager {
   }
 
   setTheme(theme: SessionTheme) {
+    this.lastTheme = theme;
     this.applyTheme(theme);
   }
 
@@ -745,22 +760,21 @@ export class TerminalSessionManager {
             ...selection,
           };
 
-    // Extract font settings before applying theme (they're not part of ITheme)
     const fontFamily = (theme.override as any)?.fontFamily;
-    const fontSize = (theme.override as any)?.fontSize;
+    const overrideFontSize = (theme.override as any)?.fontSize;
+    const effectiveFontSize =
+      typeof overrideFontSize === 'number' && overrideFontSize > 0
+        ? overrideFontSize
+        : (this.terminalConfigFontSize ?? DEFAULT_FONT_SIZE);
 
-    // Apply color theme (excluding font properties)
     const colorTheme = { ...theme.override };
     delete (colorTheme as any)?.fontFamily;
     delete (colorTheme as any)?.fontSize;
     this.terminal.options.theme = { ...base, ...colorTheme };
 
-    // Apply font settings separately
     this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
     this.applyEffectiveFont();
-    if (fontSize) {
-      this.terminal.options.fontSize = fontSize;
-    }
+    this.terminal.options.fontSize = effectiveFontSize;
   }
 
   private applyEffectiveFont() {

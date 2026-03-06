@@ -315,6 +315,7 @@ export function registerGitIpc() {
       'additions',
       'deletions',
       'changedFiles',
+      'autoMergeRequest',
     ];
     const fieldsStr = queryFields.join(',');
 
@@ -618,6 +619,69 @@ export function registerGitIpc() {
     return `'${arg.replace(/'/g, "'\\''")}'`;
   }
 
+  const countStatusBuckets = (
+    changes: Array<{ status?: string; isStaged?: boolean }>
+  ): { staged: number; unstaged: number; untracked: number } => {
+    let staged = 0;
+    let unstaged = 0;
+    let untracked = 0;
+    for (const change of changes) {
+      if (change.status === 'untracked') {
+        untracked += 1;
+      } else if (change.isStaged) {
+        staged += 1;
+      } else {
+        unstaged += 1;
+      }
+    }
+    return { staged, unstaged, untracked };
+  };
+
+  const getLocalAheadBehind = async (
+    taskPath: string
+  ): Promise<{ ahead: number; behind: number }> => {
+    try {
+      const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
+      const firstLine = ((stdout || '').split('\n')[0] || '').trim();
+      const aheadMatch = firstLine.match(/ahead\s+(\d+)/i);
+      const behindMatch = firstLine.match(/behind\s+(\d+)/i);
+      return {
+        ahead: aheadMatch ? parseInt(aheadMatch[1], 10) || 0 : 0,
+        behind: behindMatch ? parseInt(behindMatch[1], 10) || 0 : 0,
+      };
+    } catch {
+      return { ahead: 0, behind: 0 };
+    }
+  };
+
+  const getLocalPrForDeleteRisk = async (
+    taskPath: string
+  ): Promise<{ pr: unknown | null; prKnown: boolean; error?: string }> => {
+    const queryFields = [
+      'number',
+      'url',
+      'state',
+      'isDraft',
+      'title',
+      'headRefName',
+      'baseRefName',
+    ];
+    const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
+    try {
+      const { stdout } = await execAsync(cmd, { cwd: taskPath });
+      const json = (stdout || '').trim();
+      if (!json) return { pr: null, prKnown: true };
+      return { pr: JSON.parse(json), prKnown: true };
+    } catch (error) {
+      const errObj = error as { stderr?: string; message?: string };
+      const msg = (errObj?.stderr || errObj?.message || String(error || '')).trim();
+      if (/no pull requests? found|not found|could not resolve to a pull request/i.test(msg)) {
+        return { pr: null, prKnown: true };
+      }
+      return { pr: null, prKnown: false, error: msg || 'Failed to query pull request status' };
+    }
+  };
+
   ipcMain.handle('git:watch-status', async (_, taskPath: string) => {
     const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
     if (remoteProject) {
@@ -651,6 +715,127 @@ export function registerGitIpc() {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  ipcMain.handle(
+    'git:get-delete-risks',
+    async (
+      _,
+      args: { targets: Array<{ id: string; taskPath: string }>; includePr?: boolean }
+    ): Promise<{
+      success: boolean;
+      risks?: Record<
+        string,
+        {
+          staged: number;
+          unstaged: number;
+          untracked: number;
+          ahead: number;
+          behind: number;
+          error?: string;
+          pr?: unknown | null;
+          prKnown: boolean;
+        }
+      >;
+      error?: string;
+    }> => {
+      const targets = Array.isArray(args?.targets) ? args.targets : [];
+      const includePr = args?.includePr === true;
+      if (targets.length === 0) {
+        return { success: true, risks: {} };
+      }
+
+      try {
+        const entries = await Promise.all(
+          targets.map(async (target) => {
+            const risk: {
+              staged: number;
+              unstaged: number;
+              untracked: number;
+              ahead: number;
+              behind: number;
+              error?: string;
+              pr?: unknown | null;
+              prKnown: boolean;
+            } = {
+              staged: 0,
+              unstaged: 0,
+              untracked: 0,
+              ahead: 0,
+              behind: 0,
+              pr: null,
+              prKnown: false,
+            };
+
+            try {
+              const remoteProject = await resolveRemoteProjectForWorktreePath(target.taskPath);
+
+              const [changesRes, aheadBehindRes, prRes] = await Promise.all([
+                (async () => {
+                  if (remoteProject) {
+                    return await remoteGitService.getStatusDetailed(
+                      remoteProject.sshConnectionId,
+                      target.taskPath
+                    );
+                  }
+                  return await gitGetStatus(target.taskPath);
+                })(),
+                (async () => {
+                  if (remoteProject) {
+                    const status = await remoteGitService.getBranchStatus(
+                      remoteProject.sshConnectionId,
+                      target.taskPath
+                    );
+                    return { ahead: status.ahead, behind: status.behind };
+                  }
+                  return await getLocalAheadBehind(target.taskPath);
+                })(),
+                (async () => {
+                  if (!includePr) return { pr: null, prKnown: false as const, error: undefined };
+                  if (remoteProject) {
+                    const result = await getPrStatusRemote(
+                      remoteProject.sshConnectionId,
+                      target.taskPath
+                    );
+                    if (!result.success) {
+                      return {
+                        pr: null,
+                        prKnown: false as const,
+                        error: result.error || 'Failed to query pull request status',
+                      };
+                    }
+                    return { pr: result.pr ?? null, prKnown: true as const, error: undefined };
+                  }
+                  return await getLocalPrForDeleteRisk(target.taskPath);
+                })(),
+              ]);
+
+              const counts = countStatusBuckets(
+                changesRes as Array<{ status?: string; isStaged?: boolean }>
+              );
+              risk.staged = counts.staged;
+              risk.unstaged = counts.unstaged;
+              risk.untracked = counts.untracked;
+              risk.ahead = aheadBehindRes.ahead || 0;
+              risk.behind = aheadBehindRes.behind || 0;
+              risk.pr = prRes.pr;
+              risk.prKnown = prRes.prKnown;
+              if (prRes.error) {
+                risk.error = prRes.error;
+              }
+            } catch (error) {
+              risk.error = error instanceof Error ? error.message : String(error);
+            }
+
+            return [target.id, risk] as const;
+          })
+        );
+
+        return { success: true, risks: Object.fromEntries(entries) };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 
   // Git: Per-file diff (moved from Codex IPC)
   ipcMain.handle('git:get-file-diff', async (_, args: { taskPath: string; filePath: string }) => {
@@ -1125,6 +1310,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         'additions',
         'deletions',
         'changedFiles',
+        'autoMergeRequest',
       ];
       const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
       try {
@@ -1287,6 +1473,108 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
+  // Git: Enable auto-merge on a PR via GitHub CLI
+  ipcMain.handle(
+    'git:enable-auto-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }
+    ) => {
+      const {
+        taskPath,
+        prNumber,
+        strategy = 'merge',
+      } = (args || {}) as {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      };
+
+      try {
+        const strategyFlag =
+          strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
+        const ghArgs = ['pr', 'merge'];
+        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
+          ghArgs.push(String(prNumber));
+        }
+        ghArgs.push('--auto', strategyFlag);
+
+        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+        if (remoteProject) {
+          const result = await remoteGitService.execGh(
+            remoteProject.sshConnectionId,
+            taskPath,
+            ghArgs.join(' ')
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: (result.stderr || result.stdout || '').trim() };
+          }
+          return { success: true };
+        }
+
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return { success: true, output };
+      } catch (error) {
+        const stderr = (error as any)?.stderr;
+        const msg = stderr || (error instanceof Error ? error.message : String(error));
+        return { success: false, error: typeof msg === 'string' ? msg.trim() : String(msg) };
+      }
+    }
+  );
+
+  // Git: Disable auto-merge on a PR via GitHub CLI
+  ipcMain.handle(
+    'git:disable-auto-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        prNumber?: number;
+      }
+    ) => {
+      const { taskPath, prNumber } = (args || {}) as {
+        taskPath: string;
+        prNumber?: number;
+      };
+
+      try {
+        const ghArgs = ['pr', 'merge'];
+        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
+          ghArgs.push(String(prNumber));
+        }
+        ghArgs.push('--disable-auto');
+
+        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+        if (remoteProject) {
+          const result = await remoteGitService.execGh(
+            remoteProject.sshConnectionId,
+            taskPath,
+            ghArgs.join(' ')
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: (result.stderr || result.stdout || '').trim() };
+          }
+          return { success: true };
+        }
+
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return { success: true, output };
+      } catch (error) {
+        const stderr = (error as any)?.stderr;
+        const msg = stderr || (error instanceof Error ? error.message : String(error));
+        return { success: false, error: typeof msg === 'string' ? msg.trim() : String(msg) };
       }
     }
   );
