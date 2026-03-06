@@ -609,7 +609,7 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      if ((submittedText || pendingText).trim()) {
+      if (submittedText || pendingText.trim()) {
         agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
       }
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
