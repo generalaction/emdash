@@ -2,6 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Search, Plus, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { useToast } from '../../hooks/use-toast';
 import { useModalContext } from '../../contexts/ModalProvider';
 import { McpServerCard } from './McpServerCard';
@@ -10,13 +20,14 @@ import type { McpServer, McpCatalogEntry, McpProvidersResponse } from '@shared/m
 
 export const McpPage: React.FC = () => {
   const { toast } = useToast();
-  const { showModal } = useModalContext();
+  const { showModal, closeModal } = useModalContext();
   const [installed, setInstalled] = useState<McpServer[]>([]);
   const [catalog, setCatalog] = useState<McpCatalogEntry[]>([]);
   const [providers, setProviders] = useState<McpProvidersResponse[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -77,9 +88,15 @@ export const McpPage: React.FC = () => {
     await loadData();
   };
 
-  const handleRemove = async (serverName: string) => {
+  const handleRemoveRequest = (serverName: string) => {
+    closeModal();
+    setRemoveTarget(serverName);
+  };
+
+  const executeRemove = async () => {
+    if (!removeTarget) return;
     try {
-      const result = await window.electronAPI.mcpRemoveServer(serverName);
+      const result = await window.electronAPI.mcpRemoveServer(removeTarget);
       if (result.success) {
         await loadData();
       } else {
@@ -91,6 +108,8 @@ export const McpPage: React.FC = () => {
       }
     } catch {
       toast({ title: 'Failed to remove server', variant: 'destructive' });
+    } finally {
+      setRemoveTarget(null);
     }
   };
 
@@ -99,7 +118,7 @@ export const McpPage: React.FC = () => {
       mode,
       providers,
       onSave: handleSave,
-      onRemove: handleRemove,
+      onRemove: handleRemoveRequest,
     });
   };
 
@@ -208,6 +227,27 @@ export const McpPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove MCP server?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove &ldquo;{removeTarget}&rdquo; from all agents. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void executeRemove()}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

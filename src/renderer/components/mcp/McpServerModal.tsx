@@ -16,7 +16,7 @@ export interface McpServerModalProps {
   mode: McpServerModalMode;
   providers: McpProvidersResponse[];
   onSave: (server: McpServer) => Promise<void>;
-  onRemove?: (serverName: string) => Promise<void>;
+  onRemove?: (serverName: string) => void;
   onClose: () => void;
   onSuccess: (result: unknown) => void;
 }
@@ -87,12 +87,9 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
     }
   };
 
-  const handleRemove = async () => {
+  const handleRemove = () => {
     if (!onRemove) return;
-    const confirmed = window.confirm(`Remove "${name}" from all agents? This cannot be undone.`);
-    if (!confirmed) return;
-    await onRemove(name);
-    onClose();
+    onRemove(name);
   };
 
   const toggleProvider = (id: string) => {
