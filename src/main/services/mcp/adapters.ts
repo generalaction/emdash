@@ -61,10 +61,9 @@ function fwdGemini(servers: ServerMap): ServerMap {
       ...((s.headers as Record<string, string>) ?? {}),
     };
     ensureHeader(headers, 'Accept', 'application/json, text/event-stream');
-    delete s.url;
-    delete s.headers;
-    delete s.type;
-    return { httpUrl: url, headers };
+    const result: RawServerEntry = { httpUrl: url, headers };
+    if (s.env && typeof s.env === 'object') result.env = s.env;
+    return result;
   });
 }
 
@@ -98,12 +97,16 @@ function fwdOpencode(servers: ServerMap): ServerMap {
         ...((v.headers as Record<string, string>) ?? {}),
       };
       ensureHeader(headers, 'Accept', 'application/json, text/event-stream');
-      result[k] = { type: 'remote', url: v.url ?? '', headers, enabled: true };
+      const entry: RawServerEntry = { type: 'remote', url: v.url ?? '', headers, enabled: true };
+      if (v.env && typeof v.env === 'object') entry.env = v.env;
+      result[k] = entry;
     } else if (isStdio(v)) {
       const cmdVec: string[] = [];
       if (typeof v.command === 'string' && v.command) cmdVec.push(v.command);
       if (Array.isArray(v.args)) cmdVec.push(...(v.args as string[]));
-      result[k] = { type: 'local', command: cmdVec, enabled: true };
+      const entry: RawServerEntry = { type: 'local', command: cmdVec, enabled: true };
+      if (v.env && typeof v.env === 'object') entry.env = v.env;
+      result[k] = entry;
     } else {
       result[k] = deepClone(v);
     }
