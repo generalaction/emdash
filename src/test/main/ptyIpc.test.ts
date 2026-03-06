@@ -28,6 +28,12 @@ const openCodeGetRemoteConfigDirMock = vi.fn(
 const openCodeGetPluginSourceMock = vi.fn(
   () => 'export const EmdashNotifyPlugin = async () => ({ event: async () => {} });\n'
 );
+const clearStoredSessionMock = vi.fn();
+const getStoredResumeTargetMock = vi.fn(() => null);
+const markCodexSessionBoundMock = vi.fn();
+const codexThreadExistsForCwdMock = vi.fn(async () => true);
+const codexFindLatestRecentThreadForCwdMock = vi.fn(async () => null);
+const codexFindLatestThreadForCwdMock = vi.fn(async () => null);
 const execFileMock = vi.fn(
   (
     _cmd: string,
@@ -175,6 +181,9 @@ vi.mock('../../main/services/ptyManager', () => ({
   killTmuxSession: vi.fn(),
   getTmuxSessionName: vi.fn(() => ''),
   getPtyTmuxSessionName: vi.fn(() => ''),
+  clearStoredSession: clearStoredSessionMock,
+  getStoredResumeTarget: getStoredResumeTargetMock,
+  markCodexSessionBound: markCodexSessionBoundMock,
 }));
 
 vi.mock('../../main/lib/logger', () => ({
@@ -236,6 +245,14 @@ vi.mock('../../main/services/AgentEventService', () => ({
   },
 }));
 
+vi.mock('../../main/services/CodexSessionService', () => ({
+  codexSessionService: {
+    threadExistsForCwd: codexThreadExistsForCwdMock,
+    findLatestRecentThreadForCwd: codexFindLatestRecentThreadForCwdMock,
+    findLatestThreadForCwd: codexFindLatestThreadForCwdMock,
+  },
+}));
+
 vi.mock('../../main/services/ClaudeHookService', () => ({
   ClaudeHookService: {
     writeHookConfig: vi.fn(),
@@ -281,6 +298,10 @@ describe('ptyIpc notification lifecycle', () => {
     lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
     getProviderRuntimeCliArgsMock.mockClear();
+    getStoredResumeTargetMock.mockReturnValue(null);
+    codexThreadExistsForCwdMock.mockResolvedValue(true);
+    codexFindLatestRecentThreadForCwdMock.mockResolvedValue(null);
+    codexFindLatestThreadForCwdMock.mockResolvedValue(null);
   });
 
   function createSender() {
@@ -442,6 +463,84 @@ describe('ptyIpc notification lifecycle', () => {
     );
     expect(removePtyRecordMock).toHaveBeenCalledWith(id);
     expect(ptys.has(id)).toBe(false);
+  });
+
+  it('prunes stale exact Codex resume targets before local restart', async () => {
+    getStoredResumeTargetMock.mockReturnValue('thread-stale' as any);
+    codexThreadExistsForCwdMock.mockResolvedValue(false);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-stale-target');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32, resume: true }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(codexThreadExistsForCwdMock).toHaveBeenCalledWith('thread-stale', '/tmp/task');
+    expect(clearStoredSessionMock).toHaveBeenCalledWith(id);
+  });
+
+  it('binds a newly started Codex PTY to an exact thread id', async () => {
+    codexFindLatestRecentThreadForCwdMock.mockResolvedValue({
+      id: 'thread-123',
+      cwd: '/tmp/task',
+      createdAt: 1,
+      updatedAt: 1,
+      archived: false,
+    } as any);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-bind-target');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(codexFindLatestRecentThreadForCwdMock).toHaveBeenCalled();
+    expect(markCodexSessionBoundMock).toHaveBeenCalledWith(id, 'thread-123', '/tmp/task');
+  });
+
+  it('binds immediately to an existing exact-cwd Codex thread before polling', async () => {
+    codexFindLatestThreadForCwdMock.mockResolvedValue({
+      id: 'thread-existing',
+      cwd: '/tmp/task',
+      createdAt: 1,
+      updatedAt: 2,
+      archived: false,
+    } as any);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-existing-thread');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(codexFindLatestThreadForCwdMock).toHaveBeenCalledWith('/tmp/task');
+    expect(codexFindLatestRecentThreadForCwdMock).not.toHaveBeenCalled();
+    expect(markCodexSessionBoundMock).toHaveBeenCalledWith(id, 'thread-existing', '/tmp/task');
   });
 
   it('uses resolved provider config for remote invocation flags', async () => {

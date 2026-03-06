@@ -17,6 +17,9 @@ import {
   killTmuxSession,
   getTmuxSessionName,
   getPtyTmuxSessionName,
+  clearStoredSession,
+  getStoredResumeTarget,
+  markCodexSessionBound,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -39,6 +42,7 @@ import { createHash, randomUUID } from 'crypto';
 import path from 'path';
 import { quoteShellArg } from '../utils/shellEscape';
 import { agentEventService } from './AgentEventService';
+import { codexSessionService } from './CodexSessionService';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -57,6 +61,145 @@ type FinishCause = 'process_exit' | 'app_quit' | 'owner_destroyed' | 'manual_kil
 const ptyDataBuffers = new Map<string, string>();
 const ptyDataTimers = new Map<string, NodeJS.Timeout>();
 const PTY_DATA_FLUSH_MS = 16;
+const CODEX_BIND_LOOKBACK_MS = 15_000;
+const CODEX_BIND_TIMEOUT_MS = 20_000;
+const CODEX_BIND_POLL_MS = 250;
+const codexBindingQueues = new Map<string, Promise<void>>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pruneInvalidCodexResumeTarget(
+  ptyId: string,
+  cwd: string,
+  resume?: boolean
+): Promise<void> {
+  if (!resume) return;
+
+  const exactTarget = getStoredResumeTarget(ptyId, 'codex', cwd);
+  if (!exactTarget) return;
+
+  const valid = await codexSessionService.threadExistsForCwd(exactTarget, cwd);
+  if (valid) return;
+
+  clearStoredSession(ptyId);
+  log.warn('ptyIpc: pruned stale Codex resume target', { ptyId, cwd, exactTarget });
+}
+
+async function bindCodexThreadForPty(ptyId: string, cwd: string, startedAt: number): Promise<void> {
+  if (getStoredResumeTarget(ptyId, 'codex', cwd)) {
+    log.info('ptyIpc: skipping Codex bind because PTY already has a stored target', {
+      ptyId,
+      cwd,
+    });
+    return;
+  }
+
+  const deadline = Date.now() + CODEX_BIND_TIMEOUT_MS;
+  const since = startedAt - CODEX_BIND_LOOKBACK_MS;
+  let attempts = 0;
+
+  log.info('ptyIpc: starting Codex thread bind', {
+    ptyId,
+    cwd,
+    startedAt,
+    since,
+    timeoutMs: CODEX_BIND_TIMEOUT_MS,
+    lookbackMs: CODEX_BIND_LOOKBACK_MS,
+  });
+
+  const existingThread = await codexSessionService.findLatestThreadForCwd(cwd);
+  if (existingThread) {
+    markCodexSessionBound(ptyId, existingThread.id, cwd);
+    log.info('ptyIpc: bound Codex PTY to existing exact-cwd thread', {
+      ptyId,
+      cwd,
+      threadId: existingThread.id,
+      updatedAt: existingThread.updatedAt,
+    });
+    return;
+  }
+
+  while (Date.now() <= deadline) {
+    attempts += 1;
+    const thread = await codexSessionService.findLatestRecentThreadForCwd(cwd, since);
+    if (thread || attempts <= 3 || attempts % 10 === 0) {
+      log.info('ptyIpc: Codex bind poll result', {
+        ptyId,
+        cwd,
+        attempt: attempts,
+        candidateThreadId: thread?.id ?? null,
+        candidateUpdatedAt: thread?.updatedAt ?? null,
+      });
+    }
+    if (thread) {
+      markCodexSessionBound(ptyId, thread.id, cwd);
+      log.info('ptyIpc: bound Codex PTY to thread', { ptyId, cwd, threadId: thread.id });
+      return;
+    }
+    await sleep(CODEX_BIND_POLL_MS);
+  }
+
+  const latestThread = await codexSessionService.findLatestThreadForCwd(cwd);
+  if (latestThread) {
+    markCodexSessionBound(ptyId, latestThread.id, cwd);
+    log.info('ptyIpc: bound Codex PTY to latest exact-cwd thread after polling timeout', {
+      ptyId,
+      cwd,
+      attempts,
+      threadId: latestThread.id,
+      updatedAt: latestThread.updatedAt,
+    });
+    return;
+  }
+
+  log.info('ptyIpc: no Codex thread discovered for PTY', {
+    ptyId,
+    cwd,
+    attempts,
+    latestThreadId: null,
+    latestThreadUpdatedAt: null,
+    latestThreadCreatedAt: null,
+    latestThreadArchived: null,
+  });
+}
+
+function scheduleCodexThreadBinding(ptyId: string, cwd: string, startedAt: number): void {
+  if (getStoredResumeTarget(ptyId, 'codex', cwd)) {
+    log.info('ptyIpc: not scheduling Codex bind because exact target already exists', {
+      ptyId,
+      cwd,
+    });
+    return;
+  }
+
+  const queueKey = `codex:${cwd}`;
+  const previous = codexBindingQueues.get(queueKey) ?? Promise.resolve();
+  log.info('ptyIpc: scheduling Codex bind', {
+    ptyId,
+    cwd,
+    queueKey,
+    queuedBehindExistingBind: codexBindingQueues.has(queueKey),
+  });
+  const next = previous
+    .catch(() => {})
+    .then(() => bindCodexThreadForPty(ptyId, cwd, startedAt))
+    .catch((error) => {
+      log.warn('ptyIpc: failed to bind Codex thread', {
+        ptyId,
+        cwd,
+        error: String(error),
+      });
+    })
+    .finally(() => {
+      if (codexBindingQueues.get(queueKey) === next) {
+        codexBindingQueues.delete(queueKey);
+      }
+    });
+
+  codexBindingQueues.set(queueKey, next);
+}
 
 // Guard IPC sends to prevent crashes when WebContents is destroyed
 function safeSendToOwner(id: string, channel: string, payload: unknown): boolean {
@@ -1054,10 +1197,15 @@ export function registerPtyIpc(): void {
           }
         }
 
+        if (providerId === 'codex') {
+          await pruneInvalidCodexResumeTarget(id, cwd, effectiveResume);
+        }
+
         maybeAutoTrustForClaude(providerId, cwd);
 
         const shellSetup = await resolveShellSetup(cwd);
         const tmux = await resolveTmuxEnabled(cwd);
+        const codexBindingStartedAt = providerId === 'codex' ? Date.now() : 0;
 
         // Write Claude Code hook config so it calls back to Emdash on events
         if (providerId === 'claude') {
@@ -1175,6 +1323,10 @@ export function registerPtyIpc(): void {
         }
 
         maybeMarkProviderStart(id, providerId as ProviderId);
+
+        if (providerId === 'codex') {
+          scheduleCodexThreadBinding(id, cwd, codexBindingStartedAt);
+        }
 
         try {
           const windows = BrowserWindow.getAllWindows();
