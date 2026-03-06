@@ -522,6 +522,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('gitlab:initialFetch', { projectPath, limit }),
   gitlabSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('gitlab:searchIssues', { projectPath, searchTerm, limit }),
+  // Plain integration
+  plainSaveToken: (token: string) => ipcRenderer.invoke('plain:saveToken', token),
+  plainCheckConnection: () => ipcRenderer.invoke('plain:checkConnection'),
+  plainClearToken: () => ipcRenderer.invoke('plain:clearToken'),
+  plainInitialFetch: (limit?: number, statuses?: string[]) =>
+    ipcRenderer.invoke('plain:initialFetch', limit, statuses),
+  plainSearchThreads: (searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>
