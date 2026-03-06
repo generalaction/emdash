@@ -38,7 +38,6 @@ import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 
-const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 
 interface LeftSidebarProps {
@@ -135,39 +134,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleArchiveTask: onArchiveTask,
     handleRestoreTask: onRestoreTask,
     handleDeleteTask,
+    handlePinTask,
   } = useTaskManagementContext();
 
   const { settings } = useAppSettings();
   const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
-
-  const [pinnedTaskIdsArray, setPinnedTaskIdsArray] = useLocalStorage<string[]>(
-    PINNED_TASKS_KEY,
-    []
-  );
-  const pinnedTaskIds = useMemo(() => new Set(pinnedTaskIdsArray), [pinnedTaskIdsArray]);
-
-  const handlePinTask = useCallback(
-    (task: Task) => {
-      setPinnedTaskIdsArray((prev) =>
-        prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]
-      );
-    },
-    [setPinnedTaskIdsArray]
-  );
-
-  // Remove pinned IDs for tasks that no longer exist (deleted or archived)
-  useEffect(() => {
-    if (!pinnedTaskIdsArray.length) return;
-    const allActiveIds = new Set(
-      Object.values(tasksByProjectId)
-        .flat()
-        .map((t) => t.id)
-    );
-    const cleaned = pinnedTaskIdsArray.filter((id) => allActiveIds.has(id));
-    if (cleaned.length !== pinnedTaskIdsArray.length) {
-      setPinnedTaskIdsArray(cleaned);
-    }
-  }, [tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
@@ -316,11 +287,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             <div className="flex min-w-0 flex-col gap-1">
                               {(tasksByProjectId[typedProject.id] ?? [])
                                 .slice()
-                                .sort(
-                                  (a, b) =>
-                                    (pinnedTaskIds.has(b.id) ? 1 : 0) -
-                                    (pinnedTaskIds.has(a.id) ? 1 : 0)
-                                )
+                                .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))
                                 .map((task) => {
                                   const isActive = activeTask?.id === task.id;
                                   return (
@@ -338,7 +305,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                         task={task}
                                         showDelete={true}
                                         showDirectBadge={false}
-                                        isPinned={pinnedTaskIds.has(task.id)}
+                                        isPinned={!!task.isPinned}
                                         onPin={() => handlePinTask(task)}
                                         onRename={(n) => onRenameTask?.(typedProject, task, n)}
                                         onDelete={() => handleDeleteTask(typedProject, task)}

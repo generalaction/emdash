@@ -24,6 +24,9 @@ export const databaseController = createRPCController({
 
   restoreTask: (taskId: string): Promise<void> => databaseService.restoreTask(taskId),
 
+  setTaskPinned: (args: { taskId: string; isPinned: boolean }): Promise<void> =>
+    databaseService.setTaskPinned(args.taskId, args.isPinned),
+
   getArchivedTasks: (projectId?: string): Promise<Task[]> =>
     databaseService.getArchivedTasks(projectId),
 

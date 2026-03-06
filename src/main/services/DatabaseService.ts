@@ -54,6 +54,7 @@ export interface Task {
   metadata?: any;
   useWorktree?: boolean;
   archivedAt?: string | null;
+  isPinned?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -294,6 +295,7 @@ export class DatabaseService {
           ? JSON.stringify(task.metadata)
           : null;
     const { db } = await getDrizzleClient();
+    const isPinned = task.isPinned === true ? 1 : 0;
     await db
       .insert(tasksTable)
       .values({
@@ -306,6 +308,7 @@ export class DatabaseService {
         agentId: task.agentId ?? null,
         metadata: metadataValue,
         useWorktree: task.useWorktree !== false ? 1 : 0,
+        isPinned,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .onConflictDoUpdate({
@@ -319,6 +322,7 @@ export class DatabaseService {
           agentId: task.agentId ?? null,
           metadata: metadataValue,
           useWorktree: task.useWorktree !== false ? 1 : 0,
+          isPinned,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       });
@@ -383,6 +387,18 @@ export class DatabaseService {
       .update(tasksTable)
       .set({
         archivedAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  async setTaskPinned(taskId: string, isPinned: boolean): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(tasksTable)
+      .set({
+        isPinned: isPinned ? 1 : 0,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(tasksTable.id, taskId));
@@ -937,6 +953,7 @@ export class DatabaseService {
           : null,
       useWorktree: row.useWorktree === 1,
       archivedAt: row.archivedAt ?? null,
+      isPinned: row.isPinned === 1,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

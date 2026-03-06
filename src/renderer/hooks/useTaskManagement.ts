@@ -705,6 +705,21 @@ export function useTaskManagement() {
     [restoreTaskMutation]
   );
 
+  const handlePinTask = useCallback(
+    async (task: Task): Promise<void> => {
+      const nextPinned = !task.isPinned;
+      try {
+        await rpc.db.setTaskPinned({ taskId: task.id, isPinned: nextPinned });
+        updateTaskCache(task.projectId, (old) =>
+          old.map((t) => (t.id === task.id ? { ...t, isPinned: nextPinned } : t))
+        );
+      } catch {
+        // ignore
+      }
+    },
+    [updateTaskCache]
+  );
+
   // ---------------------------------------------------------------------------
   // Rename task mutation
   // ---------------------------------------------------------------------------
@@ -977,5 +992,6 @@ export function useTaskManagement() {
     handleRenameTask,
     handleArchiveTask,
     handleRestoreTask,
+    handlePinTask,
   };
 }

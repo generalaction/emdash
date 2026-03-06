@@ -70,6 +70,7 @@ export const tasks = sqliteTable(
     metadata: text('metadata'),
     useWorktree: integer('use_worktree').notNull().default(1),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
+    isPinned: integer('is_pinned').notNull().default(0),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
