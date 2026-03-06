@@ -6,6 +6,9 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import type { McpServer, McpCatalogEntry, McpProvidersResponse } from '@shared/mcp/types';
+import type { Agent } from '../../types';
+import { agentConfig } from '../../lib/agentConfig';
+import AgentLogo from '../AgentLogo';
 
 export type McpServerModalMode =
   | { type: 'add-catalog'; entry: McpCatalogEntry }
@@ -228,6 +231,7 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
               .filter((p) => p.installed)
               .map((p) => {
                 const unsupported = transport === 'http' && !p.supportsHttp;
+                const logo = agentConfig[p.id as Agent];
                 return (
                   <Button
                     key={p.id}
@@ -245,6 +249,16 @@ export const McpServerModal: React.FC<McpServerModalProps> = ({
                           : 'border-border text-muted-foreground hover:border-primary/50'
                     }
                   >
+                    {logo && (
+                      <AgentLogo
+                        logo={logo.logo}
+                        alt={logo.alt}
+                        isSvg={logo.isSvg}
+                        invertInDark={logo.invertInDark}
+                        className="h-4 w-4 rounded-sm"
+                        grayscale={unsupported}
+                      />
+                    )}
                     {p.name}
                   </Button>
                 );
