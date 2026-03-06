@@ -462,12 +462,13 @@ export class DatabaseService {
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
-  async getOrCreateDefaultConversation(taskId: string): Promise<Conversation> {
+  async getOrCreateDefaultConversation(taskId: string, provider?: string): Promise<Conversation> {
     if (this.disabled) {
       return {
         id: `conv-${taskId}-default`,
         taskId,
         title: 'Default Conversation',
+        provider: provider ?? null,
         isMain: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -483,7 +484,16 @@ export class DatabaseService {
       .limit(1);
 
     if (existingRows.length > 0) {
-      return this.mapDrizzleConversationRow(existingRows[0]);
+      const existing = existingRows[0];
+      // Backfill provider if it was previously saved as null
+      if (!existing.provider && provider) {
+        await db
+          .update(conversationsTable)
+          .set({ provider, updatedAt: sql`CURRENT_TIMESTAMP` })
+          .where(eq(conversationsTable.id, existing.id));
+        return this.mapDrizzleConversationRow({ ...existing, provider });
+      }
+      return this.mapDrizzleConversationRow(existing);
     }
 
     const conversationId = `conv-${taskId}-${Date.now()}`;
@@ -491,6 +501,7 @@ export class DatabaseService {
       id: conversationId,
       taskId,
       title: 'Default Conversation',
+      provider: provider ?? null,
       isMain: true,
       isActive: true,
     });
@@ -509,6 +520,7 @@ export class DatabaseService {
       id: conversationId,
       taskId,
       title: 'Default Conversation',
+      provider: provider ?? null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

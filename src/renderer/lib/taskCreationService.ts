@@ -52,7 +52,11 @@ async function runSetupOnCreate(
 // ---------------------------------------------------------------------------
 // Seed conversation with issue context after task creation (fire-and-forget).
 // ---------------------------------------------------------------------------
-function seedIssueContext(taskId: string, taskMetadata: TaskMetadata | null): void {
+function seedIssueContext(
+  taskId: string,
+  taskMetadata: TaskMetadata | null,
+  provider?: string
+): void {
   void (async () => {
     const hasIssueContext =
       taskMetadata?.linearIssue || taskMetadata?.githubIssue || taskMetadata?.jiraIssue;
@@ -60,7 +64,7 @@ function seedIssueContext(taskId: string, taskMetadata: TaskMetadata | null): vo
 
     let conversationId: string | undefined;
     try {
-      const conversation = await rpc.db.getOrCreateDefaultConversation(taskId);
+      const conversation = await rpc.db.getOrCreateDefaultConversation({ taskId, provider });
       if (conversation?.id) conversationId = conversation.id;
     } catch (error) {
       const { log } = await import('./logger');
@@ -453,7 +457,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
     if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
   });
-  seedIssueContext(newTask.id, taskMetadata);
+  seedIssueContext(newTask.id, taskMetadata, newTask.agentId || primaryAgent);
 
   return { task: newTask, warning };
 }
