@@ -39,9 +39,19 @@ describe('AgentStatusStore', () => {
     expect(store.getStatus('task-1').kind).toBe('working');
   });
 
-  it('ignores user input for providers without semantic mapping yet', () => {
+  it('marks Codex as working after a pending submit gets a busy PTY signal', () => {
     const store = new AgentStatusStore();
     const ptyId = makePtyId('codex', 'main', 'task-1');
+
+    store.markUserInputSubmitted({ ptyId });
+    store.handlePtyData({ ptyId, chunk: 'Responding to task...' });
+
+    expect(store.getStatus('task-1').kind).toBe('working');
+  });
+
+  it('ignores user input for providers without semantic mapping yet', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('opencode', 'main', 'task-1');
 
     store.markUserInputSubmitted({ ptyId });
 
@@ -56,6 +66,22 @@ describe('AgentStatusStore', () => {
       makeEvent(ptyId, {
         taskId: 'task-1',
         payload: { notificationType: 'permission_prompt' },
+      })
+    );
+
+    expect(store.getStatus('task-1').kind).toBe('waiting');
+    expect(store.getUnread('task-1')).toBe(true);
+  });
+
+  it('maps Codex turn-complete notifications to waiting', () => {
+    const store = new AgentStatusStore();
+    const ptyId = makePtyId('codex', 'main', 'task-1');
+
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        providerId: 'codex',
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
       })
     );
 
