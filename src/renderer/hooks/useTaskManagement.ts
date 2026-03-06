@@ -963,6 +963,27 @@ export function useTaskManagement() {
     }
   }, [autoOpenTaskModalTrigger, openTaskModal]);
 
+  // ---------------------------------------------------------------------------
+  // Pin / unpin task (persisted in task metadata)
+  // ---------------------------------------------------------------------------
+  const handlePinTask = useCallback(
+    async (task: Task) => {
+      const isPinned = !task.metadata?.isPinned;
+      const updatedMetadata = { ...task.metadata, isPinned: isPinned || null };
+      // Optimistic UI update
+      updateTaskCache(task.projectId, (old) =>
+        old.map((t) => (t.id === task.id ? { ...t, metadata: updatedMetadata } : t))
+      );
+      try {
+        await rpc.db.saveTask({ ...task, metadata: updatedMetadata });
+      } catch {
+        // Rollback on failure
+        queryClient.invalidateQueries({ queryKey: ['tasks', task.projectId] });
+      }
+    },
+    [updateTaskCache, queryClient]
+  );
+
   return {
     activeTask,
     setActiveTask,
@@ -985,5 +1006,6 @@ export function useTaskManagement() {
     handleRenameTask,
     handleArchiveTask,
     handleRestoreTask,
+    handlePinTask,
   };
 }
