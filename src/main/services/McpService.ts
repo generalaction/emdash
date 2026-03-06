@@ -82,6 +82,8 @@ export class McpService {
       const selectedProviders = new Set(server.providers);
       const raw = mcpServerToRaw(server);
 
+      const failures: string[] = [];
+
       for (const agentId of allAgentIds) {
         const meta = getAgentMcpMeta(agentId);
         if (!meta) continue;
@@ -111,7 +113,12 @@ export class McpService {
           await writeServers(meta, existing);
         } catch (err) {
           log.error(`Failed to write MCP config for ${agentId}:`, err);
+          failures.push(agentId);
         }
+      }
+
+      if (failures.length) {
+        throw new Error(`Failed to write config for: ${failures.join(', ')}`);
       }
     });
   }
@@ -119,6 +126,7 @@ export class McpService {
   async removeServer(serverName: string): Promise<void> {
     return this.withWriteLock(async () => {
       const allAgentIds = getAllMcpAgentIds();
+      const failures: string[] = [];
 
       for (const agentId of allAgentIds) {
         const meta = getAgentMcpMeta(agentId);
@@ -139,7 +147,12 @@ export class McpService {
           await writeServers(meta, existing);
         } catch (err) {
           log.error(`Failed to write MCP config for ${agentId}:`, err);
+          failures.push(agentId);
         }
+      }
+
+      if (failures.length) {
+        throw new Error(`Failed to write config for: ${failures.join(', ')}`);
       }
     });
   }

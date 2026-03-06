@@ -28,7 +28,12 @@ export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
       log.warn(`JSONC parse errors in ${meta.configPath}:`, errors);
     }
   } else {
-    parsed = JSON.parse(content);
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      log.warn(`Invalid JSON in ${meta.configPath}, returning empty`);
+      return {};
+    }
   }
 
   return extractAtPath(parsed, meta.serversPath);
@@ -91,7 +96,12 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
 
   // Plain JSON
   if (existingRaw) {
-    existing = JSON.parse(existingRaw);
+    try {
+      existing = JSON.parse(existingRaw);
+    } catch {
+      log.warn(`Invalid JSON in ${meta.configPath}, resetting to template`);
+      existing = JSON.parse(JSON.stringify(meta.template));
+    }
   } else {
     existing = JSON.parse(JSON.stringify(meta.template));
   }
