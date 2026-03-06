@@ -152,6 +152,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onPtyPrUrlDetected: (listener: (event: { id: string; url: string; cwd?: string }) => void) => {
+    const channel = 'pty:pr-url-detected';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { id: string; url: string; cwd?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onNotificationFocusTask: (listener: (taskId: string) => void) => {
     const channel = 'notification:focus-task';
     const wrapped = (_: Electron.IpcRendererEvent, taskId: string) => listener(taskId);

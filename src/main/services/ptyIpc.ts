@@ -6,6 +6,7 @@ import {
   killPty,
   getPty,
   getPtyKind,
+  getPtyCwd,
   startDirectPty,
   startSshPty,
   removePtyRecord,
@@ -113,6 +114,27 @@ function bufferedSendPtyData(id: string, chunk: string): void {
     flushPtyData(id);
   }, PTY_DATA_FLUSH_MS);
   ptyDataTimers.set(id, t);
+}
+
+// Detect GitHub PR URLs in terminal output for instant PR status refresh
+const PR_URL_RE = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/;
+const PR_EMIT_COOLDOWN_MS = 5000;
+const lastPrEmit = new Map<string, number>();
+
+function maybeEmitPrUrlDetected(id: string, chunk: string): void {
+  // Skip SSH PTYs and any PTY without a known cwd to avoid unnecessary work
+  const cwd = getPtyCwd(id);
+  if (!cwd) return;
+
+  const match = chunk.match(PR_URL_RE);
+  if (!match) return;
+
+  // Rate-limit to prevent repeated refreshes from terminal output containing PR URLs
+  const now = Date.now();
+  if (now - (lastPrEmit.get(id) ?? 0) < PR_EMIT_COOLDOWN_MS) return;
+  lastPrEmit.set(id, now);
+
+  safeSendToOwner(id, 'pty:pr-url-detected', { id, url: match[0], cwd });
 }
 
 /**
@@ -399,6 +421,7 @@ export function registerPtyIpc(): void {
       listeners.delete(id); // Clear old listener registration
       if (!listeners.has(id)) {
         proc.onData((data) => {
+          maybeEmitPrUrlDetected(id, data);
           bufferedSendPtyData(id, data);
         });
 
@@ -478,6 +501,7 @@ export function registerPtyIpc(): void {
 
           if (!listeners.has(id)) {
             proc.onData((data) => {
+              maybeEmitPrUrlDetected(id, data);
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
@@ -621,6 +645,7 @@ export function registerPtyIpc(): void {
         // Attach data/exit listeners once per PTY id
         if (!listeners.has(id)) {
           proc.onData((data) => {
+            maybeEmitPrUrlDetected(id, data);
             bufferedSendPtyData(id, data);
           });
 
@@ -999,6 +1024,7 @@ export function registerPtyIpc(): void {
 
           if (!listeners.has(id)) {
             proc.onData((data) => {
+              maybeEmitPrUrlDetected(id, data);
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
@@ -1120,6 +1146,7 @@ export function registerPtyIpc(): void {
 
         if (!listeners.has(id)) {
           proc.onData((data) => {
+            maybeEmitPrUrlDetected(id, data);
             bufferedSendPtyData(id, data);
           });
 

@@ -8,10 +8,24 @@ const COOLDOWN_MS = 5000; // 5 second debounce for rapid focus/visibility events
  * Auto-refreshes PR status via:
  * 1. Window focus - refreshes all subscribed tasks (debounced)
  * 2. Polling - refreshes active task every 30s (pauses when hidden)
+ * 3. PTY PR URL events - refreshes immediately when terminal output includes a PR link
  */
 export function useAutoPrRefresh(activeTaskPath: string | undefined): void {
   const lastFocusRefresh = useRef(0);
   const lastVisibilityRefresh = useRef(0);
+
+  // Event-driven refresh when terminal output includes a GitHub PR URL
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onPtyPrUrlDetected?.((event) => {
+      // Skip SSH PTYs where cwd is undefined to avoid refreshing wrong task
+      if (!event?.cwd) return;
+      refreshPrStatus(event.cwd).catch(() => {});
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   // Window focus refresh (all subscribed tasks, debounced)
   useEffect(() => {
