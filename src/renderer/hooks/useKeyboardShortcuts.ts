@@ -91,8 +91,8 @@ export function normalizeShortcutKey(value: string): string {
   if (lower === 'arrowright' || lower === 'right') return 'ArrowRight';
   if (lower === 'arrowup' || lower === 'up') return 'ArrowUp';
   if (lower === 'arrowdown' || lower === 'down') return 'ArrowDown';
-  if (trimmed === '{') return '[';
-  if (trimmed === '}') return ']';
+  if (lower === '{') return '[';
+  if (lower === '}') return ']';
   if (trimmed.length === 1) return trimmed.toLowerCase();
   return trimmed;
 }
