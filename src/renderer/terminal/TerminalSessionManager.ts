@@ -12,6 +12,7 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { consumeSubmittedInputChunk } from './submitCapture';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -34,10 +35,6 @@ const MIN_TERMINAL_ROWS = 1;
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
-function stripAnsiFromInput(data: string): string {
-  return data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
-}
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -624,36 +621,13 @@ export class TerminalSessionManager {
   }
 
   private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
-    const clean = stripAnsiFromInput(data);
-    let submittedText: string | null = null;
-
-    for (const ch of clean) {
-      if (ch === '\r' || ch === '\n') {
-        if (isNewlineInsert) {
-          this.currentSubmittedInput += '\n';
-          continue;
-        }
-        submittedText = this.currentSubmittedInput.trim() || null;
-        this.currentSubmittedInput = '';
-        continue;
-      }
-
-      if (ch === '\x15') {
-        this.currentSubmittedInput = '';
-        continue;
-      }
-
-      if (ch === '\x7f' || ch === '\b') {
-        this.currentSubmittedInput = this.currentSubmittedInput.slice(0, -1);
-        continue;
-      }
-
-      if (ch.charCodeAt(0) >= 32) {
-        this.currentSubmittedInput += ch;
-      }
-    }
-
-    return submittedText;
+    const result = consumeSubmittedInputChunk({
+      currentInput: this.currentSubmittedInput,
+      data,
+      isNewlineInsert,
+    });
+    this.currentSubmittedInput = result.currentInput;
+    return result.submittedText;
   }
 
   private cleanTerminalText(text: string): string {
