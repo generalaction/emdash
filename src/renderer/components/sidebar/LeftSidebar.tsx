@@ -135,6 +135,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleArchiveTask: onArchiveTask,
     handleRestoreTask: onRestoreTask,
     handleDeleteTask,
+    isTasksLoaded,
   } = useTaskManagementContext();
 
   const { settings } = useAppSettings();
@@ -155,8 +156,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     [setPinnedTaskIdsArray]
   );
 
-  // Remove pinned IDs for tasks that no longer exist (deleted or archived)
+  // Remove pinned IDs for tasks that no longer exist (deleted or archived).
+  // Guard: skip until task queries have completed their initial load to avoid
+  // wiping pinned IDs before data arrives from the database.
   useEffect(() => {
+    if (!isTasksLoaded) return;
     if (!pinnedTaskIdsArray.length) return;
     const allActiveIds = new Set(
       Object.values(tasksByProjectId)
@@ -167,7 +171,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     if (cleaned.length !== pinnedTaskIdsArray.length) {
       setPinnedTaskIdsArray(cleaned);
     }
-  }, [tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
+  }, [isTasksLoaded, tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());

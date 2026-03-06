@@ -168,6 +168,8 @@ export function useTaskManagement() {
     })),
   });
 
+  const isTasksLoaded = taskResults.length === 0 || taskResults.every((r) => !r.isPending);
+
   const tasksByProjectId = useMemo(() => {
     const map: Record<string, Task[]> = {};
     projects.forEach((p, i) => {
@@ -976,6 +978,7 @@ export function useTaskManagement() {
     setActiveTaskAgent,
     allTasks,
     tasksByProjectId,
+    isTasksLoaded,
     archivedTasksByProjectId,
     linkedGithubIssueMap,
     isCreatingTask,
