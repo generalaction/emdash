@@ -214,6 +214,7 @@ export function useTaskManagement() {
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
+  const pendingTaskProjectRef = useRef<Project | null>(null);
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
 
   // Reset active task when project management signals a navigation away
@@ -376,6 +377,7 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
+      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
       openTaskModal();
     },
@@ -909,10 +911,12 @@ export function useTaskManagement() {
       baseRef?: string,
       nameGenerated?: boolean
     ) => {
-      if (!selectedProject) return;
+      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      pendingTaskProjectRef.current = null;
+      if (!targetProject) return;
       setIsCreatingTask(true);
       await createTaskMutation.mutateAsync({
-        project: selectedProject,
+        project: targetProject,
         taskName,
         initialPrompt,
         agentRuns,
@@ -945,7 +949,11 @@ export function useTaskManagement() {
 
   // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
   openTaskModalImplRef.current = () => {
-    showModal('taskModal', {});
+    showModal('taskModal', {
+      onClose: () => {
+        pendingTaskProjectRef.current = null;
+      },
+    });
   };
 
   // Auto-open task modal when project management requests it
