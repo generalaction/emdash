@@ -318,14 +318,16 @@ class TaskLifecycleService extends EventEmitter {
     const setupScript = lifecycleScriptsService.getScript(projectPath, 'setup');
     if (setupScript) {
       const setupStatus = this.ensureState(taskId).setup.status;
-      if (setupStatus === 'running') {
+      if (setupStatus === 'idle') {
+        log.info('Auto-running setup before run (state was idle, e.g. after restart)', { taskId });
+        const setupResult = await this.runSetup(taskId, taskPath, projectPath, taskName);
+        if (!setupResult.ok) {
+          return { ok: false, error: `Auto-setup failed: ${setupResult.error}` };
+        }
+      } else if (setupStatus === 'running') {
         return { ok: false, error: 'Setup is still running' };
-      }
-      if (setupStatus === 'failed') {
+      } else if (setupStatus === 'failed') {
         return { ok: false, error: 'Setup failed. Fix setup before starting run' };
-      }
-      if (setupStatus !== 'succeeded') {
-        return { ok: false, error: 'Setup has not completed yet' };
       }
     }
 

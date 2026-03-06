@@ -7,6 +7,7 @@ import { useTerminalSelection } from '../hooks/useTerminalSelection';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
+import { useToast } from '../hooks/use-toast';
 import {
   Select,
   SelectContent,
@@ -58,6 +59,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   portSeed,
 }) => {
   const { effectiveTheme } = useTheme();
+  const { toast } = useToast();
 
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
@@ -260,26 +262,34 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
+      let result: { success: boolean; error?: string } | undefined;
       if (selection.selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({
+        result = await api.lifecycleSetup?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else if (selection.selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({
+        result = await api.lifecycleTeardown?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else {
-        await api.lifecycleRunStart?.({
+        result = await api.lifecycleRunStart?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
+        });
+      }
+      if (result && !result.success && result.error) {
+        toast({
+          title: `${(selection.selectedLifecycle || 'run').charAt(0).toUpperCase()}${(selection.selectedLifecycle || 'run').slice(1)} failed`,
+          description: result.error,
+          variant: 'destructive',
         });
       }
     } catch (error) {
@@ -295,6 +305,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     projectPath,
     selection.selectedLifecycle,
     refreshLifecycleState,
+    toast,
   ]);
 
   const handleStop = useCallback(async () => {
