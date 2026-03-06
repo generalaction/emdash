@@ -6,7 +6,7 @@ describe('shouldRefreshFileChanges', () => {
     expect(shouldRefreshFileChanges('/tmp/task', true, true)).toBe(true);
   });
 
-  it('still refreshes even if window focus is managed elsewhere', () => {
+  it('refreshes when the task is active and the document is visible (focus is no longer required)', () => {
     expect(shouldRefreshFileChanges('/tmp/task', true, true)).toBe(true);
   });
 
