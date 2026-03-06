@@ -333,7 +333,12 @@ class TaskLifecycleService extends EventEmitter {
     if (!script) return { ok: true, skipped: true };
 
     const existing = this.runProcesses.get(taskId);
-    if (existing && existing.exitCode === null && !existing.killed) {
+    if (
+      existing &&
+      existing.exitCode === null &&
+      !existing.killed &&
+      !this.stopIntents.has(taskId)
+    ) {
       return { ok: true, skipped: true };
     }
 
