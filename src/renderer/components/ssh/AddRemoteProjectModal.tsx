@@ -259,9 +259,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         authType = 'key';
         privateKeyPath = host.identityFile;
       } else {
-        // No key specified - default to key auth with ed25519 (most common modern key)
-        authType = 'key';
-        privateKeyPath = '~/.ssh/id_ed25519';
+        // No key specified - default to agent auth (most compatible)
+        authType = 'agent';
       }
 
       setFormData((prev) => ({
