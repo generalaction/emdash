@@ -161,6 +161,18 @@ class TaskLifecycleService extends EventEmitter {
     }
   }
 
+  private buildErrorDetail(taskId: string, phase: LifecyclePhase, baseError: string): string {
+    const buf = this.logBuffers.get(taskId);
+    const lines = buf?.[phase] ?? [];
+    // Grab last few non-empty output lines for context
+    const tail = lines
+      .map((l) => l.replace(/^\[.*?\]\s*/, '').trim())
+      .filter(Boolean)
+      .slice(-5);
+    if (tail.length === 0) return baseError;
+    return `${baseError}\n${tail.join('\n')}`;
+  }
+
   private emitLifecycleEvent(
     taskId: string,
     phase: LifecyclePhase,
@@ -232,8 +244,9 @@ class TaskLifecycleService extends EventEmitter {
             untrackFinite();
             const message = error?.message || String(error);
             this.emitLifecycleEvent(taskId, phase, 'error', { error: message });
+            const detail = this.buildErrorDetail(taskId, phase, message);
             finish(
-              { ok: false, error: message },
+              { ok: false, error: detail },
               {
                 ...state[phase],
                 status: 'failed',
@@ -249,12 +262,14 @@ class TaskLifecycleService extends EventEmitter {
               exitCode: code,
               ...(ok ? {} : { error: `Exited with code ${String(code)}` }),
             });
-            finish(ok ? { ok: true } : { ok: false, error: `Exited with code ${String(code)}` }, {
+            const errorMsg = `Exited with code ${String(code)}`;
+            const detail = ok ? undefined : this.buildErrorDetail(taskId, phase, errorMsg);
+            finish(ok ? { ok: true } : { ok: false, error: detail }, {
               ...state[phase],
               status: ok ? 'succeeded' : 'failed',
               finishedAt: this.nowIso(),
               exitCode: code,
-              error: ok ? null : `Exited with code ${String(code)}`,
+              error: ok ? null : errorMsg,
             });
           });
         } catch (error) {
@@ -318,16 +333,14 @@ class TaskLifecycleService extends EventEmitter {
     const setupScript = lifecycleScriptsService.getScript(projectPath, 'setup');
     if (setupScript) {
       const setupStatus = this.ensureState(taskId).setup.status;
-      if (setupStatus === 'idle') {
-        log.info('Auto-running setup before run (state was idle, e.g. after restart)', { taskId });
+      if (setupStatus === 'idle' || setupStatus === 'failed') {
+        log.info(`Auto-running setup before run (state was ${setupStatus})`, { taskId });
         const setupResult = await this.runSetup(taskId, taskPath, projectPath, taskName);
         if (!setupResult.ok) {
-          return { ok: false, error: `Auto-setup failed: ${setupResult.error}` };
+          return { ok: false, error: `Setup failed: ${setupResult.error}` };
         }
       } else if (setupStatus === 'running') {
         return { ok: false, error: 'Setup is still running' };
-      } else if (setupStatus === 'failed') {
-        return { ok: false, error: 'Setup failed. Fix setup before starting run' };
       }
     }
 
