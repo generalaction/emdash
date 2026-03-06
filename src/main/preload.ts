@@ -303,6 +303,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
     ipcRenderer.invoke('fs:saveProjectConfig', { projectPath, content }),
+  ensureGitignore: (projectPath: string, patterns: string[]) =>
+    ipcRenderer.invoke('fs:ensureGitignore', { projectPath, patterns }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),

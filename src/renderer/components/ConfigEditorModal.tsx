@@ -314,6 +314,16 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         }
       }
 
+      // Gitignore workspace provider script paths (best-effort, local only)
+      if (!isRemote) {
+        const scriptPaths = [wpProvisionCommand.trim(), wpTerminateCommand.trim()].filter(
+          (cmd) => cmd && (cmd.startsWith('./') || (cmd.includes('/') && !cmd.includes(' ')))
+        );
+        if (scriptPaths.length > 0) {
+          void window.electronAPI.ensureGitignore(projectPath, scriptPaths);
+        }
+      }
+
       const nextConfig = applyScripts(
         applyWorkspaceProvider(
           applyTmux(

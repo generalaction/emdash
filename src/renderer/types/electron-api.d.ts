@@ -715,6 +715,10 @@ declare global {
         projectPath: string,
         content: string
       ) => Promise<{ success: boolean; path?: string; error?: string }>;
+      ensureGitignore: (
+        projectPath: string,
+        patterns: string[]
+      ) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
