@@ -20,6 +20,7 @@ import {
   FolderOpen,
   FolderClosed,
   Puzzle,
+  Plug,
   Archive,
   RotateCcw,
   ChevronRight,
@@ -95,10 +96,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     selectedProject,
     showHomeView: isHomeView,
     showSkillsView: isSkillsView,
+    showMcpView: isMcpView,
     handleSelectProject: onSelectProject,
     handleGoHome: onGoHome,
     handleOpenProject: onOpenProject,
     handleGoToSkills: onGoToSkills,
+    handleGoToMcp: onGoToMcp,
   } = useProjectManagementContext();
 
   // --- Project order (localStorage only — context holds raw DB order) ---
@@ -201,6 +204,24 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   >
                     <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
                     <span className="text-sm font-medium">Skills</span>
+                  </Button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {onGoToMcp && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className={`min-w-0 ${isMcpView ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleNavigationWithCloseSettings(onGoToMcp)}
+                    aria-label="MCP Servers"
+                    className="w-full justify-start"
+                  >
+                    <Plug className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium">MCP</span>
                   </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
