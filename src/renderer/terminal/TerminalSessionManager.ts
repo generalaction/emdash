@@ -6,6 +6,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
 import { TerminalInputBuffer } from './TerminalInputBuffer';
 import { classifyActivity } from '../lib/activityClassifier';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
@@ -601,11 +602,15 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
+      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
       pendingInjectionManager.markUsed();
       return;
     }
 
+    if (isEnterPress && !isNewlineInsert) {
+      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+    }
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
   }
 
@@ -1070,6 +1075,7 @@ export class TerminalSessionManager {
 
   private setupPtyDataListener(id: string): void {
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
+      agentStatusStore.handlePtyData({ ptyId: id, chunk });
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
         this.terminal.clear();
