@@ -9,7 +9,11 @@ import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from 
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
-import { parseSshConfigFile, resolveIdentityAgent } from '../utils/sshConfigParser';
+import {
+  parseSshConfigFile,
+  resolveIdentityAgent,
+  resolveProxyCommand,
+} from '../utils/sshConfigParser';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -171,10 +175,20 @@ export function registerSshIpc() {
           testClient.on('ready', () => {
             const latency = Date.now() - startTime;
             testClient.end();
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: true, latency, debugLogs });
           });
 
           testClient.on('error', (err: Error) => {
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: false, error: err.message, debugLogs });
           });
 
@@ -235,6 +249,44 @@ export function registerSshIpc() {
           } else if (config.authType === 'agent') {
             const identityAgent = await resolveIdentityAgent(config.host);
             connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
+            debugLogs.push(
+              `[emdash] authType=agent, socket=${connectConfig.agent ?? '(not found)'}`
+            );
+          }
+
+          debugLogs.push(
+            `[emdash] authType=${config.authType}, host=${config.host}, port=${config.port}, username=${config.username}`
+          );
+
+          // Check for ProxyCommand in ~/.ssh/config
+          const proxyCommand = await resolveProxyCommand(config.host, config.port);
+          debugLogs.push(`[emdash] ProxyCommand resolve: ${proxyCommand ?? '(none)'}`);
+          let proxyProc: import('child_process').ChildProcess | undefined;
+          if (proxyCommand) {
+            const { Duplex } = await import('stream');
+            const { spawn } = await import('child_process');
+            proxyProc = spawn('sh', ['-c', proxyCommand], {
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            const sock = new Duplex({
+              read() {},
+              write(chunk, encoding, callback) {
+                return proxyProc!.stdin!.write(chunk, encoding, callback);
+              },
+              final(callback) {
+                proxyProc!.stdin!.end(callback);
+              },
+            });
+            proxyProc.stdout!.on('data', (data) => sock.push(data));
+            proxyProc.stdout!.on('close', () => sock.push(null));
+            proxyProc.stderr!.on('data', (data) => {
+              debugLogs.push(`[emdash] proxy stderr: ${data.toString()}`);
+            });
+            proxyProc.on('error', (err) => {
+              debugLogs.push(`[emdash] proxy error: ${err.message}`);
+              sock.destroy(err);
+            });
+            (connectConfig as any).sock = sock;
           }
 
           testClient.connect(connectConfig);

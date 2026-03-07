@@ -22,9 +22,11 @@ import { registerNetIpc } from './netIpc';
 import { registerLineCommentsIpc } from './lineCommentsIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { registerMcpIpc } from './mcpIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
+import { registerPlainIpc } from './plainIpc';
 import { registerForgejoIpc } from './forgejoIpc';
 
 export const rpcRouter = createRPCRouter({
@@ -65,6 +67,8 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerMcpIpc();
   registerGitlabIpc();
+  registerPlainIpc();
   registerForgejoIpc();
 }

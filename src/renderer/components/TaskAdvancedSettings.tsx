@@ -11,16 +11,19 @@ import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
 import { GitLabIssueSelector } from './GitLabIssueSelector';
+import { PlainThreadSelector } from './PlainThreadSelector';
 import { ForgejoIssueSelector } from './ForgejoIssueSelector';
 import LinearSetupForm from './integrations/LinearSetupForm';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
+import PlainSetupForm from './integrations/PlainSetupForm';
 import ForgejoSetupForm from './integrations/ForgejoSetupForm';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 import { type GitLabIssueSummary } from '../types/gitlab';
+import { type PlainThreadSummary } from '../types/plain';
 import { type ForgejoIssueSummary } from '../types/forgejo';
 
 interface TaskAdvancedSettingsProps {
@@ -68,6 +71,12 @@ interface TaskAdvancedSettingsProps {
   isGitlabConnected: boolean | null;
   onGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 
+  // Plain
+  selectedPlainThread: PlainThreadSummary | null;
+  onPlainThreadChange: (thread: PlainThreadSummary | null) => void;
+  isPlainConnected: boolean | null;
+  onPlainConnect: (apiKey: string) => Promise<void>;
+
   // Forgejo
   selectedForgejoIssue: ForgejoIssueSummary | null;
   onForgejoIssueChange: (issue: ForgejoIssueSummary | null) => void;
@@ -105,6 +114,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onGitlabIssueChange,
   isGitlabConnected,
   onGitlabConnect,
+  selectedPlainThread,
+  onPlainThreadChange,
+  isPlainConnected,
+  onPlainConnect,
   selectedForgejoIssue,
   onForgejoIssueChange,
   isForgejoConnected,
@@ -131,6 +144,12 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
   const [gitlabToken, setGitlabToken] = useState('');
   const [gitlabConnectionError, setGitlabConnectionError] = useState<string | null>(null);
+
+  // Plain setup state
+  const [plainSetupOpen, setPlainSetupOpen] = useState(false);
+  const [plainApiKey, setPlainApiKey] = useState('');
+  const [plainConnectionError, setPlainConnectionError] = useState<string | null>(null);
+  const [autoOpenPlainSelector, setAutoOpenPlainSelector] = useState(false);
 
   // Forgejo setup state
   const [forgejoSetupOpen, setForgejoSetupOpen] = useState(false);
@@ -185,6 +204,21 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
   }, [gitlabInstanceUrl, gitlabToken, onGitlabConnect]);
 
+  const handlePlainConnect = useCallback(async () => {
+    const trimmedKey = plainApiKey.trim();
+    if (!trimmedKey) return;
+
+    setPlainConnectionError(null);
+    try {
+      await onPlainConnect(trimmedKey);
+      setPlainSetupOpen(false);
+      setPlainApiKey('');
+      setAutoOpenPlainSelector(true);
+    } catch (error: any) {
+      setPlainConnectionError(error?.message || 'Could not connect Plain. Try again.');
+    }
+  }, [plainApiKey, onPlainConnect]);
+
   const handleForgejoConnect = useCallback(async () => {
     setForgejoConnectionError(null);
     try {
@@ -207,14 +241,20 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
+        onPlainThreadChange(null);
         onForgejoIssueChange(null);
       }
     },
     [
       onLinearIssueChange,
+
       onGithubIssueChange,
+
       onJiraIssueChange,
+
       onGitlabIssueChange,
+      onPlainThreadChange,
+      ,
       onForgejoIssueChange,
     ]
   );
@@ -226,14 +266,20 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onLinearIssueChange(null);
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
+        onPlainThreadChange(null);
         onForgejoIssueChange(null);
       }
     },
     [
       onGithubIssueChange,
+
       onLinearIssueChange,
+
       onJiraIssueChange,
+
       onGitlabIssueChange,
+      onPlainThreadChange,
+      ,
       onForgejoIssueChange,
     ]
   );
@@ -245,14 +291,20 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onLinearIssueChange(null);
         onGithubIssueChange(null);
         onGitlabIssueChange(null);
+        onPlainThreadChange(null);
         onForgejoIssueChange(null);
       }
     },
     [
       onJiraIssueChange,
+
       onLinearIssueChange,
+
       onGithubIssueChange,
+
       onGitlabIssueChange,
+      onPlainThreadChange,
+      ,
       onForgejoIssueChange,
     ]
   );
@@ -264,6 +316,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onLinearIssueChange(null);
         onGithubIssueChange(null);
         onJiraIssueChange(null);
+        onPlainThreadChange(null);
         onForgejoIssueChange(null);
       }
     },
@@ -272,7 +325,26 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onLinearIssueChange,
       onGithubIssueChange,
       onJiraIssueChange,
-      onForgejoIssueChange,
+      onPlainThreadChange,
+    ]
+  );
+
+  const handlePlainThreadChange = useCallback(
+    (thread: PlainThreadSummary | null) => {
+      onPlainThreadChange(thread);
+      if (thread) {
+        onLinearIssueChange(null);
+        onGithubIssueChange(null);
+        onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+      }
+    },
+    [
+      onPlainThreadChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
     ]
   );
 
@@ -310,6 +382,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
     if (selectedGitlabIssue) {
       return `e.g. Fix the attached GitLab issue #${selectedGitlabIssue.iid} — describe any constraints.`;
+    }
+    if (selectedPlainThread) {
+      return `e.g. Fix the customer-reported issue "${selectedPlainThread.title}" — describe any constraints.`;
     }
     if (selectedForgejoIssue) {
       return `e.g. Fix the attached Forgejo issue #${selectedForgejoIssue.number} — describe any constraints.`;
@@ -430,6 +505,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedGithubIssue ||
                         !!selectedJiraIssue ||
                         !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
                         !!selectedForgejoIssue
                       }
                       className="w-full"
@@ -470,6 +546,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedJiraIssue ||
                         !!selectedLinearIssue ||
                         !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
                         !!selectedForgejoIssue
                       }
                       className="w-full"
@@ -516,6 +593,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedLinearIssue ||
                         !!selectedGithubIssue ||
                         !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
                         !!selectedForgejoIssue
                       }
                       className="w-full"
@@ -553,6 +631,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedLinearIssue ||
                         !!selectedGithubIssue ||
                         !!selectedJiraIssue ||
+                        !!selectedPlainThread ||
                         !!selectedForgejoIssue
                       }
                       className="w-full"
@@ -566,6 +645,44 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       variant="outline"
                       className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
                       onClick={() => setGitlabSetupOpen(true)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="plain-thread" className="pt-2">
+                  Plain thread
+                </Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <PlainThreadSelector
+                      selectedThread={selectedPlainThread}
+                      onThreadChange={handlePlainThreadChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isPlainConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue ||
+                        !!selectedGitlabIssue
+                      }
+                      className="w-full"
+                      autoOpen={autoOpenPlainSelector}
+                      onAutoOpenHandled={() => setAutoOpenPlainSelector(false)}
+                      placeholder={isPlainConnected ? 'Select a Plain thread' : 'Select thread'}
+                    />
+                  </div>
+                  {!isPlainConnected && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setPlainSetupOpen(true)}
                     >
                       Connect
                     </Button>
@@ -728,6 +845,37 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 canSubmit={!!(gitlabInstanceUrl.trim() && gitlabToken.trim())}
                 error={gitlabConnectionError}
                 onSubmit={() => void handleGitlabConnect()}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {plainSetupOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPlainSetupOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-xl border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <PlainSetupForm
+                apiKey={plainApiKey}
+                onChange={(value) => setPlainApiKey(value)}
+                onSubmit={() => void handlePlainConnect()}
+                onClose={() => setPlainSetupOpen(false)}
+                canSubmit={!!plainApiKey.trim()}
+                error={plainConnectionError}
               />
             </motion.div>
           </motion.div>

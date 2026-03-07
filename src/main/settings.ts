@@ -88,16 +88,11 @@ export interface AppSettings {
     osNotifications: boolean;
     soundFocusMode: 'always' | 'unfocused';
   };
-  mcp?: {
-    context7?: {
-      enabled: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
   };
   projects?: {
@@ -148,16 +143,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     osNotifications: true,
     soundFocusMode: 'always',
   },
-  mcp: {
-    context7: {
-      enabled: false,
-      installHintsDismissed: {},
-    },
-  },
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    createWorktreeByDefault: true,
     autoTrustWorktrees: true,
   },
   projects: {
@@ -353,12 +343,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
     },
-    mcp: {
-      context7: {
-        enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
-        installHintsDismissed: {},
-      },
-    },
   };
 
   // Repository
@@ -397,19 +381,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
         : DEFAULT_SETTINGS.notifications!.soundFocusMode,
   };
 
-  // MCP
-  const mcp = (input as any)?.mcp || {};
-  const c7 = mcp?.context7 || {};
-  out.mcp = {
-    context7: {
-      enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
-      installHintsDismissed:
-        c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object'
-          ? { ...c7.installHintsDismissed }
-          : {},
-    },
-  };
-
   // Default provider
   const defaultProvider = (input as any)?.defaultProvider;
   out.defaultProvider = isValidProviderId(defaultProvider)
@@ -422,6 +393,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    createWorktreeByDefault: Boolean(
+      tasks?.createWorktreeByDefault ?? DEFAULT_SETTINGS.tasks!.createWorktreeByDefault
     ),
     autoTrustWorktrees: Boolean(
       tasks?.autoTrustWorktrees ?? DEFAULT_SETTINGS.tasks!.autoTrustWorktrees

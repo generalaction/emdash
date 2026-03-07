@@ -5,11 +5,14 @@ import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
+import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskContextBadges from './TaskContextBadges';
-import { Spinner } from './ui/spinner';
+import { useConversationStatus } from '../hooks/useConversationStatus';
+import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { type Agent } from '../types';
@@ -47,6 +50,93 @@ interface Props {
   initialAgent?: Agent;
   onTaskInterfaceReady?: () => void;
   onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
+}
+
+function ConversationTabButton({
+  conversation,
+  activeConversationId,
+  onSwitchChat,
+  onCloseChat,
+  totalConversationCount,
+  sameAgentCount,
+  showNumber,
+  fallbackBusy,
+  taskId,
+}: {
+  conversation: Conversation;
+  activeConversationId: string | null;
+  onSwitchChat: (conversationId: string) => void;
+  onCloseChat: (conversationId: string) => void;
+  totalConversationCount: number;
+  sameAgentCount: number;
+  showNumber: boolean;
+  fallbackBusy: boolean;
+  taskId: string;
+}) {
+  const isActive = conversation.id === activeConversationId;
+  const convAgent = conversation.provider ?? 'claude';
+  const config = agentConfig[convAgent as Agent];
+  const agentName = config?.name || convAgent;
+  const semanticStatus = useConversationStatus({
+    statusId: conversation.isMain ? taskId : conversation.id,
+    ptySuffix: conversation.isMain ? taskId : conversation.id,
+    ptyKind: conversation.isMain ? 'main' : 'chat',
+  });
+  const unread = useStatusUnread(conversation.isMain ? taskId : conversation.id);
+  const displayStatus = semanticStatus === 'unknown' && fallbackBusy ? 'working' : semanticStatus;
+
+  return (
+    <button
+      onClick={() => onSwitchChat(conversation.id)}
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
+        'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isActive
+          ? 'bg-background text-foreground shadow-sm'
+          : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+      )}
+      title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+    >
+      {config?.logo && (
+        <AgentLogo
+          logo={config.logo}
+          alt={config.alt}
+          isSvg={config.isSvg}
+          invertInDark={config.invertInDark}
+          className="h-3.5 w-3.5 flex-shrink-0"
+        />
+      )}
+      <span className="max-w-[10rem] truncate">
+        {agentName}
+        {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
+      </span>
+      {totalConversationCount > 1 ? (
+        <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
+      ) : null}
+      {totalConversationCount > 1 && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCloseChat(conversation.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCloseChat(conversation.id);
+            }
+          }}
+          className="ml-1 rounded hover:bg-background/20"
+          title="Close chat"
+        >
+          <X className="h-3 w-3" />
+        </span>
+      )}
+    </button>
+  );
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -279,6 +369,33 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
     };
   }, [task.id, conversations, mainConversationId]);
+
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) return;
+    agentStatusStore.markSeen(activeConversation.isMain ? task.id : activeConversation.id);
+  }, [activeConversationId, conversations, task.id]);
+
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+      return;
+    }
+
+    agentStatusStore.setActiveView({
+      taskId: task.id,
+      statusId: activeConversation.isMain ? task.id : activeConversation.id,
+    });
+
+    return () => {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+    };
+  }, [activeConversationId, conversations, task.id]);
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -911,10 +1028,7 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 >
                   {sortedConversations.map((conv, index) => {
-                    const isActive = conv.id === activeConversationId;
                     const convAgent = conv.provider ?? 'claude';
-                    const config = agentConfig[convAgent as Agent];
-                    const agentName = config?.name || convAgent;
                     const isBusy = busyByConversationId[conv.id] === true;
 
                     // Count how many chats use the same agent up to this point
@@ -926,63 +1040,18 @@ const ChatInterface: React.FC<Props> = ({
                         .length > 1;
 
                     return (
-                      <button
+                      <ConversationTabButton
                         key={conv.id}
-                        onClick={() => handleSwitchChat(conv.id)}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
-                          'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                          isActive
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                        )}
-                        title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
-                      >
-                        {config?.logo && (
-                          <AgentLogo
-                            logo={config.logo}
-                            alt={config.alt}
-                            isSvg={config.isSvg}
-                            invertInDark={config.invertInDark}
-                            className="h-3.5 w-3.5 flex-shrink-0"
-                          />
-                        )}
-                        <span className="max-w-[10rem] truncate">
-                          {agentName}
-                          {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
-                        </span>
-                        {isBusy && conversations.length > 1 ? (
-                          <Spinner
-                            size="sm"
-                            className={cn(
-                              'h-3 w-3 flex-shrink-0',
-                              isActive ? 'text-foreground' : 'text-muted-foreground'
-                            )}
-                          />
-                        ) : null}
-                        {conversations.length > 1 && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCloseChat(conv.id);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleCloseChat(conv.id);
-                              }
-                            }}
-                            className="ml-1 rounded hover:bg-background/20"
-                            title="Close chat"
-                          >
-                            <X className="h-3 w-3" />
-                          </span>
-                        )}
-                      </button>
+                        conversation={conv}
+                        activeConversationId={activeConversationId}
+                        onSwitchChat={handleSwitchChat}
+                        onCloseChat={handleCloseChat}
+                        totalConversationCount={conversations.length}
+                        sameAgentCount={sameAgentCount}
+                        showNumber={showNumber}
+                        fallbackBusy={isBusy}
+                        taskId={task.id}
+                      />
                     );
                   })}
                 </div>

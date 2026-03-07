@@ -23,6 +23,7 @@ import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type GitLabIssueSummary } from '../types/gitlab';
+import { type PlainThreadSummary } from '../types/plain';
 import { type ForgejoIssueSummary } from '../types/forgejo';
 import {
   generateFriendlyTaskName,
@@ -44,6 +45,7 @@ export interface CreateTaskResult {
   linkedLinearIssue?: LinearIssueSummary | null;
   linkedGithubIssue?: GitHubIssueSummary | null;
   linkedJiraIssue?: JiraIssueSummary | null;
+  linkedPlainThread?: PlainThreadSummary | null;
   linkedGitlabIssue?: GitLabIssueSummary | null;
   linkedForgejoIssue?: ForgejoIssueSummary | null;
   autoApprove?: boolean;
@@ -61,6 +63,7 @@ interface TaskModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: JiraIssueSummary | null,
+    linkedPlainThread?: PlainThreadSummary | null,
     linkedGitlabIssue?: GitLabIssueSummary | null,
     linkedForgejoIssue?: ForgejoIssueSummary | null,
     autoApprove?: boolean,
@@ -85,6 +88,7 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
         linkedLinearIssue,
         linkedGithubIssue,
         linkedJiraIssue,
+        linkedPlainThread,
         linkedGitlabIssue,
         linkedForgejoIssue,
         autoApprove,
@@ -99,6 +103,8 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
           linkedLinearIssue ?? null,
           linkedGithubIssue ?? null,
           linkedJiraIssue ?? null,
+          linkedPlainThread ?? null,
+          linkedGitlabIssue ?? null,
           linkedForgejoIssue ?? null,
           autoApprove,
           useWorktree,
@@ -137,6 +143,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
   const [selectedGitlabIssue, setSelectedGitlabIssue] = useState<GitLabIssueSummary | null>(null);
+  const [selectedPlainThread, setSelectedPlainThread] = useState<PlainThreadSummary | null>(null);
   const [selectedForgejoIssue, setSelectedForgejoIssue] = useState<ForgejoIssueSummary | null>(
     null
   );
@@ -203,6 +210,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       setSelectedGithubIssue(null);
       setSelectedJiraIssue(null);
       setSelectedGitlabIssue(null);
+      setSelectedPlainThread(null);
       setSelectedForgejoIssue(null);
       setInitialPrompt('');
     }
@@ -227,6 +235,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
     setSelectedGitlabIssue(null);
+    setSelectedPlainThread(null);
     setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
@@ -258,6 +267,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
       setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
 
+      const createWorktreeByDefault = settings?.tasks?.createWorktreeByDefault ?? true;
+      setUseWorktree(createWorktreeByDefault);
+
       // Handle auto-generate setting
       const shouldAutoGenerate = settings?.tasks?.autoGenerateName !== false;
       setAutoGenerateName(shouldAutoGenerate);
@@ -282,6 +294,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       selectedLinearIssue ||
       selectedGithubIssue ||
       selectedJiraIssue ||
+      selectedPlainThread ||
       selectedGitlabIssue ||
       selectedForgejoIssue
     );
@@ -294,6 +307,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         linearIssue: selectedLinearIssue,
         githubIssue: selectedGithubIssue,
         jiraIssue: selectedJiraIssue,
+        plainThread: selectedPlainThread,
         gitlabIssue: selectedGitlabIssue,
         forgejoIssue: selectedForgejoIssue,
       });
@@ -312,6 +326,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     selectedLinearIssue,
     selectedGithubIssue,
     selectedJiraIssue,
+    selectedPlainThread,
     selectedGitlabIssue,
     selectedForgejoIssue,
     validate,
@@ -374,6 +389,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         selectedLinearIssue,
         selectedGithubIssue,
         selectedJiraIssue,
+        selectedPlainThread,
         selectedGitlabIssue,
         selectedForgejoIssue,
         hasAutoApproveSupport ? autoApprove : false,
@@ -489,6 +505,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
           onGitlabIssueChange={setSelectedGitlabIssue}
           isGitlabConnected={integrations.isGitlabConnected}
           onGitlabConnect={integrations.handleGitlabConnect}
+          selectedPlainThread={selectedPlainThread}
+          onPlainThreadChange={setSelectedPlainThread}
+          isPlainConnected={integrations.isPlainConnected}
+          onPlainConnect={integrations.handlePlainConnect}
           selectedForgejoIssue={selectedForgejoIssue}
           onForgejoIssueChange={setSelectedForgejoIssue}
           isForgejoConnected={integrations.isForgejoConnected}

@@ -4,6 +4,7 @@ import type { AgentRun, TaskMetadata } from '../types/chat';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
+import { type PlainThreadSummary } from '../types/plain';
 import { type GitLabIssueSummary } from '../types/gitlab';
 import { type ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from './rpc';
@@ -16,6 +17,7 @@ export interface CreateTaskParams {
   linkedLinearIssue: LinearIssueSummary | null;
   linkedGithubIssue: GitHubIssueSummary | null;
   linkedJiraIssue: JiraIssueSummary | null;
+  linkedPlainThread: PlainThreadSummary | null;
   linkedGitlabIssue: GitLabIssueSummary | null;
   linkedForgejoIssue: ForgejoIssueSummary | null;
   autoApprove?: boolean;
@@ -63,7 +65,10 @@ function seedIssueContext(
 ): void {
   void (async () => {
     const hasIssueContext =
-      taskMetadata?.linearIssue || taskMetadata?.githubIssue || taskMetadata?.jiraIssue;
+      taskMetadata?.linearIssue ||
+      taskMetadata?.githubIssue ||
+      taskMetadata?.jiraIssue ||
+      taskMetadata?.plainThread;
     if (!hasIssueContext) return;
 
     let conversationId: string | undefined;
@@ -176,6 +181,44 @@ function seedIssueContext(
         log.error('Failed to seed task with Jira issue context:', seedError as any);
       }
     }
+
+    if (taskMetadata?.plainThread) {
+      try {
+        const thread = taskMetadata.plainThread;
+        const detailParts: string[] = [];
+        if (thread.status) detailParts.push(`Status: ${thread.status}`);
+        const customerName = thread.customer?.fullName?.trim();
+        const customerEmail = thread.customer?.email?.trim();
+        if (customerName) detailParts.push(`Customer: ${customerName}`);
+        if (customerEmail) detailParts.push(`Email: ${customerEmail}`);
+        if (thread.priority) detailParts.push(`Priority: ${thread.priority}`);
+        const labelNames = (thread.labels ?? [])
+          .map((l) => l.name)
+          .filter(Boolean)
+          .join(', ');
+        if (labelNames) detailParts.push(`Labels: ${labelNames}`);
+        const lines = [
+          `Linked Plain thread: ${thread.ref ? `${thread.ref} — ` : ''}${thread.title}`,
+        ];
+        if (detailParts.length) lines.push(`Details: ${detailParts.join(' • ')}`);
+        if (thread.url) lines.push(`URL: ${thread.url}`);
+        if (thread.description) {
+          lines.push('');
+          lines.push('Thread Description:');
+          lines.push(String(thread.description).trim());
+        }
+        await rpc.db.saveMessage({
+          id: `plain-context-${taskId}`,
+          conversationId,
+          content: lines.join('\n'),
+          sender: 'agent',
+          metadata: JSON.stringify({ isPlainContext: true, plainThread: thread }),
+        });
+      } catch (seedError) {
+        const { log } = await import('./logger');
+        log.error('Failed to seed task with Plain thread context:', seedError as any);
+      }
+    }
   })();
 }
 
@@ -192,6 +235,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedLinearIssue,
     linkedGithubIssue,
     linkedJiraIssue,
+    linkedPlainThread,
     linkedGitlabIssue,
     linkedForgejoIssue,
     autoApprove,
@@ -214,6 +258,27 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedGithubIssue.url) parts.push(`URL: ${linkedGithubIssue.url}`);
       parts.push('');
     }
+    if (linkedPlainThread) {
+      const t = linkedPlainThread;
+      parts.push(`Plain thread: ${t.ref ? `${t.ref} — ` : ''}${t.title}`);
+      const details: string[] = [];
+      if (t.status) details.push(`Status: ${t.status}`);
+      if (t.customer?.fullName) details.push(`Customer: ${t.customer.fullName}`);
+      if (t.customer?.email) details.push(`Email: ${t.customer.email}`);
+      if (t.priority != null) details.push(`Priority: ${t.priority}`);
+      const labelNames = (t.labels ?? [])
+        .map((l) => l.name)
+        .filter(Boolean)
+        .join(', ');
+      if (labelNames) details.push(`Labels: ${labelNames}`);
+      if (details.length) parts.push(details.join(' • '));
+      if (t.url) parts.push(`URL: ${t.url}`);
+      if (t.description) {
+        parts.push('');
+        parts.push(`Description: ${String(t.description).trim()}`);
+      }
+      parts.push('');
+    }
     if (linkedGitlabIssue) {
       parts.push(`GitLab: #${linkedGitlabIssue.iid} — ${linkedGitlabIssue.title}`);
       if (linkedGitlabIssue.web_url) parts.push(`URL: ${linkedGitlabIssue.web_url}`);
@@ -224,7 +289,9 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedForgejoIssue.html_url) parts.push(`URL: ${linkedForgejoIssue.html_url}`);
       parts.push('');
     }
-    parts.push(initialPrompt.trim());
+    if (initialPrompt && initialPrompt.trim()) {
+      parts.push(initialPrompt.trim());
+    }
     preparedPrompt = parts.join('\n');
   }
 
@@ -232,6 +299,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedLinearIssue ||
     linkedJiraIssue ||
     linkedGithubIssue ||
+    linkedPlainThread ||
     linkedGitlabIssue ||
     linkedForgejoIssue ||
     preparedPrompt ||
@@ -241,6 +309,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           linearIssue: linkedLinearIssue ?? null,
           jiraIssue: linkedJiraIssue ?? null,
           githubIssue: linkedGithubIssue ?? null,
+          plainThread: linkedPlainThread ?? null,
           gitlabIssue: linkedGitlabIssue ?? null,
           forgejoIssue: linkedForgejoIssue ?? null,
           initialPrompt: preparedPrompt ?? null,
@@ -378,6 +447,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
       if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
       if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
+      if (linkedPlainThread) captureTelemetry('task_created_with_issue', { source: 'plain' });
       if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
       if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
     });
@@ -478,6 +548,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
     if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
     if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
+    if (linkedPlainThread) captureTelemetry('task_created_with_issue', { source: 'plain' });
     if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
     if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
   });

@@ -2,6 +2,7 @@ import type { ProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
+import { type PlainThreadSummary } from './plain';
 import { type GitLabIssueSummary } from './gitlab';
 import { type ForgejoIssueSummary } from './forgejo';
 
@@ -21,6 +22,7 @@ export interface TaskMetadata {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
+  plainThread?: PlainThreadSummary | null;
   gitlabIssue?: GitLabIssueSummary | null;
   forgejoIssue?: ForgejoIssueSummary | null;
   initialPrompt?: string | null;

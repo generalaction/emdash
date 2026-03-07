@@ -24,19 +24,24 @@ interface IntegrationStatus {
   isGitlabConnected: boolean | null;
   handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 
+  // Plain
+  isPlainConnected: boolean | null;
+  handlePlainConnect: (apiKey: string) => Promise<void>;
+
   // Forgejo
   isForgejoConnected: boolean | null;
   handleForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
- * Hook to manage integration connection status for Linear, GitHub, and Jira.
+ * Hook to manage integration connection status for Linear, GitHub, Jira, GitLab, and Plain.
  * Checks connection status when isOpen becomes true.
  */
 export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const [isLinearConnected, setIsLinearConnected] = useState<boolean | null>(null);
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [isGitlabConnected, setIsGitlabConnected] = useState<boolean | null>(null);
+  const [isPlainConnected, setIsPlainConnected] = useState<boolean | null>(null);
   const [isForgejoConnected, setIsForgejoConnected] = useState<boolean | null>(null);
 
   const {
@@ -114,6 +119,28 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     };
   }, [isOpen]);
 
+  // Check Plain connection
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancel = false;
+    const api = window.electronAPI as any;
+    if (!api?.plainCheckConnection) {
+      setIsPlainConnected(false);
+      return;
+    }
+    api
+      .plainCheckConnection()
+      .then((res: any) => {
+        if (!cancel) setIsPlainConnected(!!res?.connected);
+      })
+      .catch(() => {
+        if (!cancel) setIsPlainConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isOpen]);
+
   const handleLinearConnect = useCallback(async (apiKey: string) => {
     if (!apiKey || !window?.electronAPI?.linearSaveToken) {
       throw new Error('Invalid API key');
@@ -168,6 +195,21 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     []
   );
 
+  const handlePlainConnect = useCallback(async (apiKey: string) => {
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    if (!window?.electronAPI?.plainSaveToken) {
+      throw new Error('Plain integration unavailable. Try restarting the app.');
+    }
+    const result = await window.electronAPI.plainSaveToken(apiKey);
+    if (result?.success) {
+      setIsPlainConnected(true);
+    } else {
+      throw new Error(result?.error || 'Could not connect Plain. Try again.');
+    }
+  }, []);
+
   // Check Forgejo connection
   useEffect(() => {
     if (!isOpen) return;
@@ -217,6 +259,8 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     handleJiraConnect,
     isGitlabConnected,
     handleGitlabConnect,
+    isPlainConnected,
+    handlePlainConnect,
     isForgejoConnected,
     handleForgejoConnect,
   };

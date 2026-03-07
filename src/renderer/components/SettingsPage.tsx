@@ -13,10 +13,10 @@ import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
+  CreateWorktreeByDefaultRow,
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
-import Context7SettingsCard from './Context7SettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
@@ -201,6 +201,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,
         },
         {
+          component: <CreateWorktreeByDefaultRow taskSettings={taskSettings} />,
+        },
+        {
           component: <AutoTrustWorktreesRow taskSettings={taskSettings} />,
         },
         {
@@ -229,10 +232,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [
-        { title: 'Integrations', component: <IntegrationsCard /> },
-        { title: 'MCP Server', component: <Context7SettingsCard /> },
-      ],
+      sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
     },
     repository: {
       title: 'Repository',
