@@ -82,6 +82,30 @@ export const AutoApproveByDefaultRow: React.FC<RowProps> = ({ taskSettings }) =>
   );
 };
 
+export const CreateWorktreeByDefaultRow: React.FC<RowProps> = ({ taskSettings }) => {
+  const showError =
+    Boolean(taskSettings.error) && taskSettings.errorScope === 'createWorktreeByDefault';
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">Create worktree by default</p>
+          <p className="text-sm text-muted-foreground">
+            New tasks start on the current branch when disabled.
+          </p>
+        </div>
+        <Switch
+          checked={taskSettings.createWorktreeByDefault}
+          disabled={taskSettings.loading || taskSettings.saving}
+          onCheckedChange={taskSettings.updateCreateWorktreeByDefault}
+        />
+      </div>
+      {showError ? <p className="text-xs text-destructive">{taskSettings.error}</p> : null}
+    </div>
+  );
+};
+
 export const AutoTrustWorktreesRow: React.FC<RowProps> = ({ taskSettings }) => {
   const showError = Boolean(taskSettings.error) && taskSettings.errorScope === 'autoTrustWorktrees';
 

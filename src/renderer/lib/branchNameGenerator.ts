@@ -2,6 +2,7 @@ import { BranchNameGenerator } from 'nbranch';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
+import type { PlainThreadSummary } from '../types/plain';
 
 const MAX_NAME_LENGTH = 64;
 const MIN_INPUT_LENGTH = 10;
@@ -58,6 +59,7 @@ export interface TaskNameContext {
   linearIssue?: LinearIssueSummary | null;
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
+  plainThread?: PlainThreadSummary | null;
 }
 
 /**
@@ -69,8 +71,16 @@ export function generateTaskNameFromContext(context: TaskNameContext): string | 
   // Try linked issues first — they have the richest context
   const issueText = getIssueText(context);
   if (issueText) {
-    const name = generateTaskName(issueText);
-    if (name) return name;
+    let name = generateTaskName(issueText);
+    if (name) {
+      if (context.plainThread?.ref) {
+        const refSlug = context.plainThread.ref.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (refSlug && !name.startsWith(refSlug)) {
+          name = `${refSlug}-${name}`.slice(0, MAX_NAME_LENGTH);
+        }
+      }
+      return name;
+    }
   }
 
   // Fall back to initial prompt
@@ -97,5 +107,11 @@ function getIssueText(context: TaskNameContext): string | null {
     const parts = [summary, description].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : null;
   }
+  if (context.plainThread) {
+    const { title, description } = context.plainThread;
+    const parts = [title, description].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : null;
+  }
+
   return null;
 }

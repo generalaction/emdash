@@ -7,10 +7,11 @@ type ExitPayload = {
 };
 
 type MockProc = {
-  onData: (cb: (data: string) => void) => void;
+  onData: (cb: (data: string) => void) => { dispose: () => void };
   onExit: (cb: (payload: ExitPayload) => void) => void;
   write: ReturnType<typeof vi.fn>;
   emitExit: (exitCode: number | null | undefined, signal?: number) => void;
+  emitData: (data: string) => void;
 };
 
 const ipcHandleHandlers = new Map<string, (...args: any[]) => any>();
@@ -49,8 +50,17 @@ let lastSshPtyStartOpts: any = null;
 
 function createMockProc(): MockProc {
   const exitHandlers: Array<(payload: ExitPayload) => void> = [];
+  const dataHandlers: Array<(data: string) => void> = [];
   return {
-    onData: vi.fn(),
+    onData: vi.fn((cb: (data: string) => void) => {
+      dataHandlers.push(cb);
+      return {
+        dispose: () => {
+          const idx = dataHandlers.indexOf(cb);
+          if (idx >= 0) dataHandlers.splice(idx, 1);
+        },
+      };
+    }),
     onExit: (cb) => {
       exitHandlers.push(cb);
     },
@@ -59,6 +69,9 @@ function createMockProc(): MockProc {
       for (const handler of exitHandlers) {
         handler({ exitCode, signal });
       }
+    },
+    emitData: (data: string) => {
+      for (const handler of [...dataHandlers]) handler(data);
     },
   };
 }
@@ -364,10 +377,11 @@ describe('ptyIpc notification lifecycle', () => {
     expect(lastSshPtyStartOpts?.target).toBe('remote-alias');
     expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
 
-    // Advance past the SSH MOTD delay before checking writes
-
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
 
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
@@ -591,6 +605,9 @@ describe('ptyIpc notification lifecycle', () => {
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('command -v');
@@ -636,6 +653,9 @@ describe('ptyIpc notification lifecycle', () => {
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('command -v');
@@ -679,6 +699,9 @@ describe('ptyIpc notification lifecycle', () => {
     // Init keystrokes should contain hook env var exports
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('export EMDASH_HOOK_PORT=');
     expect(written).toContain('export EMDASH_HOOK_TOKEN=');
@@ -717,6 +740,9 @@ describe('ptyIpc notification lifecycle', () => {
     // No hook env in keystrokes
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).not.toContain('EMDASH_HOOK_PORT=');
     expect(written).not.toContain('mock-codex-notify');
@@ -758,6 +784,9 @@ describe('ptyIpc notification lifecycle', () => {
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('export OPENCODE_CONFIG_DIR=');
     expect(written).toContain(`$HOME/.config/emdash/agent-hooks/opencode/${id}`);

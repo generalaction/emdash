@@ -43,9 +43,48 @@ import path from 'path';
 import { quoteShellArg } from '../utils/shellEscape';
 import { agentEventService } from './AgentEventService';
 import { codexSessionService } from './CodexSessionService';
+import { waitForShellPrompt, type PromptWaitHandle } from '../utils/waitForShellPrompt';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
+const promptHandles = new Map<string, PromptWaitHandle[]>();
+
+function cancelPromptHandles(id: string): void {
+  const handles = promptHandles.get(id);
+  if (handles) {
+    for (const h of handles) h.cancel();
+    promptHandles.delete(id);
+  }
+}
+
+function waitForSshPromptThenWrite(
+  id: string,
+  proc: {
+    onData: (cb: (data: string) => void) => { dispose: () => void };
+    write: (data: string) => void;
+  },
+  data: string,
+  label: string
+): void {
+  const handles = promptHandles.get(id) ?? [];
+  promptHandles.set(id, handles);
+
+  const handle = waitForShellPrompt({
+    subscribe: (cb) => {
+      const disposable = proc.onData(cb);
+      return () => disposable.dispose();
+    },
+    write: (d) => {
+      proc.write(d);
+      promptHandles.delete(id);
+    },
+    data,
+    onTimeout: () =>
+      log.warn(`${label} SSH shell prompt not detected, writing init commands anyway`, { id }),
+  });
+  handles.push(handle);
+}
+
 const providerPtyTimers = new Map<string, number>();
 // Map PTY IDs to provider IDs for multi-agent tracking
 const ptyProviderMap = new Map<string, ProviderId>();
@@ -624,6 +663,7 @@ export function registerPtyIpc(): void {
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
+              cancelPromptHandles(id);
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
@@ -640,7 +680,7 @@ export function registerPtyIpc(): void {
 
           const remoteInit = buildRemoteInitKeystrokes({ cwd, tmux: remoteTmuxOpt });
           if (remoteInit) {
-            proc.write(remoteInit);
+            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:start');
           }
 
           try {
@@ -1145,6 +1185,7 @@ export function registerPtyIpc(): void {
               bufferedSendPtyData(id, data);
             });
             proc.onExit(({ exitCode, signal }) => {
+              cancelPromptHandles(id);
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
@@ -1167,7 +1208,7 @@ export function registerPtyIpc(): void {
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
           });
           if (remoteInit) {
-            proc.write(remoteInit);
+            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:startDirect');
           }
 
           maybeMarkProviderStart(id);

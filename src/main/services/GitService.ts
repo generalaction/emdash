@@ -407,6 +407,7 @@ export async function getLog(
     subject: string;
     body: string;
     author: string;
+    authorEmail: string;
     date: string;
     isPushed: boolean;
     tags: string[];
@@ -469,7 +470,7 @@ export async function getLog(
 
   const FIELD_SEP = '---FIELD_SEP---';
   const RECORD_SEP = '---RECORD_SEP---';
-  const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+  const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%ae${FIELD_SEP}%b`;
   const { stdout } = await execFileAsync(
     'git',
     ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`, '--'],
@@ -493,8 +494,9 @@ export async function getLog(
       return {
         hash: parts[0] || '',
         subject: parts[1] || '',
-        body: (parts[5] || '').trim(),
+        body: (parts[6] || '').trim(),
         author: parts[2] || '',
+        authorEmail: parts[5] || '',
         date: parts[3] || '',
         isPushed: skip + index >= aheadCount,
         tags,
