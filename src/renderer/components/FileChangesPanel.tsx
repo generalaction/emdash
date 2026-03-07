@@ -214,6 +214,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setStagingFiles(new Set());
     setRevertingFiles(new Set());
     setRestoreTarget(null);
+    setIsStagingAll(false);
   }, [resolvedTaskPath]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
@@ -502,6 +503,18 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {onOpenChanges && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-xs"
+                    title="View all changes and history"
+                    onClick={() => onOpenChanges(undefined, safeTaskPath)}
+                  >
+                    <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Changes</span>
+                  </Button>
+                )}
                 {fileChanges.some((f) => !f.isStaged) && (
                   <Button
                     variant="outline"
