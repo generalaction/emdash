@@ -632,7 +632,6 @@ const ChatInterface: React.FC<Props> = ({
           'copilot',
           'amp',
           'opencode',
-          'hermes',
           'charm',
           'auggie',
           'goose',

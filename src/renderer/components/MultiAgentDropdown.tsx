@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { rpc } from '@/lib/rpc';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Info, ExternalLink } from 'lucide-react';
+import { Info, ExternalLink, Pin } from 'lucide-react';
 import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
 import { agentConfig } from '../lib/agentConfig';
@@ -24,8 +25,47 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   className = '',
   disabledAgents = [],
 }) => {
-  // Use agentConfig order directly (already properly ordered)
-  const sortedAgents = Object.entries(agentConfig);
+  // Setup state for pinned agents (using localStorage to remember preferences)
+  const [pinnedAgents, setPinnedAgents] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancel = false;
+    rpc.appSettings.get().then((settings) => {
+      if (!cancel && settings?.pinnedAgents) {
+        setPinnedAgents(settings.pinnedAgents);
+      }
+    });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  // handle pinning/unpinning
+  const togglePin = async (agentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const next = pinnedAgents.includes(agentId)
+      ? pinnedAgents.filter((a) => a !== agentId)
+      : [...pinnedAgents, agentId];
+    setPinnedAgents(next);
+
+    try {
+      await rpc.appSettings.update({ pinnedAgents: next });
+    } catch (error) {
+      console.error('Failed to save pinned agents', error);
+    }
+  };
+
+  // Dynamically sort agents (Pinned ones go to the top, others stay in original order)
+  const sortedAgents = React.useMemo(() => {
+    return Object.entries(agentConfig).sort(([keyA], [keyB]) => {
+      const aPinned = pinnedAgents.includes(keyA);
+      const bPinned = pinnedAgents.includes(keyB);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
+  }, [pinnedAgents]);
   const [open, setOpen] = useState(false);
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   const [runsSelectOpenFor, setRunsSelectOpenFor] = useState<Agent | null>(null);
@@ -133,7 +173,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                   contentClassName="z-[1000] border-foreground/20 bg-background p-0 text-foreground"
                 >
                   <div
-                    className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
+                    className="group flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
                     onClick={() => handleRowClick(agent)}
                   >
                     <div className="flex flex-1 items-center gap-2">
@@ -157,56 +197,72 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                       />
                       <span className="text-sm">{config.name}</span>
                     </div>
-                    {isSelected && (
-                      <div className="flex items-center gap-1">
-                        <Select
-                          value={String(getAgentRuns(agent))}
-                          onValueChange={(v) => updateRuns(agent, parseInt(v, 10))}
-                          onOpenChange={(isSelectOpen) => {
-                            setRunsSelectOpenFor(isSelectOpen ? agent : null);
-                          }}
-                        >
-                          <SelectTrigger
-                            className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none"
-                            title="Run up to 4 instances of this agent to compare different solutions"
+                    <div className="flex items-center gap-2">
+                      {isSelected && (
+                        <div className="flex items-center gap-1">
+                          <Select
+                            value={String(getAgentRuns(agent))}
+                            onValueChange={(v) => updateRuns(agent, parseInt(v, 10))}
+                            onOpenChange={(isSelectOpen) => {
+                              setRunsSelectOpenFor(isSelectOpen ? agent : null);
+                            }}
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent side="right" className="z-[1001] min-w-[4rem]">
-                            {[1, 2, 3, 4].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}x
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3 w-3 opacity-40 hover:opacity-60" />
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            className="z-[10000] max-w-xs"
-                            style={{ zIndex: 10000 }}
-                          >
-                            <p>
-                              Run up to {MAX_RUNS} instances of this agent to compare different
-                              solutions.{' '}
-                              <a
-                                href="https://docs.emdash.sh/best-of-n"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-0.5 underline hover:opacity-70"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Docs
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    )}
+                            <SelectTrigger
+                              className="h-6 w-auto gap-1 border-none bg-transparent p-0 text-sm shadow-none"
+                              title="Run up to 4 instances of this agent to compare different solutions"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent side="right" className="z-[1001] min-w-[4rem]">
+                              {[1, 2, 3, 4].map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n}x
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 opacity-40 hover:opacity-60" />
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="z-[10000] max-w-xs"
+                              style={{ zIndex: 10000 }}
+                            >
+                              <p>
+                                Run up to {MAX_RUNS} instances of this agent to compare different
+                                solutions.{' '}
+                                <a
+                                  href="https://docs.emdash.sh/best-of-n"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 underline hover:opacity-70"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Docs
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+                      <button
+                        onClick={(e) => togglePin(key, e)}
+                        className={`flex items-center justify-center rounded p-1 transition-opacity hover:bg-muted-foreground/20 ${
+                          pinnedAgents.includes(key)
+                            ? 'text-foreground opacity-100' // Always visible if pinned
+                            : 'text-muted-foreground opacity-0 group-hover:opacity-100' // Visible on hover if unpinned
+                        }`}
+                        title={pinnedAgents.includes(key) ? 'Unpin agent' : 'Pin agent to top'}
+                      >
+                        <Pin
+                          className="h-3.5 w-3.5"
+                          fill={pinnedAgents.includes(key) ? 'currentColor' : 'none'} // Fills the icon when pinned
+                        />
+                      </button>
+                    </div>
                   </div>
                 </AgentTooltipRow>
               ) : (
