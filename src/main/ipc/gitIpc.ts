@@ -523,6 +523,57 @@ export function registerGitIpc() {
     return { success: true, url: url || undefined, output: out };
   }
 
+  // ── Shared merge helpers ────────────────────────────────────────────
+
+  /** Detect the default branch (tries gh CLI, falls back to git symbolic-ref, then 'main'). */
+  async function detectDefaultBranch(cwd: string): Promise<string> {
+    try {
+      const { stdout } = await execAsync(
+        'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+        { cwd }
+      );
+      if (stdout?.trim()) return stdout.trim();
+    } catch {
+      // gh not available — fall through
+    }
+
+    try {
+      const { stdout: symRef } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+        cwd,
+      });
+      const match = symRef?.trim().match(/refs\/remotes\/origin\/(.+)/);
+      if (match?.[1]) return match[1];
+    } catch {
+      // fall through
+    }
+
+    return 'main';
+  }
+
+  /** Get the current branch name (empty string when in detached HEAD). */
+  async function getCurrentBranch(cwd: string): Promise<string> {
+    const { stdout } = await execAsync('git branch --show-current', { cwd });
+    return (stdout || '').trim();
+  }
+
+  /**
+   * Stage all changes and commit with the given message.
+   * No-ops when the working tree is clean. Swallows "nothing to commit" errors.
+   */
+  async function stageAndCommit(cwd: string, message: string): Promise<void> {
+    const { stdout: statusOut } = await execAsync('git status --porcelain --untracked-files=all', {
+      cwd,
+    });
+    if (!statusOut?.trim()) return;
+    await execAsync('git add -A', { cwd });
+    try {
+      await execAsync(`git commit -m ${JSON.stringify(message)}`, { cwd });
+    } catch (e) {
+      const msg = String(e);
+      if (!/nothing to commit/i.test(msg)) throw e;
+    }
+  }
+
   // Helper: merge-to-main for remote SSH projects
   async function mergeToMainRemote(
     connectionId: string,
@@ -2296,21 +2347,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       // Get current and default branch names
-      const { stdout: currentOut } = await execAsync('git branch --show-current', {
-        cwd: taskPath,
-      });
-      const currentBranch = (currentOut || '').trim();
-
-      let defaultBranch = 'main';
-      try {
-        const { stdout } = await execAsync(
-          'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-          { cwd: taskPath }
-        );
-        if (stdout?.trim()) defaultBranch = stdout.trim();
-      } catch {
-        // gh not available or not a GitHub repo - fall back to 'main'
-      }
+      const currentBranch = await getCurrentBranch(taskPath);
+      const defaultBranch = await detectDefaultBranch(taskPath);
 
       // Validate: on a valid feature branch
       if (!currentBranch) {
@@ -2324,19 +2362,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       // Stage and commit any pending changes
-      const { stdout: statusOut } = await execAsync(
-        'git status --porcelain --untracked-files=all',
-        { cwd: taskPath }
-      );
-      if (statusOut?.trim()) {
-        await execAsync('git add -A', { cwd: taskPath });
-        try {
-          await execAsync('git commit -m "chore: prepare for merge to main"', { cwd: taskPath });
-        } catch (e) {
-          const msg = String(e);
-          if (!/nothing to commit/i.test(msg)) throw e;
-        }
-      }
+      await stageAndCommit(taskPath, 'chore: prepare for merge to main');
 
       // Push branch (set upstream if needed)
       try {
@@ -2405,6 +2431,98 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: false, error: (e as { message?: string })?.message || String(e) };
     }
   });
+
+  // Git: Local merge – merge current branch into default branch without a PR
+  ipcMain.handle(
+    'git:local-merge',
+    async (
+      _,
+      args: {
+        taskPath: string;
+        commitMessage?: string;
+      }
+    ) => {
+      const { taskPath, commitMessage } = args || ({} as { taskPath: string });
+
+      try {
+        // Get current and default branch names
+        const currentBranch = await getCurrentBranch(taskPath);
+        const defaultBranch = await detectDefaultBranch(taskPath);
+
+        // Validate: on a valid feature branch
+        if (!currentBranch) {
+          return { success: false, error: 'Not on a branch (detached HEAD state).' };
+        }
+        if (currentBranch === defaultBranch) {
+          return {
+            success: false,
+            error: `Already on ${defaultBranch}. Create a feature branch first.`,
+          };
+        }
+
+        // Find the main repo path (worktree's parent repo)
+        const { stdout: gitCommonDir } = await execAsync('git rev-parse --git-common-dir', {
+          cwd: taskPath,
+        });
+        const commonDir = gitCommonDir?.trim();
+        if (!commonDir) {
+          return { success: false, error: 'Could not determine main repository path.' };
+        }
+        const mainRepoPath = path.resolve(taskPath, commonDir, '..');
+
+        // Verify main repo is clean before committing worktree changes
+        if (mainRepoPath !== taskPath) {
+          const { stdout: mainStatus } = await execAsync('git status --porcelain', {
+            cwd: mainRepoPath,
+          });
+          if (mainStatus?.trim()) {
+            return {
+              success: false,
+              error:
+                'Main repository has uncommitted changes. Please commit or stash them before merging.',
+            };
+          }
+        }
+
+        // Stage and commit any pending changes
+        await stageAndCommit(taskPath, 'chore: prepare for local merge');
+
+        // Switch to default branch in the main repo
+        await execAsync(`git checkout ${JSON.stringify(defaultBranch)}`, { cwd: mainRepoPath });
+
+        // Merge the feature branch
+        const mergeMsg = commitMessage || `Merge branch '${currentBranch}' into ${defaultBranch}`;
+        try {
+          await execAsync(
+            `git merge ${JSON.stringify(currentBranch)} -m ${JSON.stringify(mergeMsg)}`,
+            { cwd: mainRepoPath }
+          );
+        } catch (e) {
+          // Abort the merge on conflict so the repo isn't left in a dirty state
+          try {
+            await execAsync('git merge --abort', { cwd: mainRepoPath });
+          } catch {
+            // ignore abort failures
+          }
+          const errMsg = (e as { stderr?: string })?.stderr || String(e);
+          return {
+            success: false,
+            error: `Merge failed (likely conflicts): ${errMsg}`,
+          };
+        }
+
+        return {
+          success: true,
+          output: `Successfully merged '${currentBranch}' into '${defaultBranch}' locally.`,
+          defaultBranch,
+          featureBranch: currentBranch,
+        };
+      } catch (e) {
+        log.error('Failed local merge:', e);
+        return { success: false, error: (e as { message?: string })?.message || String(e) };
+      }
+    }
+  );
 
   // Git: Rename branch (local and optionally remote)
   ipcMain.handle(

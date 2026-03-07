@@ -381,6 +381,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
   mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
+  localMerge: (args: { taskPath: string; commitMessage?: string }) =>
+    ipcRenderer.invoke('git:local-merge', args),
   mergePr: (args: {
     taskPath: string;
     prNumber?: number;

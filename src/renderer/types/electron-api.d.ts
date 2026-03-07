@@ -545,6 +545,13 @@ declare global {
         prUrl?: string;
         error?: string;
       }>;
+      localMerge: (args: { taskPath: string; commitMessage?: string }) => Promise<{
+        success: boolean;
+        output?: string;
+        defaultBranch?: string;
+        featureBranch?: string;
+        error?: string;
+      }>;
       mergePr: (args: {
         taskPath: string;
         prNumber?: number;
@@ -1529,6 +1536,13 @@ export interface ElectronAPI {
     success: boolean;
     output?: string;
     prUrl?: string;
+    error?: string;
+  }>;
+  localMerge: (args: { taskPath: string; commitMessage?: string }) => Promise<{
+    success: boolean;
+    output?: string;
+    defaultBranch?: string;
+    featureBranch?: string;
     error?: string;
   }>;
   connectToGitHub: (projectPath: string) => Promise<{
