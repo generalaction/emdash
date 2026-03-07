@@ -184,6 +184,14 @@ export interface IFileSystem {
   remove?(path: string): Promise<{ success: boolean; error?: string }>;
 
   /**
+   * Rename a file or directory
+   */
+  rename(oldPath: string, newPath: string): Promise<{ success: boolean; error?: string }>;
+  /**
+   * Create a directory
+   */
+  mkdir(path: string): Promise<{ success: boolean; error?: string }>;
+  /**
    * Read image file as base64 data URL
    * @param path - Image file path relative to project root
    * @returns Promise resolving to image data
