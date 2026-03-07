@@ -614,7 +614,8 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   // Pinned Agents
   const rawPinned = (input as any)?.pinnedAgents;
   if (Array.isArray(rawPinned)) {
-    out.pinnedAgents = rawPinned.filter((item) => typeof item === 'string');
+    const validated = rawPinned.filter((item) => typeof item === 'string');
+    out.pinnedAgents = [...new Set(validated)];
   } else {
     out.pinnedAgents = [];
   }
