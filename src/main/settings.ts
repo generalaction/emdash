@@ -174,8 +174,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     nextProject: TASK_SWITCH_DEFAULTS.next,
     prevProject: TASK_SWITCH_DEFAULTS.prev,
     newTask: { key: 'n', modifier: 'cmd' },
-    nextAgent: { key: 'k', modifier: 'cmd+shift' },
-    prevAgent: { key: 'j', modifier: 'cmd+shift' },
+    nextAgent: { key: ']', modifier: 'cmd+shift' },
+    prevAgent: { key: '[', modifier: 'cmd+shift' },
   },
   interface: {
     autoRightSidebarBehavior: false,

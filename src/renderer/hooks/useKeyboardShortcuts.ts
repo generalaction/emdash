@@ -427,12 +427,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNextProject?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.prevProject,
         handler: () => handlers.onPrevProject?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.newTask,
