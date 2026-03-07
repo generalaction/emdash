@@ -53,4 +53,5 @@ export const agentAssets: Record<UiAgent, AgentAsset> = {
   mistral: { name: 'Mistral AI', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   autohand: { name: 'Autohand', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
+  novita: { name: 'Novita AI', logo: openaiLogoSvg, alt: 'Novita AI', isSvg: true },
 };

@@ -47,6 +47,7 @@ const AGENT_ENV_VARS = [
   'KIMI_API_KEY',
   'MISTRAL_API_KEY',
   'MOONSHOT_API_KEY',
+  'NOVITA_API_KEY',
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
@@ -94,6 +95,12 @@ function applyProviderSpecificRuntimeEnv(
   }
 ): void {
   applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+  if (options.providerId === 'novita') {
+    env['OPENAI_BASE_URL'] = 'https://api.novita.ai/openai';
+    if (process.env.NOVITA_API_KEY) {
+      env['OPENAI_API_KEY'] = process.env.NOVITA_API_KEY;
+    }
+  }
 }
 
 export function applyProviderRuntimeEnv(
