@@ -9,6 +9,7 @@ import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from 
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
+import { getSshExecuteCommandValidationError } from '../utils/sshCommandValidation';
 import {
   parseSshConfigFile,
   resolveIdentityAgent,
@@ -558,23 +559,6 @@ export function registerSshIpc() {
     }
   );
 
-  // Execute command (guarded: only allow known-safe command prefixes from renderer)
-  const ALLOWED_COMMAND_PREFIXES = [
-    'git ',
-    'ls ',
-    'pwd',
-    'cat ',
-    'head ',
-    'tail ',
-    'wc ',
-    'stat ',
-    'file ',
-    'which ',
-    'echo ',
-    'test ',
-    '[ ',
-  ];
-
   ipcMain.handle(
     SSH_IPC_CHANNELS.EXECUTE_COMMAND,
     async (
@@ -590,14 +574,11 @@ export function registerSshIpc() {
       error?: string;
     }> => {
       try {
-        // Validate the command against the allowlist
         const trimmed = command.trimStart();
-        const isAllowed = ALLOWED_COMMAND_PREFIXES.some(
-          (prefix) => trimmed === prefix.trimEnd() || trimmed.startsWith(prefix)
-        );
-        if (!isAllowed) {
+        const validationError = getSshExecuteCommandValidationError(command);
+        if (validationError) {
           console.warn(`[sshIpc] Blocked disallowed command: ${trimmed.slice(0, 80)}`);
-          return { success: false, error: 'Command not allowed' };
+          return { success: false, error: validationError };
         }
 
         const result = await sshService.executeCommand(connectionId, command, cwd);
