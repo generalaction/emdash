@@ -237,6 +237,29 @@ describe('ptyManager provider command resolution', () => {
     expect(fsMkdirSyncMock).toHaveBeenCalled();
   });
 
+  it('uses an exact Codex thread target when one is stored', async () => {
+    fsReadFileSyncMock.mockReturnValue(
+      JSON.stringify({
+        'codex-main-task123': {
+          cwd: '/tmp/task',
+          providerId: 'codex',
+          resumeTarget: 'thread-123',
+          strategy: 'codex-thread-id',
+        },
+      })
+    );
+
+    const { getStoredExactResumeArgs, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest('/tmp/emdash-test/pty-session-map.json');
+
+    expect(getStoredExactResumeArgs('codex', 'codex-main-task123', '/tmp/task')).toEqual([
+      'resume',
+      'thread-123',
+    ]);
+  });
+
   it('injects OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {
     const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
 

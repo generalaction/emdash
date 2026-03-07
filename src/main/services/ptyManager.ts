@@ -239,16 +239,30 @@ function deterministicUuid(input: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
+type SessionStrategy = 'claude-session-id' | 'codex-thread-id';
+
 // ---------------------------------------------------------------------------
-// Persistent session-ID map
+// Persistent session map
 //
-// Tracks which PTY IDs have already been started with --session-id so we
-// know whether to create a new session or resume an existing one.
+// Tracks the exact resume target for PTYs that support strong session restore.
 //
-//   First start  → no entry  → --session-id <uuid>  (create)
-//   Restart      → entry     → --resume <uuid>      (resume)
+// Claude stores proactively assigned session IDs.
+// Codex stores discovered thread IDs after first launch.
 // ---------------------------------------------------------------------------
-type SessionEntry = { uuid: string; cwd: string };
+type SessionEntry = {
+  cwd: string;
+  providerId?: string;
+  uuid?: string;
+  resumeTarget?: string;
+  strategy?: SessionStrategy;
+};
+
+type NormalizedSessionEntry = {
+  cwd: string;
+  providerId: string;
+  target: string;
+  strategy: SessionStrategy;
+};
 
 let _sessionMapPath: string | null = null;
 let _sessionMap: Record<string, SessionEntry> | null = null;
@@ -278,26 +292,87 @@ function loadSessionMap(): Record<string, SessionEntry> {
   return _sessionMap!;
 }
 
+function getNormalizedSessionEntry(
+  ptyId: string,
+  entry: SessionEntry | undefined
+): NormalizedSessionEntry | null {
+  if (!entry || typeof entry !== 'object' || typeof entry.cwd !== 'string' || !entry.cwd) {
+    return null;
+  }
+
+  const parsed = parsePtyId(ptyId);
+  const providerId = entry.providerId || parsed?.providerId;
+  if (!providerId) return null;
+
+  if (typeof entry.resumeTarget === 'string' && entry.resumeTarget.trim()) {
+    return {
+      cwd: entry.cwd,
+      providerId,
+      target: entry.resumeTarget,
+      strategy:
+        entry.strategy === 'claude-session-id' || entry.strategy === 'codex-thread-id'
+          ? entry.strategy
+          : providerId === 'codex'
+            ? 'codex-thread-id'
+            : 'claude-session-id',
+    };
+  }
+
+  if (typeof entry.uuid === 'string' && entry.uuid.trim()) {
+    return {
+      cwd: entry.cwd,
+      providerId,
+      target: entry.uuid,
+      strategy: 'claude-session-id',
+    };
+  }
+
+  return null;
+}
+
 /** Check if the session map has entries for other chats of the same provider in the same cwd. */
 function hasOtherSameProviderSessions(ptyId: string, providerId: string, cwd: string): boolean {
   const map = loadSessionMap();
-  const prefix = `${providerId}-`;
-  return Object.entries(map).some(
-    ([key, entry]) => key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd
-  );
+  return Object.entries(map).some(([key, entry]) => {
+    if (key === ptyId) return false;
+    const normalized = getNormalizedSessionEntry(key, entry);
+    return normalized?.providerId === providerId && normalized.cwd === cwd;
+  });
 }
 
-function markSessionCreated(ptyId: string, uuid: string, cwd: string): void {
-  const map = loadSessionMap();
-  map[ptyId] = { uuid, cwd };
+function persistSessionMap(): void {
   try {
-    fs.writeFileSync(sessionMapPath(), JSON.stringify(map));
+    fs.writeFileSync(sessionMapPath(), JSON.stringify(loadSessionMap()));
   } catch (e) {
     log.warn('ptyManager: failed to persist session map', e);
   }
 }
 
-function removeSessionId(ptyId: string): void {
+function setSessionEntry(ptyId: string, entry: SessionEntry): void {
+  const map = loadSessionMap();
+  map[ptyId] = entry;
+  persistSessionMap();
+}
+
+function markClaudeSessionCreated(ptyId: string, uuid: string, cwd: string): void {
+  setSessionEntry(ptyId, {
+    cwd,
+    providerId: 'claude',
+    uuid,
+    strategy: 'claude-session-id',
+  });
+}
+
+export function markCodexSessionBound(ptyId: string, threadId: string, cwd: string): void {
+  setSessionEntry(ptyId, {
+    cwd,
+    providerId: 'codex',
+    resumeTarget: threadId,
+    strategy: 'codex-thread-id',
+  });
+}
+
+export function clearStoredSession(ptyId: string): void {
   const map = loadSessionMap();
   delete map[ptyId];
   try {
@@ -305,6 +380,17 @@ function removeSessionId(ptyId: string): void {
   } catch (e) {
     log.warn('ptyManager: failed to persist session map after removal', e);
   }
+}
+
+export function getStoredResumeTarget(
+  ptyId: string,
+  providerId: string,
+  cwd?: string
+): string | null {
+  const normalized = getNormalizedSessionEntry(ptyId, loadSessionMap()[ptyId]);
+  if (!normalized || normalized.providerId !== providerId) return null;
+  if (cwd && normalized.cwd !== cwd) return null;
+  return normalized.target;
 }
 
 function claudeSessionFileExists(uuid: string, cwd: string): boolean {
@@ -362,11 +448,16 @@ function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): 
 /** Collect all session UUIDs from the map that belong to a given provider in the same cwd, excluding one PTY. */
 function getOtherSessionUuids(ptyId: string, providerId: string, cwd: string): Set<string> {
   const map = loadSessionMap();
-  const prefix = `${providerId}-`;
   const uuids = new Set<string>();
   for (const [key, entry] of Object.entries(map)) {
-    if (key.startsWith(prefix) && key !== ptyId && entry.cwd === cwd) {
-      uuids.add(entry.uuid);
+    if (key === ptyId) continue;
+    const normalized = getNormalizedSessionEntry(key, entry);
+    if (
+      normalized?.providerId === providerId &&
+      normalized.cwd === cwd &&
+      normalized.strategy === 'claude-session-id'
+    ) {
+      uuids.add(normalized.target);
     }
   }
   return uuids;
@@ -399,20 +490,23 @@ export function applySessionIsolation(
   const sessionUuid = deterministicUuid(parsed.suffix);
   const isAdditionalChat = parsed.kind === 'chat';
 
-  const entry = loadSessionMap()[id];
-  const knownSession = entry?.uuid;
+  const knownEntry = getNormalizedSessionEntry(id, loadSessionMap()[id]);
+  const knownSession =
+    knownEntry?.providerId === provider.id && knownEntry.strategy === 'claude-session-id'
+      ? knownEntry.target
+      : null;
   if (knownSession) {
     // For Claude, validate the session still exists on disk before resuming.
     // Also treat cwd mismatch as stale — the session belongs to a different
     // project context and Claude would look in the wrong directory.
     if (provider.id === 'claude') {
-      const isStale = entry.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
+      const isStale = knownEntry!.cwd !== cwd || !claudeSessionFileExists(knownSession, cwd);
       if (isStale) {
         log.warn('ptyManager: stale session detected, creating new session', {
           ptyId: id,
           staleUuid: knownSession,
         });
-        removeSessionId(id);
+        clearStoredSession(id);
         // Fall through — the decision tree below will create a new session
         // or the caller will use generic resume flags
       } else {
@@ -427,7 +521,7 @@ export function applySessionIsolation(
 
   if (isAdditionalChat) {
     cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markSessionCreated(id, sessionUuid, cwd);
+    markClaudeSessionCreated(id, sessionUuid, cwd);
     return true;
   }
 
@@ -438,10 +532,10 @@ export function applySessionIsolation(
     const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
     if (existingSession) {
       cliArgs.push(provider.sessionIdFlag, existingSession);
-      markSessionCreated(id, existingSession, cwd);
+      markClaudeSessionCreated(id, existingSession, cwd);
     } else {
       cliArgs.push(provider.sessionIdFlag, sessionUuid);
-      markSessionCreated(id, sessionUuid, cwd);
+      markClaudeSessionCreated(id, sessionUuid, cwd);
     }
     return true;
   }
@@ -450,11 +544,27 @@ export function applySessionIsolation(
     // First-time creation — proactively assign a session ID so we can
     // reliably resume later if more chats of this provider are added.
     cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markSessionCreated(id, sessionUuid, cwd);
+    markClaudeSessionCreated(id, sessionUuid, cwd);
     return true;
   }
 
   return false;
+}
+
+export function getStoredExactResumeArgs(providerId: string, ptyId: string, cwd: string): string[] {
+  const provider = PROVIDERS.find((item) => item.id === providerId);
+  if (!provider) return [];
+
+  const entry = getNormalizedSessionEntry(ptyId, loadSessionMap()[ptyId]);
+  if (!entry || entry.cwd !== cwd || entry.providerId !== provider.id) {
+    return [];
+  }
+
+  if (provider.id === 'codex' && entry.strategy === 'codex-thread-id') {
+    return ['resume', entry.target];
+  }
+
+  return [];
 }
 
 /**
@@ -1009,13 +1119,15 @@ export function startDirectPty(options: {
   const cliArgs: string[] = [];
 
   if (provider && resolvedConfig) {
+    const exactResumeArgs = getStoredExactResumeArgs(provider.id, id, cwd);
     // Session isolation for multi-chat scenarios.
     // See applySessionIsolation() for the full decision tree.
     const usedSessionIsolation = applySessionIsolation(cliArgs, provider, id, cwd, !!resume);
 
+    cliArgs.push(...exactResumeArgs);
     cliArgs.push(
       ...buildProviderCliArgs({
-        resume: !usedSessionIsolation && !!resume,
+        resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !!resume,
         resumeFlag: resolvedConfig.resumeFlag,
         defaultArgs: resolvedConfig.defaultArgs,
         extraArgs: resolvedConfig.extraArgs,
@@ -1249,6 +1361,7 @@ export async function startPty(options: {
 
         // Build the provider command with flags
         const cliArgs: string[] = [];
+        const exactResumeArgs = getStoredExactResumeArgs(provider.id, id, useCwd);
 
         // Session isolation — see applySessionIsolation() for the full decision tree.
         const usedSessionIsolation = applySessionIsolation(
@@ -1259,9 +1372,10 @@ export async function startPty(options: {
           !skipResume
         );
 
+        cliArgs.push(...exactResumeArgs);
         cliArgs.push(
           ...buildProviderCliArgs({
-            resume: !usedSessionIsolation && !skipResume,
+            resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !skipResume,
             resumeFlag: resolvedConfig?.resumeFlag,
             defaultArgs: resolvedConfig?.defaultArgs,
             extraArgs: resolvedConfig?.extraArgs,
