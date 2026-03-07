@@ -11,9 +11,9 @@ import { killPty } from './ptyManager';
 import { makePtyId } from '@shared/ptyId';
 import { databaseService } from './DatabaseService';
 import { terminalSnapshotService } from './TerminalSnapshotService';
-import { events } from '../events';
+import { events } from '../_new/events';
 import { ptyKilledChannel } from '@shared/events/appEvents';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 
 /** Maps PTY ID → owning renderer WebContents */
 export const owners = new Map<string, WebContents>();
@@ -43,6 +43,9 @@ export function killRegisteredPty(id: string): void {
 /**
  * Kill all PTYs belonging to a task's conversations and delete their snapshots.
  * Called from dbIpc deleteTask / archiveTask before the DB mutation.
+ *
+ * @deprecated Use taskResourceManager.teardown(taskId) instead, which handles
+ * both this legacy cleanup and the new PtySessionManager sessions.
  */
 export async function cleanupTaskPtys(taskId: string): Promise<void> {
   try {

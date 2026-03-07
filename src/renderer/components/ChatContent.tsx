@@ -1,0 +1,172 @@
+import React from 'react';
+import { TerminalPane } from './TerminalPane';
+import InstallBanner from './InstallBanner';
+import { rpc } from '../lib/rpc';
+import { agentMeta } from '../providers/meta';
+import { getInstallCommandForProvider } from '@shared/providers/registry';
+import type { UiAgent } from '../providers/meta';
+import { useConversations } from '../contexts/ConversationsProvider';
+import { useChatView } from '../contexts/ChatViewProvider';
+import { useDependencies } from '../contexts/DependenciesProvider';
+
+export function ChatContent() {
+  const { isLoaded: conversationsLoaded } = useConversations();
+  const {
+    task,
+    agent,
+    effectiveTheme,
+    terminalId,
+    conversationId,
+    terminalCwd,
+    projectRemoteConnectionId,
+    cliStartError,
+    autoApproveEnabled,
+    initialInjection,
+    shouldCaptureFirstMessage,
+    terminalRef,
+    handleFirstMessage,
+    setCliStartError,
+  } = useChatView();
+
+  const { getStatus, install } = useDependencies();
+  const agentStatus = getStatus(agent);
+  const isAgentInstalled = agentStatus ? agentStatus.status === 'available' : null;
+
+  const agentBgClass = (() => {
+    if (agent === 'charm') {
+      if (effectiveTheme === 'dark-black') return 'bg-black';
+      if (effectiveTheme === 'dark') return 'bg-card';
+      return 'bg-white';
+    }
+    if (agent === 'mistral') {
+      if (effectiveTheme === 'dark-black') return 'bg-[#141820]';
+      if (effectiveTheme === 'dark') return 'bg-[#202938]';
+      return 'bg-white';
+    }
+    return '';
+  })();
+
+  const themeOverride = (() => {
+    if (agent === 'charm') {
+      return {
+        background:
+          effectiveTheme === 'dark-black'
+            ? '#0a0a0a'
+            : effectiveTheme === 'dark'
+              ? '#1f2937'
+              : '#ffffff',
+        selectionBackground: 'rgba(96, 165, 250, 0.35)',
+        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
+      };
+    }
+    if (agent === 'mistral') {
+      return {
+        background:
+          effectiveTheme === 'dark-black'
+            ? '#141820'
+            : effectiveTheme === 'dark'
+              ? '#202938'
+              : '#ffffff',
+        selectionBackground: 'rgba(96, 165, 250, 0.35)',
+        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
+      };
+    }
+    if (effectiveTheme === 'dark-black') {
+      return {
+        background: '#000000',
+        selectionBackground: 'rgba(96, 165, 250, 0.35)',
+        selectionForeground: '#f9fafb',
+      };
+    }
+    return undefined;
+  })();
+
+  const contentFilter =
+    agent === 'charm' && effectiveTheme !== 'dark' && effectiveTheme !== 'dark-black'
+      ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
+      : undefined;
+
+  return (
+    <div className="space-y-2">
+      {isAgentInstalled === false && (
+        <InstallBanner
+          agent={agent as UiAgent}
+          terminalId={terminalId}
+          installCommand={getInstallCommandForProvider(agent as UiAgent)}
+          onRunInstall={(_cmd) => {
+            install(agent).catch(() => {
+              try {
+                window.electronAPI.ptyInput({ id: terminalId, data: `${_cmd}\n` });
+              } catch {}
+            });
+          }}
+          onOpenExternal={(url) => rpc.app.openExternal(url)}
+          mode="missing"
+        />
+      )}
+      {cliStartError && (
+        <InstallBanner
+          agent={agent}
+          terminalId={terminalId}
+          installCommand={null}
+          onOpenExternal={(url) => rpc.app.openExternal(url)}
+          mode="start_failed"
+          details={cliStartError}
+        />
+      )}
+
+      <div className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${agentBgClass}`}>
+        {conversationsLoaded && (
+          <TerminalPane
+            ref={terminalRef}
+            id={terminalId}
+            conversationId={conversationId}
+            cwd={terminalCwd ?? undefined}
+            remote={
+              projectRemoteConnectionId ? { connectionId: projectRemoteConnectionId } : undefined
+            }
+            providerId={agent}
+            autoApprove={autoApproveEnabled}
+            keepAlive={true}
+            mapShiftEnterToCtrlJ
+            disableSnapshots={false}
+            onActivity={() => {
+              try {
+                window.localStorage.setItem(`agent:locked:${task.id}`, agent);
+              } catch {}
+            }}
+            onStartError={(message) => {
+              setCliStartError(message);
+            }}
+            onStartSuccess={() => {
+              setCliStartError(null);
+              if (initialInjection && !task.metadata?.initialInjectionSent) {
+                void rpc.db.saveTask({
+                  ...task,
+                  metadata: {
+                    ...task.metadata,
+                    initialInjectionSent: true,
+                  },
+                });
+              }
+            }}
+            variant={
+              effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+            }
+            themeOverride={themeOverride}
+            contentFilter={contentFilter}
+            initialPrompt={
+              agentMeta[agent]?.initialPromptFlag !== undefined &&
+              !agentMeta[agent]?.useKeystrokeInjection &&
+              !task.metadata?.initialInjectionSent
+                ? (initialInjection ?? undefined)
+                : undefined
+            }
+            onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
+            className="h-full w-full"
+          />
+        )}
+      </div>
+    </div>
+  );
+}

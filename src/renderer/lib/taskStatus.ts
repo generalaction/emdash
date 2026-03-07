@@ -3,7 +3,6 @@
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
-import { activityStore } from './activityStore';
 import { events } from './rpc';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
@@ -120,20 +119,4 @@ export function watchTaskPty(taskId: string): () => void {
   };
   ptyUnsubs.set(taskId, cleanup);
   return cleanup;
-}
-
-// Align with the app's activity indicator (left sidebar).
-// Subscribes to the shared activityStore which understands provider-specific PTY IDs
-// and classifies chunks as busy/idle with debouncing.
-export function watchTaskActivity(taskId: string): () => void {
-  wireGlobal();
-  const off = activityStore.subscribe(
-    taskId,
-    ({ busy: isBusy }) => {
-      lastActivity.set(taskId, Date.now());
-      setStatusInternal(taskId, isBusy ? 'busy' : 'idle');
-    },
-    []
-  );
-  return off;
 }

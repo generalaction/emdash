@@ -1,10 +1,10 @@
 import { lifecycleScriptsService } from './LifecycleScriptsService';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { LIFECYCLE_PHASES } from '@shared/lifecycle';
 import type { LifecycleEvent } from '@shared/lifecycle';
 import { taskLifecycleService } from './TaskLifecycleService';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { events } from '../events';
+import { events } from '../_new/events';
 import { lifecycleEventChannel } from '@shared/events/lifecycleEvents';
 
 export const lifecycleController = createRPCController({

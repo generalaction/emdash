@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import os from 'os';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { getAppSettings } from '../settings';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 

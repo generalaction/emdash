@@ -3,27 +3,34 @@ import { worktreeController } from '../services/worktreeIpc';
 import { registerFsIpc, fsController } from '../services/fsIpc';
 import { lifecycleController, registerLifecycleEvents } from '../services/lifecycleIpc';
 import { registerAppIpc, appController } from './appIpc';
-import { githubController } from './githubIpc';
+import { githubController } from '../_new/ipc/github';
 import { databaseController } from './dbIpc';
 import { registerGitIpc, gitController } from './gitIpc';
 import { updateController } from '../services/updateIpc';
 import { appSettingsController } from './settingsIpc';
 import { hostPreviewController, registerHostPreviewEvents } from './hostPreviewIpc';
 import { registerSshIpc, sshController } from './sshIpc';
-import { jiraController } from './jiraIpc';
-import { linearController } from './linearIpc';
+import { jiraController } from '../_new/ipc/jiraIpc';
+import { linearController } from '../_new/ipc/linearIpc';
 import { connectionsController } from './connectionsIpc';
 import { telemetryController } from './telemetryIpc';
 import { debugController } from './debugIpc';
 import { netController } from './netIpc';
-import { lineCommentsController } from './lineCommentsIpc';
-import { skillsController } from './skillsIpc';
-import { projectSettingsController } from './projectSettingsIpc';
+import { lineCommentsController } from '../_new/ipc/lineCommentsIpc';
+import { skillsController } from '../_new/ipc/skills';
+import { projectSettingsController } from '../_new/ipc/project-settings';
 import { planLockController } from '../services/planLockIpc';
 import { browserController } from './browserIpc';
 import { projectController } from './projectIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
+import { projectController as projectsController } from '../_new/ipc/projects';
+import { taskController } from '../_new/ipc/tasks';
+import { conversationController } from '../_new/ipc/conversations';
+import { terminalsController } from '../_new/core/terminals/controller';
+import { filesController } from '../_new/ipc/fs';
+import { ptyController as ptySessionController } from '../_new/ipc/pty';
+import { gitCtrlController } from '../_new/ipc/git';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
@@ -50,6 +57,13 @@ export const rpcRouter = createRPCRouter({
   project: projectController,
   ssh: sshController,
   git: gitController,
+  projects: projectsController,
+  tasks: taskController,
+  conversations: conversationController,
+  terminals: terminalsController,
+  files: filesController,
+  ptySession: ptySessionController,
+  gitCtrl: gitCtrlController,
 });
 
 export type RpcRouter = typeof rpcRouter;

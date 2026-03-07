@@ -1,16 +1,16 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { BrowserWindow, Notification } from 'electron';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { parsePtyId } from '@shared/ptyId';
-import { getMainWindow } from '../app/window';
+import { getMainWindow } from '../_new/window';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getAppSettings } from '../settings';
-import { events } from '../events';
+import { events } from '../_new/events';
 
 class AgentEventService {
   private server: http.Server | null = null;

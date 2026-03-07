@@ -1,5 +1,5 @@
 import { execFile } from 'child_process';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';

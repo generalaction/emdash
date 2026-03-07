@@ -1,6 +1,6 @@
 import { hostPreviewService } from '../services/hostPreviewService';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { events } from '../events';
+import { events } from '../_new/events';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import type { HostPreviewEvent } from '@shared/types/hostPreview';
 

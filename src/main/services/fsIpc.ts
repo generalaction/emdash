@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { events } from '../events';
+import { events } from '../_new/events';
 import { planEventChannel, type PlanEvent } from '@shared/events/appEvents';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -10,7 +10,7 @@ import workerPath from '../workers/fsListWorker?modulePath';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
 import { sshService } from './ssh/SshService';
-import { RemoteFileSystem } from './fs/RemoteFileSystem';
+import { RemoteFileSystem } from '../_new/services/fs/RemoteFileSystem';
 import { GitIgnoreParser } from '../utils/gitIgnore';
 
 const DEFAULT_EMDASH_CONFIG = `{

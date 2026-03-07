@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { AgentEvent, NotificationType, SoundEvent } from '@shared/events/agentEvents';
 import { agentEventChannel } from '@shared/events/agentEvents';
-import { activityStore } from '../lib/activityStore';
 import { soundPlayer } from '../lib/soundPlayer';
 import { events } from '../lib/rpc';
 
@@ -42,9 +41,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     return events.on(agentEventChannel, ({ event, appFocused }) => {
-      // Drive busy/idle classification in the activity store
-      activityStore.handleAgentEvent(event);
-
       // Play sounds
       const sound = mapToSound(event);
       if (sound) soundPlayer.play(sound, appFocused);

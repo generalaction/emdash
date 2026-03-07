@@ -2,7 +2,6 @@ import React from 'react';
 import type { Task } from '../../types/app';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
-import { useTaskBusy } from '../../hooks/useTaskBusy';
 import { useAgent } from '../../contexts/AgentProvider';
 import type { NotificationType } from '@shared/events/agentEvents';
 import AgentTooltip from './AgentTooltip';
@@ -46,7 +45,7 @@ const KanbanCard: React.FC<{
   const adminAgent: UiAgent | null = (multi?.selectedAgent as UiAgent) || null;
 
   const handleClick = () => onOpen?.(ws);
-  const busy = useTaskBusy(ws.id);
+  const busy = false;
   const { notificationsByTaskId } = useAgent();
   const pendingNotifications = notificationsByTaskId[ws.id] ?? [];
   const needsAttention = pendingNotifications.length > 0;

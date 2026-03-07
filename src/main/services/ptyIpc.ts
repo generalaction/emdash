@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { events } from '../events';
+import { events } from '../_new/events';
 import { ptyStartedChannel, shellSessionStartedChannel } from '@shared/events/appEvents';
 import {
   startPty,
@@ -21,11 +21,11 @@ import {
   getPtyTmuxSessionName,
   claudeSessionFileExists,
 } from './ptyManager';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
-import * as telemetry from '../telemetry';
+import * as telemetry from '../_new/telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { parsePtyId } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
@@ -33,8 +33,7 @@ import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
-import { getDrizzleClient } from '../db/drizzleClient';
-import { sshConnections as sshConnectionsTable } from '../db/schema';
+import { sshConnections as sshConnectionsTable } from '../_new/db/schema';
 import { eq } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
@@ -43,6 +42,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { quoteShellArg } from '../utils/shellEscape';
 import { owners, listeners } from './ptyCleanup';
+import { db } from '@/_new/db/client';
 
 // ---------------------------------------------------------------------------
 // Session isolation — resolve CLI args from the conversations table.
@@ -191,7 +191,6 @@ async function resolveSshInvocation(
     }
   }
 
-  const { db } = await getDrizzleClient();
   const rows = await db
     .select({
       id: sshConnectionsTable.id,

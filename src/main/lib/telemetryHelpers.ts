@@ -1,4 +1,4 @@
-import { capture } from '../telemetry';
+import { capture } from '../_new/telemetry';
 
 /**
  * Capture telemetry event with timing duration.

@@ -2,9 +2,9 @@ import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { GITHUB_CONFIG } from '../config/github.config';
 import { errorTracking } from '../errorTracking';
-import { events } from '../events';
+import { identify as telemetryIdentify } from '../_new/telemetry';
+import { events } from '../_new/events';
 import {
   githubAuthDeviceCodeChannel,
   githubAuthPollingChannel,
@@ -18,6 +18,15 @@ import type { GitHubUser } from '@shared/types/github';
 import keytar from 'keytar';
 
 const execAsync = promisify(exec);
+
+/**
+ * GitHub OAuth configuration for Device Flow authentication.
+ * No client secret needed - Device Flow is designed for desktop/CLI apps.
+ */
+const GITHUB_CONFIG = {
+  clientId: 'Ov23ligC35uHWopzCeWf',
+  scopes: ['repo', 'read:user', 'read:org'],
+};
 
 export interface GitHubRepo {
   id: number;
@@ -371,6 +380,7 @@ export class GitHubService {
 
         if (user) {
           events.emit(githubAuthUserUpdatedChannel, { user });
+          if (user.login) telemetryIdentify(user.login);
         }
 
         return {
@@ -585,9 +595,10 @@ export class GitHubService {
         // Store token securely
         await this.storeToken(token);
 
-        // Update error tracking with GitHub username
+        // Update error tracking and telemetry identity with GitHub username
         if (user.login) {
           await errorTracking.updateGithubUsername(user.login);
+          telemetryIdentify(user.login);
         }
 
         return { success: true, token, user };

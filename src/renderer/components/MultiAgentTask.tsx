@@ -12,7 +12,6 @@ import { agentAssets } from '@/providers/assets';
 import AgentLogo from './AgentLogo';
 import { useTheme } from '@/hooks/useTheme';
 import { classifyActivity } from '@/lib/activityClassifier';
-import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS, INJECT_ENTER_DELAY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
@@ -405,12 +404,6 @@ const MultiAgentTask: React.FC<Props> = ({
     prefillOnceRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInjection]);
-
-  // Sync variant busy state to activityStore for sidebar indicator
-  useEffect(() => {
-    const anyBusy = Object.values(variantBusy).some(Boolean);
-    activityStore.setTaskBusy(task.id, anyBusy);
-  }, [variantBusy, task.id]);
 
   // Ref to the active terminal
   const activeTerminalRef = useRef<{ focus: () => void }>(null);

@@ -3,7 +3,7 @@ import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import type { HostPreviewEvent } from '@shared/types/hostPreview';
 
 function detectPackageManager(dir: string): 'pnpm' | 'yarn' | 'npm' {

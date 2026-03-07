@@ -1,6 +1,7 @@
 import { defineEvent } from '@shared/ipc/events';
 
-export const ptyDataChannel = defineEvent<string>('pty:output');
+// 'pty:data' matches the channel name consumed by TerminalSessionManager.
+export const ptyDataChannel = defineEvent<string>('pty:data');
 
 export const ptyExitChannel = defineEvent<{
   exitCode: number;

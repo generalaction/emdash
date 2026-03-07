@@ -1,7 +1,7 @@
-import { events } from '../events';
+import { events } from '../_new/events';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { gitStatusChangedChannel } from '@shared/events/appEvents';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { exec, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';

@@ -1,4 +1,6 @@
 import { performActiveEditorRedo, performActiveEditorUndo } from './activeCodeEditor';
+import { events } from './rpc';
+import { appUndoChannel, appRedoChannel } from '@shared/events/appEvents';
 
 function runAfterFocusRestores(action: () => void): void {
   // Native menu clicks can transiently blur the editor/input while the menu is open.
@@ -11,13 +13,13 @@ function runAfterFocusRestores(action: () => void): void {
 export function handleMenuUndo(): void {
   runAfterFocusRestores(() => {
     if (performActiveEditorUndo()) return;
-    void window.electronAPI.undo();
+    events.emit(appUndoChannel, undefined);
   });
 }
 
 export function handleMenuRedo(): void {
   runAfterFocusRestores(() => {
     if (performActiveEditorRedo()) return;
-    void window.electronAPI.redo();
+    events.emit(appRedoChannel, undefined);
   });
 }

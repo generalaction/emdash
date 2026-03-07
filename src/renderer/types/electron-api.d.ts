@@ -28,10 +28,7 @@ declare global {
       // Update events — complex multi-channel aggregation, not yet migrated to typed events
       onUpdateEvent?: (listener: (data: { type: string; payload?: any }) => void) => () => void;
 
-      // App actions that use event.sender and cannot be migrated to RPC
-      undo: () => Promise<{ success: boolean; error?: string }>;
-      redo: () => Promise<{ success: boolean; error?: string }>;
-      paste: () => Promise<{ success: boolean; error?: string }>;
+      // App actions that use event.sender
       openIn: (args: {
         app: string;
         path: string;

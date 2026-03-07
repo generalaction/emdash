@@ -5,7 +5,6 @@ import { ChangesBadge } from './TaskChanges';
 
 import { Spinner } from './ui/spinner';
 import { usePrStatus } from '../hooks/usePrStatus';
-import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useAgent } from '../contexts/AgentProvider';
 import type { NotificationType } from '@shared/events/agentEvents';
 
@@ -85,7 +84,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 }) => {
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
-  const isRunning = useTaskBusy(task.id);
   const { notificationsByTaskId } = useAgent();
   const pendingNotifications = notificationsByTaskId[task.id] ?? [];
   const needsAttention = pendingNotifications.length > 0;
@@ -255,7 +253,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {(isRunning || task.status === 'running') && (
+        {task.status === 'running' && (
           <Spinner size="sm" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
         )}
         {needsAttention && (

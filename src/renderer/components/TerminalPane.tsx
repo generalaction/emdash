@@ -6,6 +6,8 @@ import { rpc } from '../lib/rpc';
 
 type Props = {
   id: string;
+  /** The conversation ID used as the PTY session identity. Defaults to `id` for backward compat. */
+  conversationId?: string;
   cwd?: string;
   remote?: {
     connectionId: string;
@@ -35,6 +37,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   (
     {
       id,
+      conversationId,
       cwd,
       remote,
       providerId,
@@ -130,6 +133,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
       const session = terminalSessionRegistry.attach({
         taskId: id,
+        conversationId: conversationId ?? id,
         container,
         cwd: cwdRef.current,
         remote: remoteRef.current,

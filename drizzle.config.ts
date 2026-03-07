@@ -25,7 +25,7 @@ function resolveDefaultDbFile() {
 }
 
 export default defineConfig({
-  schema: './src/main/db/schema.ts',
+  schema: './src/main/_new/db/schema.ts',
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {

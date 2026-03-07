@@ -1,11 +1,7 @@
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events } from '../lib/rpc';
-import {
-  ptyDataChannel,
-  ptyExitChannel,
-  ptyStartedChannel,
-  ptyKilledChannel,
-} from '@shared/events/appEvents';
+import { ptyStartedChannel, ptyKilledChannel, appPasteChannel } from '@shared/events/appEvents';
+import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
@@ -49,6 +45,8 @@ export interface SessionTheme {
 }
 
 export interface TerminalSessionOptions {
+  /** The PTY session identity. For agent conversations this is the conversationId. */
+  conversationId: string;
   taskId: string;
   cwd?: string;
   remote?: {
@@ -118,7 +116,7 @@ export class TerminalSessionManager {
 
   constructor(private readonly options: TerminalSessionOptions) {
     this.initStartTime = performance.now();
-    this.id = options.taskId;
+    this.id = options.conversationId;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -235,7 +233,7 @@ export class TerminalSessionManager {
           { intermediates: '$', final: 'p' },
           (params: (number | number[])[]) => {
             const mode = (params[0] as number) ?? 0;
-            window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[${mode};0$y` });
+            void rpc.ptySession.sendInput(ptyId, `\x1b[${mode};0$y`);
             return true;
           }
         );
@@ -244,7 +242,7 @@ export class TerminalSessionManager {
           { prefix: '?', intermediates: '$', final: 'p' },
           (params: (number | number[])[]) => {
             const mode = (params[0] as number) ?? 0;
-            window.electronAPI.ptyInput({ id: ptyId, data: `\x1b[?${mode};0$y` });
+            void rpc.ptySession.sendInput(ptyId, `\x1b[?${mode};0$y`);
             return true;
           }
         );
@@ -481,11 +479,9 @@ export class TerminalSessionManager {
     }
     // Clean up stored viewport position when session is disposed
     viewportPositions.delete(this.id);
-    try {
-      window.electronAPI.ptyKill(this.id);
-    } catch (error) {
+    void rpc.ptySession.kill(this.id).catch((error) => {
       log.warn('Failed to kill PTY during dispose', { id: this.id, error });
-    }
+    });
     for (const dispose of this.disposables.splice(0)) {
       try {
         dispose();
@@ -593,12 +589,12 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+      void rpc.ptySession.sendInput(this.id, injectedData);
       pendingInjectionManager.markUsed();
       return;
     }
 
-    window.electronAPI.ptyInput({ id: this.id, data: filtered });
+    void rpc.ptySession.sendInput(this.id, filtered);
   }
 
   private cleanTerminalText(text: string): string {
@@ -669,12 +665,7 @@ export class TerminalSessionManager {
    * Used for Ctrl+Shift+V on Linux.
    */
   private pasteFromClipboard() {
-    void window.electronAPI.paste().catch((error: unknown) => {
-      log.warn('Failed to paste to terminal', {
-        id: this.id,
-        error,
-      });
-    });
+    events.emit(appPasteChannel, undefined);
   }
 
   private applyTheme(theme: SessionTheme) {
@@ -787,12 +778,10 @@ export class TerminalSessionManager {
 
     if (this.lastSentResize?.cols === cols && this.lastSentResize?.rows === rows) return;
 
-    try {
-      window.electronAPI.ptyResize({ id: this.id, cols, rows });
-      this.lastSentResize = { cols, rows };
-    } catch (error) {
+    void rpc.ptySession.resize(this.id, cols, rows).catch((error) => {
       log.warn('Terminal resize sync failed', { id: this.id, error });
-    }
+    });
+    this.lastSentResize = { cols, rows };
   }
 
   /**
@@ -971,44 +960,26 @@ export class TerminalSessionManager {
     hasExistingSession: boolean = false
   ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
     this.ptyConnectStartTime = performance.now();
-    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
-      this.options;
-    const id = taskId;
+    const { autoApprove } = this.options;
+    const conversationId = this.id;
 
-    // Provider CLIs use direct spawn (bypasses shell config loading)
-    // Regular shell terminals use shell-based spawn
-    const ptyPromise =
-      providerId && cwd
-        ? window.electronAPI.ptyStartDirect({
-            id,
-            providerId,
-            cwd,
-            remote: this.options.remote,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-            env,
-            resume: hasExistingSession,
-          })
-        : window.electronAPI.ptyStart({
-            id,
-            cwd,
-            remote: this.options.remote,
-            shell,
-            env,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-          });
-
-    const result = await ptyPromise.catch((error: any) => {
-      const message = error?.message || String(error);
-      log.error('terminalSession:ptyStartError', { id, error });
-      this.emitError(message);
-      return { ok: false, error: message };
-    });
+    const result = await rpc.conversations
+      .startSession({
+        conversationId,
+        resume: hasExistingSession,
+        autoApprove: autoApprove ?? false,
+      })
+      .then((r) => {
+        if (!r.success)
+          return { ok: false, error: r.error ? String(r.error) : 'startSession failed' };
+        return { ok: true, reused: r.data.reused };
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        log.error('terminalSession:ptyStartError', { id: conversationId, error });
+        this.emitError(message);
+        return { ok: false, error: message };
+      });
 
     if (result?.ok) {
       this.ptyStarted = true;
@@ -1023,7 +994,7 @@ export class TerminalSessionManager {
           if (idx >= 0) this.disposables.splice(idx, 1);
         };
         offStarted = events.on(ptyStartedChannel, (payload) => {
-          if (payload?.id === id) {
+          if (payload?.id === conversationId) {
             this.ptyStarted = true;
             this.lastSentResize = null;
             this.sendSizeIfStarted();
@@ -1038,12 +1009,12 @@ export class TerminalSessionManager {
       } catch {}
     } else {
       const message = result?.error || 'Failed to start PTY';
-      log.warn('terminalSession:ptyStartFailed', { id, error: message });
+      log.warn('terminalSession:ptyStartFailed', { id: conversationId, error: message });
       this.emitError(message);
     }
 
     // Set up data listener (runs regardless of success for potential reuse)
-    this.setupPtyDataListener(id);
+    this.setupPtyDataListener(conversationId);
 
     return result || { ok: false, error: 'Unknown error' };
   }

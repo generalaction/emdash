@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { getAppSettings } from '../settings';
 
 function getClaudeConfigPath(): string {

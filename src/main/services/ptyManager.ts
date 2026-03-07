@@ -14,7 +14,7 @@ function getNodePty(): typeof import('node-pty') {
   }
   return _nodePty;
 }
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';

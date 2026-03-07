@@ -1,5 +1,5 @@
 import { BrowserWindow, WebContentsView } from 'electron';
-import { getMainWindow } from '../app/window';
+import { getMainWindow } from '../_new/window';
 
 class BrowserViewService {
   private view: WebContentsView | null = null;

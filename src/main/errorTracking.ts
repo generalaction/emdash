@@ -1,6 +1,6 @@
 import { app } from 'electron';
-import * as telemetry from './telemetry';
-import { log } from './lib/logger';
+import * as telemetry from './_new/telemetry';
+import { log } from './_new/lib/logger';
 
 /**
  * Error tracking module for comprehensive error reporting with PostHog.

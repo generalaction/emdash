@@ -39,11 +39,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Open a path in a specific app (uses event.sender implicitly via shell)
   openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 
-  // app:undo / app:redo / app:paste use event.sender — cannot be migrated to RPC
-  undo: () => ipcRenderer.invoke('app:undo'),
-  redo: () => ipcRenderer.invoke('app:redo'),
-  paste: () => ipcRenderer.invoke('app:paste'),
-
   // PTY management — pty:start and pty:startDirect need event.sender for PTY session tracking
   ptyStart: (opts: {
     id: string;

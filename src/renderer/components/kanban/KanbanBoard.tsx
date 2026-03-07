@@ -5,8 +5,7 @@ import KanbanCard from './KanbanCard';
 import { Button } from '../ui/button';
 import { Inbox, Plus } from 'lucide-react';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
-import { subscribeDerivedStatus, watchTaskPty, watchTaskActivity } from '../../lib/taskStatus';
-import { activityStore } from '../../lib/activityStore';
+import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';
 import { refreshPrStatus } from '../../lib/prStatusStore';
 import { rpc } from '@/lib/rpc';
 import { events } from '../../lib/rpc';
@@ -33,14 +32,9 @@ const KanbanBoard: React.FC<{
   // Auto-promote to in-progress when derived status reports busy.
   React.useEffect(() => {
     const offs: Array<() => void> = [];
-    const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const wsList = project.tasks || [];
     for (const ws of wsList) {
-      // Watch PTY output to capture terminal-based providers as activity
       offs.push(watchTaskPty(ws.id));
-      // Watch container run state as another activity source (build/start/ready)
-      // Watch app-wide activity classification (matches left sidebar spinner)
-      offs.push(watchTaskActivity(ws.id));
       const off = subscribeDerivedStatus(ws.id, (derived) => {
         if (derived !== 'busy') return;
         setStatusMap((prev) => {
@@ -50,53 +44,14 @@ const KanbanBoard: React.FC<{
         });
       });
       offs.push(off);
-
-      // Auto-complete: when activity goes idle, schedule move to Done after a grace period.
-      const un = activityStore.subscribe(
-        ws.id,
-        ({ busy: isBusy }) => {
-          const existing = idleTimers.get(ws.id);
-          if (isBusy) {
-            if (existing) {
-              clearTimeout(existing);
-              idleTimers.delete(ws.id);
-            }
-            return;
-          }
-          // schedule auto-move to done if currently in-progress
-          if (existing) clearTimeout(existing);
-          const t = setTimeout(() => {
-            setStatusMap((prev) => {
-              const cur = prev[ws.id] || 'todo';
-              if (cur !== 'in-progress') return prev;
-              setStatus(ws.id, 'done');
-              return { ...prev, [ws.id]: 'done' };
-            });
-            idleTimers.delete(ws.id);
-          }, 10_000);
-          idleTimers.set(ws.id, t as any);
-        },
-        []
-      );
-      offs.push(un);
     }
 
-    // Per-task: when the PTY exits and task is not busy anymore, move to Done
+    // Per-task: when the PTY exits, move to Done
     for (const ws of wsList) {
       offs.push(
         events.on(
           ptyExitChannel,
           () => {
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(
-              ws.id,
-              ({ busy: b }) => {
-                currentlyBusy = b;
-              },
-              []
-            );
-            un?.();
-            if (currentlyBusy) return;
             setStatusMap((prev) => {
               const cur = prev[ws.id] || 'todo';
               if (cur !== 'in-progress') return prev;
@@ -137,17 +92,6 @@ const KanbanBoard: React.FC<{
             }
           }
           if (hasChanges && !cancelled) {
-            // Do not auto-complete while busy
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(
-              ws.id,
-              ({ busy: b }) => {
-                currentlyBusy = b;
-              },
-              []
-            );
-            un?.();
-            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');
@@ -192,17 +136,6 @@ const KanbanBoard: React.FC<{
             }
           }
           if (hasPr && !cancelled) {
-            // Do not auto-complete while busy
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(
-              ws.id,
-              ({ busy: b }) => {
-                currentlyBusy = b;
-              },
-              []
-            );
-            un?.();
-            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');
@@ -249,16 +182,6 @@ const KanbanBoard: React.FC<{
             }
           }
           if (ahead > 0 && !cancelled) {
-            let currentlyBusy = false;
-            const un = activityStore.subscribe(
-              ws.id,
-              ({ busy: b }) => {
-                currentlyBusy = b;
-              },
-              []
-            );
-            un?.();
-            if (currentlyBusy) continue;
             setStatusMap((prev) => {
               if (prev[ws.id] === 'done') return prev;
               setStatus(ws.id, 'done');

@@ -5,78 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1761210820918,
-      "tag": "0000_initial",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1761240000000,
-      "tag": "0001_add_base_ref_to_projects",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1765592430354,
-      "tag": "0002_lyrical_impossible_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1765592430355,
-      "tag": "0003_add_run_config_status_to_projects",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1765592430356,
-      "tag": "0004_add_line_comments",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1765592430357,
-      "tag": "0005_add_use_worktree_to_tasks",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1765592430358,
-      "tag": "0006_add_multi_chat_support",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1765592430359,
-      "tag": "0007_add_is_main_to_conversations",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1765592430360,
-      "tag": "0008_add_archived_at_to_tasks",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1738857600000,
-      "tag": "0009_add_ssh_support",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1741132800000,
-      "tag": "0010_add_conversation_session_and_type",
+      "when": 1772901684113,
+      "tag": "0000_initial_schema",
       "breakpoints": true
     }
   ]

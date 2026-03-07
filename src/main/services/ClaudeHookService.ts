@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 
 // Hook command pipes stdin directly to curl via -d @- to avoid any shell
 // expansion of the payload (which can contain $, backticks, etc. in

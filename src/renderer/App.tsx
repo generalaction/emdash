@@ -15,6 +15,7 @@ import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvid
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
 import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
 import { AgentProvider } from './contexts/AgentProvider';
+import { DependenciesProvider } from './contexts/DependenciesProvider';
 import BrowserProvider from './providers/BrowserProvider';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { SidebarProvider } from './components/ui/sidebar';
@@ -41,39 +42,41 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ModalProvider>
-        <WorkspaceLayoutContextProvider>
-          <AppContextProvider>
-            <GithubContextProvider>
-              <IntegrationsProvider>
-                {/* WorkspaceViewProvider must be above data providers so navigate() is available
+      <DependenciesProvider>
+        <ModalProvider>
+          <WorkspaceLayoutContextProvider>
+            <AppContextProvider>
+              <GithubContextProvider>
+                <IntegrationsProvider>
+                  {/* WorkspaceViewProvider must be above data providers so navigate() is available
                   inside ProjectManagementProvider and TaskManagementProvider hooks */}
-                <WorkspaceViewProvider>
-                  <ProjectManagementProvider>
-                    <TaskManagementProvider>
-                      <AppSettingsProvider>
-                        <AgentProvider>
-                          <KeyboardSettingsProvider>
-                            <BrowserProvider>
-                              <SidebarProvider>
-                                <RightSidebarProvider>
-                                  <ThemeProvider>
-                                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                  </ThemeProvider>
-                                </RightSidebarProvider>
-                              </SidebarProvider>
-                            </BrowserProvider>
-                          </KeyboardSettingsProvider>
-                        </AgentProvider>
-                      </AppSettingsProvider>
-                    </TaskManagementProvider>
-                  </ProjectManagementProvider>
-                </WorkspaceViewProvider>
-              </IntegrationsProvider>
-            </GithubContextProvider>
-          </AppContextProvider>
-        </WorkspaceLayoutContextProvider>
-      </ModalProvider>
+                  <WorkspaceViewProvider>
+                    <ProjectManagementProvider>
+                      <TaskManagementProvider>
+                        <AppSettingsProvider>
+                          <AgentProvider>
+                            <KeyboardSettingsProvider>
+                              <BrowserProvider>
+                                <SidebarProvider>
+                                  <RightSidebarProvider>
+                                    <ThemeProvider>
+                                      <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                    </ThemeProvider>
+                                  </RightSidebarProvider>
+                                </SidebarProvider>
+                              </BrowserProvider>
+                            </KeyboardSettingsProvider>
+                          </AgentProvider>
+                        </AppSettingsProvider>
+                      </TaskManagementProvider>
+                    </ProjectManagementProvider>
+                  </WorkspaceViewProvider>
+                </IntegrationsProvider>
+              </GithubContextProvider>
+            </AppContextProvider>
+          </WorkspaceLayoutContextProvider>
+        </ModalProvider>
+      </DependenciesProvider>
     </QueryClientProvider>
   );
 }

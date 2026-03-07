@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { ProviderStatus } from '@shared/events/appEvents';
 export type { ProviderStatus } from '@shared/events/appEvents';
 

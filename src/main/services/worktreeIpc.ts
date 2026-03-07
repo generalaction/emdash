@@ -3,18 +3,18 @@ import { worktreeService } from './WorktreeService';
 import { worktreePoolService } from './WorktreePoolService';
 import { ptyPoolService } from './PtyPoolService';
 import { databaseService, type Project } from './DatabaseService';
-import { getDrizzleClient } from '../db/drizzleClient';
-import { projects as projectsTable } from '../db/schema';
+import { projects as projectsTable } from '../_new/db/schema';
 import { eq } from 'drizzle-orm';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { RemoteGitService } from './RemoteGitService';
 import { sshService } from './ssh/SshService';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { quoteShellArg } from '../utils/shellEscape';
 import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
+import { db } from '@/_new/db/client';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -31,7 +31,6 @@ async function resolveProjectByIdOrPath(args: {
     return databaseService.getProjectById(args.projectId);
   }
   if (args.projectPath) {
-    const { db } = getDrizzleClient();
     const rows = await db
       .select({ id: projectsTable.id })
       .from(projectsTable)

@@ -1,26 +1,12 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
-import { rpc } from '../lib/rpc';
-import { activityStore } from '../lib/activityStore';
+import { rpc, events } from '../lib/rpc';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import type { Conversation } from '../../main/services/DatabaseService';
+import { menuCloseTabChannel } from '@shared/events/appEvents';
 
 export const conversationsQueryKey = (taskId: string) => ['conversations', taskId] as const;
-
-function dispatchConversationsChanged(taskId: string): void {
-  try {
-    window.dispatchEvent(new CustomEvent('emdash:conversations-changed', { detail: { taskId } }));
-  } catch {}
-}
 
 type ConversationsContextValue = {
   conversations: Conversation[];
@@ -29,7 +15,6 @@ type ConversationsContextValue = {
   activeConversation: Conversation | null;
   mainConversationId: string | null;
   isLoaded: boolean;
-  busyByConversationId: Record<string, boolean>;
   createConversation: (title: string, agent: string) => Promise<Conversation | null>;
   switchConversation: (conversationId: string) => void;
   closeConversation: (conversationId: string) => Promise<void>;
@@ -116,56 +101,6 @@ export function ConversationsProvider({
     [conversations, activeConversationId]
   );
 
-  // Per-conversation busy state
-  const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setBusyByConversationId((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const c of conversations) next[c.id] = prev[c.id] ?? false;
-      return next;
-    });
-
-    if (conversations.length === 0) return;
-
-    // Single subscription for the whole task; payload includes which conversation triggered.
-    const unsub = activityStore.subscribe(
-      taskId,
-      ({ busy, conversationId }) => {
-        if (cancelled) return;
-        if (conversationId) {
-          setBusyByConversationId((prev) => {
-            if (prev[conversationId] === busy) return prev;
-            return { ...prev, [conversationId]: busy };
-          });
-        } else {
-          // Programmatic change (e.g. setTaskBusy) — apply to all conversations
-          setBusyByConversationId((prev) => {
-            const next = { ...prev };
-            let changed = false;
-            for (const c of conversations) {
-              if (next[c.id] !== busy) {
-                next[c.id] = busy;
-                changed = true;
-              }
-            }
-            return changed ? next : prev;
-          });
-        }
-      },
-      conversations.map((c) => c.id)
-    );
-
-    return () => {
-      cancelled = true;
-      try {
-        unsub();
-      } catch {}
-    };
-  }, [taskId, conversations]);
-
   const { mutateAsync: createConversationMutation } = useMutation({
     mutationFn: ({ title, provider }: { title: string; provider: string }) =>
       rpc.db.createConversation({ taskId, title, provider, isMain: false }),
@@ -176,7 +111,6 @@ export function ConversationsProvider({
       ]);
       setActiveConversationId(newConv.id);
       void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(taskId) });
-      dispatchConversationsChanged(taskId);
     },
     onError: (error) => {
       console.error('Failed to create conversation:', error);
@@ -229,7 +163,6 @@ export function ConversationsProvider({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(taskId) });
-      dispatchConversationsChanged(taskId);
     },
     onError: (_error, _conversationId, context) => {
       if (context?.snapshot) {
@@ -253,6 +186,51 @@ export function ConversationsProvider({
     [conversations.length, closeConversationMutation, toast]
   );
 
+  // Keyboard shortcut: Cmd+Shift+J/K cycles through conversation tabs
+  useEffect(() => {
+    const handleAgentSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (conversations.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      if (currentIndex === -1) return;
+
+      let newIndex: number;
+      if (direction === 'prev') {
+        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+      } else {
+        newIndex = (currentIndex + 1) % conversations.length;
+      }
+
+      const newConversation = conversations[newIndex];
+      if (newConversation) {
+        switchConversation(newConversation.id);
+      }
+    };
+
+    window.addEventListener('emdash:switch-agent', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
+    };
+  }, [conversations, activeConversationId, switchConversation]);
+
+  // Close active tab on Cmd+W (native menu or custom event)
+  useEffect(() => {
+    const closeActiveTab = () => {
+      if (activeConversationId) {
+        void closeConversation(activeConversationId);
+      }
+    };
+    const cleanupIpc = events.on(menuCloseTabChannel, closeActiveTab);
+    window.addEventListener('emdash:close-active-chat', closeActiveTab);
+    return () => {
+      cleanupIpc();
+      window.removeEventListener('emdash:close-active-chat', closeActiveTab);
+    };
+  }, [activeConversationId, closeConversation]);
+
   return (
     <ConversationsContext.Provider
       value={{
@@ -262,7 +240,6 @@ export function ConversationsProvider({
         activeConversation,
         mainConversationId,
         isLoaded: isSuccess,
-        busyByConversationId,
         createConversation,
         switchConversation,
         closeConversation,

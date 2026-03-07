@@ -7,7 +7,10 @@ import {
 const DEFAULT_SCROLLBACK_LINES = 100_000;
 
 interface AttachOptions {
+  /** Registry key — typically makePtyId(provider, conversationId) for agent sessions. */
   taskId: string;
+  /** The actual conversation ID used as the PTY session identity. */
+  conversationId: string;
   container: HTMLElement;
   cwd?: string;
   remote?: {
@@ -62,6 +65,7 @@ class SessionRegistry {
     if (existing) return existing;
 
     const sessionOptions: TerminalSessionOptions = {
+      conversationId: options.conversationId,
       taskId: options.taskId,
       cwd: options.cwd,
       remote: options.remote,

@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { resolveDatabasePath } from '../../main/db/path';
+import { resolveDatabasePath } from '../../main/_new/db/path';
 
 describe('resolveDatabasePath', () => {
   beforeEach(() => {

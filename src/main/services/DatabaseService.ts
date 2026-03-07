@@ -1,10 +1,6 @@
 import type BetterSqlite3 from 'better-sqlite3';
-import Database from 'better-sqlite3';
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
-import { createDrizzleClient, getDrizzleClient, resetDrizzleClient } from '../db/drizzleClient';
-import { errorTracking } from '../errorTracking';
+import { resolveDatabasePath } from '../_new/db/path';
 import {
   projects as projectsTable,
   tasks as tasksTable,
@@ -20,7 +16,8 @@ import {
   type LineCommentInsert,
   type SshConnectionRow,
   type SshConnectionInsert,
-} from '../db/schema';
+} from '../_new/db/schema';
+import { db } from '@/_new/db/client';
 
 export interface Project {
   id: string;
@@ -112,59 +109,8 @@ export class DatabaseService {
     this.dbPath = resolveDatabasePath();
   }
 
-  async initialize(): Promise<void> {
-    if (this.disabled) return;
-
-    const migrationsPath = resolveMigrationsPath();
-    if (!migrationsPath) {
-      throw new Error(
-        [
-          'Failed to locate database migrations folder.',
-          'This can happen when:',
-          '1. The app was installed via Homebrew (try downloading directly from GitHub)',
-          '2. The app is running from Downloads/DMG (move it to Applications)',
-          '3. The installation is incomplete or corrupted',
-          '4. Security software is blocking file access',
-          '',
-          'To fix: Try downloading and installing Emdash directly from:',
-          'https://github.com/generalaction/emdash/releases',
-        ].join('\n')
-      );
-    }
-
-    try {
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('busy_timeout = 5000');
-    } catch (e) {
-      await errorTracking.captureDatabaseError(e, 'initialize_connection', {
-        db_path: this.dbPath,
-      });
-      throw e;
-    }
-
-    try {
-      // Register this connection as the shared Drizzle client so all data
-      // access uses the same SQLite handle — no second connection opened.
-      const { db } = createDrizzleClient({ database: this.db, cacheResult: true });
-
-      migrate(db, { migrationsFolder: migrationsPath });
-      this.validateSchemaContract();
-    } catch (initError) {
-      const operation =
-        initError instanceof DatabaseSchemaMismatchError
-          ? 'initialize_schema_contract'
-          : 'initialize_migrations';
-      await errorTracking.captureDatabaseError(initError, operation, {
-        db_path: this.dbPath,
-      });
-      throw initError;
-    }
-  }
-
   async saveProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> {
     if (this.disabled) return;
-    const { db } = getDrizzleClient();
     const gitRemote = project.gitInfo.remote ?? null;
     const gitBranch = project.gitInfo.branch ?? null;
     const baseRef = this.computeBaseRef(
@@ -221,7 +167,6 @@ export class DatabaseService {
 
   async getProjects(): Promise<Project[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
     const rows = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleProjectRow(row));
   }
@@ -231,7 +176,7 @@ export class DatabaseService {
     if (!projectId) {
       throw new Error('projectId is required');
     }
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(projectsTable)
@@ -255,7 +200,6 @@ export class DatabaseService {
       throw new Error('baseRef cannot be empty');
     }
 
-    const { db } = await getDrizzleClient();
     const rows = await db
       .select({
         id: projectsTable.id,
@@ -292,7 +236,6 @@ export class DatabaseService {
         : task.metadata
           ? JSON.stringify(task.metadata)
           : null;
-    const { db } = await getDrizzleClient();
     await db
       .insert(tasksTable)
       .values({
@@ -325,7 +268,6 @@ export class DatabaseService {
 
   async getTasks(projectId?: string): Promise<Task[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
 
     // Filter out archived tasks by default
     const rows: TaskRow[] = projectId
@@ -344,7 +286,6 @@ export class DatabaseService {
 
   async getArchivedTasks(projectId?: string): Promise<Task[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
 
     const rows: TaskRow[] = projectId
       ? await db
@@ -364,7 +305,6 @@ export class DatabaseService {
 
   async archiveTask(taskId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
     await db
       .update(tasksTable)
       .set({
@@ -377,7 +317,6 @@ export class DatabaseService {
 
   async restoreTask(taskId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
     await db
       .update(tasksTable)
       .set({
@@ -389,7 +328,6 @@ export class DatabaseService {
 
   async getTaskByPath(taskPath: string): Promise<Task | null> {
     if (this.disabled) return null;
-    const { db } = await getDrizzleClient();
 
     const rows = await db.select().from(tasksTable).where(eq(tasksTable.path, taskPath)).limit(1);
 
@@ -400,7 +338,6 @@ export class DatabaseService {
   async getTaskById(taskId: string): Promise<Task | null> {
     if (this.disabled) return null;
     if (!taskId) return null;
-    const { db } = await getDrizzleClient();
     const rows = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId)).limit(1);
     if (rows.length === 0) return null;
     return this.mapDrizzleTaskRow(rows[0]);
@@ -408,13 +345,12 @@ export class DatabaseService {
 
   async deleteProject(projectId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
     await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
   }
 
   async deleteTask(taskId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+
     await db.delete(tasksTable).where(eq(tasksTable.id, taskId));
   }
 
@@ -422,7 +358,6 @@ export class DatabaseService {
   async saveConversation(
     conversation: Omit<Conversation, 'createdAt' | 'updatedAt'>
   ): Promise<void> {
-    const { db } = await getDrizzleClient();
     await db
       .insert(conversationsTable)
       .values({
@@ -456,7 +391,7 @@ export class DatabaseService {
 
   async getConversations(taskId: string): Promise<Conversation[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(conversationsTable)
@@ -476,7 +411,6 @@ export class DatabaseService {
         updatedAt: new Date().toISOString(),
       };
     }
-    const { db } = await getDrizzleClient();
 
     const existingRows = await db
       .select()
@@ -526,7 +460,7 @@ export class DatabaseService {
         : message.metadata
           ? JSON.stringify(message.metadata)
           : null;
-    const { db } = await getDrizzleClient();
+
     await db.transaction(async (tx) => {
       await tx
         .insert(messagesTable)
@@ -551,7 +485,7 @@ export class DatabaseService {
 
   async getMessages(conversationId: string): Promise<Message[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(messagesTable)
@@ -562,7 +496,7 @@ export class DatabaseService {
 
   async deleteConversation(conversationId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
   }
 
@@ -589,8 +523,6 @@ export class DatabaseService {
         updatedAt: new Date().toISOString(),
       };
     }
-
-    const { db } = await getDrizzleClient();
 
     // Get the next display order
     const existingConversations = await db
@@ -646,7 +578,6 @@ export class DatabaseService {
   /** @deprecated Active conversation is tracked in localStorage on the renderer side. This method is no longer called. */
   async setActiveConversation(taskId: string, conversationId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
 
     await db.transaction(async (tx) => {
       // Deactivate all conversations for this task
@@ -666,7 +597,6 @@ export class DatabaseService {
   /** @deprecated Active conversation is tracked in localStorage on the renderer side. This method is no longer called. */
   async getActiveConversation(taskId: string): Promise<Conversation | null> {
     if (this.disabled) return null;
-    const { db } = await getDrizzleClient();
 
     const results = await db
       .select()
@@ -679,7 +609,6 @@ export class DatabaseService {
 
   async reorderConversations(taskId: string, conversationIds: string[]): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
 
     await db.transaction(async (tx) => {
       for (let i = 0; i < conversationIds.length; i++) {
@@ -693,7 +622,6 @@ export class DatabaseService {
 
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
 
     await db
       .update(conversationsTable)
@@ -703,7 +631,7 @@ export class DatabaseService {
 
   async getConversationById(conversationId: string): Promise<Conversation | null> {
     if (this.disabled) return null;
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(conversationsTable)
@@ -714,7 +642,7 @@ export class DatabaseService {
 
   async updateConversationSessionId(conversationId: string, agentSessionId: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+
     await db
       .update(conversationsTable)
       .set({ agentSessionId, updatedAt: sql`CURRENT_TIMESTAMP` })
@@ -727,7 +655,7 @@ export class DatabaseService {
   ): Promise<string> {
     if (this.disabled) return '';
     const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const { db } = await getDrizzleClient();
+
     await db.insert(lineCommentsTable).values({
       id,
       taskId: input.taskId,
@@ -742,7 +670,6 @@ export class DatabaseService {
 
   async getLineComments(taskId: string, filePath?: string): Promise<LineCommentRow[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
 
     if (filePath) {
       const rows = await db
@@ -765,7 +692,7 @@ export class DatabaseService {
 
   async updateLineComment(id: string, content: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+
     await db
       .update(lineCommentsTable)
       .set({
@@ -777,13 +704,13 @@ export class DatabaseService {
 
   async deleteLineComment(id: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
+
     await db.delete(lineCommentsTable).where(eq(lineCommentsTable.id, id));
   }
 
   async markCommentsSent(commentIds: string[]): Promise<void> {
     if (this.disabled || commentIds.length === 0) return;
-    const { db } = await getDrizzleClient();
+
     const now = new Date().toISOString();
     await db
       .update(lineCommentsTable)
@@ -793,7 +720,7 @@ export class DatabaseService {
 
   async getUnsentComments(taskId: string): Promise<LineCommentRow[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(lineCommentsTable)
@@ -809,7 +736,6 @@ export class DatabaseService {
     if (this.disabled) {
       throw new Error('Database is disabled');
     }
-    const { db } = await getDrizzleClient();
 
     const id = connection.id ?? `ssh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
@@ -842,13 +768,13 @@ export class DatabaseService {
 
   async getSshConnections(): Promise<SshConnectionRow[]> {
     if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
+
     return db.select().from(sshConnectionsTable).orderBy(sshConnectionsTable.name);
   }
 
   async getSshConnection(id: string): Promise<SshConnectionRow | null> {
     if (this.disabled) return null;
-    const { db } = await getDrizzleClient();
+
     const rows = await db
       .select()
       .from(sshConnectionsTable)
@@ -859,7 +785,6 @@ export class DatabaseService {
 
   async deleteSshConnection(id: string): Promise<void> {
     if (this.disabled) return;
-    const { db } = await getDrizzleClient();
 
     // First update any projects using this connection
     await db
@@ -1010,7 +935,6 @@ export class DatabaseService {
 
   close(): void {
     if (this.disabled || !this.db) return;
-    resetDrizzleClient();
     this.db.close();
     this.db = null;
   }

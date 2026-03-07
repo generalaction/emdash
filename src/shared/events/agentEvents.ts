@@ -33,3 +33,14 @@ export type AgentEventMessage = {
 export type SoundEvent = 'needs_attention' | 'task_complete';
 
 export const agentEventChannel = defineEvent<AgentEventMessage>('agent:event');
+
+export interface AgentSessionExited {
+  /** PTY session ID (= conversationId for agent sessions). */
+  sessionId: string;
+  conversationId: string;
+  taskId: string;
+  exitCode: number | undefined;
+}
+
+/** Emitted when an agent PTY session exits. Topic = taskId. */
+export const agentSessionExitedChannel = defineEvent<AgentSessionExited>('agent:session-exited');

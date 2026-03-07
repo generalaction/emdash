@@ -10,7 +10,7 @@ import {
   type TaskLifecycleState,
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { log } from '../lib/logger';
+import { log } from '../_new/lib/logger';
 import { execFile } from 'node:child_process';
 import { killPty } from './ptyManager';
 import { startShellSession } from './ptyIpc';

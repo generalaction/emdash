@@ -1,294 +1,106 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import { join } from 'node:path';
-import os from 'node:os';
-import { execSync } from 'node:child_process';
+import dockIcon from '../assets/images/emdash/icon-dock.png?asset';
 import dotenv from 'dotenv';
-import fixPath from 'fix-path';
-import { initializeShellEnvironment } from './utils/shellEnv';
-import { createMainWindow } from './app/window';
-import { registerAppLifecycle } from './app/lifecycle';
-import { setupApplicationMenu } from './app/menu';
-import { registerAllIpc } from './ipc';
-import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
-import { connectionsService } from './services/ConnectionsService';
-import { autoUpdateService } from './services/AutoUpdateService';
+import { createMainWindow } from './_new/window';
+import { registerAppScheme, setupAppProtocol } from './_new/protocol';
+import { setupApplicationMenu } from './_new/menu';
+import { registerAllIpc } from './_new/ipc';
+import { taskResourceManager } from './_new/environment/task-resource-manager';
+import { initializeDatabase } from './_new/db/initialize';
+import { autoUpdateService } from './_new/services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
 import { ptyPoolService } from './services/PtyPoolService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
-import * as telemetry from './telemetry';
+import * as telemetry from './_new/telemetry';
 import { errorTracking } from './errorTracking';
-import { rmSync } from 'node:fs';
+import { log } from './_new/lib/logger';
+import { localDependencyManager } from './_new/services/LocalDependencyManager';
 
-// Load .env from project root (optional - silently skipped if missing)
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
-// Ensure PATH matches the user's shell when launched from Finder (macOS)
-// so Homebrew/NPM global binaries like `gh` and `codex` are found.
-try {
-  fixPath();
-} catch {
-  // no-op if fix-path isn't available
-}
-
-if (process.platform === 'darwin') {
-  const extras = ['/opt/homebrew/bin', '/usr/local/bin', '/opt/homebrew/sbin', '/usr/local/sbin'];
-  const cur = process.env.PATH || '';
-  const parts = cur.split(':').filter(Boolean);
-  for (const p of extras) {
-    if (!parts.includes(p)) parts.unshift(p);
-  }
-  process.env.PATH = parts.join(':');
-
-  // As a last resort, ask the user's login shell for PATH and merge it in.
-  try {
-    const shell = process.env.SHELL || '/bin/zsh';
-    const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
-    if (loginPath) {
-      // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
-      // Split by both : and \n so noise fused with the first real path entry
-      // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
-      const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
-      const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
-      const merged = new Set(validEntries);
-      process.env.PATH = Array.from(merged).join(':');
-    }
-  } catch {}
-}
-
-if (process.platform === 'linux') {
-  try {
-    const homeDir = os.homedir();
-    const extras = [
-      join(homeDir, '.nvm/versions/node', process.version, 'bin'),
-      join(homeDir, '.npm-global/bin'),
-      join(homeDir, '.local/bin'),
-      '/usr/local/bin',
-    ];
-    const cur = process.env.PATH || '';
-    const parts = cur.split(':').filter(Boolean);
-    for (const p of extras) {
-      if (!parts.includes(p)) parts.unshift(p);
-    }
-    process.env.PATH = parts.join(':');
-
-    try {
-      const shell = process.env.SHELL || '/bin/bash';
-      const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, {
-        encoding: 'utf8',
-      });
-      if (loginPath) {
-        // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
-        // Split by both : and \n so noise fused with the first real path entry
-        // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
-        const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
-        const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
-        const merged = new Set(validEntries);
-        process.env.PATH = Array.from(merged).join(':');
-      }
-    } catch {}
-  } catch {}
-}
-
 // Enable automatic Wayland/X11 detection on Linux.
-// Uses native Wayland when available, falls back to X11 (XWayland) otherwise.
 // Must be called before app.whenReady().
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 }
 
-if (process.platform === 'win32') {
-  // Ensure npm global binaries are in PATH for Windows
-  const npmPath = join(process.env.APPDATA || '', 'npm');
-  const cur = process.env.PATH || '';
-  const parts = cur.split(';').filter(Boolean);
-  if (npmPath && !parts.includes(npmPath)) {
-    parts.unshift(npmPath);
-    process.env.PATH = parts.join(';');
-  }
-}
+// Register the app:// scheme as a privileged secure origin.
+// Must be called before app.whenReady().
+registerAppScheme();
 
-// Detect SSH_AUTH_SOCK from user's shell environment
-// This is necessary because GUI-launched apps don't inherit shell env vars
-try {
-  initializeShellEnvironment();
-} catch (error) {
-  // Silent fail - SSH agent auth will fail if user tries to use it
-  console.log('[main] Failed to initialize shell environment:', error);
-}
-
-// Set app name for macOS dock and menu bar
 app.setName('Emdash');
 
-// Prevent multiple instances in production (e.g. user clicks icon while auto-updater is restarting).
-// Skip in dev so dev server can run alongside the packaged app.
-const isDev = !app.isPackaged || process.argv.includes('--dev');
-if (!isDev) {
-  const gotTheLock = app.requestSingleInstanceLock();
-  if (!gotTheLock) {
-    app.quit();
-    // Must also exit the process; app.quit() alone still runs the rest of this module
-    // before the event loop drains, which would register unnecessary listeners and timers.
-    process.exit(0);
+// Raise and focus the existing window when a second instance is launched.
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win?.isMinimized()) win.restore();
+  win?.focus();
+});
+
+// Enforce single instance in production; in dev both the packaged app and the
+// dev server need to coexist, so the lock is skipped
+if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
+  app.quit();
+  process.exit(0);
+}
+
+// Set dock icon in development mode (production builds use the app bundle icon).
+if (process.platform === 'darwin' && import.meta.env.DEV) {
+  try {
+    app.dock?.setIcon(dockIcon);
+  } catch (err) {
+    log.warn('Failed to set dock icon:', err);
   }
 }
 
-app.on('second-instance', () => {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win) {
-    if (win.isMinimized()) win.restore();
-    win.focus();
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
   }
 });
 
-// Set dock icon on macOS in development mode
-if (process.platform === 'darwin' && !app.isPackaged) {
-  const iconPath = join(
-    __dirname,
-    '..',
-    '..',
-    'src',
-    'assets',
-    'images',
-    'emdash',
-    'icon-dock.png'
-  );
-  try {
-    app.dock?.setIcon(iconPath);
-  } catch (err) {
-    console.warn('Failed to set dock icon:', err);
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
   }
-}
+});
 
 // App bootstrap
 app.whenReady().then(async () => {
-  const resetLocalDatabase = async (dbPath: string) => {
-    databaseService.close();
-    for (const filePath of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
-      rmSync(filePath, { force: true });
-    }
-  };
-
-  // Initialize database
   try {
-    await databaseService.initialize();
+    await initializeDatabase();
   } catch (error) {
-    const err = error as unknown;
     console.error('Failed to initialize database:', error);
-
-    if (err instanceof DatabaseSchemaMismatchError) {
-      const missing = err.missingInvariants.map((item) => `• ${item}`).join('\n');
-      const result = await dialog.showMessageBox({
-        type: 'error',
-        title: 'Local Data Reset Required',
-        message: 'Emdash cannot start because your local database schema is incompatible.',
-        detail: [
-          'Required schema entries are missing:',
-          missing || '• unknown invariant',
-          '',
-          `Database path: ${err.dbPath}`,
-          '',
-          'Choose "Reset Local Data and Relaunch" to delete local Emdash data and start fresh.',
-          'This only removes local app data (projects, tasks, conversations). Repository files are not deleted.',
-        ].join('\n'),
-        buttons: ['Reset Local Data and Relaunch', 'Quit'],
-        defaultId: 0,
-        cancelId: 1,
-        noLink: true,
-      });
-
-      if (result.response === 0) {
-        try {
-          await resetLocalDatabase(err.dbPath);
-          app.relaunch();
-          app.exit(0);
-          return;
-        } catch (resetError) {
-          console.error('Failed to reset local database:', resetError);
-          dialog.showErrorBox(
-            'Database Reset Failed',
-            `Unable to delete local database at:\n${err.dbPath}\n\n${resetError instanceof Error ? resetError.message : String(resetError)}`
-          );
-        }
-      }
-
-      app.quit();
-      return;
-    }
-
-    if (err instanceof Error && err.message.includes('migrations folder')) {
-      dialog.showErrorBox(
-        'Database Initialization Failed',
-        'Unable to initialize the application database.\n\n' +
-          'This may be due to:\n' +
-          '• Running from Downloads or DMG (move to Applications)\n' +
-          '• Homebrew installation issues (try direct download)\n' +
-          '• Incomplete installation\n\n' +
-          'Please try:\n' +
-          '1. Move Emdash to Applications folder\n' +
-          '2. Download directly from GitHub releases\n' +
-          '3. Check console for detailed error information'
-      );
-    }
+    dialog.showErrorBox(
+      'Database Initialization Failed',
+      `Emdash could not start because the database failed to initialize.\n\n${error instanceof Error ? error.message : String(error)}`
+    );
+    app.quit();
+    return;
   }
 
-  // Initialize telemetry (privacy-first, with optional GitHub username)
-  await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
-
-  // Initialize error tracking
-  await errorTracking.init();
-
-  // Best-effort: capture a coarse snapshot of project/task counts (no names/paths)
-  let localProjectPathsForReserveCleanup: string[] = [];
   try {
-    const [projects, tasks] = await Promise.all([
-      databaseService.getProjects(),
-      databaseService.getTasks(),
-    ]);
-    localProjectPathsForReserveCleanup = projects
-      .filter((project) => !project.isRemote)
-      .map((project) => project.path);
-    const projectCount = projects.length;
-    const taskCount = tasks.length;
-    const toBucket = (n: number) =>
-      n === 0 ? '0' : n <= 2 ? '1-2' : n <= 5 ? '3-5' : n <= 10 ? '6-10' : '>10';
-    telemetry.capture('task_snapshot', {
-      project_count: projectCount,
-      project_count_bucket: toBucket(projectCount),
-      task_count: taskCount,
-      task_count_bucket: toBucket(taskCount),
-    } as any);
-  } catch {
-    // ignore errors — telemetry is best-effort only
+    await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+  } catch (e) {
+    log.warn('telemetry init failed:', e);
   }
-
-  // Start agent event HTTP server (receives hook callbacks from CLI agents)
   try {
-    await agentEventService.start();
-  } catch (error) {
-    console.warn('Failed to start agent event service:', error);
+    await errorTracking.init();
+  } catch (e) {
+    log.warn('errorTracking init failed:', e);
   }
 
-  // Register IPC handlers
   registerAllIpc();
 
-  // Clean up any orphaned reserve worktrees from previous sessions
-  worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
-    console.warn('Failed to cleanup orphaned reserves:', error);
+  void localDependencyManager.probeAll().catch((e) => {
+    log.error('Failed to probe dependencies:', e);
   });
 
-  // Warm provider installation cache
-  try {
-    await connectionsService.initProviderStatusCache();
-  } catch {
-    // best-effort; ignore failures
-  }
-
-  // Set up native application menu (Settings, Edit, View, Window)
+  setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
-
-  // Create main window
   createMainWindow();
 
   // Initialize auto-update service after window is created
@@ -296,13 +108,10 @@ app.whenReady().then(async () => {
     await autoUpdateService.initialize();
   } catch (error) {
     if (app.isPackaged) {
-      console.error('Failed to initialize auto-update service:', error);
+      log.error('Failed to initialize auto-update service:', error);
     }
   }
 });
-
-// App lifecycle handlers
-registerAppLifecycle();
 
 // Graceful shutdown telemetry event
 app.on('before-quit', () => {
@@ -322,6 +131,9 @@ app.on('before-quit', () => {
   worktreePoolService.cleanup().catch(() => {});
   // Kill all pre-warmed pool PTYs
   ptyPoolService.cleanup();
+
+  // Tear down all active task environments (closes SSH channels, cleans PTY sessions)
+  taskResourceManager.teardownAll().catch(() => {});
 
   // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});
