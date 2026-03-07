@@ -21,7 +21,6 @@ export const PROVIDER_IDS = [
   'mistral',
   'pi',
   'autohand',
-  'novita',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -350,19 +349,6 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--unrestricted',
     initialPromptFlag: '-p',
     icon: 'autohand.svg',
-    terminalOnly: true,
-  },
-  {
-    id: 'novita',
-    name: 'Novita AI',
-    docUrl: 'https://novita.ai/',
-    installCommand: 'npm install -g opencode-ai',
-    commands: ['opencode'],
-    versionArgs: ['--version'],
-    cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
-    icon: 'openai.svg',
     terminalOnly: true,
   },
 ];
