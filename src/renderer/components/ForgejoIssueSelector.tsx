@@ -41,7 +41,8 @@ export const ForgejoIssueSelector: React.FC<ForgejoIssueSelectorProps> = ({
   const canListForgejo =
     typeof window !== 'undefined' && !!window.electronAPI?.forgejoInitialFetch && !!projectPath;
   const issuesLoaded = availableIssues.length > 0;
-  const isDisabled = disabled || isLoadingIssues || !!issueListError || (!issuesLoaded && !hasRequestedIssues);
+  const isDisabled =
+    disabled || isLoadingIssues || !!issueListError || (!issuesLoaded && !hasRequestedIssues);
 
   useEffect(() => () => void (isMountedRef.current = false), []);
 
