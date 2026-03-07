@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity } from '../lib/activityClassifier';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
 
@@ -30,6 +31,7 @@ export function useInitialPromptInjection(opts: {
     const send = () => {
       try {
         if (sent) return;
+        agentStatusStore.markUserInputSubmitted({ ptyId });
         (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
         localStorage.setItem(sentKey, '1');
         sent = true;

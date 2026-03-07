@@ -16,6 +16,7 @@ export interface UsePanelLayoutOptions {
   showHomeView: boolean;
   showSettingsPage: boolean;
   showSkillsView: boolean;
+  showMcpView: boolean;
   selectedProject: { id: string } | null;
   activeTask: { id: string } | null;
 }
@@ -28,6 +29,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showHomeView,
     showSettingsPage,
     showSkillsView,
+    showMcpView,
     selectedProject,
     activeTask,
   } = opts;
@@ -252,7 +254,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
 
     const isHomePage = showHomeView;
     const isRepoHomePage = selectedProject !== null && activeTask === null;
-    const isNonTaskView = showSettingsPage || showSkillsView;
+    const isNonTaskView = showSettingsPage || showSkillsView || showMcpView;
     const shouldCollapse = isHomePage || isRepoHomePage || isNonTaskView;
 
     if (shouldCollapse) {
@@ -266,6 +268,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showHomeView,
     showSettingsPage,
     showSkillsView,
+    showMcpView,
     selectedProject,
     activeTask,
   ]);

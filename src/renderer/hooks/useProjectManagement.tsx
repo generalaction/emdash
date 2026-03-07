@@ -96,6 +96,7 @@ export const useProjectManagement = () => {
   // Always start on home view (e.g. after app restart)
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
+  const [showMcpView, setShowMcpView] = useState(false);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
   // Trigger counters — incremented to signal task management to reset active task / auto-open modal
@@ -208,6 +209,7 @@ export const useProjectManagement = () => {
       setSelectedProject(project);
       setShowHomeView(false);
       setShowSkillsView(false);
+      setShowMcpView(false);
       setResetTaskTrigger((t) => t + 1);
       setShowEditorMode(false);
       setShowKanban(false);
@@ -229,6 +231,7 @@ export const useProjectManagement = () => {
     setSelectedProject(null);
     setShowHomeView(true);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -242,6 +245,21 @@ export const useProjectManagement = () => {
     setSelectedProject(null);
     setShowHomeView(false);
     setShowSkillsView(true);
+    setShowMcpView(false);
+    setResetTaskTrigger((t) => t + 1);
+    setShowEditorMode(false);
+    setShowKanban(false);
+    saveActiveIds(null, null);
+  };
+
+  const handleGoToMcp = () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('mcp_view_opened');
+    });
+    setSelectedProject(null);
+    setShowHomeView(false);
+    setShowSkillsView(false);
+    setShowMcpView(true);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -614,6 +632,8 @@ export const useProjectManagement = () => {
     setShowHomeView,
     showSkillsView,
     setShowSkillsView,
+    showMcpView,
+    setShowMcpView,
     showEditorMode,
     setShowEditorMode,
     showKanban,
@@ -621,6 +641,7 @@ export const useProjectManagement = () => {
     resetTaskTrigger,
     autoOpenTaskModalTrigger,
     handleGoToSkills,
+    handleGoToMcp,
     projectBranchOptions,
     projectDefaultBranch,
     setProjectDefaultBranch,

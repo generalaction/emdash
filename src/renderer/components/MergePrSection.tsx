@@ -450,22 +450,31 @@ export function MergePrSection({
               </Popover>
             </div>
             {showAutoMerge && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-full justify-center px-2 text-xs"
-                disabled={isTogglingAutoMerge}
-                onClick={toggleAutoMerge}
-              >
-                {isTogglingAutoMerge ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Timer className="h-3.5 w-3.5" />
-                    Enable auto-merge
-                  </span>
-                )}
-              </Button>
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full justify-center px-2 text-xs"
+                      disabled={isTogglingAutoMerge}
+                      onClick={toggleAutoMerge}
+                    >
+                      {isTogglingAutoMerge ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Timer className="h-3.5 w-3.5" />
+                          Enable auto-merge
+                        </span>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Automatically merge when all checks pass
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </>
         )}
