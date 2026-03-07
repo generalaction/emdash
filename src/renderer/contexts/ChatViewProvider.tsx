@@ -18,7 +18,7 @@ import { Task } from '../types/chat';
 import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+// SessionRegistry removed — session lifecycle is now managed in the main process.
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import type { Project } from '../types/app';
 import { useConversations } from './ConversationsProvider';
@@ -64,12 +64,10 @@ type ChatViewContextValue = {
 const ChatViewContext = createContext<ChatViewContextValue | null>(null);
 
 function useTerminalFocus(terminalId: string, taskId: string) {
+  // Focus is now managed via the useTerminal hook's returned `focus()` function in TerminalPane.
+  // These hooks retain the window-focus listener for future use.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const session = terminalSessionRegistry.getSession(terminalId);
-      if (session) session.focus();
-    }, 100);
-    return () => clearTimeout(timer);
+    void terminalId; // referenced to satisfy exhaustive-deps
   }, [taskId, terminalId]);
 
   useEffect(() => {
@@ -79,8 +77,7 @@ function useTerminalFocus(terminalId: string, taskId: string) {
       timer = setTimeout(() => {
         timer = null;
         if (!mounted) return;
-        const session = terminalSessionRegistry.getSession(terminalId);
-        if (session) session.focus();
+        // Focus is delegated to the TerminalPane component's ref.
       }, 0);
     };
     window.addEventListener('focus', handleWindowFocus);
@@ -215,12 +212,14 @@ export function ChatViewProvider({
   });
 
   useInitialPromptInjection({
+    projectId: project?.id ?? '',
     taskId: task.id,
     conversationId: activeConversationId ?? '',
     providerId: agent,
     prompt: initialInjection,
     enabled:
       !!activeConversationId &&
+      !!project?.id &&
       isTerminal &&
       (agentMeta[agent]?.initialPromptFlag === undefined ||
         agentMeta[agent]?.useKeystrokeInjection === true),

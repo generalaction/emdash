@@ -1,11 +1,11 @@
 import os from 'node:os';
-import { events } from '../events';
+import { events } from '../lib/events';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { log } from '../lib/logger';
 
 import { spawnLocalPty } from '../pty/local-pty';
-import { resolveCommandPath, runVersionProbe } from '../dependencies/probe';
-import { DEPENDENCIES, getDependencyDescriptor } from '../dependencies/registry';
+import { resolveCommandPath, runVersionProbe } from '../core/dependencies/probe';
+import { DEPENDENCIES, getDependencyDescriptor } from '../core/dependencies/registry';
 import type {
   DependencyCategory,
   DependencyDescriptor,
@@ -13,7 +13,7 @@ import type {
   DependencyState,
   DependencyStatus,
   ProbeResult,
-} from '../dependencies/types';
+} from '../core/dependencies/types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 

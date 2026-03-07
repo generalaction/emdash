@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { patchCurrentPrBodyWithIssueFooter } from '../../main/lib/prIssueFooterPatch';
+import { patchCurrentPrBodyWithIssueFooter } from '../../main/_deprecated/lib/prIssueFooterPatch';
 
 describe('patchCurrentPrBodyWithIssueFooter', () => {
   it('reads existing body and updates PR body with injected issue footer', async () => {

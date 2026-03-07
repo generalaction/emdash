@@ -3,13 +3,14 @@ import { projects, tasks } from '../../db/schema';
 import { eq, sql } from 'drizzle-orm';
 import type { TaskMetadata } from './core';
 import { ensureProjectSettings } from '../projects/ensureProjectSettings';
-import { taskResourceManager } from '../../environment/task-resource-manager';
-import { ptySessionManager } from '../../pty/session/core';
+import { environmentProviderManager } from '../../environment/provider-manager';
+import { spawnLocalPty } from '../../pty/local-pty';
+import { buildSessionEnv } from '../../pty/pty-env';
 import { log } from '../../lib/logger';
 
 export async function archiveTask(id: string): Promise<void> {
-  // Tear down all resources for this task (PTY sessions, environment, etc.)
-  await taskResourceManager.teardown(id);
+  // Tear down all PTY sessions for this task across all providers.
+  await environmentProviderManager.teardownTask(id);
 
   const [row] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
   if (!row) return;
@@ -37,33 +38,24 @@ export async function archiveTask(id: string): Promise<void> {
   const teardownScript = projectSettings.data.scripts?.teardown?.trim();
 
   if (teardownScript) {
-    // Re-provision environment for the teardown script.
-    taskResourceManager
-      .getOrProvision(project, { id, path: row.path })
-      .then((env) => {
-        return ptySessionManager.createSession({
-          type: 'lifecycle',
-          config: {
-            taskId: id,
-            phase: 'teardown',
-            cwd: row.path,
-            command: teardownScript,
-            onExit: (exitCode) => {
-              log.info('archiveTask: teardown script finished', { taskId: id, exitCode });
-            },
-          },
-          transport:
-            env.transport === 'ssh2' && env.connectionId
-              ? { type: 'ssh2', connectionId: env.connectionId }
-              : { type: 'local' },
-        });
-      })
-      .catch((e) =>
-        log.error('archiveTask: unexpected teardown script error', {
-          taskId: id,
-          error: String(e),
-        })
-      );
+    const env = buildSessionEnv('lifecycle');
+    const shell = process.env.SHELL ?? '/bin/sh';
+    const result = spawnLocalPty({
+      id: crypto.randomUUID(),
+      command: shell,
+      args: ['-c', teardownScript],
+      cwd: row.path,
+      env,
+      cols: 80,
+      rows: 24,
+    });
+    if (!result.success) {
+      log.error('archiveTask: teardown script spawn failed', { taskId: id, error: result.error });
+    } else {
+      result.data.onExit(({ exitCode }) => {
+        log.info('archiveTask: teardown script finished', { taskId: id, exitCode });
+      });
+    }
   }
 
   await db

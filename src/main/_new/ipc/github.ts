@@ -1,18 +1,18 @@
 import { app } from 'electron';
 import { log } from '../lib/logger';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { GitHubService } from '../../services/GitHubService';
+import { GitHubService } from '../../_deprecated/services/GitHubService';
 import type { GitHubUser } from '@shared/types/github';
-import { worktreeService } from '../../services/WorktreeService';
-import { githubCLIInstaller } from '../../services/GitHubCLIInstaller';
+import { worktreeService } from '../../_deprecated/services/WorktreeService';
+import { githubCLIInstaller } from '../../_deprecated/services/GitHubCLIInstaller';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { quoteShellArg } from '../../utils/shellEscape';
-import { getAppSettings } from '../../settings';
+import { quoteShellArg } from '../../_deprecated/utils/shellEscape';
+import { getAppSettings } from '../core/settings';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();

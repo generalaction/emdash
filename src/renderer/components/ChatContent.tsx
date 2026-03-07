@@ -8,16 +8,17 @@ import type { UiAgent } from '../providers/meta';
 import { useConversations } from '../contexts/ConversationsProvider';
 import { useChatView } from '../contexts/ChatViewProvider';
 import { useDependencies } from '../contexts/DependenciesProvider';
+import { makePtySessionId } from '@shared/ptySessionId';
 
 export function ChatContent() {
   const { isLoaded: conversationsLoaded } = useConversations();
   const {
     task,
+    project,
     agent,
     effectiveTheme,
     terminalId,
     conversationId,
-    terminalCwd,
     projectRemoteConnectionId,
     cliStartError,
     autoApproveEnabled,
@@ -27,6 +28,11 @@ export function ChatContent() {
     handleFirstMessage,
     setCliStartError,
   } = useChatView();
+
+  // Deterministic session ID: renderer subscribes before the main process starts the session.
+  const sessionId = project?.id
+    ? makePtySessionId(project.id, task.id, conversationId)
+    : terminalId; // fallback for tasks without a project (should not happen in practice)
 
   const { getStatus, install } = useDependencies();
   const agentStatus = getStatus(agent);
@@ -119,49 +125,19 @@ export function ChatContent() {
         {conversationsLoaded && (
           <TerminalPane
             ref={terminalRef}
-            id={terminalId}
-            conversationId={conversationId}
-            cwd={terminalCwd ?? undefined}
-            remote={
-              projectRemoteConnectionId ? { connectionId: projectRemoteConnectionId } : undefined
-            }
-            providerId={agent}
-            autoApprove={autoApproveEnabled}
-            keepAlive={true}
+            sessionId={sessionId}
+            remoteConnectionId={projectRemoteConnectionId ?? undefined}
             mapShiftEnterToCtrlJ
-            disableSnapshots={false}
             onActivity={() => {
               try {
                 window.localStorage.setItem(`agent:locked:${task.id}`, agent);
               } catch {}
-            }}
-            onStartError={(message) => {
-              setCliStartError(message);
-            }}
-            onStartSuccess={() => {
-              setCliStartError(null);
-              if (initialInjection && !task.metadata?.initialInjectionSent) {
-                void rpc.db.saveTask({
-                  ...task,
-                  metadata: {
-                    ...task.metadata,
-                    initialInjectionSent: true,
-                  },
-                });
-              }
             }}
             variant={
               effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
             }
             themeOverride={themeOverride}
             contentFilter={contentFilter}
-            initialPrompt={
-              agentMeta[agent]?.initialPromptFlag !== undefined &&
-              !agentMeta[agent]?.useKeystrokeInjection &&
-              !task.metadata?.initialInjectionSent
-                ? (initialInjection ?? undefined)
-                : undefined
-            }
             onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
             className="h-full w-full"
           />

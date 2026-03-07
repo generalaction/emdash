@@ -1,9 +1,9 @@
 import { db } from '../../db/client';
 import { projects } from '../../db/schema';
-import { githubService } from '../../../services/GitHubService';
+import { githubService } from '../../../_deprecated/services/GitHubService';
 import { randomUUID } from 'node:crypto';
 import { checkIsGithubRemote, checkIsValidDirectory, detectGitInfo } from './detectGitInfo';
-import { err, ok, Result } from '../../../lib/result';
+import { err, ok, Result } from '../../../_deprecated/lib/result';
 import { sql } from 'drizzle-orm';
 import { type LocalProject } from './types';
 import { ensureProjectSettings } from './ensureProjectSettings';

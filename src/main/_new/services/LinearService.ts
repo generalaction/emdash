@@ -1,6 +1,6 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
-import { capture } from '../telemetry';
+import { capture } from '../lib/telemetry';
 
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 

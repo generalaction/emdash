@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { rpc, events } from '../lib/rpc';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import type { Conversation } from '../../main/services/DatabaseService';
+import type { Conversation } from '../../main/_deprecated/services/DatabaseService';
 import { menuCloseTabChannel } from '@shared/events/appEvents';
 
 export const conversationsQueryKey = (taskId: string) => ['conversations', taskId] as const;

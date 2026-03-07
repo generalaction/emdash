@@ -1,14 +1,14 @@
 import { db } from '../../db/client';
 import { tasks, conversations, projects } from '../../db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { worktreeService } from '../../../services/WorktreeService';
-import { worktreePoolService } from '../../../services/WorktreePoolService';
-import { err, ok, Result } from '../../../lib/result';
+import { worktreeService } from '../../../_deprecated/services/WorktreeService';
+import { worktreePoolService } from '../../../_deprecated/services/WorktreePoolService';
+import { err, ok, Result } from '../../../_deprecated/lib/result';
 import type { Task, TaskMetadata } from './core';
-import type { TaskRow, ProjectRow } from '../../db/schema';
+import type { TaskRow } from '../../db/schema';
 import { ensureProjectSettings } from '../projects/ensureProjectSettings';
-import { ptySessionManager } from '../../pty/session/core';
-import { taskResourceManager } from '../../environment/task-resource-manager';
+import { spawnLocalPty } from '../../pty/local-pty';
+import { buildSessionEnv } from '../../pty/pty-env';
 import { log } from '../../lib/logger';
 
 export type LinkedIssue =
@@ -139,56 +139,43 @@ export async function createTask(
 
   const setupScript = projectSettings.data.scripts?.setup?.trim();
   if (setupScript) {
-    runSetupScript(taskRow.id, worktree.path, project, setupScript);
+    runSetupScript(taskRow.id, worktree.path, setupScript);
   }
 
   return ok({ task: mapTaskRow(taskRow), conversationId });
 }
 
-function runSetupScript(
-  taskId: string,
-  taskPath: string,
-  project: ProjectRow,
-  command: string
-): void {
+function runSetupScript(taskId: string, taskPath: string, command: string): void {
   let buffer = '';
 
-  taskResourceManager
-    .getOrProvision(project, { id: taskId, path: taskPath })
-    .then((env) => {
-      return ptySessionManager.createSession({
-        type: 'lifecycle',
-        config: {
-          taskId,
-          phase: 'setup',
-          cwd: taskPath,
-          command,
-          onExit: (exitCode) => {
-            db.update(tasks)
-              .set({ setupScriptBuffer: buffer })
-              .where(eq(tasks.id, taskId))
-              .catch((e) =>
-                log.error('createTask: failed to write setup script buffer', { taskId, error: e })
-              );
-            log.info('createTask: setup script finished', { taskId, exitCode });
-          },
-        },
-        transport:
-          env.transport === 'ssh2' && env.connectionId
-            ? { type: 'ssh2', connectionId: env.connectionId }
-            : { type: 'local' },
-      });
-    })
-    .then((result) => {
-      if (!result.success) {
-        log.error('createTask: setup script spawn failed', { taskId, error: result.error });
-        return;
-      }
-      result.data.pty.onData((chunk) => {
-        buffer += chunk;
-      });
-    })
-    .catch((e) =>
-      log.error('createTask: unexpected setup script error', { taskId, error: String(e) })
-    );
+  const env = buildSessionEnv('lifecycle');
+  const shell = process.env.SHELL ?? '/bin/sh';
+  const result = spawnLocalPty({
+    id: crypto.randomUUID(),
+    command: shell,
+    args: ['-c', command],
+    cwd: taskPath,
+    env,
+    cols: 80,
+    rows: 24,
+  });
+
+  if (!result.success) {
+    log.error('createTask: setup script spawn failed', { taskId, error: result.error });
+    return;
+  }
+
+  const pty = result.data;
+  pty.onData((chunk) => {
+    buffer += chunk;
+  });
+  pty.onExit(({ exitCode }) => {
+    db.update(tasks)
+      .set({ setupScriptBuffer: buffer })
+      .where(eq(tasks.id, taskId))
+      .catch((e) =>
+        log.error('createTask: failed to write setup script buffer', { taskId, error: e })
+      );
+    log.info('createTask: setup script finished', { taskId, exitCode });
+  });
 }

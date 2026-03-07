@@ -83,7 +83,7 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
   });
 
   async function getHandler() {
-    const { worktreeController } = await import('../../main/services/worktreeIpc');
+    const { worktreeController } = await import('../../main/_deprecated/services/worktreeIpc');
     const handler = worktreeController.claimReserveAndSaveTask;
     expect(handler).toBeTypeOf('function');
     return ((_event: unknown, args: unknown) => (handler as (a: unknown) => unknown)(args)) as (

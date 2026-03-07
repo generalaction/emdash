@@ -1,0 +1,128 @@
+import {
+  capture,
+  captureException,
+  isTelemetryEnabled,
+  getTelemetryStatus,
+  setTelemetryEnabledViaUser,
+  setOnboardingSeen,
+} from '../../_new/lib/telemetry';
+import { createRPCController } from '../../../shared/ipc/rpc';
+
+// Events allowed from renderer process
+// Main process-only events (app_started, app_closed, app_window_focused, github_connection_triggered,
+// github_connected, task_snapshot, app_session, agent_run_start, agent_run_finish) should NOT be here
+const RENDERER_ALLOWED_EVENTS = new Set([
+  // Error tracking
+  '$exception', // PostHog error tracking format
+  // Legacy
+  'feature_used',
+  'error',
+  // Project management
+  'project_add_clicked',
+  'project_open_clicked',
+  'project_added_success',
+  'project_deleted',
+  'project_view_opened',
+  // Task management
+  'task_created',
+  'task_deleted',
+  'task_provider_switched',
+  'task_custom_named',
+  'task_advanced_options_opened',
+  // Terminal (Right Sidebar)
+  'terminal_entered',
+  'terminal_command_executed',
+  'terminal_new_terminal_created',
+  'terminal_deleted',
+  // Changes (Right Sidebar)
+  'changes_viewed',
+  // Plan mode
+  'plan_mode_enabled',
+  'plan_mode_disabled',
+  // Git & Pull Requests
+  'pr_created',
+  'pr_creation_failed',
+  'pr_viewed',
+  // Linear integration
+  'linear_connected',
+  'linear_disconnected',
+  'linear_issues_searched',
+  'linear_issue_selected',
+  // Jira integration
+  'jira_connected',
+  'jira_disconnected',
+  'jira_issues_searched',
+  'jira_issue_selected',
+  // Container & Dev Environment
+  'container_connect_clicked',
+  'container_connect_success',
+  'container_connect_failed',
+  // ToolBar Section
+  'toolbar_feedback_clicked',
+  'toolbar_left_sidebar_clicked',
+  'toolbar_right_sidebar_clicked',
+  'toolbar_settings_clicked',
+  'toolbar_open_in_menu_clicked',
+  'toolbar_open_in_selected',
+  'toolbar_kanban_toggled',
+  // Browser Preview
+  'browser_preview_opened',
+  'browser_preview_closed',
+  'browser_preview_url_navigated',
+  // Skills
+  'skills_view_opened',
+  'skill_installed',
+  'skill_uninstalled',
+  'skill_created',
+  'skill_detail_viewed',
+  // Remote Server / SSH
+  'remote_project_modal_opened',
+  'remote_project_connection_tested',
+  'remote_project_created',
+  'ssh_settings_opened',
+  // GitHub issues
+  'github_issues_searched',
+  'github_issue_selected',
+  // Task with issue
+  'task_created_with_issue',
+  // Settings & Preferences
+  'settings_tab_viewed',
+  'theme_changed',
+  'telemetry_toggled',
+  'notification_settings_changed',
+  'default_provider_changed',
+]);
+
+export const telemetryController = createRPCController({
+  capture: async (args: { event: string; properties?: any }) => {
+    if (!isTelemetryEnabled()) return;
+    const ev = String(args?.event || '') as any;
+    if (!RENDERER_ALLOWED_EVENTS.has(ev)) return;
+    const props =
+      args?.properties && typeof args.properties === 'object' ? args.properties : undefined;
+
+    if (ev === '$exception') {
+      const errorMessage = props?.$exception_message || 'Unknown error';
+      const error = new Error(errorMessage);
+      error.stack = props?.$exception_stack_trace_raw || '';
+      error.name = props?.$exception_type || 'Error';
+      captureException(error, props);
+    } else {
+      capture(ev, props);
+    }
+  },
+
+  getStatus: async () => {
+    return { status: getTelemetryStatus() };
+  },
+
+  setEnabled: async (enabled: boolean) => {
+    setTelemetryEnabledViaUser(Boolean(enabled));
+    return { status: getTelemetryStatus() };
+  },
+
+  setOnboardingSeen: async (flag: boolean) => {
+    setOnboardingSeen(Boolean(flag));
+    return { status: getTelemetryStatus() };
+  },
+});

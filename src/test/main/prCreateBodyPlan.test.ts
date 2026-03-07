@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCreatePrBodyPlan } from '../../main/lib/prCreateBodyPlan';
+import { getCreatePrBodyPlan } from '../../main/_deprecated/lib/prCreateBodyPlan';
 
 describe('getCreatePrBodyPlan', () => {
   it('patches footer after fill when there is no explicit body', () => {

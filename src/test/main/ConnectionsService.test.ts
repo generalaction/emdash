@@ -108,7 +108,9 @@ describe('ConnectionsService – resolveStatus', () => {
     whichReturns('/usr/local/bin/claude');
     spawnEmits({ stdout: '2.1.56 (Claude Code)\n', closeCode: 0 });
 
-    const { connectionsService } = await import('../../main/services/ConnectionsService');
+    const { connectionsService } = await import(
+      '../../main/_deprecated/services/ConnectionsService'
+    );
     await connectionsService.checkProvider('claude', 'manual');
 
     expect(statusMap.claude?.installed).toBe(true);
@@ -125,7 +127,9 @@ describe('ConnectionsService – resolveStatus', () => {
       { stderr: 'some error output\n', closeCode: 1 }
     );
 
-    const { connectionsService } = await import('../../main/services/ConnectionsService');
+    const { connectionsService } = await import(
+      '../../main/_deprecated/services/ConnectionsService'
+    );
     await connectionsService.checkProvider('claude', 'manual');
 
     expect(statusMap.claude?.installed).toBe(true);
@@ -140,7 +144,9 @@ describe('ConnectionsService – resolveStatus', () => {
       { stdout: 'some output\n', closeCode: 1 }
     );
 
-    const { connectionsService } = await import('../../main/services/ConnectionsService');
+    const { connectionsService } = await import(
+      '../../main/_deprecated/services/ConnectionsService'
+    );
     await connectionsService.checkProvider('claude', 'manual');
 
     expect(statusMap.claude?.installed).toBe(true);
@@ -153,7 +159,9 @@ describe('ConnectionsService – resolveStatus', () => {
     // Bare spawn ENOENT, shell fallback also fails (command not found in shell either)
     spawnEmits({ error: err }, { stderr: 'command not found: claude\n', closeCode: 127 });
 
-    const { connectionsService } = await import('../../main/services/ConnectionsService');
+    const { connectionsService } = await import(
+      '../../main/_deprecated/services/ConnectionsService'
+    );
     await connectionsService.checkProvider('claude', 'manual');
 
     expect(statusMap.claude?.installed).toBe(false);
@@ -169,7 +177,9 @@ describe('ConnectionsService – resolveStatus', () => {
     // Second: shell fallback succeeds
     spawnEmits({ error: err }, { stdout: '2.1.56 (Claude Code)\n', closeCode: 0 });
 
-    const { connectionsService } = await import('../../main/services/ConnectionsService');
+    const { connectionsService } = await import(
+      '../../main/_deprecated/services/ConnectionsService'
+    );
     await connectionsService.checkProvider('claude', 'manual');
 
     expect(statusMap.claude?.installed).toBe(true);

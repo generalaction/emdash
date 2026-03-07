@@ -6,8 +6,8 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { normalizeSettings } from '../../main/settings';
-import type { AppSettings } from '../../main/settings';
+import { normalizeSettings } from '../../main/_new/core/settings';
+import type { AppSettings } from '../../main/_new/core/settings';
 
 /** Minimal valid AppSettings skeleton for normalizeSettings. */
 function makeSettings(overrides?: Partial<AppSettings>): AppSettings {

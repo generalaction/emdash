@@ -73,7 +73,9 @@ describe('TaskLifecycleService', () => {
   it('dedupes concurrent startRun calls so only one PTY spawns', async () => {
     vi.resetModules();
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-1';
     const taskPath = '/tmp/wt-1';
@@ -96,7 +98,9 @@ describe('TaskLifecycleService', () => {
       throw new Error('kill failed');
     });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-2';
     const taskPath = '/tmp/wt-2';
@@ -120,7 +124,9 @@ describe('TaskLifecycleService', () => {
   it('ignores stale PTY exit and keeps latest run state when run is restarted', async () => {
     vi.resetModules();
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-3';
     const taskPath = '/tmp/wt-3';
@@ -152,7 +158,9 @@ describe('TaskLifecycleService', () => {
 
     startShellSessionMock.mockRejectedValueOnce(new Error('PTY spawn error'));
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-4';
     const taskPath = '/tmp/wt-4';
@@ -175,7 +183,9 @@ describe('TaskLifecycleService', () => {
       return null;
     });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
     const serviceAny = taskLifecycleService as any;
     const runFiniteSpy = vi
       .spyOn(serviceAny, 'runFinite')
@@ -202,7 +212,9 @@ describe('TaskLifecycleService', () => {
       .mockRejectedValueOnce(new Error('PTY spawn error'))
       .mockResolvedValue({ sessionId: 'session-2', ptyId: 'lifecycle-session-2' });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-6';
     const taskPath = '/tmp/wt-6';
@@ -219,7 +231,9 @@ describe('TaskLifecycleService', () => {
   it('clearTask removes accumulated lifecycle state and PTY IDs', async () => {
     vi.resetModules();
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
     const serviceAny = taskLifecycleService as any;
 
     const taskId = 'wt-7';
@@ -246,7 +260,9 @@ describe('TaskLifecycleService', () => {
       return null;
     });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-8';
     const taskPath = '/tmp/wt-8';
@@ -274,7 +290,9 @@ describe('TaskLifecycleService', () => {
       return null;
     });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
 
     const taskId = 'wt-8b';
     const taskPath = '/tmp/wt-8b';
@@ -306,7 +324,9 @@ describe('TaskLifecycleService', () => {
       return new Promise(() => {}); // never resolves
     });
 
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+    const { taskLifecycleService } = await import(
+      '../../main/_deprecated/services/TaskLifecycleService'
+    );
     const serviceAny = taskLifecycleService as any;
 
     const taskId = 'wt-9';

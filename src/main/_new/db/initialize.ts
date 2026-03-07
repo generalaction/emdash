@@ -1,7 +1,7 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import { createHash } from 'node:crypto';
 import { sqlite } from './client';
-import { errorTracking } from '../../errorTracking';
+import { errorTracking } from '../error-tracking';
 import journal from '../../../../drizzle/meta/_journal.json';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.

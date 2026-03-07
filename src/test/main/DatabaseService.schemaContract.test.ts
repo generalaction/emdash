@@ -17,7 +17,10 @@ vi.mock('../../main/db/drizzleClient', () => ({
   resetDrizzleClient: vi.fn(),
 }));
 
-import { DatabaseSchemaMismatchError, DatabaseService } from '../../main/services/DatabaseService';
+import {
+  DatabaseSchemaMismatchError,
+  DatabaseService,
+} from '../../main/_deprecated/services/DatabaseService';
 
 describe('DatabaseService schema contract', () => {
   let service: DatabaseService;

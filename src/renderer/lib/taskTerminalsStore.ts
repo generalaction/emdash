@@ -1,6 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { rpc } from './rpc';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+// SessionRegistry removed — session lifecycle is managed in the main process.
 
 type TaskTerminal = {
   id: string;
@@ -305,16 +304,7 @@ export function disposeTaskTerminals(taskKey: string): void {
       } catch {
         // ignore kill errors
       }
-      try {
-        terminalSessionRegistry.dispose(terminal.id);
-      } catch {
-        // ignore dispose errors
-      }
-      try {
-        void rpc.pty.snapshotClear({ id: terminal.id });
-      } catch {
-        // ignore snapshot errors
-      }
+      // Session disposal is now handled by the main process (EnvironmentProvider).
     }
   }
 

@@ -100,12 +100,12 @@ function postEvent(
 // --- Tests ---
 
 describe('AgentEventService notification click', () => {
-  let service: typeof import('../../main/services/AgentEventService').agentEventService;
+  let service: typeof import('../../main/_new/services/AgentEventService').agentEventService;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     notificationInstances.length = 0;
-    const mod = await import('../../main/services/AgentEventService');
+    const mod = await import('../../main/_new/services/AgentEventService');
     service = mod.agentEventService;
     await service.start();
   });

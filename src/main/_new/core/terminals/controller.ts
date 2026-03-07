@@ -2,12 +2,10 @@ import { db } from '../../db/client';
 import { terminals, tasks, projects } from '../../db/schema';
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '../../../../shared/ipc/rpc';
-import { ok, err } from '../../../lib/result';
-import { ptySessionManager } from '../../pty/session/core';
-import { taskResourceManager } from '../../environment/task-resource-manager';
+import { ok, err } from '../../../_deprecated/lib/result';
+import { environmentProviderManager } from '../../environment/provider-manager';
 import { log } from '../../lib/logger';
 import type { Terminal } from './core';
-import type { ProjectRow, TaskRow } from '../../db/schema';
 
 function mapTerminalRow(row: {
   id: string;
@@ -17,64 +15,6 @@ function mapTerminalRow(row: {
   updatedAt: string;
 }): Terminal {
   return { id: row.id, taskId: row.taskId, name: row.name };
-}
-
-/**
- * Terminal IDs that have been explicitly deleted.
- * Used to suppress the auto-respawn on the final exit after a kill.
- */
-const deletedTerminals = new Set<string>();
-
-/**
- * Spawn (or re-spawn) a general PTY session for a terminal row.
- * Uses terminalId as the PTY session ID so the renderer can subscribe
- * immediately after createTerminal returns.
- * Recursively re-schedules itself on exit unless the terminal was deleted.
- */
-function spawnTerminalSession(
-  terminalId: string,
-  taskId: string,
-  project: ProjectRow,
-  task: TaskRow
-): void {
-  taskResourceManager
-    .getOrProvision(project, task)
-    .then((env) =>
-      ptySessionManager.createSession({
-        id: terminalId,
-        type: 'general',
-        config: {
-          taskId,
-          cwd: task.path,
-          projectPath: project.path,
-        },
-        transport:
-          env.transport === 'ssh2' && env.connectionId
-            ? { type: 'ssh2', connectionId: env.connectionId }
-            : { type: 'local' },
-      })
-    )
-    .then((result) => {
-      if (!result.success) {
-        log.error('terminalsController: failed to spawn terminal PTY', {
-          terminalId,
-          error: result.error,
-        });
-        return;
-      }
-
-      result.data.pty.onExit(() => {
-        if (!deletedTerminals.has(terminalId)) {
-          setTimeout(() => spawnTerminalSession(terminalId, taskId, project, task), 500);
-        }
-      });
-    })
-    .catch((e) =>
-      log.error('terminalsController: unexpected PTY spawn error', {
-        terminalId,
-        error: String(e),
-      })
-    );
 }
 
 export const terminalsController = createRPCController({
@@ -108,7 +48,44 @@ export const terminalsController = createRPCController({
       .limit(1);
 
     if (project) {
-      spawnTerminalSession(terminalId, taskId, project, task);
+      const provider = environmentProviderManager.getProvider(project.id);
+      if (!provider) {
+        log.warn('terminalsController.createTerminal: no provider for project', {
+          projectId: project.id,
+        });
+      } else {
+        // Ensure task environment is provisioned, then spawn the terminal.
+        provider
+          .provision({
+            task,
+            projectPath: project.path,
+            conversations: [],
+            terminals: [],
+          })
+          .then((env) =>
+            env.terminalProvider.spawnTerminal({
+              projectId: project.id,
+              terminalId,
+              taskId,
+              cwd: task.path,
+              projectPath: project.path,
+            })
+          )
+          .then((result) => {
+            if (!result.success) {
+              log.error('terminalsController: failed to spawn terminal PTY', {
+                terminalId,
+                error: result.error,
+              });
+            }
+          })
+          .catch((e) =>
+            log.error('terminalsController: unexpected PTY spawn error', {
+              terminalId,
+              error: String(e),
+            })
+          );
+      }
     }
 
     return ok({ terminalId });
@@ -124,14 +101,25 @@ export const terminalsController = createRPCController({
 
     if (!row) return err({ type: 'not_found' as const });
 
-    // Mark as deleted first so the onExit handler does not re-spawn
-    deletedTerminals.add(terminalId);
-    ptySessionManager.destroySession(terminalId);
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, row.taskId)).limit(1);
+
+    if (task) {
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, task.projectId))
+        .limit(1);
+
+      if (project) {
+        const provider = environmentProviderManager.getProvider(project.id);
+        const env = provider?.getEnvironment(task.id);
+        if (env) {
+          env.terminalProvider.killTerminal(terminalId);
+        }
+      }
+    }
 
     await db.delete(terminals).where(eq(terminals.id, terminalId));
-
-    // Clean up the set after a delay to prevent unbounded growth
-    setTimeout(() => deletedTerminals.delete(terminalId), 10_000);
 
     return ok();
   },

@@ -1,21 +1,17 @@
+import dotenv from 'dotenv';
 import { app, BrowserWindow, dialog } from 'electron';
 import { join } from 'node:path';
 import dockIcon from '../assets/images/emdash/icon-dock.png?asset';
-import dotenv from 'dotenv';
-import { createMainWindow } from './_new/window';
-import { registerAppScheme, setupAppProtocol } from './_new/protocol';
-import { setupApplicationMenu } from './_new/menu';
+import { createMainWindow } from './_new/app/window';
+import { registerAppScheme, setupAppProtocol } from './_new/app/protocol';
+import { setupApplicationMenu } from './_new/app/menu';
 import { registerAllIpc } from './_new/ipc';
-import { taskResourceManager } from './_new/environment/task-resource-manager';
+import { environmentProviderManager } from './_new/environment/provider-manager';
 import { initializeDatabase } from './_new/db/initialize';
 import { autoUpdateService } from './_new/services/AutoUpdateService';
-import { worktreePoolService } from './services/WorktreePoolService';
-import { ptyPoolService } from './services/PtyPoolService';
-import { sshService } from './services/ssh/SshService';
-import { taskLifecycleService } from './services/TaskLifecycleService';
-import { agentEventService } from './services/AgentEventService';
-import * as telemetry from './_new/telemetry';
-import { errorTracking } from './errorTracking';
+import { sshService } from './_deprecated/services/ssh/SshService';
+import * as telemetry from './_new/lib/telemetry';
+import { errorTracking } from './_new/error-tracking';
 import { log } from './_new/lib/logger';
 import { localDependencyManager } from './_new/services/LocalDependencyManager';
 
@@ -95,6 +91,11 @@ app.whenReady().then(async () => {
 
   registerAllIpc();
 
+  // Initialize per-project environment providers and hydrate existing task sessions.
+  environmentProviderManager.initialize().catch((e) => {
+    log.error('Failed to initialize environment providers:', e);
+  });
+
   void localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
@@ -122,18 +123,8 @@ app.on('before-quit', () => {
 
   // Cleanup auto-update service
   autoUpdateService.shutdown();
-  // Stop agent event HTTP server
-  agentEventService.stop();
-  // Stop any lifecycle run scripts so they do not outlive the app process.
-  taskLifecycleService.shutdown();
-
-  // Cleanup reserve worktrees (fire and forget - don't block quit)
-  worktreePoolService.cleanup().catch(() => {});
-  // Kill all pre-warmed pool PTYs
-  ptyPoolService.cleanup();
-
   // Tear down all active task environments (closes SSH channels, cleans PTY sessions)
-  taskResourceManager.teardownAll().catch(() => {});
+  environmentProviderManager.shutdown().catch(() => {});
 
   // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});

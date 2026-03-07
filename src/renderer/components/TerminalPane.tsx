@@ -1,34 +1,51 @@
-import React, { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { terminalSessionRegistry } from '../terminal/SessionRegistry';
-import type { SessionTheme } from '../terminal/TerminalSessionManager';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
+import { useTerminal, type SessionTheme } from '../hooks/useTerminal';
 import { log } from '../lib/logger';
 import { rpc } from '../lib/rpc';
 
 type Props = {
-  id: string;
-  /** The conversation ID used as the PTY session identity. Defaults to `id` for backward compat. */
-  conversationId?: string;
-  cwd?: string;
-  remote?: {
-    connectionId: string;
-  };
-  providerId?: string; // If set, uses direct CLI spawn (no shell)
-  shell?: string; // Used for shell-based spawn when providerId not set
-  cols?: number;
-  rows?: number;
-  env?: Record<string, string>;
+  /**
+   * Deterministic PTY session ID: `makePtySessionId(projectId, taskId, conversationId|terminalId)`.
+   * The renderer subscribes to this ID before calling startSession so no data is missed.
+   *
+   * Either `sessionId` or `id` must be provided. `id` is kept for backward compatibility
+   * with callers that have not yet been migrated to compute deterministic session IDs.
+   */
+  sessionId?: string;
+  /** @deprecated Use `sessionId` instead. Kept for backward compatibility. */
+  id?: string;
   className?: string;
   variant?: 'dark' | 'light';
   themeOverride?: any;
   contentFilter?: string;
-  keepAlive?: boolean;
-  autoApprove?: boolean;
-  initialPrompt?: string;
+  cols?: number;
+  rows?: number;
   mapShiftEnterToCtrlJ?: boolean;
-  disableSnapshots?: boolean; // If true, don't save/restore terminal snapshots (for non-main chats)
-  onActivity?: () => void;
+  /** SSH connection ID — used for remote file drag-and-drop only. */
+  remoteConnectionId?: string;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  cwd?: string;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  remote?: { connectionId: string };
+  /** @deprecated PTY session starting is now handled by the main process. */
+  providerId?: string;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  shell?: string;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  env?: Record<string, string>;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  autoApprove?: boolean;
+  /** @deprecated PTY session starting is now handled by the main process. */
+  initialPrompt?: string;
+  /** @deprecated no-op in new architecture. */
+  keepAlive?: boolean;
+  /** @deprecated no-op in new architecture. */
+  disableSnapshots?: boolean;
+  /** @deprecated no-op in new architecture. */
   onStartError?: (message: string) => void;
+  /** @deprecated no-op in new architecture. */
   onStartSuccess?: () => void;
+  onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
 };
@@ -36,222 +53,97 @@ type Props = {
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   (
     {
+      sessionId: sessionIdProp,
       id,
-      conversationId,
-      cwd,
-      remote,
-      providerId,
-      cols = 120,
-      rows = 32,
-      shell,
-      env,
       className,
       variant = 'dark',
       themeOverride,
       contentFilter,
-      keepAlive = true,
-      autoApprove,
-      initialPrompt,
+      cols,
+      rows,
       mapShiftEnterToCtrlJ,
-      disableSnapshots = false,
+      remoteConnectionId,
+      remote,
       onActivity,
-      onStartError,
-      onStartSuccess,
       onExit,
       onFirstMessage,
+      // Deprecated props — accepted but ignored (PTY lifecycle managed by main process)
+      cwd: _cwd,
+      providerId: _providerId,
+      shell: _shell,
+      env: _env,
+      autoApprove: _autoApprove,
+      initialPrompt: _initialPrompt,
+      keepAlive: _keepAlive,
+      disableSnapshots: _disableSnapshots,
+      onStartError: _onStartError,
+      onStartSuccess: _onStartSuccess,
     },
     ref
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const sessionRef = useRef<ReturnType<(typeof terminalSessionRegistry)['attach']> | null>(null);
-    const activityCleanupRef = useRef<(() => void) | null>(null);
-    const readyCleanupRef = useRef<(() => void) | null>(null);
-    const errorCleanupRef = useRef<(() => void) | null>(null);
-    const exitCleanupRef = useRef<(() => void) | null>(null);
 
-    const cwdRef = useRef(cwd);
-    cwdRef.current = cwd;
-    const remoteRef = useRef(remote);
-    remoteRef.current = remote;
-    const providerIdRef = useRef(providerId);
-    providerIdRef.current = providerId;
-    const shellRef = useRef(shell);
-    shellRef.current = shell;
-    const colsRef = useRef(cols);
-    colsRef.current = cols;
-    const rowsRef = useRef(rows);
-    rowsRef.current = rows;
-    const envRef = useRef(env);
-    envRef.current = env;
-    const autoApproveRef = useRef(autoApprove);
-    autoApproveRef.current = autoApprove;
-    const initialPromptRef = useRef(initialPrompt);
-    initialPromptRef.current = initialPrompt;
-    const mapShiftEnterToCtrlJRef = useRef(mapShiftEnterToCtrlJ);
-    mapShiftEnterToCtrlJRef.current = mapShiftEnterToCtrlJ;
-    const disableSnapshotsRef = useRef(disableSnapshots);
-    disableSnapshotsRef.current = disableSnapshots;
-    const onActivityRef = useRef(onActivity);
-    onActivityRef.current = onActivity;
-    const onStartErrorRef = useRef(onStartError);
-    onStartErrorRef.current = onStartError;
-    const onStartSuccessRef = useRef(onStartSuccess);
-    onStartSuccessRef.current = onStartSuccess;
-    const onExitRef = useRef(onExit);
-    onExitRef.current = onExit;
-    const onFirstMessageRef = useRef(onFirstMessage);
-    onFirstMessageRef.current = onFirstMessage;
+    // Resolve sessionId: prefer explicit sessionId, fall back to id for backward compat.
+    const sessionId = sessionIdProp ?? id ?? '';
+    // Resolve remoteConnectionId from either the new prop or the deprecated `remote` prop.
+    const resolvedRemoteConnectionId = remoteConnectionId ?? remote?.connectionId;
 
-    const theme = useMemo<SessionTheme>(
-      () => ({ base: variant, override: themeOverride }),
-      [variant, themeOverride]
-    );
-    const themeRef = useRef(theme);
-    themeRef.current = theme;
+    const theme: SessionTheme = { base: variant, override: themeOverride };
 
-    // Expose focus method via ref
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus: () => {
-          sessionRef.current?.focus();
-        },
-      }),
-      []
+    const { focus } = useTerminal(
+      {
+        sessionId,
+        theme,
+        cols,
+        rows,
+        mapShiftEnterToCtrlJ,
+        onActivity,
+        onExit,
+        onFirstMessage,
+      },
+      containerRef
     );
 
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const handleLinkClick = (url: string) => {
-        if (!url) return;
-        rpc.app.openExternal(url).catch((error) => {
-          log.warn('failed to open external link', { url, error });
-        });
-      };
-
-      const session = terminalSessionRegistry.attach({
-        taskId: id,
-        conversationId: conversationId ?? id,
-        container,
-        cwd: cwdRef.current,
-        remote: remoteRef.current,
-        providerId: providerIdRef.current,
-        shell: shellRef.current,
-        env: envRef.current,
-        initialSize: { cols: colsRef.current, rows: rowsRef.current },
-        theme: themeRef.current,
-        autoApprove: autoApproveRef.current,
-        initialPrompt: initialPromptRef.current,
-        mapShiftEnterToCtrlJ: mapShiftEnterToCtrlJRef.current,
-        disableSnapshots: disableSnapshotsRef.current,
-        onLinkClick: handleLinkClick,
-        onFirstMessage: onFirstMessageRef.current,
-      });
-      sessionRef.current = session;
-
-      if (onActivityRef.current) {
-        activityCleanupRef.current = session.registerActivityListener((...args: []) =>
-          onActivityRef.current?.(...args)
-        );
-      }
-
-      if (onStartSuccessRef.current) {
-        readyCleanupRef.current = session.registerReadyListener((...args: []) =>
-          onStartSuccessRef.current?.(...args)
-        );
-      }
-      if (onStartErrorRef.current) {
-        errorCleanupRef.current = session.registerErrorListener((msg: string) =>
-          onStartErrorRef.current?.(msg)
-        );
-      }
-      if (onExitRef.current) {
-        exitCleanupRef.current = session.registerExitListener(
-          (info: { exitCode: number | undefined; signal?: number }) => onExitRef.current?.(info)
-        );
-      }
-
-      return () => {
-        activityCleanupRef.current?.();
-        activityCleanupRef.current = null;
-        readyCleanupRef.current?.();
-        readyCleanupRef.current = null;
-        errorCleanupRef.current?.();
-        errorCleanupRef.current = null;
-        exitCleanupRef.current?.();
-        exitCleanupRef.current = null;
-        terminalSessionRegistry.detach(id);
-      };
-    }, [id]);
-
-    useEffect(() => {
-      if (sessionRef.current) {
-        sessionRef.current.setTheme(theme);
-      }
-    }, [theme]);
-
-    useEffect(() => {
-      return () => {
-        activityCleanupRef.current?.();
-        activityCleanupRef.current = null;
-        readyCleanupRef.current?.();
-        readyCleanupRef.current = null;
-        errorCleanupRef.current?.();
-        errorCleanupRef.current = null;
-        exitCleanupRef.current?.();
-        exitCleanupRef.current = null;
-        if (!keepAlive) {
-          terminalSessionRegistry.dispose(id);
-        }
-      };
-    }, [id, keepAlive]);
+    useImperativeHandle(ref, () => ({ focus }), [focus]);
 
     const handleFocus = () => {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('terminal_entered');
       })();
-      // Focus the terminal session
-      sessionRef.current?.focus();
+      focus();
     };
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = async (event) => {
       try {
         event.preventDefault();
         const dt = event.dataTransfer;
-        if (!dt || !dt.files || dt.files.length === 0) return;
+        if (!dt?.files?.length) return;
+
         const paths: string[] = [];
         for (let i = 0; i < dt.files.length; i++) {
-          const file = dt.files[i] as any;
-          const p: string | undefined = file?.path;
+          const p = (dt.files[i] as any)?.path as string | undefined;
           if (p) paths.push(p);
         }
         if (paths.length === 0) return;
 
-        if (remoteRef.current?.connectionId) {
-          // SSH terminal: transfer files to remote first via scp
+        if (resolvedRemoteConnectionId) {
           try {
-            const result = await rpc.pty.scpToRemote({
-              connectionId: remoteRef.current.connectionId,
-              localPaths: paths,
-            });
-            if (result.success && result.remotePaths) {
-              const escaped = result.remotePaths
+            const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
+            if (result.success && result.data?.remotePaths) {
+              const escaped = result.data.remotePaths
                 .map((p) => `'${p.replace(/'/g, "'\\''")}'`)
                 .join(' ');
-              window.electronAPI.ptyInput({ id, data: `${escaped} ` });
+              await rpc.pty.sendInput(sessionId, `${escaped} `);
             }
           } catch (error) {
             log.warn('SSH file transfer failed', { error });
           }
         } else {
-          // Local terminal: send local path directly
           const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-          window.electronAPI.ptyInput({ id, data: `${escaped} ` });
+          await rpc.pty.sendInput(sessionId, `${escaped} `);
         }
-        sessionRef.current?.focus();
+        focus();
       } catch (error) {
         log.warn('Terminal drop failed', { error });
       }
@@ -293,5 +185,5 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 TerminalPaneComponent.displayName = 'TerminalPane';
 
 export const TerminalPane = React.memo(TerminalPaneComponent);
-
+export type { SessionTheme };
 export default TerminalPane;

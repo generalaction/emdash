@@ -222,7 +222,7 @@ describe('ptyIpc notification lifecycle', () => {
   }
 
   it('does not show completion notification after app quit cleanup even if exit 0 arrives', async () => {
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const start = ipcHandleHandlers.get('pty:start');
@@ -249,7 +249,7 @@ describe('ptyIpc notification lifecycle', () => {
   });
 
   it('injects remote init commands so provider lookup uses login shell PATH', async () => {
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
@@ -284,7 +284,7 @@ describe('ptyIpc notification lifecycle', () => {
   });
 
   it('does not show completion notification on process exit (moved to AgentEventService)', async () => {
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const start = ipcHandleHandlers.get('pty:start');
@@ -307,7 +307,7 @@ describe('ptyIpc notification lifecycle', () => {
   });
 
   it('keeps replacement PTY writable after direct CLI exit triggers shell respawn', async () => {
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
@@ -342,7 +342,7 @@ describe('ptyIpc notification lifecycle', () => {
   });
 
   it('still cleans up direct PTY exit when no replacement PTY exists', async () => {
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
@@ -386,7 +386,7 @@ describe('ptyIpc notification lifecycle', () => {
       initialPromptFlag: '',
     });
 
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const startDirect = ipcHandleHandlers.get('pty:startDirect');
@@ -441,7 +441,7 @@ describe('ptyIpc notification lifecycle', () => {
       initialPromptFlag: '',
     });
 
-    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    const { registerPtyIpc } = await import('../../main/_deprecated/services/ptyIpc');
     registerPtyIpc();
 
     const startDirect = ipcHandleHandlers.get('pty:startDirect');

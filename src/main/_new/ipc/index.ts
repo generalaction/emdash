@@ -1,27 +1,33 @@
 import { ipcMain } from 'electron';
-import { worktreeController } from '../../services/worktreeIpc';
-import { registerFsIpc, fsController } from '../../services/fsIpc';
-import { lifecycleController, registerLifecycleEvents } from '../../services/lifecycleIpc';
+import { worktreeController } from '../../_deprecated/services/worktreeIpc';
+import { registerFsIpc, fsController } from '../../_deprecated/services/fsIpc';
+import {
+  lifecycleController,
+  registerLifecycleEvents,
+} from '../../_deprecated/services/lifecycleIpc';
 import { appController, registerAppIpc } from './app';
 import { githubController } from './github';
-import { databaseController } from '../../ipc/dbIpc';
-import { registerGitIpc, gitController } from '../../ipc/gitIpc';
-import { updateController } from '../../services/updateIpc';
-import { appSettingsController } from '../../ipc/settingsIpc';
-import { hostPreviewController, registerHostPreviewEvents } from '../../ipc/hostPreviewIpc';
-import { registerSshIpc, sshController } from '../../ipc/sshIpc';
+import { databaseController } from '../../_deprecated/ipc/dbIpc';
+import { gitController } from '../../_deprecated/ipc/gitIpc';
+import { updateController } from '../../_deprecated/services/updateIpc';
+import { appSettingsController } from './settings';
+import {
+  hostPreviewController,
+  registerHostPreviewEvents,
+} from '../../_deprecated/ipc/hostPreviewIpc';
+import { registerSshIpc, sshController } from '../../_deprecated/ipc/sshIpc';
 import { jiraController } from './jiraIpc';
 import { linearController } from './linearIpc';
-import { connectionsController } from '../../ipc/connectionsIpc';
-import { telemetryController } from '../../ipc/telemetryIpc';
-import { debugController } from '../../ipc/debugIpc';
-import { netController } from '../../ipc/netIpc';
+import { connectionsController } from '../../_deprecated/ipc/connectionsIpc';
+import { telemetryController } from '../../_deprecated/ipc/telemetryIpc';
+import { debugController } from '../../_deprecated/ipc/debugIpc';
+import { netController } from '../../_deprecated/ipc/netIpc';
 import { lineCommentsController } from './line-comments';
 import { skillsController } from './skills';
 import { projectSettingsController } from './project-settings';
-import { planLockController } from '../../services/planLockIpc';
-import { browserController } from '../../ipc/browserIpc';
-import { projectController as openDialogController } from '../../ipc/projectIpc';
+import { planLockController } from '../../_deprecated/services/planLockIpc';
+import { browserController } from '../../_deprecated/ipc/browserIpc';
+import { projectController as openDialogController } from '../../_deprecated/ipc/projectIpc';
 import { createRPCRouter, registerRPCRouter } from '../../../shared/ipc/rpc';
 import { projectController } from './projects';
 import { taskController } from './tasks';

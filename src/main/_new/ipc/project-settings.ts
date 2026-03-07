@@ -1,6 +1,6 @@
 import { log } from '../lib/logger';
-import { projectSettingsService } from '../../services/ProjectSettingsService';
-import { worktreeService } from '../../services/WorktreeService';
+import { projectSettingsService } from '../../_deprecated/services/ProjectSettingsService';
+import { worktreeService } from '../../_deprecated/services/WorktreeService';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 type ProjectSettingsArgs = { projectId: string };

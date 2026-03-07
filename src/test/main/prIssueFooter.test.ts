@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { injectIssueFooter } from '../../main/lib/prIssueFooter';
+import { injectIssueFooter } from '../../main/_deprecated/lib/prIssueFooter';
 
 describe('injectIssueFooter', () => {
   it('appends footer lines for linked GitHub and Linear issues', () => {

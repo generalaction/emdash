@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
-import { WorktreePoolService } from '../../main/services/WorktreePoolService';
+import { WorktreePoolService } from '../../main/_deprecated/services/WorktreePoolService';
 
 vi.mock('electron', () => ({
   app: {

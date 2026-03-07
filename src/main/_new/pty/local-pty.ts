@@ -2,8 +2,8 @@ import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import path from 'node:path';
 import { log } from '../lib/logger';
-import type { Pty, PtyExitInfo, PtyDimensions } from './core';
-import { ok, err, type Result } from '../../lib/result';
+import type { Pty, PtyExitInfo, PtyDimensions } from './pty';
+import { ok, err, type Result } from '../../_deprecated/lib/result';
 import { normalizeSignal } from './exit-signals';
 
 export interface LocalSpawnOptions extends PtyDimensions {

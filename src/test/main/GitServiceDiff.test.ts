@@ -4,7 +4,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { getFileDiff, getCommitFileDiff } from '../../main/services/GitService';
+import {
+  getFileDiff,
+  getCommitFileDiff,
+} from '../../main/_new/environment/impl/git-provider/local-git-utils';
 
 const exec = promisify(execFile);
 

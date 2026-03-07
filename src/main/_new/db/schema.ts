@@ -242,6 +242,7 @@ export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
+export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;

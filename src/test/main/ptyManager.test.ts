@@ -81,7 +81,9 @@ describe('ptyManager provider command resolution', () => {
       initialPromptFlag: '',
     });
 
-    const { resolveProviderCommandConfig } = await import('../../main/services/ptyManager');
+    const { resolveProviderCommandConfig } = await import(
+      '../../main/_deprecated/services/ptyManager'
+    );
     const config = resolveProviderCommandConfig('codex');
 
     expect(config?.cli).toBe('codex-custom');
@@ -92,7 +94,7 @@ describe('ptyManager provider command resolution', () => {
   });
 
   it('builds provider CLI args consistently from resolved flags', async () => {
-    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+    const { buildProviderCliArgs } = await import('../../main/_deprecated/services/ptyManager');
 
     const args = buildProviderCliArgs({
       resume: true,
@@ -118,7 +120,7 @@ describe('ptyManager provider command resolution', () => {
   it('covers all configured provider auto-approve flags', async () => {
     const { PROVIDERS } = await import('../../shared/providers/registry');
     const { resolveProviderCommandConfig, buildProviderCliArgs, parseShellArgs } = await import(
-      '../../main/services/ptyManager'
+      '../../main/_deprecated/services/ptyManager'
     );
 
     const expectedAutoApproveFlags: Record<string, string> = {
@@ -160,7 +162,7 @@ describe('ptyManager provider command resolution', () => {
       cli: 'codex --dangerously-bypass-approvals-and-sandbox',
     });
 
-    const { startDirectPty } = await import('../../main/services/ptyManager');
+    const { startDirectPty } = await import('../../main/_deprecated/services/ptyManager');
     const proc = startDirectPty({
       id: 'codex-main-shell-fallback',
       providerId: 'codex',
@@ -178,7 +180,9 @@ describe('ptyManager provider command resolution', () => {
     });
 
     try {
-      const { parseCustomCliForDirectSpawn } = await import('../../main/services/ptyManager');
+      const { parseCustomCliForDirectSpawn } = await import(
+        '../../main/_deprecated/services/ptyManager'
+      );
 
       expect(parseCustomCliForDirectSpawn('C:\\Tools\\codex.cmd')).toEqual([
         'C:\\Tools\\codex.cmd',
@@ -203,13 +207,13 @@ describe('claudeSessionFileExists', () => {
   });
 
   it('returns true when session jsonl file exists', async () => {
-    const { claudeSessionFileExists } = await import('../../main/services/ptyManager');
+    const { claudeSessionFileExists } = await import('../../main/_deprecated/services/ptyManager');
     fsExistsSyncMock.mockReturnValue(true);
     expect(claudeSessionFileExists(TEST_UUID, TEST_CWD)).toBe(true);
   });
 
   it('returns false when session jsonl file is missing', async () => {
-    const { claudeSessionFileExists } = await import('../../main/services/ptyManager');
+    const { claudeSessionFileExists } = await import('../../main/_deprecated/services/ptyManager');
     fsExistsSyncMock.mockReturnValue(false);
     expect(claudeSessionFileExists(TEST_UUID, TEST_CWD)).toBe(false);
   });

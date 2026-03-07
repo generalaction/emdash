@@ -1,53 +1,56 @@
 import { useEffect } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity } from '../lib/activityClassifier';
-import { makePtyId } from '@shared/ptyId';
-import type { ProviderId } from '@shared/providers/registry';
-import { events } from '../lib/rpc';
-import { ptyDataChannel, ptyStartedChannel } from '@shared/events/appEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { events, rpc } from '../lib/rpc';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
  * One-shot per conversation. Provider-agnostic.
+ *
+ * Subscribes to `ptyDataChannel.{sessionId}` using the deterministic session ID
+ * and sends input via `rpc.pty.sendInput` once the terminal looks idle.
  */
 export function useInitialPromptInjection(opts: {
+  projectId: string;
   taskId: string;
   conversationId: string;
-  providerId: string; // codex | claude | ... used for PTY id prefix
+  providerId: string;
   prompt?: string | null;
   enabled?: boolean;
 }) {
-  const { taskId, conversationId, providerId, prompt, enabled = true } = opts;
+  const { projectId, taskId, conversationId, providerId, prompt, enabled = true } = opts;
 
   useEffect(() => {
     if (!enabled) return;
     const trimmed = (prompt || '').trim();
     if (!trimmed) return;
+
     const sentKey = initialPromptSentKey(taskId, providerId);
     if (localStorage.getItem(sentKey) === '1') return;
 
-    const ptyId = makePtyId(providerId as ProviderId, conversationId);
+    const sessionId = makePtySessionId(projectId, taskId, conversationId);
     let sent = false;
-    let silenceTimer: any = null;
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const send = () => {
-      try {
-        if (sent) return;
-        window.electronAPI.ptyInput({ id: ptyId, data: trimmed + '\n' });
-        localStorage.setItem(sentKey, '1');
-        sent = true;
-      } catch {}
+      if (sent) return;
+      void rpc.pty.sendInput(sessionId, trimmed + '\n');
+      localStorage.setItem(sentKey, '1');
+      sent = true;
     };
 
     const offData = events.on(
       ptyDataChannel,
       (chunk) => {
-        // Debounce-based idle: send after a short period of silence
+        // Debounce: send after a short period of silence.
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (!sent) send();
         }, 1200);
 
-        // Heuristic: if classifier says idle, trigger a quicker send
+        // Heuristic: if classifier says idle, send sooner.
         try {
           const signal = classifyActivity(providerId, chunk);
           if (signal === 'idle' && !sent) {
@@ -57,26 +60,18 @@ export function useInitialPromptInjection(opts: {
           // ignore classifier errors; rely on silence debounce
         }
       },
-      ptyId
+      sessionId
     );
-    const offStarted = events.on(ptyStartedChannel, (info) => {
-      if (info?.id === ptyId) {
-        // Start a silence timer in case no output arrives (rare but possible)
-        if (silenceTimer) clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(() => {
-          if (!sent) send();
-        }, 2000);
-      }
-    });
-    // Global last-resort fallback if neither event fires
-    const t = setTimeout(() => {
+
+    // Global last-resort fallback if no output arrives.
+    const fallbackTimer = setTimeout(() => {
       if (!sent) send();
-    }, 10000);
+    }, 10_000);
+
     return () => {
-      clearTimeout(t);
+      clearTimeout(fallbackTimer);
       if (silenceTimer) clearTimeout(silenceTimer);
-      offStarted();
       offData();
     };
-  }, [enabled, taskId, conversationId, providerId, prompt]);
+  }, [enabled, projectId, taskId, conversationId, providerId, prompt]);
 }

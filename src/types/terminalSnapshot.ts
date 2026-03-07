@@ -1,1 +1,1 @@
-export * from '../main/types/terminalSnapshot';
+export * from '../main/_deprecated/types/terminalSnapshot';

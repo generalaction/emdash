@@ -6,14 +6,14 @@ import type { TerminalSnapshotPayload } from '../../types/terminalSnapshot';
 
 describe('TerminalSnapshotService', () => {
   let tempDir: string;
-  let service: typeof import('../../main/services/TerminalSnapshotService').terminalSnapshotService;
+  let service: typeof import('../../main/_deprecated/services/TerminalSnapshotService').terminalSnapshotService;
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-snapshot-test-'));
     process.env.EMDASH_TERMINAL_SNAPSHOT_DIR = tempDir;
     vi.resetModules();
     ({ terminalSnapshotService: service } = await import(
-      '../../main/services/TerminalSnapshotService'
+      '../../main/_deprecated/services/TerminalSnapshotService'
     ));
   });
 

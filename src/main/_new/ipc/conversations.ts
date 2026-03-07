@@ -2,11 +2,12 @@ import { db } from '../db/client';
 import { conversations, tasks, projects } from '../db/schema';
 import { eq, asc, sql } from 'drizzle-orm';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../lib/result';
-import { ptySessionManager } from '../pty/session/core';
-import { taskResourceManager } from '../environment/task-resource-manager';
+import { ok, err } from '../../_deprecated/lib/result';
+import { environmentProviderManager } from '../environment/provider-manager';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { buildAgentCommand } from '../pty/build-agent-command';
 import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { log } from '../lib/logger';
 import type { Conversation } from '../core/conversations';
 import type { ConversationRow } from '../db/schema';
@@ -65,8 +66,6 @@ export const conversationController = createRPCController({
     const conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const conversationTitle = title ?? `${provider} conversation`;
 
-    // For providers with sessionIdFlag (e.g. Claude --session-id), generate a
-    // stable UUID so Claude can maintain conversation history across restarts.
     const agentSessionId = crypto.randomUUID();
 
     const [row] = await db
@@ -93,60 +92,55 @@ export const conversationController = createRPCController({
         .limit(1);
 
       if (project) {
-        taskResourceManager
-          .getOrProvision(project, task)
-          .then((env) => {
-            const providerId = isValidProviderId(provider) ? provider : null;
+        const providerId: ProviderId | null = isValidProviderId(provider) ? provider : null;
+        const { command, args } = providerId
+          ? buildAgentCommand({
+              providerId,
+              autoApprove: autoApprove ?? false,
+              resume: resume ?? false,
+              initialPrompt,
+              sessionId: agentSessionId,
+            })
+          : { command: provider, args: [] };
 
-            // Build the CLI command from the provider definition when available,
-            // otherwise fall back to the bare provider string as the command.
-            const { command, args } = providerId
-              ? buildAgentCommand({
-                  providerId,
-                  autoApprove: autoApprove ?? false,
-                  resume: resume ?? false,
-                  initialPrompt,
-                  sessionId: agentSessionId,
-                })
-              : { command: provider, args: [] };
-
-            return ptySessionManager.createSession({
-              // conversationId is the PTY session ID so the renderer can subscribe
-              // to ptyDataChannel / ptyExitChannel with topic = conversationId.
-              id: conversationId,
-              type: 'agent',
-              config: {
-                taskId,
+        const provider_ = environmentProviderManager.getProvider(project.id);
+        if (!provider_) {
+          log.warn('conversationController.createConversation: no provider for project', {
+            projectId: project.id,
+          });
+        } else {
+          provider_
+            .provision({ task, projectPath: project.path, conversations: [], terminals: [] })
+            .then((env) =>
+              env.agentProvider.startSession({
+                projectId: project.id,
                 conversationId,
-                providerId: providerId ?? 'codex', // safe fallback for classifier
+                taskId,
+                providerId: providerId ?? 'codex',
                 command,
                 args,
                 cwd: task.path,
                 projectPath: project.path,
-                sessionId: agentSessionId,
+                agentSessionId,
                 autoApprove: autoApprove ?? false,
                 resume: resume ?? false,
-              },
-              transport:
-                env.transport === 'ssh2' && env.connectionId
-                  ? { type: 'ssh2', connectionId: env.connectionId }
-                  : { type: 'local' },
-            });
-          })
-          .then((result) => {
-            if (!result.success) {
-              log.error('conversationController: failed to spawn agent PTY', {
-                conversationId,
-                error: result.error,
-              });
-            }
-          })
-          .catch((e) =>
-            log.error('conversationController: unexpected PTY spawn error', {
-              conversationId,
-              error: String(e),
+              })
+            )
+            .then((result) => {
+              if (!result.success) {
+                log.error('conversationController: failed to spawn agent PTY', {
+                  conversationId,
+                  error: result.error,
+                });
+              }
             })
-          );
+            .catch((e) =>
+              log.error('conversationController: unexpected PTY spawn error', {
+                conversationId,
+                error: String(e),
+              })
+            );
+        }
       }
     }
 
@@ -155,18 +149,33 @@ export const conversationController = createRPCController({
 
   deleteConversation: async (id: string) => {
     const [row] = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-
     if (!row) return err({ type: 'not_found' as const });
 
-    // conversationId == PTY session ID in the new system; also sweep any
-    // sessions that might still use the legacy task-scoped lookup.
-    ptySessionManager.destroySession(id);
-    const remainingSessions = ptySessionManager.getSessionsForTask(row.taskId).filter((s) => {
-      const cfg = s.config as { conversationId?: string };
-      return cfg.conversationId === id;
-    });
-    for (const session of remainingSessions) {
-      ptySessionManager.destroySession(session.id);
+    // Look up project to find the right provider.
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, row.taskId)).limit(1);
+    if (task) {
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, task.projectId))
+        .limit(1);
+      if (project) {
+        const provider = environmentProviderManager.getProvider(project.id);
+        const env = provider?.getEnvironment(task.id);
+        if (env) {
+          env.agentProvider.stopSession(id);
+        } else {
+          // Fall back: kill by deterministic session ID if the provider hasn't provisioned yet.
+          const sessionId = makePtySessionId(project.id, task.id, id);
+          const pty = ptySessionRegistry.get(sessionId);
+          if (pty) {
+            try {
+              pty.kill();
+            } catch {}
+            ptySessionRegistry.unregister(sessionId);
+          }
+        }
+      }
     }
 
     await db.delete(conversations).where(eq(conversations.id, id));
@@ -182,8 +191,6 @@ export const conversationController = createRPCController({
 
     if (!row?.taskId || row.taskId !== taskId) return err({ type: 'not_found' as const });
 
-    // Active conversation is tracked in the renderer (localStorage), but we
-    // store it in metadata as a convenience for main-process consumers.
     const meta = row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {};
     meta.active = true;
 
@@ -214,11 +221,6 @@ export const conversationController = createRPCController({
   }) => {
     const { conversationId, resume = false, autoApprove = false } = params;
 
-    // If a live session already exists for this conversation, reuse it.
-    if (ptySessionManager.getSession(conversationId)) {
-      return ok({ reused: true });
-    }
-
     const [conversationRow] = await db
       .select()
       .from(conversations)
@@ -240,6 +242,12 @@ export const conversationController = createRPCController({
       .limit(1);
     if (!project) return err({ type: 'project_not_found' as const });
 
+    // If a live session already exists, reuse it.
+    const sessionId = makePtySessionId(project.id, task.id, conversationId);
+    if (ptySessionRegistry.get(sessionId)) {
+      return ok({ reused: true });
+    }
+
     const rawProvider = conversationRow.provider ?? '';
     const providerId: ProviderId | null = isValidProviderId(rawProvider) ? rawProvider : null;
 
@@ -252,28 +260,27 @@ export const conversationController = createRPCController({
         })
       : { command: conversationRow.provider ?? 'sh', args: [] };
 
-    taskResourceManager
-      .getOrProvision(project, task)
+    const envProvider = environmentProviderManager.getProvider(project.id);
+    if (!envProvider) {
+      log.warn('conversations.startSession: no provider for project', { projectId: project.id });
+      return err({ type: 'provider_not_found' as const });
+    }
+
+    envProvider
+      .provision({ task, projectPath: project.path, conversations: [], terminals: [] })
       .then((env) =>
-        ptySessionManager.createSession({
-          id: conversationId,
-          type: 'agent',
-          config: {
-            taskId: task.id,
-            conversationId,
-            providerId: providerId ?? 'codex',
-            command,
-            args,
-            cwd: task.path,
-            projectPath: project.path,
-            sessionId: conversationRow.agentSessionId ?? undefined,
-            autoApprove,
-            resume,
-          },
-          transport:
-            env.transport === 'ssh2' && env.connectionId
-              ? { type: 'ssh2', connectionId: env.connectionId }
-              : { type: 'local' },
+        env.agentProvider.startSession({
+          projectId: project.id,
+          conversationId,
+          taskId: task.id,
+          providerId: providerId ?? 'codex',
+          command,
+          args,
+          cwd: task.path,
+          projectPath: project.path,
+          agentSessionId: conversationRow.agentSessionId ?? undefined,
+          autoApprove,
+          resume,
         })
       )
       .then((result) => {

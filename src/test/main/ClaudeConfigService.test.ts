@@ -22,13 +22,13 @@ vi.mock('os', async () => {
 
 describe('ClaudeConfigService', () => {
   let tempDir: string;
-  let ensureClaudeTrust: typeof import('../../main/services/ClaudeConfigService').ensureClaudeTrust;
+  let ensureClaudeTrust: typeof import('../../main/_deprecated/services/ClaudeConfigService').ensureClaudeTrust;
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-config-test-'));
     mockHomeDir = tempDir;
     vi.resetModules();
-    ({ ensureClaudeTrust } = await import('../../main/services/ClaudeConfigService'));
+    ({ ensureClaudeTrust } = await import('../../main/_deprecated/services/ClaudeConfigService'));
   });
 
   afterEach(() => {
