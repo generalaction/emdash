@@ -91,6 +91,8 @@ export function normalizeShortcutKey(value: string): string {
   if (lower === 'arrowright' || lower === 'right') return 'ArrowRight';
   if (lower === 'arrowup' || lower === 'up') return 'ArrowUp';
   if (lower === 'arrowdown' || lower === 'down') return 'ArrowDown';
+  if (lower === '{') return '[';
+  if (lower === '}') return ']';
   if (trimmed.length === 1) return trimmed.toLowerCase();
   return trimmed;
 }
@@ -183,7 +185,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   NEXT_AGENT: {
-    key: 'k',
+    key: ']',
     modifier: 'cmd+shift',
     label: 'Next Agent',
     description: 'Cycle through agents on a task',
@@ -192,7 +194,7 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   PREV_AGENT: {
-    key: 'j',
+    key: '[',
     modifier: 'cmd+shift',
     label: 'Previous Agent',
     description: 'Cycle through agents on a task',
@@ -425,12 +427,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNextProject?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.prevProject,
         handler: () => handlers.onPrevProject?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.newTask,
@@ -443,12 +447,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNextAgent?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.prevAgent,
         handler: () => handlers.onPrevAgent?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       {
         config: effectiveShortcuts.openInEditor,
@@ -482,7 +488,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         if (!matchesModifier(shortcut.config.modifier, event)) continue;
 
         // Skip non-command-palette shortcuts when typing in an input
-        if (isEditableTarget && !shortcut.isCommandPalette) continue;
+        if (isEditableTarget && !shortcut.isCommandPalette && !shortcut.allowInInput) continue;
 
         // Command palette is blocking; settings behaves like a page and should
         // not force-close for global shortcuts.
