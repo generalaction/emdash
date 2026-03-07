@@ -261,17 +261,23 @@ export async function revertFile(
   return { action: 'reverted' };
 }
 
-export async function getFileDiff(taskPath: string, filePath: string): Promise<DiffResult> {
+export async function getFileDiff(
+  taskPath: string,
+  filePath: string,
+  baseRef?: string
+): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
 
-  // Helper: fetch content at HEAD with size guard
+  const ref = baseRef || 'HEAD';
+
+  // Helper: fetch content at the base ref with size guard
   const getOriginalContent = async (): Promise<string | undefined> => {
     try {
-      const { stdout } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
+      const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
         cwd: taskPath,
         maxBuffer: MAX_DIFF_CONTENT_BYTES,
       });
@@ -292,7 +298,7 @@ export async function getFileDiff(taskPath: string, filePath: string): Promise<D
   try {
     const { stdout } = await execFileAsync(
       'git',
-      ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
+      ['diff', '--no-color', '--unified=2000', ref, '--', filePath],
       { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
     );
     diffStdout = stdout;

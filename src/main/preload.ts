@@ -339,7 +339,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: { taskPath: string; filePath: string }) =>
+  getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),

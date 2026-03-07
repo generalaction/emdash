@@ -22,6 +22,7 @@ interface FileDiffViewProps {
   diffStyle: 'unified' | 'split';
   onRefreshChanges?: () => Promise<void> | void;
   onContentHeightChange?: (height: number) => void;
+  baseRef?: string;
 }
 
 export const FileDiffView: React.FC<FileDiffViewProps> = ({
@@ -31,6 +32,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   diffStyle,
   onRefreshChanges,
   onContentHeightChange,
+  baseRef,
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
@@ -102,6 +104,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         const diffRes = await window.electronAPI.getFileDiff({
           taskPath,
           filePath,
+          baseRef,
         });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
@@ -153,7 +156,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [taskPath, filePath]);
+  }, [taskPath, filePath, baseRef]);
 
   // Inject diff panel styles (always update content so theme-dependent colors refresh)
   useEffect(() => {
@@ -373,7 +376,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         theme={monacoTheme}
         options={{
           ...DIFF_EDITOR_BASE_OPTIONS,
-          readOnly: false,
+          readOnly: !!baseRef,
           renderSideBySide: diffStyle === 'split',
           glyphMargin: true,
           lineDecorationsWidth: 16,

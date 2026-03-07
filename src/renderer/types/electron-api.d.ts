@@ -401,7 +401,7 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
-      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
