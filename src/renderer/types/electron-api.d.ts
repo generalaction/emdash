@@ -877,6 +877,23 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
+        error?: string;
+      }>;
+      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        diff?: string;
+        baseBranch?: string;
+        headBranch?: string;
+        prUrl?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -1634,6 +1651,23 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;

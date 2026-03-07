@@ -54,6 +54,7 @@ import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import OpenPrsSection from './OpenPrsSection';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -1056,6 +1057,15 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                 </Alert>
               )}
             </div>
+
+            {/* Open PRs Section */}
+            {project.githubInfo?.connected && !project.isRemote && (
+              <OpenPrsSection
+                projectPath={project.path}
+                projectId={project.id}
+                onReviewPr={onSelectTask}
+              />
+            )}
           </div>
         </div>
       </div>

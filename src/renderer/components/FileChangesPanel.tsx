@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
-import { useFileChanges } from '../hooks/useFileChanges';
+import { useFileChanges, type FileChange } from '../hooks/useFileChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   FileDiff,
+  GitPullRequest,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -35,6 +36,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
+import { parseDiffToFileChanges } from '../lib/parsePrDiff';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -131,11 +133,52 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   className,
   onOpenChanges,
 }) => {
-  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath, prNumber } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const resolvedTaskPath = taskPath ?? scopedTaskPath;
   const safeTaskPath = resolvedTaskPath ?? '';
   const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
+
+  // PR review mode state
+  const [prDiffChanges, setPrDiffChanges] = useState<FileChange[]>([]);
+  const [prDiffLoading, setPrDiffLoading] = useState(false);
+  const [prBaseBranch, setPrBaseBranch] = useState<string | null>(null);
+  const [prHeadBranch, setPrHeadBranch] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | null>(null);
+  const isPrReview = Boolean(prNumber && safeTaskPath);
+
+  const fetchPrDiff = useCallback(async () => {
+    if (!prNumber || !safeTaskPath) return;
+    setPrDiffLoading(true);
+    try {
+      const result = await window.electronAPI.githubGetPullRequestBaseDiff({
+        worktreePath: safeTaskPath,
+        prNumber,
+      });
+      if (result.success && result.diff) {
+        setPrDiffChanges(parseDiffToFileChanges(result.diff));
+        setPrBaseBranch(result.baseBranch || null);
+        setPrHeadBranch(result.headBranch || null);
+        setPrUrl(result.prUrl || null);
+      } else {
+        setPrDiffChanges([]);
+        if (result.error) {
+          console.error('Failed to load PR diff:', result.error);
+        }
+      }
+    } catch (err) {
+      setPrDiffChanges([]);
+      console.error('Failed to load PR diff:', err);
+    } finally {
+      setPrDiffLoading(false);
+    }
+  }, [prNumber, safeTaskPath]);
+
+  useEffect(() => {
+    if (isPrReview) {
+      fetchPrDiff();
+    }
+  }, [isPrReview, fetchPrDiff]);
 
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showAllChangesModal, setShowAllChangesModal] = useState(false);
@@ -312,7 +355,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     );
   };
 
-  const totalChanges = fileChanges.reduce(
+  // Use PR diff changes when in PR review mode, otherwise use local file changes
+  const displayChanges = isPrReview ? prDiffChanges : fileChanges;
+  const displayLoading = isPrReview ? prDiffLoading : isLoading;
+
+  const totalChanges = displayChanges.reduce(
     (acc, change) => ({
       additions: acc.additions + change.additions,
       deletions: acc.deletions + change.deletions,
@@ -325,13 +372,41 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   }
 
   const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMergingToMain;
+  const hasDisplayChanges = displayChanges.length > 0;
 
   return (
     <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
+      {/* PR review banner */}
+      {isPrReview && (
+        <button
+          type="button"
+          className="flex w-full cursor-pointer items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50"
+          onClick={() => {
+            const url = prUrl || pr?.url;
+            if (url) window.electronAPI.openExternal(url);
+          }}
+          title="Open PR on GitHub"
+        >
+          <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="truncate text-xs text-emerald-700 dark:text-emerald-300">
+            Reviewing PR #{prNumber}
+            {prHeadBranch && prBaseBranch && (
+              <>
+                {': '}
+                <span className="font-mono font-medium">{prHeadBranch}</span>
+                {' \u2192 '}
+                <span className="font-mono font-medium">{prBaseBranch}</span>
+              </>
+            )}
+          </span>
+          <ArrowUpRight className="h-3 w-3 shrink-0 text-emerald-500 dark:text-emerald-400" />
+        </button>
+      )}
+
       <div className="bg-muted px-3 py-2">
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex shrink-0 items-center gap-1 text-xs">
-            {hasChanges ? (
+            {hasDisplayChanges ? (
               <>
                 <span className="font-medium text-green-600 dark:text-green-400">
                   +{totalChanges.additions}
@@ -340,6 +415,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 <span className="font-medium text-red-600 dark:text-red-400">
                   -{totalChanges.deletions}
                 </span>
+                {isPrReview && (
+                  <>
+                    <span className="text-muted-foreground">&middot;</span>
+                    <span className="text-muted-foreground">
+                      {displayChanges.length} {displayChanges.length === 1 ? 'file' : 'files'}
+                    </span>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -362,18 +445,18 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 <span className="hidden sm:inline">Changes</span>
               </Button>
             )}
-            {hasChanges ? (
+            {!isPrReview && hasChanges ? (
               <PrActionButton
                 mode={prMode}
                 onModeChange={selectPrMode}
                 onExecute={handlePrAction}
                 isLoading={isActionLoading}
               />
-            ) : isPrLoading ? (
+            ) : !isPrReview && isPrLoading ? (
               <div className="flex items-center justify-center p-1">
                 <Spinner size="sm" className="h-3.5 w-3.5" />
               </div>
-            ) : pr ? (
+            ) : !isPrReview && pr ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -390,21 +473,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
                 <ArrowUpRight className="size-3" />
               </button>
-            ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
+            ) : !isPrReview &&
+              (branchStatusLoading || (branchAhead !== null && branchAhead > 0)) ? (
               <PrActionButton
                 mode={prMode}
                 onModeChange={selectPrMode}
                 onExecute={handlePrAction}
                 isLoading={isActionLoading || branchStatusLoading}
               />
-            ) : (
+            ) : !isPrReview ? (
               <span className="text-xs text-muted-foreground">No PR for this task</span>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
-      {pr && hasChanges && (
+      {pr && hasChanges && !isPrReview && (
         <div className="flex border-b border-border">
           <TabButton active={activeTab === 'changes'} onClick={() => setActiveTab('changes')}>
             Changes
@@ -423,7 +507,31 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           </TabButton>
         </div>
       )}
-      {activeTab === 'checks' && pr ? (
+
+      {/* PR review mode: tabs for PR diff + checks */}
+      {isPrReview && (
+        <div className="flex border-b border-border">
+          <TabButton active={activeTab === 'changes'} onClick={() => setActiveTab('changes')}>
+            PR Diff
+            {hasDisplayChanges && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                {displayChanges.length}
+              </span>
+            )}
+          </TabButton>
+          <TabButton active={activeTab === 'checks'} onClick={() => setActiveTab('checks')}>
+            Checks
+            {checkRunsStatus && !checkRunsStatus.allComplete && (
+              <Loader2 className="ml-1.5 inline h-3 w-3 animate-spin text-foreground" />
+            )}
+            {checkRunsStatus?.hasFailures && checkRunsStatus.allComplete && (
+              <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+            )}
+          </TabButton>
+        </div>
+      )}
+
+      {activeTab === 'checks' && (pr || isPrReview) ? (
         <>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {!hasChanges && (
@@ -456,26 +564,28 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             <ChecksPanel
               status={checkRunsStatus}
               isLoading={checkRunsLoading}
-              hasPr={!!pr}
+              hasPr={!!pr || isPrReview}
               hideSummary={!hasChanges}
             />
-            <PrCommentsList
-              status={prCommentsStatus}
-              isLoading={prCommentsLoading}
-              hasPr={!!pr}
-              prUrl={pr?.url}
-            />
+            {pr && (
+              <PrCommentsList
+                status={prCommentsStatus}
+                isLoading={prCommentsLoading}
+                hasPr={!!pr}
+                prUrl={pr?.url}
+              />
+            )}
           </div>
-          <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
+          {pr && <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />}
         </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading && fileChanges.length === 0 ? (
+          {displayLoading && displayChanges.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Spinner size="lg" className="text-muted-foreground" />
             </div>
           ) : (
-            fileChanges.map((change, index) => (
+            displayChanges.map((change, index) => (
               <div
                 key={index}
                 className="flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50"

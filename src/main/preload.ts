@@ -488,6 +488,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName?: string;
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) =>
+    ipcRenderer.invoke('github:getPullRequestBaseDiff', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
   githubCheckCLIInstalled: () => ipcRenderer.invoke('github:checkCLIInstalled'),
   githubInstallCLI: () => ipcRenderer.invoke('github:installCLI'),
@@ -1102,6 +1104,22 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;

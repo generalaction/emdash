@@ -3,10 +3,12 @@ import { log } from '../lib/logger';
 import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
+import { databaseService } from '../services/DatabaseService';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { homedir } from 'os';
 import { quoteShellArg } from '../utils/shellEscape';
 
@@ -307,12 +309,120 @@ export function registerGithubIpc() {
           { worktreePath }
         );
 
-        return { success: true, worktree, branchName, taskName };
+        // Save a task with PR metadata so the UI can identify it as a PR review task
+        const taskId = crypto.randomUUID();
+        const taskInfo = {
+          id: taskId,
+          projectId,
+          name: taskName,
+          branch: branchName,
+          path: worktree.path,
+          status: 'active' as const,
+          useWorktree: true,
+          metadata: {
+            prNumber,
+            prTitle: args.prTitle || null,
+          },
+        };
+
+        try {
+          await databaseService.saveTask(taskInfo);
+        } catch (dbError) {
+          log.warn('Failed to save PR review task to database:', dbError);
+        }
+
+        return { success: true, worktree, branchName, taskName, task: taskInfo };
       } catch (error) {
         log.error('Failed to create PR worktree:', error);
         const message =
           error instanceof Error ? error.message : 'Unable to create PR worktree via GitHub CLI';
         return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'github:getPullRequestBaseDiff',
+    async (
+      _,
+      args: {
+        worktreePath: string;
+        prNumber: number;
+      }
+    ) => {
+      const { worktreePath, prNumber } = args || ({} as typeof args);
+
+      if (!worktreePath || !prNumber) {
+        return { success: false, error: 'Missing required parameters' };
+      }
+
+      try {
+        // Find the project root from the worktree path
+        let projectRoot: string;
+        try {
+          const { stdout } = await execAsync('git rev-parse --show-toplevel', {
+            cwd: worktreePath,
+          });
+          projectRoot = stdout.trim();
+        } catch {
+          projectRoot = worktreePath;
+        }
+
+        // Get PR details (base/head branches)
+        const prDetails = await githubService.getPullRequestDetails(projectRoot, prNumber);
+        if (!prDetails) {
+          return { success: false, error: 'Could not fetch PR details' };
+        }
+
+        const { baseRefName, headRefName } = prDetails;
+
+        // Fetch the base branch to ensure we have the latest
+        try {
+          await execAsync(`git fetch origin ${quoteShellArg(baseRefName)}`, { cwd: worktreePath });
+        } catch {
+          // Best effort — base ref may already be available locally
+        }
+
+        // Use HEAD as the PR head (the worktree is checked out to the PR branch).
+        // This works for both same-repo and fork PRs, since origin/headRefName
+        // doesn't exist for fork PRs.
+        let diff: string;
+        try {
+          // Three-dot diff: changes introduced by the PR relative to the merge base
+          const { stdout } = await execAsync(
+            `git diff ${quoteShellArg(`origin/${baseRefName}`)}...HEAD`,
+            { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          );
+          diff = stdout;
+        } catch {
+          // Fallback: two-dot diff
+          try {
+            const { stdout } = await execAsync(
+              `git diff ${quoteShellArg(`origin/${baseRefName}`)} HEAD`,
+              { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+            );
+            diff = stdout;
+          } catch (diffError) {
+            return {
+              success: false,
+              error: diffError instanceof Error ? diffError.message : 'Failed to compute PR diff',
+            };
+          }
+        }
+
+        return {
+          success: true,
+          diff,
+          baseBranch: baseRefName,
+          headBranch: headRefName,
+          prUrl: prDetails.url,
+        };
+      } catch (error) {
+        log.error('Failed to get PR base diff:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to get PR diff',
+        };
       }
     }
   );

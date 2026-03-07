@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useFileChanges } from '../../hooks/useFileChanges';
+import { useTaskScope } from '../TaskScopeContext';
 import { ChangesTab } from './ChangesTab';
 import { HistoryTab } from './HistoryTab';
 
@@ -19,7 +20,9 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   taskPath,
   initialFile,
 }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('changes');
+  const { prNumber } = useTaskScope();
+  // Default to history tab for PR review tasks (no local changes to show)
+  const [activeTab, setActiveTab] = useState<Tab>(prNumber ? 'history' : 'changes');
   const { fileChanges, refreshChanges } = useFileChanges(taskPath);
   const fileCount = fileChanges.length;
   const [leftPanelSize, setLeftPanelSize] = useState(30);
