@@ -439,7 +439,7 @@ export function Workspace() {
                     order={3}
                   >
                     <RightSidebar
-                      task={isCreatingTask ? null : effectiveTask}
+                      task={effectiveTask}
                       projectPath={selectedProject?.path || activeTaskProjectPath}
                       projectRemoteConnectionId={derivedRemoteConnectionId}
                       projectRemotePath={derivedRemotePath}
