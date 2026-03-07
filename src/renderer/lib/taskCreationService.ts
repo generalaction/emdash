@@ -68,7 +68,9 @@ function seedIssueContext(
       taskMetadata?.linearIssue ||
       taskMetadata?.githubIssue ||
       taskMetadata?.jiraIssue ||
-      taskMetadata?.plainThread;
+      taskMetadata?.plainThread ||
+      taskMetadata?.gitlabIssue ||
+      taskMetadata?.forgejoIssue;
     if (!hasIssueContext) return;
 
     let conversationId: string | undefined;
@@ -217,6 +219,65 @@ function seedIssueContext(
       } catch (seedError) {
         const { log } = await import('./logger');
         log.error('Failed to seed task with Plain thread context:', seedError as any);
+      }
+    }
+
+    if (taskMetadata?.gitlabIssue) {
+      try {
+        const issue = taskMetadata.gitlabIssue;
+        const detailParts: string[] = [];
+        if (issue.state) detailParts.push(`State: ${issue.state}`);
+        if (issue.assignee?.name || issue.assignee?.username)
+          detailParts.push(`Assignee: ${issue.assignee.name || issue.assignee.username}`);
+        if (Array.isArray(issue.labels) && issue.labels.length)
+          detailParts.push(`Labels: ${issue.labels.join(', ')}`);
+        const lines = [`Linked GitLab issue: #${issue.iid} — ${issue.title}`];
+        if (detailParts.length) lines.push(`Details: ${detailParts.join(' • ')}`);
+        if (issue.web_url) lines.push(`URL: ${issue.web_url}`);
+        if (issue.description) {
+          lines.push('');
+          lines.push('Issue Description:');
+          lines.push(String(issue.description).trim());
+        }
+        await rpc.db.saveMessage({
+          id: `gitlab-context-${taskId}`,
+          conversationId,
+          content: lines.join('\n'),
+          sender: 'agent',
+          metadata: JSON.stringify({ isGitLabContext: true, gitlabIssue: issue }),
+        });
+      } catch (seedError) {
+        const { log } = await import('./logger');
+        log.error('Failed to seed task with GitLab issue context:', seedError as any);
+      }
+    }
+
+    if (taskMetadata?.forgejoIssue) {
+      try {
+        const issue = taskMetadata.forgejoIssue;
+        const detailParts: string[] = [];
+        if (issue.state) detailParts.push(`State: ${issue.state}`);
+        if (issue.assignee?.name) detailParts.push(`Assignee: ${issue.assignee.name}`);
+        if (Array.isArray(issue.labels) && issue.labels.length)
+          detailParts.push(`Labels: ${issue.labels.join(', ')}`);
+        const lines = [`Linked Forgejo issue: #${issue.number} — ${issue.title}`];
+        if (detailParts.length) lines.push(`Details: ${detailParts.join(' • ')}`);
+        if (issue.html_url) lines.push(`URL: ${issue.html_url}`);
+        if (issue.description) {
+          lines.push('');
+          lines.push('Issue Description:');
+          lines.push(String(issue.description).trim());
+        }
+        await rpc.db.saveMessage({
+          id: `forgejo-context-${taskId}`,
+          conversationId,
+          content: lines.join('\n'),
+          sender: 'agent',
+          metadata: JSON.stringify({ isForgejoContext: true, forgejoIssue: issue }),
+        });
+      } catch (seedError) {
+        const { log } = await import('./logger');
+        log.error('Failed to seed task with Forgejo issue context:', seedError as any);
       }
     }
   })();

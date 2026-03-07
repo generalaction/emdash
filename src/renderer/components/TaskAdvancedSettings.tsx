@@ -247,14 +247,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     },
     [
       onLinearIssueChange,
-
       onGithubIssueChange,
-
       onJiraIssueChange,
-
       onGitlabIssueChange,
       onPlainThreadChange,
-      ,
       onForgejoIssueChange,
     ]
   );
@@ -272,14 +268,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     },
     [
       onGithubIssueChange,
-
       onLinearIssueChange,
-
       onJiraIssueChange,
-
       onGitlabIssueChange,
       onPlainThreadChange,
-      ,
       onForgejoIssueChange,
     ]
   );
@@ -297,14 +289,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     },
     [
       onJiraIssueChange,
-
       onLinearIssueChange,
-
       onGithubIssueChange,
-
       onGitlabIssueChange,
       onPlainThreadChange,
-      ,
       onForgejoIssueChange,
     ]
   );
@@ -326,6 +314,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onJiraIssueChange,
       onPlainThreadChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -337,6 +326,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -345,6 +335,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onJiraIssueChange,
       onGitlabIssueChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -356,6 +347,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
+        onPlainThreadChange(null);
       }
     },
     [
@@ -364,6 +356,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onJiraIssueChange,
       onGitlabIssueChange,
+      onPlainThreadChange,
     ]
   );
 

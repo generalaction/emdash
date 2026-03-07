@@ -4,20 +4,9 @@ import { app } from 'electron';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { log } from '../lib/logger';
+import type { ForgejoIssueSummary } from '@shared/forgejo/types';
 
 const execAsync = promisify(exec);
-
-interface ForgejoIssueSummary {
-  id: number;
-  number: number; // repo-scoped issue number
-  title: string;
-  description?: string | null;
-  html_url?: string | null;
-  state?: string | null; // "open" | "closed"
-  assignee?: { name: string; login: string } | null;
-  labels?: string[] | null;
-  updated_at?: string | null;
-}
 
 type ForgejoCreds = {
   siteUrl: string;
