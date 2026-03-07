@@ -180,14 +180,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       let content: string;
 
       if (isRemote && sshConnectionId) {
-        const configPath = `${projectPath}/.emdash.json`;
-        try {
-          const readResult = await rpc.ssh.readFile(sshConnectionId, configPath);
-          content = readResult.success ? (readResult.content ?? '{}') : '{}';
-        } catch {
-          // File doesn't exist yet on remote — treat as empty config
-          content = '{}';
-        }
+        // Remote config editing is not supported — treat as empty config
+        content = '{}';
       } else {
         const result = await rpc.fs.getProjectConfig({ projectPath });
         if (!result.success || !result.content) {
@@ -249,8 +243,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     setError(null);
     try {
       if (isRemote && sshConnectionId) {
-        const configPath = `${projectPath}/.emdash.json`;
-        await rpc.ssh.writeFile(sshConnectionId, configPath, normalizedConfigContent);
+        // Remote config writing is not supported — skip
       } else {
         const result = await rpc.fs.saveProjectConfig({
           projectPath,

@@ -1,12 +1,12 @@
-import type { Client } from 'ssh2';
+import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
 import type { DiffResult, GitChange, IGitProvider } from '../../git-provider';
-import { quoteShellArg } from '../../../../_deprecated/utils/shellEscape';
+import { quoteShellArg } from '../../../utils/shellEscape';
 import { parseDiffLines, stripTrailingNewline, MAX_DIFF_CONTENT_BYTES } from './local-git-utils';
 import type { ExecResult } from '@shared/ssh/types';
 
 export class SshGitService implements IGitProvider {
   constructor(
-    private readonly client: Client,
+    private readonly proxy: SshClientProxy,
     private readonly worktreePath: string
   ) {}
 
@@ -16,7 +16,7 @@ export class SshGitService implements IGitProvider {
     const inner = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
     const full = `bash -l -c ${quoteShellArg(inner)}`;
     return new Promise((resolve, reject) => {
-      this.client.exec(full, (execErr, stream) => {
+      this.proxy.client.exec(full, (execErr, stream) => {
         if (execErr) return reject(execErr);
         let stdout = '';
         let stderr = '';

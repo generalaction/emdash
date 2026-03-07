@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
 import dockIcon from '../assets/images/emdash/icon-dock.png?asset';
 import { createMainWindow } from './_new/app/window';
 import { registerAppScheme, setupAppProtocol } from './_new/app/protocol';
 import { setupApplicationMenu } from './_new/app/menu';
-import { registerAllIpc } from './_new/ipc';
+import { registerRPCRouter } from '@shared/ipc/rpc';
 import { environmentProviderManager } from './_new/environment/provider-manager';
 import { initializeDatabase } from './_new/db/initialize';
 import { autoUpdateService } from './_new/services/AutoUpdateService';
@@ -14,6 +14,7 @@ import * as telemetry from './_new/lib/telemetry';
 import { errorTracking } from './_new/error-tracking';
 import { log } from './_new/lib/logger';
 import { localDependencyManager } from './_new/services/LocalDependencyManager';
+import { rpcRouter } from './_new/ipc';
 
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
@@ -89,7 +90,7 @@ app.whenReady().then(async () => {
     log.warn('errorTracking init failed:', e);
   }
 
-  registerAllIpc();
+  registerRPCRouter(rpcRouter, ipcMain);
 
   // Initialize per-project environment providers and hydrate existing task sessions.
   environmentProviderManager.initialize().catch((e) => {

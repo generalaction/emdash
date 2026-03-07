@@ -1,7 +1,7 @@
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
-import { detectSshAuthSock } from '../../_deprecated/utils/shellEnv';
+import { detectSshAuthSock } from '../utils/shellEnv';
 
 export const AGENT_ENV_VARS = [
   'AMP_API_KEY',

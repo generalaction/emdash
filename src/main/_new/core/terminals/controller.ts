@@ -2,7 +2,7 @@ import { db } from '../../db/client';
 import { terminals, tasks, projects } from '../../db/schema';
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '../../../../shared/ipc/rpc';
-import { ok, err } from '../../../_deprecated/lib/result';
+import { ok, err } from '../../lib/result';
 import { environmentProviderManager } from '../../environment/provider-manager';
 import { log } from '../../lib/logger';
 import type { Terminal } from './core';

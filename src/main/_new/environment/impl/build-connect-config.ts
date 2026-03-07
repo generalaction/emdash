@@ -2,16 +2,11 @@ import type { ConnectConfig } from 'ssh2';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import type { SshConnectionRow } from '../../db/schema';
-import { SshCredentialService } from '../../../_deprecated/services/ssh/SshCredentialService';
-import { resolveIdentityAgent } from '../../../_deprecated/utils/sshConfigParser';
-
-const credentialService = new SshCredentialService();
+import { sshCredentialService } from '../../ssh/ssh-credential-service';
+import { resolveIdentityAgent } from '../../utils/sshConfigParser';
 
 /**
  * Build an ssh2 `ConnectConfig` from a stored `SshConnectionRow`.
- * Mirrors the logic in `SshService.buildConnectConfig` so that
- * `SshConnectionManager` can establish connections without going
- * through `SshService`.
  */
 export async function buildConnectConfigFromRow(row: SshConnectionRow): Promise<ConnectConfig> {
   const base: ConnectConfig = {
@@ -25,7 +20,7 @@ export async function buildConnectConfigFromRow(row: SshConnectionRow): Promise<
 
   switch (row.authType) {
     case 'password': {
-      const password = await credentialService.getPassword(row.id);
+      const password = await sshCredentialService.getPassword(row.id);
       if (!password) {
         throw new Error(`No password found for SSH connection '${row.name}' (id: ${row.id})`);
       }
@@ -43,7 +38,7 @@ export async function buildConnectConfigFromRow(row: SshConnectionRow): Promise<
         keyPath = homedir();
       }
       const privateKey = await readFile(keyPath, 'utf-8');
-      const passphrase = await credentialService.getPassphrase(row.id);
+      const passphrase = await sshCredentialService.getPassphrase(row.id);
       return { ...base, privateKey, ...(passphrase ? { passphrase } : {}) };
     }
 

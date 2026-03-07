@@ -2,9 +2,9 @@ import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { errorTracking } from '../../_new/error-tracking';
-import { identify as telemetryIdentify } from '../../_new/lib/telemetry';
-import { events } from '../../_new/lib/events';
+import { errorTracking } from '../error-tracking';
+import { identify as telemetryIdentify } from '../lib/telemetry';
+import { events } from '../lib/events';
 import {
   githubAuthDeviceCodeChannel,
   githubAuthPollingChannel,

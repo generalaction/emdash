@@ -1,5 +1,5 @@
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../_deprecated/lib/result';
+import { ok, err } from '../lib/result';
 import { log } from '../lib/logger';
 import { environmentProviderManager } from '../environment/provider-manager';
 

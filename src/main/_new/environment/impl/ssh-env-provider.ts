@@ -1,11 +1,12 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Client, SFTPWrapper } from 'ssh2';
+import type { SFTPWrapper } from 'ssh2';
 import type { EnvironmentProvider, TaskEnvironment, ProvisionArgs } from '../environment-provider';
+import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
 import { SshFileSystem } from './fs-provider/ssh-fs';
 import { SshGitService } from './git-provider/ssh-git-provider';
 import { openSsh2Pty } from '../../pty/ssh2-pty';
-import { quoteShellArg } from '../../../_deprecated/utils/shellEscape';
+import { quoteShellArg } from '../../utils/shellEscape';
 import { log } from '../../lib/logger';
 import { SshAgentProvider } from './agent-provider/ssh-agent';
 import { SshTerminalProvider } from './terminal-provider/ssh-terminal-provider';
@@ -20,13 +21,13 @@ export class SshEnvironmentProvider implements EnvironmentProvider {
 
   constructor(
     private readonly projectId: string,
-    private readonly client: Client
+    private readonly proxy: SshClientProxy
   ) {}
 
   private getSftp(): Promise<SFTPWrapper> {
     if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
     return new Promise((resolve, reject) => {
-      this.client.sftp((err, sftp) => {
+      this.proxy.client.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
         sftp.on('close', () => {
@@ -41,18 +42,18 @@ export class SshEnvironmentProvider implements EnvironmentProvider {
     const existing = this.environments.get(task.id);
     if (existing) return existing;
 
-    const fs = new SshFileSystem(this.client, task.path);
-    const git = new SshGitService(this.client, task.path);
+    const fs = new SshFileSystem(this.proxy, task.path);
+    const git = new SshGitService(this.proxy, task.path);
 
-    const agentProvider = new SshAgentProvider(this.projectId, task.id, this.client);
-    const terminalProvider = new SshTerminalProvider(this.projectId, task.id, this.client);
+    const agentProvider = new SshAgentProvider(this.projectId, task.id, this.proxy);
+    const terminalProvider = new SshTerminalProvider(this.projectId, task.id, this.proxy);
 
     this.agentProviders.set(task.id, agentProvider);
     this.terminalProviders.set(task.id, terminalProvider);
 
     const getPty = async () => {
       const command = `cd ${quoteShellArg(task.path)} && exec $SHELL -l`;
-      const result = await openSsh2Pty(this.client, {
+      const result = await openSsh2Pty(this.proxy.client, {
         id: crypto.randomUUID(),
         command,
         cols: 80,
@@ -116,9 +117,26 @@ export class SshEnvironmentProvider implements EnvironmentProvider {
   }
 
   /**
+   * Re-spawn all terminal sessions for every active task. Called by
+   * EnvironmentProviderManager after a successful SSH reconnect.
+   * Agent sessions are intentionally excluded — they must be restarted
+   * manually by the user.
+   */
+  async rehydrateTerminals(): Promise<void> {
+    await Promise.all(
+      Array.from(this.terminalProviders.values()).map((provider) =>
+        provider.rehydrate().catch((e: unknown) => {
+          log.error('SshEnvironmentProvider: rehydrateTerminals failed for a provider', {
+            error: String(e),
+          });
+        })
+      )
+    );
+  }
+
+  /**
    * Upload local files into the task's working directory via SFTP and return
-   * their remote paths.  The destination directory is the task worktree path
-   * so the agent can reference uploaded files by relative path.
+   * their remote paths.
    */
   async uploadFiles(taskId: string, localPaths: string[]): Promise<string[]> {
     const env = this.environments.get(taskId);

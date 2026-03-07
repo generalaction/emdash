@@ -26,6 +26,7 @@ export type Task = {
   status: TaskLifecycleStatus;
   sourceBranch: string;
   branch: string;
+  path: string;
   linkedIssue?: LinkedIssue;
   pr?: TaskPr;
   archivedAt?: string;

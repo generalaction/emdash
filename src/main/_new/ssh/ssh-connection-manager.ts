@@ -1,20 +1,15 @@
 import { EventEmitter } from 'node:events';
 import { Client, type ConnectConfig } from 'ssh2';
 import { log } from '../lib/logger';
-import type { Result } from '../../_deprecated/lib/result';
-import { ok, err } from '../../_deprecated/lib/result';
-
-export interface SshConnection {
-  id: string;
-  client: Client;
-  connectedAt: Date;
-}
+import type { Result } from '../lib/result';
+import { ok, err } from '../lib/result';
+import { SshClientProxy } from './ssh-client-proxy';
 
 export type SshConnectionEvent =
-  | { type: 'connected'; connectionId: string; client: Client }
+  | { type: 'connected'; connectionId: string; proxy: SshClientProxy }
   | { type: 'disconnected'; connectionId: string }
   | { type: 'reconnecting'; connectionId: string; attempt: number; delayMs: number }
-  | { type: 'reconnected'; connectionId: string; client: Client }
+  | { type: 'reconnected'; connectionId: string; proxy: SshClientProxy }
   | { type: 'reconnect-failed'; connectionId: string }
   | { type: 'error'; connectionId: string; error: Error };
 
@@ -36,8 +31,11 @@ interface ReconnectState {
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class SshConnectionManager extends EventEmitter {
-  private connections: Map<string, SshConnection> = new Map();
-  private pendingConnections: Map<string, Promise<Result<Client, SshConnectError>>> = new Map();
+  /** One stable proxy per connection ID — survives reconnects. */
+  private proxies: Map<string, SshClientProxy> = new Map();
+
+  private pendingConnections: Map<string, Promise<Result<SshClientProxy, SshConnectError>>> =
+    new Map();
 
   /** Configs stored for reconnection. */
   private storedConfigs: Map<string, ConnectConfig> = new Map();
@@ -58,16 +56,19 @@ export class SshConnectionManager extends EventEmitter {
    *
    * - Reuses an existing connection if already in the pool.
    * - Concurrent calls for the same ID coalesce to a single attempt.
-   * - Clears any intentional-disconnect flag so auto-reconnect resumes
-   *   if the connection later drops unexpectedly.
+   * - Returns the stable SshClientProxy for this connection so callers can
+   *   hold a reference that survives reconnects.
    */
-  async connect(id: string, config: ConnectConfig): Promise<Result<Client, SshConnectError>> {
+  async connect(
+    id: string,
+    config: ConnectConfig
+  ): Promise<Result<SshClientProxy, SshConnectError>> {
     this.intentionalDisconnects.delete(id);
 
-    const existing = this.connections.get(id);
-    if (existing) {
+    const existing = this.proxies.get(id);
+    if (existing?.isConnected) {
       log.info('SshConnectionManager: reusing existing connection', { connectionId: id });
-      return ok(existing.client);
+      return ok(existing);
     }
 
     const pending = this.pendingConnections.get(id);
@@ -86,19 +87,19 @@ export class SshConnectionManager extends EventEmitter {
     }
   }
 
-  /** Get the ssh2.Client for an active connection, or undefined. */
-  getClient(id: string): Client | undefined {
-    return this.connections.get(id)?.client;
+  /** Get the stable SshClientProxy for a connection, or undefined. */
+  getProxy(id: string): SshClientProxy | undefined {
+    return this.proxies.get(id);
   }
 
-  /** Returns true if the connection is in the pool. */
+  /** Returns true if the connection is currently live. */
   isConnected(id: string): boolean {
-    return this.connections.has(id);
+    return this.proxies.get(id)?.isConnected ?? false;
   }
 
-  /** IDs of all currently-connected clients. */
+  /** IDs of all connections that have a proxy (connected or reconnecting). */
   getConnectionIds(): string[] {
-    return Array.from(this.connections.keys());
+    return Array.from(this.proxies.keys());
   }
 
   /**
@@ -109,34 +110,43 @@ export class SshConnectionManager extends EventEmitter {
     this.intentionalDisconnects.add(id);
     this.cancelReconnect(id);
 
-    const conn = this.connections.get(id);
-    if (!conn) {
-      log.warn('SshConnectionManager: disconnect called for unknown connection', {
+    const proxy = this.proxies.get(id);
+    if (!proxy?.isConnected) {
+      log.warn('SshConnectionManager: disconnect called for unknown/inactive connection', {
         connectionId: id,
       });
+      this.proxies.delete(id);
+      this.storedConfigs.delete(id);
       return;
     }
 
     log.info('SshConnectionManager: disconnecting', { connectionId: id });
 
+    const client = proxy.client;
     return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         log.warn('SshConnectionManager: disconnect timed out, forcing close', { connectionId: id });
+        proxy.invalidate();
+        this.proxies.delete(id);
+        this.storedConfigs.delete(id);
         resolve();
       }, 5_000);
 
-      conn.client.once('close', () => {
+      client.once('close', () => {
         clearTimeout(timeout);
+        proxy.invalidate();
+        this.proxies.delete(id);
+        this.storedConfigs.delete(id);
         resolve();
       });
 
-      conn.client.end();
+      client.end();
     });
   }
 
   /** Gracefully close all connections. */
   async disconnectAll(): Promise<void> {
-    const ids = Array.from(this.connections.keys());
+    const ids = Array.from(this.proxies.keys());
     log.info('SshConnectionManager: disconnecting all connections', { count: ids.length });
     await Promise.all(ids.map((id) => this.disconnect(id)));
   }
@@ -146,7 +156,7 @@ export class SshConnectionManager extends EventEmitter {
   private createConnection(
     id: string,
     config: ConnectConfig
-  ): Promise<Result<Client, SshConnectError>> {
+  ): Promise<Result<SshClientProxy, SshConnectError>> {
     log.info('SshConnectionManager: creating connection', {
       connectionId: id,
       host: config.host,
@@ -155,11 +165,15 @@ export class SshConnectionManager extends EventEmitter {
 
     this.storedConfigs.set(id, config);
 
+    // Ensure a stable proxy exists for this ID.
+    const proxy = this.proxies.get(id) ?? new SshClientProxy();
+    this.proxies.set(id, proxy);
+
     const client = new Client();
 
     return new Promise((resolve) => {
       let resolved = false;
-      const resolveOnce = (result: Result<Client, SshConnectError>) => {
+      const resolveOnce = (result: Result<SshClientProxy, SshConnectError>) => {
         if (!resolved) {
           resolved = true;
           resolve(result);
@@ -184,15 +198,17 @@ export class SshConnectionManager extends EventEmitter {
       client.on('close', () => {
         log.info('SshConnectionManager: connection closed', { connectionId: id });
 
-        if (this.connections.get(id)?.client === client) {
-          this.connections.delete(id);
+        // Only react if this client is still the one backing the proxy.
+        if (proxy.isConnected && proxy.client === client) {
+          proxy.invalidate();
+
           this.emit('connection-event', {
             type: 'disconnected',
             connectionId: id,
           } satisfies SshConnectionEvent);
 
-          // Auto-reconnect unless this was an intentional disconnect
-          // or the initial handshake failed (not yet resolved as 'ok').
+          // Auto-reconnect unless this was an intentional disconnect or the
+          // initial handshake never succeeded (resolved = false still).
           if (!this.intentionalDisconnects.has(id) && resolved) {
             this.scheduleReconnect(id);
           }
@@ -202,7 +218,7 @@ export class SshConnectionManager extends EventEmitter {
       client.on('ready', () => {
         log.info('SshConnectionManager: connection ready', { connectionId: id });
 
-        this.connections.set(id, { id, client, connectedAt: new Date() });
+        proxy.update(client);
 
         const isReconnect = this.reconnecting.has(id);
         this.cancelReconnect(id);
@@ -210,10 +226,10 @@ export class SshConnectionManager extends EventEmitter {
         this.emit('connection-event', {
           type: isReconnect ? 'reconnected' : 'connected',
           connectionId: id,
-          client,
+          proxy,
         } satisfies SshConnectionEvent);
 
-        resolveOnce(ok(client));
+        resolveOnce(ok(proxy));
       });
 
       client.connect(config);
@@ -250,7 +266,6 @@ export class SshConnectionManager extends EventEmitter {
     } satisfies SshConnectionEvent);
 
     const timer = setTimeout(() => {
-      // Guard: caller may have disconnected() while we were waiting
       if (this.intentionalDisconnects.has(id)) {
         this.reconnecting.delete(id);
         return;

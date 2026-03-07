@@ -4,7 +4,7 @@ import {
   ITerminalProvider,
   TerminalSpawnOptions,
 } from '../../terminal-provider';
-import { ok, Result } from '@/_deprecated/lib/result';
+import { ok, Result } from '@/_new/lib/result';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { GeneralSessionConfig } from '@/_new/environment/impl/terminal-provider/general-session';
 import { buildSessionEnv } from '@/_new/pty/pty-env';

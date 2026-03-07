@@ -4,8 +4,8 @@ import {
   ITerminalProvider,
   TerminalSpawnOptions,
 } from '../../terminal-provider';
-import { Client } from 'ssh2';
-import { ok, Result } from '@/_deprecated/lib/result';
+import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
+import { ok, Result } from '@/_new/lib/result';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { GeneralSessionConfig } from '@/_new/environment/impl/terminal-provider/general-session';
 import { buildSshCommandString, resolveSpawnParams } from '@/_new/pty/spawn-utils';
@@ -17,15 +17,20 @@ export class SshTerminalProvider implements ITerminalProvider {
   private sessions = new Map<string, Pty>();
   /** Terminals explicitly killed by the user — suppresses auto-respawn. */
   private deletedTerminals = new Set<string>();
+  /** Stored spawn options per terminal ID — used for rehydration on reconnect. */
+  private terminalOpts = new Map<string, TerminalSpawnOptions>();
 
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    private readonly client: Client
+    private readonly proxy: SshClientProxy
   ) {}
 
   async spawnTerminal(opts: TerminalSpawnOptions): Promise<Result<void, CreateSessionError>> {
     const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
+
+    // Store opts for rehydration on reconnect.
+    this.terminalOpts.set(opts.terminalId, opts);
 
     const cfg: GeneralSessionConfig = {
       taskId: opts.taskId,
@@ -37,7 +42,7 @@ export class SshTerminalProvider implements ITerminalProvider {
     const { command, args, cwd } = resolveSpawnParams('general', cfg);
     const sshCommand = buildSshCommandString(command, args, cwd);
 
-    const result = await openSsh2Pty(this.client, {
+    const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
       command: sshCommand,
       cols: 80,
@@ -58,6 +63,9 @@ export class SshTerminalProvider implements ITerminalProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
       if (!this.deletedTerminals.has(opts.terminalId)) {
+        // Skip auto-respawn if the connection is currently down — the
+        // EnvironmentProviderManager will trigger rehydrate() on reconnect.
+        if (!this.proxy.isConnected) return;
         setTimeout(() => {
           this.spawnTerminal(opts).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
@@ -72,6 +80,25 @@ export class SshTerminalProvider implements ITerminalProvider {
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
     return ok();
+  }
+
+  /**
+   * Re-spawn all terminals whose sessions are no longer active (e.g. after
+   * an SSH reconnect). Skips user-deleted terminals and terminals that are
+   * already running.
+   */
+  async rehydrate(): Promise<void> {
+    for (const [terminalId, opts] of this.terminalOpts) {
+      if (this.deletedTerminals.has(terminalId)) continue;
+      const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
+      if (this.sessions.has(sessionId)) continue;
+      await this.spawnTerminal(opts).catch((e) => {
+        log.error('SshTerminalProvider: rehydrate failed', {
+          terminalId,
+          error: String(e),
+        });
+      });
+    }
   }
 
   killTerminal(terminalId: string): void {

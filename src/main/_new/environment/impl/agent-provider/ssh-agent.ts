@@ -1,7 +1,7 @@
 import { Pty } from '@/_new/pty/pty';
 import { AgentStartOptions, CreateSessionError, IAgentProvider } from '../../agent-provider';
-import { Client } from 'ssh2';
-import { ok, Result } from '@/_deprecated/lib/result';
+import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
+import { ok, Result } from '@/_new/lib/result';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { AgentSessionConfig } from '@/_new/environment/impl/agent-provider/agent-session';
 import { ProviderId } from '@shared/providers/registry';
@@ -19,7 +19,7 @@ export class SshAgentProvider implements IAgentProvider {
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    private readonly client: Client
+    private readonly proxy: SshClientProxy
   ) {}
 
   async startSession(opts: AgentStartOptions): Promise<Result<void, CreateSessionError>> {
@@ -45,7 +45,7 @@ export class SshAgentProvider implements IAgentProvider {
     const { command, args, cwd } = resolveSpawnParams('agent', cfg);
     const sshCommand = buildSshCommandString(command, args, cwd);
 
-    const result = await openSsh2Pty(this.client, {
+    const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
       command: sshCommand,
       cols: 80,

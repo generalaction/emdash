@@ -1,5 +1,5 @@
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../_deprecated/lib/result';
+import { ok, err } from '../lib/result';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { log } from '../lib/logger';
 import { environmentProviderManager } from '../environment/provider-manager';

@@ -1,5 +1,5 @@
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../_deprecated/lib/result';
+import { ok, err } from '../lib/result';
 import { environmentProviderManager } from '../environment/provider-manager';
 import type { ListOptions, SearchOptions } from '../environment/impl/fs-provider/types';
 import { FileSystemErrorCodes } from '../environment/impl/fs-provider/types';

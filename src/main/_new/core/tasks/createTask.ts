@@ -1,9 +1,9 @@
 import { db } from '../../db/client';
 import { tasks, conversations, projects } from '../../db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { worktreeService } from '../../../_deprecated/services/WorktreeService';
-import { worktreePoolService } from '../../../_deprecated/services/WorktreePoolService';
-import { err, ok, Result } from '../../../_deprecated/lib/result';
+import { worktreeService } from '../worktrees/WorktreeService';
+import { worktreePoolService } from '../worktrees/WorktreePoolService';
+import { err, ok, Result } from '../../lib/result';
 import type { Task, TaskMetadata } from './core';
 import type { TaskRow } from '../../db/schema';
 import { ensureProjectSettings } from '../projects/ensureProjectSettings';
@@ -45,6 +45,7 @@ export function mapTaskRow(row: TaskRow): Task {
     status: meta.lifecycleStatus ?? 'in_progress',
     sourceBranch: meta.sourceBranch ?? '',
     branch: row.branch,
+    path: row.path,
     linkedIssue: meta.linkedIssue,
     archivedAt: row.archivedAt ?? undefined,
     createdAt: row.createdAt,

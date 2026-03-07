@@ -8,11 +8,9 @@ import { Spinner } from '../ui/spinner';
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import { RadioGroup } from '../ui/radio-group';
 import { cn } from '@/lib/utils';
-import type { SshConfig, ConnectionTestResult, FileEntry, SshConfigHost } from '@shared/ssh/types';
+import type { SshConfig, ConnectionTestResult } from '@shared/ssh/types';
 import {
   Server,
   Key,
@@ -22,28 +20,22 @@ import {
   Check,
   ChevronRight,
   ChevronLeft,
-  RefreshCw,
   FileCode,
   AlertCircle,
   Globe,
   CheckCircle2,
   XCircle,
-  Folder,
-  ChevronUp,
   ChevronDown,
   Loader2,
   Shield,
   Trash,
-  Plus,
-  GitBranch,
-  Download,
   Copy,
 } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
 type AuthType = 'password' | 'key' | 'agent';
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
-type RepoMode = 'pick' | 'create' | 'clone';
 
 interface AddRemoteProjectModalProps {
   onClose: () => void;
@@ -57,19 +49,14 @@ interface AddRemoteProjectModalProps {
 }
 
 interface FormData {
-  // Connection step
   name: string;
   host: string;
   port: number;
   username: string;
-
-  // Auth step
   authType: AuthType;
   password: string;
   privateKeyPath: string;
   passphrase: string;
-
-  // Path step
   remotePath: string;
 }
 
@@ -88,7 +75,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  // Wizard state
   const [currentStep, setCurrentStep] = useState<WizardStep>('connection');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
@@ -99,27 +85,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Path browsing state
-  const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
-  const [isBrowsing, setIsBrowsing] = useState(false);
-  const [browseError, setBrowseError] = useState<string | null>(null);
-  const [connectionId, setConnectionId] = useState<string | null>(null);
-
-  // Repo mode state
-  const [repoMode, setRepoMode] = useState<RepoMode>('pick');
-  const [newRepoName, setNewRepoName] = useState('');
-  const [cloneUrl, setCloneUrl] = useState('');
-  const [cloneDirName, setCloneDirName] = useState('');
-  const [cloneDirManuallyEdited, setCloneDirManuallyEdited] = useState(false);
-  const [isCreatingRepo, setIsCreatingRepo] = useState(false);
-  const [isCloningRepo, setIsCloningRepo] = useState(false);
-
-  // SSH config auto-detect state
-  const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
-  const [isLoadingSshConfig, setIsLoadingSshConfig] = useState(false);
-  const [sshConfigSelection, setSshConfigSelection] = useState<string>('');
-
-  // Saved connections state (for reusing existing SSH connections)
   const [savedConnections, setSavedConnections] = useState<
     Array<{
       id: string;
@@ -136,7 +101,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [selectedSavedConnection, setSelectedSavedConnection] = useState<string | null>(null);
   const [useExistingConnection, setUseExistingConnection] = useState(false);
 
-  // Form data
   const [formData, setFormData] = useState<FormData>({
     name: '',
     host: '',
@@ -149,8 +113,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     remotePath: '',
   });
 
-  // Reset form when modal opens and load SSH config
-  // Reset form and load data on mount (component only mounts when modal is open)
   useEffect(() => {
     setCurrentStep('connection');
     setFormData({
@@ -171,23 +133,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     setDebugLogs([]);
     setDebugLogsOpen(false);
     setDebugLogsCopied(false);
-    setFileEntries([]);
-    setBrowseError(null);
-    setConnectionId(null);
-    setSshConfigSelection('');
     setSavedConnections([]);
     setSelectedSavedConnection(null);
     setUseExistingConnection(false);
-    setRepoMode('pick');
-    setNewRepoName('');
-    setCloneUrl('');
-    setCloneDirName('');
-    setCloneDirManuallyEdited(false);
-    setIsCreatingRepo(false);
-    setIsCloningRepo(false);
 
-    // Load SSH config hosts and saved connections
-    void loadSshConfig();
     void loadSavedConnections();
 
     import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -195,30 +144,11 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     });
   }, []);
 
-  // Load SSH config from ~/.ssh/config
-  const loadSshConfig = useCallback(async () => {
-    setIsLoadingSshConfig(true);
-    try {
-      const result = await rpc.ssh.getSshConfig();
-      if (result.success && result.hosts) {
-        setSshConfigHosts(result.hosts);
-      }
-    } catch (error) {
-      // Silently fail - SSH config is optional
-      console.debug('Failed to load SSH config:', error);
-    } finally {
-      setIsLoadingSshConfig(false);
-    }
-  }, []);
-
-  // Load saved SSH connections from database
   const loadSavedConnections = useCallback(async () => {
     setIsLoadingSavedConnections(true);
     try {
-      const connResult = await rpc.ssh.getConnections();
-      if (connResult.success && connResult.connections) {
-        setSavedConnections(connResult.connections as typeof savedConnections);
-      }
+      const connections = await rpc.ssh.getConnections();
+      setSavedConnections(connections as typeof savedConnections);
     } catch (error) {
       console.debug('Failed to load saved connections:', error);
     } finally {
@@ -242,52 +172,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [selectedSavedConnection, loadSavedConnections]
   );
 
-  // Apply SSH config host selection
-  const applySshHost = useCallback(
-    (host: SshConfigHost) => {
-      const stableId = `ssh-config:${encodeURIComponent(host.host)}`;
-      setConnectionId(stableId);
-
-      // Determine auth type and key path
-      let authType: AuthType;
-      let privateKeyPath = '';
-
-      if (host.identityAgent) {
-        // IdentityAgent signals the user wants agent-based auth (e.g. 1Password)
-        authType = 'agent';
-      } else if (host.identityFile) {
-        // SSH config specifies a key - use it
-        authType = 'key';
-        privateKeyPath = host.identityFile;
-      } else {
-        // No key specified - default to key auth with ed25519 (most common modern key)
-        authType = 'key';
-        privateKeyPath = '~/.ssh/id_ed25519';
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        name: host.host, // Use the SSH host alias as connection name
-        host: host.hostname || host.host,
-        port: host.port || 22,
-        username: host.user || prev.username,
-        privateKeyPath,
-        authType,
-      }));
-      setSshConfigSelection(host.host);
-
-      // Clear any previous test results when host is changed
-      setTestStatus('idle');
-      setTestResult(null);
-    },
-    [setFormData]
-  );
-
-  // Update form field
   const updateField = useCallback(
     <K extends keyof FormData>(field: K, value: FormData[K]) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
-      // Clear error when user starts typing
       if (errors[field as keyof FormErrors]) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
       }
@@ -295,12 +182,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     [errors]
   );
 
-  // Mark field as touched
   const touchField = useCallback((field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   }, []);
 
-  // Validate current step
   const validateStep = useCallback(
     (step: WizardStep): boolean => {
       const newErrors: FormErrors = {};
@@ -315,7 +200,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           } else if (
             !/^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$/.test(formData.host.trim()) &&
             !/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(formData.host.trim()) &&
-            // Allow single-word SSH aliases like "lamb_clutha"
             !/^[a-zA-Z0-9_-]+$/.test(formData.host.trim())
           ) {
             newErrors.host = 'Please enter a valid hostname, IP address, or SSH alias';
@@ -338,41 +222,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           break;
 
         case 'path':
-          if (repoMode === 'pick') {
-            if (!formData.remotePath.trim()) {
-              newErrors.remotePath = 'Remote path is required';
-            } else if (!formData.remotePath.startsWith('/')) {
-              newErrors.remotePath = 'Path must be absolute (start with /)';
-            }
-          } else if (repoMode === 'create') {
-            if (!formData.remotePath.trim()) {
-              newErrors.remotePath = 'Parent directory is required';
-            } else if (!formData.remotePath.startsWith('/')) {
-              newErrors.remotePath = 'Path must be absolute (start with /)';
-            }
-            if (!newRepoName.trim()) {
-              newErrors.general = 'Repository name is required';
-            } else if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(newRepoName.trim())) {
-              newErrors.general =
-                'Invalid name. Use letters, numbers, hyphens, underscores, dots. Must start with a letter or number.';
-            }
-          } else if (repoMode === 'clone') {
-            if (!cloneUrl.trim()) {
-              newErrors.general = 'Repository URL is required';
-            } else {
-              const patterns = [/^https?:\/\/.+/i, /^git@.+:.+/i, /^ssh:\/\/.+/i];
-              if (!patterns.some((p) => p.test(cloneUrl.trim()))) {
-                newErrors.general = 'Invalid URL. Use https://, git@, or ssh:// format.';
-              }
-            }
-            if (!formData.remotePath.trim()) {
-              newErrors.remotePath = 'Parent directory is required';
-            } else if (!formData.remotePath.startsWith('/')) {
-              newErrors.remotePath = 'Path must be absolute (start with /)';
-            }
-            if (!cloneDirName.trim()) {
-              newErrors.general = newErrors.general || 'Directory name is required';
-            }
+          if (!formData.remotePath.trim()) {
+            newErrors.remotePath = 'Remote path is required';
+          } else if (!formData.remotePath.startsWith('/')) {
+            newErrors.remotePath = 'Path must be absolute (start with /)';
           }
           break;
       }
@@ -380,10 +233,9 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
     },
-    [formData, repoMode, newRepoName, cloneUrl, cloneDirName]
+    [formData]
   );
 
-  // Test connection
   const testConnection = useCallback(async (): Promise<boolean> => {
     setErrors((prev) => ({ ...prev, general: undefined }));
     setTestStatus('testing');
@@ -391,7 +243,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
     try {
       const testConfig: SshConfig & { password?: string; passphrase?: string } = {
-        id: connectionId || undefined,
         name: formData.name,
         host: formData.host,
         port: formData.port,
@@ -418,13 +269,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       } else {
         setTestStatus('error');
 
-        // Provide more detailed error messages based on auth type and error
         let errorMsg = result.error || 'Connection failed';
         let suggestKeyAuth = false;
 
-        // Agent auth failures - be more aggressive with fallback
         if (formData.authType === 'agent') {
-          // Any agent failure should suggest key auth
           errorMsg =
             'SSH agent authentication failed. Switched to SSH Key authentication - select a key file below from common options.';
           suggestKeyAuth = true;
@@ -437,7 +285,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
         setErrors((prev) => ({ ...prev, general: errorMsg }));
 
-        // Auto-switch to key auth on agent failure for better UX
         if (suggestKeyAuth && formData.authType === 'agent') {
           setFormData((prev) => ({ ...prev, authType: 'key' }));
         }
@@ -450,226 +297,32 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       setErrors((prev) => ({ ...prev, general: message }));
       return false;
     }
-  }, [formData, connectionId]);
+  }, [formData]);
 
-  // Browse remote directory
-  const browseRemotePath = useCallback(
-    async (path: string) => {
-      if (!connectionId) return;
+  const selectExistingConnection = useCallback((conn: (typeof savedConnections)[number]) => {
+    setSelectedSavedConnection(conn.id);
+    setUseExistingConnection(true);
+    setErrors({});
 
-      setIsBrowsing(true);
-      setBrowseError(null);
+    setFormData((prev) => ({
+      ...prev,
+      name: conn.name,
+      host: conn.host,
+      port: conn.port,
+      username: conn.username,
+      authType: conn.authType,
+      privateKeyPath: conn.privateKeyPath || '',
+    }));
 
-      try {
-        const result = await rpc.ssh.listFiles(connectionId, path);
-        const entries: FileEntry[] = result.files ?? [];
-        // Sort: directories first, then files, alphabetically
-        const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
-          if (a.type === 'directory' && b.type !== 'directory') return -1;
-          if (a.type !== 'directory' && b.type === 'directory') return 1;
-          return a.name.localeCompare(b.name);
-        });
-        setFileEntries(sorted);
-        updateField('remotePath', path);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to browse directory';
-        setBrowseError(message);
-      } finally {
-        setIsBrowsing(false);
-      }
-    },
-    [connectionId, updateField]
-  );
+    setCurrentStep('path');
+  }, []);
 
-  // Select an existing saved connection
-  const selectExistingConnection = useCallback(
-    async (conn: (typeof savedConnections)[number]) => {
-      setSelectedSavedConnection(conn.id);
-      setUseExistingConnection(true);
-      setErrors({});
-
-      // Populate form data for display in confirm step
-      setFormData((prev) => ({
-        ...prev,
-        name: conn.name,
-        host: conn.host,
-        port: conn.port,
-        username: conn.username,
-        authType: conn.authType,
-        privateKeyPath: conn.privateKeyPath || '',
-      }));
-
-      // Connect using the saved connection ID
-      try {
-        const connectResult = await rpc.ssh.connect(conn.id);
-        const connId = connectResult.connectionId!;
-        setConnectionId(connId);
-        setCurrentStep('path');
-
-        // Browse directly with connId since connectionId state hasn't updated yet
-        const homePath = '/home/' + conn.username;
-        setIsBrowsing(true);
-        setBrowseError(null);
-        try {
-          const result = await rpc.ssh.listFiles(connId, homePath);
-          const entries: FileEntry[] = result.files ?? [];
-          const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
-            if (a.type === 'directory' && b.type !== 'directory') return -1;
-            if (a.type !== 'directory' && b.type === 'directory') return 1;
-            return a.name.localeCompare(b.name);
-          });
-          setFileEntries(sorted);
-          updateField('remotePath', homePath);
-        } catch (browseErr) {
-          const msg = browseErr instanceof Error ? browseErr.message : 'Failed to browse directory';
-          setBrowseError(msg);
-        } finally {
-          setIsBrowsing(false);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to reconnect';
-        setErrors({ general: message });
-        setUseExistingConnection(false);
-        setSelectedSavedConnection(null);
-      }
-    },
-    [updateField]
-  );
-
-  // Navigate up
-  const navigateUp = useCallback(() => {
-    const currentPath = formData.remotePath;
-    if (currentPath === '/') return;
-    const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
-    void browseRemotePath(parentPath);
-  }, [formData.remotePath, browseRemotePath]);
-
-  // Navigate to directory
-  const navigateTo = useCallback(
-    (entry: FileEntry) => {
-      if (entry.type === 'directory') {
-        void browseRemotePath(entry.path);
-      } else {
-        // For files, select the parent directory
-        const parentPath = entry.path.split('/').slice(0, -1).join('/') || '/';
-        updateField('remotePath', parentPath);
-      }
-    },
-    [browseRemotePath, updateField]
-  );
-
-  // Auto-extract directory name from clone URL (only if user hasn't manually edited it)
-  useEffect(() => {
-    if (cloneDirManuallyEdited) return;
-    if (!cloneUrl.trim()) {
-      setCloneDirName('');
-      return;
-    }
-    const cleaned = cloneUrl.trim().replace(/#.*$/, '').replace(/\?.*$/, '').replace(/\/+$/, '');
-    // Try common URL patterns
-    const match = cleaned.match(/[/:]([^/]+?)(?:\.git)?\/?$/);
-    if (match) {
-      setCloneDirName(match[1]);
-    }
-  }, [cloneUrl, cloneDirManuallyEdited]);
-
-  // Handle next step
   const handleNext = useCallback(async () => {
     if (!validateStep(currentStep)) return;
 
     if (currentStep === 'auth') {
-      // Test connection before proceeding
       const success = await testConnection();
       if (!success) return;
-
-      // Create connection for browsing
-      try {
-        const connectConfig: SshConfig & { password?: string; passphrase?: string } = {
-          name: formData.name,
-          host: formData.host,
-          port: formData.port,
-          username: formData.username,
-          authType: formData.authType,
-          privateKeyPath: formData.privateKeyPath || undefined,
-          useAgent: formData.authType === 'agent',
-          password: formData.authType === 'password' ? formData.password : undefined,
-          passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
-        };
-
-        const connectResult2 = await rpc.ssh.connect({
-          ...connectConfig,
-          id: connectionId || undefined,
-        });
-        const connId = connectResult2.connectionId!;
-        setConnectionId(connId);
-
-        // Browse directly with connId since connectionId state hasn't updated yet
-        const homePath = '/home/' + formData.username;
-        setIsBrowsing(true);
-        setBrowseError(null);
-        try {
-          const result = await rpc.ssh.listFiles(connId, homePath);
-          const entries: FileEntry[] = result.files ?? [];
-          const sorted = entries.sort((a: FileEntry, b: FileEntry) => {
-            if (a.type === 'directory' && b.type !== 'directory') return -1;
-            if (a.type !== 'directory' && b.type === 'directory') return 1;
-            return a.name.localeCompare(b.name);
-          });
-          setFileEntries(sorted);
-          updateField('remotePath', homePath);
-        } catch (browseErr) {
-          const msg = browseErr instanceof Error ? browseErr.message : 'Failed to browse directory';
-          setBrowseError(msg);
-        } finally {
-          setIsBrowsing(false);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to connect';
-        setTestStatus('idle');
-        setTestResult(null);
-        setErrors((prev) => ({ ...prev, general: message }));
-        return;
-      }
-    }
-
-    // Handle repo creation/cloning on the path step before advancing to confirm
-    if (currentStep === 'path' && connectionId) {
-      if (repoMode === 'create') {
-        setIsCreatingRepo(true);
-        setErrors({});
-        try {
-          const initResult = await rpc.ssh.initRepo(
-            connectionId,
-            formData.remotePath.replace(/\/+$/, ''),
-            newRepoName.trim()
-          );
-          if (!initResult.success)
-            throw new Error(initResult.error || 'Failed to create repository');
-          updateField('remotePath', initResult.path!);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Failed to create repository';
-          setErrors({ general: msg });
-          setIsCreatingRepo(false);
-          return;
-        }
-        setIsCreatingRepo(false);
-      } else if (repoMode === 'clone') {
-        setIsCloningRepo(true);
-        setErrors({});
-        try {
-          const targetPath = `${formData.remotePath.replace(/\/+$/, '')}/${cloneDirName.trim()}`;
-          const cloneResult = await rpc.ssh.cloneRepo(connectionId, cloneUrl.trim(), targetPath);
-          if (!cloneResult.success)
-            throw new Error(cloneResult.error || 'Failed to clone repository');
-          updateField('remotePath', cloneResult.path!);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Failed to clone repository';
-          setErrors({ general: msg });
-          setIsCloningRepo(false);
-          return;
-        }
-        setIsCloningRepo(false);
-      }
     }
 
     const stepOrder: WizardStep[] = useExistingConnection
@@ -679,24 +332,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     if (currentIndex < stepOrder.length - 1) {
       setCurrentStep(stepOrder[currentIndex + 1]);
     }
-  }, [
-    currentStep,
-    formData,
-    connectionId,
-    validateStep,
-    testConnection,
-    updateField,
-    useExistingConnection,
-    repoMode,
-    newRepoName,
-    cloneUrl,
-    cloneDirName,
-  ]);
+  }, [currentStep, validateStep, testConnection, useExistingConnection]);
 
-  // Handle previous step
   const handleBack = useCallback(() => {
     if (useExistingConnection && currentStep === 'path') {
-      // Going back from path with existing connection → reset to connection selection
       setUseExistingConnection(false);
       setSelectedSavedConnection(null);
       setCurrentStep('connection');
@@ -711,18 +350,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     }
   }, [currentStep, useExistingConnection]);
 
-  // Handle submit
   const handleSubmit = useCallback(async () => {
     if (!validateStep('path')) return;
 
     setIsSubmitting(true);
 
     try {
-      // Derive project display name from the remote folder path, not the connection name
       const projectName = formData.remotePath.split('/').filter(Boolean).pop() || formData.name;
 
       if (useExistingConnection && selectedSavedConnection) {
-        // Reuse existing connection — no save needed
         onSuccess({
           id: Date.now().toString(),
           name: projectName,
@@ -731,9 +367,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           connectionId: selectedSavedConnection,
         });
       } else {
-        // Save a new connection
         const saveConfig: SshConfig & { password?: string; passphrase?: string } = {
-          id: connectionId || undefined,
           name: formData.name,
           host: formData.host,
           port: formData.port,
@@ -745,15 +379,14 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           passphrase: formData.authType === 'key' ? formData.passphrase || undefined : undefined,
         };
 
-        const saveResult = await rpc.ssh.saveConnection(saveConfig);
-        if (!saveResult.success) throw new Error(saveResult.error || 'Failed to save connection');
+        const saved = await rpc.ssh.saveConnection(saveConfig);
 
         onSuccess({
           id: Date.now().toString(),
           name: projectName,
           path: formData.remotePath,
           host: formData.host,
-          connectionId: saveResult.connection!.id!,
+          connectionId: saved.id!,
         });
       }
 
@@ -764,25 +397,12 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [
-    formData,
-    connectionId,
-    validateStep,
-    onSuccess,
-    onClose,
-    useExistingConnection,
-    selectedSavedConnection,
-  ]);
+  }, [formData, validateStep, onSuccess, onClose, useExistingConnection, selectedSavedConnection]);
 
-  // Handle close
   const handleClose = useCallback(() => {
-    if (connectionId) {
-      void rpc.ssh.disconnect(connectionId);
-    }
     onClose();
-  }, [connectionId, onClose]);
+  }, [onClose]);
 
-  // Step indicators — omit auth step when reusing an existing connection
   const steps: { id: WizardStep; label: string; icon: React.ElementType }[] = useExistingConnection
     ? [
         { id: 'connection', label: 'Connection', icon: Server },
@@ -802,13 +422,11 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
-  // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
       case 'connection':
         return (
           <div className="space-y-4">
-            {/* Saved connections for reuse */}
             {isLoadingSavedConnections ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -822,7 +440,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                     <button
                       key={conn.id}
                       type="button"
-                      onClick={() => void selectExistingConnection(conn)}
+                      onClick={() => selectExistingConnection(conn)}
                       className={cn(
                         'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent',
                         selectedSavedConnection === conn.id && 'border-primary bg-primary/5'
@@ -858,42 +476,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 </div>
               </div>
             ) : null}
-
-            {sshConfigHosts.length > 0 && (
-              <div className="space-y-2">
-                <Label>SSH Config (optional)</Label>
-                <Select
-                  value={sshConfigSelection}
-                  onValueChange={(value) => {
-                    setSshConfigSelection(value);
-                    const selected = sshConfigHosts.find((h) => h.host === value);
-                    if (selected) applySshHost(selected);
-                  }}
-                  disabled={isLoadingSshConfig}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        isLoadingSshConfig
-                          ? 'Loading ~/.ssh/config...'
-                          : 'Select a host from ~/.ssh/config'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sshConfigHosts.map((h) => (
-                      <SelectItem key={h.host} value={h.host}>
-                        {h.host}
-                        {h.hostname ? ` -> ${h.hostname}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Selecting a host auto-fills name, host, user, port, and key path when available.
-                </p>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label htmlFor="name">
@@ -975,7 +557,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       case 'auth':
         return (
           <div className="space-y-4">
-            {/* Show common SSH key paths when key auth is selected */}
             {formData.authType === 'key' && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -1009,7 +590,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 className="grid grid-cols-3 gap-3"
               >
                 <div>
-                  <RadioGroupItem value="password" id="auth-password" className="sr-only" />
+                  <input
+                    type="radio"
+                    value="password"
+                    id="auth-password"
+                    name="authType"
+                    className="sr-only"
+                    checked={formData.authType === 'password'}
+                    onChange={() => updateField('authType', 'password')}
+                  />
                   <Label
                     htmlFor="auth-password"
                     className={cn(
@@ -1023,7 +612,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 </div>
 
                 <div>
-                  <RadioGroupItem value="key" id="auth-key" className="sr-only" />
+                  <input
+                    type="radio"
+                    value="key"
+                    id="auth-key"
+                    name="authType"
+                    className="sr-only"
+                    checked={formData.authType === 'key'}
+                    onChange={() => updateField('authType', 'key')}
+                  />
                   <Label
                     htmlFor="auth-key"
                     className={cn(
@@ -1037,7 +634,15 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                 </div>
 
                 <div>
-                  <RadioGroupItem value="agent" id="auth-agent" className="sr-only" />
+                  <input
+                    type="radio"
+                    value="agent"
+                    id="auth-agent"
+                    name="authType"
+                    className="sr-only"
+                    checked={formData.authType === 'agent'}
+                    onChange={() => updateField('authType', 'agent')}
+                  />
                   <Label
                     htmlFor="auth-agent"
                     className={cn(
@@ -1103,7 +708,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                           if (result.success && result.path) {
                             updateField('privateKeyPath', result.path);
                           }
-                        } catch (e) {
+                        } catch {
                           // Ignore
                         }
                       }}
@@ -1162,7 +767,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               </Alert>
             )}
 
-            {/* Connection Test Result */}
             {testStatus !== 'idle' && (
               <Badge
                 variant="outline"
@@ -1230,211 +834,31 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       case 'path':
         return (
           <div className="space-y-4">
-            {/* Repo mode picker */}
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { id: 'pick' as RepoMode, label: 'Pick Existing', icon: FolderOpen },
-                  { id: 'create' as RepoMode, label: 'Create New', icon: Plus },
-                  { id: 'clone' as RepoMode, label: 'Clone', icon: Download },
-                ] as const
-              ).map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setRepoMode(id);
-                    setErrors({});
-                  }}
-                  className={cn(
-                    'flex items-center justify-center gap-2 rounded-md border-2 px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                    repoMode === id
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-muted text-muted-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <Separator />
-
-            {/* Mode-specific form fields */}
-            {repoMode === 'create' && (
-              <div className="space-y-2">
-                <Label htmlFor="new-repo-name">
-                  Repository Name <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <GitBranch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="new-repo-name"
-                    value={newRepoName}
-                    onChange={(e) => {
-                      setNewRepoName(e.target.value);
-                      setErrors((prev) => ({ ...prev, general: undefined }));
-                    }}
-                    placeholder="my-new-project"
-                    className="pl-10"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  A new git repository will be created at{' '}
-                  <span className="font-mono">
-                    {formData.remotePath.replace(/\/+$/, '')}/{newRepoName || '...'}
-                  </span>
-                </p>
-              </div>
-            )}
-
-            {repoMode === 'clone' && (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="clone-url">
-                    Repository URL <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="clone-url"
-                      value={cloneUrl}
-                      onChange={(e) => {
-                        setCloneUrl(e.target.value);
-                        setErrors((prev) => ({ ...prev, general: undefined }));
-                      }}
-                      placeholder="https://github.com/owner/repo.git"
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clone-dir">Directory Name</Label>
-                  <Input
-                    id="clone-dir"
-                    value={cloneDirName}
-                    onChange={(e) => {
-                      setCloneDirName(e.target.value);
-                      setCloneDirManuallyEdited(true);
-                    }}
-                    placeholder="repo"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Will be cloned to{' '}
-                    <span className="font-mono">
-                      {formData.remotePath.replace(/\/+$/, '')}/{cloneDirName || '...'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Path browser header */}
             <div className="space-y-2">
-              <Label>{repoMode === 'pick' ? 'Project Path' : 'Parent Directory'}</Label>
-              <div className="flex gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <FolderOpen className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="remote-path"
-                    value={formData.remotePath}
-                    onChange={(e) => updateField('remotePath', e.target.value)}
-                    onBlur={() => touchField('remotePath')}
-                    placeholder={repoMode === 'pick' ? '/home/user/myproject' : '/home/user'}
-                    className={cn(
-                      'pl-10',
-                      errors.remotePath && touched.remotePath && 'border-destructive'
-                    )}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => void browseRemotePath(formData.remotePath || '/')}
-                  disabled={isBrowsing}
-                >
-                  {isBrowsing ? <Spinner size="sm" /> : <RefreshCw className="h-4 w-4" />}
-                </Button>
+              <Label htmlFor="remote-path">
+                Project Path <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <FolderOpen className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="remote-path"
+                  value={formData.remotePath}
+                  onChange={(e) => updateField('remotePath', e.target.value)}
+                  onBlur={() => touchField('remotePath')}
+                  placeholder="/home/user/myproject"
+                  className={cn(
+                    'pl-10',
+                    errors.remotePath && touched.remotePath && 'border-destructive'
+                  )}
+                />
               </div>
               {errors.remotePath && touched.remotePath && (
                 <p className="text-xs text-destructive">{errors.remotePath}</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Enter the absolute path to your project on the remote server.
+              </p>
             </div>
-
-            {browseError && (
-              <Badge
-                variant="outline"
-                className="w-full justify-start gap-2 border-destructive/40 bg-destructive/10 py-1.5"
-              >
-                <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-                <span className="whitespace-pre-wrap break-words">{browseError}</span>
-              </Badge>
-            )}
-
-            {/* Directory browser */}
-            <div className="overflow-hidden rounded-md border">
-              <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="h-6 w-6"
-                  onClick={navigateUp}
-                  disabled={formData.remotePath === '/' || isBrowsing}
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {formData.remotePath || '/'}
-                </span>
-              </div>
-              <div className="max-h-[200px] overflow-y-auto">
-                {isBrowsing && fileEntries.length === 0 ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner size="md" />
-                  </div>
-                ) : fileEntries.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    Click refresh to browse directory
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {fileEntries.map((entry) => (
-                      <button
-                        key={entry.path}
-                        type="button"
-                        onClick={() => navigateTo(entry)}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent',
-                          entry.type === 'directory' && 'font-medium'
-                        )}
-                      >
-                        {entry.type === 'directory' ? (
-                          <Folder className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <FileCode className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="flex-1 truncate">{entry.name}</span>
-                        {entry.type === 'file' && (
-                          <span className="text-xs text-muted-foreground">
-                            {(entry.size / 1024).toFixed(1)} KB
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              {repoMode === 'pick' &&
-                'Select the directory containing your project. Click on a folder to navigate into it.'}
-              {repoMode === 'create' && 'Navigate to where you want to create the new repository.'}
-              {repoMode === 'clone' && 'Navigate to where you want to clone the repository.'}
-            </p>
           </div>
         );
 
@@ -1516,7 +940,6 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 
       <Separator />
 
-      {/* Step indicator */}
       <div className="flex items-center gap-2 py-2">
         {steps.map((step, index) => {
           const Icon = step.icon;
@@ -1545,12 +968,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         })}
       </div>
 
-      {/* Step title */}
       <div>
         <h3 className="text-lg font-medium">{steps[currentStepIndex]?.label}</h3>
       </div>
 
-      {/* Error display (hidden on auth step where test result badge already shows it) */}
       {errors.general && currentStep !== 'auth' && (
         <Badge
           variant="outline"
@@ -1561,10 +982,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         </Badge>
       )}
 
-      {/* Step content */}
       <div className="min-w-0 py-2">{renderStepContent()}</div>
 
-      {/* Navigation buttons */}
       <div
         className={cn(
           'flex gap-2',
@@ -1605,27 +1024,12 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
           <Button
             type="button"
             onClick={() => void handleNext()}
-            disabled={
-              isSubmitting ||
-              (currentStep === 'auth' && testStatus === 'testing') ||
-              isCreatingRepo ||
-              isCloningRepo
-            }
+            disabled={isSubmitting || (currentStep === 'auth' && testStatus === 'testing')}
           >
             {currentStep === 'auth' && testStatus === 'testing' ? (
               <>
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 Testing...
-              </>
-            ) : isCreatingRepo ? (
-              <>
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            ) : isCloningRepo ? (
-              <>
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                Cloning...
               </>
             ) : (
               <>

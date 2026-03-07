@@ -1,4 +1,4 @@
-import { Result } from '@/_deprecated/lib/result';
+import { Result } from '@/_new/lib/result';
 import { LocalSpawnError } from '../pty/local-pty';
 import { Ssh2OpenError } from '../pty/ssh2-pty';
 

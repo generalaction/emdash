@@ -1,5 +1,5 @@
 import { Pty } from '@/_new/pty/pty';
-import { ok, Result } from '@/_deprecated/lib/result';
+import { ok, Result } from '@/_new/lib/result';
 import type { CreateSessionError, AgentStartOptions, IAgentProvider } from '../../agent-provider';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { AgentSessionConfig } from '@/_new/environment/impl/agent-provider/agent-session';

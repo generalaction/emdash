@@ -1,28 +1,19 @@
 import { app } from 'electron';
 import { log } from '../lib/logger';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { GitHubService } from '../../_deprecated/services/GitHubService';
+import { githubService } from '../services/GitHubService';
 import type { GitHubUser } from '@shared/types/github';
-import { worktreeService } from '../../_deprecated/services/WorktreeService';
-import { githubCLIInstaller } from '../../_deprecated/services/GitHubCLIInstaller';
+import { localDependencyManager } from '../services/LocalDependencyManager';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { quoteShellArg } from '../../_deprecated/utils/shellEscape';
+import { quoteShellArg } from '../utils/shellEscape';
 import { getAppSettings } from '../core/settings';
 
 const execAsync = promisify(exec);
-const githubService = new GitHubService();
-
-const slugify = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 
 export const githubController = createRPCController({
   connect: async (projectPath: string) => {
@@ -246,65 +237,10 @@ export const githubController = createRPCController({
     }
   },
 
-  createPullRequestWorktree: async (args: {
-    projectPath: string;
-    projectId: string;
-    prNumber: number;
-    prTitle?: string;
-    taskName?: string;
-    branchName?: string;
-  }) => {
-    const { projectPath, projectId, prNumber } = args || ({} as typeof args);
-
-    if (!projectPath || !projectId || !prNumber) {
-      return { success: false, error: 'Missing required parameters' };
-    }
-
-    const defaultSlug = slugify(args.prTitle || `pr-${prNumber}`) || `pr-${prNumber}`;
-    const taskName =
-      args.taskName && args.taskName.trim().length > 0
-        ? args.taskName.trim()
-        : `pr-${prNumber}-${defaultSlug}`;
-    const branchName = args.branchName || `pr/${prNumber}`;
-
-    try {
-      const currentWorktrees = await worktreeService.listWorktrees(projectPath);
-      const existing = currentWorktrees.find((wt) => wt.branch === branchName);
-
-      if (existing) {
-        return { success: true, worktree: existing, branchName, taskName: existing.name };
-      }
-
-      await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
-
-      const worktreesDir = path.resolve(projectPath, '..', 'worktrees');
-      const slug = slugify(taskName) || `pr-${prNumber}`;
-      let worktreePath = path.join(worktreesDir, slug);
-
-      if (fs.existsSync(worktreePath)) {
-        worktreePath = path.join(worktreesDir, `${slug}-${Date.now()}`);
-      }
-
-      const worktree = await worktreeService.createWorktreeFromBranch(
-        projectPath,
-        taskName,
-        branchName,
-        projectId,
-        { worktreePath }
-      );
-
-      return { success: true, worktree, branchName, taskName };
-    } catch (error) {
-      log.error('Failed to create PR worktree:', error);
-      const message =
-        error instanceof Error ? error.message : 'Unable to create PR worktree via GitHub CLI';
-      return { success: false, error: message };
-    }
-  },
-
   checkCLIInstalled: async () => {
     try {
-      return await githubCLIInstaller.isInstalled();
+      const state = await localDependencyManager.probe('gh');
+      return state.status === 'available';
     } catch (error) {
       log.error('Failed to check gh CLI installation:', error);
       return false;
@@ -312,9 +248,9 @@ export const githubController = createRPCController({
   },
 
   installCLI: async () => {
-    const result = await githubCLIInstaller.install();
-    if (!result.success) {
-      throw new Error(result.error ?? 'Installation failed');
+    const state = await localDependencyManager.install('gh');
+    if (state.status !== 'available') {
+      throw new Error(state.error ?? 'Installation failed');
     }
   },
 

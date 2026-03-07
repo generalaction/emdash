@@ -327,45 +327,8 @@ export function useTaskManagement() {
       // Only clean up renderer-side state here.
       cleanupRendererResources(task);
 
-      const shouldRemoveWorktree = task.useWorktree !== false;
-      const promises: Promise<any>[] = [rpc.db.deleteTask(task.id)];
-
-      if (shouldRemoveWorktree) {
-        if (task.path === project.path) {
-          console.warn(
-            `Task "${task.name}" appears to be running on main repo, skipping worktree removal`
-          );
-        } else {
-          promises.unshift(
-            rpc.worktree.remove({
-              projectPath: project.path,
-              worktreeId: task.id,
-              worktreePath: task.path,
-              branch: task.branch,
-            })
-          );
-        }
-      }
-
-      const results = await Promise.allSettled(promises);
-
-      if (shouldRemoveWorktree) {
-        const removeResult = results[0];
-        if (removeResult.status !== 'fulfilled' || !removeResult.value?.success) {
-          const errorMsg =
-            removeResult.status === 'fulfilled'
-              ? removeResult.value?.error || 'Failed to remove worktree'
-              : removeResult.reason?.message || String(removeResult.reason);
-          throw new Error(errorMsg);
-        }
-      }
-
-      const deleteResult = shouldRemoveWorktree ? results[1] : results[0];
-      if (deleteResult.status !== 'fulfilled') {
-        throw new Error(
-          deleteResult.reason?.message || String(deleteResult.reason) || 'Failed to delete task'
-        );
-      }
+      // Worktree removal and DB deletion are both handled by rpc.tasks.deleteTask in main.
+      await rpc.tasks.deleteTask(task.id);
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
         try {

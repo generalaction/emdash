@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { BrowserWindow, Notification } from 'electron';
+import { eq } from 'drizzle-orm';
 import { log } from '../lib/logger';
 import { parsePtyId } from '@shared/ptyId';
 import { getMainWindow } from '../app/window';
@@ -11,6 +12,8 @@ import { agentEventChannel } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getAppSettings } from '../core/settings';
 import { events } from '../lib/events';
+import { db } from '../db/client';
+import { conversations, tasks } from '../db/schema';
 
 class AgentEventService {
   private server: http.Server | null = null;
@@ -69,10 +72,12 @@ class AgentEventService {
             return;
           }
 
-          // Look up the conversation to get the parent taskId
-          const { databaseService } = await import('../../_deprecated/services/DatabaseService');
-          const conv = await databaseService.getConversationById(parsed.conversationId);
-          const taskId = conv?.taskId ?? parsed.conversationId;
+          const convRows = await db
+            .select({ taskId: conversations.taskId })
+            .from(conversations)
+            .where(eq(conversations.id, parsed.conversationId))
+            .limit(1);
+          const taskId = convRows[0]?.taskId ?? parsed.conversationId;
 
           // Body is the raw Claude Code hook payload JSON
           const raw = body ? JSON.parse(body) : {};
@@ -141,9 +146,12 @@ class AgentEventService {
 
       let taskName: string | null = null;
       if (event.taskId) {
-        const { databaseService } = await import('../../_deprecated/services/DatabaseService');
-        const task = await databaseService.getTaskById(event.taskId);
-        if (task?.name) taskName = task.name;
+        const taskRows = await db
+          .select({ name: tasks.name })
+          .from(tasks)
+          .where(eq(tasks.id, event.taskId))
+          .limit(1);
+        if (taskRows[0]?.name) taskName = taskRows[0].name;
       }
 
       const titleSuffix = taskName ? ` — ${taskName}` : '';

@@ -11,7 +11,6 @@ import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
 import { sshService } from './ssh/SshService';
 import { SshFileSystem } from '../../_new/environment/impl/fs-provider/ssh-fs';
-import { GitIgnoreParser } from '../utils/gitIgnore';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [

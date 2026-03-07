@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import _electronUpdater from 'electron-updater';
 import type { UpdateInfo } from 'electron-updater';
 import { log } from '../lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../../_deprecated/lib/updaterError';
+import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

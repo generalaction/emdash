@@ -7,8 +7,6 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ensureProjectPrepared } from '../../_deprecated/services/ProjectPrep';
-import { getAppSettings } from '../core/settings';
 import {
   getAppById,
   getResolvedLabel,
@@ -16,12 +14,12 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { buildExternalToolEnv } from '../../_deprecated/utils/childProcessEnv';
+import { buildExternalToolEnv } from '../utils/childProcessEnv';
 import {
   buildGhosttyRemoteExecArgs,
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
-} from '../../_deprecated/utils/remoteOpenIn';
+} from '../utils/remoteOpenIn';
 import { db } from '../db/client';
 import { sshConnections } from '../db/schema';
 
@@ -398,16 +396,16 @@ export const appController = createRPCController({
 
       if (!command) return { success: false, error: 'Unsupported platform or app' };
 
-      if (appConfig.autoInstall) {
-        try {
-          const settings = getAppSettings();
-          if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
-            void ensureProjectPrepared(target).catch(() => {});
-          }
-        } catch {
-          // ignore
-        }
-      }
+      // if (appConfig.autoInstall) {
+      //   try {
+      //     const settings = getAppSettings();
+      //     if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
+      //       void ensureProjectPrepared(target).catch(() => {});
+      //     }
+      //   } catch {
+      //     // ignore
+      //   }
+      // }
 
       await new Promise<void>((resolve, reject) => {
         exec(command, { cwd: target, env: buildExternalToolEnv() }, (err) => {

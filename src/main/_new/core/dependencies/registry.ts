@@ -20,6 +20,18 @@ const CORE_DEPENDENCIES: DependencyDescriptor[] = [
     versionArgs: ['--version'],
     docUrl: 'https://cli.github.com',
     installHint: 'Run: brew install gh  (or see https://cli.github.com)',
+    installCommand: (() => {
+      switch (process.platform) {
+        case 'darwin':
+          return 'brew install gh';
+        case 'linux':
+          return 'sudo apt update && sudo apt install -y gh';
+        case 'win32':
+          return 'winget install GitHub.cli';
+        default:
+          return undefined;
+      }
+    })(),
   },
   {
     id: 'tmux',

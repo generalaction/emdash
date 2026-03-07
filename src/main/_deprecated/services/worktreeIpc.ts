@@ -1,7 +1,5 @@
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { worktreeService } from './WorktreeService';
-import { worktreePoolService } from './WorktreePoolService';
-import { ptyPoolService } from './PtyPoolService';
+import { worktreeService } from '../../_new/core/worktrees/WorktreeService';
 import { databaseService, type Project } from './DatabaseService';
 import { projects as projectsTable } from '../../_new/db/schema';
 import { eq } from 'drizzle-orm';
@@ -14,7 +12,7 @@ import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
-import { db } from '@/_new/db/client';
+import { db } from '../../_new/db/client';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -235,157 +233,37 @@ export const worktreeController = createRPCController({
     }
   },
 
-  ensureReserve: async (args: { projectId: string; projectPath: string; baseRef?: string }) => {
-    try {
-      const project = await resolveProjectByIdOrPath({
-        projectId: args.projectId,
-        projectPath: args.projectPath,
-      });
-      if (isRemoteProject(project)) {
-        return { success: true };
-      }
-      worktreePoolService.ensureReserve(args.projectId, args.projectPath, args.baseRef);
-      ptyPoolService.ensureReserve(args.projectPath);
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to ensure reserve:', error);
-      return { success: false, error: (error as Error).message };
-    }
+  // Pool management is now handled automatically by EnvironmentProviderManager in main.
+  // These methods are retained as no-ops for backward compatibility with any legacy callers.
+  ensureReserve: async (_args: { projectId: string; projectPath: string; baseRef?: string }) => {
+    return { success: true };
   },
 
-  hasReserve: async (args: { projectId: string }) => {
-    try {
-      const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
-      if (isRemoteProject(project)) {
-        return { success: true, hasReserve: false };
-      }
-      const hasReserve = worktreePoolService.hasReserve(args.projectId);
-      return { success: true, hasReserve };
-    } catch (error) {
-      console.error('Failed to check reserve:', error);
-      return { success: false, error: (error as Error).message };
-    }
+  hasReserve: async (_args: { projectId: string }) => {
+    return { success: true, hasReserve: false };
   },
 
-  claimReserve: async (args: {
+  claimReserve: async (_args: {
     projectId: string;
     projectPath: string;
     taskName: string;
     baseRef?: string;
   }) => {
-    try {
-      const project = await resolveProjectByIdOrPath({
-        projectId: args.projectId,
-        projectPath: args.projectPath,
-      });
-      if (isRemoteProject(project)) {
-        return { success: false, error: 'Remote worktree pooling is not supported yet' };
-      }
-      const result = await worktreePoolService.claimReserve(
-        args.projectId,
-        args.projectPath,
-        args.taskName,
-        args.baseRef
-      );
-      if (result) {
-        return {
-          success: true,
-          worktree: result.worktree,
-          needsBaseRefSwitch: result.needsBaseRefSwitch,
-        };
-      }
-      return { success: false, error: 'No reserve available' };
-    } catch (error) {
-      console.error('Failed to claim reserve:', error);
-      return { success: false, error: (error as Error).message };
-    }
+    return { success: false, error: 'Use rpc.tasks.createTask instead' };
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  claimReserveAndSaveTask: async (args: {
+  claimReserveAndSaveTask: async (_args: {
     projectId: string;
     projectPath: string;
     taskName: string;
     baseRef?: string;
-    task: {
-      projectId: string;
-      name: string;
-      status: 'active' | 'idle' | 'running';
-      agentId?: string | null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      metadata?: any;
-      useWorktree?: boolean;
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    task: any;
   }) => {
-    try {
-      const project = await resolveProjectByIdOrPath({
-        projectId: args.projectId,
-        projectPath: args.projectPath,
-      });
-      if (isRemoteProject(project)) {
-        return { success: false, error: 'Remote worktree pooling is not supported yet' };
-      }
-
-      const claim = await worktreePoolService.claimReserve(
-        args.projectId,
-        args.projectPath,
-        args.taskName,
-        args.baseRef
-      );
-      if (!claim) {
-        return { success: false, error: 'No reserve available' };
-      }
-
-      const persistedTask = {
-        id: claim.worktree.id,
-        projectId: args.projectId,
-        name: args.taskName,
-        branch: claim.worktree.branch,
-        path: claim.worktree.path,
-        status: args.task.status,
-        agentId: args.task.agentId ?? null,
-        metadata: args.task.metadata ?? null,
-        useWorktree: args.task.useWorktree !== false,
-      };
-
-      await databaseService.saveTask(persistedTask);
-
-      return {
-        success: true,
-        worktree: claim.worktree,
-        task: persistedTask,
-        needsBaseRefSwitch: claim.needsBaseRefSwitch,
-      };
-    } catch (error) {
-      console.error('Failed to claim reserve and save task:', error);
-      return { success: false, error: (error as Error).message };
-    }
+    return { success: false, error: 'Use rpc.tasks.createTask instead' };
   },
 
-  removeReserve: async (args: { projectId: string; projectPath?: string; isRemote?: boolean }) => {
-    try {
-      if (args.isRemote) {
-        return { success: true };
-      }
-
-      let projectPath = args.projectPath;
-      if (!projectPath) {
-        const project = await resolveProjectByIdOrPath({ projectId: args.projectId });
-        if (!project) {
-          await worktreePoolService.removeReserve(args.projectId);
-          return { success: true };
-        }
-        if (isRemoteProject(project)) {
-          return { success: true };
-        }
-        projectPath = project.path;
-      }
-
-      await worktreePoolService.removeReserve(args.projectId, projectPath);
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to remove reserve:', error);
-      return { success: false, error: (error as Error).message };
-    }
+  removeReserve: async (_args: { projectId: string; projectPath?: string; isRemote?: boolean }) => {
+    return { success: true };
   },
 });

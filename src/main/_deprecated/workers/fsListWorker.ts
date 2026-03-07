@@ -1,9 +1,9 @@
 import { parentPort } from 'node:worker_threads';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { FsListItem, FsListWorkerResponse } from '../_deprecated/types/fsListWorker';
-import { DEFAULT_IGNORES } from '../_deprecated/utils/fsIgnores';
-import { safeStat } from '../_deprecated/utils/safeStat';
+import { FsListItem, FsListWorkerResponse } from '../types/fsListWorker';
+import { DEFAULT_IGNORES } from '../utils/fsIgnores';
+import { safeStat } from '../utils/safeStat';
 
 type ListWorkerRequest = {
   taskId: number;

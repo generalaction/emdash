@@ -360,93 +360,68 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   }
 
   // ---------------------------------------------------------------------------
-  // Single-agent path
+  // Single-agent path — worktree creation and DB write handled in main process.
   // ---------------------------------------------------------------------------
-  let branch: string;
-  let path: string;
-  let taskId: string;
-  let taskPersistedInClaim = false;
-  let warning: string | undefined;
-
-  if (useWorktree) {
-    const claimAndSaveResult = await rpc.worktree.claimReserveAndSaveTask({
-      projectId: project.id,
-      projectPath: project.path,
-      taskName,
-      baseRef,
-      task: {
-        projectId: project.id,
-        name: taskName,
-        status: 'idle',
-        agentId: primaryAgent,
-        metadata: taskMetadata,
-        useWorktree,
-      },
-    });
-
-    if (claimAndSaveResult.success && claimAndSaveResult.worktree) {
-      const worktree = claimAndSaveResult.worktree;
-      branch = worktree.branch;
-      path = worktree.path;
-      taskId = worktree.id;
-      taskPersistedInClaim = true;
-      if (claimAndSaveResult.needsBaseRefSwitch) {
-        warning = `Could not switch to ${baseRef}. Task created on default branch.`;
+  const linkedIssueParam = linkedLinearIssue
+    ? {
+        source: 'linear' as const,
+        identifier: linkedLinearIssue.identifier,
+        title: linkedLinearIssue.title,
+        url: linkedLinearIssue.url ?? undefined,
       }
-    } else {
-      const worktreeResult = await rpc.worktree.create({
-        projectPath: project.path,
-        taskName,
-        projectId: project.id,
-        baseRef,
-      });
-      if (!worktreeResult.success) {
-        throw new Error(worktreeResult.error || 'Failed to create worktree');
-      }
-      const worktree = worktreeResult.worktree!;
-      branch = worktree.branch;
-      path = worktree.path;
-      taskId = worktree.id;
-    }
-  } else {
-    branch = project.gitInfo.branch || 'main';
-    path = project.path;
-    taskId = `direct-${taskName}-${Date.now()}`;
-  }
+    : linkedGithubIssue
+      ? {
+          source: 'github' as const,
+          number: linkedGithubIssue.number,
+          title: linkedGithubIssue.title,
+          url: linkedGithubIssue.url ?? undefined,
+        }
+      : linkedJiraIssue
+        ? {
+            source: 'jira' as const,
+            key: linkedJiraIssue.key,
+            summary: linkedJiraIssue.summary,
+            url: linkedJiraIssue.url ?? undefined,
+          }
+        : undefined;
 
-  const newTask: Task = {
-    id: taskId,
+  const createResult = await rpc.tasks.createTask({
     projectId: project.id,
     name: taskName,
-    branch,
-    path,
+    useWorktree,
+    linkedIssue: linkedIssueParam,
+    sourceBranch: baseRef,
+    initialConversation: {
+      agentId: primaryAgent,
+      initialPrompt: preparedPrompt,
+    },
+  });
+
+  if (!createResult.success) {
+    const err = createResult.error;
+    const msg = 'message' in err ? err.message : err.type;
+    throw new Error(msg || 'Failed to create task');
+  }
+
+  const { task: createdTask } = createResult.data;
+
+  const newTask: Task = {
+    id: createdTask.id,
+    projectId: createdTask.projectId,
+    name: createdTask.name,
+    branch: createdTask.branch,
+    path: createdTask.path,
     status: 'idle',
     agentId: primaryAgent,
     metadata: taskMetadata,
     useWorktree,
   };
 
-  if (!taskPersistedInClaim) {
-    try {
-      await rpc.db.saveTask({
-        ...newTask,
-        agentId: primaryAgent,
-        metadata: taskMetadata,
-        useWorktree,
-      });
-    } catch (saveErr) {
-      const { log } = await import('./logger');
-      log.error('Failed to save task:', saveErr);
-      // Non-fatal: task is created in memory and will work this session
-      warning = 'Task created but may not persist after restart. Try again if it disappears.';
-    }
-  }
-
-  // Background: setup, telemetry, issue seeding
-  void runSetupOnCreate(newTask.id, newTask.path, project.path, newTask.name);
+  // Background: telemetry and issue context seeding.
+  // Note: setup script is already run by rpc.tasks.createTask in main.
   void import('./telemetryClient').then(({ captureTelemetry }) => {
     captureTelemetry('task_created', {
-      provider: (newTask.agentId as string) || 'codex',
+      provider: primaryAgent,
       has_initial_prompt: !!taskMetadata?.initialPrompt,
     });
     if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
@@ -455,5 +430,5 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   });
   seedIssueContext(newTask.id, taskMetadata);
 
-  return { task: newTask, warning };
+  return { task: newTask };
 }

@@ -1,5 +1,5 @@
-const { spawnSync } = require('node:child_process');
-const path = require('node:path');
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 
 if (process.env.CI || process.env.EMDASH_SKIP_ELECTRON_REBUILD === '1') {
   process.exit(0);

@@ -5,9 +5,10 @@ import type { ProjectRow, TaskRow, ConversationRow, TerminalRow } from '../db/sc
 import type { EnvironmentProvider } from './environment-provider';
 import { LocalEnvironmentProvider } from './impl/local-env-provider';
 import { SshEnvironmentProvider } from './impl/ssh-env-provider';
-import { sshConnectionManager } from '../ssh/ssh-connection-manager';
+import { sshConnectionManager, type SshConnectionEvent } from '../ssh/ssh-connection-manager';
 import { buildConnectConfigFromRow } from './impl/build-connect-config';
 import { log } from '../lib/logger';
+import { worktreePoolService } from '../core/worktrees/WorktreePoolService';
 
 /**
  * Manages one `EnvironmentProvider` instance per project.
@@ -23,6 +24,9 @@ import { log } from '../lib/logger';
  */
 class EnvironmentProviderManager {
   private providers = new Map<string, EnvironmentProvider>();
+
+  /** Maps connectionId → set of projectIds using that connection. */
+  private connectionProjects = new Map<string, Set<string>>();
 
   async initialize(): Promise<void> {
     const allProjects = await db.select().from(projects);
@@ -40,6 +44,17 @@ class EnvironmentProviderManager {
         })
       )
     );
+
+    // Subscribe to SSH reconnect events to rehydrate terminal sessions.
+    sshConnectionManager.on('connection-event', (evt: SshConnectionEvent) => {
+      if (evt.type === 'reconnected') {
+        this.onSshReconnected(evt.connectionId);
+      } else if (evt.type === 'reconnect-failed') {
+        log.warn('EnvironmentProviderManager: SSH reconnect failed permanently', {
+          connectionId: evt.connectionId,
+        });
+      }
+    });
   }
 
   private async bootstrapProject(
@@ -73,6 +88,18 @@ class EnvironmentProviderManager {
           });
       })
     );
+
+    // Pre-warm a reserve worktree for local projects so task creation is instant.
+    if (!project.isRemote) {
+      worktreePoolService
+        .ensureReserve(project.id, project.path, project.baseRef ?? undefined)
+        .catch((e) => {
+          log.warn('EnvironmentProviderManager: failed to warm worktree reserve', {
+            projectId: project.id,
+            error: String(e),
+          });
+        });
+    }
   }
 
   async addProject(project: ProjectRow): Promise<EnvironmentProvider> {
@@ -81,12 +108,33 @@ class EnvironmentProviderManager {
 
     const provider = await this.createProvider(project);
     this.providers.set(project.id, provider);
+
+    // Pre-warm a reserve worktree for local projects so task creation is instant.
+    if (!project.isRemote) {
+      worktreePoolService
+        .ensureReserve(project.id, project.path, project.baseRef ?? undefined)
+        .catch((e) => {
+          log.warn('EnvironmentProviderManager: failed to warm worktree reserve on addProject', {
+            projectId: project.id,
+            error: String(e),
+          });
+        });
+    }
+
     return provider;
   }
 
   async removeProject(projectId: string): Promise<void> {
     const provider = this.providers.get(projectId);
     if (!provider) return;
+
+    // Clean up any pooled reserve worktrees for this project.
+    await worktreePoolService.removeReserve(projectId).catch((e) => {
+      log.warn('EnvironmentProviderManager: failed to remove worktree reserve', {
+        projectId,
+        error: String(e),
+      });
+    });
 
     await provider.teardownAll().catch((e) => {
       log.error('EnvironmentProviderManager: error during project teardown', {
@@ -96,6 +144,14 @@ class EnvironmentProviderManager {
     });
 
     this.providers.delete(projectId);
+
+    // Remove the project from the connection tracking map.
+    for (const [connId, projectIds] of this.connectionProjects) {
+      projectIds.delete(projectId);
+      if (projectIds.size === 0) {
+        this.connectionProjects.delete(connId);
+      }
+    }
   }
 
   getProvider(projectId: string): EnvironmentProvider | undefined {
@@ -109,6 +165,11 @@ class EnvironmentProviderManager {
   async shutdown(): Promise<void> {
     const ids = Array.from(this.providers.keys());
     await Promise.allSettled(ids.map((id) => this.removeProject(id)));
+    await worktreePoolService.cleanup().catch((e) => {
+      log.warn('EnvironmentProviderManager: failed to cleanup worktree pool on shutdown', {
+        error: String(e),
+      });
+    });
   }
 
   private async createProvider(project: ProjectRow): Promise<EnvironmentProvider> {
@@ -142,10 +203,11 @@ class EnvironmentProviderManager {
         .limit(1);
 
       if (!row) {
-        log.warn('EnvironmentProviderManager: SSH connection row not found ', {
+        log.warn('EnvironmentProviderManager: SSH connection row not found', {
           projectId: project.id,
           connectionId,
         });
+        return new LocalEnvironmentProvider(project.id);
       }
 
       const config = await buildConnectConfigFromRow(row);
@@ -159,8 +221,45 @@ class EnvironmentProviderManager {
       }
     }
 
-    const client = sshConnectionManager.getClient(connectionId)!;
-    return new SshEnvironmentProvider(project.id, client);
+    const proxy = sshConnectionManager.getProxy(connectionId);
+    if (!proxy) {
+      log.warn(
+        'EnvironmentProviderManager: no proxy after connect attempt, falling back to local',
+        { projectId: project.id, connectionId }
+      );
+      return new LocalEnvironmentProvider(project.id);
+    }
+
+    // Track which projects use this connection so we can rehydrate them on reconnect.
+    const projectSet = this.connectionProjects.get(connectionId) ?? new Set<string>();
+    projectSet.add(project.id);
+    this.connectionProjects.set(connectionId, projectSet);
+
+    return new SshEnvironmentProvider(project.id, proxy);
+  }
+
+  /** Called when SshConnectionManager fires a 'reconnected' event. */
+  private onSshReconnected(connectionId: string): void {
+    const projectIds = this.connectionProjects.get(connectionId);
+    if (!projectIds || projectIds.size === 0) return;
+
+    log.info('EnvironmentProviderManager: SSH reconnected — rehydrating terminals', {
+      connectionId,
+      projects: Array.from(projectIds),
+    });
+
+    for (const projectId of projectIds) {
+      const provider = this.providers.get(projectId);
+      if (provider instanceof SshEnvironmentProvider) {
+        provider.rehydrateTerminals().catch((e: unknown) => {
+          log.error('EnvironmentProviderManager: rehydrateTerminals failed', {
+            projectId,
+            connectionId,
+            error: String(e),
+          });
+        });
+      }
+    }
   }
 }
 

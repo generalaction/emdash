@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
-import { registerExternalLinkHandlers } from '../../_deprecated/utils/externalLinks';
+import { registerExternalLinkHandlers } from '../utils/externalLinks';
 import { APP_ORIGIN } from './protocol';
 import appIcon from '../../../assets/images/emdash/emdash_logo.png?asset';
 import { capture, checkAndReportDailyActiveUser } from '../lib/telemetry';

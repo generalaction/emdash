@@ -96,13 +96,7 @@ export const useProjectManagement = () => {
 
   const deleteProjectMutation = useMutation({
     mutationFn: async (project: Project) => {
-      await rpc.worktree
-        .removeReserve({
-          projectId: project.id,
-          projectPath: project.path,
-          isRemote: project.isRemote,
-        })
-        .catch(() => {});
+      // Reserve cleanup is handled by EnvironmentProviderManager.removeProject in main.
       await rpc.projects.deleteProject(project.id);
     },
     onMutate: (project) => {

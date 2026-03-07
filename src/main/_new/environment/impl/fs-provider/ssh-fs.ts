@@ -3,7 +3,8 @@
  * Uses SFTP over SSH for remote filesystem operations
  */
 
-import type { Client, SFTPWrapper } from 'ssh2';
+import type { SFTPWrapper } from 'ssh2';
+import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
 import {
   IFileSystem,
   FileListResult,
@@ -17,7 +18,7 @@ import {
   FileSystemErrorCodes,
   DEFAULT_EMDASH_CONFIG,
 } from './types';
-import { quoteShellArg } from '../../../../_deprecated/utils/shellEscape';
+import { quoteShellArg } from '../../../utils/shellEscape';
 
 /**
  * Allowed image extensions for readImage
@@ -42,7 +43,7 @@ export class SshFileSystem implements IFileSystem {
   private cachedSftp: SFTPWrapper | undefined;
 
   constructor(
-    private readonly client: Client,
+    private readonly proxy: SshClientProxy,
     private readonly remotePath: string
   ) {
     if (!remotePath) {
@@ -57,7 +58,7 @@ export class SshFileSystem implements IFileSystem {
   private getSftp(): Promise<SFTPWrapper> {
     if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
     return new Promise((resolve, reject) => {
-      this.client.sftp((err, sftp) => {
+      this.proxy.client.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
         sftp.on('close', () => {
@@ -71,7 +72,7 @@ export class SshFileSystem implements IFileSystem {
   private exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const full = `bash -l -c ${quoteShellArg(command)}`;
     return new Promise((resolve, reject) => {
-      this.client.exec(full, (err, stream) => {
+      this.proxy.client.exec(full, (err, stream) => {
         if (err) return reject(err);
         let stdout = '';
         let stderr = '';

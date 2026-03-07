@@ -2,7 +2,7 @@ import { db } from '../db/client';
 import { conversations, tasks, projects } from '../db/schema';
 import { eq, asc, sql } from 'drizzle-orm';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../_deprecated/lib/result';
+import { ok, err } from '../lib/result';
 import { environmentProviderManager } from '../environment/provider-manager';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { buildAgentCommand } from '../pty/build-agent-command';

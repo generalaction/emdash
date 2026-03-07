@@ -1,13 +1,10 @@
-import { rpc } from './rpc';
-
-/** Fires a worktree reserve pre-warm for the given project + base ref. */
+/**
+ * Pool prewarming is now handled automatically by EnvironmentProviderManager in the main
+ * process when a project is bootstrapped or added. This function is intentionally a no-op.
+ */
 export function prewarmWorktreeReserve(
-  projectId: string,
-  projectPath: string,
-  isGitRepo: boolean | undefined,
-  baseRef?: string
-): void {
-  if (!isGitRepo) return;
-  const requestedBaseRef = (baseRef || '').trim() || 'HEAD';
-  rpc.worktree.ensureReserve({ projectId, projectPath, baseRef: requestedBaseRef }).catch(() => {});
-}
+  _projectId: string,
+  _projectPath: string,
+  _isGitRepo: boolean | undefined,
+  _baseRef?: string
+): void {}
