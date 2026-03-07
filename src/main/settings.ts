@@ -107,6 +107,7 @@ export interface AppSettings {
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  pinnedAgents?: string[];
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -179,6 +180,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
+  pinnedAgents: [],
 };
 
 function getSettingsPath(): string {
@@ -528,6 +530,15 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     out.hiddenOpenInApps = [...new Set(validated)];
   } else {
     out.hiddenOpenInApps = [];
+  }
+
+  // Pinned Agents
+  const rawPinned = (input as any)?.pinnedAgents;
+  if (Array.isArray(rawPinned)) {
+    const validated = rawPinned.filter((item) => typeof item === 'string');
+    out.pinnedAgents = [...new Set(validated)];
+  } else {
+    out.pinnedAgents = [];
   }
 
   return out;
