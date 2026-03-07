@@ -25,7 +25,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   className = '',
   disabledAgents = [],
 }) => {
-  // Setup state for pinned agents (using localStorage to remember preferences)
+  // Setup state for pinned agents (persisted via rpc.appSettings)
   const [pinnedAgents, setPinnedAgents] = useState<string[]>([]);
 
   useEffect(() => {
@@ -44,6 +44,8 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   const togglePin = async (agentId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    const previousState = [...pinnedAgents];
+
     const next = pinnedAgents.includes(agentId)
       ? pinnedAgents.filter((a) => a !== agentId)
       : [...pinnedAgents, agentId];
@@ -53,10 +55,12 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
       await rpc.appSettings.update({ pinnedAgents: next });
     } catch (error) {
       console.error('Failed to save pinned agents', error);
+      // If the save fails, roll the UI back
+      setPinnedAgents(previousState);
     }
   };
 
-  // Dynamically sort agents (Pinned ones go to the top, others stay in original order)
+  // Dynamically sort agents
   const sortedAgents = React.useMemo(() => {
     return Object.entries(agentConfig).sort(([keyA], [keyB]) => {
       const aPinned = pinnedAgents.includes(keyA);
