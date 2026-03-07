@@ -306,6 +306,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relPath: string,
     remote?: { connectionId: string; remotePath: string }
   ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
+  fsRename: (
+    root: string,
+    oldName: string,
+    newName: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:rename', { root, oldName, newName, ...remote }),
+  fsMkdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:mkdir', { root, relPath, ...remote }),
+  fsRmdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:rmdir', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>

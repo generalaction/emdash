@@ -775,6 +775,24 @@ declare global {
         relPath: string,
         remote?: { connectionId: string; remotePath: string }
       ) => Promise<{ success: boolean; error?: string }>;
+
+      fsRename: (
+        root: string,
+        oldName: string,
+        newName: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsMkdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsRmdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+
       getProjectConfig: (
         projectPath: string
       ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
