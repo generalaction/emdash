@@ -7,7 +7,7 @@ import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { createTask } from '../lib/taskCreationService';
 import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';

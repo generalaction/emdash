@@ -48,7 +48,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import AgentLogo from './AgentLogo';
 import { agentAssets } from '../providers/assets';

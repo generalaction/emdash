@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';

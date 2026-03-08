@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type TelemetryState = {
   prefEnabled: boolean;

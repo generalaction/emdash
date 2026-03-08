@@ -2,7 +2,7 @@ import React from 'react';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { useTelemetryConsent } from '../hooks/useTelemetryConsent';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 const TelemetryCard: React.FC = () => {
   const { prefEnabled, envDisabled, hasKeyAndHost, loading, setTelemetryEnabled } =

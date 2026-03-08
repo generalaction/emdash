@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { ExternalLink, Users, Tag } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import type { GitHubIssueSummary } from '../types/github';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type Props = {
   issue: GitHubIssueSummary | null;

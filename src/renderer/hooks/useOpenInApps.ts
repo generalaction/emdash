@@ -6,8 +6,8 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
-import { rpc } from '../lib/rpc';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '../lib/ipc';
 
 export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;

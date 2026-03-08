@@ -5,7 +5,7 @@ import { AgentInfoCard } from './AgentInfoCard';
 import RoutingInfoCard from './RoutingInfoCard';
 import { Workflow } from 'lucide-react';
 import { Badge } from './ui/badge';
-import type { UiAgent } from '@/providers/meta';
+import type { UiAgent } from '@renderer/providers/meta';
 import { type Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';

@@ -3,9 +3,9 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { Spinner } from '../ui/spinner';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 import { FolderOpen, Eye, EyeOff, Server, User, Lock, Key, Shield, Download } from 'lucide-react';
 import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
 

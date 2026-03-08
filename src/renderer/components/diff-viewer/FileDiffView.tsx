@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import type { DiffLine } from '../../hooks/useFileDiff';

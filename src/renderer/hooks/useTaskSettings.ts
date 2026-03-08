@@ -1,4 +1,4 @@
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 export type TaskSettingsErrorScope =
   | 'autoGenerateName'

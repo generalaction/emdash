@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { rpc } from '../lib/rpc';
-import { useTheme } from '@/hooks/useTheme';
+import { rpc } from '../lib/ipc';
+import { useTheme } from '@renderer/hooks/useTheme';
 
 // Constants for timing and delays
 const DIFF_CONSTANTS = {

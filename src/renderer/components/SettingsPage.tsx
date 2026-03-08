@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { rpc, events } from '../lib/rpc';
+import { rpc, events } from '../lib/ipc';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { ExternalLink } from 'lucide-react';
 import { Separator } from './ui/separator';

@@ -1,16 +1,16 @@
-import { Pty } from '@/pty/pty';
-import { ok, Result } from '@/lib/result';
+import { Pty } from '@main/pty/pty';
+import { ok, Result } from '@main/lib/result';
 import type { CreateSessionError, AgentStartOptions, IAgentProvider } from '../../agent-provider';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { AgentSessionConfig } from './agent-session';
 import { ProviderId } from '@shared/providers/registry';
-import { buildSessionEnv } from '@/pty/pty-env';
-import { resolveSpawnParams } from '@/pty/spawn-utils';
-import { spawnLocalPty } from '@/pty/local-pty';
-import { events } from '@/lib/events';
+import { buildSessionEnv } from '@main/pty/pty-env';
+import { resolveSpawnParams } from '@main/pty/spawn-utils';
+import { spawnLocalPty } from '@main/pty/local-pty';
+import { events } from '@main/lib/events';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { ptySessionRegistry } from '@/pty/pty-session-registry';
-import { log } from '@/lib/logger';
+import { ptySessionRegistry } from '@main/pty/pty-session-registry';
+import { log } from '@main/lib/logger';
 import { wireAgentClassifier } from './shared';
 
 const DEFAULT_COLS = 80;

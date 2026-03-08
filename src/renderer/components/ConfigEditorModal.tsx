@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type LifecycleScripts = {
   setup: string;

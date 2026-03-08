@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileIcon } from './FileIcons';
-import type { SearchResult } from '@/hooks/useContentSearch';
+import type { SearchResult } from '@renderer/hooks/useContentSearch';
 
 // Constants for display limits
 const MAX_VISIBLE_MATCHES_PER_FILE = 3;

@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { useCurrentTask } from './CurrentTaskProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
-import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
-import { useFileManager, type ManagedFile } from '@/hooks/useFileManager';
-import { useFileChanges, type FileChange } from '@/hooks/useFileChanges';
-import { isMarkdownFile } from '@/constants/file-explorer';
+import { useProjectRemoteInfo } from '@renderer/hooks/useProjectRemoteInfo';
+import { useFileManager, type ManagedFile } from '@renderer/hooks/useFileManager';
+import { useFileChanges, type FileChange } from '@renderer/hooks/useFileChanges';
+import { isMarkdownFile } from '@renderer/constants/file-explorer';
 
 interface CodeEditorContextValue {
   // Task/project info

@@ -7,8 +7,8 @@ import { Inbox, Plus } from 'lucide-react';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';
 import { refreshPrStatus } from '../../lib/prStatusStore';
-import { rpc } from '@/lib/rpc';
-import { events } from '../../lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
+import { events } from '../../lib/ipc';
 import { ptyExitChannel } from '@shared/events/appEvents';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];

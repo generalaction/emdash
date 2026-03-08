@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { useModalContext } from './ModalProvider';
 import { useAppContext } from './AppContextProvider';
-import { rpc, events } from '../lib/rpc';
+import { rpc, events } from '../lib/ipc';
 import {
   githubAuthSuccessChannel,
   githubAuthErrorChannel,

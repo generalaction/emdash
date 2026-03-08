@@ -1,5 +1,5 @@
-import { Dialog } from '@/components/ui/dialog';
-import { useModalContext } from '@/contexts/ModalProvider';
+import { Dialog } from '@renderer/components/ui/dialog';
+import { useModalContext } from '@renderer/contexts/ModalProvider';
 import { useMemo } from 'react';
 
 export function ModalRenderer() {

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import ExternalLinkModal from '../components/ExternalLinkModal';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 interface ExternalLinkContextType {
   openLinkModal: (url: string) => void;

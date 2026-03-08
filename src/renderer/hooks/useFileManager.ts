@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { rpc } from '../lib/rpc';
-import { AUTO_SAVE_DELAY } from '@/constants/file-explorer';
-import { dispatchFileChangeEvent, subscribeToFileChanges } from '@/lib/fileChangeEvents';
-import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
+import { rpc } from '../lib/ipc';
+import { AUTO_SAVE_DELAY } from '@renderer/constants/file-explorer';
+import { dispatchFileChangeEvent, subscribeToFileChanges } from '@renderer/lib/fileChangeEvents';
+import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
 
 export interface ManagedFile {
   path: string;

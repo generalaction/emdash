@@ -2,8 +2,8 @@ import React, { useEffect } from 'react';
 import { Globe } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { useBrowser } from '@/providers/BrowserProvider';
-import { events, rpc } from '@/lib/rpc';
+import { useBrowser } from '@renderer/providers/BrowserProvider';
+import { events, rpc } from '@renderer/lib/ipc';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import {
   getLastUrl,
@@ -12,8 +12,13 @@ import {
   setRunning,
   isInstalled,
   setInstalled,
-} from '@/lib/previewStorage';
-import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
+} from '@renderer/lib/previewStorage';
+import {
+  isReachable,
+  isAppPort,
+  FALLBACK_DELAY_MS,
+  SPINNER_MAX_MS,
+} from '@renderer/lib/previewNetwork';
 
 interface Props {
   taskId?: string | null;

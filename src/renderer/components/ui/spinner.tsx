@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 
 const Spinner = React.forwardRef<
   SVGSVGElement,

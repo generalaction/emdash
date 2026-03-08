@@ -1,18 +1,34 @@
 {
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2020",
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": ["react", "react-dom", "node"],
+    "types": ["react", "react-dom", "electron-vite/node", "node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/renderer/*"],
-      "@shared/*": ["./src/shared/*"],
-      "#types/*": ["./src/types/*"],
-      "#types": ["./src/types/index.ts"]
+      "@renderer/*": ["./src/renderer/*"],
+      "@main/*": ["./src/main/*"],
+      "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "src/types/**/*", "src/test/**/*"]
+  "include": [
+    "src/main/**/*",
+    "src/renderer/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*",
+    "src/types/**/*",
+    "src/test/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "out", "**/_*/**"]
 }

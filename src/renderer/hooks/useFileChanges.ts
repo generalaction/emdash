@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
-import { getCachedGitStatus } from '@/lib/gitStatusCache';
-import { events, rpc } from '../lib/rpc';
+import { subscribeToFileChanges } from '@renderer/lib/fileChangeEvents';
+import { getCachedGitStatus } from '@renderer/lib/gitStatusCache';
+import { events, rpc } from '../lib/ipc';
 import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface FileChange {

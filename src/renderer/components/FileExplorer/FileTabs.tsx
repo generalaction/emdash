@@ -1,9 +1,9 @@
 import React from 'react';
 import { X, Eye, Pencil } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import type { ManagedFile } from '@/hooks/useFileManager';
+import { cn } from '@renderer/lib/utils';
+import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { FileIcon } from './FileIcons';
-import { isMarkdownFile } from '@/constants/file-explorer';
+import { isMarkdownFile } from '@renderer/constants/file-explorer';
 
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;

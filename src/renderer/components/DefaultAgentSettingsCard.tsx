@@ -2,7 +2,7 @@ import React from 'react';
 import { AgentSelector } from './AgentSelector';
 import type { Agent } from '../types';
 import { isValidProviderId } from '@shared/providers/registry';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 const DEFAULT_AGENT: Agent = 'claude';
 

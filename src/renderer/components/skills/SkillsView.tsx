@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RefreshCw, Search, Plus, Loader2 } from 'lucide-react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';

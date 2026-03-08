@@ -1,5 +1,5 @@
 import React from 'react';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';

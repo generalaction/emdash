@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import { RefreshCcw, LogOut, ExternalLink } from 'lucide-react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type GithubConnectionStatus = 'connected' | 'disconnected' | 'missing';
 

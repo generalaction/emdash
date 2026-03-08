@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { splitPath } from './pathUtils';
 
 interface CommitFile {

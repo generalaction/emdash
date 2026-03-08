@@ -4,7 +4,7 @@ import { makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/appEvents';
-import { events } from '../rpc';
+import { events } from '../ipc';
 
 export type ActivityPayload = { busy: boolean; conversationId: string | null };
 type Listener = (payload: ActivityPayload) => void;

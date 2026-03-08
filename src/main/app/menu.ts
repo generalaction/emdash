@@ -1,6 +1,6 @@
 import { Menu, shell, app } from 'electron';
 import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
-import { events } from '../lib/events';
+import { events } from '@main/lib/events';
 import {
   menuOpenSettingsChannel,
   menuCheckForUpdatesChannel,

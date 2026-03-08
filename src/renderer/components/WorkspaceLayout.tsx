@@ -1,7 +1,11 @@
 import { ReactNode } from 'react';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { useWorkspaceLayoutContext } from '@/contexts/WorkspaceLayoutProvider';
-import { cn } from '@/lib/utils';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@renderer/components/ui/resizable';
+import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
+import { cn } from '@renderer/lib/utils';
 
 const LEFT_PANEL_DEFAULT_SIZE = 20;
 const RIGHT_PANEL_DEFAULT_SIZE = 20;

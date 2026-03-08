@@ -1,5 +1,5 @@
 import { performActiveEditorRedo, performActiveEditorUndo } from './activeCodeEditor';
-import { events } from './rpc';
+import { events } from './ipc';
 import { appUndoChannel, appRedoChannel } from '@shared/events/appEvents';
 
 function runAfterFocusRestores(action: () => void): void {

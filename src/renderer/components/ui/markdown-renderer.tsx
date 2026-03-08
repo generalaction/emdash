@@ -5,9 +5,9 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
-import { rpc } from '../../lib/rpc';
+import { useTheme } from '@renderer/hooks/useTheme';
+import { cn } from '@renderer/lib/utils';
+import { rpc } from '../../lib/ipc';
 
 type Variant = 'full' | 'compact';
 

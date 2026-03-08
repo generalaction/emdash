@@ -6,7 +6,7 @@ import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
 import { LinearStatusPill } from './LinearStatusPill';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type Props = {
   issue: LinearIssueSummary | null;

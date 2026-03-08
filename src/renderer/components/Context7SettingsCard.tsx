@@ -6,8 +6,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import FeedbackModal from './FeedbackModal';
 import context7Logo from '../../assets/images/context7.png';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
-import { rpc } from '../lib/rpc';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '../lib/ipc';
 
 const Context7SettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();

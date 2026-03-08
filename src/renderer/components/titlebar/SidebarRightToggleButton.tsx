@@ -4,7 +4,7 @@ import { PanelRight } from 'lucide-react';
 import { useRightSidebar } from '../ui/right-sidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 import { ShortcutHint } from '../ui/shortcut-hint';
-import { captureTelemetry } from '@/lib/telemetryClient';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 
 const SidebarRightToggleButton: React.FC = () => {
   const { toggle, collapsed } = useRightSidebar();

@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { events, rpc } from '../lib/rpc';
+import { events, rpc } from '../lib/ipc';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';

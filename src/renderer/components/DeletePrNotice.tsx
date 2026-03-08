@@ -3,7 +3,7 @@ import { Folder, GitBranch } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import type { PrInfo } from '../lib/prStatus';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type Props = {
   tasks: Array<{ name: string; pr: PrInfo }>;

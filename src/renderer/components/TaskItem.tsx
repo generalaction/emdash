@@ -17,7 +17,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from './ui/context-menu';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();

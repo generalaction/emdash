@@ -1,4 +1,4 @@
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'dark-black' | 'system';

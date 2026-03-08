@@ -3,7 +3,7 @@ import githubIcon from '../../assets/images/github.png';
 import type { CheckRunsStatus, CheckRun, CheckRunBucket } from '../lib/checkRunStatus';
 import { formatCheckDuration } from '../lib/checkRunStatus';
 import { Badge } from './ui/badge';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {

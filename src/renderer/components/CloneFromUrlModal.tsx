@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 interface CloneFromUrlModalProps {
   onClose: () => void;

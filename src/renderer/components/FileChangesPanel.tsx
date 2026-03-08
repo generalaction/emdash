@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';

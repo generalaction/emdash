@@ -1,4 +1,4 @@
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useCallback, useContext } from 'react';
 import { AppSettings, AppSettingsUpdate } from 'src/main/settings';

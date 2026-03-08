@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Input } from './input';
 import { useToast } from '../../hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 
 export interface SlugInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {

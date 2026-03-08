@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type IntegrationsContextValue = {
   // Linear

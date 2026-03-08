@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext } from 'react';
 import type { KeyboardSettings, ShortcutModifier } from '../types/shortcuts';
 import { APP_SHORTCUTS, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface KeyboardSettingsContextValue {

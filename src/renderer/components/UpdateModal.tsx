@@ -4,8 +4,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@renderer/components/ui/dialog';
+import { Button } from '@renderer/components/ui/button';
 import {
   CheckCircle2,
   Download,
@@ -14,9 +14,9 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { useUpdater, EMDASH_RELEASES_URL } from '@/hooks/useUpdater';
-import { BaseModalProps } from '@/contexts/ModalProvider';
-import { rpc } from '../lib/rpc';
+import { useUpdater, EMDASH_RELEASES_URL } from '@renderer/hooks/useUpdater';
+import { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import { rpc } from '../lib/ipc';
 
 interface UpdateModalProps {
   onClose: () => void;

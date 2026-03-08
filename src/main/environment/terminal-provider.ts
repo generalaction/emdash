@@ -1,4 +1,4 @@
-import { Result } from '@/lib/result';
+import { Result } from '@main/lib/result';
 import { LocalSpawnError } from '../pty/local-pty';
 import { Ssh2OpenError } from '../pty/ssh2-pty';
 

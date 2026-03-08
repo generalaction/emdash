@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Textarea, type TextareaProps } from '../../ui/textarea';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 
 export function useTextareaAutoFocus(ref: React.RefObject<HTMLTextAreaElement>, active: boolean) {
   React.useEffect(() => {

@@ -7,7 +7,7 @@ import { type AgentRun } from '../types/chat';
 import { agentConfig } from '../lib/agentConfig';
 import { AgentInfoCard } from './AgentInfoCard';
 import AgentLogo from './AgentLogo';
-import type { UiAgent } from '@/providers/meta';
+import type { UiAgent } from '@renderer/providers/meta';
 
 const MAX_RUNS = 4;
 

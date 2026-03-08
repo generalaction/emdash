@@ -1,8 +1,8 @@
-import { Pty } from '@/pty/pty';
-import { AgentSessionConfig } from '@/environment/impl/agent-provider/agent-session';
+import { Pty } from '@main/pty/pty';
+import { AgentSessionConfig } from '@main/environment/impl/agent-provider/agent-session';
 import { createClassifier } from './agent-event-classifiers';
 import { agentEventChannel } from '@shared/events/agentEvents';
-import { events } from '@/lib/events';
+import { events } from '@main/lib/events';
 
 export function wireAgentClassifier(pty: Pty, sessionId: string, cfg: AgentSessionConfig): void {
   const classifier = createClassifier(cfg.providerId);

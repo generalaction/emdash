@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS } from '../components/CliAgentsList';
-import { rpc, events } from '../lib/rpc';
+import { rpc, events } from '../lib/ipc';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 
 type CachedAgentStatus = {

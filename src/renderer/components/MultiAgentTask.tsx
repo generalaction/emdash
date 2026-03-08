@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { events } from '../lib/rpc';
+import { events } from '../lib/ipc';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 import { type Task } from '../types/chat';
 import { type Agent } from '../types';
@@ -7,18 +7,22 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane } from './TerminalPane';
-import { agentMeta } from '@/providers/meta';
-import { agentAssets } from '@/providers/assets';
+import { agentMeta } from '@renderer/providers/meta';
+import { agentAssets } from '@renderer/providers/assets';
 import AgentLogo from './AgentLogo';
-import { useTheme } from '@/hooks/useTheme';
-import { classifyActivity } from '@/lib/activityClassifier';
+import { useTheme } from '@renderer/hooks/useTheme';
+import { classifyActivity } from '@renderer/lib/activityClassifier';
 import { Spinner } from './ui/spinner';
-import { BUSY_HOLD_MS, CLEAR_BUSY_MS, INJECT_ENTER_DELAY_MS } from '@/lib/activityConstants';
+import {
+  BUSY_HOLD_MS,
+  CLEAR_BUSY_MS,
+  INJECT_ENTER_DELAY_MS,
+} from '@renderer/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 interface Props {
   task: Task;

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 // Constants - No magic numbers
 const SEARCH_DEBOUNCE_MS = 400; // Balanced for performance and responsiveness

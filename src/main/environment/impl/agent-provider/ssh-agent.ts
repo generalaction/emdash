@@ -1,17 +1,17 @@
-import { Pty } from '@/pty/pty';
+import { Pty } from '@main/pty/pty';
 import { AgentStartOptions, CreateSessionError, IAgentProvider } from '../../agent-provider';
 import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
-import { ok, Result } from '@/lib/result';
+import { ok, Result } from '@main/lib/result';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { AgentSessionConfig } from '@/environment/impl/agent-provider/agent-session';
+import { AgentSessionConfig } from '@main/environment/impl/agent-provider/agent-session';
 import { ProviderId } from '@shared/providers/registry';
-import { buildSshCommandString, resolveSpawnParams } from '@/pty/spawn-utils';
-import { openSsh2Pty } from '@/pty/ssh2-pty';
+import { buildSshCommandString, resolveSpawnParams } from '@main/pty/spawn-utils';
+import { openSsh2Pty } from '@main/pty/ssh2-pty';
 import { wireAgentClassifier } from './shared';
-import { events } from '@/lib/events';
+import { events } from '@main/lib/events';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { ptySessionRegistry } from '@/pty/pty-session-registry';
-import { log } from '@/lib/logger';
+import { ptySessionRegistry } from '@main/pty/pty-session-registry';
+import { log } from '@main/lib/logger';
 
 export class SshAgentProvider implements IAgentProvider {
   private sessions = new Map<string, Pty>();

@@ -3,11 +3,11 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@renderer/hooks/use-toast';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
-import { rpc } from '@/lib/rpc';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '@renderer/lib/ipc';
 
 interface OpenInMenuProps {
   path: string;

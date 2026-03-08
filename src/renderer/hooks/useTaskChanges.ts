@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCachedGitStatus } from '@/lib/gitStatusCache';
-import { events, rpc } from '../lib/rpc';
+import { getCachedGitStatus } from '@renderer/lib/gitStatusCache';
+import { events, rpc } from '../lib/ipc';
 import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface TaskChange {

@@ -3,7 +3,7 @@ import { useToast } from './use-toast';
 import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type CreatePROptions = {
   taskPath: string;

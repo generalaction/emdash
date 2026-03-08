@@ -16,7 +16,7 @@ import {
 } from './ui/alert-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
 import { isActivePr } from '../lib/prStatus';

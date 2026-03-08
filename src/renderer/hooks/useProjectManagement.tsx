@@ -4,7 +4,7 @@ import { ToastAction } from '@radix-ui/react-toast';
 import { normalizePathForComparison, withRepoKey } from '../lib/projectUtils';
 import type { Project } from '../types/app';
 import type { LocalProject } from '@shared/types/projects';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useAppContext } from '../contexts/AppContextProvider';
 import { useGithubContext } from '../contexts/GithubContextProvider';

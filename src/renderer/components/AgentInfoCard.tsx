@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { type UiAgent } from '@/providers/meta';
-import { agentAssets } from '@/providers/assets';
+import { type UiAgent } from '@renderer/providers/meta';
+import { agentAssets } from '@renderer/providers/assets';
 import AgentLogo from './AgentLogo';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { Button } from './ui/button';

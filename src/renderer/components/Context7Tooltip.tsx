@@ -2,7 +2,7 @@ import React from 'react';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import { Badge } from './ui/badge';
 import context7Logo from '../../assets/images/context7.png';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 type Props = {
   enabled: boolean;

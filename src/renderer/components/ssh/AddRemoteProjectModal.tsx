@@ -3,13 +3,13 @@ import { Button } from '../ui/button';
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { Spinner } from '../ui/spinner';
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { RadioGroup } from '../ui/radio-group';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 import type { SshConfig, ConnectionTestResult } from '@shared/ssh/types';
 import {
   Server,

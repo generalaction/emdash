@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import type { FileChange } from '../../hooks/useFileChanges';

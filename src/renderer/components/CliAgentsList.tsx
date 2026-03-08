@@ -5,8 +5,8 @@ import CustomCommandModal from './CustomCommandModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { CliAgentStatus } from '../types/connections';
 import { PROVIDERS } from '@shared/providers/registry';
-import { agentAssets } from '@/providers/assets';
-import { rpc } from '../lib/rpc';
+import { agentAssets } from '@renderer/providers/assets';
+import { rpc } from '../lib/ipc';
 
 interface CliAgentsListProps {
   agents: CliAgentStatus[];

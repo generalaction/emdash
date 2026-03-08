@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { events, rpc } from '../lib/rpc';
+import { events, rpc } from '../lib/ipc';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import type { DependencyStatePayload } from '@shared/events/appEvents';
 

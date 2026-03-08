@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { ArrowUp, ArrowDown, Undo2 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
 import type { FileChange } from '../../hooks/useFileChanges';

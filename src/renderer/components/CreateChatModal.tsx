@@ -14,7 +14,7 @@ import { AgentDropdown } from './AgentDropdown';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 

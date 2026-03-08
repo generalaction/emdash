@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from './ui/dialog';
-import type { BaseModalProps } from '@/contexts/ModalProvider';
+import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
@@ -32,7 +32,7 @@ import { useProjectManagementContext } from '../contexts/ProjectManagementProvid
 import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceWrapParams } from '../contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '../hooks/useProjectBranchOptions';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 

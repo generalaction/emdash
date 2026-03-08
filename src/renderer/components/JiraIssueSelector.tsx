@@ -7,7 +7,7 @@ import { type JiraIssueSummary } from '../types/jira';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
 import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
 
 interface Props {

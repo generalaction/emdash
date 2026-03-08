@@ -9,7 +9,7 @@ import { Spinner } from './ui/spinner';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
 import { LinearStatusPill } from './LinearStatusPill';
 import AgentLogo from './AgentLogo';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 interface LinearIssueSelectorProps {
   selectedIssue: LinearIssueSummary | null;

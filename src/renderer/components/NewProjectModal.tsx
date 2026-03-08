@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 interface NewProjectModalProps {
   onClose: () => void;

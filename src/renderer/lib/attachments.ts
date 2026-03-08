@@ -1,5 +1,5 @@
 // Helpers for extracting @mentions and assembling attachment blocks
-import { rpc } from './rpc';
+import { rpc } from './ipc';
 
 export function extractMentions(text: string): string[] {
   const re = /@[\w\-.\/]+/g;

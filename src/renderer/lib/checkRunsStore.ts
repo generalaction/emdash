@@ -1,5 +1,5 @@
 import type { CheckRunsStatus, CheckRun } from './checkRunStatus';
-import { rpc } from './rpc';
+import { rpc } from './ipc';
 import { buildCheckRunsStatus } from './checkRunStatus';
 
 type Listener = (status: CheckRunsStatus | null) => void;

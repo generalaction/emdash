@@ -1,5 +1,5 @@
 import type { PrStatus } from './prStatus';
-import { rpc } from './rpc';
+import { rpc } from './ipc';
 
 type Listener = (pr: PrStatus | null, isLoading: boolean) => void;
 

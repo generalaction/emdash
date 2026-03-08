@@ -1,6 +1,6 @@
 import React from 'react';
 import { Spinner } from './ui/spinner';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 
 interface TaskCreationLoadingProps {
   className?: string;

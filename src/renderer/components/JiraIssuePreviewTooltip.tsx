@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { ExternalLink, User, Folder } from 'lucide-react';
 import jiraLogo from '../../assets/images/jira.png';
 import type { JiraIssueSummary } from '../types/jira';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type Props = {
   issue: JiraIssueSummary | null;

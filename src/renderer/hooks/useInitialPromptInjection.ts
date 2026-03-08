@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity } from '../lib/activityClassifier';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { events, rpc } from '../lib/rpc';
+import { events, rpc } from '../lib/ipc';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 
 /**

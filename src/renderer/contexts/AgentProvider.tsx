@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import type { AgentEvent, NotificationType, SoundEvent } from '@shared/events/agentEvents';
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { soundPlayer } from '../lib/soundPlayer';
-import { events } from '../lib/rpc';
+import { events } from '../lib/ipc';
 
 export type AgentNotification = {
   ptyId: string;

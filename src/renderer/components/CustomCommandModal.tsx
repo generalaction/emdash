@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import type { ProviderCustomConfig } from '../types/electron-api';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

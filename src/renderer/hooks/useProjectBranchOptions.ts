@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { pickDefaultBranch, type BranchOption } from '../components/BranchSelect';
 import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
 import type { Project } from '../types/app';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 interface ProjectBranchOptions {
   projectBranchOptions: BranchOption[];

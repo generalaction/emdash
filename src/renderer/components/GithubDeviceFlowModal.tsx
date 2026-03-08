@@ -5,8 +5,8 @@ import { Spinner } from './ui/spinner';
 import { Check, Copy, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
-import type { BaseModalProps } from '@/contexts/ModalProvider';
-import { rpc, events } from '../lib/rpc';
+import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import { rpc, events } from '../lib/ipc';
 import {
   githubAuthDeviceCodeChannel,
   githubAuthSuccessChannel,

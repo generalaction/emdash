@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { SshConnection, SshConnectionConfig } from '../components/ssh';
 import type { ConnectionState, SshConfigHost } from '../../shared/ssh/types';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 export interface UseSshConnectionsResult {
   connections: SshConnection[];

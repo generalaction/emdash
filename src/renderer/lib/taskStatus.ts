@@ -3,7 +3,7 @@
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
-import { events } from './rpc';
+import { events } from './ipc';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
 type Listener = (status: Derived) => void;

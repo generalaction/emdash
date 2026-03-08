@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { LineComment } from '@shared/types/lineComment';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 
 type TaskState = {
   comments: LineComment[];

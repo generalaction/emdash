@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
 import { type Agent } from '../types';
 import AgentLogo from './AgentLogo';

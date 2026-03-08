@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
-import { rpc, events } from '../lib/rpc';
+import { rpc, events } from '../lib/ipc';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import type { Conversation } from '../../main/_deprecated/services/DatabaseService';
 import { menuCloseTabChannel } from '@shared/events/appEvents';

@@ -4,7 +4,7 @@ import type { AgentRun, TaskMetadata } from '../types/chat';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
-import { rpc } from './rpc';
+import { rpc } from './ipc';
 
 export interface CreateTaskParams {
   project: Project;

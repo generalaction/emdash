@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { rpc } from '../../lib/rpc';
+import { rpc } from '../../lib/ipc';
 import { Undo2 } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import {

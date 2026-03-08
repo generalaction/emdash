@@ -1,6 +1,6 @@
 import React from 'react';
 import { Switch } from './ui/switch';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 const RightSidebarSettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading: loading } = useAppSettings();

@@ -10,7 +10,7 @@ import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { GitHubIssuePreviewTooltip } from './GitHubIssuePreviewTooltip';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 interface GitHubIssueSelectorProps {
   projectPath: string;

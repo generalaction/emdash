@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { CatalogSkill, CatalogIndex } from '@shared/skills/types';
-import { useToast } from '@/hooks/use-toast';
-import { rpc } from '../../lib/rpc';
+import { useToast } from '@renderer/hooks/use-toast';
+import { rpc } from '../../lib/ipc';
 
 export function useSkills() {
   const { toast } = useToast();

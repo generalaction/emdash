@@ -1,4 +1,4 @@
-import { rpc } from './rpc';
+import { rpc } from './ipc';
 
 export type GitStatusChange = {
   path: string;

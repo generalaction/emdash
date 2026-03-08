@@ -8,7 +8,7 @@ import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useAgent } from '../contexts/AgentProvider';
 import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';
 import { soundPlayer } from '../lib/soundPlayer';
-import { events } from '../lib/rpc';
+import { events } from '../lib/ipc';
 import {
   notificationFocusTaskChannel,
   menuOpenSettingsChannel,

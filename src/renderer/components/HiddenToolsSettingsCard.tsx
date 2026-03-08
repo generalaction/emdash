@@ -9,8 +9,8 @@ import {
 import IntegrationRow from './IntegrationRow';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
-import { rpc } from '../lib/rpc';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '../lib/ipc';
 
 export default function HiddenToolsSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();

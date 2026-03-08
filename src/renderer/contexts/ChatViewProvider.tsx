@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { events } from '../lib/rpc';
+import { events } from '../lib/ipc';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 import { useTheme } from '../hooks/useTheme';
 import { agentMeta } from '../providers/meta';
@@ -19,7 +19,7 @@ import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 // SessionRegistry removed — session lifecycle is now managed in the main process.
-import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
 import type { Project } from '../types/app';
 import { useConversations } from './ConversationsProvider';
 import { useTaskInitialInjection } from '../hooks/useTaskInitialInjection';

@@ -4,7 +4,7 @@ import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import AgentLogo from '../AgentLogo';
 import { GitBranch } from 'lucide-react';
-import { rpc } from '@/lib/rpc';
+import { rpc } from '@renderer/lib/ipc';
 
 type AgentTooltipProps = {
   agents: UiAgent[];

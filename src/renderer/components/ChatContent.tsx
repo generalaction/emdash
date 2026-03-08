@@ -1,7 +1,7 @@
 import React from 'react';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
-import { rpc } from '../lib/rpc';
+import { rpc } from '../lib/ipc';
 import { agentMeta } from '../providers/meta';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import type { UiAgent } from '../providers/meta';

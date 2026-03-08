@@ -11,7 +11,7 @@ import {
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
-import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 interface ShortcutBinding {
   key: string;
