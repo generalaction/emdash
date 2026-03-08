@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, Timer, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Timer,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';
 import { Badge } from './ui/badge';
@@ -158,13 +167,19 @@ export function MergePrSection({
   taskPath,
   pr,
   refreshPr,
+  onArchiveTask,
+  onDeleteTask,
 }: {
   taskPath: string;
   pr: PrStatus | null;
   refreshPr: () => Promise<void>;
+  onArchiveTask?: () => Promise<void>;
+  onDeleteTask?: () => Promise<void>;
 }) {
   const { toast } = useToast();
   const [isMerging, setIsMerging] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isTogglingAutoMerge, setIsTogglingAutoMerge] = useState(false);
   const [strategy, setStrategy] = useState<MergeStrategy>(() => {
     try {
@@ -366,17 +381,64 @@ export function MergePrSection({
           </div>
         )}
         {isMerged ? (
-          <Button
-            variant="default"
-            size="sm"
-            className="h-8 w-full justify-center px-2 text-xs disabled:opacity-100"
-            disabled
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Merged
-            </span>
-          </Button>
+          onArchiveTask || onDeleteTask ? (
+            <div className="flex w-full gap-2">
+              {onArchiveTask && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-8 flex-1 justify-center px-2 text-xs"
+                  disabled={isArchiving || isDeleting}
+                  onClick={async () => {
+                    setIsArchiving(true);
+                    try {
+                      await onArchiveTask();
+                    } finally {
+                      setIsArchiving(false);
+                    }
+                  }}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {isArchiving ? <Spinner size="sm" /> : <Archive className="h-3.5 w-3.5" />}
+                    Archive
+                  </span>
+                </Button>
+              )}
+              {onDeleteTask && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 flex-1 justify-center px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isArchiving || isDeleting}
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    try {
+                      await onDeleteTask();
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Delete
+                  </span>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 w-full justify-center px-2 text-xs disabled:opacity-100"
+              disabled
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Merged
+              </span>
+            </Button>
+          )
         ) : isAutoMergeEnabled ? null : (
           <>
             <div className="flex w-full min-w-0">

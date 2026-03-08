@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -29,6 +29,8 @@ import {
   CheckCircle2,
   XCircle,
   GitMerge,
+  Archive,
+  Trash2,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -41,6 +43,8 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -151,6 +155,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
+  const [mergedToMain, setMergedToMain] = useState(false);
+  const [isArchivingAfterMerge, setIsArchivingAfterMerge] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [prMode, setPrMode] = useState<PrMode>(() => {
@@ -210,6 +216,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   // Reset action loading states when task changes
   useEffect(() => {
     setIsMergingToMain(false);
+    setMergedToMain(false);
+    setIsArchivingAfterMerge(false);
     setCommitMessage('');
     setStagingFiles(new Set());
     setRevertingFiles(new Set());
@@ -406,6 +414,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           title: 'Merged to Main',
           description: 'Changes have been merged to main.',
         });
+        setMergedToMain(true);
         await refreshChanges();
         try {
           await refreshPr();
@@ -453,6 +462,19 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       });
     }
   };
+
+  const { activeTask, handleArchiveTask, handleDeleteTask } = useTaskManagementContext();
+  const { selectedProject } = useProjectManagementContext();
+
+  const handleArchiveOnly = useCallback(async () => {
+    if (!activeTask || !selectedProject) return;
+    await handleArchiveTask(selectedProject, activeTask);
+  }, [activeTask, selectedProject, handleArchiveTask]);
+
+  const handleDeleteOnly = useCallback(async () => {
+    if (!activeTask || !selectedProject) return;
+    await handleDeleteTask(selectedProject, activeTask);
+  }, [activeTask, selectedProject, handleDeleteTask]);
 
   const renderPath = (p: string) => {
     const last = p.lastIndexOf('/');
@@ -688,7 +710,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               prUrl={pr?.url}
             />
           </div>
-          <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
+          <MergePrSection
+            taskPath={safeTaskPath}
+            pr={pr}
+            refreshPr={refreshPr}
+            onArchiveTask={handleArchiveOnly}
+            onDeleteTask={handleDeleteOnly}
+          />
         </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -814,6 +842,54 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {mergedToMain && !pr && (
+        <div className="border-t border-border px-4 py-3">
+          <div className="flex w-full gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 flex-1 justify-center px-2 text-xs"
+              disabled={isArchivingAfterMerge}
+              onClick={async () => {
+                setIsArchivingAfterMerge(true);
+                try {
+                  await handleArchiveOnly();
+                } finally {
+                  setIsArchivingAfterMerge(false);
+                }
+              }}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {isArchivingAfterMerge ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
+                Archive
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 flex-1 justify-center px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={isArchivingAfterMerge}
+              onClick={async () => {
+                setIsArchivingAfterMerge(true);
+                try {
+                  await handleDeleteOnly();
+                } finally {
+                  setIsArchivingAfterMerge(false);
+                }
+              }}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </span>
+            </Button>
+          </div>
+        </div>
+      )}
       <AlertDialog open={!!restoreTarget} onOpenChange={(open) => !open && setRestoreTarget(null)}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
