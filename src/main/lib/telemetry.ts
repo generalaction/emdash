@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import rawAppConfig from '../appConfig.json';
-import { KV } from '../db/kv';
+import rawAppConfig from '@main/appConfig.json';
+import { KV } from '@main/db/kv';
 
 // Build-time defaults from appConfig.json (bundled by electron-vite)
 const appConfig: { posthogHost?: string; posthogKey?: string } = rawAppConfig;

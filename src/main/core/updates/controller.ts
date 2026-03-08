@@ -1,7 +1,7 @@
 import { app, shell } from 'electron';
 import { createRPCController } from '@shared/ipc/rpc';
-import { autoUpdateService, type UpdateSettings } from '@main/services/AutoUpdateService';
-import { formatUpdaterError } from '../../ipc/updaterError';
+import { autoUpdateService, type UpdateSettings } from '@main/core/updates/AutoUpdateService';
+import { formatUpdaterError } from './updaterError';
 
 const DEV_HINT_CHECK = 'Updates are disabled in development.';
 const DEV_HINT_DOWNLOAD = 'Cannot download updates in development.';

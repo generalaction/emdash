@@ -1,4 +1,4 @@
-import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from '../workspace-provider';
+import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from './workspace-provider';
 
 export class VmEnvironmentProvider implements EnvironmentProvider {
   readonly type = 'vm';

@@ -1,7 +1,7 @@
 import type { ExecResult } from '@shared/ssh/types';
-import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
-import { quoteShellArg } from '../../../utils/shellEscape';
-import type { DiffResult, GitChange, IGitProvider } from '../../git-provider';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { DiffResult, GitChange, IGitProvider } from '@main/core/workspaces/git-provider';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import { MAX_DIFF_CONTENT_BYTES, parseDiffLines, stripTrailingNewline } from './local-git-utils';
 
 export class SshGitService implements IGitProvider {

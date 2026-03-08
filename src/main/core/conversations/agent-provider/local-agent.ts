@@ -1,16 +1,20 @@
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { Pty } from '@main/core/pty/pty';
+import { buildSessionEnv } from '@main/core/pty/pty-env';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import type {
+  AgentStartOptions,
+  CreateSessionError,
+  IAgentProvider,
+} from '@main/core/workspaces/agent-provider';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
-import { spawnLocalPty } from '@main/pty/local-pty';
-import { Pty } from '@main/pty/pty';
-import { buildSessionEnv } from '@main/pty/pty-env';
-import { ptySessionRegistry } from '@main/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/pty/spawn-utils';
-import type { AgentStartOptions, CreateSessionError, IAgentProvider } from '../../agent-provider';
-import { AgentSessionConfig } from './agent-session';
+import type { AgentSessionConfig } from './agent-session';
 import { wireAgentClassifier } from './shared';
 
 const DEFAULT_COLS = 80;

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import type { DiffLine, DiffResult, GitChange } from '@main/workspaces/git-provider';
+import type { DiffLine, DiffResult, GitChange } from '@main/core/workspaces/git-provider';
 
 /** Maximum bytes for fetching file content in diffs. */
 export const MAX_DIFF_CONTENT_BYTES = 512 * 1024;

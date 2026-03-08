@@ -1,8 +1,8 @@
+import type { IFileSystem } from '@main/core/fs/fs-provider/types';
+import type { Pty } from '@main/core/pty/pty';
 import type { ConversationRow, TaskRow, TerminalRow } from '@main/db/schema';
-import type { Pty } from '../pty/pty';
 import { IAgentProvider } from './agent-provider';
 import type { IGitProvider } from './git-provider';
-import type { IFileSystem } from './impl/fs-provider/types';
 import { ITerminalProvider } from './terminal-provider';
 
 export type ProvisionArgs = {

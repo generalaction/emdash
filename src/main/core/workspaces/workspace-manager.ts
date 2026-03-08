@@ -1,4 +1,8 @@
 import { eq, isNull } from 'drizzle-orm';
+import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
 import { worktreePoolService } from '@main/core/worktrees/WorktreePoolService';
 import { db } from '@main/db/client';
 import {
@@ -13,10 +17,9 @@ import {
   type TerminalRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { sshConnectionManager, type SshConnectionEvent } from '../ssh/ssh-connection-manager';
-import { buildConnectConfigFromRow } from './impl/build-connect-config';
-import { LocalEnvironmentProvider } from './impl/local-env-provider';
-import { SshEnvironmentProvider } from './impl/ssh-env-provider';
+import { buildConnectConfigFromRow } from './build-connect-config';
+import { LocalEnvironmentProvider } from './local-workspace-provider';
+import { SshEnvironmentProvider } from './ssh-workspace-provider';
 import type { EnvironmentProvider } from './workspace-provider';
 
 /**

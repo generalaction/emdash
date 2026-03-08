@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
-import { log } from '../../lib/logger';
-import { openSsh2Pty } from '../../pty/ssh2-pty';
-import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
-import { quoteShellArg } from '../../utils/shellEscape';
-import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from '../workspace-provider';
-import { SshAgentProvider } from './agent-provider/ssh-agent';
-import { SshFileSystem } from './fs-provider/ssh-fs';
-import { SshGitService } from './git-provider/ssh-git-provider';
-import { SshTerminalProvider } from './terminal-provider/ssh-terminal-provider';
+import { SshAgentProvider } from '@main/core/conversations/agent-provider/ssh-agent';
+import { SshFileSystem } from '@main/core/fs/fs-provider/ssh-fs';
+import { SshGitService } from '@main/core/git/git-provider/ssh-git-provider';
+import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { SshTerminalProvider } from '@main/core/terminals/terminal-provider/ssh-terminal-provider';
+import { log } from '@main/lib/logger';
+import { quoteShellArg } from '@main/utils/shellEscape';
+import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from './workspace-provider';
 
 export class SshEnvironmentProvider implements EnvironmentProvider {
   readonly type = 'ssh';

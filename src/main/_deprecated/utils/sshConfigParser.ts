@@ -118,16 +118,3 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
  * both the Host alias and the HostName value. Returns the expanded
  * IdentityAgent path if found, or undefined.
  */
-export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
-  try {
-    const hosts = await parseSshConfigFile();
-    const match = hosts.find(
-      (h) =>
-        h.host.toLowerCase() === hostname.toLowerCase() ||
-        h.hostname?.toLowerCase() === hostname.toLowerCase()
-    );
-    return match?.identityAgent;
-  } catch {
-    return undefined;
-  }
-}

@@ -1,17 +1,17 @@
 import { makePtySessionId } from '@shared/ptySessionId';
-import { log } from '@main/lib/logger';
-import { ok, Result } from '@main/lib/result';
-import { Pty } from '@main/pty/pty';
-import { ptySessionRegistry } from '@main/pty/pty-session-registry';
-import { buildSshCommandString, resolveSpawnParams } from '@main/pty/spawn-utils';
-import { openSsh2Pty } from '@main/pty/ssh2-pty';
-import { GeneralSessionConfig } from '@main/workspaces/impl/terminal-provider/general-session';
-import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
+import { Pty } from '@main/core/pty/pty';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { buildSshCommandString, resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
   CreateSessionError,
   ITerminalProvider,
   TerminalSpawnOptions,
-} from '../../terminal-provider';
+} from '@main/core/workspaces/terminal-provider';
+import { log } from '@main/lib/logger';
+import { ok, Result } from '@main/lib/result';
+import type { GeneralSessionConfig } from './general-session';
 
 export class SshTerminalProvider implements ITerminalProvider {
   private sessions = new Map<string, Pty>();

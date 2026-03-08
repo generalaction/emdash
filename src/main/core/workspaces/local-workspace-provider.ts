@@ -1,11 +1,11 @@
-import { log } from '../../lib/logger';
-import { spawnLocalPty } from '../../pty/local-pty';
-import { buildSessionEnv } from '../../pty/pty-env';
-import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from '../workspace-provider';
-import { LocalAgentProvider } from './agent-provider/local-agent';
-import { LocalFileSystem } from './fs-provider/local-fs';
-import { LocalGitService } from './git-provider/local-git-provider';
-import { LocalTerminalProvider } from './terminal-provider/local-terminal-provider';
+import { LocalFileSystem } from '@main/core/fs/fs-provider/local-fs';
+import { LocalGitService } from '@main/core/git/git-provider/local-git-provider';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { buildSessionEnv } from '@main/core/pty/pty-env';
+import { log } from '@main/lib/logger';
+import { LocalAgentProvider } from '../conversations/agent-provider/local-agent';
+import { LocalTerminalProvider } from '../terminals/terminal-provider/local-terminal-provider';
+import type { EnvironmentProvider, ProvisionArgs, TaskEnvironment } from './workspace-provider';
 
 export class LocalEnvironmentProvider implements EnvironmentProvider {
   readonly type = 'local';

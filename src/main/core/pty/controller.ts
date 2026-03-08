@@ -1,5 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { SshEnvironmentProvider } from '@main/core/workspaces/impl/ssh-env-provider';
+import { SshEnvironmentProvider } from '@main/core/workspaces/ssh-workspace-provider';
 import { workspaceManager } from '@main/core/workspaces/workspace-manager';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';

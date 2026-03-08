@@ -1,17 +1,17 @@
 import { makePtySessionId } from '@shared/ptySessionId';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { Pty } from '@main/core/pty/pty';
+import { buildSessionEnv } from '@main/core/pty/pty-env';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
-import { spawnLocalPty } from '@main/pty/local-pty';
-import { Pty } from '@main/pty/pty';
-import { buildSessionEnv } from '@main/pty/pty-env';
-import { ptySessionRegistry } from '@main/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/pty/spawn-utils';
-import { GeneralSessionConfig } from '@main/workspaces/impl/terminal-provider/general-session';
 import {
   CreateSessionError,
   ITerminalProvider,
   TerminalSpawnOptions,
-} from '../../terminal-provider';
+} from '../../workspaces/terminal-provider';
+import type { GeneralSessionConfig } from './general-session';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;

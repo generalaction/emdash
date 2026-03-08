@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
-import type { DiffResult, GitChange, IGitProvider } from '../../git-provider';
+import type { DiffResult, GitChange, IGitProvider } from '@main/core/workspaces/git-provider';
 import {
   commit,
   getCommitFileDiff,

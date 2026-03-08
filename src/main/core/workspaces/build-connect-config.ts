@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import type { ConnectConfig } from 'ssh2';
-import type { SshConnectionRow } from '../../db/schema';
-import { sshCredentialService } from '../../ssh/ssh-credential-service';
-import { resolveIdentityAgent } from '../../utils/sshConfigParser';
+import { sshCredentialService } from '@main/core/ssh/ssh-credential-service';
+import type { SshConnectionRow } from '@main/db/schema';
+import { resolveIdentityAgent } from '@main/utils/sshConfigParser';
 
 /**
  * Build an ssh2 `ConnectConfig` from a stored `SshConnectionRow`.

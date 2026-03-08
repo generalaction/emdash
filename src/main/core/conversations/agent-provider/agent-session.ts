@@ -1,7 +1,7 @@
 import type { ProviderId } from '@shared/providers/registry';
-import type { LocalSpawnError } from '../../../pty/local-pty';
-import type { Pty } from '../../../pty/pty';
-import type { Ssh2OpenError } from '../../../pty/ssh2-pty';
+import type { LocalSpawnError } from '@main/core/pty/local-pty';
+import type { Pty } from '@main/core/pty/pty';
+import type { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
 
 export type AgentCreateError = LocalSpawnError | Ssh2OpenError;
 

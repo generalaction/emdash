@@ -1,6 +1,6 @@
+import { LocalSpawnError } from '@main/core/pty/local-pty';
+import { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
 import { Result } from '@main/lib/result';
-import { LocalSpawnError } from '../pty/local-pty';
-import { Ssh2OpenError } from '../pty/ssh2-pty';
 
 export type CreateSessionError = LocalSpawnError | Ssh2OpenError;
 

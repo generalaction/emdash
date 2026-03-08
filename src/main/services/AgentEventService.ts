@@ -6,12 +6,12 @@ import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
-import { getMainWindow } from '../app/window';
-import { getAppSettings } from '../core/settings/settings';
-import { db } from '../db/client';
-import { conversations, tasks } from '../db/schema';
-import { events } from '../lib/events';
-import { log } from '../lib/logger';
+import { getMainWindow } from '@main/app/window';
+import { getAppSettings } from '@main/core/settings/settings';
+import { db } from '@main/db/client';
+import { conversations, tasks } from '@main/db/schema';
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 
 class AgentEventService {
   private server: http.Server | null = null;

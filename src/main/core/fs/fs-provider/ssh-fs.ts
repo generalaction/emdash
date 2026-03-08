@@ -4,8 +4,8 @@
  */
 
 import type { SFTPWrapper } from 'ssh2';
-import type { SshClientProxy } from '../../../ssh/ssh-client-proxy';
 import { quoteShellArg } from '../../../utils/shellEscape';
+import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
 import {
   DEFAULT_EMDASH_CONFIG,
   FileEntry,

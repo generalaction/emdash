@@ -1,7 +1,7 @@
-import { readFile } from 'fs/promises';
-import { homedir } from 'os';
-import { join } from 'path';
-import type { SshConfigHost } from '../../shared/ssh/types';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import type { SshConfigHost } from '@shared/ssh/types';
 
 /**
  * Strips surrounding quotes (single or double) from a value string.
