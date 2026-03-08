@@ -467,14 +467,20 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const { selectedProject } = useProjectManagementContext();
 
   const handleArchiveOnly = useCallback(async () => {
-    if (!activeTask || !selectedProject) return;
+    if (!activeTask || !selectedProject) {
+      toast({ title: 'Cannot archive', description: 'No active task or project selected.', variant: 'destructive' });
+      return;
+    }
     await handleArchiveTask(selectedProject, activeTask);
-  }, [activeTask, selectedProject, handleArchiveTask]);
+  }, [activeTask, selectedProject, handleArchiveTask, toast]);
 
   const handleDeleteOnly = useCallback(async () => {
-    if (!activeTask || !selectedProject) return;
+    if (!activeTask || !selectedProject) {
+      toast({ title: 'Cannot delete', description: 'No active task or project selected.', variant: 'destructive' });
+      return;
+    }
     await handleDeleteTask(selectedProject, activeTask);
-  }, [activeTask, selectedProject, handleDeleteTask]);
+  }, [activeTask, selectedProject, handleDeleteTask, toast]);
 
   const renderPath = (p: string) => {
     const last = p.lastIndexOf('/');
