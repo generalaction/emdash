@@ -14,6 +14,7 @@ describe('getSshExecuteCommandValidationError', () => {
     expect(getSshExecuteCommandValidationError('mkdir -p /tmp/repo')).toBe('Command not allowed');
     expect(getSshExecuteCommandValidationError('rm -rf /tmp/repo')).toBe('Command not allowed');
     expect(getSshExecuteCommandValidationError('')).toBe('Command not allowed');
+    expect(getSshExecuteCommandValidationError('pwdx')).toBe('Command not allowed');
   });
 
   it('rejects shell control characters even for allowed prefixes', () => {
@@ -30,6 +31,18 @@ describe('getSshExecuteCommandValidationError', () => {
       'Command contains invalid shell control characters'
     );
     expect(getSshExecuteCommandValidationError('pwd\nuname -a')).toBe(
+      'Command contains invalid shell control characters'
+    );
+  });
+
+  it('rejects leading control characters', () => {
+    expect(getSshExecuteCommandValidationError('\ngit status')).toBe(
+      'Command contains invalid shell control characters'
+    );
+    expect(getSshExecuteCommandValidationError('\rgit status')).toBe(
+      'Command contains invalid shell control characters'
+    );
+    expect(getSshExecuteCommandValidationError('\r\ngit status')).toBe(
       'Command contains invalid shell control characters'
     );
   });
