@@ -31,7 +31,7 @@ import type { EnvironmentProvider } from './workspace-provider';
  * delegate all session operations through it — they never branch on transport
  * type themselves.
  */
-class EnvironmentProviderManager {
+class WorkspaceManager {
   private providers = new Map<string, EnvironmentProvider>();
 
   /** Maps connectionId → set of projectIds using that connection. */
@@ -272,4 +272,4 @@ class EnvironmentProviderManager {
   }
 }
 
-export const environmentProviderManager = new EnvironmentProviderManager();
+export const workspaceManager = new WorkspaceManager();

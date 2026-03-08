@@ -13,8 +13,8 @@ import {
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/types/github';
-import { events } from '../lib/events';
-import { identify as telemetryIdentify } from '../lib/telemetry';
+import { events } from '@main/lib/events';
+import { identify as telemetryIdentify } from '@main/lib/telemetry';
 
 const execAsync = promisify(exec);
 

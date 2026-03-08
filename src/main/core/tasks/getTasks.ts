@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { tasks } from '../../db/schema';
+import { db } from '@main/db/client';
+import { tasks } from '@main/db/schema';
 import type { Task } from './core';
 import { mapTaskRow } from './createTask';
 

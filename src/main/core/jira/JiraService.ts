@@ -3,7 +3,7 @@ import { request } from 'node:https';
 import { join } from 'node:path';
 import { URL } from 'node:url';
 import { app } from 'electron';
-import { capture } from '../lib/telemetry';
+import { capture } from '../../lib/telemetry';
 
 type JiraCreds = { siteUrl: string; email: string };
 

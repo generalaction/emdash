@@ -1,4 +1,4 @@
-import { databaseService, type Project } from './DatabaseService';
+import { databaseService, type Project } from '../../_deprecated/services/DatabaseService';
 
 export interface ProjectSettings {
   projectId: string;

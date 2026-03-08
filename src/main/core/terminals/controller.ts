@@ -1,10 +1,10 @@
 import { count, eq, sql } from 'drizzle-orm';
-import { createRPCController } from '../../../shared/ipc/rpc';
-import { db } from '../../db/client';
-import { projects, tasks, terminals } from '../../db/schema';
-import { log } from '../../lib/logger';
-import { err, ok } from '../../lib/result';
-import { environmentProviderManager } from '../../workspaces/provider-manager';
+import { createRPCController } from '@shared/ipc/rpc';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { db } from '@main/db/client';
+import { projects, tasks, terminals } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import { err, ok } from '@main/lib/result';
 import type { Terminal } from './core';
 
 function mapTerminalRow(row: {
@@ -48,7 +48,7 @@ export const terminalsController = createRPCController({
       .limit(1);
 
     if (project) {
-      const provider = environmentProviderManager.getProvider(project.id);
+      const provider = workspaceManager.getProvider(project.id);
       if (!provider) {
         log.warn('terminalsController.createTerminal: no provider for project', {
           projectId: project.id,
@@ -111,7 +111,7 @@ export const terminalsController = createRPCController({
         .limit(1);
 
       if (project) {
-        const provider = environmentProviderManager.getProvider(project.id);
+        const provider = workspaceManager.getProvider(project.id);
         const env = provider?.getEnvironment(task.id);
         if (env) {
           env.terminalProvider.killTerminal(terminalId);

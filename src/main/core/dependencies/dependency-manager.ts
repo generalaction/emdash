@@ -1,8 +1,10 @@
 import os from 'node:os';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { resolveCommandPath, runVersionProbe } from '../core/dependencies/probe';
-import { DEPENDENCIES, getDependencyDescriptor } from '../core/dependencies/registry';
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
+import { resolveCommandPath, runVersionProbe } from './probe';
+import { DEPENDENCIES, getDependencyDescriptor } from './registry';
 import type {
   DependencyCategory,
   DependencyDescriptor,
@@ -10,9 +12,7 @@ import type {
   DependencyState,
   DependencyStatus,
   ProbeResult,
-} from '../core/dependencies/types';
-import { events } from '../lib/events';
-import { log } from '../lib/logger';
+} from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -187,9 +187,9 @@ export class LocalDependencyManager {
       }
 
       const chunks: string[] = [];
-      result.data.onData((chunk) => chunks.push(chunk));
+      result.data.onData((chunk: string) => chunks.push(chunk));
       result.data.onExit(({ exitCode }) => {
-        if (exitCode === 0) {
+        if (exitCode) {
           log.info(`[DependencyManager] Install succeeded`);
           resolve();
         } else {

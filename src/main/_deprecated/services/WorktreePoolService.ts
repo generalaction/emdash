@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
-import { getAppSettings } from '../../core/settings';
+import { getAppSettings } from '../../core/settings/settings';
 import { log } from '../../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { Client, type ConnectConfig } from 'ssh2';
-import { log } from '../lib/logger';
-import { err, ok, type Result } from '../lib/result';
+import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@main/lib/result';
 import { SshClientProxy } from './ssh-client-proxy';
 
 export type SshConnectionEvent =

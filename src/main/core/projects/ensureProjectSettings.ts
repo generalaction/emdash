@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { log } from '../../lib/logger';
-import { err, ok, type Result } from '../../lib/result';
+import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@main/lib/result';
 
 const lifecycleScriptsSchema = z.object({
   setup: z.string().optional(),

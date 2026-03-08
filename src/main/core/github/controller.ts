@@ -5,13 +5,13 @@ import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 import { app } from 'electron';
+import { createRPCController } from '@shared/ipc/rpc';
 import type { GitHubUser } from '@shared/types/github';
-import { createRPCController } from '../../shared/ipc/rpc';
-import { getAppSettings } from '../core/settings';
-import { log } from '../lib/logger';
-import { githubService } from '../services/GitHubService';
-import { localDependencyManager } from '../services/LocalDependencyManager';
-import { quoteShellArg } from '../utils/shellEscape';
+import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
+import { githubService } from '@main/core/github/GitHubService';
+import { getAppSettings } from '@main/core/settings/settings';
+import { log } from '@main/lib/logger';
+import { quoteShellArg } from '@main/utils/shellEscape';
 
 const execAsync = promisify(exec);
 

@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
 import { db } from '../../db/client';
 import { projects, tasks } from '../../db/schema';
 import { log } from '../../lib/logger';
-import { environmentProviderManager } from '../../workspaces/provider-manager';
 import { worktreeService } from '../worktrees/WorktreeService';
 
 export async function deleteTask(id: string): Promise<void> {
@@ -10,7 +10,7 @@ export async function deleteTask(id: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
 
   // Tear down all PTY sessions for this task across all providers.
-  await environmentProviderManager.teardownTask(id);
+  await workspaceManager.teardownTask(id);
 
   // Remove the git worktree if one was created for this task.
   if (task?.useWorktree && task.path && task.projectId) {

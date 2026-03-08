@@ -1,8 +1,8 @@
 import path from 'node:path';
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
-import { log } from '../lib/logger';
-import { err, ok, type Result } from '../lib/result';
+import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@main/lib/result';
 import { normalizeSignal } from './exit-signals';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 

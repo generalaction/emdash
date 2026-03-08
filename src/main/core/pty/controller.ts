@@ -1,9 +1,9 @@
-import { createRPCController } from '../../shared/ipc/rpc';
-import { log } from '../lib/logger';
-import { err, ok } from '../lib/result';
-import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { SshEnvironmentProvider } from '../workspaces/impl/ssh-env-provider';
-import { environmentProviderManager } from '../workspaces/provider-manager';
+import { createRPCController } from '@shared/ipc/rpc';
+import { SshEnvironmentProvider } from '@main/core/workspaces/impl/ssh-env-provider';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { log } from '@main/lib/logger';
+import { err, ok } from '@main/lib/result';
+import { ptySessionRegistry } from './pty-session-registry';
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
@@ -51,7 +51,7 @@ export const ptyController = createRPCController({
         return err({ type: 'invalid_session' as const });
       }
 
-      const provider = environmentProviderManager.getProvider(projectId);
+      const provider = workspaceManager.getProvider(projectId);
       if (!provider || !(provider instanceof SshEnvironmentProvider)) {
         return err({ type: 'not_ssh' as const });
       }

@@ -1,14 +1,11 @@
 import { eq } from 'drizzle-orm';
-import { createRPCController } from '../../shared/ipc/rpc';
-import { getProjects } from '../core/projects/getProjects';
-import {
-  handleCreateLocalProject,
-  type CreateLocalProjectParams,
-} from '../core/projects/handleCreateProject';
-import { db } from '../db/client';
-import { projects } from '../db/schema';
-import { log } from '../lib/logger';
-import { environmentProviderManager } from '../workspaces/provider-manager';
+import { createRPCController } from '@shared/ipc/rpc';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { db } from '@main/db/client';
+import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import { getProjects } from './getProjects';
+import { handleCreateLocalProject, type CreateLocalProjectParams } from './handleCreateProject';
 
 export const projectController = createRPCController({
   createProject: async (params: CreateLocalProjectParams) => {
@@ -22,7 +19,7 @@ export const projectController = createRPCController({
         .where(eq(projects.id, result.data.id))
         .limit(1);
       if (row) {
-        environmentProviderManager.addProject(row).catch((e) => {
+        workspaceManager.addProject(row).catch((e) => {
           log.error('projectController.createProject: failed to add provider', {
             projectId: row.id,
             error: String(e),
@@ -32,11 +29,9 @@ export const projectController = createRPCController({
     }
     return result;
   },
-
   getProjects,
-
   deleteProject: async (id: string) => {
-    await environmentProviderManager.removeProject(id);
+    await workspaceManager.removeProject(id);
     await db.delete(projects).where(eq(projects.id, id));
   },
 });

@@ -5,8 +5,8 @@ import * as path from 'node:path';
 import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
 import type { CatalogIndex, CatalogSkill, DetectedAgent } from '@shared/skills/types';
 import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@shared/skills/validation';
-import bundledCatalog from '../core/skills/bundled-catalog.json';
-import { log } from '../lib/logger';
+import { log } from '@main/lib/logger';
+import bundledCatalog from './bundled-catalog.json';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
 const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');

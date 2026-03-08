@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { tasks } from '../../db/schema';
+import { db } from '@main/db/client';
+import { tasks } from '@main/db/schema';
 import type { TaskMetadata } from './core';
 
 export async function restoreTask(id: string): Promise<void> {

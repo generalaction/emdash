@@ -1,6 +1,6 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { DependencyCategory, DependencyId } from '../core/dependencies/types';
-import { localDependencyManager } from '../services/LocalDependencyManager';
+import { localDependencyManager } from './dependency-manager';
+import { DependencyCategory, DependencyId } from './types';
 
 export const dependenciesController = createRPCController({
   getAll: () => Object.fromEntries(localDependencyManager.getAll()),

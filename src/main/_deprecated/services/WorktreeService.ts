@@ -4,9 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { minimatch } from 'minimatch';
-import { getAppSettings } from '@main/core/settings';
+import { getAppSettings } from '@main/core/settings/settings';
+import { projectSettingsService } from '../../core/projects/ProjectSettingsService';
 import { log } from '../../lib/logger';
-import { projectSettingsService } from './ProjectSettingsService';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 

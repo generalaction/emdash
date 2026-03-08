@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { projects } from '../../db/schema';
-import { err, ok, Result } from '../../lib/result';
-import { githubService } from '../../services/GitHubService';
+import { db } from '@main/db/client';
+import { projects } from '@main/db/schema';
+import { err, ok, Result } from '@main/lib/result';
+import { githubService } from '../github/GitHubService';
 import { checkIsGithubRemote, checkIsValidDirectory, detectGitInfo } from './detectGitInfo';
 import { ensureProjectSettings } from './ensureProjectSettings';
 import { type LocalProject } from './types';

@@ -1,15 +1,15 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { createRPCController } from '../../shared/ipc/rpc';
-import type { Conversation } from '../core/conversations';
-import { db } from '../db/client';
-import { conversations, projects, tasks, type ConversationRow } from '../db/schema';
-import { log } from '../lib/logger';
-import { err, ok } from '../lib/result';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { createRPCController } from '../../../shared/ipc/rpc';
+import { db } from '../../db/client';
+import { conversations, projects, tasks, type ConversationRow } from '../../db/schema';
+import { log } from '../../lib/logger';
+import { err, ok } from '../../lib/result';
 import { buildAgentCommand } from '../pty/build-agent-command';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { environmentProviderManager } from '../workspaces/provider-manager';
+import type { Conversation } from './core';
 
 function mapConversationRow(row: ConversationRow): Conversation {
   return {
@@ -102,7 +102,7 @@ export const conversationController = createRPCController({
             })
           : { command: provider, args: [] };
 
-        const provider_ = environmentProviderManager.getProvider(project.id);
+        const provider_ = workspaceManager.getProvider(project.id);
         if (!provider_) {
           log.warn('conversationController.createConversation: no provider for project', {
             projectId: project.id,
@@ -159,7 +159,7 @@ export const conversationController = createRPCController({
         .where(eq(projects.id, task.projectId))
         .limit(1);
       if (project) {
-        const provider = environmentProviderManager.getProvider(project.id);
+        const provider = workspaceManager.getProvider(project.id);
         const env = provider?.getEnvironment(task.id);
         if (env) {
           env.agentProvider.stopSession(id);
@@ -259,7 +259,7 @@ export const conversationController = createRPCController({
         })
       : { command: conversationRow.provider ?? 'sh', args: [] };
 
-    const envProvider = environmentProviderManager.getProvider(project.id);
+    const envProvider = workspaceManager.getProvider(project.id);
     if (!envProvider) {
       log.warn('conversations.startSession: no provider for project', { projectId: project.id });
       return err({ type: 'provider_not_found' as const });

@@ -1,5 +1,5 @@
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
-import { events } from '../lib/events';
+import { events } from '@main/lib/events';
 import type { Pty } from './pty';
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps

@@ -1,16 +1,16 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { projects, tasks } from '../../db/schema';
-import { log } from '../../lib/logger';
-import { spawnLocalPty } from '../../pty/local-pty';
-import { buildSessionEnv } from '../../pty/pty-env';
-import { environmentProviderManager } from '../../workspaces/provider-manager';
-import { ensureProjectSettings } from '../projects/ensureProjectSettings';
+import { ensureProjectSettings } from '@main/core/projects/ensureProjectSettings';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { buildSessionEnv } from '@main/core/pty/pty-env';
+import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { db } from '@main/db/client';
+import { projects, tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import type { TaskMetadata } from './core';
 
 export async function archiveTask(id: string): Promise<void> {
   // Tear down all PTY sessions for this task across all providers.
-  await environmentProviderManager.teardownTask(id);
+  await workspaceManager.teardownTask(id);
 
   const [row] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
   if (!row) return;

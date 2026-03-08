@@ -1,5 +1,5 @@
-import { createRPCController } from '../../shared/ipc/rpc';
-import JiraService from '../services/JiraService';
+import { createRPCController } from '@shared/ipc/rpc';
+import JiraService from './JiraService';
 
 const jiraService = new JiraService();
 
@@ -24,8 +24,8 @@ export const jiraController = createRPCController({
         typeof limit === 'number' && Number.isFinite(limit) ? limit : 50
       );
       return { success: true, issues };
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   },
 
@@ -33,8 +33,8 @@ export const jiraController = createRPCController({
     try {
       const issues = await jiraService.smartSearchIssues(searchTerm, limit ?? 20);
       return { success: true, issues };
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   },
 });
