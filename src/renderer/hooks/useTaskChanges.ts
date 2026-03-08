@@ -28,12 +28,13 @@ export function useTaskChanges(
   taskId: string,
   options: UseTaskChangesOptions = {}
 ) {
+  const { isActive = true, idleIntervalMs = 60000 } = options;
   const [changes, setChanges] = useState<TaskChanges>({
     taskId,
     changes: [],
     totalAdditions: 0,
     totalDeletions: 0,
-    isLoading: true,
+    isLoading: Boolean(isActive),
   });
   const [isDocumentVisible, setIsDocumentVisible] = useState(() => {
     if (typeof document === 'undefined') return true;
@@ -44,7 +45,6 @@ export function useTaskChanges(
     return document.hasFocus();
   });
 
-  const { isActive = true, idleIntervalMs = 60000 } = options;
   const taskPathRef = useRef(taskPath);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -68,6 +68,7 @@ export function useTaskChanges(
   }, [taskPath]);
 
   useEffect(() => {
+    if (!isActive) return;
     if (typeof document === 'undefined' || typeof window === 'undefined') return;
 
     const handleVisibility = () => {
@@ -85,7 +86,7 @@ export function useTaskChanges(
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [isActive]);
 
   const queueRefresh = useCallback((shouldSetLoading: boolean) => {
     pendingRefreshRef.current = true;
@@ -225,6 +226,9 @@ export function useTaskChanges(
   useEffect(() => {
     if (!taskPath || !shouldPoll) {
       clearIdleHandle();
+      if (!isActive) {
+        setChanges((prev) => (prev.isLoading ? { ...prev, isLoading: false } : prev));
+      }
       return;
     }
 
@@ -237,7 +241,7 @@ export function useTaskChanges(
   }, [taskPath, shouldPoll, fetchChanges, scheduleIdleRefresh, clearIdleHandle]);
 
   useEffect(() => {
-    if (!taskPath) return;
+    if (!taskPath || !isActive) return;
     const api = window.electronAPI;
     let off: (() => void) | undefined;
     let watchId: string | undefined;
@@ -280,7 +284,7 @@ export function useTaskChanges(
         api.unwatchGitStatus(taskPath, watchId).catch(() => {});
       }
     };
-  }, [taskPath, fetchChanges]);
+  }, [taskPath, fetchChanges, isActive]);
 
   return {
     ...changes,

@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { databaseService } from '../services/DatabaseService';
-import type { Conversation, Message, Project, Task } from '../services/DatabaseService';
+import type {
+  Conversation,
+  Message,
+  Project,
+  Task,
+  TaskConversationSummaryRow,
+} from '../services/DatabaseService';
 import { createRPCController } from '../../shared/ipc/rpc';
 import { log } from '../lib/logger';
 
@@ -32,6 +38,9 @@ export const databaseController = createRPCController({
 
   getConversations: (taskId: string): Promise<Conversation[]> =>
     databaseService.getConversations(taskId),
+
+  getConversationSummaries: (taskIds: string[]): Promise<TaskConversationSummaryRow[]> =>
+    databaseService.getConversationSummaries(taskIds),
 
   getOrCreateDefaultConversation: (args: {
     taskId: string;

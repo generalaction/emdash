@@ -71,6 +71,13 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface TaskConversationSummaryRow {
+  id: string;
+  taskId: string;
+  provider?: string | null;
+  isMain: boolean;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -460,6 +467,32 @@ export class DatabaseService {
       .where(eq(conversationsTable.taskId, taskId))
       .orderBy(asc(conversationsTable.displayOrder), desc(conversationsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
+  }
+
+  async getConversationSummaries(taskIds: string[]): Promise<TaskConversationSummaryRow[]> {
+    if (this.disabled || taskIds.length === 0) return [];
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({
+        id: conversationsTable.id,
+        taskId: conversationsTable.taskId,
+        provider: conversationsTable.provider,
+        isMain: conversationsTable.isMain,
+      })
+      .from(conversationsTable)
+      .where(inArray(conversationsTable.taskId, taskIds))
+      .orderBy(
+        asc(conversationsTable.taskId),
+        asc(conversationsTable.displayOrder),
+        desc(conversationsTable.updatedAt)
+      );
+
+    return rows.map((row) => ({
+      id: row.id,
+      taskId: row.taskId,
+      provider: row.provider ?? null,
+      isMain: Boolean(row.isMain),
+    }));
   }
 
   async getOrCreateDefaultConversation(taskId: string, provider?: string): Promise<Conversation> {

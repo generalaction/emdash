@@ -9,11 +9,15 @@ import { rpc } from '../lib/rpc';
 const EMPTY_STATUS = 'unknown' as AgentStatusKind;
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
 
-export function useTaskStatus(taskId: string): AgentStatusKind {
+export function useTaskStatus(taskId: string, chatIds?: string[], enabled = true): AgentStatusKind {
   const [mainStatus, setMainStatus] = useState<AgentStatusKind>(EMPTY_STATUS);
   const [chatStatuses, setChatStatuses] = useState<Record<string, AgentStatusKind>>({});
+  const hasProvidedChatIds = Array.isArray(chatIds);
 
   const reloadChats = useCallback(async () => {
+    if (hasProvidedChatIds) {
+      return chatIds;
+    }
     try {
       const conversations = await rpc.db.getConversations(taskId);
       return conversations
@@ -22,14 +26,22 @@ export function useTaskStatus(taskId: string): AgentStatusKind {
     } catch {
       return [];
     }
-  }, [taskId]);
-
-  useEffect(
-    () => agentStatusStore.subscribe(taskId, (snapshot) => setMainStatus(snapshot.kind)),
-    [taskId]
-  );
+  }, [chatIds, hasProvidedChatIds, taskId]);
 
   useEffect(() => {
+    if (!enabled) {
+      setMainStatus(EMPTY_STATUS);
+      return;
+    }
+    return agentStatusStore.subscribe(taskId, (snapshot) => setMainStatus(snapshot.kind));
+  }, [enabled, taskId]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setChatStatuses({});
+      return;
+    }
+
     let cancelled = false;
     const chatUnsubs = new Map<string, () => void>();
     const exitUnsubs = new Map<string, () => void>();
@@ -92,6 +104,22 @@ export function useTaskStatus(taskId: string): AgentStatusKind {
 
     void load();
 
+    if (hasProvidedChatIds) {
+      const mainExitUnsubs = PROVIDER_IDS.map((providerId) => {
+        const ptyId = makePtyId(providerId, 'main', taskId);
+        return window.electronAPI.onPtyExit(ptyId, () => {
+          agentStatusStore.handlePtyExit({ ptyId });
+        });
+      });
+
+      return () => {
+        cancelled = true;
+        for (const off of chatUnsubs.values()) off?.();
+        for (const off of exitUnsubs.values()) off?.();
+        for (const off of mainExitUnsubs) off?.();
+      };
+    }
+
     const onChanged = (event: Event) => {
       const custom = event as CustomEvent<{ taskId?: string }>;
       if (custom.detail?.taskId !== taskId) return;
@@ -113,7 +141,7 @@ export function useTaskStatus(taskId: string): AgentStatusKind {
       for (const off of exitUnsubs.values()) off?.();
       for (const off of mainExitUnsubs) off?.();
     };
-  }, [taskId, reloadChats]);
+  }, [enabled, hasProvidedChatIds, reloadChats, taskId]);
 
   return useMemo(
     () => deriveTaskStatus([mainStatus, ...Object.values(chatStatuses)]),

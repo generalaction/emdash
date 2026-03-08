@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { startTransition, useCallback, useEffect, useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
 import { pickDefaultBranch } from '../components/BranchSelect';
@@ -206,13 +206,15 @@ export const useProjectManagement = () => {
       void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
         captureTelemetry('project_view_opened');
       });
-      setSelectedProject(project);
-      setShowHomeView(false);
-      setShowSkillsView(false);
-      setShowMcpView(false);
-      setResetTaskTrigger((t) => t + 1);
-      setShowEditorMode(false);
-      setShowKanban(false);
+      startTransition(() => {
+        setSelectedProject(project);
+        setShowHomeView(false);
+        setShowSkillsView(false);
+        setShowMcpView(false);
+        setResetTaskTrigger((t) => t + 1);
+        setShowEditorMode(false);
+        setShowKanban(false);
+      });
       saveActiveIds(project.id, null);
       prewarmReserveForBaseRef(
         project.id,

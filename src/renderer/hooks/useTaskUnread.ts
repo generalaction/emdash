@@ -4,11 +4,15 @@ import { rpc } from '../lib/rpc';
 
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
 
-export function useTaskUnread(taskId: string): boolean {
+export function useTaskUnread(taskId: string, chatIds?: string[], enabled = true): boolean {
   const [mainUnread, setMainUnread] = useState(false);
   const [chatUnreadById, setChatUnreadById] = useState<Record<string, boolean>>({});
+  const hasProvidedChatIds = Array.isArray(chatIds);
 
   const reloadChats = useCallback(async () => {
+    if (hasProvidedChatIds) {
+      return chatIds;
+    }
     try {
       const conversations = await rpc.db.getConversations(taskId);
       return conversations
@@ -17,11 +21,22 @@ export function useTaskUnread(taskId: string): boolean {
     } catch {
       return [];
     }
-  }, [taskId]);
-
-  useEffect(() => agentStatusStore.subscribeUnread(taskId, setMainUnread), [taskId]);
+  }, [chatIds, hasProvidedChatIds, taskId]);
 
   useEffect(() => {
+    if (!enabled) {
+      setMainUnread(false);
+      return;
+    }
+    return agentStatusStore.subscribeUnread(taskId, setMainUnread);
+  }, [enabled, taskId]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setChatUnreadById({});
+      return;
+    }
+
     let cancelled = false;
     const chatUnsubs = new Map<string, () => void>();
     let loadSeq = 0;
@@ -66,6 +81,13 @@ export function useTaskUnread(taskId: string): boolean {
 
     void load();
 
+    if (hasProvidedChatIds) {
+      return () => {
+        cancelled = true;
+        for (const off of chatUnsubs.values()) off?.();
+      };
+    }
+
     const onChanged = (event: Event) => {
       const custom = event as CustomEvent<{ taskId?: string }>;
       if (custom.detail?.taskId !== taskId) return;
@@ -78,7 +100,7 @@ export function useTaskUnread(taskId: string): boolean {
       window.removeEventListener(CONVERSATIONS_CHANGED_EVENT, onChanged);
       for (const off of chatUnsubs.values()) off?.();
     };
-  }, [taskId, reloadChats]);
+  }, [enabled, hasProvidedChatIds, reloadChats, taskId]);
 
   return useMemo(
     () => mainUnread || Object.values(chatUnreadById).some(Boolean),

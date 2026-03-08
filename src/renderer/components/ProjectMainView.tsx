@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -46,7 +47,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { isActivePr, type PrInfo } from '../lib/prStatus';
 import { rpc } from '../lib/rpc';
-import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskStatus } from '../hooks/useTaskStatus';
 import { useTaskUnread } from '../hooks/useTaskUnread';
@@ -57,6 +57,28 @@ import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
+
+const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
+const TASK_ROW_VISIBILITY_ROOT_MARGIN = '240px 0px';
+
+interface ConversationSummaryRow {
+  id: string;
+  taskId: string;
+  provider?: string | null;
+  isMain: boolean;
+}
+
+interface TaskConversationSummary {
+  chatIds: string[];
+  providerIds: string[];
+  totalChatCount: number;
+}
+
+const EMPTY_TASK_CONVERSATION_SUMMARY: TaskConversationSummary = {
+  chatIds: [],
+  providerIds: [],
+  totalChatCount: 0,
+};
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -84,6 +106,47 @@ const hasDeleteRisk = (status?: {
   );
 };
 
+const buildTaskConversationSummaryMap = (
+  rows: ConversationSummaryRow[]
+): Record<string, TaskConversationSummary> => {
+  const summaryByTaskId: Record<string, TaskConversationSummary> = {};
+
+  for (const row of rows) {
+    const current = summaryByTaskId[row.taskId] ?? {
+      chatIds: [],
+      providerIds: [],
+      totalChatCount: 0,
+    };
+
+    if (!row.isMain) {
+      current.chatIds.push(row.id);
+    }
+    if (row.provider) {
+      current.totalChatCount += 1;
+      if (!current.providerIds.includes(row.provider)) {
+        current.providerIds.push(row.provider);
+      }
+    }
+
+    summaryByTaskId[row.taskId] = current;
+  }
+
+  return summaryByTaskId;
+};
+
+const getTaskAgentInfo = (
+  summary: TaskConversationSummary,
+  fallbackAgentId?: string
+): { providerIds: string[]; additionalCount: number } => {
+  const providerIds =
+    summary.providerIds.length > 0 ? summary.providerIds : fallbackAgentId ? [fallbackAgentId] : [];
+  const totalChats = summary.totalChatCount > 0 ? summary.totalChatCount : providerIds.length;
+  return {
+    providerIds,
+    additionalCount: Math.max(0, totalChats - 1),
+  };
+};
+
 function TaskRow({
   ws,
   active,
@@ -95,6 +158,7 @@ function TaskRow({
   isSelected,
   onToggleSelect,
   enablePrStatus = true,
+  conversationSummary = EMPTY_TASK_CONVERSATION_SUMMARY,
 }: {
   ws: Task;
   active: boolean;
@@ -106,16 +170,53 @@ function TaskRow({
   isSelected?: boolean;
   onToggleSelect?: () => void;
   enablePrStatus?: boolean;
+  conversationSummary?: TaskConversationSummary;
 }) {
   const isArchived = Boolean(ws.archivedAt);
-  const isBusy = useTaskBusy(ws.id);
-  const taskStatus = useTaskStatus(ws.id);
-  const taskUnread = useTaskUnread(ws.id);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [detailsEnabled, setDetailsEnabled] = useState(active);
+  const effectiveDetailsEnabled = detailsEnabled || active;
+  const isBusy = useTaskBusy(ws.id, conversationSummary.chatIds, effectiveDetailsEnabled);
+  const taskStatus = useTaskStatus(ws.id, conversationSummary.chatIds, effectiveDetailsEnabled);
+  const taskUnread = useTaskUnread(ws.id, conversationSummary.chatIds, effectiveDetailsEnabled);
   const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
   const [isDeleting, setIsDeleting] = useState(false);
-  const { pr } = usePrStatus(ws.path, enablePrStatus);
-  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
-  const agentInfo = useTaskAgentNames(ws.id, ws.agentId);
+  const { pr } = usePrStatus(ws.path, enablePrStatus && effectiveDetailsEnabled);
+  const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id, {
+    isActive: effectiveDetailsEnabled,
+  });
+  const agentInfo = useMemo(
+    () => getTaskAgentInfo(conversationSummary, ws.agentId ?? undefined),
+    [conversationSummary, ws.agentId]
+  );
+
+  useEffect(() => {
+    if (active) {
+      setDetailsEnabled(true);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (detailsEnabled) return;
+    const node = rowRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setDetailsEnabled(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setDetailsEnabled(true);
+        observer.disconnect();
+      },
+      { rootMargin: TASK_ROW_VISIBILITY_ROOT_MARGIN }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [detailsEnabled]);
 
   const handleRowClick = () => {
     if (isSelectMode) {
@@ -178,6 +279,7 @@ function TaskRow({
 
   return (
     <div
+      ref={rowRef}
       className="task-row group relative flex items-center gap-3"
       data-active={active || undefined}
       data-selected={isSelected || undefined}
@@ -368,7 +470,6 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
 
   const activeTasks = tasksByProjectId[project.id] ?? [];
-  const activeTasksLength = activeTasks.length;
 
   const refetchArchivedTasks = useCallback(() => {
     const timeoutId = setTimeout(async () => {
@@ -390,6 +491,23 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
     () => (showFilter === 'all' ? [...activeTasks, ...archivedTasks] : activeTasks),
     [activeTasks, archivedTasks, showFilter]
   );
+  const taskIdsForConversationSummary = useMemo(
+    () => tasksInProject.map((task) => task.id),
+    [tasksInProject]
+  );
+  const { data: conversationSummaryByTaskId = {}, refetch: refetchConversationSummaries } =
+    useQuery({
+      queryKey: ['taskConversationSummaries', taskIdsForConversationSummary],
+      queryFn: async () => {
+        if (taskIdsForConversationSummary.length === 0) {
+          return {} as Record<string, TaskConversationSummary>;
+        }
+        const rows = await rpc.db.getConversationSummaries(taskIdsForConversationSummary);
+        return buildTaskConversationSummaryMap(rows as ConversationSummaryRow[]);
+      },
+      enabled: taskIdsForConversationSummary.length > 0,
+      staleTime: 30000,
+    });
   const hasAnyTasks = activeTasks.length > 0 || archivedTasks.length > 0;
   const filteredTasks = useMemo(
     () =>
@@ -430,6 +548,21 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         .map((ws) => ({ id: ws.id, name: ws.name, path: ws.path })),
     [selectedTasks]
   );
+
+  useEffect(() => {
+    if (taskIdsForConversationSummary.length === 0) return;
+    const taskIdSet = new Set(taskIdsForConversationSummary);
+    const handleConversationsChanged = (event: Event) => {
+      const taskId = (event as CustomEvent<{ taskId?: string }>).detail?.taskId;
+      if (!taskId || !taskIdSet.has(taskId)) return;
+      void refetchConversationSummaries();
+    };
+
+    window.addEventListener(CONVERSATIONS_CHANGED_EVENT, handleConversationsChanged);
+    return () => {
+      window.removeEventListener(CONVERSATIONS_CHANGED_EVENT, handleConversationsChanged);
+    };
+  }, [refetchConversationSummaries, taskIdsForConversationSummary]);
   const {
     risks: deleteStatus,
     scannedAtById: deleteRiskScannedAt,
@@ -1028,6 +1161,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         <TaskRow
                           key={ws.id}
                           ws={ws}
+                          conversationSummary={
+                            conversationSummaryByTaskId[ws.id] ?? EMPTY_TASK_CONVERSATION_SUMMARY
+                          }
                           isSelectMode={isSelectMode}
                           isSelected={selectedIds.has(ws.id)}
                           onToggleSelect={() => toggleSelect(ws.id)}

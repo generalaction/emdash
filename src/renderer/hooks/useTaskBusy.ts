@@ -4,12 +4,16 @@ import { rpc } from '../lib/rpc';
 
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
 
-export function useTaskBusy(taskId: string) {
+export function useTaskBusy(taskId: string, chatIds?: string[], enabled = true) {
   const [mainBusy, setMainBusy] = useState(false);
   const [chatBusyById, setChatBusyById] = useState<Record<string, boolean>>({});
   const chatBusy = useMemo(() => Object.values(chatBusyById).some(Boolean), [chatBusyById]);
+  const hasProvidedChatIds = Array.isArray(chatIds);
 
   const reloadChats = useCallback(async () => {
+    if (hasProvidedChatIds) {
+      return chatIds;
+    }
     try {
       const conversations = await rpc.db.getConversations(taskId);
       return conversations
@@ -18,11 +22,22 @@ export function useTaskBusy(taskId: string) {
     } catch {
       return [];
     }
-  }, [taskId]);
-
-  useEffect(() => activityStore.subscribe(taskId, setMainBusy, { kinds: ['main'] }), [taskId]);
+  }, [chatIds, hasProvidedChatIds, taskId]);
 
   useEffect(() => {
+    if (!enabled) {
+      setMainBusy(false);
+      return;
+    }
+    return activityStore.subscribe(taskId, setMainBusy, { kinds: ['main'] });
+  }, [enabled, taskId]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setChatBusyById({});
+      return;
+    }
+
     let cancelled = false;
     const chatUnsubsById = new Map<string, () => void>();
     let loadSeq = 0;
@@ -71,6 +86,15 @@ export function useTaskBusy(taskId: string) {
 
     void load();
 
+    if (hasProvidedChatIds) {
+      return () => {
+        cancelled = true;
+        try {
+          for (const off of chatUnsubsById.values()) off?.();
+        } catch {}
+      };
+    }
+
     const onChanged = (event: Event) => {
       const custom = event as CustomEvent<{ taskId?: string }>;
       if (custom.detail?.taskId !== taskId) return;
@@ -85,7 +109,7 @@ export function useTaskBusy(taskId: string) {
         for (const off of chatUnsubsById.values()) off?.();
       } catch {}
     };
-  }, [taskId, reloadChats]);
+  }, [enabled, hasProvidedChatIds, reloadChats, taskId]);
 
-  return mainBusy || chatBusy;
+  return enabled ? mainBusy || chatBusy : false;
 }
