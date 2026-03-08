@@ -14,6 +14,7 @@ import { usePrComments } from '../hooks/usePrComments';
 import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
 import MergePrSection from './MergePrSection';
+import { TaskDeleteButton } from './TaskDeleteButton';
 import { FileIcon } from './FileExplorer/FileIcons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -157,6 +158,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [mergedToMain, setMergedToMain] = useState(false);
   const [isArchivingAfterMerge, setIsArchivingAfterMerge] = useState(false);
+  const [showDeleteConfirmAfterMerge, setShowDeleteConfirmAfterMerge] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [prMode, setPrMode] = useState<PrMode>(() => {
@@ -218,6 +220,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setIsMergingToMain(false);
     setMergedToMain(false);
     setIsArchivingAfterMerge(false);
+    setShowDeleteConfirmAfterMerge(false);
     setCommitMessage('');
     setStagingFiles(new Set());
     setRevertingFiles(new Set());
@@ -722,6 +725,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             refreshPr={refreshPr}
             onArchiveTask={handleArchiveOnly}
             onDeleteTask={handleDeleteOnly}
+            taskId={activeTask?.id}
+            taskName={activeTask?.name}
+            useWorktree={activeTask?.useWorktree !== false}
           />
         </>
       ) : (
@@ -860,6 +866,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 setIsArchivingAfterMerge(true);
                 try {
                   await handleArchiveOnly();
+                } catch {
+                  toast({
+                    title: 'Archive failed',
+                    description: 'An unexpected error occurred while archiving the task.',
+                    variant: 'destructive',
+                  });
                 } finally {
                   setIsArchivingAfterMerge(false);
                 }
@@ -879,20 +891,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               size="sm"
               className="h-8 flex-1 justify-center px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={isArchivingAfterMerge}
-              onClick={async () => {
-                setIsArchivingAfterMerge(true);
-                try {
-                  await handleDeleteOnly();
-                } finally {
-                  setIsArchivingAfterMerge(false);
-                }
-              }}
+              onClick={() => setShowDeleteConfirmAfterMerge(true)}
             >
               <span className="inline-flex items-center gap-1.5">
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete
               </span>
             </Button>
+            {activeTask && (
+              <TaskDeleteButton
+                taskName={activeTask.name}
+                taskId={activeTask.id}
+                taskPath={safeTaskPath}
+                useWorktree={activeTask.useWorktree !== false}
+                onConfirm={handleDeleteOnly}
+                hideTrigger
+                externalOpen={showDeleteConfirmAfterMerge}
+                onExternalOpenChange={setShowDeleteConfirmAfterMerge}
+              />
+            )}
           </div>
         </div>
       )}

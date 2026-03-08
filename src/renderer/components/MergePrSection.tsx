@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
+import { TaskDeleteButton } from './TaskDeleteButton';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 
 type MergeUiStateKind = 'merged' | 'ready' | 'draft' | 'conflicts' | 'blocked' | 'unknown';
@@ -169,17 +170,23 @@ export function MergePrSection({
   refreshPr,
   onArchiveTask,
   onDeleteTask,
+  taskId,
+  taskName,
+  useWorktree,
 }: {
   taskPath: string;
   pr: PrStatus | null;
   refreshPr: () => Promise<void>;
   onArchiveTask?: () => Promise<void>;
   onDeleteTask?: () => Promise<void>;
+  taskId?: string;
+  taskName?: string;
+  useWorktree?: boolean;
 }) {
   const { toast } = useToast();
   const [isMerging, setIsMerging] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isTogglingAutoMerge, setIsTogglingAutoMerge] = useState(false);
   const [strategy, setStrategy] = useState<MergeStrategy>(() => {
     try {
@@ -388,11 +395,17 @@ export function MergePrSection({
                   variant="default"
                   size="sm"
                   className="h-8 flex-1 justify-center px-2 text-xs"
-                  disabled={isArchiving || isDeleting}
+                  disabled={isArchiving}
                   onClick={async () => {
                     setIsArchiving(true);
                     try {
                       await onArchiveTask();
+                    } catch {
+                      toast({
+                        title: 'Archive failed',
+                        description: 'An unexpected error occurred while archiving the task.',
+                        variant: 'destructive',
+                      });
                     } finally {
                       setIsArchiving(false);
                     }
@@ -404,26 +417,31 @@ export function MergePrSection({
                   </span>
                 </Button>
               )}
-              {onDeleteTask && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 flex-1 justify-center px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={isArchiving || isDeleting}
-                  onClick={async () => {
-                    setIsDeleting(true);
-                    try {
-                      await onDeleteTask();
-                    } finally {
-                      setIsDeleting(false);
-                    }
-                  }}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    Delete
-                  </span>
-                </Button>
+              {onDeleteTask && taskId && taskName && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 flex-1 justify-center px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    disabled={isArchiving}
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </span>
+                  </Button>
+                  <TaskDeleteButton
+                    taskName={taskName}
+                    taskId={taskId}
+                    taskPath={taskPath}
+                    useWorktree={useWorktree}
+                    onConfirm={onDeleteTask}
+                    hideTrigger
+                    externalOpen={showDeleteConfirm}
+                    onExternalOpenChange={setShowDeleteConfirm}
+                  />
+                </>
               )}
             </div>
           ) : (
