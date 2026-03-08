@@ -1,12 +1,12 @@
-import Editor, { type OnChange, type OnMount } from '@monaco-editor/react';
-import React from 'react';
+import Editor, { loader, type OnChange, type OnMount } from '@monaco-editor/react';
+import React, { useEffect } from 'react';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
-import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco-themes';
+import { applyMonacoTheme, defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { MarkdownPreview } from './MarkdownPreview';
-import '@/styles/editor-diff.css';
+import '@renderer/styles/editor-diff.css';
 
 export interface EditorContentProps {
   activeFile: ManagedFile | null;
@@ -27,6 +27,10 @@ export const EditorContent: React.FC<EditorContentProps> = ({
   modelRootPath,
   taskPath,
 }) => {
+  useEffect(() => {
+    void loader.init().then((monaco) => applyMonacoTheme(monaco, effectiveTheme));
+  }, [effectiveTheme]);
+
   if (!activeFile) {
     return <NoFileOpen />;
   }

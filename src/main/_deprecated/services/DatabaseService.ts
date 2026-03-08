@@ -1,7 +1,7 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { db } from '@/db/client';
-import { resolveDatabasePath } from '../../db/path';
+import { db } from '@main/db/client';
+import { resolveDatabasePath } from '@main/db/path';
 import {
   conversations as conversationsTable,
   lineComments as lineCommentsTable,

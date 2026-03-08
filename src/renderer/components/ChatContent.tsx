@@ -4,8 +4,9 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { useChatView } from '../contexts/ChatViewProvider';
 import { useConversations } from '../contexts/ConversationsProvider';
 import { useDependencies } from '../contexts/DependenciesProvider';
+import { cssVar } from '../lib/cssVars';
 import { rpc } from '../lib/ipc';
-import { agentMeta, type UiAgent } from '../providers/meta';
+import type { UiAgent } from '../providers/meta';
 import InstallBanner from './InstallBanner';
 import { TerminalPane } from './TerminalPane';
 
@@ -20,12 +21,9 @@ export function ChatContent() {
     conversationId,
     projectRemoteConnectionId,
     cliStartError,
-    autoApproveEnabled,
-    initialInjection,
     shouldCaptureFirstMessage,
     terminalRef,
     handleFirstMessage,
-    setCliStartError,
   } = useChatView();
 
   // Deterministic session ID: renderer subscribes before the main process starts the session.
@@ -37,54 +35,10 @@ export function ChatContent() {
   const agentStatus = getStatus(agent);
   const isAgentInstalled = agentStatus ? agentStatus.status === 'available' : null;
 
-  const agentBgClass = (() => {
-    if (agent === 'charm') {
-      if (effectiveTheme === 'dark-black') return 'bg-black';
-      if (effectiveTheme === 'dark') return 'bg-card';
-      return 'bg-white';
-    }
-    if (agent === 'mistral') {
-      if (effectiveTheme === 'dark-black') return 'bg-[#141820]';
-      if (effectiveTheme === 'dark') return 'bg-[#202938]';
-      return 'bg-white';
-    }
-    return '';
-  })();
+  const agentBgClass = agent === 'mistral' ? 'bg-[var(--xterm-bg-mistral)]' : '';
 
-  const themeOverride = (() => {
-    if (agent === 'charm') {
-      return {
-        background:
-          effectiveTheme === 'dark-black'
-            ? '#0a0a0a'
-            : effectiveTheme === 'dark'
-              ? '#1f2937'
-              : '#ffffff',
-        selectionBackground: 'rgba(96, 165, 250, 0.35)',
-        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
-      };
-    }
-    if (agent === 'mistral') {
-      return {
-        background:
-          effectiveTheme === 'dark-black'
-            ? '#141820'
-            : effectiveTheme === 'dark'
-              ? '#202938'
-              : '#ffffff',
-        selectionBackground: 'rgba(96, 165, 250, 0.35)',
-        selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
-      };
-    }
-    if (effectiveTheme === 'dark-black') {
-      return {
-        background: '#000000',
-        selectionBackground: 'rgba(96, 165, 250, 0.35)',
-        selectionForeground: '#f9fafb',
-      };
-    }
-    return undefined;
-  })();
+  const themeOverride =
+    agent === 'mistral' ? { background: cssVar('--xterm-bg-mistral') } : undefined;
 
   const contentFilter =
     agent === 'charm' && effectiveTheme !== 'dark' && effectiveTheme !== 'dark-black'

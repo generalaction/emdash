@@ -10,6 +10,7 @@ import {
   CLEAR_BUSY_MS,
   INJECT_ENTER_DELAY_MS,
 } from '@renderer/lib/activityConstants';
+import { cssVar } from '@renderer/lib/cssVars';
 import { rpc } from '@renderer/lib/ipc';
 import { agentAssets } from '@renderer/providers/assets';
 import { agentMeta } from '@renderer/providers/meta';
@@ -26,8 +27,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 
 interface Props {
   task: Task;
-  projectName: string;
-  projectId: string;
   projectPath?: string | null;
   projectRemoteConnectionId?: string | null;
   projectRemotePath?: string | null;
@@ -549,13 +548,7 @@ const MultiAgentTask: React.FC<Props> = ({
               <div className="min-h-0 flex-1 px-6 pt-4">
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                    v.agent === 'mistral'
-                      ? isDark
-                        ? 'bg-[#202938]'
-                        : 'bg-white'
-                      : isDark
-                        ? 'bg-card'
-                        : 'bg-white'
+                    v.agent === 'mistral' ? 'bg-[var(--xterm-bg-mistral)]' : 'bg-card'
                   }`}
                 >
                   <TerminalPane
@@ -585,23 +578,8 @@ const MultiAgentTask: React.FC<Props> = ({
                     variant={isDark ? 'dark' : 'light'}
                     themeOverride={
                       v.agent === 'mistral'
-                        ? {
-                            background:
-                              effectiveTheme === 'dark-black'
-                                ? '#141820'
-                                : isDark
-                                  ? '#202938'
-                                  : '#ffffff',
-                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                            selectionForeground: isDark ? '#f9fafb' : '#0f172a',
-                          }
-                        : effectiveTheme === 'dark-black'
-                          ? {
-                              background: '#000000',
-                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                              selectionForeground: '#f9fafb',
-                            }
-                          : undefined
+                        ? { background: cssVar('--xterm-bg-mistral') }
+                        : undefined
                     }
                     className="h-full w-full"
                     onStartSuccess={() => {

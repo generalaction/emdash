@@ -1,11 +1,7 @@
 import { loader } from '@monaco-editor/react';
-import { MONACO_DIFF_COLORS } from './monacoDiffColors';
-
-let themesRegistered = false;
+import { cssVar } from './cssVars';
 
 export async function registerDiffThemes(): Promise<void> {
-  if (themesRegistered) return;
-
   const monacoInstance = await loader.init();
 
   monacoInstance.editor.defineTheme('custom-diff-dark', {
@@ -13,13 +9,13 @@ export async function registerDiffThemes(): Promise<void> {
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': MONACO_DIFF_COLORS.dark.editorBackground,
-      'editorGutter.background': MONACO_DIFF_COLORS.dark.editorBackground,
-      'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.dark.insertedTextBackground,
-      'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.dark.insertedLineBackground,
-      'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.dark.removedTextBackground,
-      'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.dark.removedLineBackground,
-      'diffEditor.unchangedRegionBackground': '#1a2332',
+      'editor.background': cssVar('--monaco-bg'),
+      'editorGutter.background': cssVar('--monaco-gutter'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
     },
   });
 
@@ -28,13 +24,13 @@ export async function registerDiffThemes(): Promise<void> {
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-      'editorGutter.background': MONACO_DIFF_COLORS['dark-black'].editorBackground,
-      'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS['dark-black'].insertedTextBackground,
-      'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS['dark-black'].insertedLineBackground,
-      'diffEditor.removedTextBackground': MONACO_DIFF_COLORS['dark-black'].removedTextBackground,
-      'diffEditor.removedLineBackground': MONACO_DIFF_COLORS['dark-black'].removedLineBackground,
-      'diffEditor.unchangedRegionBackground': '#0a0a0a',
+      'editor.background': cssVar('--monaco-bg'),
+      'editorGutter.background': cssVar('--monaco-gutter'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
     },
   });
 
@@ -43,15 +39,14 @@ export async function registerDiffThemes(): Promise<void> {
     inherit: true,
     rules: [],
     colors: {
-      'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.light.insertedTextBackground,
-      'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.light.insertedLineBackground,
-      'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.light.removedTextBackground,
-      'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.light.removedLineBackground,
-      'diffEditor.unchangedRegionBackground': '#e2e8f0',
+      'editor.background': cssVar('--monaco-bg'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
     },
   });
-
-  themesRegistered = true;
 }
 
 export function getDiffThemeName(effectiveTheme: string): string {

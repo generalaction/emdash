@@ -6,6 +6,7 @@ import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { useCallback, useEffect, useRef } from 'react';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
+import { cssVar } from '../lib/cssVars';
 import { events, rpc } from '../lib/ipc';
 import { log } from '../lib/logger';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
@@ -27,7 +28,6 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 export interface SessionTheme {
-  base: 'dark' | 'light';
   override?: ITerminalOptions['theme'];
 }
 
@@ -49,12 +49,20 @@ export interface UseTerminalReturn {
   setTheme: (theme: SessionTheme) => void;
 }
 
+function readXtermCssVars(): ITerminalOptions['theme'] {
+  return {
+    background: cssVar('--xterm-bg'),
+    foreground: cssVar('--xterm-fg'),
+    cursor: cssVar('--xterm-cursor'),
+    cursorAccent: cssVar('--xterm-cursor-accent'),
+    selectionBackground: cssVar('--xterm-selection-bg'),
+    selectionForeground: cssVar('--xterm-selection-fg'),
+  };
+}
+
 function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return theme.override;
-  if (theme?.base === 'light') {
-    return { background: '#ffffff', foreground: '#1f2937' };
-  }
-  return { background: '#1f2937', foreground: '#e5e7eb' };
+  if (theme?.override) return { ...readXtermCssVars(), ...theme.override };
+  return readXtermCssVars();
 }
 
 /**

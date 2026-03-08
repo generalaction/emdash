@@ -1,7 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@renderer/lib/utils';
-import { useTheme } from '../hooks/useTheme';
 import { rpc } from '../lib/ipc';
 import { TerminalPane } from './TerminalPane';
 
@@ -27,7 +26,6 @@ interface Props {
 }
 
 const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }) => {
-  const { effectiveTheme } = useTheme();
   const [terminals, setTerminals] = useState<Terminal[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -116,29 +114,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
     [terminals.length]
   );
 
-  const themeVariant: 'dark' | 'light' =
-    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light';
-
-  const darkBackground = effectiveTheme === 'dark-black' ? '#000000' : '#1e1e1e';
-  const themeOverride =
-    themeVariant === 'dark'
-      ? {
-          background: darkBackground,
-          foreground: '#d4d4d4',
-          cursor: '#aeafad',
-          cursorAccent: darkBackground,
-          selectionBackground: 'rgba(96, 165, 250, 0.35)',
-          selectionForeground: '#f9fafb',
-        }
-      : {
-          background: '#ffffff',
-          foreground: '#1e1e1e',
-          cursor: '#1e1e1e',
-          cursorAccent: '#ffffff',
-          selectionBackground: 'rgba(59, 130, 246, 0.35)',
-          selectionForeground: '#0f172a',
-        };
-
   if (!task) {
     return (
       <div
@@ -199,12 +174,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
       </div>
 
       {/* Terminal panes (keepAlive pattern) */}
-      <div
-        className={cn(
-          'relative flex-1 overflow-hidden',
-          themeVariant === 'dark' ? 'bg-card' : 'bg-white'
-        )}
-      >
+      <div className="relative flex-1 overflow-hidden bg-card">
         {terminals.map((terminal) => {
           const isActive = terminal.id === activeTerminalId;
           return (
@@ -219,8 +189,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
                 ref={(r) => setTerminalRef(terminal.id, r)}
                 id={terminal.id}
                 remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
-                variant={themeVariant}
-                themeOverride={themeOverride}
                 className="h-full w-full"
                 keepAlive
               />

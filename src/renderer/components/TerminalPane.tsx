@@ -88,7 +88,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     // Resolve remoteConnectionId from either the new prop or the deprecated `remote` prop.
     const resolvedRemoteConnectionId = remoteConnectionId ?? remote?.connectionId;
 
-    const theme: SessionTheme = { base: variant, override: themeOverride };
+    const theme: SessionTheme = { override: themeOverride };
 
     const { focus } = useTerminal(
       {

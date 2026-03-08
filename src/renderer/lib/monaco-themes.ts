@@ -1,63 +1,55 @@
 /**
  * Monaco Editor theme configurations
- * Centralized theme definitions for all Monaco instances in the app
+ * Centralized theme definitions for all Monaco instances in the app.
+ * Colors are read from CSS variables at call time so theme switches are always fresh.
  */
 
 import type { Monaco } from '@monaco-editor/react';
-
-// Track registration per Monaco instance. Some views initialize Monaco independently.
-const registeredMonacoInstances = new WeakSet<object>();
+import { cssVar } from './cssVars';
 
 /**
- * Define custom themes for Monaco editor
- * This function is idempotent - calling it multiple times is safe
+ * Define custom themes for Monaco editor.
+ * Re-reads CSS variables every call so the active theme's colors are always current.
  */
 export function defineMonacoThemes(monaco: Monaco): void {
-  if (registeredMonacoInstances.has(monaco as object)) return;
-
-  // Dark theme matching app's dark mode
   monaco.editor.defineTheme('custom-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#1e293b', // slate-800 - matches app dark background
-      'editor.foreground': '#e2e8f0',
-      'editor.lineHighlightBackground': '#334155',
-      'editorLineNumber.foreground': '#64748b',
-      'editorGutter.background': '#1e293b',
+      'editor.background': cssVar('--monaco-bg'),
+      'editor.foreground': cssVar('--monaco-fg'),
+      'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
+      'editorLineNumber.foreground': cssVar('--monaco-line-number'),
+      'editorGutter.background': cssVar('--monaco-gutter'),
     },
   });
 
-  // Pure black theme for OLED displays
   monaco.editor.defineTheme('custom-black', {
     base: 'vs-dark',
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#000000', // pure black
-      'editor.foreground': '#f2f2f2',
-      'editor.lineHighlightBackground': '#1a1a1a',
-      'editorLineNumber.foreground': '#666666',
-      'editorGutter.background': '#000000',
+      'editor.background': cssVar('--monaco-bg'),
+      'editor.foreground': cssVar('--monaco-fg'),
+      'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
+      'editorLineNumber.foreground': cssVar('--monaco-line-number'),
+      'editorGutter.background': cssVar('--monaco-gutter'),
     },
   });
 
-  // Light theme matching app's light mode
   monaco.editor.defineTheme('custom-light', {
     base: 'vs',
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#f8fafc', // slate-50 - matches app light background
-      'editor.foreground': '#1e293b',
-      'editor.lineHighlightBackground': '#f1f5f9',
-      'editorLineNumber.foreground': '#94a3b8',
-      'editorGutter.background': '#f8fafc',
+      'editor.background': cssVar('--monaco-bg'),
+      'editor.foreground': cssVar('--monaco-fg'),
+      'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
+      'editorLineNumber.foreground': cssVar('--monaco-line-number'),
+      'editorGutter.background': cssVar('--monaco-gutter'),
     },
   });
-
-  registeredMonacoInstances.add(monaco as object);
 }
 
 /**
@@ -76,8 +68,17 @@ export function getMonacoTheme(effectiveTheme: string): string {
 }
 
 /**
- * Configure Monaco editor with themes and return theme name
- * Convenience function that combines theme definition and selection
+ * Re-define all themes from current CSS vars, then set the active theme.
+ * Call this whenever the app theme changes.
+ */
+export function applyMonacoTheme(monaco: Monaco, effectiveTheme: string): void {
+  defineMonacoThemes(monaco);
+  monaco.editor.setTheme(getMonacoTheme(effectiveTheme));
+}
+
+/**
+ * Configure Monaco editor with themes and return theme name.
+ * Convenience function that combines theme definition and selection.
  */
 export function setupMonacoTheme(monaco: Monaco, effectiveTheme: string): string {
   defineMonacoThemes(monaco);

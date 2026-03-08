@@ -1,4 +1,73 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
 @import '@xterm/xterm/css/xterm.css';
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant dark-black (&:is(.dark-black *));
+
+@theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --text-code: 13px;
+  --text-code--line-height: 1.2;
+  --text-tiny: 11px;
+  --text-tiny--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
 
 /* Hide xterm viewport scrollbars in embedded terminals */
 .xterm .xterm-viewport {
@@ -10,10 +79,6 @@
   width: 0 !important; /* Chrome/Safari */
   height: 0 !important;
 }
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
   :root {
@@ -44,6 +109,27 @@
     --chart-5: 27 87% 67%;
     --selection: 217 91% 60%;
     --selection-foreground: 0 0% 12%;
+
+    /* Monaco editor */
+    --monaco-bg: #f8fafc;
+    --monaco-fg: #1e293b;
+    --monaco-line-highlight: #f1f5f9;
+    --monaco-line-number: #94a3b8;
+    --monaco-gutter: #f8fafc;
+    --monaco-inserted-text-bg: #10b98140;
+    --monaco-inserted-line-bg: #ecfdf580;
+    --monaco-removed-text-bg: #f43f5e40;
+    --monaco-removed-line-bg: #fff1f280;
+    --monaco-unchanged-region-bg: #e2e8f0;
+
+    /* xterm terminals */
+    --xterm-bg: #ffffff;
+    --xterm-fg: #1f2937;
+    --xterm-cursor: #1e293b;
+    --xterm-cursor-accent: #ffffff;
+    --xterm-selection-bg: rgba(96, 165, 250, 0.3);
+    --xterm-selection-fg: #0f172a;
+    --xterm-bg-mistral: #ffffff;
   }
 
   .dark {
@@ -73,6 +159,27 @@
     --chart-5: 340 75% 55%;
     --selection: 217 92% 80%;
     --selection-foreground: 0 0% 98%;
+
+    /* Monaco editor */
+    --monaco-bg: #1f2937;
+    --monaco-fg: #e2e8f0;
+    --monaco-line-highlight: #334155;
+    --monaco-line-number: #64748b;
+    --monaco-gutter: #1f2937;
+    --monaco-inserted-text-bg: #064e3b4d;
+    --monaco-inserted-line-bg: #064e3b66;
+    --monaco-removed-text-bg: #8813374d;
+    --monaco-removed-line-bg: #88133766;
+    --monaco-unchanged-region-bg: #1a2332;
+
+    /* xterm terminals */
+    --xterm-bg: #1f2937;
+    --xterm-fg: #e5e7eb;
+    --xterm-cursor: #e2e8f0;
+    --xterm-cursor-accent: #1f2937;
+    --xterm-selection-bg: rgba(96, 165, 250, 0.35);
+    --xterm-selection-fg: #f9fafb;
+    --xterm-bg-mistral: #202938;
   }
 
   .dark-black {
@@ -102,6 +209,27 @@
     --chart-5: 340 75% 55%;
     --selection: 217 92% 70%;
     --selection-foreground: 0 0% 95%;
+
+    /* Monaco editor */
+    --monaco-bg: #000000;
+    --monaco-fg: #f2f2f2;
+    --monaco-line-highlight: #1a1a1a;
+    --monaco-line-number: #666666;
+    --monaco-gutter: #000000;
+    --monaco-inserted-text-bg: #064e3b5c;
+    --monaco-inserted-line-bg: #064e3b73;
+    --monaco-removed-text-bg: #8813375c;
+    --monaco-removed-line-bg: #88133773;
+    --monaco-unchanged-region-bg: #0a0a0a;
+
+    /* xterm terminals */
+    --xterm-bg: #000000;
+    --xterm-fg: #f2f2f2;
+    --xterm-cursor: #f2f2f2;
+    --xterm-cursor-accent: #000000;
+    --xterm-selection-bg: rgba(96, 165, 250, 0.35);
+    --xterm-selection-fg: #f9fafb;
+    --xterm-bg-mistral: #141820;
   }
 }
 

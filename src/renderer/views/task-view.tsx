@@ -34,7 +34,7 @@ import {
   configureMonacoEditor,
   configureMonacoTypeScript,
 } from '@renderer/lib/monaco-config';
-import { defineMonacoThemes } from '@renderer/lib/monaco-themes';
+import { applyMonacoTheme, defineMonacoThemes } from '@renderer/lib/monaco-themes';
 
 export function TaskTitlebar() {
   const project = useCurrentProject();
@@ -291,6 +291,15 @@ function CodeEditorMainPanel() {
     };
     initMonaco();
   }, []);
+
+  useEffect(() => {
+    const applyTheme = async () => {
+      const { loader } = await import('@monaco-editor/react');
+      const monaco = await loader.init();
+      applyMonacoTheme(monaco, effectiveTheme);
+    };
+    void applyTheme();
+  }, [effectiveTheme]);
 
   const handleEditorMount = useCallback(
     (editor: any, monaco: any) => {
