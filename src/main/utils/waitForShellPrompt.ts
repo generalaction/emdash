@@ -5,7 +5,9 @@
 const SHELL_PROMPT_RE = /\S.*(?<!\d)[#$%>❯]\s*$/;
 
 function stripAnsi(str: string): string {
-  return str.replace(/\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g, '');
+  return str
+    .replace(/\x1b\[[\x20-\x3F]*[\x40-\x7E]/g, '')
+    .replace(/\x1b\][\s\S]*?(\x07|\x1b\\)/g, '');
 }
 
 export interface PromptWaitOptions {

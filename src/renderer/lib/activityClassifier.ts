@@ -3,9 +3,9 @@ export type ActivitySignal = 'busy' | 'idle' | 'neutral';
 function stripAnsi(s: string): string {
   // Remove ANSI escape codes and carriage returns
   return s
-    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/\r/g, '')
-    .replace(/\x1b\][^\x07]*\x07/g, '');
+    .replace(/\x1b\[[\x20-\x3F]*[\x40-\x7E]/g, '')
+    .replace(/\x1b\][\s\S]*?(\x07|\x1b\\)/g, '')
+    .replace(/\r/g, '');
 }
 
 export function classifyActivity(
