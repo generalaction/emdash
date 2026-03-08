@@ -35,9 +35,9 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
         disabled={disabled}
       >
         {disabled ? (
-          <TooltipProvider delayDuration={250}>
+          <TooltipProvider delay={250}>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <SelectTrigger
                   aria-disabled
                   className={`w-full ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
@@ -56,7 +56,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
           </SelectTrigger>
         )}
         <SelectContent side="top" className="z-[120]">
-          <TooltipProvider delayDuration={150}>
+          <TooltipProvider delay={150}>
             {Object.entries(agentConfig).map(([key, config]) => (
               <TooltipRow key={key} id={key as UiAgent}>
                 <SelectItem value={key}>
@@ -104,7 +104,7 @@ const TooltipRow: React.FC<{ id: UiAgent; children: React.ReactElement }> = ({ i
   const [open, setOpen] = useState(false);
   return (
     <Tooltip open={open}>
-      <TooltipTrigger asChild>
+      <TooltipTrigger>
         {React.cloneElement(children, {
           onMouseEnter: () => setOpen(true),
           onMouseLeave: () => setOpen(false),
@@ -133,7 +133,7 @@ export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ 
   const [open, setOpen] = useState(false);
   return (
     <Tooltip open={open}>
-      <TooltipTrigger asChild>
+      <TooltipTrigger>
         {React.cloneElement(children, {
           onMouseEnter: () => setOpen(true),
           onMouseLeave: () => setOpen(false),

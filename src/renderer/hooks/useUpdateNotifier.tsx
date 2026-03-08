@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { ToastAction } from '@renderer/components/ui/toast';
 import { rpc } from '../lib/ipc';
 import { useToast } from './use-toast';
 
@@ -50,11 +49,7 @@ export function useUpdateNotifier(opts: Options = {}) {
           toast({
             title: 'Update Available',
             description: `Version ${v || 'new'} is ready. Open Settings to review and download when convenient.`,
-            action: (
-              <ToastAction altText="Open Settings" onClick={() => onOpenSettings?.()}>
-                Open Settings
-              </ToastAction>
-            ),
+            action: { label: 'Open Settings', onClick: () => onOpenSettings?.() },
           });
           rememberNotified(v);
         } catch {}

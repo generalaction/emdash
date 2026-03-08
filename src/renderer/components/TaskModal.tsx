@@ -357,16 +357,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     }
   };
 
-  const handleOpenAutoFocus = useCallback((event: Event) => {
-    event.preventDefault();
+  useEffect(() => {
     taskNameInputRef.current?.focus({ preventScroll: true });
   }, []);
 
   return (
-    <DialogContent
-      className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
-      onOpenAutoFocus={handleOpenAutoFocus}
-    >
+    <DialogContent className="max-h-[calc(100vh-48px)] max-w-md overflow-visible">
       <DialogHeader>
         <DialogTitle>New Task</DialogTitle>
         <DialogDescription className="text-xs">

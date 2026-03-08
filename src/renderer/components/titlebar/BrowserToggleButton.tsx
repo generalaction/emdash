@@ -157,9 +157,9 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
   }, [browser, taskId, taskPath, parentProjectPath]);
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <Button
             type="button"
             variant="ghost"

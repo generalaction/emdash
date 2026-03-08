@@ -1,4 +1,3 @@
-import { ToastAction } from '@radix-ui/react-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import type { LocalProject } from '@shared/types/projects';
@@ -203,11 +202,7 @@ export const useProjectManagement = () => {
       toast({
         title: 'GitHub authentication required',
         variant: 'destructive',
-        action: (
-          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-            Connect GitHub
-          </ToastAction>
-        ),
+        action: { label: 'Connect GitHub', onClick: handleGithubConnect },
       });
       return;
     }
@@ -222,11 +217,7 @@ export const useProjectManagement = () => {
       toast({
         title: 'GitHub authentication required',
         variant: 'destructive',
-        action: (
-          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-            Connect GitHub
-          </ToastAction>
-        ),
+        action: { label: 'Connect GitHub', onClick: handleGithubConnect },
       });
       return;
     }

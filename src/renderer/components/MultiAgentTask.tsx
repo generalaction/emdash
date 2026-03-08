@@ -498,7 +498,7 @@ const MultiAgentTask: React.FC<Props> = ({
                 />
               </div>
               <div className="mt-2 flex items-center justify-center px-4 py-2">
-                <TooltipProvider delayDuration={250}>
+                <TooltipProvider delay={250}>
                   <div className="flex items-center gap-2">
                     {variants.map((variant, tabIdx) => {
                       const asset = agentAssets[variant.agent];
@@ -506,7 +506,7 @@ const MultiAgentTask: React.FC<Props> = ({
                       const isTabActive = tabIdx === activeTabIndex;
                       return (
                         <Tooltip key={variant.worktreeId}>
-                          <TooltipTrigger asChild>
+                          <TooltipTrigger>
                             <button
                               type="button"
                               onClick={() => setActiveTabIndex(tabIdx)}

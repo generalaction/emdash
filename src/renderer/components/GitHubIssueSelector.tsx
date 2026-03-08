@@ -196,7 +196,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   const selectBody = (
     <Select
       value={selectedIssue ? `#${selectedIssue.number}` : '__clear__'}
-      onValueChange={handleIssueSelect}
+      onValueChange={(v) => v !== null && handleIssueSelect(v)}
       disabled={disabled || isLoadingIssues || !!issueListError || !issuesLoaded}
     >
       <SelectTrigger
@@ -313,9 +313,9 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
       {noIssuesAvailable ? (
-        <TooltipProvider delayDuration={150}>
+        <TooltipProvider delay={150}>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <div className="w-full">{selectBody}</div>
             </TooltipTrigger>
             <TooltipContent side="top" align="start" className="max-w-xs text-center">

@@ -32,9 +32,9 @@ const Context7SettingsCard: React.FC = () => {
           <p className="text-sm text-foreground/50">
             Enable Context7 MCP to enrich prompts with up‑to‑date library docs.
           </p>
-          <TooltipProvider delayDuration={150}>
+          <TooltipProvider delay={150}>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <button
                   type="button"
                   className="flex-shrink-0 text-foreground/50 transition-colors hover:text-foreground"

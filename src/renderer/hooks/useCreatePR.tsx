@@ -1,7 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
 import githubLogo from '../../assets/images/github.png';
-import { ToastAction } from '../components/ui/toast';
 import { rpc } from '../lib/ipc';
 import { useToast } from './use-toast';
 
@@ -109,25 +108,20 @@ export function useCreatePR() {
         toast({
           title: 'Pull request created successfully!',
           description: prUrl ? undefined : 'PR created but URL not available.',
-          action: prUrl ? (
-            <ToastAction
-              altText="View PR"
-              onClick={() => {
-                void (async () => {
-                  const { captureTelemetry } = await import('../lib/telemetryClient');
-                  captureTelemetry('pr_viewed');
-                })();
-                if (prUrl) {
-                  rpc.app.openExternal(prUrl);
-                }
-              }}
-            >
-              <span className="inline-flex items-center gap-1">
-                View PR
-                <ArrowUpRight className="h-3 w-3" />
-              </span>
-            </ToastAction>
-          ) : undefined,
+          action: prUrl
+            ? {
+                label: 'View PR',
+                onClick: () => {
+                  void (async () => {
+                    const { captureTelemetry } = await import('../lib/telemetryClient');
+                    captureTelemetry('pr_viewed');
+                  })();
+                  if (prUrl) {
+                    rpc.app.openExternal(prUrl);
+                  }
+                },
+              }
+            : undefined,
         });
         try {
           await onSuccess?.();

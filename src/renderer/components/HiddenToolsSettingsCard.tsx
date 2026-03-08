@@ -90,9 +90,9 @@ export default function HiddenToolsSettingsCard() {
                 </span>
               }
               rightExtra={
-                <TooltipProvider delayDuration={150}>
+                <TooltipProvider delay={150}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
+                    <TooltipTrigger>
                       <span>
                         <Switch
                           checked={isVisible}

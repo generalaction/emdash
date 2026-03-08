@@ -117,7 +117,7 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
   return (
     <Select
       value={selectedValue}
-      onValueChange={onValueChange}
+      onValueChange={(value) => value !== null && onValueChange(value)}
       disabled={disabled || isLoading || options.length === 0}
       open={open}
       onOpenChange={handleOpenChange}

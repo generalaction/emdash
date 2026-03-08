@@ -76,10 +76,10 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   }, [open]);
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <TooltipProvider delayDuration={200}>
+      <TooltipProvider delay={200}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
+          <TooltipTrigger>
+            <AlertDialogTrigger>
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -234,9 +234,9 @@ export const ProjectDeleteButton: React.FC<Props> = ({
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <TooltipProvider delayDuration={200}>
+          <TooltipProvider delay={200}>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <AlertDialogAction
                   className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
                   disabled={disableDelete}

@@ -1,4 +1,3 @@
-import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
 import React, { useState } from 'react';
 import { useToast } from '../hooks/use-toast';
@@ -6,7 +5,7 @@ import { rpc } from '../lib/ipc';
 import type { PrStatus } from '../lib/prStatus';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -287,9 +286,9 @@ export function MergePrSection({
         ) : (
           <div className="flex w-full min-w-0">
             {showDisabledTooltip ? (
-              <TooltipProvider delayDuration={120}>
+              <TooltipProvider delay={120}>
                 <Tooltip>
-                  <TooltipTrigger asChild>
+                  <TooltipTrigger>
                     <span className="min-w-0 flex-1">
                       <Button
                         variant="default"
@@ -317,7 +316,7 @@ export function MergePrSection({
               </Button>
             )}
             <Popover>
-              <PopoverTrigger asChild>
+              <PopoverTrigger>
                 <Button
                   variant="default"
                   size="sm"
@@ -330,7 +329,7 @@ export function MergePrSection({
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 p-1">
                 {MERGE_STRATEGIES.map((opt) => (
-                  <PopoverClose key={opt.id} asChild>
+                  <PopoverClose key={opt.id}>
                     <button
                       type="button"
                       className="w-full rounded px-2 py-2 text-left hover:bg-accent"

@@ -105,9 +105,9 @@ export const AgentTooltip: React.FC<AgentTooltipProps> = ({
   if (!items || items.length === 0) return <>{children}</>;
 
   return (
-    <TooltipProvider delayDuration={delay}>
+    <TooltipProvider delay={delay}>
       <Tooltip onOpenChange={setOpen}>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipTrigger>{children}</TooltipTrigger>
         <TooltipContent
           side={side}
           className="max-w-xs rounded-md border border-border bg-background p-2 text-xs shadow-sm"

@@ -212,9 +212,9 @@ function TaskRow({
           {!isSelectMode && (
             <div className="flex items-center gap-1">
               {isArchived && onRestore ? (
-                <TooltipProvider delayDuration={300}>
+                <TooltipProvider delay={300}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
+                    <TooltipTrigger>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -234,9 +234,9 @@ function TaskRow({
                   </Tooltip>
                 </TooltipProvider>
               ) : onArchive && !isArchived ? (
-                <TooltipProvider delayDuration={300}>
+                <TooltipProvider delay={300}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
+                    <TooltipTrigger>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -892,7 +892,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     {isSelectMode ? (
                       <>
                         <Checkbox
-                          checked={someFilteredSelected ? 'indeterminate' : allFilteredSelected}
+                          checked={someFilteredSelected ? false : allFilteredSelected}
+                          indeterminate={someFilteredSelected}
                           onCheckedChange={toggleSelectAll}
                           aria-label="Select all tasks"
                           className="-ml-10 h-4 w-4 shrink-0 rounded border-muted-foreground/50"
@@ -901,9 +902,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           {selectedCount} selected
                         </span>
                         {onArchiveTask && bulkActionState.hasActive && (
-                          <TooltipProvider delayDuration={300}>
+                          <TooltipProvider delay={300}>
                             <Tooltip>
-                              <TooltipTrigger asChild>
+                              <TooltipTrigger>
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
@@ -929,9 +930,9 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           </TooltipProvider>
                         )}
                         {bulkActionState.hasArchived && (
-                          <TooltipProvider delayDuration={300}>
+                          <TooltipProvider delay={300}>
                             <Tooltip>
-                              <TooltipTrigger asChild>
+                              <TooltipTrigger>
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
@@ -996,7 +997,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           </button>
                         )}
                         <Popover>
-                          <PopoverTrigger asChild>
+                          <PopoverTrigger>
                             <Button
                               variant="ghost"
                               size="icon-sm"

@@ -48,9 +48,9 @@ export const TaskContextBadges: React.FC<Props> = ({
   return (
     <div className="inline-flex items-center gap-2">
       {linearIssue && (
-        <TooltipProvider delayDuration={250}>
+        <TooltipProvider delay={250}>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <button
                 type="button"
                 className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2 text-xs font-medium text-foreground hover:bg-muted/80 dark:border-border dark:bg-muted dark:hover:bg-muted/80"
@@ -106,9 +106,9 @@ export const TaskContextBadges: React.FC<Props> = ({
       )}
 
       {githubIssue && (
-        <TooltipProvider delayDuration={250}>
+        <TooltipProvider delay={250}>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <button
                 type="button"
                 className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2 text-xs font-medium text-foreground hover:bg-muted/80 dark:border-border dark:bg-muted dark:hover:bg-muted/80"
@@ -143,9 +143,9 @@ export const TaskContextBadges: React.FC<Props> = ({
       )}
 
       {jiraIssue && (
-        <TooltipProvider delayDuration={250}>
+        <TooltipProvider delay={250}>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <button
                 type="button"
                 className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-muted px-2 text-xs font-medium text-foreground hover:bg-muted/80 dark:border-border dark:bg-muted dark:hover:bg-muted/80"

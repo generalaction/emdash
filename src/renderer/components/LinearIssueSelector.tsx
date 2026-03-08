@@ -227,7 +227,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
     <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
       <Select
         value={selectedIssue?.identifier || '__clear__'}
-        onValueChange={handleIssueSelect}
+        onValueChange={(v) => v !== null && handleIssueSelect(v)}
         disabled={isDisabled}
         open={dropdownOpen}
         onOpenChange={(open) => setDropdownOpen(open)}

@@ -473,8 +473,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
   <TooltipProvider>
-    <Tooltip delayDuration={200}>
-      <TooltipTrigger asChild>
+    <Tooltip>
+      <TooltipTrigger>
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground"

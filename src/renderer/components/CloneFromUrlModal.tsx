@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useCloseGuard } from '@renderer/hooks/useCloseGuard';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -16,6 +17,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
   const [repoUrl, setRepoUrl] = useState('');
   const [directoryName, setDirectoryName] = useState('');
   const [isCloning, setIsCloning] = useState(false);
+  useCloseGuard(isCloning);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [touched, setTouched] = useState(false);
@@ -162,15 +164,7 @@ export const CloneFromUrlModal: React.FC<CloneFromUrlModalProps> = ({ onClose, o
   );
 
   return (
-    <DialogContent
-      className="max-w-md"
-      onInteractOutside={(e) => {
-        if (isCloning) e.preventDefault();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isCloning) e.preventDefault();
-      }}
-    >
+    <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>Clone from URL</DialogTitle>
       </DialogHeader>

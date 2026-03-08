@@ -174,8 +174,8 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
         {showInstallCopy ? (
           <TooltipProvider>
-            <Tooltip delayDuration={150}>
-              <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger>
                 <button
                   type="button"
                   onClick={() => {

@@ -310,9 +310,9 @@ const KeyboardSettingsCard: React.FC = () => {
               ) : (
                 <>
                   {isModified(shortcut) ? (
-                    <TooltipProvider delayDuration={150}>
+                    <TooltipProvider delay={150}>
                       <Tooltip>
-                        <TooltipTrigger asChild>
+                        <TooltipTrigger>
                           <Button
                             type="button"
                             variant="ghost"

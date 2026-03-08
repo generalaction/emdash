@@ -124,9 +124,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   return (
     <div ref={containerRef} className="relative">
       <div className="flex min-w-0">
-        <TooltipProvider delayDuration={0}>
+        <TooltipProvider delay={0}>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
               <Button
                 type="button"
                 variant="ghost"

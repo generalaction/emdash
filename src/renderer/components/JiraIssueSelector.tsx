@@ -165,7 +165,7 @@ const JiraIssueSelector: React.FC<Props> = ({
     <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
       <Select
         value={selectedIssue?.key || '__clear__'}
-        onValueChange={handleIssueSelect}
+        onValueChange={(v) => v !== null && handleIssueSelect(v)}
         disabled={isDisabled}
       >
         <SelectTrigger

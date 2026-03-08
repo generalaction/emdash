@@ -100,14 +100,14 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
   if (!issue) return children;
 
   return (
-    <TooltipProvider delayDuration={150}>
+    <TooltipProvider delay={150}>
       <Tooltip
         open={open}
         onOpenChange={(next) => {
           if (next) setOpen(true); /* closing handled by scheduleClose */
         }}
       >
-        <TooltipTrigger asChild onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+        <TooltipTrigger onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
           {children}
         </TooltipTrigger>
         <TooltipContent
@@ -115,7 +115,6 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
           align="start"
           className="border-0 bg-transparent p-0 shadow-none"
           style={{ zIndex: 10000 }}
-          onPointerDownOutside={(e) => e.preventDefault()}
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
         >

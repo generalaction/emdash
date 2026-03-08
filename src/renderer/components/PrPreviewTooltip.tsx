@@ -44,9 +44,9 @@ export const PrPreviewTooltip: React.FC<Props> = ({ pr, children, side = 'top' }
   const changed = num(pr.changedFiles);
 
   return (
-    <TooltipProvider delayDuration={150}>
+    <TooltipProvider delay={150}>
       <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipTrigger>{children}</TooltipTrigger>
         <TooltipContent
           side={side}
           align="start"

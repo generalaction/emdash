@@ -45,10 +45,10 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           {existingContent ? 'Edit comment' : 'Add comment'}
           <Comment.Meta className="ml-2">(Line {lineNumber})</Comment.Meta>
         </Comment.Title>
-        <TooltipProvider delayDuration={400}>
+        <TooltipProvider delay={400}>
           <Comment.Actions>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}>
                   <X className="h-4 w-4" />
                 </Button>
@@ -58,7 +58,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <Button
                   variant="ghost"
                   size="icon"

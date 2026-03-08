@@ -3,6 +3,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './components/ThemeProvider';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { SidebarProvider } from './components/ui/sidebar';
+import { TooltipProvider } from './components/ui/tooltip';
 import { AgentProvider } from './contexts/AgentProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
 import { AppSettingsProvider } from './contexts/AppSettingsProvider';
@@ -42,41 +43,43 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <DependenciesProvider>
-        <ModalProvider>
-          <WorkspaceLayoutContextProvider>
-            <AppContextProvider>
-              <GithubContextProvider>
-                <IntegrationsProvider>
-                  {/* WorkspaceViewProvider must be above data providers so navigate() is available
+      <TooltipProvider>
+        <DependenciesProvider>
+          <ModalProvider>
+            <WorkspaceLayoutContextProvider>
+              <AppContextProvider>
+                <GithubContextProvider>
+                  <IntegrationsProvider>
+                    {/* WorkspaceViewProvider must be above data providers so navigate() is available
                   inside ProjectManagementProvider and TaskManagementProvider hooks */}
-                  <WorkspaceViewProvider>
-                    <ProjectManagementProvider>
-                      <TaskManagementProvider>
-                        <AppSettingsProvider>
-                          <AgentProvider>
-                            <KeyboardSettingsProvider>
-                              <BrowserProvider>
-                                <SidebarProvider>
-                                  <RightSidebarProvider>
-                                    <ThemeProvider>
-                                      <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                    </ThemeProvider>
-                                  </RightSidebarProvider>
-                                </SidebarProvider>
-                              </BrowserProvider>
-                            </KeyboardSettingsProvider>
-                          </AgentProvider>
-                        </AppSettingsProvider>
-                      </TaskManagementProvider>
-                    </ProjectManagementProvider>
-                  </WorkspaceViewProvider>
-                </IntegrationsProvider>
-              </GithubContextProvider>
-            </AppContextProvider>
-          </WorkspaceLayoutContextProvider>
-        </ModalProvider>
-      </DependenciesProvider>
+                    <WorkspaceViewProvider>
+                      <ProjectManagementProvider>
+                        <TaskManagementProvider>
+                          <AppSettingsProvider>
+                            <AgentProvider>
+                              <KeyboardSettingsProvider>
+                                <BrowserProvider>
+                                  <SidebarProvider>
+                                    <RightSidebarProvider>
+                                      <ThemeProvider>
+                                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                      </ThemeProvider>
+                                    </RightSidebarProvider>
+                                  </SidebarProvider>
+                                </BrowserProvider>
+                              </KeyboardSettingsProvider>
+                            </AgentProvider>
+                          </AppSettingsProvider>
+                        </TaskManagementProvider>
+                      </ProjectManagementProvider>
+                    </WorkspaceViewProvider>
+                  </IntegrationsProvider>
+                </GithubContextProvider>
+              </AppContextProvider>
+            </WorkspaceLayoutContextProvider>
+          </ModalProvider>
+        </DependenciesProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

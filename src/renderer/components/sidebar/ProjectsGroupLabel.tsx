@@ -19,7 +19,7 @@ export function ProjectsGroupLabel() {
       </span>
 
       <Popover>
-        <PopoverTrigger asChild>
+        <PopoverTrigger>
           <Button variant="ghost" size="icon-sm" className="text-foreground/30">
             <FolderPlus className="h-3.5 w-3.5" />
           </Button>

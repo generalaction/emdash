@@ -79,7 +79,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
   const singleAgentConfig = singleAgent ? agentConfig[singleAgent.agent] : null;
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <Select
         open={open}
         onOpenChange={(isOpen) => {
@@ -108,9 +108,9 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
         </SelectTrigger>
         <SelectContent
           side="top"
-          className="z-[1000] max-h-80 w-[var(--radix-select-trigger-width)] overflow-y-auto p-1"
+          className="z-[1000] max-h-80 w-[var(--anchor-width)] overflow-y-auto p-1"
         >
-          <TooltipProvider delayDuration={150}>
+          <TooltipProvider delay={150}>
             {sortedAgents.map(([key, config]) => {
               const agent = key as Agent;
               const isSelected = selectedAgents.has(agent);
@@ -158,7 +158,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                       <div className="flex items-center gap-1">
                         <Select
                           value={String(getAgentRuns(agent))}
-                          onValueChange={(v) => updateRuns(agent, parseInt(v, 10))}
+                          onValueChange={(v) => v !== null && updateRuns(agent, parseInt(v, 10))}
                           onOpenChange={(isSelectOpen) => {
                             setRunsSelectOpenFor(isSelectOpen ? agent : null);
                           }}
@@ -178,7 +178,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                           </SelectContent>
                         </Select>
                         <Tooltip>
-                          <TooltipTrigger asChild>
+                          <TooltipTrigger>
                             <Info className="h-3 w-3 opacity-40 hover:opacity-60" />
                           </TooltipTrigger>
                           <TooltipContent
@@ -209,7 +209,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
               ) : (
                 /* Disabled agents with tooltip */
                 <Tooltip key={key}>
-                  <TooltipTrigger asChild>
+                  <TooltipTrigger>
                     <div className="flex h-8 cursor-not-allowed items-center justify-between rounded-sm px-2 opacity-50">
                       <div className="flex flex-1 items-center gap-2">
                         <input
@@ -255,7 +255,7 @@ const AgentTooltipRow: React.FC<{
 }> = ({ id, children, isHovered, onHover, onLeave }) => {
   return (
     <Tooltip open={isHovered}>
-      <TooltipTrigger asChild>
+      <TooltipTrigger>
         {React.cloneElement(children, {
           onMouseEnter: onHover,
           onMouseLeave: onLeave,

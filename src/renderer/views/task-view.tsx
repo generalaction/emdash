@@ -1,4 +1,4 @@
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Brain, FileBracesCorner } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChatInterface from '@renderer/components/ChatInterface';
@@ -69,7 +69,11 @@ export function TaskTitlebar() {
       }
       rightSlot={
         <>
-          <ToggleGroup variant="outline" type="single" value={view} onValueChange={setView}>
+          <ToggleGroup
+            variant="outline"
+            value={[view]}
+            onValueChange={(value) => setView(value[0] as 'agents' | 'editor')}
+          >
             <ToggleGroupItem value="agents">
               <Brain className="h-4 w-4" />
             </ToggleGroupItem>
@@ -124,8 +128,6 @@ export function TaskMainPanel() {
           {isMultiAgent ? (
             <MultiAgentTask
               task={task}
-              projectName={project.name}
-              projectId={project.id}
               projectPath={project.path}
               projectRemoteConnectionId={projectRemoteConnectionId}
               projectRemotePath={projectRemotePath}
@@ -198,10 +200,10 @@ export function TaskRightSidebar() {
           />
           <DialogPrimitive.Root
             open={!!diffState}
-            onOpenChange={(open) => !open && setDiffState(null)}
+            onOpenChange={(open: boolean) => !open && setDiffState(null)}
           >
             <DialogPrimitive.Portal>
-              <DialogPrimitive.Content
+              <DialogPrimitive.Popup
                 className="fixed inset-0 z-[200] bg-background focus:outline-none"
                 aria-describedby={undefined}
               >
@@ -214,7 +216,7 @@ export function TaskRightSidebar() {
                     onClose={() => setDiffState(null)}
                   />
                 )}
-              </DialogPrimitive.Content>
+              </DialogPrimitive.Popup>
             </DialogPrimitive.Portal>
           </DialogPrimitive.Root>
         </>

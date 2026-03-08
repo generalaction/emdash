@@ -67,9 +67,9 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
       }
       rightExtra={
         isDetected ? (
-          <TooltipProvider delayDuration={150}>
+          <TooltipProvider delay={150}>
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger>
                 <button
                   type="button"
                   onClick={() => onSettingsClick(agent.id)}

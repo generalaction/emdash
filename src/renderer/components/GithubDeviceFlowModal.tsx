@@ -57,6 +57,16 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutocopied = useRef(false);
   const hasOpenedBrowser = useRef(false);
+  const authSucceededRef = useRef(false);
+
+  // Cancel the auth flow if the modal is dismissed before auth completes
+  useEffect(() => {
+    return () => {
+      if (!authSucceededRef.current) {
+        rpc.github.authCancel();
+      }
+    };
+  }, []);
 
   // Subscribe to auth events from main process
   useEffect(() => {
@@ -94,6 +104,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
 
     // Auth successful
     const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
+      authSucceededRef.current = true;
       setSuccess(true);
       setUser(data.user);
 
@@ -212,8 +223,6 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
   };
 
   const handleClose = () => {
-    // Cancel auth flow in main process (polling continues in background)
-    rpc.github.authCancel();
     onClose();
   };
 
@@ -242,11 +251,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
   }, [userCode]);
 
   return (
-    <DialogContent
-      className="max-w-[480px] p-0"
-      onInteractOutside={() => handleClose()}
-      onEscapeKeyDown={() => handleClose()}
-    >
+    <DialogContent className="max-w-[480px] p-0">
       <button
         onClick={handleClose}
         className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"

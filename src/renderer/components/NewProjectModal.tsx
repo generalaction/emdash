@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCloseGuard } from '../hooks/useCloseGuard';
 import { rpc } from '../lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -26,6 +27,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
   const [_owners, setOwners] = useState<Owner[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  useCloseGuard(isCreating);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -164,15 +166,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
   );
 
   return (
-    <DialogContent
-      className="max-w-md"
-      onInteractOutside={(e) => {
-        if (isCreating) e.preventDefault();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isCreating) e.preventDefault();
-      }}
-    >
+    <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>New Project</DialogTitle>
       </DialogHeader>

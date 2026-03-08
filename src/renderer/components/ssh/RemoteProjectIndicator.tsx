@@ -90,9 +90,9 @@ export const RemoteProjectIndicator: React.FC<Props> = ({
   );
 
   return (
-    <TooltipProvider delayDuration={100}>
+    <TooltipProvider delay={100}>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <span
             className={cn(
               'inline-flex items-center gap-1.5',

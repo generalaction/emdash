@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ConnectionTestResult, SshConfig } from '@shared/ssh/types';
+import { useCloseGuard } from '@renderer/hooks/useCloseGuard';
 import { cn } from '@renderer/lib/utils';
 import { rpc } from '../../lib/ipc';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -77,6 +78,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<WizardStep>('connection');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useCloseGuard(isSubmitting);
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
@@ -920,17 +922,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   };
 
   return (
-    <DialogContent
-      className="max-w-lg md:max-w-2xl"
-      onInteractOutside={(e) => {
-        if (isSubmitting) e.preventDefault();
-        else handleClose();
-      }}
-      onEscapeKeyDown={(e) => {
-        if (isSubmitting) e.preventDefault();
-        else handleClose();
-      }}
-    >
+    <DialogContent className="max-w-lg md:max-w-2xl">
       <DialogHeader>
         <DialogTitle>Add Remote Project</DialogTitle>
         <DialogDescription>

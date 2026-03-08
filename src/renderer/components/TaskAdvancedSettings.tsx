@@ -183,12 +183,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
 
   return (
     <>
-      <Accordion
-        type="single"
-        collapsible
-        value={showAdvanced ? 'advanced' : undefined}
-        className="space-y-2"
-      >
+      <Accordion value={showAdvanced ? ['advanced'] : []} className="space-y-2">
         <AccordionItem value="advanced" className="border-none">
           <AccordionTrigger
             className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border-none bg-muted px-3 text-sm font-medium text-foreground hover:bg-accent hover:no-underline [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0"

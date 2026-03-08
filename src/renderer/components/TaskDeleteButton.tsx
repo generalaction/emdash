@@ -103,10 +103,10 @@ export const TaskDeleteButton: React.FC<Props> = ({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       {!hideTrigger && (
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <AlertDialogTrigger asChild>
+            <TooltipTrigger>
+              <AlertDialogTrigger>
                 <Button
                   variant="ghost"
                   size="icon-sm"

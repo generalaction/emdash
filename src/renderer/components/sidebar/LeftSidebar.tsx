@@ -195,7 +195,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                asChild
                 className={`min-w-0 ${isCurrentView(currentView, 'home') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
               >
                 <Button
@@ -211,7 +210,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
-                asChild
                 className={`min-w-0 ${isCurrentView(currentView, 'skills') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
               >
                 <Button
@@ -227,7 +225,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
-                asChild
                 className={`min-w-0 ${isCurrentView(currentView, 'settings') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
               >
                 <Button
@@ -279,7 +276,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
                           <div
                             className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
                           >
-                            <CollapsibleTrigger asChild>
+                            <CollapsibleTrigger>
                               <button
                                 type="button"
                                 className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 dark:hover:bg-white/5"
@@ -307,10 +304,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
                             )}
                           </div>
 
-                          <CollapsibleContent
-                            forceMount
-                            className="mt-1 min-w-0 data-[state=closed]:hidden"
-                          >
+                          <CollapsibleContent className="mt-1 min-w-0 data-[state=closed]:hidden">
                             <div className="flex min-w-0 flex-col gap-1">
                               {(tasksByProjectId[typedProject.id] ?? [])
                                 .slice()
@@ -344,7 +338,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
                                 })}
                               {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
                                 <Collapsible className="mt-1">
-                                  <CollapsibleTrigger asChild>
+                                  <CollapsibleTrigger>
                                     <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
                                       <Archive className="h-3 w-3 opacity-50" />
                                       <span>

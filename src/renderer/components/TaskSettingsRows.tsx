@@ -50,9 +50,9 @@ export const AutoApproveByDefaultRow: React.FC<RowProps> = ({ taskSettings }) =>
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium text-foreground">Auto-approve by default</p>
-            <TooltipProvider delayDuration={150}>
+            <TooltipProvider delay={150}>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <button
                     type="button"
                     className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
@@ -91,9 +91,9 @@ export const AutoTrustWorktreesRow: React.FC<RowProps> = ({ taskSettings }) => {
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium text-foreground">Auto-trust worktree directories</p>
-            <TooltipProvider delayDuration={150}>
+            <TooltipProvider delay={150}>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <button
                     type="button"
                     className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"

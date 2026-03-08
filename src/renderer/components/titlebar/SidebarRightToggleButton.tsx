@@ -20,9 +20,9 @@ const SidebarRightToggleButton: React.FC = () => {
   };
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <Button
             type="button"
             variant="ghost"
@@ -34,13 +34,7 @@ const SidebarRightToggleButton: React.FC = () => {
             <PanelRight className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          align="end"
-          sideOffset={8}
-          collisionPadding={8}
-          className="text-xs font-medium"
-        >
+        <TooltipContent side="bottom" align="end" sideOffset={8} className="text-xs font-medium">
           <div className="flex flex-col gap-1">
             <span>Toggle right sidebar</span>
             <ShortcutHint settingsKey="toggleRightSidebar" />

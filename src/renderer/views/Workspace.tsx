@@ -1,5 +1,6 @@
 import { ModalRenderer } from '@renderer/components/ModalRenderer';
 import { LeftSidebar } from '@renderer/components/sidebar/LeftSidebar';
+import { Toaster } from '@renderer/components/ui/toaster';
 import { WorkspaceEffects } from '@renderer/components/WorkspaceEffects';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/components/WorkspaceLayout';
 import {
@@ -24,6 +25,7 @@ export function Workspace() {
         }
       />
       <ModalRenderer />
+      <Toaster />
     </>
   );
 }

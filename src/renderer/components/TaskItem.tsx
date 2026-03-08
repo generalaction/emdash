@@ -313,7 +313,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   if (onRename || onDelete || onArchive || onPin) {
     return (
       <ContextMenu>
-        <ContextMenuTrigger asChild>{taskContent}</ContextMenuTrigger>
+        <ContextMenuTrigger>{taskContent}</ContextMenuTrigger>
         <ContextMenuContent>
           {onPin && (
             <ContextMenuItem

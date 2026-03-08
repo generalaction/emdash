@@ -24,9 +24,9 @@ const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
   };
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <Tooltip>
-        <TooltipTrigger asChild>
+        <TooltipTrigger>
           <Button
             type="button"
             variant="ghost"
@@ -40,13 +40,7 @@ const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
             <PanelLeft className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          align="end"
-          sideOffset={8}
-          collisionPadding={8}
-          className="text-xs font-medium"
-        >
+        <TooltipContent side="bottom" align="end" sideOffset={8} className="text-xs font-medium">
           <div className="flex flex-col gap-1">
             <span>{isDisabled ? 'Sidebar disabled in editor mode' : 'Toggle left sidebar'}</span>
             {!isDisabled && <ShortcutHint settingsKey="toggleLeftSidebar" />}

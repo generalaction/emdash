@@ -1,4 +1,3 @@
-import { Close as PopoverClose } from '@radix-ui/react-popover';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -34,7 +33,7 @@ import {
 } from './ui/alert-dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Spinner } from './ui/spinner';
 
 type ActiveTab = 'changes' | 'checks';
@@ -66,7 +65,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
         {isLoading ? <Spinner size="sm" /> : PR_MODE_LABELS[mode]}
       </Button>
       <Popover>
-        <PopoverTrigger asChild>
+        <PopoverTrigger>
           <Button
             variant="outline"
             size="sm"
@@ -80,7 +79,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
           {(['create', 'draft', 'merge'] as PrMode[])
             .filter((m) => m !== mode)
             .map((m) => (
-              <PopoverClose key={m} asChild>
+              <PopoverClose key={m}>
                 <button
                   className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
                   onClick={() => onModeChange(m)}

@@ -44,6 +44,8 @@ type ModalContext = {
   renderModal: () => ReactNode;
   closeModal: () => void;
   showModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
+  hasActiveCloseGuard: boolean;
+  setCloseGuard: (active: boolean) => void;
 };
 
 const ModalContext = createContext<ModalContext | undefined>(undefined);
@@ -51,6 +53,7 @@ const ModalContext = createContext<ModalContext | undefined>(undefined);
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [activeModalId, setActiveModalId] = useState<ModalId | null>(null);
   const activeModalArgs = useRef<ModalArgs<ModalId> | null>(null);
+  const [closeGuardActive, setCloseGuardActive] = useState(false);
 
   const renderModal = useCallback((): ReactNode => {
     if (!activeModalId || !activeModalArgs.current) return null;
@@ -64,6 +67,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   };
 
   const closeModal = useCallback(() => {
+    setCloseGuardActive(false);
     setActiveModalId(null);
     activeModalArgs.current = null;
     dispatchOverlayEvent(false);
@@ -99,6 +103,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         renderModal: renderModal,
         closeModal: closeModal,
         showModal: showModal,
+        hasActiveCloseGuard: closeGuardActive,
+        setCloseGuard: setCloseGuardActive,
       }}
     >
       {children}
