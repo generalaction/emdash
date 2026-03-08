@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { startPty, writePty, renamePty, killPty } from './ptyManager';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 
 interface PoolEntry {
   tempId: string;

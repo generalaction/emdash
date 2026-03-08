@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import * as fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { getMainWindow } from '../../_new/app/window';
+import { getMainWindow } from '../../app/window';
 import { errorTracking } from '../../_new/error-tracking';
 import { createRPCController } from '../../../shared/ipc/rpc';
 

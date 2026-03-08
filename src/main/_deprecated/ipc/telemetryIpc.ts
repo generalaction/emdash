@@ -5,7 +5,7 @@ import {
   getTelemetryStatus,
   setTelemetryEnabledViaUser,
   setOnboardingSeen,
-} from '../../_new/lib/telemetry';
+} from '../../lib/telemetry';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 // Events allowed from renderer process

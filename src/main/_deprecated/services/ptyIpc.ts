@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { events } from '../../_new/lib/events';
+import { events } from '../../lib/events';
 import { ptyStartedChannel, shellSessionStartedChannel } from '@shared/events/appEvents';
 import {
   startPty,
@@ -21,11 +21,11 @@ import {
   getPtyTmuxSessionName,
   claudeSessionFileExists,
 } from './ptyManager';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../../_new/error-tracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
-import * as telemetry from '../../_new/lib/telemetry';
+import * as telemetry from '../../lib/telemetry';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../../shared/providers/registry';
 import { parsePtyId } from '../../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
@@ -33,7 +33,7 @@ import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
-import { sshConnections as sshConnectionsTable } from '../../_new/db/schema';
+import { sshConnections as sshConnectionsTable } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
@@ -42,7 +42,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { quoteShellArg } from '../utils/shellEscape';
 import { owners, listeners } from './ptyCleanup';
-import { db } from '@/_new/db/client';
+import { db } from '@/db/client';
 
 // ---------------------------------------------------------------------------
 // Session isolation — resolve CLI args from the conversations table.

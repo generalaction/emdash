@@ -11,9 +11,9 @@ import { killPty } from './ptyManager';
 import { makePtyId } from '@shared/ptyId';
 import { databaseService } from './DatabaseService';
 import { terminalSnapshotService } from './TerminalSnapshotService';
-import { events } from '../../_new/lib/events';
+import { events } from '../../lib/events';
 import { ptyKilledChannel } from '@shared/events/appEvents';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 
 /** Maps PTY ID → owning renderer WebContents */
 export const owners = new Map<string, WebContents>();

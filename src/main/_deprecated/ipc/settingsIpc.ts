@@ -1,4 +1,4 @@
-import { AppSettingsUpdate, getAppSettings, updateAppSettings } from '../../_new/core/settings';
+import { AppSettingsUpdate, getAppSettings, updateAppSettings } from '../../core/settings';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 export const appSettingsController = createRPCController({

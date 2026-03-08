@@ -1,7 +1,7 @@
 import { SshService } from './ssh/SshService';
 import type { ExecResult } from '../../../shared/ssh/types';
 import { quoteShellArg } from '../utils/shellEscape';
-import type { GitChange } from '../../_new/environment/impl/git-provider/local-git-utils';
+import type { GitChange } from '../../environment/impl/git-provider/local-git-utils';
 import {
   parseDiffLines,
   stripTrailingNewline,

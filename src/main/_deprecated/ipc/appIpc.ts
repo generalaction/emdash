@@ -4,7 +4,7 @@ import { exec, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
-import { getAppSettings } from '../../_new/core/settings';
+import { getAppSettings } from '../../core/settings';
 import {
   getAppById,
   getResolvedLabel,

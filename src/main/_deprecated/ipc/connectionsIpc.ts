@@ -4,7 +4,7 @@ import {
   getAllProviderCustomConfigs,
   updateProviderCustomConfig,
   type ProviderCustomConfig,
-} from '../../_new/core/settings';
+} from '../../core/settings';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 export const connectionsController = createRPCController({

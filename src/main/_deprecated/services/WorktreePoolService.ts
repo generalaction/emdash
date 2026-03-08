@@ -4,8 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import os from 'os';
-import { log } from '../../_new/lib/logger';
-import { getAppSettings } from '../../_new/core/settings';
+import { log } from '../../lib/logger';
+import { getAppSettings } from '../../core/settings';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
 const execFileAsync = promisify(execFile);

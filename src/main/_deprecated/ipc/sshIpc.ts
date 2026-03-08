@@ -2,10 +2,7 @@ import { sshService } from '../services/ssh/SshService';
 import { SshCredentialService } from '../services/ssh/SshCredentialService';
 import { SshHostKeyService } from '../services/ssh/SshHostKeyService';
 import { SshConnectionMonitor } from '../services/ssh/SshConnectionMonitor';
-import {
-  sshConnections as sshConnectionsTable,
-  type SshConnectionInsert,
-} from '../../_new/db/schema';
+import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '../../db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { quoteShellArg } from '../utils/shellEscape';
@@ -20,7 +17,7 @@ import type {
   SshConfigHost,
 } from '../../../shared/ssh/types';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { db } from '@/_new/db/client';
+import { db } from '@/db/client';
 
 // Initialize services
 const credentialService = new SshCredentialService();
@@ -279,7 +276,7 @@ export const sshController = createRPCController({
           },
         });
 
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_connection_saved', { type: config.authType });
       });
 
@@ -345,7 +342,7 @@ export const sshController = createRPCController({
       // Delete from database
       await db.delete(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
 
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_connection_deleted');
       });
 
@@ -390,7 +387,7 @@ export const sshController = createRPCController({
         // and re-connects after the monitor gave up (state = disconnected).
         monitor.startMonitoring(connectionId, loadedConfig);
         monitor.updateState(connectionId, 'connected');
-        void import('../../_new/lib/telemetry').then(({ capture }) => {
+        void import('../../lib/telemetry').then(({ capture }) => {
           void capture('ssh_connect_success', { type: loadedConfig.authType });
         });
         return { success: true, connectionId };
@@ -434,13 +431,13 @@ export const sshController = createRPCController({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       monitor.startMonitoring(connectionId, fullConfig as any);
       monitor.updateState(connectionId, 'connected');
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_connect_success', { type: config.authType });
       });
       return { success: true, connectionId };
     } catch (err: unknown) {
       console.error('[sshIpc] Connection error:', err);
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_connect_failed', { error_type: classifySshError(err) });
       });
       return { success: false, error: (err as Error).message };
@@ -454,7 +451,7 @@ export const sshController = createRPCController({
       // for an intentional disconnect.
       monitor.stopMonitoring(connectionId);
       await sshService.disconnect(connectionId);
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_disconnected');
       });
       return { success: true };
@@ -714,7 +711,7 @@ export const sshController = createRPCController({
         };
       }
 
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_repo_init');
       });
 
@@ -775,7 +772,7 @@ export const sshController = createRPCController({
         };
       }
 
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_repo_clone');
       });
 
@@ -804,7 +801,7 @@ export function registerSshIpc() {
 
       await sshService.connect(config);
       monitor.updateState(connectionId, 'connected');
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_reconnect_attempted', { success: true });
       });
     } catch (err: unknown) {
@@ -813,7 +810,7 @@ export function registerSshIpc() {
         (err as Error).message
       );
       monitor.updateState(connectionId, 'error', (err as Error).message);
-      void import('../../_new/lib/telemetry').then(({ capture }) => {
+      void import('../../lib/telemetry').then(({ capture }) => {
         void capture('ssh_reconnect_attempted', { success: false });
       });
     }

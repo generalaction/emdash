@@ -1,7 +1,7 @@
-import { events } from '../../_new/lib/events';
+import { events } from '../../lib/events';
 import { createRPCController } from '../../../shared/ipc/rpc';
 import { gitStatusChangedChannel } from '@shared/events/appEvents';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { exec, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ import {
   getCommitFiles as gitGetCommitFiles,
   getCommitFileDiff as gitGetCommitFileDiff,
   softResetLastCommit as gitSoftResetLastCommit,
-} from '../../_new/environment/impl/git-provider/local-git-utils';
+} from '../../environment/impl/git-provider/local-git-utils';
 import { prGenerationService } from '../services/PrGenerationService';
 import { databaseService } from '../services/DatabaseService';
 import { injectIssueFooter } from '../lib/prIssueFooter';

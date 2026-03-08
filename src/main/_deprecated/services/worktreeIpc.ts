@@ -1,18 +1,18 @@
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { worktreeService } from '../../_new/core/worktrees/WorktreeService';
+import { worktreeService } from '../../core/worktrees/WorktreeService';
 import { databaseService, type Project } from './DatabaseService';
-import { projects as projectsTable } from '../../_new/db/schema';
+import { projects as projectsTable } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { RemoteGitService } from './RemoteGitService';
 import { sshService } from './ssh/SshService';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { quoteShellArg } from '../utils/shellEscape';
 import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
-import { db } from '../../_new/db/client';
+import { db } from '../../db/client';
 
 const remoteGitService = new RemoteGitService(sshService);
 

@@ -1,4 +1,4 @@
-import { capture } from '../../_new/lib/telemetry';
+import { capture } from '../../lib/telemetry';
 
 /**
  * Capture telemetry event with timing duration.

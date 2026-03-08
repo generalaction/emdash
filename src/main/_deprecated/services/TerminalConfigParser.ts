@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 
 export interface TerminalTheme {
   background?: string;

@@ -1,6 +1,6 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { resolveDatabasePath } from '../../_new/db/path';
+import { resolveDatabasePath } from '../../db/path';
 import {
   projects as projectsTable,
   tasks as tasksTable,
@@ -16,8 +16,8 @@ import {
   type LineCommentInsert,
   type SshConnectionRow,
   type SshConnectionInsert,
-} from '../../_new/db/schema';
-import { db } from '@/_new/db/client';
+} from '../../db/schema';
+import { db } from '@/db/client';
 
 export interface Project {
   id: string;

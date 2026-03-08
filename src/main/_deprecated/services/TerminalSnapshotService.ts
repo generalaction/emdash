@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import { TERMINAL_SNAPSHOT_VERSION } from '../types/terminalSnapshot';
 

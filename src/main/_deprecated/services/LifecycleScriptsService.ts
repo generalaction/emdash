@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
 
 export interface EmdashConfig {

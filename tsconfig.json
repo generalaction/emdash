@@ -1,21 +1,12 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
+    "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "types": ["react", "react-dom", "node"],
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/renderer/*"],
       "@shared/*": ["./src/shared/*"],
@@ -23,6 +14,5 @@
       "#types": ["./src/types/index.ts"]
     }
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "src/types/**/*", "src/test/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/types/**/*", "src/test/**/*"]
 }

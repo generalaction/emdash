@@ -3,7 +3,7 @@ import path from 'node:path';
 import { databaseService } from '../services/DatabaseService';
 import type { Conversation, Message, Project, Task } from '../services/DatabaseService';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { cleanupTaskPtys, cleanupConversationPty } from '../services/ptyCleanup';
 
 export const databaseController = createRPCController({

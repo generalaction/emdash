@@ -1,5 +1,5 @@
 import { execFile } from 'child_process';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../../_new/error-tracking';
-import { getAppSettings } from '../../_new/core/settings';
+import { getAppSettings } from '../../core/settings';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 

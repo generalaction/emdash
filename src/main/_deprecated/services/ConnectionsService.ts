@@ -1,10 +1,10 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { providerStatusCache } from './providerStatusCache';
 import type { ProviderStatus } from '@shared/events/appEvents';
-import { events } from '../../_new/lib/events';
+import { events } from '../../lib/events';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { listDetectableProviders, type ProviderDefinition } from '@shared/providers/registry';
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 
 export type CliStatusCode = 'connected' | 'missing' | 'needs_key' | 'error';
 

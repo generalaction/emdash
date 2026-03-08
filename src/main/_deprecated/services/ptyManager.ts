@@ -14,12 +14,12 @@ function getNodePty(): typeof import('node-pty') {
   }
   return _nodePty;
 }
-import { log } from '../../_new/lib/logger';
+import { log } from '../../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../../_new/error-tracking';
-import { getProviderCustomConfig } from '../../_new/core/settings';
-import { agentEventService } from '../../_new/services/AgentEventService';
+import { getProviderCustomConfig } from '../../core/settings';
+import { agentEventService } from '../../services/AgentEventService';
 
 /**
  * Environment variables to pass through for agent authentication.
