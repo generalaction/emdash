@@ -1,5 +1,5 @@
-import { protocol, net } from 'electron';
 import { join, normalize, sep } from 'node:path';
+import { net, protocol } from 'electron';
 
 export const APP_SCHEME = 'app';
 export const APP_ORIGIN = `${APP_SCHEME}://emdash`;

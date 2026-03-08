@@ -1,48 +1,48 @@
+import { execFile } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { eq } from 'drizzle-orm';
 import { app, ipcMain } from 'electron';
-import { createRPCController } from '../../../shared/ipc/rpc';
-import { events } from '../../lib/events';
+import { db } from '@/db/client';
 import { ptyStartedChannel, shellSessionStartedChannel } from '@shared/events/appEvents';
-import {
-  startPty,
-  writePty,
-  resizePty,
-  killPty,
-  getPty,
-  getPtyKind,
-  startDirectPty,
-  startSshPty,
-  removePtyRecord,
-  setOnDirectCliExit,
-  parseShellArgs,
-  buildProviderCliArgs,
-  resolveProviderCommandConfig,
-  killTmuxSession,
-  getTmuxSessionName,
-  getPtyTmuxSessionName,
-  claudeSessionFileExists,
-} from './ptyManager';
-import { log } from '../../lib/logger';
-import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../../_new/error-tracking';
-import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
-import * as telemetry from '../../lib/telemetry';
-import { PROVIDER_IDS, getProvider, type ProviderId } from '../../../shared/providers/registry';
+import { createRPCController } from '../../../shared/ipc/rpc';
+import { getProvider, PROVIDER_IDS, type ProviderId } from '../../../shared/providers/registry';
 import { parsePtyId } from '../../../shared/ptyId';
-import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { sshConnections as sshConnectionsTable } from '../../db/schema';
+import { events } from '../../lib/events';
+import { log } from '../../lib/logger';
+import * as telemetry from '../../lib/telemetry';
+import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
+import { quoteShellArg } from '../utils/shellEscape';
+import { maybeAutoTrustForClaude } from './ClaudeConfigService';
 import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
-import { maybeAutoTrustForClaude } from './ClaudeConfigService';
-import { sshConnections as sshConnectionsTable } from '../../db/schema';
-import { eq } from 'drizzle-orm';
-import { execFile } from 'node:child_process';
-import { randomUUID, createHash } from 'node:crypto';
-import path from 'node:path';
-import fs from 'node:fs';
-import os from 'node:os';
-import { quoteShellArg } from '../utils/shellEscape';
-import { owners, listeners } from './ptyCleanup';
-import { db } from '@/db/client';
+import { listeners, owners } from './ptyCleanup';
+import {
+  buildProviderCliArgs,
+  claudeSessionFileExists,
+  getPty,
+  getPtyKind,
+  getPtyTmuxSessionName,
+  getTmuxSessionName,
+  killPty,
+  killTmuxSession,
+  parseShellArgs,
+  removePtyRecord,
+  resizePty,
+  resolveProviderCommandConfig,
+  setOnDirectCliExit,
+  startDirectPty,
+  startPty,
+  startSshPty,
+  writePty,
+} from './ptyManager';
+import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
+import { terminalSnapshotService } from './TerminalSnapshotService';
 
 // ---------------------------------------------------------------------------
 // Session isolation — resolve CLI args from the conversations table.

@@ -1,7 +1,7 @@
+import { ArrowUpRight, Check, Copy, Workflow } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { Workflow, ArrowUpRight, Check, Copy } from 'lucide-react';
-import { Button } from './ui/button';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { Button } from './ui/button';
 
 export const RoutingInfoCard: React.FC = () => {
   const installCommand = getInstallCommandForProvider('codex') ?? 'npm install -g @openai/codex';

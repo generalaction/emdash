@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { refreshPrStatus, refreshAllSubscribedPrStatus } from '../lib/prStatusStore';
+import { refreshAllSubscribedPrStatus, refreshPrStatus } from '../lib/prStatusStore';
 
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
 const COOLDOWN_MS = 5000; // 5 second debounce for rapid focus/visibility events

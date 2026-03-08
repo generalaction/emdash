@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from 'react';
 import { Settings2, Sparkles } from 'lucide-react';
-import IntegrationRow from './IntegrationRow';
-import CustomCommandModal from './CustomCommandModal';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { CliAgentStatus } from '../types/connections';
+import React, { useMemo, useState } from 'react';
 import { PROVIDERS } from '@shared/providers/registry';
 import { agentAssets } from '@renderer/providers/assets';
 import { rpc } from '../lib/ipc';
+import { CliAgentStatus } from '../types/connections';
+import CustomCommandModal from './CustomCommandModal';
+import IntegrationRow from './IntegrationRow';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface CliAgentsListProps {
   agents: CliAgentStatus[];

@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  OPEN_IN_APPS,
   getResolvedIconPath,
   getResolvedLabel,
+  OPEN_IN_APPS,
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '../lib/ipc';
 import IntegrationRow from './IntegrationRow';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../lib/ipc';
 
 export default function HiddenToolsSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();

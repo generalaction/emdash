@@ -1,10 +1,7 @@
-import { app, clipboard, ipcMain, shell } from 'electron';
-import { createRPCController } from '../../../shared/ipc/rpc';
 import { exec, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ensureProjectPrepared } from '../services/ProjectPrep';
-import { getAppSettings } from '../../core/settings';
+import { app, clipboard, ipcMain, shell } from 'electron';
 import {
   getAppById,
   getResolvedLabel,
@@ -12,7 +9,10 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
+import { createRPCController } from '../../../shared/ipc/rpc';
+import { getAppSettings } from '../../core/settings';
 import { databaseService } from '../services/DatabaseService';
+import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
 import {
   buildGhosttyRemoteExecArgs,

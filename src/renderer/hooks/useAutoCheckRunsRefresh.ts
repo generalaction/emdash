@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { refreshCheckRuns, refreshAllSubscribedCheckRuns } from '../lib/checkRunsStore';
+import { refreshAllSubscribedCheckRuns, refreshCheckRuns } from '../lib/checkRunsStore';
 import type { CheckRunsStatus } from '../lib/checkRunStatus';
 
 const FAST_POLLING_MS = 10000; // 10s when checks in progress

@@ -1,8 +1,8 @@
+import { motion, type Variants } from 'framer-motion';
+import { Button } from '@renderer/components/ui/button';
+import { useTheme } from '@renderer/hooks/useTheme';
 import IconLight from '../../assets/images/emdash/icon-light.png';
 import YTBanner from '../../assets/images/ytbanner.png';
-import { Button } from '@renderer/components/ui/button';
-import { motion, type Variants } from 'framer-motion';
-import { useTheme } from '@renderer/hooks/useTheme';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;

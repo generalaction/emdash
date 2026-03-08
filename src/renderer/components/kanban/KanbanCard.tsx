@@ -1,13 +1,13 @@
+import { AlertCircle } from 'lucide-react';
 import React from 'react';
-import type { Task } from '../../types/app';
+import type { NotificationType } from '@shared/events/agentEvents';
+import { useAgent } from '../../contexts/AgentProvider';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
-import { useAgent } from '../../contexts/AgentProvider';
-import type { NotificationType } from '@shared/events/agentEvents';
-import AgentTooltip from './AgentTooltip';
+import type { Task } from '../../types/app';
 import AgentLogo from '../AgentLogo';
 import { Spinner } from '../ui/spinner';
-import { AlertCircle } from 'lucide-react';
+import AgentTooltip from './AgentTooltip';
 
 function notificationLabel(type: NotificationType): string {
   if (type === 'permission_prompt') return 'Waiting for permission';

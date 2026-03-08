@@ -1,5 +1,5 @@
-import JiraService from '../services/JiraService';
 import { createRPCController } from '../../shared/ipc/rpc';
+import JiraService from '../services/JiraService';
 
 const jiraService = new JiraService();
 

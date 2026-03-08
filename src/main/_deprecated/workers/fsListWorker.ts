@@ -1,6 +1,6 @@
-import { parentPort } from 'node:worker_threads';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { parentPort } from 'node:worker_threads';
 import { FsListItem, FsListWorkerResponse } from '../types/fsListWorker';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';

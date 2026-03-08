@@ -1,12 +1,12 @@
-import { db } from '../db/client';
-import { terminals, tasks, projects } from '../db/schema';
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { ok, err } from '../lib/result';
-import { environmentProviderManager } from '../environment/provider-manager';
-import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { log } from '../lib/logger';
 import type { Terminal } from '../core/terminals/core';
+import { db } from '../db/client';
+import { projects, tasks, terminals } from '../db/schema';
+import { log } from '../lib/logger';
+import { err, ok } from '../lib/result';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 function mapTerminalRow(row: {
   id: string;

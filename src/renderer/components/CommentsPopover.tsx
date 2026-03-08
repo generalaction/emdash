@@ -1,14 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
+import type { LineComment } from '@shared/types/lineComment';
+import { useTaskComments } from '../hooks/useLineComments';
+import { usePendingInjection } from '../hooks/usePendingInjection';
+import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
+import { useTaskScope } from './TaskScopeContext';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { useTaskScope } from './TaskScopeContext';
-import { usePendingInjection } from '../hooks/usePendingInjection';
-import { useTaskComments } from '../hooks/useLineComments';
-import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
-import type { LineComment } from '@shared/types/lineComment';
 
 interface CommentsPopoverProps {
   taskId?: string;

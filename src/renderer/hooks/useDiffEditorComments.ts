@@ -1,5 +1,5 @@
-import { useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import type * as monaco from 'monaco-editor';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { MonacoCommentManager } from '../lib/MonacoCommentManager';
 import { useLineComments } from './useLineComments';
 

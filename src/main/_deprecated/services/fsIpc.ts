@@ -1,16 +1,16 @@
-import { ipcMain } from 'electron';
-import { createRPCController } from '../../../shared/ipc/rpc';
-import { events } from '../../lib/events';
-import { planEventChannel, type PlanEvent } from '@shared/events/appEvents';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Worker } from 'node:worker_threads';
+import { ipcMain } from 'electron';
+import { planEventChannel, type PlanEvent } from '@shared/events/appEvents';
+import { createRPCController } from '../../../shared/ipc/rpc';
+import { SshFileSystem } from '../../environment/impl/fs-provider/ssh-fs';
+import { events } from '../../lib/events';
 import { FsListWorkerResponse } from '../types/fsListWorker';
-import workerPath from '../workers/fsListWorker?modulePath';
 import { DEFAULT_IGNORES } from '../utils/fsIgnores';
 import { safeStat } from '../utils/safeStat';
+import workerPath from '../workers/fsListWorker?modulePath';
 import { sshService } from './ssh/SshService';
-import { SshFileSystem } from '../../environment/impl/fs-provider/ssh-fs';
 
 const DEFAULT_EMDASH_CONFIG = `{
   "preservePatterns": [

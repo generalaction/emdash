@@ -1,13 +1,13 @@
-import React from 'react';
-import { Button } from './ui/button';
-import { Switch } from './ui/switch';
 import { Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import React from 'react';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import context7Logo from '../../assets/images/context7.png';
+import { rpc } from '../lib/ipc';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import FeedbackModal from './FeedbackModal';
-import context7Logo from '../../assets/images/context7.png';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../lib/ipc';
+import { Button } from './ui/button';
+import { Switch } from './ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const Context7SettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();

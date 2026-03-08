@@ -1,5 +1,5 @@
-import { LinearService } from '../services/LinearService';
 import { createRPCController } from '../../shared/ipc/rpc';
+import { LinearService } from '../services/LinearService';
 
 const linearService = new LinearService();
 

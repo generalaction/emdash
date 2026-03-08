@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { isValidProviderId } from '@shared/providers/registry';
+import { rpc } from '@renderer/lib/ipc';
+import { agentConfig } from '../lib/agentConfig';
+import type { Agent } from '../types';
+import { AgentDropdown } from './AgentDropdown';
+import { Button } from './ui/button';
 import {
   Dialog,
   DialogContent,
@@ -7,14 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
-import { AgentDropdown } from './AgentDropdown';
-import { agentConfig } from '../lib/agentConfig';
-import { isValidProviderId } from '@shared/providers/registry';
-import type { Agent } from '../types';
-import { rpc } from '@renderer/lib/ipc';
 
 const DEFAULT_AGENT: Agent = 'claude';
 

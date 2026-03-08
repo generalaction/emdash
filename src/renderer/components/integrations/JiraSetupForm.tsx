@@ -1,6 +1,6 @@
 import React from 'react';
-import { Input } from '../ui/input';
 import jiraLogo from '../../../assets/images/jira.png';
+import { Input } from '../ui/input';
 
 interface Props {
   site: string;

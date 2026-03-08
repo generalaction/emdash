@@ -1,12 +1,12 @@
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { projects, tasks } from '../../db/schema';
-import { eq, sql } from 'drizzle-orm';
-import type { TaskMetadata } from './core';
-import { ensureProjectSettings } from '../projects/ensureProjectSettings';
-import { environmentProviderManager } from '../../environment/provider-manager';
+import { log } from '../../lib/logger';
 import { spawnLocalPty } from '../../pty/local-pty';
 import { buildSessionEnv } from '../../pty/pty-env';
-import { log } from '../../lib/logger';
+import { environmentProviderManager } from '../../workspaces/provider-manager';
+import { ensureProjectSettings } from '../projects/ensureProjectSettings';
+import type { TaskMetadata } from './core';
 
 export async function archiveTask(id: string): Promise<void> {
   // Tear down all PTY sessions for this task across all providers.

@@ -1,18 +1,18 @@
-import React from 'react';
-import { rpc } from '../lib/ipc';
 import { ExternalLink, MessageSquare } from 'lucide-react';
-import { type LinearIssueSummary } from '../types/linear';
-import { type GitHubIssueSummary } from '../types/github';
-import { type JiraIssueSummary } from '../types/jira';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { CommentsPopover } from './CommentsPopover';
-import { Button } from './ui/button';
-import { useTaskComments } from '../hooks/useLineComments';
-import { useTaskScope } from './TaskScopeContext';
-import linearLogoSvg from '../../assets/images/Linear.svg?raw';
+import React from 'react';
 import githubLogo from '../../assets/images/github.png';
 import jiraLogo from '../../assets/images/jira.png';
+import linearLogoSvg from '../../assets/images/Linear.svg?raw';
+import { useTaskComments } from '../hooks/useLineComments';
+import { rpc } from '../lib/ipc';
+import { type GitHubIssueSummary } from '../types/github';
+import { type JiraIssueSummary } from '../types/jira';
+import { type LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
+import { CommentsPopover } from './CommentsPopover';
+import { useTaskScope } from './TaskScopeContext';
+import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Props = {
   taskId?: string;

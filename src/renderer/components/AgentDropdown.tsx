@@ -1,8 +1,8 @@
 import React from 'react';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { type Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
+import { type Agent } from '../types';
 import AgentLogo from './AgentLogo';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface AgentDropdownProps {
   value: Agent;

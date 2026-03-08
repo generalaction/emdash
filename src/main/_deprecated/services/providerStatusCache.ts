@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
-import { log } from '../../lib/logger';
 import { ProviderStatus } from '@shared/events/appEvents';
+import { log } from '../../lib/logger';
+
 export type { ProviderStatus } from '@shared/events/appEvents';
 
 type ProviderStatusMap = Record<string, ProviderStatus>;

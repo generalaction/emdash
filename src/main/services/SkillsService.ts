@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as os from 'node:os';
 import * as https from 'node:https';
-import { log } from '../lib/logger';
-import { parseFrontmatter, isValidSkillName, generateSkillMd } from '@shared/skills/validation';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
-import type { CatalogSkill, CatalogIndex, DetectedAgent } from '@shared/skills/types';
+import type { CatalogIndex, CatalogSkill, DetectedAgent } from '@shared/skills/types';
+import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@shared/skills/validation';
 import bundledCatalog from '../core/skills/bundled-catalog.json';
+import { log } from '../lib/logger';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
 const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');

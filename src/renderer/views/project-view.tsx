@@ -1,12 +1,12 @@
-import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import ProjectMainView from '@renderer/components/ProjectMainView';
+import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
+import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import TitlebarContext from '@renderer/components/titlebar/TitlebarContext';
 import { useCurrentProject } from '@renderer/contexts/CurrentProjectProvider';
 import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '@renderer/hooks/useProjectBranchOptions';
-import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 
 export function ProjectTitlebar() {
   const project = useCurrentProject();

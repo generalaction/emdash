@@ -1,10 +1,9 @@
-import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import type { ProviderId } from '@shared/providers/registry';
-import { isValidProviderId } from '@shared/providers/registry';
+import { dirname, join } from 'node:path';
+import { app } from 'electron';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];

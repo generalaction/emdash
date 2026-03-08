@@ -1,7 +1,7 @@
+import { desc, eq } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { projects } from '../../db/schema';
 import { LocalProject } from './types';
-import { desc, eq } from 'drizzle-orm';
 
 export async function getProjects(): Promise<LocalProject[]> {
   const rows = await db

@@ -6,8 +6,8 @@
  * All DB reads/writes and IPC happen in callers (ptyIpc.ts / appIpc.ts).
  */
 import { randomUUID } from 'node:crypto';
-import { startPty, writePty, renamePty, killPty } from './ptyManager';
 import { log } from '../../lib/logger';
+import { killPty, renamePty, startPty, writePty } from './ptyManager';
 
 interface PoolEntry {
   tempId: string;

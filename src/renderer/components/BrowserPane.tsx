@@ -1,14 +1,14 @@
+import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, X } from 'lucide-react';
 import React from 'react';
-import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
-import { useBrowser } from '@renderer/providers/BrowserProvider';
+import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
+import { events, rpc } from '@renderer/lib/ipc';
+import { isAppPort, PROBE_TIMEOUT_MS, SPINNER_MAX_MS } from '@renderer/lib/previewNetwork';
+import { setLastUrl, setRunning } from '@renderer/lib/previewStorage';
 import { cn } from '@renderer/lib/utils';
+import { useBrowser } from '@renderer/providers/BrowserProvider';
+import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
-import { Button } from './ui/button';
-import { setLastUrl, setRunning } from '@renderer/lib/previewStorage';
-import { PROBE_TIMEOUT_MS, SPINNER_MAX_MS, isAppPort } from '@renderer/lib/previewNetwork';
-import { rpc, events } from '@renderer/lib/ipc';
-import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 

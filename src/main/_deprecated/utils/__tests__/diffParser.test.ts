@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  parseDiffLines,
-  stripTrailingNewline,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
+  parseDiffLines,
+  stripTrailingNewline,
 } from '../../_new/environment/impl/git-provider/diffParser';
 
 describe('parseDiffLines', () => {

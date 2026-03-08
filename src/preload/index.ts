@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { OpenInAppId } from '../shared/openInApps';
+import type { OpenInAppId } from '@shared/openInApps';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object

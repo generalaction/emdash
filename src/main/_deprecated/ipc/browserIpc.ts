@@ -1,5 +1,5 @@
-import { browserViewService } from '../services/browserViewService';
 import { createRPCController } from '../../../shared/ipc/rpc';
+import { browserViewService } from '../services/browserViewService';
 
 export const browserController = createRPCController({
   show: (_args: { x: number; y: number; width: number; height: number; url?: string }) => {

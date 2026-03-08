@@ -1,14 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { createRPCController } from '../../shared/ipc/rpc';
-import { db } from '../db/client';
-import { projects } from '../db/schema';
 import { getProjects } from '../core/projects/getProjects';
 import {
-  type CreateLocalProjectParams,
   handleCreateLocalProject,
+  type CreateLocalProjectParams,
 } from '../core/projects/handleCreateProject';
-import { environmentProviderManager } from '../environment/provider-manager';
+import { db } from '../db/client';
+import { projects } from '../db/schema';
 import { log } from '../lib/logger';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 export const projectController = createRPCController({
   createProject: async (params: CreateLocalProjectParams) => {

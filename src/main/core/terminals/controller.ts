@@ -1,10 +1,10 @@
-import { db } from '../../db/client';
-import { terminals, tasks, projects } from '../../db/schema';
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { ok, err } from '../../lib/result';
-import { environmentProviderManager } from '../../environment/provider-manager';
+import { db } from '../../db/client';
+import { projects, tasks, terminals } from '../../db/schema';
 import { log } from '../../lib/logger';
+import { err, ok } from '../../lib/result';
+import { environmentProviderManager } from '../../workspaces/provider-manager';
 import type { Terminal } from './core';
 
 function mapTerminalRow(row: {

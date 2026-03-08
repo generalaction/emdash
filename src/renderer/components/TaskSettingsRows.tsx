@@ -1,9 +1,9 @@
-import React from 'react';
 import { Info } from 'lucide-react';
+import React from 'react';
+import type { TaskSettingsModel } from '../hooks/useTaskSettings';
+import { agentMeta } from '../providers/meta';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { agentMeta } from '../providers/meta';
-import type { TaskSettingsModel } from '../hooks/useTaskSettings';
 
 const SUPPORTED_AUTO_APPROVE_AGENTS = Object.values(agentMeta)
   .filter((meta) => Boolean(meta.autoApproveFlag))

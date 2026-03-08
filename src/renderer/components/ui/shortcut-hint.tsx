@@ -1,8 +1,7 @@
-import React from 'react';
 import { ArrowBigUp, Command } from 'lucide-react';
+import React from 'react';
 import { useKeyboardSettings } from '../../contexts/KeyboardSettingsContext';
-import { normalizeShortcutKey } from '../../hooks/useKeyboardShortcuts';
-import type { ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
+import { normalizeShortcutKey, type ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../../types/shortcuts';
 
 interface ShortcutHintProps {

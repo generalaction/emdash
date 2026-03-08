@@ -1,10 +1,10 @@
+import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
-import net from 'node:net';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
-import { log } from '../../lib/logger';
 import type { HostPreviewEvent } from '@shared/types/hostPreview';
+import { log } from '../../lib/logger';
 
 function detectPackageManager(dir: string): 'pnpm' | 'yarn' | 'npm' {
   try {

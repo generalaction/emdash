@@ -1,11 +1,10 @@
+import { Check, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
-import { CommitList } from './CommitList';
-import type { CommitInfo } from './CommitList';
-import { CommitFileList } from './CommitFileList';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
 import { CommitFileDiffView } from './CommitFileDiffView';
+import { CommitFileList } from './CommitFileList';
+import { CommitList, type CommitInfo } from './CommitList';
 import { DiffToolbar } from './DiffToolbar';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
 
 interface HistoryTabProps {
   taskPath?: string;

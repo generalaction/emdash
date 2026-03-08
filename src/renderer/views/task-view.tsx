@@ -1,40 +1,40 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import { Brain, FileBracesCorner } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ChatInterface from '@renderer/components/ChatInterface';
+import { DiffViewer } from '@renderer/components/diff-viewer/DiffViewer';
+import { EditorContent } from '@renderer/components/FileExplorer/CodeEditor';
+import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
+import { FileTree } from '@renderer/components/FileExplorer/FileTree';
 import MultiAgentTask from '@renderer/components/MultiAgentTask';
 import RightSidebar from '@renderer/components/RightSidebar';
-import TitlebarContext from '@renderer/components/titlebar/TitlebarContext';
 import TaskCreationLoading from '@renderer/components/TaskCreationLoading';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
-import { DiffViewer } from '@renderer/components/diff-viewer/DiffViewer';
+import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import TitlebarContext from '@renderer/components/titlebar/TitlebarContext';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { DEFAULT_EXCLUDE_PATTERNS, isMarkdownFile } from '@renderer/constants/file-explorer';
+import { useCodeEditorContext } from '@renderer/contexts/CodeEditorProvider';
+import { ConversationsProvider } from '@renderer/contexts/ConversationsProvider';
 import { useCurrentProject } from '@renderer/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@renderer/contexts/CurrentTaskProvider';
 import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
+import { useTaskViewContext } from '@renderer/contexts/TaskViewProvider';
 import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useAutoPrRefresh } from '@renderer/hooks/useAutoPrRefresh';
+import { useEditorDiffDecorations } from '@renderer/hooks/useEditorDiffDecorations';
 import { useProjectBranchOptions } from '@renderer/hooks/useProjectBranchOptions';
 import { useProjectRemoteInfo } from '@renderer/hooks/useProjectRemoteInfo';
-import { useAutoPrRefresh } from '@renderer/hooks/useAutoPrRefresh';
-import { getAgentForTask } from '@renderer/lib/getAgentForTask';
-import { ConversationsProvider } from '@renderer/contexts/ConversationsProvider';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { Brain, FileBracesCorner } from 'lucide-react';
-import { useTaskViewContext } from '@renderer/contexts/TaskViewProvider';
-import { useCodeEditorContext } from '@renderer/contexts/CodeEditorProvider';
-import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
-import { EditorContent } from '@renderer/components/FileExplorer/CodeEditor';
-import { FileTree } from '@renderer/components/FileExplorer/FileTree';
 import { useTheme } from '@renderer/hooks/useTheme';
-import { useEditorDiffDecorations } from '@renderer/hooks/useEditorDiffDecorations';
-import { DEFAULT_EXCLUDE_PATTERNS, isMarkdownFile } from '@renderer/constants/file-explorer';
+import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
+import { getAgentForTask } from '@renderer/lib/getAgentForTask';
 import {
-  configureMonacoTypeScript,
-  configureMonacoEditor,
   addMonacoKeyboardShortcuts,
+  configureMonacoEditor,
+  configureMonacoTypeScript,
 } from '@renderer/lib/monaco-config';
 import { defineMonacoThemes } from '@renderer/lib/monaco-themes';
-import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 
 export function TaskTitlebar() {
   const project = useCurrentProject();

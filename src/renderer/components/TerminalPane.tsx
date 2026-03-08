@@ -1,7 +1,7 @@
-import React, { useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { useTerminal, type SessionTheme } from '../hooks/useTerminal';
-import { log } from '../lib/logger';
 import { rpc } from '../lib/ipc';
+import { log } from '../lib/logger';
 
 type Props = {
   /**

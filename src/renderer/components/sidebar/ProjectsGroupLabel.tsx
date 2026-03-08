@@ -1,9 +1,9 @@
 import { FolderOpen, FolderPlus, Github, Plus, Server } from 'lucide-react';
+import React from 'react';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { SidebarGroupLabel } from '../ui/sidebar';
-import React from 'react';
-import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 
 export function ProjectsGroupLabel() {
   const {

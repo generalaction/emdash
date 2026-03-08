@@ -1,9 +1,9 @@
+import { PanelLeft } from 'lucide-react';
 import React from 'react';
 import { Button } from '../ui/button';
-import { PanelLeft } from 'lucide-react';
-import { useSidebar } from '../ui/sidebar';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 import { ShortcutHint } from '../ui/shortcut-hint';
+import { useSidebar } from '../ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface SidebarLeftToggleButtonProps {
   isDisabled?: boolean;

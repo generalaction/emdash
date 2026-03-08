@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { db } from './client';
 import {
-  sshConnections,
   projects,
-  type SshConnectionRow,
+  sshConnections,
   type SshConnectionInsert,
+  type SshConnectionRow,
 } from './schema';
 
 export class SshRepository {

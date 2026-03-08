@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { CatalogSkill, CatalogIndex } from '@shared/skills/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
 import { useToast } from '@renderer/hooks/use-toast';
 import { rpc } from '../../lib/ipc';
 

@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { rpc } from '../lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
-import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
-import { rpc } from '../lib/ipc';
+import { SlugInput } from './ui/slug-input';
+import { Spinner } from './ui/spinner';
 
 interface NewProjectModalProps {
   onClose: () => void;

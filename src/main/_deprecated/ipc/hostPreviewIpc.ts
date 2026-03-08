@@ -1,8 +1,8 @@
-import { hostPreviewService } from '../services/hostPreviewService';
-import { createRPCController } from '../../../shared/ipc/rpc';
-import { events } from '../../lib/events';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import type { HostPreviewEvent } from '@shared/types/hostPreview';
+import { createRPCController } from '../../../shared/ipc/rpc';
+import { events } from '../../lib/events';
+import { hostPreviewService } from '../services/hostPreviewService';
 
 export const hostPreviewController = createRPCController({
   start: async (args: {

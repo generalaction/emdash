@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { rpc } from '../../lib/ipc';
 import { Undo2 } from 'lucide-react';
-import { Checkbox } from '../ui/checkbox';
+import React, { useState } from 'react';
+import type { FileChange } from '../../hooks/useFileChanges';
+import { rpc } from '../../lib/ipc';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import type { FileChange } from '../../hooks/useFileChanges';
+import { Checkbox } from '../ui/checkbox';
 
 interface FileListProps {
   fileChanges: FileChange[];

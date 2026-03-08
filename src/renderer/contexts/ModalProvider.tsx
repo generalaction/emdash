@@ -1,11 +1,11 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
 import { CloneFromUrlModal } from '@renderer/components/CloneFromUrlModal';
-import { NewProjectModal } from '@renderer/components/NewProjectModal';
-import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
-import { TaskModalOverlay } from '@renderer/components/TaskModal';
-import { AddRemoteProjectModal } from '@renderer/components/ssh/AddRemoteProjectModal';
-import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
+import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
+import { NewProjectModal } from '@renderer/components/NewProjectModal';
+import { AddRemoteProjectModal } from '@renderer/components/ssh/AddRemoteProjectModal';
+import { TaskModalOverlay } from '@renderer/components/TaskModal';
+import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 
 // Define overlays here so we can use them in the showOverlay function
 const modalRegistry = {

@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
-import { Button } from './ui/button';
-import { agentMeta, type UiAgent } from '../providers/meta';
+import React, { useEffect, useRef, useState } from 'react';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
+import { agentMeta, type UiAgent } from '../providers/meta';
+import { Button } from './ui/button';
 
 type Props = {
   agent: UiAgent;

@@ -1,5 +1,5 @@
-import Image from 'next/image';
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import Image from 'next/image';
 
 function Logo() {
   return (

@@ -1,16 +1,16 @@
+import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
+import githubLogo from '../../assets/images/github.png';
+import { type GitHubIssueLink } from '../types/chat';
+import { type GitHubIssueSummary } from '../types/github';
+import { GitHubIssuePreviewTooltip } from './GitHubIssuePreviewTooltip';
+import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
-import { Search } from 'lucide-react';
-import githubLogo from '../../assets/images/github.png';
 import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
 import { Spinner } from './ui/spinner';
-import { type GitHubIssueSummary } from '../types/github';
-import { type GitHubIssueLink } from '../types/chat';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { GitHubIssuePreviewTooltip } from './GitHubIssuePreviewTooltip';
-import { rpc } from '@renderer/lib/ipc';
 
 interface GitHubIssueSelectorProps {
   projectPath: string;

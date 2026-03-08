@@ -1,28 +1,28 @@
+import { CornerDownLeft } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { events } from '../lib/ipc';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
-import { type Task } from '../types/chat';
-import { type Agent } from '../types';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import OpenInMenu from './titlebar/OpenInMenu';
-import { TerminalPane } from './TerminalPane';
-import { agentMeta } from '@renderer/providers/meta';
-import { agentAssets } from '@renderer/providers/assets';
-import AgentLogo from './AgentLogo';
+import { getTaskEnvVars } from '@shared/task/envVars';
+import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { classifyActivity } from '@renderer/lib/activityClassifier';
-import { Spinner } from './ui/spinner';
 import {
   BUSY_HOLD_MS,
   CLEAR_BUSY_MS,
   INJECT_ENTER_DELAY_MS,
 } from '@renderer/lib/activityConstants';
-import { CornerDownLeft } from 'lucide-react';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
-import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@renderer/lib/ipc';
+import { agentAssets } from '@renderer/providers/assets';
+import { agentMeta } from '@renderer/providers/meta';
+import { events } from '../lib/ipc';
+import { type Agent } from '../types';
+import { type Task } from '../types/chat';
+import AgentLogo from './AgentLogo';
+import { TerminalPane } from './TerminalPane';
+import OpenInMenu from './titlebar/OpenInMenu';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Spinner } from './ui/spinner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface Props {
   task: Task;

@@ -1,12 +1,12 @@
 import React from 'react';
-import { type Agent } from '../types';
-import { Task } from '../types/chat';
-import type { Project } from '../types/app';
-import { TaskScopeProvider } from './TaskScopeContext';
 import { ChatViewProvider } from '../contexts/ChatViewProvider';
-import { ChatTabs } from './ChatTabs';
-import { ChatContent } from './ChatContent';
 import { useTheme } from '../hooks/useTheme';
+import { type Agent } from '../types';
+import type { Project } from '../types/app';
+import { Task } from '../types/chat';
+import { ChatContent } from './ChatContent';
+import { ChatTabs } from './ChatTabs';
+import { TaskScopeProvider } from './TaskScopeContext';
 
 interface Props {
   task: Task;

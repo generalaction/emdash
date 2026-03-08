@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { FolderOpen, Github, Plus, Server } from 'lucide-react';
 import React from 'react';
-import emdashLogo from '../../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../../assets/images/emdash/emdash_logo_white.svg';
+import emdashLogo from '../../assets/images/emdash/emdash_logo.svg';
 import { useTheme } from '../hooks/useTheme';
 
 interface HomeViewProps {

@@ -1,13 +1,13 @@
-import React from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import React from 'react';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useToast } from '@renderer/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
+import { useOpenInApps } from '../../hooks/useOpenInApps';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { useToast } from '@renderer/hooks/use-toast';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
-import { useOpenInApps } from '../../hooks/useOpenInApps';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '@renderer/lib/ipc';
 
 interface OpenInMenuProps {
   path: string;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type SelectedMode = 'task' | 'global' | 'lifecycle';
 type LifecyclePhase = 'setup' | 'run' | 'teardown';

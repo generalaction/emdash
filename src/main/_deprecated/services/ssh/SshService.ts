@@ -1,13 +1,13 @@
-import { EventEmitter } from 'events';
-import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
-import { SshConfig, ExecResult } from '../../../../shared/ssh/types';
-import { Connection, ConnectionPool } from './types';
-import { SshCredentialService } from './SshCredentialService';
-import { quoteShellArg } from '../../utils/shellEscape';
-import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
+import { EventEmitter } from 'events';
+import { readFile } from 'fs/promises';
 import { homedir } from 'os';
+import { Client, ConnectConfig, SFTPWrapper } from 'ssh2';
+import { ExecResult, SshConfig } from '../../../../shared/ssh/types';
+import { quoteShellArg } from '../../utils/shellEscape';
 import { resolveIdentityAgent } from '../../utils/sshConfigParser';
+import { SshCredentialService } from './SshCredentialService';
+import { Connection, ConnectionPool } from './types';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;

@@ -1,24 +1,24 @@
-import React, { useEffect } from 'react';
 import { Globe } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { useBrowser } from '@renderer/providers/BrowserProvider';
-import { events, rpc } from '@renderer/lib/ipc';
+import React, { useEffect } from 'react';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
+import { events, rpc } from '@renderer/lib/ipc';
 import {
-  getLastUrl,
-  setLastUrl,
-  isRunning,
-  setRunning,
-  isInstalled,
-  setInstalled,
-} from '@renderer/lib/previewStorage';
-import {
-  isReachable,
-  isAppPort,
   FALLBACK_DELAY_MS,
+  isAppPort,
+  isReachable,
   SPINNER_MAX_MS,
 } from '@renderer/lib/previewNetwork';
+import {
+  getLastUrl,
+  isInstalled,
+  isRunning,
+  setInstalled,
+  setLastUrl,
+  setRunning,
+} from '@renderer/lib/previewStorage';
+import { useBrowser } from '@renderer/providers/BrowserProvider';
+import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface Props {
   taskId?: string | null;

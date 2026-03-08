@@ -1,8 +1,8 @@
+import { FolderOpen } from 'lucide-react';
 import React, { useState } from 'react';
 import { Repo, Run } from '../types';
 import RunLauncher from './RunLauncher';
 import RunList from './RunList';
-import { FolderOpen } from 'lucide-react';
 
 interface MainContentProps {
   selectedRepo: Repo | null;

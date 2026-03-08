@@ -1,15 +1,15 @@
-import { useCallback, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
-import { normalizePathForComparison, withRepoKey } from '../lib/projectUtils';
-import type { Project } from '../types/app';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import type { LocalProject } from '@shared/types/projects';
-import { rpc } from '../lib/ipc';
-import { useModalContext } from '../contexts/ModalProvider';
 import { useAppContext } from '../contexts/AppContextProvider';
 import { useGithubContext } from '../contexts/GithubContextProvider';
-import { useToast } from './use-toast';
+import { useModalContext } from '../contexts/ModalProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
+import { rpc } from '../lib/ipc';
+import { normalizePathForComparison, withRepoKey } from '../lib/projectUtils';
+import type { Project } from '../types/app';
+import { useToast } from './use-toast';
 
 // ---------------------------------------------------------------------------
 // Adapter — maps the flat _new/ LocalProject shape to the renderer Project type

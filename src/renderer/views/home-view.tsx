@@ -1,5 +1,5 @@
-import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import HomeView from '@renderer/components/HomeView';
+import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 
 export function HomeTitlebar() {

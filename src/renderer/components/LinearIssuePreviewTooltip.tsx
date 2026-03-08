@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Folder, Tag, User } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { ExternalLink, User, Tag, Folder } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
+import { rpc } from '../lib/ipc';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
 import { LinearStatusPill } from './LinearStatusPill';
-import { rpc } from '../lib/ipc';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Props = {
   issue: LinearIssueSummary | null;

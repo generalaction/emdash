@@ -1,9 +1,9 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { Task } from '../types/app';
-import { useTaskManagementContext } from './TaskManagementProvider';
-import { ProjectViewWrapper } from './CurrentProjectProvider';
-import { TaskViewProvider } from './TaskViewProvider';
 import { CodeEditorProvider } from './CodeEditorProvider';
+import { ProjectViewWrapper } from './CurrentProjectProvider';
+import { useTaskManagementContext } from './TaskManagementProvider';
+import { TaskViewProvider } from './TaskViewProvider';
 
 const CurrentTaskContext = createContext<Task | null>(null);
 

@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
-import { DialogContent } from './ui/dialog';
-import { Button } from './ui/button';
-import { Spinner } from './ui/spinner';
-import { Check, Copy, ExternalLink, AlertCircle, X } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
-import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
-import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
-import { rpc, events } from '../lib/ipc';
+import { AlertCircle, Check, Copy, ExternalLink, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import {
   githubAuthDeviceCodeChannel,
-  githubAuthSuccessChannel,
   githubAuthErrorChannel,
+  githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
+import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
+import { useToast } from '../hooks/use-toast';
+import { events, rpc } from '../lib/ipc';
+import { Button } from './ui/button';
+import { DialogContent } from './ui/dialog';
+import { Spinner } from './ui/spinner';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;

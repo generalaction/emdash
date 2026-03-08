@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { readFile, writeFile, appendFile, access } from 'fs/promises';
+import { access, appendFile, readFile, writeFile } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 import { HostKeyInfo } from '../../../../shared/ssh/types';

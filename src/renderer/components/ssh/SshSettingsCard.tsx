@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
-import { SshConnectionList, SshConnection } from './SshConnectionList';
-import { SshConnectionForm, SshConnectionConfig } from './SshConnectionForm';
-import { Plus, Server, ChevronLeft, KeyRound } from 'lucide-react';
+import { ChevronLeft, KeyRound, Plus, Server } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
 import { useSshConnections } from '../../hooks/useSshConnections';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { SshConnectionConfig, SshConnectionForm } from './SshConnectionForm';
+import { SshConnection, SshConnectionList } from './SshConnectionList';
 
 interface Props {
   onAddConnection?: () => void;

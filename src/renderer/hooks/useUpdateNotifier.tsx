@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
+import { ToastAction } from '@renderer/components/ui/toast';
 import { rpc } from '../lib/ipc';
 import { useToast } from './use-toast';
-import { ToastAction } from '@renderer/components/ui/toast';
 
 type Options = {
   checkOnMount?: boolean;

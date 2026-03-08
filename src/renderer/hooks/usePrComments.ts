@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { subscribeToPrComments, refreshPrComments } from '../lib/prCommentsStore';
 import type { PrCommentsStatus } from '../lib/prCommentsStatus';
+import { refreshPrComments, subscribeToPrComments } from '../lib/prCommentsStore';
 
 export function usePrComments(taskPath?: string, prNumber?: number) {
   const [status, setStatus] = useState<PrCommentsStatus | null>(null);

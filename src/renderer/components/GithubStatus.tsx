@@ -1,5 +1,5 @@
-import React from 'react';
 import { Download, Github } from 'lucide-react';
+import React from 'react';
 import githubLogo from '../../assets/images/github.png';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';

@@ -1,10 +1,13 @@
-import { createRPCController } from '../../shared/ipc/rpc';
-import { ok, err } from '../lib/result';
-import { environmentProviderManager } from '../environment/provider-manager';
-import type { ListOptions, SearchOptions } from '../environment/impl/fs-provider/types';
-import { FileSystemErrorCodes } from '../environment/impl/fs-provider/types';
-import { events } from '../lib/events';
 import { planEventChannel } from '../../shared/events/appEvents';
+import { createRPCController } from '../../shared/ipc/rpc';
+import { events } from '../lib/events';
+import { err, ok } from '../lib/result';
+import {
+  FileSystemErrorCodes,
+  type ListOptions,
+  type SearchOptions,
+} from '../workspaces/impl/fs-provider/types';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 function resolveEnv(projectId: string, taskId: string) {
   return environmentProviderManager.getProvider(projectId)?.getEnvironment(taskId) ?? null;

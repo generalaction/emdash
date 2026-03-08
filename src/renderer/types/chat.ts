@@ -1,7 +1,7 @@
 import type { ProviderId } from '@shared/providers/registry';
-import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
+import { type LinearIssueSummary } from './linear';
 
 /** Per-agent run configuration for task creation */
 export interface AgentRun {

@@ -1,13 +1,13 @@
-import { Menu, shell, app } from 'electron';
-import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
-import { events } from '@main/lib/events';
+import { app, Menu, shell } from 'electron';
 import {
-  menuOpenSettingsChannel,
   menuCheckForUpdatesChannel,
-  menuUndoChannel,
-  menuRedoChannel,
   menuCloseTabChannel,
+  menuOpenSettingsChannel,
+  menuRedoChannel,
+  menuUndoChannel,
 } from '@shared/events/appEvents';
+import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { events } from '@main/lib/events';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';

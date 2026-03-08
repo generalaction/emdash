@@ -1,5 +1,5 @@
-import { defineConfig } from 'drizzle-kit';
 import { resolve } from 'node:path';
+import { defineConfig } from 'drizzle-kit';
 import { defaultDbFilePath, resolveDefaultUserDataPath } from './src/main/db/default-path';
 
 function resolveDbUrl(): string {

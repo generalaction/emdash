@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@renderer/lib/utils';
+import { useChatView } from '../contexts/ChatViewProvider';
+import { useConversations } from '../contexts/ConversationsProvider';
+import { useDependencies } from '../contexts/DependenciesProvider';
 import { agentConfig } from '../lib/agentConfig';
 import { type Agent } from '../types';
 import AgentLogo from './AgentLogo';
-import TaskContextBadges from './TaskContextBadges';
 import { CreateChatModal } from './CreateChatModal';
-import { useConversations } from '../contexts/ConversationsProvider';
-import { useChatView } from '../contexts/ChatViewProvider';
-import { useDependencies } from '../contexts/DependenciesProvider';
+import TaskContextBadges from './TaskContextBadges';
 
 export function ChatTabs() {
   const {

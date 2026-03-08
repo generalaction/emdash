@@ -1,6 +1,6 @@
+import { useMemo } from 'react';
 import { Dialog } from '@renderer/components/ui/dialog';
 import { useModalContext } from '@renderer/contexts/ModalProvider';
-import { useMemo } from 'react';
 
 export function ModalRenderer() {
   const { activeModalId, renderModal, closeModal } = useModalContext();

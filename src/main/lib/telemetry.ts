@@ -1,5 +1,5 @@
-import { app } from 'electron';
 import { randomUUID } from 'node:crypto';
+import { app } from 'electron';
 import rawAppConfig from '../appConfig.json';
 import { KV } from '../db/kv';
 

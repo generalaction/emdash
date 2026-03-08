@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 type RepoSettings = {
   branchPrefix: string;

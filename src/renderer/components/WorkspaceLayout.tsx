@@ -1,8 +1,8 @@
 import { ReactNode } from 'react';
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
   ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
 import { cn } from '@renderer/lib/utils';

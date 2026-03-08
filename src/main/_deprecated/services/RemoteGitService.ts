@@ -1,13 +1,14 @@
-import { SshService } from './ssh/SshService';
-import type { ExecResult } from '../../../shared/ssh/types';
-import { quoteShellArg } from '../utils/shellEscape';
-import type { GitChange } from '../../environment/impl/git-provider/local-git-utils';
 import {
+  MAX_DIFF_CONTENT_BYTES,
   parseDiffLines,
   stripTrailingNewline,
-  MAX_DIFF_CONTENT_BYTES,
+  type DiffLine,
+  type DiffResult,
 } from '../_new/environment/impl/git-provider/diffParser';
-import type { DiffLine, DiffResult } from '../_new/environment/impl/git-provider/diffParser';
+import type { ExecResult } from '../../../shared/ssh/types';
+import type { GitChange } from '../../environment/impl/git-provider/local-git-utils';
+import { quoteShellArg } from '../utils/shellEscape';
+import { SshService } from './ssh/SshService';
 
 export interface WorktreeInfo {
   path: string;

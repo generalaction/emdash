@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { initialPromptSentKey } from '../lib/keys';
-import { classifyActivity } from '../lib/activityClassifier';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { events, rpc } from '../lib/ipc';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { classifyActivity } from '../lib/activityClassifier';
+import { events, rpc } from '../lib/ipc';
+import { initialPromptSentKey } from '../lib/keys';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.

@@ -1,31 +1,31 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Command } from 'cmdk';
 import {
-  Search,
-  FolderOpen,
-  Home,
-  Settings,
-  Keyboard,
-  PanelLeft,
-  PanelRight,
-  GitBranch,
-  CornerDownLeft,
-  ArrowUp,
-  ArrowDown,
   ArrowBigUp,
+  ArrowDown,
+  ArrowUp,
   Command as CommandIcon,
+  CornerDownLeft,
+  FolderOpen,
+  GitBranch,
+  Home,
+  Keyboard,
   Option,
   Palette,
+  PanelLeft,
+  PanelRight,
+  Search,
+  Settings,
 } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 import {
   APP_SHORTCUTS,
   normalizeShortcutKey,
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
-import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 
 interface CommandPaletteProps {
   isOpen: boolean;

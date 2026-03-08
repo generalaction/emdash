@@ -1,6 +1,6 @@
+import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import { join } from 'node:path';
-import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);

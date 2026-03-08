@@ -1,21 +1,20 @@
 import { exec, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
-import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { errorTracking } from '../_new/error-tracking';
-import { identify as telemetryIdentify } from '../lib/telemetry';
-import { events } from '../lib/events';
+import * as path from 'node:path';
+import { promisify } from 'node:util';
+import keytar from 'keytar';
 import {
+  githubAuthCancelledChannel,
   githubAuthDeviceCodeChannel,
+  githubAuthErrorChannel,
   githubAuthPollingChannel,
   githubAuthSlowDownChannel,
   githubAuthSuccessChannel,
-  githubAuthErrorChannel,
-  githubAuthCancelledChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/types/github';
-import keytar from 'keytar';
+import { events } from '../lib/events';
+import { identify as telemetryIdentify } from '../lib/telemetry';
 
 const execAsync = promisify(exec);
 
@@ -194,9 +193,6 @@ export class GitHubService {
           this.stopPolling();
 
           // Update error tracking with GitHub username
-          if (result.user?.login) {
-            await errorTracking.updateGithubUsername(result.user.login);
-          }
 
           events.emit(githubAuthSuccessChannel, {
             token: result.token,
@@ -240,7 +236,6 @@ export class GitHubService {
         console.error('Polling error:', error);
 
         // Track polling errors
-        await errorTracking.captureGitHubError(error, 'poll_device_code');
 
         events.emit(githubAuthErrorChannel, {
           error: 'network_error',
@@ -596,10 +591,6 @@ export class GitHubService {
         await this.storeToken(token);
 
         // Update error tracking and telemetry identity with GitHub username
-        if (user.login) {
-          await errorTracking.updateGithubUsername(user.login);
-          telemetryIdentify(user.login);
-        }
 
         return { success: true, token, user };
       }

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@renderer/components/ui/button';
+import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { Badge } from '@renderer/components/ui/badge';
-import { CheckCircle2, Download, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
-import { useUpdater, EMDASH_RELEASES_URL } from '@renderer/hooks/useUpdater';
+import { Button } from '@renderer/components/ui/button';
+import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../lib/ipc';
 
 export function UpdateCard(): JSX.Element {

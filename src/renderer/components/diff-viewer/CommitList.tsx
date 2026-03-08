@@ -1,6 +1,6 @@
+import { ArrowUp, Tag } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { rpc } from '../../lib/ipc';
-import { ArrowUp, Tag } from 'lucide-react';
 
 interface Commit {
   hash: string;

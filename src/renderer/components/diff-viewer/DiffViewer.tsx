@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import React, { useState } from 'react';
 import { useFileChanges } from '../../hooks/useFileChanges';
 import { ChangesTab } from './ChangesTab';
 import { HistoryTab } from './HistoryTab';

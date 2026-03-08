@@ -1,22 +1,22 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
-import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
-import type { Project, Task } from '../types/app';
-import type { GitHubIssueLink, AgentRun } from '../types/chat';
-import type { LinearIssueSummary } from '../types/linear';
-import type { GitHubIssueSummary } from '../types/github';
-import type { JiraIssueSummary } from '../types/jira';
-import { rpc } from '../lib/ipc';
-import { createTask } from '../lib/taskCreationService';
-import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useToast } from './use-toast';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import {
   useWorkspaceNavigation,
   useWorkspaceWrapParams,
 } from '../contexts/WorkspaceNavigationContext';
+import { rpc } from '../lib/ipc';
+import { createTask } from '../lib/taskCreationService';
+import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
+import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
+import type { Project, Task } from '../types/app';
+import type { AgentRun, GitHubIssueLink } from '../types/chat';
+import type { GitHubIssueSummary } from '../types/github';
+import type { JiraIssueSummary } from '../types/jira';
+import type { LinearIssueSummary } from '../types/linear';
+import { useToast } from './use-toast';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };

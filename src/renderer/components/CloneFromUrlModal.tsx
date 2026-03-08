@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Spinner } from './ui/spinner';
 import { Separator } from './ui/separator';
-import { rpc } from '@renderer/lib/ipc';
+import { Spinner } from './ui/spinner';
 
 interface CloneFromUrlModalProps {
   onClose: () => void;

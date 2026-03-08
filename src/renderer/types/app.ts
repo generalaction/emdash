@@ -1,4 +1,5 @@
 import type { Task as ChatTask } from './chat';
+
 export type Task = ChatTask & { agentId?: string };
 
 export interface Project {

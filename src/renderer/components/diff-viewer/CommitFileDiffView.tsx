@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../../lib/ipc';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
-import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
-import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
-import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
-import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../hooks/useTheme';
+import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
+import { rpc } from '../../lib/ipc';
+import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
+import { getDiffThemeName, registerDiffThemes } from '../../lib/monacoDiffThemes';
+import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 
 interface CommitFileDiffViewProps {
   taskPath?: string;

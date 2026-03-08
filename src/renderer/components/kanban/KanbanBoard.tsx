@@ -1,15 +1,15 @@
-import React from 'react';
-import type { Project, Task } from '../../types/app';
-import KanbanColumn from './KanbanColumn';
-import KanbanCard from './KanbanCard';
-import { Button } from '../ui/button';
 import { Inbox, Plus } from 'lucide-react';
-import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
-import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';
-import { refreshPrStatus } from '../../lib/prStatusStore';
+import React from 'react';
+import { ptyExitChannel } from '@shared/events/appEvents';
 import { rpc } from '@renderer/lib/ipc';
 import { events } from '../../lib/ipc';
-import { ptyExitChannel } from '@shared/events/appEvents';
+import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
+import { refreshPrStatus } from '../../lib/prStatusStore';
+import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';
+import type { Project, Task } from '../../types/app';
+import { Button } from '../ui/button';
+import KanbanCard from './KanbanCard';
+import KanbanColumn from './KanbanColumn';
 
 const order: KanbanStatus[] = ['todo', 'in-progress', 'done'];
 const titles: Record<KanbanStatus, string> = {

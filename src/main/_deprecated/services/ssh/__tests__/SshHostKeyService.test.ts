@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 import { createHash } from 'crypto';
+// Import after mocking
+import { access, appendFile, readFile, writeFile } from 'fs/promises';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { SshHostKeyService } from '../SshHostKeyService';
 
 // Mock fs/promises with hoisting-safe pattern
@@ -16,9 +18,6 @@ vi.mock('fs/promises', () => {
 vi.mock('os', () => ({
   homedir: vi.fn().mockReturnValue('/home/testuser'),
 }));
-
-// Import after mocking
-import { readFile, writeFile, appendFile, access } from 'fs/promises';
 
 describe('SshHostKeyService', () => {
   let service: SshHostKeyService;

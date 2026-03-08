@@ -1,9 +1,13 @@
-import { CheckCircle2, XCircle, Loader2, MinusCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import githubIcon from '../../assets/images/github.png';
-import type { CheckRunsStatus, CheckRun, CheckRunBucket } from '../lib/checkRunStatus';
-import { formatCheckDuration } from '../lib/checkRunStatus';
-import { Badge } from './ui/badge';
+import {
+  formatCheckDuration,
+  type CheckRun,
+  type CheckRunBucket,
+  type CheckRunsStatus,
+} from '../lib/checkRunStatus';
 import { rpc } from '../lib/ipc';
+import { Badge } from './ui/badge';
 
 function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {

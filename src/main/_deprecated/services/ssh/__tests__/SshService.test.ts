@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { SshService } from '../SshService';
-import { SshCredentialService } from '../SshCredentialService';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { SshConfig } from '../../../../../shared/ssh/types';
+import { SshCredentialService } from '../SshCredentialService';
+import { SshService } from '../SshService';
 
 // Mock ssh2 Client
 const mockClientInstance = {

@@ -1,7 +1,7 @@
 import { createRPCController } from '../../shared/ipc/rpc';
-import { ok, err } from '../lib/result';
 import { log } from '../lib/logger';
-import { environmentProviderManager } from '../environment/provider-manager';
+import { err, ok } from '../lib/result';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 function resolveEnv(projectId: string, taskId: string) {
   const env = environmentProviderManager.getProvider(projectId)?.getEnvironment(taskId);

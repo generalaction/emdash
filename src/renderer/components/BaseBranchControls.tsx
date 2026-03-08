@@ -1,7 +1,7 @@
+import { GitBranch, Settings2 } from 'lucide-react';
 import React from 'react';
 import BranchSelect, { type BranchOption } from './BranchSelect';
 import { Button } from './ui/button';
-import { GitBranch, Settings2 } from 'lucide-react';
 
 interface BaseBranchControlsProps {
   baseBranch?: string;

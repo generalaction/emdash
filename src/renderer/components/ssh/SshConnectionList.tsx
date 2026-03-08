@@ -1,11 +1,10 @@
+import { Edit2, Globe, Monitor, Play, Plus, Server, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Spinner } from '../ui/spinner';
 import { cn } from '@renderer/lib/utils';
-import { Edit2, Trash2, Play, Server, Plus, Monitor, Globe } from 'lucide-react';
-import { ConnectionStatusBadge } from './ConnectionStatusBadge';
-import type { ConnectionState } from './ConnectionStatusBadge';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Spinner } from '../ui/spinner';
+import { ConnectionStatusBadge, type ConnectionState } from './ConnectionStatusBadge';
 
 export interface SshConnection {
   id: string;

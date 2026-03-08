@@ -1,10 +1,10 @@
+import { GitBranch } from 'lucide-react';
 import React from 'react';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { rpc } from '@renderer/lib/ipc';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import AgentLogo from '../AgentLogo';
-import { GitBranch } from 'lucide-react';
-import { rpc } from '@renderer/lib/ipc';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 type AgentTooltipProps = {
   agents: UiAgent[];

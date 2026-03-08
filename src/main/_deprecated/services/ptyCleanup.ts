@@ -7,13 +7,13 @@
  * ptyManager.ts is a pure spawner with no DB access. All cleanup logic lives here.
  */
 import type { WebContents } from 'electron';
-import { killPty } from './ptyManager';
-import { makePtyId } from '@shared/ptyId';
-import { databaseService } from './DatabaseService';
-import { terminalSnapshotService } from './TerminalSnapshotService';
-import { events } from '../../lib/events';
 import { ptyKilledChannel } from '@shared/events/appEvents';
+import { makePtyId } from '@shared/ptyId';
+import { events } from '../../lib/events';
 import { log } from '../../lib/logger';
+import { databaseService } from './DatabaseService';
+import { killPty } from './ptyManager';
+import { terminalSnapshotService } from './TerminalSnapshotService';
 
 /** Maps PTY ID → owning renderer WebContents */
 export const owners = new Map<string, WebContents>();

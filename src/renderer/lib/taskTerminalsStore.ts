@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+
 // SessionRegistry removed — session lifecycle is managed in the main process.
 
 type TaskTerminal = {

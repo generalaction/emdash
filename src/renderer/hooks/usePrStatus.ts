@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { subscribeToPrStatus, refreshPrStatus } from '../lib/prStatusStore';
 import type { PrStatus } from '../lib/prStatus';
+import { refreshPrStatus, subscribeToPrStatus } from '../lib/prStatusStore';
 
 const noopRefresh = async () => {};
 

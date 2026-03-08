@@ -1,12 +1,11 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import { createHash } from 'node:crypto';
+import type BetterSqlite3 from 'better-sqlite3';
+import journal from '@root/drizzle/meta/_journal.json';
 import { sqlite } from './client';
-import { errorTracking } from '../_new/error-tracking';
-import journal from '../../../drizzle/meta/_journal.json';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
-const sqlFiles = import.meta.glob('../../../../drizzle/*.sql', {
+const sqlFiles = import.meta.glob('@root/drizzle/*.sql', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -60,12 +59,6 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
  * Returns the raw better-sqlite3 handle so the caller can close it on shutdown.
  */
 export async function initializeDatabase(): Promise<BetterSqlite3.Database> {
-  try {
-    runBundledMigrations(sqlite);
-  } catch (e) {
-    await errorTracking.captureDatabaseError(e, 'initialize_migrations', {});
-    throw e;
-  }
-
+  runBundledMigrations(sqlite);
   return sqlite;
 }

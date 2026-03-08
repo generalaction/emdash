@@ -1,9 +1,8 @@
+import { Loader2, Plus, RefreshCw, Search } from 'lucide-react';
 import React, { useState } from 'react';
-import { RefreshCw, Search, Plus, Loader2 } from 'lucide-react';
+import { isValidSkillName } from '@shared/skills/validation';
 import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -12,12 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
+import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
+import { Textarea } from '../ui/textarea';
 import SkillCard from './SkillCard';
 import SkillDetailModal from './SkillDetailModal';
 import { useSkills } from './useSkills';
-import { isValidSkillName } from '@shared/skills/validation';
 
 const SkillsView: React.FC = () => {
   const {

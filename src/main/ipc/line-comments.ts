@@ -1,9 +1,8 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { db } from '../db/client';
-import { lineComments } from '../db/schema';
-import type { LineCommentInsert } from '../db/schema';
-import { formatCommentsForAgent } from '../../shared/lineComments';
 import { createRPCController } from '../../shared/ipc/rpc';
+import { formatCommentsForAgent } from '../../shared/lineComments';
+import { db } from '../db/client';
+import { lineComments, type LineCommentInsert } from '../db/schema';
 
 type LineCommentCreateInput = Omit<LineCommentInsert, 'id' | 'createdAt' | 'updatedAt'>;
 

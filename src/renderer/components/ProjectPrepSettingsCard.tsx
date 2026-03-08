@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Switch } from './ui/switch';
 import { rpc } from '@renderer/lib/ipc';
+import { Switch } from './ui/switch';
 
 type PrepSettings = {
   autoInstallOnOpenInEditor: boolean;

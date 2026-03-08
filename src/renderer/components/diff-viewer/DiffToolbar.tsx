@@ -1,5 +1,5 @@
+import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
 import React from 'react';
-import { Layers, FileText, AlignJustify, Columns2 } from 'lucide-react';
 
 interface DiffToolbarProps {
   viewMode: 'stacked' | 'file';

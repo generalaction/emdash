@@ -1,12 +1,12 @@
+import { createRPCController } from '../../../shared/ipc/rpc';
 import {
   capture,
   captureException,
-  isTelemetryEnabled,
   getTelemetryStatus,
-  setTelemetryEnabledViaUser,
+  isTelemetryEnabled,
   setOnboardingSeen,
+  setTelemetryEnabledViaUser,
 } from '../../lib/telemetry';
-import { createRPCController } from '../../../shared/ipc/rpc';
 
 // Events allowed from renderer process
 // Main process-only events (app_started, app_closed, app_window_focused, github_connection_triggered,

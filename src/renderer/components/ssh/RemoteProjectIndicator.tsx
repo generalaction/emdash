@@ -1,7 +1,7 @@
+import { AlertCircle, Globe, Loader2, RefreshCw } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { Globe, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '../../lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 export type ConnectionState =
   | 'connected'

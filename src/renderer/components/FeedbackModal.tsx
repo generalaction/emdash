@@ -1,12 +1,12 @@
+import { CornerDownLeft, Paperclip, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { CornerDownLeft, Paperclip, X } from 'lucide-react';
+import { useToast } from '../hooks/use-toast';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
-import { useToast } from '../hooks/use-toast';
 
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';

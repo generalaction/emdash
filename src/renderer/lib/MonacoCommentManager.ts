@@ -1,9 +1,9 @@
 import type * as monaco from 'monaco-editor';
-import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
-import { CommentWidget } from '../components/diff/comments/CommentWidget';
-import { CommentInput } from '../components/diff/comments/CommentInput';
+import { createRoot, Root } from 'react-dom/client';
 import type { LineComment } from '@shared/types/lineComment';
+import { CommentInput } from '../components/diff/comments/CommentInput';
+import { CommentWidget } from '../components/diff/comments/CommentWidget';
 
 interface MonacoCommentManagerOptions {
   onAddComment: (

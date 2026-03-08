@@ -1,7 +1,37 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import {
+  Archive,
+  ChevronRight,
+  FolderClosed,
+  FolderOpen,
+  Home,
+  Plus,
+  Puzzle,
+  RotateCcw,
+  Settings,
+} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAppSettings } from '../../contexts/AppSettingsProvider';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../../contexts/TaskManagementProvider';
+import {
+  isCurrentView,
+  useWorkspaceNavigation,
+  useWorkspaceSlots,
+  useWorkspaceWrapParams,
+} from '../../contexts/WorkspaceNavigationContext';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useRemoteProject } from '../../hooks/useRemoteProject';
+import type { Project } from '../../types/app';
+import type { Task } from '../../types/chat';
 import ReorderList from '../ReorderList';
+import SidebarEmptyState from '../SidebarEmptyState';
+import type { ConnectionState } from '../ssh';
+import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
+import { TaskDeleteButton } from '../TaskDeleteButton';
+import { TaskItem } from '../TaskItem';
 import { Button } from '../ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import {
   Sidebar,
   SidebarContent,
@@ -9,40 +39,10 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from '../ui/sidebar';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
-import {
-  Home,
-  Plus,
-  FolderOpen,
-  FolderClosed,
-  Puzzle,
-  Archive,
-  RotateCcw,
-  ChevronRight,
-  Settings,
-} from 'lucide-react';
-import SidebarEmptyState from '../SidebarEmptyState';
-import { TaskItem } from '../TaskItem';
-import { TaskDeleteButton } from '../TaskDeleteButton';
-import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
-import { useRemoteProject } from '../../hooks/useRemoteProject';
-import type { Project } from '../../types/app';
-import type { Task } from '../../types/chat';
-import type { ConnectionState } from '../ssh';
-import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../../contexts/TaskManagementProvider';
-import {
-  useWorkspaceNavigation,
-  useWorkspaceSlots,
-  useWorkspaceWrapParams,
-  isCurrentView,
-} from '../../contexts/WorkspaceNavigationContext';
-import { useAppSettings } from '../../contexts/AppSettingsProvider';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import { SidebarSpace } from './SidebarSpace';
 

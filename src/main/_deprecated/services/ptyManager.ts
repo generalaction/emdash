@@ -1,9 +1,15 @@
-import os from 'node:os';
+import { execFile, execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
-import { execFile, execSync, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 import type { IPty } from 'node-pty';
+import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
+import { errorTracking } from '../../_new/error-tracking';
+import { getProviderCustomConfig } from '../../core/settings';
+import { log } from '../../lib/logger';
+import { agentEventService } from '../../services/AgentEventService';
+import { providerStatusCache } from './providerStatusCache';
 
 // Lazy-loaded singleton for node-pty (native module compiled for Electron)
 let _nodePty: typeof import('node-pty') | undefined;
@@ -14,12 +20,6 @@ function getNodePty(): typeof import('node-pty') {
   }
   return _nodePty;
 }
-import { log } from '../../lib/logger';
-import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
-import { providerStatusCache } from './providerStatusCache';
-import { errorTracking } from '../../_new/error-tracking';
-import { getProviderCustomConfig } from '../../core/settings';
-import { agentEventService } from '../../services/AgentEventService';
 
 /**
  * Environment variables to pass through for agent authentication.

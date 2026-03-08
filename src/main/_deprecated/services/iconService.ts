@@ -1,7 +1,7 @@
-import { app } from 'electron';
 import fs from 'node:fs';
-import path from 'node:path';
 import https from 'node:https';
+import path from 'node:path';
+import { app } from 'electron';
 
 function toSlug(name: string): string {
   return name

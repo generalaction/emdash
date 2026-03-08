@@ -1,6 +1,6 @@
+import { appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import { performActiveEditorRedo, performActiveEditorUndo } from './activeCodeEditor';
 import { events } from './ipc';
-import { appUndoChannel, appRedoChannel } from '@shared/events/appEvents';
 
 function runAfterFocusRestores(action: () => void): void {
   // Native menu clicks can transiently blur the editor/input while the menu is open.

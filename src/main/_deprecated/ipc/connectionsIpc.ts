@@ -1,11 +1,11 @@
-import { connectionsService } from '../services/ConnectionsService';
+import { createRPCController } from '../../../shared/ipc/rpc';
 import {
-  getProviderCustomConfig,
   getAllProviderCustomConfigs,
+  getProviderCustomConfig,
   updateProviderCustomConfig,
   type ProviderCustomConfig,
 } from '../../core/settings';
-import { createRPCController } from '../../../shared/ipc/rpc';
+import { connectionsService } from '../services/ConnectionsService';
 
 export const connectionsController = createRPCController({
   getStatuses: async (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) => {

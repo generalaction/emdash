@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Tag, Users } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { ExternalLink, Users, Tag } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import githubLogo from '../../assets/images/github.png';
-import type { GitHubIssueSummary } from '../types/github';
 import { rpc } from '../lib/ipc';
+import type { GitHubIssueSummary } from '../types/github';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Props = {
   issue: GitHubIssueSummary | null;

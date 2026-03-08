@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { FileList } from './FileList';
+import type { FileChange } from '../../hooks/useFileChanges';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
 import { CommitArea } from './CommitArea';
 import { DiffPanel } from './DiffPanel';
-import type { FileChange } from '../../hooks/useFileChanges';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
+import { FileList } from './FileList';
 
 interface ChangesTabProps {
   taskId?: string;

@@ -1,9 +1,9 @@
-import React from 'react';
 import { Folder, GitBranch } from 'lucide-react';
+import React from 'react';
 import githubLogo from '../../assets/images/github.png';
-import PrPreviewTooltip from './PrPreviewTooltip';
-import type { PrInfo } from '../lib/prStatus';
 import { rpc } from '../lib/ipc';
+import type { PrInfo } from '../lib/prStatus';
+import PrPreviewTooltip from './PrPreviewTooltip';
 
 type Props = {
   tasks: Array<{ name: string; pr: PrInfo }>;

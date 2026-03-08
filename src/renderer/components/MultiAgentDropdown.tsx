@@ -1,13 +1,13 @@
+import { ExternalLink, Info } from 'lucide-react';
 import React, { useState } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { Info, ExternalLink } from 'lucide-react';
+import type { UiAgent } from '@renderer/providers/meta';
+import { agentConfig } from '../lib/agentConfig';
 import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
-import { agentConfig } from '../lib/agentConfig';
 import { AgentInfoCard } from './AgentInfoCard';
 import AgentLogo from './AgentLogo';
-import type { UiAgent } from '@renderer/providers/meta';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const MAX_RUNS = 4;
 

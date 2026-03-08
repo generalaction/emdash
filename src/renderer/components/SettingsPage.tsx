@@ -1,31 +1,30 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { rpc, events } from '../lib/ipc';
-import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
 import { ExternalLink } from 'lucide-react';
-import { Separator } from './ui/separator';
+import React, { useCallback, useEffect, useState } from 'react';
+import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
+import { useTaskSettings } from '../hooks/useTaskSettings';
+import { events, rpc } from '../lib/ipc';
 import type { CliAgentStatus } from '../types/connections';
+import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
-
-// Import existing settings cards
-import TelemetryCard from './TelemetryCard';
-import NotificationSettingsCard from './NotificationSettingsCard';
-import { UpdateCard } from './UpdateCard';
+import Context7SettingsCard from './Context7SettingsCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import IntegrationsCard from './IntegrationsCard';
+import KeyboardSettingsCard from './KeyboardSettingsCard';
+import NotificationSettingsCard from './NotificationSettingsCard';
+import RepositorySettingsCard from './RepositorySettingsCard';
+import TaskHoverActionCard from './TaskHoverActionCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
-import IntegrationsCard from './IntegrationsCard';
-import Context7SettingsCard from './Context7SettingsCard';
-import RepositorySettingsCard from './RepositorySettingsCard';
-import ThemeCard from './ThemeCard';
-import KeyboardSettingsCard from './KeyboardSettingsCard';
-import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
-import TaskHoverActionCard from './TaskHoverActionCard';
+// Import existing settings cards
+import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
-import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
-import { useTaskSettings } from '../hooks/useTaskSettings';
+import ThemeCard from './ThemeCard';
+import { Separator } from './ui/separator';
+import { UpdateCard } from './UpdateCard';
 
 export type SettingsPageTab =
   | 'general'

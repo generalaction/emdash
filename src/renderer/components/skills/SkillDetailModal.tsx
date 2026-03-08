@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { MarkdownRenderer } from '../ui/markdown-renderer';
-import { Button } from '../ui/button';
-import { Separator } from '../ui/separator';
 import { Check, FolderOpen, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { MarkdownRenderer } from '../ui/markdown-renderer';
+import { Separator } from '../ui/separator';
 
 const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const letter = skill.displayName.charAt(0).toUpperCase();

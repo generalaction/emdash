@@ -1,14 +1,14 @@
+import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import jiraLogo from '../../assets/images/jira.png';
+import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
+import { rpc } from '../lib/ipc';
+import { type JiraIssueSummary } from '../types/jira';
+import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
-import { Search } from 'lucide-react';
-import jiraLogo from '../../assets/images/jira.png';
-import { type JiraIssueSummary } from '../types/jira';
 import { Separator } from './ui/separator';
 import { Spinner } from './ui/spinner';
-import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
-import { rpc } from '../lib/ipc';
-import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
 
 interface Props {
   selectedIssue: JiraIssueSummary | null;

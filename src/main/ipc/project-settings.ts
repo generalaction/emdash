@@ -1,7 +1,7 @@
-import { log } from '../lib/logger';
 import { projectSettingsService } from '../_deprecated/services/ProjectSettingsService';
 import { worktreeService } from '../_deprecated/services/WorktreeService';
 import { createRPCController } from '../../shared/ipc/rpc';
+import { log } from '../lib/logger';
 
 type ProjectSettingsArgs = { projectId: string };
 type UpdateProjectSettingsArgs = { projectId: string; baseRef: string };

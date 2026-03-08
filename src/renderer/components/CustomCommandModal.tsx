@@ -1,14 +1,14 @@
+import { Info, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X, RotateCcw, Info, Plus, Trash2 } from 'lucide-react';
+import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
+import { rpc } from '../lib/ipc';
+import type { ProviderCustomConfig } from '../types/electron-api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
-import type { ProviderCustomConfig } from '../types/electron-api';
-import { rpc } from '../lib/ipc';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

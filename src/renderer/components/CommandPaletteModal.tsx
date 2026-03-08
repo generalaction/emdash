@@ -1,13 +1,13 @@
 import React from 'react';
-import CommandPalette from './CommandPalette';
-import { useSidebar } from './ui/sidebar';
-import { useRightSidebar } from './ui/right-sidebar';
-import { useTheme } from '../hooks/useTheme';
-import type { Task } from '../types/app';
+import type { BaseModalProps } from '../contexts/ModalProvider';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
-import type { BaseModalProps } from '../contexts/ModalProvider';
+import { useTheme } from '../hooks/useTheme';
+import type { Task } from '../types/app';
+import CommandPalette from './CommandPalette';
+import { useRightSidebar } from './ui/right-sidebar';
+import { useSidebar } from './ui/sidebar';
 
 type CommandPaletteModalProps = BaseModalProps<void>;
 

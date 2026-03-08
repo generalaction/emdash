@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildGhosttyRemoteExecArgs,
   buildRemoteEditorUrl,
-  buildRemoteSshCommand,
   buildRemoteSshAuthority,
+  buildRemoteSshCommand,
   buildRemoteTerminalShellCommand,
 } from '../remoteOpenIn';
 

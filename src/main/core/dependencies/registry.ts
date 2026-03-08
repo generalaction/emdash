@@ -1,5 +1,4 @@
 import { listDetectableProviders } from '@shared/providers/registry';
-
 import type { DependencyDescriptor, DependencyStatus, ProbeResult } from './types';
 
 const CORE_DEPENDENCIES: DependencyDescriptor[] = [

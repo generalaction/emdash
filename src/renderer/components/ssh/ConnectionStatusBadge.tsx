@@ -1,6 +1,6 @@
+import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react';
 import React from 'react';
 import { cn } from '@renderer/lib/utils';
-import { CheckCircle2, Loader2, XCircle, Circle } from 'lucide-react';
 
 export type ConnectionState =
   | 'connected'

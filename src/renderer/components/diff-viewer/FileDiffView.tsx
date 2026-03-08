@@ -1,20 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../../lib/ipc';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
+import React, { useEffect, useRef, useState } from 'react';
+import { useDiffEditorComments } from '../../hooks/useDiffEditorComments';
 import type { DiffLine } from '../../hooks/useFileDiff';
+import { useTheme } from '../../hooks/useTheme';
+import { registerActiveCodeEditor } from '../../lib/activeCodeEditor';
 import {
   convertDiffLinesToMonacoFormat,
   getMonacoLanguageId,
   isBinaryFile,
 } from '../../lib/diffUtils';
-import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
-import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
-import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 import { dispatchFileChangeEvent } from '../../lib/fileChangeEvents';
-import { useDiffEditorComments } from '../../hooks/useDiffEditorComments';
-import { useTheme } from '../../hooks/useTheme';
-import { registerActiveCodeEditor } from '../../lib/activeCodeEditor';
+import { rpc } from '../../lib/ipc';
+import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
+import { getDiffThemeName, registerDiffThemes } from '../../lib/monacoDiffThemes';
+import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 
 interface FileDiffViewProps {
   taskPath?: string;

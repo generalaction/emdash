@@ -1,12 +1,9 @@
-import { app, clipboard, shell } from 'electron';
-import { events } from '../lib/events';
-import { appUndoChannel, appRedoChannel, appPasteChannel } from '@shared/events/appEvents';
-import { getMainWindow } from '../app/window';
 import { exec, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { createRPCController } from '../../shared/ipc/rpc';
+import { app, clipboard, shell } from 'electron';
+import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
   getResolvedLabel,
@@ -14,14 +11,17 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
+import { createRPCController } from '../../shared/ipc/rpc';
+import { getMainWindow } from '../app/window';
+import { db } from '../db/client';
+import { sshConnections } from '../db/schema';
+import { events } from '../lib/events';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
 import {
   buildGhosttyRemoteExecArgs,
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
 } from '../utils/remoteOpenIn';
-import { db } from '../db/client';
-import { sshConnections } from '../db/schema';
 
 const UNKNOWN_VERSION = 'unknown';
 

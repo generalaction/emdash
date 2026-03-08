@@ -1,11 +1,11 @@
-import { source } from '@/lib/source';
-import { DocsPage, DocsBody, DocsDescription, DocsTitle } from 'fumadocs-ui/page';
-import { notFound } from 'next/navigation';
+import { getGithubLastEdit } from 'fumadocs-core/content/github';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
 import { LastUpdated } from '@/components/LastUpdated';
-import { getGithubLastEdit } from 'fumadocs-core/content/github';
+import { source } from '@/lib/source';
 
 async function getLastModifiedFromGitHub(filePath: string): Promise<Date | null> {
   if (process.env.NODE_ENV === 'development') {

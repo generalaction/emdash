@@ -1,7 +1,7 @@
-import React from 'react';
-import { Input } from '../ui/input';
 import { Info } from 'lucide-react';
+import React from 'react';
 import linearLogo from '../../../assets/images/linear-icon.png';
+import { Input } from '../ui/input';
 
 interface Props {
   apiKey: string;

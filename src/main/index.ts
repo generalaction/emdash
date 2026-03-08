@@ -1,19 +1,18 @@
+import { join } from 'node:path';
 import dotenv from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import { join } from 'node:path';
-import dockIcon from '../assets/images/emdash/icon-dock.png?asset';
-import { createMainWindow } from './app/window';
-import { registerAppScheme, setupAppProtocol } from './app/protocol';
-import { setupApplicationMenu } from './app/menu';
 import { registerRPCRouter } from '@shared/ipc/rpc';
-import { environmentProviderManager } from './environment/provider-manager';
+import dockIcon from '../assets/images/emdash/icon-dock.png?asset';
+import { setupApplicationMenu } from './app/menu';
+import { registerAppScheme, setupAppProtocol } from './app/protocol';
+import { createMainWindow } from './app/window';
 import { initializeDatabase } from './db/initialize';
-import { autoUpdateService } from './services/AutoUpdateService';
-import { sshService } from './_deprecated/services/ssh/SshService';
-import * as telemetry from './lib/telemetry';
-import { log } from './lib/logger';
-import { localDependencyManager } from './services/LocalDependencyManager';
 import { rpcRouter } from './ipc';
+import { log } from './lib/logger';
+import * as telemetry from './lib/telemetry';
+import { autoUpdateService } from './services/AutoUpdateService';
+import { localDependencyManager } from './services/LocalDependencyManager';
+import { environmentProviderManager } from './workspaces/provider-manager';
 
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
@@ -120,7 +119,4 @@ app.on('before-quit', () => {
   autoUpdateService.shutdown();
   // Tear down all active task environments (closes SSH channels, cleans PTY sessions)
   environmentProviderManager.shutdown().catch(() => {});
-
-  // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
-  sshService.disconnectAll().catch(() => {});
 });

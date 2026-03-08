@@ -1,5 +1,5 @@
-import { dirname } from 'node:path';
 import * as fs from 'node:fs';
+import { dirname } from 'node:path';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 export const debugController = createRPCController({

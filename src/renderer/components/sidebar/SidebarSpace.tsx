@@ -1,6 +1,6 @@
 import { PanelLeft } from 'lucide-react';
-import { Toggle } from '../ui/toggle';
 import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
+import { Toggle } from '../ui/toggle';
 
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();

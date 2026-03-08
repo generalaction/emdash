@@ -1,15 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
+import { resolveIdentityAgent } from '../_deprecated/utils/sshConfigParser';
 import { createRPCController } from '../../shared/ipc/rpc';
+import type { ConnectionTestResult, SshConfig } from '../../shared/ssh/types';
 import { db } from '../db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '../db/schema';
-import { eq } from 'drizzle-orm';
-import { sshCredentialService } from '../ssh/ssh-credential-service';
-import { sshConnectionManager } from '../ssh/ssh-connection-manager';
-import { resolveIdentityAgent } from '../_deprecated/utils/sshConfigParser';
-import type { SshConfig, ConnectionTestResult } from '../../shared/ssh/types';
 import { log } from '../lib/logger';
+import { sshConnectionManager } from '../ssh/ssh-connection-manager';
+import { sshCredentialService } from '../ssh/ssh-credential-service';
 
 export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */

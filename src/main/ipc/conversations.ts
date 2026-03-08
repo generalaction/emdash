@@ -1,16 +1,15 @@
-import { db } from '../db/client';
-import { conversations, tasks, projects } from '../db/schema';
-import { eq, asc, sql } from 'drizzle-orm';
-import { createRPCController } from '../../shared/ipc/rpc';
-import { ok, err } from '../lib/result';
-import { environmentProviderManager } from '../environment/provider-manager';
-import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { buildAgentCommand } from '../pty/build-agent-command';
+import { asc, eq, sql } from 'drizzle-orm';
 import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { log } from '../lib/logger';
+import { createRPCController } from '../../shared/ipc/rpc';
 import type { Conversation } from '../core/conversations';
-import type { ConversationRow } from '../db/schema';
+import { db } from '../db/client';
+import { conversations, projects, tasks, type ConversationRow } from '../db/schema';
+import { log } from '../lib/logger';
+import { err, ok } from '../lib/result';
+import { buildAgentCommand } from '../pty/build-agent-command';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 function mapConversationRow(row: ConversationRow): Conversation {
   return {

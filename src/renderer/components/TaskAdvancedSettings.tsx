@@ -1,21 +1,21 @@
-import React, { useCallback, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ExternalLink, Settings } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import React, { useCallback, useState } from 'react';
+import { type GitHubIssueLink } from '../types/chat';
+import { type GitHubIssueSummary } from '../types/github';
+import { type JiraIssueSummary } from '../types/jira';
+import { type LinearIssueSummary } from '../types/linear';
+import { GitHubIssueSelector } from './GitHubIssueSelector';
+import JiraSetupForm from './integrations/JiraSetupForm';
+import LinearSetupForm from './integrations/LinearSetupForm';
+import JiraIssueSelector from './JiraIssueSelector';
+import { LinearIssueSelector } from './LinearIssueSelector';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { LinearIssueSelector } from './LinearIssueSelector';
-import { GitHubIssueSelector } from './GitHubIssueSelector';
-import JiraIssueSelector from './JiraIssueSelector';
-import LinearSetupForm from './integrations/LinearSetupForm';
-import JiraSetupForm from './integrations/JiraSetupForm';
-import { type LinearIssueSummary } from '../types/linear';
-import { type GitHubIssueSummary } from '../types/github';
-import { type GitHubIssueLink } from '../types/chat';
-import { type JiraIssueSummary } from '../types/jira';
 
 interface TaskAdvancedSettingsProps {
   isOpen: boolean;

@@ -1,10 +1,10 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '../hooks/use-toast';
-import { rpc, events } from '../lib/ipc';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import type { Conversation } from '../../main/_deprecated/services/DatabaseService';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { menuCloseTabChannel } from '@shared/events/appEvents';
+import type { Conversation } from '../../main/_deprecated/services/DatabaseService';
+import { useToast } from '../hooks/use-toast';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { events, rpc } from '../lib/ipc';
 
 export const conversationsQueryKey = (taskId: string) => ['conversations', taskId] as const;
 

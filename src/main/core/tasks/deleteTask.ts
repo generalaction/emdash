@@ -1,9 +1,9 @@
-import { db } from '../../db/client';
-import { tasks, projects } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import { environmentProviderManager } from '../../environment/provider-manager';
-import { worktreeService } from '../worktrees/WorktreeService';
+import { db } from '../../db/client';
+import { projects, tasks } from '../../db/schema';
 import { log } from '../../lib/logger';
+import { environmentProviderManager } from '../../workspaces/provider-manager';
+import { worktreeService } from '../worktrees/WorktreeService';
 
 export async function deleteTask(id: string): Promise<void> {
   // Read task before deleting so we can clean up its worktree.

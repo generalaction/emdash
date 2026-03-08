@@ -1,5 +1,5 @@
-import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export const CURRENT_DB_FILENAME = 'emdash2.db';
 export const LEGACY_DB_FILENAMES = ['database.sqlite', 'orcbench.db'];

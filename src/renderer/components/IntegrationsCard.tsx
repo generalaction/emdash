@@ -1,13 +1,13 @@
+import { Check, Loader2, Plus } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { Check, Plus, Loader2 } from 'lucide-react';
-import { useGithubContext } from '../contexts/GithubContextProvider';
-import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
-import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
 import linearSvg from '../../assets/images/Linear.svg?raw';
+import { useGithubContext } from '../contexts/GithubContextProvider';
+import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
+import { useTheme } from '../hooks/useTheme';
+import JiraSetupForm from './integrations/JiraSetupForm';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import {
   Dialog,
   DialogContent,
@@ -16,8 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { Input } from './ui/input';
 import { Separator } from './ui/separator';
-import JiraSetupForm from './integrations/JiraSetupForm';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {

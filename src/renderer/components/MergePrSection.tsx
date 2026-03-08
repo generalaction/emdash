@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import { rpc } from '../lib/ipc';
+import { Close as PopoverClose } from '@radix-ui/react-popover';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
-import type { PrStatus } from '../lib/prStatus';
+import React, { useState } from 'react';
 import { useToast } from '../hooks/use-toast';
+import { rpc } from '../lib/ipc';
+import type { PrStatus } from '../lib/prStatus';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
-import { Close as PopoverClose } from '@radix-ui/react-popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type MergeUiStateKind = 'merged' | 'ready' | 'draft' | 'conflicts' | 'blocked' | 'unknown';
 

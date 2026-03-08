@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  OPEN_IN_APPS,
   getResolvedIconPath,
   getResolvedLabel,
+  OPEN_IN_APPS,
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';

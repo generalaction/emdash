@@ -1,32 +1,43 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import {
-  Plus,
-  Loader2,
-  ArrowUpRight,
-  Folder,
   Archive,
   ArchiveRestore,
-  Search,
-  Github,
-  X,
-  Trash2,
+  ArrowUpRight,
   Check,
-  ListFilter,
-  LayoutList,
+  Folder,
+  Github,
   Kanban,
+  LayoutList,
+  ListFilter,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  X,
 } from 'lucide-react';
-import KanbanBoard from './kanban/KanbanBoard';
 import { AnimatePresence, motion } from 'motion/react';
-import { Separator } from './ui/separator';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
+import { useToast } from '../hooks/use-toast';
 import { usePrStatus } from '../hooks/usePrStatus';
+import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import { useTaskChanges } from '../hooks/useTaskChanges';
-import { ChangesBadge } from './TaskChanges';
-import { Spinner } from './ui/spinner';
-import TaskDeleteButton from './TaskDeleteButton';
+import { rpc } from '../lib/ipc';
+import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
+import { agentAssets } from '../providers/assets';
+import type { Project, Task } from '../types/app';
+import AgentLogo from './AgentLogo';
+import BaseBranchControls from './BaseBranchControls';
+import { pickDefaultBranch, type BranchOption } from './BranchSelect';
+import { ConfigEditorModal } from './ConfigEditorModal';
+import DeletePrNotice from './DeletePrNotice';
+import KanbanBoard from './kanban/KanbanBoard';
 import ProjectDeleteButton from './ProjectDeleteButton';
+import PrPreviewTooltip from './PrPreviewTooltip';
+import { ChangesBadge } from './TaskChanges';
+import TaskDeleteButton from './TaskDeleteButton';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,25 +48,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import BaseBranchControls from './BaseBranchControls';
-import { pickDefaultBranch, type BranchOption } from './BranchSelect';
-import { ConfigEditorModal } from './ConfigEditorModal';
-import { useToast } from '../hooks/use-toast';
-import DeletePrNotice from './DeletePrNotice';
-import PrPreviewTooltip from './PrPreviewTooltip';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { isActivePr, PrInfo } from '../lib/prStatus';
-import { refreshPrStatus } from '../lib/prStatusStore';
-import { rpc } from '../lib/ipc';
-import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
-import AgentLogo from './AgentLogo';
-import { agentAssets } from '../providers/assets';
-import { getProvider } from '@shared/providers/registry';
-import type { ProviderId } from '@shared/providers/registry';
-import type { Project, Task } from '../types/app';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
+import { Separator } from './ui/separator';
+import { Spinner } from './ui/spinner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;

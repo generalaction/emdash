@@ -1,11 +1,11 @@
 import { execFile } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
+import fs from 'fs';
 import os from 'os';
-import { log } from '../../lib/logger';
+import path from 'path';
+import { promisify } from 'util';
 import { getAppSettings } from '../../core/settings';
+import { log } from '../../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
 
 const execFileAsync = promisify(execFile);

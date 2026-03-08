@@ -1,30 +1,27 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { rpc } from '../lib/ipc';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Spinner } from './ui/spinner';
-import { useToast } from '../hooks/use-toast';
-import { useCreatePR } from '../hooks/useCreatePR';
-import { useFileChanges } from '../hooks/useFileChanges';
-import { usePrStatus } from '../hooks/usePrStatus';
-import { useCheckRuns } from '../hooks/useCheckRuns';
-import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
-import { usePrComments } from '../hooks/usePrComments';
-import { ChecksPanel } from './CheckRunsList';
-import { PrCommentsList } from './PrCommentsList';
-import MergePrSection from './MergePrSection';
-import { FileIcon } from './FileExplorer/FileIcons';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 import {
   ArrowUpRight,
+  CheckCircle2,
   ChevronDown,
   FileDiff,
-  Loader2,
-  CheckCircle2,
-  XCircle,
   GitMerge,
+  Loader2,
+  XCircle,
 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useToast } from '../hooks/use-toast';
+import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
+import { useCheckRuns } from '../hooks/useCheckRuns';
+import { useCreatePR } from '../hooks/useCreatePR';
+import { useFileChanges } from '../hooks/useFileChanges';
+import { usePrComments } from '../hooks/usePrComments';
+import { usePrStatus } from '../hooks/usePrStatus';
+import { rpc } from '../lib/ipc';
+import { ChecksPanel } from './CheckRunsList';
+import { FileIcon } from './FileExplorer/FileIcons';
+import MergePrSection from './MergePrSection';
+import { PrCommentsList } from './PrCommentsList';
+import { useTaskScope } from './TaskScopeContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { useTaskScope } from './TaskScopeContext';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Spinner } from './ui/spinner';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';

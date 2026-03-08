@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
-import { join, resolve } from 'path';
-import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import { log } from '../../lib/logger';
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join, resolve } from 'path';
 import { getAppSettings } from '../../core/settings';
+import { log } from '../../lib/logger';
 
 function getClaudeConfigPath(): string {
   return join(homedir(), '.claude.json');

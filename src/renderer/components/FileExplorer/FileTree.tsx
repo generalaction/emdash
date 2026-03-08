@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronRight, ChevronDown } from 'lucide-react';
-import { cn } from '@renderer/lib/utils';
-import { FileIcon } from './FileIcons';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useContentSearch } from '@renderer/hooks/useContentSearch';
-import { SearchInput } from './SearchInput';
-import { ContentSearchResults } from './ContentSearchResults';
-import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
 import type { FileChange } from '@renderer/hooks/useFileChanges';
+import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
+import { cn } from '@renderer/lib/utils';
+import { ContentSearchResults } from './ContentSearchResults';
+import { FileIcon } from './FileIcons';
+import { SearchInput } from './SearchInput';
 
 export interface FileNode {
   id: string;

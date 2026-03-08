@@ -1,9 +1,9 @@
 import { createRPCController } from '../../shared/ipc/rpc';
-import { ok, err } from '../lib/result';
-import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { log } from '../lib/logger';
-import { environmentProviderManager } from '../environment/provider-manager';
-import { SshEnvironmentProvider } from '../environment/impl/ssh-env-provider';
+import { err, ok } from '../lib/result';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
+import { SshEnvironmentProvider } from '../workspaces/impl/ssh-env-provider';
+import { environmentProviderManager } from '../workspaces/provider-manager';
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ExecResult } from '../../../../shared/ssh/types';
 import { RemoteGitService } from '../RemoteGitService';
 import { SshService } from '../ssh/SshService';
-import type { ExecResult } from '../../../../shared/ssh/types';
 
 // Mock SshService
 const mockExecuteCommand = vi.fn();

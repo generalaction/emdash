@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { useToast } from './use-toast';
-import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
+import { useState } from 'react';
 import githubLogo from '../../assets/images/github.png';
+import { ToastAction } from '../components/ui/toast';
 import { rpc } from '../lib/ipc';
+import { useToast } from './use-toast';
 
 type CreatePROptions = {
   taskPath: string;

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { rpc } from '../lib/ipc';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
@@ -6,7 +7,6 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
-import { rpc } from '../lib/ipc';
 
 type LifecycleScripts = {
   setup: string;

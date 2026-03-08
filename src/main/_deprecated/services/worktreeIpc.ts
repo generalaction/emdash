@@ -1,18 +1,18 @@
+import crypto from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { createRPCController } from '../../../shared/ipc/rpc';
 import { worktreeService } from '../../core/worktrees/WorktreeService';
-import { databaseService, type Project } from './DatabaseService';
+import { db } from '../../db/client';
 import { projects as projectsTable } from '../../db/schema';
-import { eq } from 'drizzle-orm';
-import crypto from 'node:crypto';
-import { RemoteGitService } from './RemoteGitService';
-import { sshService } from './ssh/SshService';
 import { log } from '../../lib/logger';
-import { quoteShellArg } from '../utils/shellEscape';
 import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
-import { db } from '../../db/client';
+import { quoteShellArg } from '../utils/shellEscape';
+import { databaseService, type Project } from './DatabaseService';
+import { RemoteGitService } from './RemoteGitService';
+import { sshService } from './ssh/SshService';
 
 const remoteGitService = new RemoteGitService(sshService);
 

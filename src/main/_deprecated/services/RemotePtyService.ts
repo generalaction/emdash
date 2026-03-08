@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
+import { isValidEnvVarName, quoteShellArg } from '../utils/shellEscape';
 import { SshService } from './ssh/SshService';
-import { quoteShellArg, isValidEnvVarName } from '../utils/shellEscape';
 
 export interface RemotePtyOptions {
   id: string;

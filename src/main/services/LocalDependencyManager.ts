@@ -1,9 +1,6 @@
 import os from 'node:os';
-import { events } from '../lib/events';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
-import { log } from '../lib/logger';
-
-import { spawnLocalPty } from '../pty/local-pty';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { resolveCommandPath, runVersionProbe } from '../core/dependencies/probe';
 import { DEPENDENCIES, getDependencyDescriptor } from '../core/dependencies/registry';
 import type {
@@ -14,6 +11,8 @@ import type {
   DependencyStatus,
   ProbeResult,
 } from '../core/dependencies/types';
+import { events } from '../lib/events';
+import { log } from '../lib/logger';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 

@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
 import {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@renderer/components/ui/dialog';
-import { Button } from '@renderer/components/ui/button';
-import {
+  AlertCircle,
   CheckCircle2,
   Download,
   ExternalLink,
-  RefreshCw,
-  AlertCircle,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
-import { useUpdater, EMDASH_RELEASES_URL } from '@renderer/hooks/useUpdater';
+import React, { useEffect, useState } from 'react';
+import { Button } from '@renderer/components/ui/button';
+import {
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/components/ui/dialog';
 import { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../lib/ipc';
 
 interface UpdateModalProps {

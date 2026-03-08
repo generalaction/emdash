@@ -1,10 +1,10 @@
-import React from 'react';
-import { Button } from '../ui/button';
 import { PanelRight } from 'lucide-react';
-import { useRightSidebar } from '../ui/right-sidebar';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
-import { ShortcutHint } from '../ui/shortcut-hint';
+import React from 'react';
 import { captureTelemetry } from '@renderer/lib/telemetryClient';
+import { Button } from '../ui/button';
+import { useRightSidebar } from '../ui/right-sidebar';
+import { ShortcutHint } from '../ui/shortcut-hint';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const SidebarRightToggleButton: React.FC = () => {
   const { toggle, collapsed } = useRightSidebar();

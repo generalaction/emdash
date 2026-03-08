@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { Button } from '../ui/button';
-import { Spinner } from '../ui/spinner';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
-import { cn } from '@renderer/lib/utils';
-import { Play, CheckCircle2, XCircle, Zap, ChevronDown, Copy, Check } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, Copy, Play, XCircle, Zap } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
 import type { ConnectionTestResult } from '@shared/ssh/types';
+import { cn } from '@renderer/lib/utils';
 import { rpc } from '../../lib/ipc';
+import { Button } from '../ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { Spinner } from '../ui/spinner';
 
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 

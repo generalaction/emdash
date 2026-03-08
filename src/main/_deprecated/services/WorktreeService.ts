@@ -1,13 +1,12 @@
 import { execFile } from 'child_process';
-import { log } from '../../lib/logger';
-import { promisify } from 'util';
-import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
-import { projectSettingsService } from './ProjectSettingsService';
+import fs from 'fs';
+import path from 'path';
+import { promisify } from 'util';
 import { minimatch } from 'minimatch';
-import { errorTracking } from '../../_new/error-tracking';
-import { getAppSettings } from '../../core/settings';
+import { getAppSettings } from '@main/core/settings';
+import { log } from '../../lib/logger';
+import { projectSettingsService } from './ProjectSettingsService';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 

@@ -1,8 +1,8 @@
-import React, { createContext, useCallback, useContext } from 'react';
-import type { KeyboardSettings, ShortcutModifier } from '../types/shortcuts';
-import { APP_SHORTCUTS, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { useQueryClient } from '@tanstack/react-query';
+import React, { createContext, useCallback, useContext } from 'react';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { APP_SHORTCUTS, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
+import type { KeyboardSettings, ShortcutModifier } from '../types/shortcuts';
 
 interface KeyboardSettingsContextValue {
   settings: KeyboardSettings | null;

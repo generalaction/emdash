@@ -1,15 +1,14 @@
-import { db } from '../../db/client';
-import { tasks, conversations, projects } from '../../db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { worktreeService } from '../worktrees/WorktreeService';
-import { worktreePoolService } from '../worktrees/WorktreePoolService';
+import { db } from '../../db/client';
+import { conversations, projects, tasks, type TaskRow } from '../../db/schema';
+import { log } from '../../lib/logger';
 import { err, ok, Result } from '../../lib/result';
-import type { Task, TaskMetadata } from './core';
-import type { TaskRow } from '../../db/schema';
-import { ensureProjectSettings } from '../projects/ensureProjectSettings';
 import { spawnLocalPty } from '../../pty/local-pty';
 import { buildSessionEnv } from '../../pty/pty-env';
-import { log } from '../../lib/logger';
+import { ensureProjectSettings } from '../projects/ensureProjectSettings';
+import { worktreePoolService } from '../worktrees/WorktreePoolService';
+import { worktreeService } from '../worktrees/WorktreeService';
+import type { Task, TaskMetadata } from './core';
 
 export type LinkedIssue =
   | { source: 'github'; number: number; title: string; url?: string; body?: string }

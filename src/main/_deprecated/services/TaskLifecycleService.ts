@@ -1,8 +1,7 @@
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { lifecycleScriptsService } from './LifecycleScriptsService';
 import {
   type LifecycleEvent,
   type LifecyclePhase,
@@ -11,9 +10,9 @@ import {
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../../lib/logger';
-import { execFile } from 'node:child_process';
-import { killPty } from './ptyManager';
+import { lifecycleScriptsService } from './LifecycleScriptsService';
 import { startShellSession } from './ptyIpc';
+import { killPty } from './ptyManager';
 
 const execFileAsync = promisify(execFile);
 

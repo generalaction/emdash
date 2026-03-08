@@ -1,10 +1,9 @@
-import { dialog } from 'electron';
-import { join } from 'node:path';
-import * as fs from 'node:fs';
 import { exec } from 'node:child_process';
+import * as fs from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { getMainWindow } from '../../app/window';
-import { errorTracking } from '../../_new/error-tracking';
+import { dialog } from 'electron';
+import { getMainWindow } from '@main/app/window';
 import { createRPCController } from '../../../shared/ipc/rpc';
 
 const execAsync = promisify(exec);
@@ -75,7 +74,6 @@ export const projectController = createRPCController({
       return { success: true, path: projectPath };
     } catch (error) {
       console.error('Failed to open project:', error);
-      await errorTracking.captureProjectError(error, 'open');
       return { success: false, error: 'Failed to open project directory' };
     }
   },

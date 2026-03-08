@@ -1,6 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-
 import type { ProbeResult } from './types';
 
 const execFileAsync = promisify(execFile);

@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
 import { Comment, useTextareaAutoFocus } from './CommentCard';

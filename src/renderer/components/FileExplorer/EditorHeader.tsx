@@ -1,5 +1,5 @@
+import { FolderOpen, PanelRight, Save, X } from 'lucide-react';
 import React from 'react';
-import { FolderOpen, X, PanelRight, Save } from 'lucide-react';
 import { Button } from '../ui/button';
 
 interface EditorHeaderProps {

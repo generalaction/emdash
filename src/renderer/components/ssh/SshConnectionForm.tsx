@@ -1,13 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { Download, Eye, EyeOff, FolderOpen, Key, Lock, Server, Shield, User } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
+import { cn } from '@renderer/lib/utils';
+import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { rpc } from '../../lib/ipc';
 import { Spinner } from '../ui/spinner';
-import { cn } from '@renderer/lib/utils';
-import { FolderOpen, Eye, EyeOff, Server, User, Lock, Key, Shield, Download } from 'lucide-react';
-import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
 
 export interface SshConnectionConfig extends Omit<SshConfig, 'id'> {
   password?: string;

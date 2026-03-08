@@ -1,21 +1,21 @@
 import { useEffect, useRef } from 'react';
-import useUpdateNotifier from '../hooks/useUpdateNotifier';
+import {
+  menuCheckForUpdatesChannel,
+  menuOpenSettingsChannel,
+  menuRedoChannel,
+  menuUndoChannel,
+  notificationFocusTaskChannel,
+} from '@shared/events/appEvents';
+import { useAgent } from '../contexts/AgentProvider';
+import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import { useWorkspaceSlots, useWorkspaceWrapParams } from '../contexts/WorkspaceViewProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
-import { useAppSettings } from '../contexts/AppSettingsProvider';
-import { useAgent } from '../contexts/AgentProvider';
-import { handleMenuUndo, handleMenuRedo } from '../lib/menuUndoRedo';
-import { soundPlayer } from '../lib/soundPlayer';
+import useUpdateNotifier from '../hooks/useUpdateNotifier';
 import { events } from '../lib/ipc';
-import {
-  notificationFocusTaskChannel,
-  menuOpenSettingsChannel,
-  menuCheckForUpdatesChannel,
-  menuUndoChannel,
-  menuRedoChannel,
-} from '@shared/events/appEvents';
+import { handleMenuRedo, handleMenuUndo } from '../lib/menuUndoRedo';
+import { soundPlayer } from '../lib/soundPlayer';
 import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 
 /**

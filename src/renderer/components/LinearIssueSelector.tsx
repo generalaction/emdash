@@ -1,15 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Search } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
+import { rpc } from '../lib/ipc';
 import { type LinearIssueSummary } from '../types/linear';
-import { Separator } from './ui/separator';
-import { Spinner } from './ui/spinner';
+import AgentLogo from './AgentLogo';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
 import { LinearStatusPill } from './LinearStatusPill';
-import AgentLogo from './AgentLogo';
-import { rpc } from '../lib/ipc';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
+import { Separator } from './ui/separator';
+import { Spinner } from './ui/spinner';
 
 interface LinearIssueSelectorProps {
   selectedIssue: LinearIssueSummary | null;

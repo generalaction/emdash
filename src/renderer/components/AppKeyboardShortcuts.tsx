@@ -1,12 +1,12 @@
 import React from 'react';
-import { useSidebar } from '../components/ui/sidebar';
 import { useRightSidebar } from '../components/ui/right-sidebar';
-import { useTheme } from '../hooks/useTheme';
-import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useSidebar } from '../components/ui/sidebar';
 import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useTheme } from '../hooks/useTheme';
 
 const AppKeyboardShortcuts: React.FC = () => {
   const { toggle: toggleLeftSidebar } = useSidebar();

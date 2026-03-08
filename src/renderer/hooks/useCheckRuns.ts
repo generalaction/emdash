@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { subscribeToCheckRuns, refreshCheckRuns } from '../lib/checkRunsStore';
+import { refreshCheckRuns, subscribeToCheckRuns } from '../lib/checkRunsStore';
 import type { CheckRunsStatus } from '../lib/checkRunStatus';
 
 const noopRefresh = async () => {};

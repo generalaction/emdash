@@ -1,14 +1,14 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { events, rpc } from '../lib/ipc';
-import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import { useCallback, useEffect, useRef } from 'react';
 import { appPasteChannel } from '@shared/events/appEvents';
-import { pendingInjectionManager } from '../lib/PendingInjectionManager';
+import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
+import { events, rpc } from '../lib/ipc';
 import { log } from '../lib/logger';
+import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,

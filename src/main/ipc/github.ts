@@ -1,17 +1,17 @@
-import { app } from 'electron';
-import { log } from '../lib/logger';
-import { createRPCController } from '../../shared/ipc/rpc';
-import { githubService } from '../services/GitHubService';
-import type { GitHubUser } from '@shared/types/github';
-import { localDependencyManager } from '../services/LocalDependencyManager';
 import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
-import { createHash } from 'node:crypto';
-import { quoteShellArg } from '../utils/shellEscape';
+import * as path from 'node:path';
+import { promisify } from 'node:util';
+import { app } from 'electron';
+import type { GitHubUser } from '@shared/types/github';
+import { createRPCController } from '../../shared/ipc/rpc';
 import { getAppSettings } from '../core/settings';
+import { log } from '../lib/logger';
+import { githubService } from '../services/GitHubService';
+import { localDependencyManager } from '../services/LocalDependencyManager';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
 

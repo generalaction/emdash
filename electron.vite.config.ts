@@ -1,25 +1,36 @@
-import { defineConfig } from 'electron-vite';
-import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'electron-vite';
 
 export default defineConfig({
   main: {
     resolve: {
       alias: {
+        '@': resolve('src'),
+        '@main': resolve('src/main'),
         '@shared': resolve('src/shared'),
-        '@': resolve('src/main'),
+        '@root': resolve('.'),
       },
     },
   },
-  preload: {},
+  preload: {
+    root: 'src/preload',
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared'),
+        '@root': resolve('.'),
+      },
+    },
+  },
   renderer: {
     root: 'src/renderer',
     plugins: [react()],
     resolve: {
       alias: {
-        '@': resolve('src/renderer'),
+        '@': resolve('src'),
+        '@renderer': resolve('src/renderer'),
         '@shared': resolve('src/shared'),
-        '#types': resolve('src/types'),
+        '@root': resolve('.'),
       },
     },
     server: {

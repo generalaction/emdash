@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getShellEnvVar, detectSshAuthSock, initializeShellEnvironment } from '../shellEnv';
+import { execSync } from 'child_process';
+import { readdirSync, statSync } from 'fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { detectSshAuthSock, getShellEnvVar, initializeShellEnvironment } from '../shellEnv';
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -11,9 +13,6 @@ vi.mock('fs', () => ({
   statSync: vi.fn(),
   readdirSync: vi.fn(),
 }));
-
-import { execSync } from 'child_process';
-import { statSync, readdirSync } from 'fs';
 
 const mockedExecSync = vi.mocked(execSync);
 const mockedStatSync = vi.mocked(statSync);

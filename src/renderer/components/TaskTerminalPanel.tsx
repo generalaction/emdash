@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { TerminalPane } from './TerminalPane';
 import { Plus, X } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@renderer/lib/utils';
+import { useTheme } from '../hooks/useTheme';
 import { rpc } from '../lib/ipc';
+import { TerminalPane } from './TerminalPane';
 
 interface Terminal {
   id: string;

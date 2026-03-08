@@ -1,23 +1,21 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
-import { useTaskChanges } from '../hooks/useTaskChanges';
-import { ChangesBadge } from './TaskChanges';
-
-import { Spinner } from './ui/spinner';
-import { usePrStatus } from '../hooks/usePrStatus';
-import { useAgent } from '../contexts/AgentProvider';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { NotificationType } from '@shared/events/agentEvents';
-
+import { useAgent } from '../contexts/AgentProvider';
+import { usePrStatus } from '../hooks/usePrStatus';
+import { useTaskChanges } from '../hooks/useTaskChanges';
+import { rpc } from '../lib/ipc';
+import { MAX_TASK_NAME_LENGTH, normalizeTaskName } from '../lib/taskNames';
 import PrPreviewTooltip from './PrPreviewTooltip';
+import { ChangesBadge } from './TaskChanges';
 import TaskDeleteButton from './TaskDeleteButton';
-import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from './ui/context-menu';
-import { rpc } from '../lib/ipc';
+import { Spinner } from './ui/spinner';
 
 function stopPropagation(e: React.MouseEvent): void {
   e.stopPropagation();

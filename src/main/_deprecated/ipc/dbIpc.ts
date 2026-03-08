@@ -1,10 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { databaseService } from '../services/DatabaseService';
-import type { Conversation, Message, Project, Task } from '../services/DatabaseService';
 import { createRPCController } from '../../../shared/ipc/rpc';
 import { log } from '../../lib/logger';
-import { cleanupTaskPtys, cleanupConversationPty } from '../services/ptyCleanup';
+import {
+  databaseService,
+  type Conversation,
+  type Message,
+  type Project,
+  type Task,
+} from '../services/DatabaseService';
+import { cleanupConversationPty, cleanupTaskPtys } from '../services/ptyCleanup';
 
 export const databaseController = createRPCController({
   getProjects: (): Promise<Project[]> => databaseService.getProjects(),

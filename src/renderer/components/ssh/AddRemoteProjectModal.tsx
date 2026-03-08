@@ -1,37 +1,37 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Button } from '../ui/button';
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { rpc } from '../../lib/ipc';
-import { Spinner } from '../ui/spinner';
-import { Separator } from '../ui/separator';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Badge } from '../ui/badge';
-import { RadioGroup } from '../ui/radio-group';
-import { cn } from '@renderer/lib/utils';
-import type { SshConfig, ConnectionTestResult } from '@shared/ssh/types';
 import {
-  Server,
-  Key,
-  Lock,
-  User,
-  FolderOpen,
-  Check,
-  ChevronRight,
-  ChevronLeft,
-  FileCode,
   AlertCircle,
-  Globe,
+  Check,
   CheckCircle2,
-  XCircle,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  FileCode,
+  FolderOpen,
+  Globe,
+  Key,
   Loader2,
+  Lock,
+  Server,
   Shield,
   Trash,
-  Copy,
+  User,
+  XCircle,
 } from 'lucide-react';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import React, { useCallback, useEffect, useState } from 'react';
+import type { ConnectionTestResult, SshConfig } from '@shared/ssh/types';
+import { cn } from '@renderer/lib/utils';
+import { rpc } from '../../lib/ipc';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { RadioGroup } from '../ui/radio-group';
+import { Separator } from '../ui/separator';
+import { Spinner } from '../ui/spinner';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
 type AuthType = 'password' | 'key' | 'agent';

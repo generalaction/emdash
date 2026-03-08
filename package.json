@@ -18,7 +18,7 @@
     "package:mac": "pnpm run build && electron-builder --mac",
     "package:linux": "pnpm run build && electron-builder --linux --publish never",
     "package:win": "pnpm run build && electron-builder --win --publish never",
-    "postinstall": "node scripts/postinstall.cjs",
+    "postinstall": "node --experimental-strip-types scripts/postinstall.ts",
     "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty,keytar",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
@@ -26,6 +26,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit && tsc -p tsconfig.main.json --noEmit",
+    "typecheck": "tsc --noEmit",
     "docs": "cd docs && pnpm run dev",
     "docs:build": "cd docs && pnpm run build",
     "prepare": "husky"
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",

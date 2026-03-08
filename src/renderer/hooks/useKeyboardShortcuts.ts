@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import type {
-  ShortcutConfig,
   GlobalShortcutHandlers,
+  KeyboardSettings,
+  ShortcutConfig,
   ShortcutMapping,
   ShortcutModifier,
-  KeyboardSettings,
 } from '../types/shortcuts';
 
 // Settings keys for keyboard shortcuts

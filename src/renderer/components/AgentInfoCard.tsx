@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { type UiAgent } from '@renderer/providers/meta';
-import { agentAssets } from '@renderer/providers/assets';
-import AgentLogo from './AgentLogo';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
-import { Button } from './ui/button';
+import React, { useEffect, useRef, useState } from 'react';
 import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
+import { agentAssets } from '@renderer/providers/assets';
+import { type UiAgent } from '@renderer/providers/meta';
+import AgentLogo from './AgentLogo';
+import { Button } from './ui/button';
 
 export type AgentInfo = {
   title: string;

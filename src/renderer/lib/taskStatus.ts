@@ -1,10 +1,11 @@
+import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
+import { events } from './ipc';
+
 // Lightweight derived status store for tasks based on agent activity
 // - Derives 'busy' when we receive stream output for a task
 // - Derives 'idle' after a short inactivity window or when a 'complete' event fires
 
 type Derived = 'idle' | 'busy';
-import { events } from './ipc';
-import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 
 type Listener = (status: Derived) => void;
 

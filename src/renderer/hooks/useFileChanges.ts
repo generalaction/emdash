@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
 import { subscribeToFileChanges } from '@renderer/lib/fileChangeEvents';
 import { getCachedGitStatus } from '@renderer/lib/gitStatusCache';
 import { events, rpc } from '../lib/ipc';
-import { gitStatusChangedChannel } from '@shared/events/appEvents';
 
 export interface FileChange {
   path: string;

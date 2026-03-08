@@ -1,8 +1,8 @@
 import React from 'react';
-import { Switch } from './ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { cn } from '@renderer/lib/utils';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { cn } from '@renderer/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Switch } from './ui/switch';
 
 const NotificationSettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading: loading } = useAppSettings();

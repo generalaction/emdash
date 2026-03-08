@@ -7,22 +7,22 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { events } from '../lib/ipc';
 import { ptyStartedChannel } from '@shared/events/appEvents';
-import { useTheme } from '../hooks/useTheme';
-import { agentMeta } from '../providers/meta';
-import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
-import { useTaskComments } from '../hooks/useLineComments';
-import { type Agent } from '../types';
-import { Task } from '../types/chat';
 import { makePtyId } from '@shared/ptyId';
-import { generateTaskName } from '../lib/branchNameGenerator';
-import { ensureUniqueTaskName } from '../lib/taskNames';
 // SessionRegistry removed — session lifecycle is now managed in the main process.
 import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
-import type { Project } from '../types/app';
-import { useConversations } from './ConversationsProvider';
+import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
+import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskInitialInjection } from '../hooks/useTaskInitialInjection';
+import { useTheme } from '../hooks/useTheme';
+import { generateTaskName } from '../lib/branchNameGenerator';
+import { events } from '../lib/ipc';
+import { ensureUniqueTaskName } from '../lib/taskNames';
+import { agentMeta } from '../providers/meta';
+import { type Agent } from '../types';
+import type { Project } from '../types/app';
+import { Task } from '../types/chat';
+import { useConversations } from './ConversationsProvider';
 
 interface ChatViewProviderProps {
   task: Task;

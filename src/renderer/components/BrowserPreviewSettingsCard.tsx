@@ -1,6 +1,6 @@
 import React from 'react';
-import { Switch } from './ui/switch';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { Switch } from './ui/switch';
 
 export default function BrowserPreviewSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();

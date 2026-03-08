@@ -1,12 +1,12 @@
-import { WorkspaceLayout, WorkspaceContentLayout } from '@renderer/components/WorkspaceLayout';
+import { ModalRenderer } from '@renderer/components/ModalRenderer';
+import { LeftSidebar } from '@renderer/components/sidebar/LeftSidebar';
 import { WorkspaceEffects } from '@renderer/components/WorkspaceEffects';
+import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/components/WorkspaceLayout';
 import {
   useWorkspaceSlots,
   useWorkspaceWrapParams,
 } from '@renderer/contexts/WorkspaceViewProvider';
-import { ModalRenderer } from '@renderer/components/ModalRenderer';
 import { useTheme } from '@renderer/hooks/useTheme';
-import { LeftSidebar } from '@renderer/components/sidebar/LeftSidebar';
 
 export function Workspace() {
   useTheme();

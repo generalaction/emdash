@@ -1,22 +1,22 @@
-import { appController } from './app';
-import { githubController } from './github';
-import { updateController } from '../_deprecated/services/updateIpc';
-import { appSettingsController } from './settings';
-import { sshController } from './ssh';
-import { jiraController } from './jiraIpc';
-import { linearController } from './linearIpc';
-import { lineCommentsController } from './line-comments';
-import { skillsController } from './skills';
-import { projectSettingsController } from './project-settings';
 import { createRPCRouter } from '../../shared/ipc/rpc';
-import { projectController } from './projects';
-import { taskController } from './tasks';
-import { conversationController } from './conversations';
 import { terminalsController } from '../core/terminals/controller';
-import { filesController } from './fs';
-import { ptyController } from './pty';
-import { gitController } from './git';
+import { appController } from './app';
+import { conversationController } from './conversations';
 import { dependenciesController } from './dependenciesIpc';
+import { filesController } from './fs';
+import { gitController } from './git';
+import { githubController } from './github';
+import { jiraController } from './jiraIpc';
+import { lineCommentsController } from './line-comments';
+import { linearController } from './linearIpc';
+import { projectSettingsController } from './project-settings';
+import { projectController } from './projects';
+import { ptyController } from './pty';
+import { appSettingsController } from './settings';
+import { skillsController } from './skills';
+import { sshController } from './ssh';
+import { taskController } from './tasks';
+import { updateController } from './updateIpc';
 
 export const rpcRouter = createRPCRouter({
   appSettings: appSettingsController,

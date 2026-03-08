@@ -1,10 +1,10 @@
+import Editor, { type OnChange, type OnMount } from '@monaco-editor/react';
 import React from 'react';
-import Editor, { type OnMount, type OnChange } from '@monaco-editor/react';
+import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco-themes';
-import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
+import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { MarkdownPreview } from './MarkdownPreview';
 import '@/styles/editor-diff.css';
 

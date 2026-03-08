@@ -1,9 +1,9 @@
-import { classifyActivity } from '../activityClassifier';
-import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from '../activityConstants';
-import { makePtyId } from '@shared/ptyId';
-import { PROVIDER_IDS } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/appEvents';
+import { PROVIDER_IDS } from '@shared/providers/registry';
+import { makePtyId } from '@shared/ptyId';
+import { classifyActivity } from '../activityClassifier';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '../activityConstants';
 import { events } from '../ipc';
 
 export type ActivityPayload = { busy: boolean; conversationId: string | null };

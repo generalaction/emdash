@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const SAMPLE_SIZE = 32;
 const COLOR_THRESHOLD = 30;

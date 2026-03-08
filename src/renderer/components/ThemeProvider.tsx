@@ -1,5 +1,5 @@
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { createContext, useEffect, useState, type ReactNode } from 'react';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 
 type Theme = 'light' | 'dark' | 'dark-black' | 'system';
 type EffectiveTheme = 'light' | 'dark' | 'dark-black';

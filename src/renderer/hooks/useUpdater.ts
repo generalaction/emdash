@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rpc } from '../lib/ipc';
 
 type DownloadProgress = { percent?: number; transferred?: number; total?: number };

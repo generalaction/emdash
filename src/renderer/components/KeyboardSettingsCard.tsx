@@ -1,7 +1,6 @@
-import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { ArrowBigUp, Command, RotateCcw } from 'lucide-react';
-import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { toast } from '../hooks/use-toast';
 import {
   APP_SHORTCUTS,
@@ -11,7 +10,8 @@ import {
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
 import type { ShortcutModifier } from '../types/shortcuts';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface ShortcutBinding {
   key: string;

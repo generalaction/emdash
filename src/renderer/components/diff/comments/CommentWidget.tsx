@@ -1,10 +1,10 @@
-import React, { useRef, useState } from 'react';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import type { LineComment } from '@shared/types/lineComment';
 import { Button } from '../../ui/button';
 import { RelativeTime } from '../../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
 import { Comment, useTextareaAutoFocus } from './CommentCard';
-import type { LineComment } from '@shared/types/lineComment';
 
 interface CommentWidgetProps {
   comment: LineComment;

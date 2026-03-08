@@ -1,37 +1,37 @@
-import { events } from '../../lib/events';
-import { createRPCController } from '../../../shared/ipc/rpc';
-import { gitStatusChangedChannel } from '@shared/events/appEvents';
-import { log } from '../../lib/logger';
 import { exec, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 import { promisify } from 'node:util';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
+import { createRPCController } from '../../../shared/ipc/rpc';
 import {
-  getStatus as gitGetStatus,
-  getFileDiff as gitGetFileDiff,
-  stageFile as gitStageFile,
-  stageAllFiles as gitStageAllFiles,
-  unstageFile as gitUnstageFile,
-  revertFile as gitRevertFile,
   commit as gitCommit,
-  push as gitPush,
-  pull as gitPull,
-  getLog as gitGetLog,
-  getLatestCommit as gitGetLatestCommit,
-  getCommitFiles as gitGetCommitFiles,
   getCommitFileDiff as gitGetCommitFileDiff,
+  getCommitFiles as gitGetCommitFiles,
+  getFileDiff as gitGetFileDiff,
+  getLatestCommit as gitGetLatestCommit,
+  getLog as gitGetLog,
+  getStatus as gitGetStatus,
+  pull as gitPull,
+  push as gitPush,
+  revertFile as gitRevertFile,
   softResetLastCommit as gitSoftResetLastCommit,
+  stageAllFiles as gitStageAllFiles,
+  stageFile as gitStageFile,
+  unstageFile as gitUnstageFile,
 } from '../../environment/impl/git-provider/local-git-utils';
-import { prGenerationService } from '../services/PrGenerationService';
-import { databaseService } from '../services/DatabaseService';
-import { injectIssueFooter } from '../lib/prIssueFooter';
+import { events } from '../../lib/events';
+import { log } from '../../lib/logger';
 import { getCreatePrBodyPlan } from '../lib/prCreateBodyPlan';
+import { injectIssueFooter } from '../lib/prIssueFooter';
 import { patchCurrentPrBodyWithIssueFooter } from '../lib/prIssueFooterPatch';
-import { resolveRemoteProjectForWorktreePath } from '../utils/remoteProjectResolver';
+import { databaseService } from '../services/DatabaseService';
+import { prGenerationService } from '../services/PrGenerationService';
 import { RemoteGitService } from '../services/RemoteGitService';
 import { sshService } from '../services/ssh/SshService';
+import { resolveRemoteProjectForWorktreePath } from '../utils/remoteProjectResolver';
 
 const remoteGitService = new RemoteGitService(sshService);
 

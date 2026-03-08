@@ -1,10 +1,9 @@
-import { app, BrowserWindow } from 'electron';
-import _electronUpdater from 'electron-updater';
-import type { UpdateInfo } from 'electron-updater';
-import { log } from '../lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '../lib/updaterError';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { app, BrowserWindow } from 'electron';
+import _electronUpdater, { type UpdateInfo } from 'electron-updater';
+import { log } from '@main/lib/logger';
+import { formatUpdaterError, sanitizeUpdaterLogArgs } from '@main/lib/updaterError';
 
 const { autoUpdater } = _electronUpdater;
 

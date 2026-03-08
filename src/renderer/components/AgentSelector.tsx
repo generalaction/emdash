@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { AgentInfoCard } from './AgentInfoCard';
-import RoutingInfoCard from './RoutingInfoCard';
 import { Workflow } from 'lucide-react';
-import { Badge } from './ui/badge';
+import React, { useState } from 'react';
 import type { UiAgent } from '@renderer/providers/meta';
-import { type Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
+import { type Agent } from '../types';
+import { AgentInfoCard } from './AgentInfoCard';
 import AgentLogo from './AgentLogo';
+import RoutingInfoCard from './RoutingInfoCard';
+import { Badge } from './ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface AgentSelectorProps {
   value: Agent;

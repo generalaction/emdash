@@ -1,20 +1,18 @@
 import { ComponentType, Fragment, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
+import { ProjectMainPanel, ProjectTitlebar } from '../views/project-view';
+import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
+import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
+import { TaskMainPanel, TaskRightSidebar, TaskTitlebar } from '../views/task-view';
 import { ProjectViewWrapper } from './CurrentProjectProvider';
 import { TaskViewWrapper } from './CurrentTaskProvider';
-import { HomeTitlebar, HomeMainPanel } from '../views/home-view';
-import { SkillsTitlebar, SkillsMainPanel } from '../views/skills-view';
-import { ProjectTitlebar, ProjectMainPanel } from '../views/project-view';
-import { TaskTitlebar, TaskMainPanel, TaskRightSidebar } from '../views/task-view';
-import { SettingsViewWrapper, SettingsTitlebar, SettingsMainPanel } from '../views/settings-view';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
   WorkspaceWrapParamsContext,
-} from './WorkspaceNavigationContext';
-import type {
-  SlotsContextValue,
-  WrapParamsContextValue,
-  NavigateFn,
+  type NavigateFn,
+  type SlotsContextValue,
+  type WrapParamsContextValue,
 } from './WorkspaceNavigationContext';
 
 // Re-export hooks and types that consumers need

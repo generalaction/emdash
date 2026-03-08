@@ -1,19 +1,17 @@
-import http from 'node:http';
 import crypto from 'node:crypto';
-import { BrowserWindow, Notification } from 'electron';
+import http from 'node:http';
 import { eq } from 'drizzle-orm';
-import { log } from '../lib/logger';
+import { BrowserWindow, Notification } from 'electron';
+import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { notificationFocusTaskChannel } from '@shared/events/appEvents';
+import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { getMainWindow } from '../app/window';
-import { getProvider } from '@shared/providers/registry';
-import type { ProviderId } from '@shared/providers/registry';
-import type { AgentEvent } from '@shared/events/agentEvents';
-import { agentEventChannel } from '@shared/events/agentEvents';
-import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getAppSettings } from '../core/settings';
-import { events } from '../lib/events';
 import { db } from '../db/client';
 import { conversations, tasks } from '../db/schema';
+import { events } from '../lib/events';
+import { log } from '../lib/logger';
 
 class AgentEventService {
   private server: http.Server | null = null;

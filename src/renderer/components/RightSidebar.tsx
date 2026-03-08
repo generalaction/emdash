@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { cn } from '@renderer/lib/utils';
-import FileChangesPanel from './FileChangesPanel';
-import TaskTerminalPanel from './TaskTerminalPanel';
-import { useRightSidebar } from './ui/right-sidebar';
-import { TaskScopeProvider } from './TaskScopeContext';
 import {
   RightSidebarViewProvider,
   useRightSidebarView,
 } from '../contexts/RightSidebarViewProvider';
+import FileChangesPanel from './FileChangesPanel';
+import { TaskScopeProvider } from './TaskScopeContext';
+import TaskTerminalPanel from './TaskTerminalPanel';
+import { useRightSidebar } from './ui/right-sidebar';
 
 export interface RightSidebarTask {
   id: string;

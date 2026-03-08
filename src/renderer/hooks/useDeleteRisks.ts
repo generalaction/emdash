@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
-import { rpc } from '@renderer/lib/ipc';
 
 type TaskRef = { id: string; name: string; path: string };
 

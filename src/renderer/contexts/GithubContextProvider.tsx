@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useToast } from '../hooks/use-toast';
-import { useModalContext } from './ModalProvider';
-import { useAppContext } from './AppContextProvider';
-import { rpc, events } from '../lib/ipc';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
-  githubAuthSuccessChannel,
   githubAuthErrorChannel,
+  githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
+import { useToast } from '../hooks/use-toast';
+import { events, rpc } from '../lib/ipc';
+import { useAppContext } from './AppContextProvider';
+import { useModalContext } from './ModalProvider';
 
 type GithubUser = any;
 

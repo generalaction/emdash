@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
+import React, { useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
 

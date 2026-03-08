@@ -1,8 +1,8 @@
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { request } from 'node:https';
+import { join } from 'node:path';
 import { URL } from 'node:url';
 import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
 import { capture } from '../lib/telemetry';
 
 type JiraCreds = { siteUrl: string; email: string };

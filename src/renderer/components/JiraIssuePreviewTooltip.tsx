@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Folder, User } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { ExternalLink, User, Folder } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import jiraLogo from '../../assets/images/jira.png';
-import type { JiraIssueSummary } from '../types/jira';
 import { rpc } from '../lib/ipc';
+import type { JiraIssueSummary } from '../types/jira';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 type Props = {
   issue: JiraIssueSummary | null;
