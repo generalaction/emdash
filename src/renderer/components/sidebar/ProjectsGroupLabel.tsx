@@ -1,17 +1,24 @@
 import { FolderOpen, FolderPlus, Github, Plus, Server } from 'lucide-react';
 import React from 'react';
-import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import { Button } from '../ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { SidebarGroupLabel } from '../ui/sidebar';
+import { Button } from '@renderer/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
+import { SidebarGroupLabel } from '@renderer/components/ui/sidebar';
+import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 
 export function ProjectsGroupLabel() {
   const {
     handleOpenProject: onOpenProject,
+    openSelectLocalProjectPathDialog,
     handleNewProjectClick: onNewProject,
     handleCloneProjectClick: onCloneProject,
     handleAddRemoteProject: onAddRemoteProject,
   } = useProjectManagementContext();
+
+  const handleOpenLocalProjectPathDialog = async () => {
+    const result = await openSelectLocalProjectPathDialog();
+    console.log(result);
+  };
+
   return (
     <SidebarGroupLabel className="flex items-center justify-between pr-0">
       <span className="cursor-default select-none text-sm font-medium normal-case tracking-normal text-foreground/30">
@@ -30,7 +37,7 @@ export function ProjectsGroupLabel() {
               icon={FolderOpen}
               label="Open Folder"
               ariaLabel="Open"
-              onClick={() => onOpenProject?.()}
+              onClick={() => handleOpenLocalProjectPathDialog?.()}
             />
             <MenuItemButton
               icon={Plus}

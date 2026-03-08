@@ -6,6 +6,7 @@ export default defineConfig({
     dir: '.',
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    exclude: ['**/_*/**'],
   },
   resolve: {
     alias: {

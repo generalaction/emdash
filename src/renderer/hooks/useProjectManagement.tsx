@@ -51,6 +51,11 @@ export const useProjectManagement = () => {
 
   const [autoOpenTaskModalTrigger, setAutoOpenTaskModalTrigger] = useState(0);
 
+  const openSelectLocalProjectPathDialog = async () => {
+    const result = await rpc.projects.openSelectLocalProjectPathDialog();
+    return result;
+  };
+
   // ---------------------------------------------------------------------------
   // Project list query — fetches LocalProject[] from _new/ controller,
   // adapts to Project[] for backward-compatibility with existing components.
@@ -373,6 +378,7 @@ export const useProjectManagement = () => {
 
   return {
     projects,
+    openSelectLocalProjectPathDialog,
     autoOpenTaskModalTrigger,
     handleOpenProject,
     handleNewProjectClick,

@@ -11,26 +11,26 @@ import {
   Settings,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAppSettings } from '../../contexts/AppSettingsProvider';
-import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../../contexts/TaskManagementProvider';
+import ReorderList from '@renderer/components/ReorderList';
+import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
+import type { ConnectionState } from '@renderer/components/ssh';
+import { RemoteProjectIndicator } from '@renderer/components/ssh/RemoteProjectIndicator';
+import { TaskDeleteButton } from '@renderer/components/TaskDeleteButton';
+import { TaskItem } from '@renderer/components/TaskItem';
+import { Button } from '@renderer/components/ui/button';
+import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
 import {
   isCurrentView,
   useWorkspaceNavigation,
   useWorkspaceSlots,
   useWorkspaceWrapParams,
-} from '../../contexts/WorkspaceNavigationContext';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { useRemoteProject } from '../../hooks/useRemoteProject';
-import type { Project } from '../../types/app';
-import type { Task } from '../../types/chat';
-import ReorderList from '../ReorderList';
-import SidebarEmptyState from '../SidebarEmptyState';
-import type { ConnectionState } from '../ssh';
-import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
-import { TaskDeleteButton } from '../TaskDeleteButton';
-import { TaskItem } from '../TaskItem';
-import { Button } from '../ui/button';
+} from '@renderer/contexts/WorkspaceNavigationContext';
+import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
+import { useRemoteProject } from '@renderer/hooks/useRemoteProject';
+import type { Project } from '@renderer/types/app';
+import type { Task } from '@renderer/types/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import {
   Sidebar,

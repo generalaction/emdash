@@ -1,33 +1,31 @@
 import { eq } from 'drizzle-orm';
+import { dialog } from 'electron';
 import { createRPCController } from '@shared/ipc/rpc';
+import { getMainWindow } from '@main/app/window';
 import { workspaceManager } from '@main/core/workspaces/workspace-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { getProjects } from './getProjects';
 import { handleCreateLocalProject, type CreateLocalProjectParams } from './handleCreateProject';
 
 export const projectController = createRPCController({
-  createProject: async (params: CreateLocalProjectParams) => {
+  createLocalProject: async (params: CreateLocalProjectParams) => {
     const result = await handleCreateLocalProject(params);
     if (result.success) {
-      // Fetch the full project row so the provider manager can inspect
-      // environmentProvider, sshConnectionId, etc.
-      const [row] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, result.data.id))
-        .limit(1);
-      if (row) {
-        workspaceManager.addProject(row).catch((e) => {
-          log.error('projectController.createProject: failed to add provider', {
-            projectId: row.id,
-            error: String(e),
-          });
-        });
-      }
+      return result.data;
     }
-    return result;
+    throw new Error(result.error.type);
+  },
+  openSelectLocalProjectPathDialog: async () => {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      title: 'Select Local Project Path',
+      properties: ['openDirectory'],
+      message: 'Select a project directory to open',
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      throw new Error('No project path selected');
+    }
+    return result.filePaths[0];
   },
   getProjects,
   deleteProject: async (id: string) => {

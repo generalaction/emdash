@@ -1,163 +1,147 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
 import { useToast } from '@renderer/hooks/use-toast';
 import { rpc } from '../../lib/ipc';
+import { captureTelemetry } from '../../lib/telemetryClient';
+
+const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
 export function useSkills() {
   const { toast } = useToast();
-  const [catalog, setCatalog] = useState<CatalogIndex | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSkill, setSelectedSkill] = useState<CatalogSkill | null>(null);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const loadCatalog = useCallback(async () => {
-    try {
+  const {
+    data: catalog = null,
+    isPending: isLoading,
+    refetch: loadCatalog,
+  } = useQuery({
+    queryKey: CATALOG_QUERY_KEY,
+    queryFn: async () => {
       const result = await rpc.skills.getCatalog();
-      if (result.success && result.data) {
-        setCatalog(result.data);
-      }
-    } catch (error) {
-      console.error('Failed to load skills catalog:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      if (result.success && result.data) return result.data;
+      throw new Error(result.error ?? 'Failed to load catalog');
+    },
+  });
 
-  useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog]);
-
-  const refresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
       const result = await rpc.skills.refreshCatalog();
-      if (result.success && result.data) {
-        setCatalog(result.data);
-      }
-    } catch (error) {
+      if (result.success && result.data) return result.data;
+      throw new Error(result.error ?? 'Failed to refresh catalog');
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(CATALOG_QUERY_KEY, data);
+    },
+    onError: (error) => {
       console.error('Failed to refresh catalog:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
+    },
+  });
+
+  const refresh = useCallback(() => refreshMutation.mutate(), [refreshMutation]);
+
+  const installMutation = useMutation({
+    mutationFn: async (skillId: string) => {
+      const result = await rpc.skills.install({ skillId });
+      if (!result.success) throw new Error(result.error ?? 'Could not install skill');
+      return skillId;
+    },
+    onError: (error) => {
+      toast({
+        title: 'Install failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+    onSuccess: (skillId) => {
+      const skill = queryClient
+        .getQueryData<CatalogIndex>(CATALOG_QUERY_KEY)
+        ?.skills.find((s) => s.id === skillId);
+
+      captureTelemetry('skill_installed', { source: skill?.source });
+      toast({
+        title: 'Skill installed',
+        description: `${skillId} is now available across your agents`,
+      });
+      queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+    },
+  });
 
   const install = useCallback(
-    async (skillId: string) => {
-      // Optimistic update
-      setCatalog((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: true } : s)),
-        };
-      });
-
+    async (skillId: string): Promise<boolean> => {
       try {
-        const result = await rpc.skills.install({ skillId });
-        if (!result.success) {
-          // Revert optimistic update
-          setCatalog((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: false } : s)),
-            };
-          });
-          toast({
-            title: 'Install failed',
-            description: result.error || 'Could not install skill',
-            variant: 'destructive',
-          });
-        } else {
-          const skill = catalog?.skills.find((s) => s.id === skillId);
-          import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-            captureTelemetry('skill_installed', { source: skill?.source });
-          });
-          toast({
-            title: 'Skill installed',
-            description: `${skillId} is now available across your agents`,
-          });
-          await loadCatalog();
-        }
-        return result.success;
+        await installMutation.mutateAsync(skillId);
+        return true;
       } catch {
-        toast({
-          title: 'Install failed',
-          description: 'An unexpected error occurred',
-          variant: 'destructive',
-        });
-        await loadCatalog();
         return false;
       }
     },
-    [catalog?.skills, loadCatalog, toast]
+    [installMutation]
   );
+
+  const uninstallMutation = useMutation({
+    mutationFn: async (skillId: string) => {
+      const result = await rpc.skills.uninstall({ skillId });
+      if (!result.success) throw new Error(result.error ?? 'Could not uninstall skill');
+      return skillId;
+    },
+    onError: (error) => {
+      toast({
+        title: 'Uninstall failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+    onSuccess: () => {
+      captureTelemetry('skill_uninstalled');
+
+      toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
+      queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+    },
+  });
 
   const uninstall = useCallback(
-    async (skillId: string) => {
-      // Optimistic update
-      setCatalog((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          skills: prev.skills.map((s) =>
-            s.id === skillId ? { ...s, installed: false, localPath: undefined } : s
-          ),
-        };
-      });
-
+    async (skillId: string): Promise<boolean> => {
       try {
-        const result = await rpc.skills.uninstall({ skillId });
-        if (!result.success) {
-          toast({
-            title: 'Uninstall failed',
-            description: result.error || 'Could not uninstall skill',
-            variant: 'destructive',
-          });
-          await loadCatalog();
-        } else {
-          import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-            captureTelemetry('skill_uninstalled');
-          });
-          toast({ title: 'Skill removed', description: `${skillId} has been uninstalled` });
-        }
-        return result.success;
+        await uninstallMutation.mutateAsync(skillId);
+        return true;
       } catch {
-        toast({
-          title: 'Uninstall failed',
-          description: 'An unexpected error occurred',
-          variant: 'destructive',
-        });
-        await loadCatalog();
         return false;
       }
     },
-    [loadCatalog, toast]
+    [uninstallMutation]
   );
 
-  const openDetail = useCallback(async (skill: CatalogSkill) => {
+  const { data: detailData } = useQuery({
+    queryKey: ['skills', 'detail', selectedSkillId],
+    queryFn: async () => {
+      const result = await rpc.skills.getDetail({ skillId: selectedSkillId! });
+      if (result.success && result.data) return result.data;
+      throw new Error('Failed to load skill detail');
+    },
+    enabled: !!selectedSkillId && showDetailModal,
+  });
+
+  const selectedSkill = useMemo<CatalogSkill | null>(() => {
+    if (!selectedSkillId || !showDetailModal) return null;
+    return detailData ?? catalog?.skills.find((s) => s.id === selectedSkillId) ?? null;
+  }, [selectedSkillId, showDetailModal, detailData, catalog]);
+
+  const openDetail = useCallback((skill: CatalogSkill) => {
     import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('skill_detail_viewed', { source: skill.source });
     });
-    setSelectedSkill(skill);
+    setSelectedSkillId(skill.id);
     setShowDetailModal(true);
-    // Load full detail
-    try {
-      const result = await rpc.skills.getDetail({ skillId: skill.id });
-      if (result.success && result.data) {
-        setSelectedSkill(result.data);
-      }
-    } catch {
-      // Keep what we have
-    }
   }, []);
 
   const closeDetail = useCallback(() => {
     setShowDetailModal(false);
-    setSelectedSkill(null);
+    setSelectedSkillId(null);
   }, []);
 
   const filteredSkills = useMemo(() => {
@@ -185,7 +169,7 @@ export function useSkills() {
   return {
     catalog,
     isLoading,
-    isRefreshing,
+    isRefreshing: refreshMutation.isPending,
     searchQuery,
     setSearchQuery,
     selectedSkill,

@@ -1,8 +1,7 @@
 import { Loader2, Plus, RefreshCw, Search } from 'lucide-react';
 import React, { useState } from 'react';
 import { isValidSkillName } from '@shared/skills/validation';
-import { rpc } from '../../lib/ipc';
-import { Button } from '../ui/button';
+import { Button } from '@renderer/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +9,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Separator } from '../ui/separator';
-import { Textarea } from '../ui/textarea';
+} from '@renderer/components/ui/dialog';
+import { Input } from '@renderer/components/ui/input';
+import { Label } from '@renderer/components/ui/label';
+import { Separator } from '@renderer/components/ui/separator';
+import { Textarea } from '@renderer/components/ui/textarea';
+import { rpc } from '@renderer/lib/ipc';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import SkillCard from './SkillCard';
 import SkillDetailModal from './SkillDetailModal';
 import { useSkills } from './useSkills';
@@ -68,9 +69,8 @@ const SkillsView: React.FC = () => {
         content: newContent.trim(),
       });
       if (result.success) {
-        import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-          captureTelemetry('skill_created');
-        });
+        captureTelemetry('skill_created');
+
         setShowCreateModal(false);
         setNewName('');
         setNewDescription('');
