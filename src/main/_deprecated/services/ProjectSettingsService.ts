@@ -1,5 +1,4 @@
-import type { Project } from './DatabaseService';
-import { databaseService } from './DatabaseService';
+import { databaseService, type Project } from './DatabaseService';
 
 export interface ProjectSettings {
   projectId: string;

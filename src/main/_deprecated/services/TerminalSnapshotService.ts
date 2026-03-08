@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { log } from '../../lib/logger';
-import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
-import { TERMINAL_SNAPSHOT_VERSION } from '../types/terminalSnapshot';
+import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '../types/terminalSnapshot';
 
 interface StoredSnapshot extends TerminalSnapshotPayload {
   bytes: number;
