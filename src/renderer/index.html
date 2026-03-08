@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Emdash</title>
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('emdash-theme');
+          var theme = raw ? JSON.parse(raw) : 'system';
+          if (theme === 'system') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark-black'
+              : 'light';
+          }
+          var root = document.documentElement;
+          if (theme === 'dark') root.classList.add('dark');
+          if (theme === 'dark-black') root.classList.add('dark', 'dark-black');
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -4,6 +4,7 @@ import { defineConfig } from 'electron-vite';
 
 export default defineConfig({
   main: {
+    root: 'src/main',
     resolve: {
       alias: {
         '@': resolve('src'),

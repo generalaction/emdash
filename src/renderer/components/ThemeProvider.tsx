@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 type Theme = 'light' | 'dark' | 'dark-black' | 'system';
 type EffectiveTheme = 'light' | 'dark' | 'dark-black';
@@ -36,13 +37,15 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { settings, updateSettings } = useAppSettings();
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => getSystemTheme());
+  const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', 'system');
 
   const theme: Theme = settings?.interface?.theme ?? 'system';
   const effectiveTheme: EffectiveTheme = theme === 'system' ? systemTheme : theme;
 
   useEffect(() => {
     applyTheme(theme, systemTheme);
-  }, [theme, systemTheme]);
+    setCachedTheme(theme);
+  }, [theme, systemTheme, setCachedTheme]);
 
   // Listen for OS theme changes when preference is 'system'
   useEffect(() => {
