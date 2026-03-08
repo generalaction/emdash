@@ -9,9 +9,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src/renderer'),
-      '@shared': resolve(__dirname, './src/shared'),
-      '#types': resolve(__dirname, './src/types'),
+      '@': resolve(__dirname, 'src'),
+      '@root': resolve(__dirname, '.'),
+      '@shared': resolve(__dirname, 'src/shared'),
+      '@renderer': resolve(__dirname, 'src/renderer'),
+      '@main': resolve(__dirname, 'src/main'),
     },
   },
 });
