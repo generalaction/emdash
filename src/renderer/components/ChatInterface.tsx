@@ -788,21 +788,21 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     const handleAgentSwitch = (event: Event) => {
       const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
-      if (conversations.length <= 1) return;
+      if (sortedConversations.length <= 1) return;
       const direction = customEvent.detail?.direction;
       if (!direction) return;
 
-      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      const currentIndex = sortedConversations.findIndex((c) => c.id === activeConversationId);
       if (currentIndex === -1) return;
 
       let newIndex: number;
       if (direction === 'prev') {
-        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+        newIndex = currentIndex <= 0 ? sortedConversations.length - 1 : currentIndex - 1;
       } else {
-        newIndex = (currentIndex + 1) % conversations.length;
+        newIndex = (currentIndex + 1) % sortedConversations.length;
       }
 
-      const newConversation = conversations[newIndex];
+      const newConversation = sortedConversations[newIndex];
       if (newConversation) {
         handleSwitchChat(newConversation.id);
       }
@@ -812,7 +812,26 @@ const ChatInterface: React.FC<Props> = ({
     return () => {
       window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
     };
-  }, [conversations, activeConversationId, handleSwitchChat]);
+  }, [sortedConversations, activeConversationId, handleSwitchChat]);
+
+  useEffect(() => {
+    const handleAgentTabSelection = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabIndex: number }>;
+      const tabIndex = customEvent.detail?.tabIndex;
+      if (typeof tabIndex !== 'number') return;
+      if (tabIndex < 0 || tabIndex >= sortedConversations.length) return;
+
+      const selectedConversation = sortedConversations[tabIndex];
+      if (selectedConversation) {
+        handleSwitchChat(selectedConversation.id);
+      }
+    };
+
+    window.addEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    return () => {
+      window.removeEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    };
+  }, [sortedConversations, handleSwitchChat]);
 
   // Close active chat tab on Cmd+W
   useEffect(() => {

@@ -90,6 +90,7 @@ export interface GlobalShortcutHandlers {
   // Agent switching (within same task)
   onNextAgent?: () => void;
   onPrevAgent?: () => void;
+  onSelectAgentTab?: (tabIndex: number) => void;
 
   // Open in editor
   onOpenInEditor?: () => void;

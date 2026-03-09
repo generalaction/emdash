@@ -280,6 +280,24 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
   );
 }
 
+export function getAgentTabSelectionIndex(
+  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  isMac = isMacPlatform
+): number | null {
+  const hasCommandModifier =
+    (isMac ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey;
+  if (!hasCommandModifier || event.altKey) {
+    return null;
+  }
+
+  const key = normalizeShortcutKey(event.key);
+  if (!/^[1-9]$/.test(key)) {
+    return null;
+  }
+
+  return Number(key) - 1;
+}
+
 function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
   if (!modifier) {
     return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
@@ -538,6 +556,22 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
           return;
         }
       }
+
+      const agentTabIndex = getAgentTabSelectionIndex(event);
+      if (agentTabIndex === null) {
+        return;
+      }
+
+      const isCommandPaletteOpen = Boolean(handlers.isCommandPaletteOpen);
+      if (isCommandPaletteOpen) {
+        event.preventDefault();
+        handlers.onCloseModal?.();
+        setTimeout(() => handlers.onSelectAgentTab?.(agentTabIndex), 100);
+        return;
+      }
+
+      event.preventDefault();
+      handlers.onSelectAgentTab?.(agentTabIndex);
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
