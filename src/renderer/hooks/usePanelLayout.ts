@@ -16,6 +16,7 @@ export interface UsePanelLayoutOptions {
   showHomeView: boolean;
   showSettingsPage: boolean;
   showSkillsView: boolean;
+  showMcpView: boolean;
   selectedProject: { id: string } | null;
   activeTask: { id: string } | null;
 }
@@ -28,6 +29,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showHomeView,
     showSettingsPage,
     showSkillsView,
+    showMcpView,
     selectedProject,
     activeTask,
   } = opts;
@@ -245,15 +247,23 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     };
   }, []);
 
-  // Auto-collapse/expand right sidebar based on current view
+  // Always collapse right sidebar on home screen
+  useEffect(() => {
+    if (!isInitialLoadComplete) return;
+
+    if (showHomeView) {
+      rightSidebarSetCollapsedRef.current?.(true);
+    }
+  }, [isInitialLoadComplete, showHomeView]);
+
+  // Auto-collapse/expand right sidebar based on current view (when setting enabled)
   useEffect(() => {
     // Defer sidebar behavior until initial load completes to prevent flash
     if (!autoRightSidebarBehavior || !isInitialLoadComplete) return;
 
-    const isHomePage = showHomeView;
     const isRepoHomePage = selectedProject !== null && activeTask === null;
-    const isNonTaskView = showSettingsPage || showSkillsView;
-    const shouldCollapse = isHomePage || isRepoHomePage || isNonTaskView;
+    const isNonTaskView = showSettingsPage || showSkillsView || showMcpView;
+    const shouldCollapse = isRepoHomePage || isNonTaskView;
 
     if (shouldCollapse) {
       rightSidebarSetCollapsedRef.current?.(true);
@@ -263,9 +273,9 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
   }, [
     autoRightSidebarBehavior,
     isInitialLoadComplete,
-    showHomeView,
     showSettingsPage,
     showSkillsView,
+    showMcpView,
     selectedProject,
     activeTask,
   ]);

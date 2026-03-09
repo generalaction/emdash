@@ -1,4 +1,4 @@
-import { Menu, shell, app, BrowserWindow, nativeImage } from 'electron';
+import { Menu, shell, app, BrowserWindow } from 'electron';
 import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
 
 function getFocusedWindow(): BrowserWindow | null {
@@ -65,13 +65,12 @@ export function setupApplicationMenu(): void {
               { type: 'separator' as const },
             ]
           : []),
-        isMac
-          ? {
-              label: 'Close Tab',
-              accelerator: 'CmdOrCtrl+W',
-              click: () => sendToRenderer('menu:close-tab'),
-            }
-          : { role: 'quit' as const },
+        {
+          label: 'Close Tab',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => sendToRenderer('menu:close-tab'),
+        },
+        ...(!isMac ? [{ type: 'separator' as const }, { role: 'quit' as const }] : []),
       ],
     },
     // Edit menu

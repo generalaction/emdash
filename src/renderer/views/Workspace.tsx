@@ -32,6 +32,7 @@ import { useProjectManagementContext } from '@/contexts/ProjectManagementProvide
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
 import { activityStore } from '@/lib/activityStore';
+import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
 import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
@@ -82,6 +83,7 @@ export function Workspace() {
   // Agent event hook: plays sounds and updates sidebar status for all tasks
   const handleAgentEvent = useCallback((event: import('@shared/agentEvents').AgentEvent) => {
     activityStore.handleAgentEvent(event);
+    agentStatusStore.handleAgentEvent(event);
   }, []);
   useAgentEvents(handleAgentEvent);
 
@@ -249,6 +251,7 @@ export function Workspace() {
     showHomeView: projectMgmt.showHomeView,
     showSettingsPage,
     showSkillsView: projectMgmt.showSkillsView,
+    showMcpView: projectMgmt.showMcpView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });

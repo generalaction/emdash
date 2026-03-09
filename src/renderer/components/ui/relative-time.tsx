@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { normalizeSqliteTimestamp } from '../../lib/utils';
 
 type RelativeTimeProps = {
   value: string | number | Date;
@@ -15,11 +16,10 @@ function parseTimestamp(input: string | number | Date): Date | null {
   const raw = String(input).trim();
   if (!raw) return null;
 
-  let normalized = raw;
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(normalized)) {
-    normalized = normalized.replace(' ', 'T') + 'Z';
-  } else if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    normalized = normalized + 'T00:00:00Z';
+  const normalized = normalizeSqliteTimestamp(raw);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    const d = new Date(normalized + 'T00:00:00Z');
+    if (!isNaN(d.getTime())) return d;
   }
 
   const d = new Date(normalized);

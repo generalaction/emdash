@@ -70,6 +70,8 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
       window.dispatchEvent(
         new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
       ),
+    onSelectAgentTab: (tabIndex) =>
+      window.dispatchEvent(new CustomEvent('emdash:select-agent-tab', { detail: { tabIndex } })),
     onOpenInEditor: handleOpenInEditor,
     onCloseModal: (
       [

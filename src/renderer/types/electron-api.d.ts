@@ -459,6 +459,7 @@ declare global {
           subject: string;
           body: string;
           author: string;
+          authorEmail: string;
           date: string;
           isPushed: boolean;
           tags: string[];
@@ -968,6 +969,37 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // Plain integration
+      plainSaveToken?: (token: string) => Promise<{
+        success: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainCheckConnection?: () => Promise<{
+        connected: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      plainInitialFetch?: (
+        limit?: number,
+        statuses?: string[]
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      plainSearchThreads?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];
@@ -1188,6 +1220,31 @@ declare global {
       skillsCreate: (args: { name: string; description: string; content?: string }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+
+      // MCP
+      mcpLoadAll: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpLoadAllResponse;
+        error?: string;
+      }>;
+      mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpRemoveServer: (serverName: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpGetProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
+        error?: string;
+      }>;
+      mcpRefreshProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
     };
@@ -1715,6 +1772,38 @@ export interface ElectronAPI {
     error?: string;
   }>;
 
+  // Plain integration
+  plainSaveToken?: (token: string) => Promise<{
+    success: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainCheckConnection?: () => Promise<{
+    connected: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  plainInitialFetch?: (
+    limit?: number,
+    statuses?: string[]
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+  plainSearchThreads?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+
   // Debug helpers
   debugAppendLog: (
     filePath: string,
@@ -1795,6 +1884,31 @@ export interface ElectronAPI {
   skillsCreate: (args: { name: string; description: string }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+
+  // MCP
+  mcpLoadAll: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpLoadAllResponse;
+    error?: string;
+  }>;
+  mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpRemoveServer: (serverName: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpGetProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
+    error?: string;
+  }>;
+  mcpRefreshProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
 }

@@ -9,7 +9,12 @@ import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from 
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { quoteShellArg } from '../utils/shellEscape';
-import { parseSshConfigFile, resolveIdentityAgent } from '../utils/sshConfigParser';
+import { getSshExecuteCommandValidationError } from '../utils/sshCommandValidation';
+import {
+  parseSshConfigFile,
+  resolveIdentityAgent,
+  resolveProxyCommand,
+} from '../utils/sshConfigParser';
 import type {
   SshConfig,
   ConnectionTestResult,
@@ -171,10 +176,20 @@ export function registerSshIpc() {
           testClient.on('ready', () => {
             const latency = Date.now() - startTime;
             testClient.end();
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: true, latency, debugLogs });
           });
 
           testClient.on('error', (err: Error) => {
+            try {
+              proxyProc?.kill();
+            } catch {
+              /* ignore */
+            }
             resolve({ success: false, error: err.message, debugLogs });
           });
 
@@ -235,6 +250,44 @@ export function registerSshIpc() {
           } else if (config.authType === 'agent') {
             const identityAgent = await resolveIdentityAgent(config.host);
             connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
+            debugLogs.push(
+              `[emdash] authType=agent, socket=${connectConfig.agent ?? '(not found)'}`
+            );
+          }
+
+          debugLogs.push(
+            `[emdash] authType=${config.authType}, host=${config.host}, port=${config.port}, username=${config.username}`
+          );
+
+          // Check for ProxyCommand in ~/.ssh/config
+          const proxyCommand = await resolveProxyCommand(config.host, config.port);
+          debugLogs.push(`[emdash] ProxyCommand resolve: ${proxyCommand ?? '(none)'}`);
+          let proxyProc: import('child_process').ChildProcess | undefined;
+          if (proxyCommand) {
+            const { Duplex } = await import('stream');
+            const { spawn } = await import('child_process');
+            proxyProc = spawn('sh', ['-c', proxyCommand], {
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            const sock = new Duplex({
+              read() {},
+              write(chunk, encoding, callback) {
+                return proxyProc!.stdin!.write(chunk, encoding, callback);
+              },
+              final(callback) {
+                proxyProc!.stdin!.end(callback);
+              },
+            });
+            proxyProc.stdout!.on('data', (data) => sock.push(data));
+            proxyProc.stdout!.on('close', () => sock.push(null));
+            proxyProc.stderr!.on('data', (data) => {
+              debugLogs.push(`[emdash] proxy stderr: ${data.toString()}`);
+            });
+            proxyProc.on('error', (err) => {
+              debugLogs.push(`[emdash] proxy error: ${err.message}`);
+              sock.destroy(err);
+            });
+            (connectConfig as any).sock = sock;
           }
 
           testClient.connect(connectConfig);
@@ -506,23 +559,6 @@ export function registerSshIpc() {
     }
   );
 
-  // Execute command (guarded: only allow known-safe command prefixes from renderer)
-  const ALLOWED_COMMAND_PREFIXES = [
-    'git ',
-    'ls ',
-    'pwd',
-    'cat ',
-    'head ',
-    'tail ',
-    'wc ',
-    'stat ',
-    'file ',
-    'which ',
-    'echo ',
-    'test ',
-    '[ ',
-  ];
-
   ipcMain.handle(
     SSH_IPC_CHANNELS.EXECUTE_COMMAND,
     async (
@@ -538,14 +574,11 @@ export function registerSshIpc() {
       error?: string;
     }> => {
       try {
-        // Validate the command against the allowlist
         const trimmed = command.trimStart();
-        const isAllowed = ALLOWED_COMMAND_PREFIXES.some(
-          (prefix) => trimmed === prefix.trimEnd() || trimmed.startsWith(prefix)
-        );
-        if (!isAllowed) {
+        const validationError = getSshExecuteCommandValidationError(command);
+        if (validationError) {
           console.warn(`[sshIpc] Blocked disallowed command: ${trimmed.slice(0, 80)}`);
-          return { success: false, error: 'Command not allowed' };
+          return { success: false, error: validationError };
         }
 
         const result = await sshService.executeCommand(connectionId, command, cwd);
