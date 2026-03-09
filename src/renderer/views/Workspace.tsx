@@ -450,6 +450,7 @@ export function Workspace() {
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                       onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setShowEditorMode(false);
                         setDiffViewerInitialFile(filePath ?? null);
                         setDiffViewerTaskPath(taskPath ?? null);
                         setShowDiffViewer(true);
