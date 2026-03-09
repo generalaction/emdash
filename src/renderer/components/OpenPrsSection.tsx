@@ -19,11 +19,11 @@ const prBadgeClass =
   'inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground';
 
 const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
-  const { prs, loading, error } = usePullRequests(projectPath);
+  const { prs, totalCount, loading, loadingMore, error, loadMore, hasMore } =
+    usePullRequests(projectPath);
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
-  const [showAll, setShowAll] = useState(false);
   const [creatingForPr, setCreatingForPr] = useState<number | null>(null);
 
   const filteredPrs = useMemo(() => {
@@ -47,9 +47,6 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
       return b.number - a.number;
     });
   }, [filteredPrs]);
-
-  const visiblePrs = showAll ? sortedPrs : sortedPrs.slice(0, DEFAULT_VISIBLE);
-  const hasMore = sortedPrs.length > DEFAULT_VISIBLE && !showAll;
 
   const handleReviewPr = async (pr: PullRequestSummary) => {
     setCreatingForPr(pr.number);
@@ -119,7 +116,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
     return null; // Don't show section if we can't load PRs
   }
 
-  if (prs.length === 0) {
+  if (totalCount === 0 && prs.length === 0) {
     return null; // No open PRs to show
   }
 
@@ -136,15 +133,13 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
         <h2 className="text-xl font-semibold">Open PRs</h2>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {prs.length}
-        </span>
+        <span className={prBadgeClass}>{totalCount}</span>
       </button>
 
       {!collapsed && (
         <TooltipProvider delayDuration={100}>
           <div className="mt-4 flex flex-col gap-3">
-            {prs.length > 5 && (
+            {totalCount > 5 && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -156,9 +151,9 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
               </div>
             )}
 
-            {visiblePrs.length > 0 ? (
+            {sortedPrs.length > 0 ? (
               <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-                {visiblePrs.map((pr) => (
+                {sortedPrs.map((pr) => (
                   <div
                     key={pr.number}
                     className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
@@ -195,9 +190,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                             Review
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">
-                          Create or reopen a review workspace
-                        </TooltipContent>
+                        <TooltipContent side="top">Review PR in Emdash</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -224,13 +217,17 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
             )}
 
             {hasMore && (
-              <button
+              <Button
                 type="button"
-                className="cursor-pointer text-center text-sm text-muted-foreground underline"
-                onClick={() => setShowAll(true)}
+                variant="ghost"
+                size="sm"
+                className="mx-auto h-8 gap-2 text-sm text-muted-foreground"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
               >
-                Show all {sortedPrs.length} PRs
-              </button>
+                {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {loadingMore ? 'Loading PRs...' : `Load more PRs (${prs.length}/${totalCount})`}
+              </Button>
             )}
           </div>
         </TooltipProvider>

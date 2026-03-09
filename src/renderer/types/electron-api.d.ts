@@ -863,9 +863,10 @@ declare global {
       }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;
@@ -1693,9 +1694,10 @@ export interface ElectronAPI {
   }>;
   githubCheckCLIInstalled?: () => Promise<boolean>;
   githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (
-    projectPath: string
-  ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
