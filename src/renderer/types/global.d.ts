@@ -362,9 +362,10 @@ declare global {
         githubRepoCreated?: boolean;
         error?: string;
       }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;

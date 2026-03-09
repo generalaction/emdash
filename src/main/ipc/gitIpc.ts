@@ -838,23 +838,26 @@ export function registerGitIpc() {
   );
 
   // Git: Per-file diff (moved from Codex IPC)
-  ipcMain.handle('git:get-file-diff', async (_, args: { taskPath: string; filePath: string }) => {
-    try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(args.taskPath);
-      if (remoteProject) {
-        const diff = await remoteGitService.getFileDiff(
-          remoteProject.sshConnectionId,
-          args.taskPath,
-          args.filePath
-        );
+  ipcMain.handle(
+    'git:get-file-diff',
+    async (_, args: { taskPath: string; filePath: string; baseRef?: string }) => {
+      try {
+        const remoteProject = await resolveRemoteProjectForWorktreePath(args.taskPath);
+        if (remoteProject) {
+          const diff = await remoteGitService.getFileDiff(
+            remoteProject.sshConnectionId,
+            args.taskPath,
+            args.filePath
+          );
+          return { success: true, diff };
+        }
+        const diff = await gitGetFileDiff(args.taskPath, args.filePath, args.baseRef);
         return { success: true, diff };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
-      const diff = await gitGetFileDiff(args.taskPath, args.filePath);
-      return { success: true, diff };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  );
 
   // Git: Stage file
   ipcMain.handle('git:stage-file', async (_, args: { taskPath: string; filePath: string }) => {
