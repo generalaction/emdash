@@ -119,16 +119,21 @@ export class WorkspaceProviderService extends EventEmitter {
 
     const envVars: Record<string, string> = {
       EMDASH_INSTANCE_ID: instance.externalId || instance.host,
+      EMDASH_TASK_ID: instance.taskId,
       ...(config.env ?? {}),
     };
 
     try {
-      await this.runScript({
+      const result = await this.runScript({
         command: config.terminateCommand,
         cwd: config.projectPath,
         envVars,
         timeoutMs: TERMINATE_TIMEOUT_MS,
       });
+
+      if (result.exitCode !== 0) {
+        throw new Error(`Terminate script exited with code ${result.exitCode}`);
+      }
 
       // Clean up the SSH connection row if one exists.
       if (instance.connectionId) {

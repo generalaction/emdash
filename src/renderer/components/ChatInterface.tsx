@@ -116,6 +116,9 @@ const ChatInterface: React.FC<Props> = ({
     return task.path;
   }, [task.path]);
 
+  // Whether this is a workspace-provisioned task (may still be provisioning).
+  const isWorkspaceTask = !!task.metadata?.workspace;
+
   // For workspace tasks, use workspace connection; otherwise use project-level connection
   const effectiveRemote = useMemo(() => {
     if (workspaceConnectionId) {
@@ -1109,8 +1112,10 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
-              {/* Wait for conversations to load to ensure stable terminalId */}
-              {conversationsLoaded && (
+              {/* Wait for conversations to load to ensure stable terminalId.
+                  For workspace tasks, also wait until the workspace connection is
+                  resolved so the PTY starts on the remote host, not locally. */}
+              {conversationsLoaded && (!isWorkspaceTask || workspaceConnectionId) && (
                 <TerminalPane
                   ref={terminalRef}
                   id={terminalId}

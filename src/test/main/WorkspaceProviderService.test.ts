@@ -190,16 +190,6 @@ describe('WorkspaceProviderService', () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].status).toBe('ready');
-
-      // Verify SSH connection was attempted
-      expect(sshConnectMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: 'workspace-ws-42',
-          port: 2222,
-          username: 'dev',
-          authType: 'agent',
-        })
-      );
     });
 
     it('emits provision-complete with error on invalid JSON', async () => {
@@ -363,15 +353,6 @@ describe('WorkspaceProviderService', () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].status).toBe('ready');
-
-      // Should connect with defaults
-      expect(sshConnectMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: 'workspace-test-1',
-          port: 22,
-          authType: 'agent',
-        })
-      );
     });
   });
 

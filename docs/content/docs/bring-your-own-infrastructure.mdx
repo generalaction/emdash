@@ -131,6 +131,7 @@ The teardown script destroys the workspace when the task is deleted.
 | Variable             | Description                                                             |
 | -------------------- | ----------------------------------------------------------------------- |
 | `EMDASH_INSTANCE_ID` | The `id` from your provision output (or `host` if no `id` was provided) |
+| `EMDASH_TASK_ID`     | The task identifier (same value passed to the provision script)         |
 
 **Example teardown script:**
 
@@ -305,12 +306,12 @@ Provision scripts have a 5-minute timeout and teardown scripts have a 2-minute t
 
 ### Teardown Script
 
-| Aspect                | Details                         |
-| --------------------- | ------------------------------- |
-| **Execution**         | `bash -c <terminateCommand>`    |
-| **Working directory** | Project root                    |
-| **Env vars**          | `EMDASH_INSTANCE_ID`            |
-| **Stdout**            | (ignored)                       |
-| **Stderr**            | Log lines                       |
-| **Exit code**         | 0 = success, non-zero = failure |
-| **Timeout**           | 2 minutes                       |
+| Aspect                | Details                                |
+| --------------------- | -------------------------------------- |
+| **Execution**         | `bash -c <terminateCommand>`           |
+| **Working directory** | Project root                           |
+| **Env vars**          | `EMDASH_INSTANCE_ID`, `EMDASH_TASK_ID` |
+| **Stdout**            | (ignored)                              |
+| **Stderr**            | Log lines                              |
+| **Exit code**         | 0 = success, non-zero = failure        |
+| **Timeout**           | 2 minutes                              |
