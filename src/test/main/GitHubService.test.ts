@@ -1,20 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { promisify } from 'util';
 
-const execCalls: string[] = [];
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp/test-emdash' },
+}));
+
+const execFileCalls: { file: string; args: string[] }[] = [];
 let issueListStdout = '[]';
 let issueSearchStdout = '[]';
 
 vi.mock('child_process', () => {
-  const execImpl = (command: string, options?: any, callback?: any) => {
-    const cb = typeof options === 'function' ? options : callback;
-    execCalls.push(command);
+  const execFileImpl = (file: string, args?: string[] | any, options?: any, callback?: any) => {
+    // execFile can be called as (file, args, cb) or (file, args, options, cb)
+    const actualArgs = Array.isArray(args) ? args : [];
+    const cb =
+      typeof callback === 'function'
+        ? callback
+        : typeof options === 'function'
+          ? options
+          : undefined;
+
+    execFileCalls.push({ file, args: actualArgs });
 
     const respond = (stdout: string) => {
       setImmediate(() => {
         cb?.(null, stdout, '');
       });
     };
+
+    const command = [file, ...actualArgs].join(' ');
 
     if (command.startsWith('gh auth status')) {
       respond('github.com\n  ✓ Logged in to github.com account test (keyring)\n');
@@ -30,8 +44,8 @@ vi.mock('child_process', () => {
           avatar_url: '',
         })
       );
-    } else if (command.startsWith('gh issue list')) {
-      if (command.includes('--search')) {
+    } else if (command.includes('issue') && command.includes('list')) {
+      if (actualArgs.includes('--search')) {
         respond(issueSearchStdout);
       } else {
         respond(issueListStdout);
@@ -44,9 +58,9 @@ vi.mock('child_process', () => {
   };
 
   // Avoid TS7022 by annotating via any-cast for the Symbol-based property
-  (execImpl as any)[promisify.custom] = (command: string, options?: any) => {
+  (execFileImpl as any)[promisify.custom] = (file: string, args?: string[], options?: any) => {
     return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-      execImpl(command, options, (err: any, stdout: string, stderr: string) => {
+      execFileImpl(file, args, options, (err: any, stdout: string, stderr: string) => {
         if (err) {
           reject(err);
           return;
@@ -57,7 +71,15 @@ vi.mock('child_process', () => {
   };
 
   return {
-    exec: execImpl,
+    execFile: execFileImpl,
+    spawn: vi.fn().mockReturnValue({
+      stdin: { write: vi.fn(), end: vi.fn() },
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn((event: string, cb: any) => {
+        if (event === 'close') setImmediate(() => cb(0));
+      }),
+    }),
   };
 });
 
@@ -82,7 +104,7 @@ import { GitHubService } from '../../main/services/GitHubService';
 
 describe('GitHubService.isAuthenticated', () => {
   beforeEach(() => {
-    execCalls.length = 0;
+    execFileCalls.length = 0;
     issueListStdout = '[]';
     issueSearchStdout = '[]';
     setPasswordMock.mockClear();
@@ -96,8 +118,11 @@ describe('GitHubService.isAuthenticated', () => {
     const result = await service.isAuthenticated();
 
     expect(result).toBe(true);
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
+    expect(
+      execFileCalls.find(
+        (c) => c.file === 'gh' && c.args.includes('auth') && c.args.includes('status')
+      )
+    ).toBeDefined();
     expect(setPasswordMock).not.toHaveBeenCalled();
   });
 
