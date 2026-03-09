@@ -115,16 +115,16 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         const originalContent = diffRes.diff.originalContent ?? converted.original;
         let modifiedContent = diffRes.diff.modifiedContent ?? converted.modified;
 
-        // Re-read the file from disk to get the most up-to-date content.
-        // The agent may still be writing while we render, so this ensures
-        // we show the latest version rather than a stale backend snapshot.
-        try {
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
-          if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
-            modifiedContent = readRes.content.replace(/\n$/, '');
+        if (!baseRef) {
+          // Re-read the file from disk to get the most up-to-date working tree content.
+          try {
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
+              modifiedContent = readRes.content.replace(/\n$/, '');
+            }
+          } catch {
+            // fallback to diff-based content
           }
-        } catch {
-          // fallback to diff-based content
         }
 
         if (!cancelled) {

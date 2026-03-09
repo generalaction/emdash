@@ -282,13 +282,43 @@ export function registerGithubIpc() {
           ? args.taskName.trim()
           : `pr-${prNumber}-${defaultSlug}`;
       const branchName = args.branchName || `pr/${prNumber}`;
+      const buildTaskInfo = (taskPath: string, name: string) => ({
+        id: crypto.randomUUID(),
+        projectId,
+        name,
+        branch: branchName,
+        path: taskPath,
+        status: 'active' as const,
+        useWorktree: true,
+        metadata: {
+          prNumber,
+          prTitle: args.prTitle || null,
+        },
+      });
 
       try {
         const currentWorktrees = await worktreeService.listWorktrees(projectPath);
         const existing = currentWorktrees.find((wt) => wt.branch === branchName);
 
         if (existing) {
-          return { success: true, worktree: existing, branchName, taskName: existing.name };
+          const persistedTask = await databaseService.getTaskByPath(existing.path);
+          const existingTask = persistedTask ?? buildTaskInfo(existing.path, existing.name);
+
+          if (!persistedTask) {
+            try {
+              await databaseService.saveTask(existingTask);
+            } catch (dbError) {
+              log.warn('Failed to save existing PR review task to database:', dbError);
+            }
+          }
+
+          return {
+            success: true,
+            worktree: existing,
+            branchName,
+            taskName: existingTask.name,
+            task: existingTask,
+          };
         }
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
@@ -310,20 +340,7 @@ export function registerGithubIpc() {
         );
 
         // Save a task with PR metadata so the UI can identify it as a PR review task
-        const taskId = crypto.randomUUID();
-        const taskInfo = {
-          id: taskId,
-          projectId,
-          name: taskName,
-          branch: branchName,
-          path: worktree.path,
-          status: 'active' as const,
-          useWorktree: true,
-          metadata: {
-            prNumber,
-            prTitle: args.prTitle || null,
-          },
-        };
+        const taskInfo = buildTaskInfo(worktree.path, taskName);
 
         try {
           await databaseService.saveTask(taskInfo);

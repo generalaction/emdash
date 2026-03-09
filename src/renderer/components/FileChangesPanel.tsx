@@ -160,19 +160,25 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setPrDiffLoading(true);
     try {
       const result = await fetchPrBaseDiff(safeTaskPath, prNumber);
-      if (result.success && result.diff) {
-        setPrDiffChanges(parseDiffToFileChanges(result.diff));
+      if (result.success) {
+        setPrDiffChanges(parseDiffToFileChanges(result.diff ?? ''));
         setPrBaseBranch(result.baseBranch || null);
         setPrHeadBranch(result.headBranch || null);
         setPrUrl(result.prUrl || null);
       } else {
         setPrDiffChanges([]);
+        setPrBaseBranch(null);
+        setPrHeadBranch(null);
+        setPrUrl(null);
         if (result.error) {
           console.error('Failed to load PR diff:', result.error);
         }
       }
     } catch (err) {
       setPrDiffChanges([]);
+      setPrBaseBranch(null);
+      setPrHeadBranch(null);
+      setPrUrl(null);
       console.error('Failed to load PR diff:', err);
     } finally {
       setPrDiffLoading(false);

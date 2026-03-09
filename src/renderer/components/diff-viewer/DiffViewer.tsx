@@ -36,9 +36,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
     if (!prNumber || !worktreePath) return;
     try {
       const result = await fetchPrBaseDiff(worktreePath, prNumber);
-      if (result.success && result.diff) {
-        setPrFileChanges(parseDiffToFileChanges(result.diff));
+      if (result.success) {
+        setPrFileChanges(parseDiffToFileChanges(result.diff ?? ''));
         setPrBaseRef(result.baseBranch ? `origin/${result.baseBranch}` : null);
+      } else {
+        setPrFileChanges([]);
+        setPrBaseRef(null);
       }
     } catch (err) {
       console.error('Failed to fetch PR diff for DiffViewer:', err);
@@ -96,7 +99,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
         {activeTab === 'changes' ? (
           <ChangesTab
             taskId={taskId}
-            taskPath={taskPath}
+            taskPath={taskPath || scopedTaskPath}
             fileChanges={fileChanges}
             onRefreshChanges={isPrReview ? undefined : refreshChanges}
             header={tabHeader}
@@ -108,7 +111,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           />
         ) : (
           <HistoryTab
-            taskPath={taskPath}
+            taskPath={taskPath || scopedTaskPath}
             header={tabHeader}
             closeButton={closeButton}
             leftPanelSize={leftPanelSize}
