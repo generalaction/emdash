@@ -3,6 +3,7 @@ import { usePullRequests, type PullRequestSummary } from '../hooks/usePullReques
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
 import { ArrowUpRight, ChevronDown, ChevronRight, Github, Loader2, Search } from 'lucide-react';
 import type { Task } from '../types/app';
@@ -14,9 +15,11 @@ interface OpenPrsSectionProps {
 }
 
 const DEFAULT_VISIBLE = 10;
+const prBadgeClass =
+  'inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground';
 
 const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
-  const { prs, loading, error, refresh } = usePullRequests(projectPath);
+  const { prs, loading, error } = usePullRequests(projectPath);
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
@@ -139,91 +142,98 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
       </button>
 
       {!collapsed && (
-        <div className="mt-4 flex flex-col gap-3">
-          {prs.length > 5 && (
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search PRs..."
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="h-9 w-full pl-10"
-              />
-            </div>
-          )}
+        <TooltipProvider delayDuration={100}>
+          <div className="mt-4 flex flex-col gap-3">
+            {prs.length > 5 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search PRs..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  className="h-9 w-full pl-10"
+                />
+              </div>
+            )}
 
-          {visiblePrs.length > 0 ? (
-            <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-              {visiblePrs.map((pr) => (
-                <div
-                  key={pr.number}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        #{pr.number}
-                      </span>
-                      <span className="truncate text-sm font-medium">{pr.title}</span>
-                      {pr.isDraft && (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          Draft
-                        </span>
-                      )}
+            {visiblePrs.length > 0 ? (
+              <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                {visiblePrs.map((pr) => (
+                  <div
+                    key={pr.number}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
+                        <span className="truncate text-sm font-medium">{pr.title}</span>
+                        {pr.isDraft && <span className={`${prBadgeClass} shrink-0`}>Draft</span>}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="truncate font-mono">{pr.headRefName}</span>
+                        {pr.authorLogin && (
+                          <>
+                            <span>&middot;</span>
+                            <span>{pr.authorLogin}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="truncate font-mono">{pr.headRefName}</span>
-                      {pr.authorLogin && (
-                        <>
-                          <span>&middot;</span>
-                          <span>{pr.authorLogin}</span>
-                        </>
-                      )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={creatingForPr === pr.number}
+                            onClick={() => handleReviewPr(pr)}
+                          >
+                            {creatingForPr === pr.number ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : null}
+                            Review
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          Create or reopen a review workspace
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-0.5 px-1.5 text-muted-foreground"
+                            onClick={() => window.electronAPI.openExternal(pr.url)}
+                          >
+                            <Github className="h-3.5 w-3.5" />
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Open this pull request on GitHub</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      disabled={creatingForPr === pr.number}
-                      onClick={() => handleReviewPr(pr)}
-                    >
-                      {creatingForPr === pr.number ? (
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      ) : null}
-                      Review
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-0.5 px-1.5 text-muted-foreground"
-                      onClick={() => window.electronAPI.openExternal(pr.url)}
-                      title="View on GitHub"
-                    >
-                      <Github className="h-3.5 w-3.5" />
-                      <ArrowUpRight className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No PRs match your search.
-            </p>
-          )}
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No PRs match your search.
+              </p>
+            )}
 
-          {hasMore && (
-            <button
-              type="button"
-              className="cursor-pointer text-center text-sm text-muted-foreground underline"
-              onClick={() => setShowAll(true)}
-            >
-              Show all {sortedPrs.length} PRs
-            </button>
-          )}
-        </div>
+            {hasMore && (
+              <button
+                type="button"
+                className="cursor-pointer text-center text-sm text-muted-foreground underline"
+                onClick={() => setShowAll(true)}
+              >
+                Show all {sortedPrs.length} PRs
+              </button>
+            )}
+          </div>
+        </TooltipProvider>
       )}
     </div>
   );
