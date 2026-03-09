@@ -4,7 +4,7 @@ import { type Agent } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import { agentMeta } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
 import AgentLogo from './AgentLogo';
@@ -400,7 +400,23 @@ const MultiAgentTask: React.FC<Props> = ({
   }, [variantBusy, task.id]);
 
   // Ref to the active terminal
-  const activeTerminalRef = useRef<{ focus: () => void }>(null);
+  const activeTerminalRef = useRef<TerminalPaneHandle>(null);
+
+  const handleTerminalViewportScrollForwarding = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
+    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+    const target = event.target;
+    if (target instanceof Element && target.closest('[data-terminal-container]')) {
+      return;
+    }
+
+    const didScroll =
+      activeTerminalRef.current?.scrollViewportByWheel(event.deltaY, event.deltaMode) ?? false;
+    if (didScroll) {
+      event.preventDefault();
+    }
+  };
 
   // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
@@ -536,7 +552,10 @@ const MultiAgentTask: React.FC<Props> = ({
                   </div>
                 </TooltipProvider>
               </div>
-              <div className="min-h-0 flex-1 px-6 pt-4">
+              <div
+                className="min-h-0 flex-1 px-6 pt-4"
+                onWheelCapture={handleTerminalViewportScrollForwarding}
+              >
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                     v.agent === 'mistral'

@@ -3,6 +3,11 @@ import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
 
+export type TerminalPaneHandle = {
+  focus: () => void;
+  scrollViewportByWheel: (deltaY: number, deltaMode: number) => boolean;
+};
+
 type Props = {
   id: string;
   cwd?: string;
@@ -30,7 +35,7 @@ type Props = {
   onFirstMessage?: (message: string) => void;
 };
 
-const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
+const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
   (
     {
       id,
@@ -112,6 +117,8 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         focus: () => {
           sessionRef.current?.focus();
         },
+        scrollViewportByWheel: (deltaY: number, deltaMode: number) =>
+          sessionRef.current?.scrollViewportByWheel(deltaY, deltaMode) ?? false,
       }),
       []
     );

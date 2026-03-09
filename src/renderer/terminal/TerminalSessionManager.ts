@@ -109,6 +109,7 @@ export class TerminalSessionManager {
   private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private wheelLineRemainder = 0;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -539,6 +540,18 @@ export class TerminalSessionManager {
     }
   }
 
+  scrollViewportByWheel(deltaY: number, deltaMode: number): boolean {
+    const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
+    if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
+
+    const totalDelta = this.wheelLineRemainder + lineDelta;
+    const wholeLines = totalDelta > 0 ? Math.floor(totalDelta) : Math.ceil(totalDelta);
+    this.wheelLineRemainder = totalDelta - wholeLines;
+
+    if (wholeLines === 0) return false;
+    return this.scrollViewportByLines(wholeLines);
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {
@@ -764,6 +777,60 @@ export class TerminalSessionManager {
   private applyEffectiveFont() {
     const selected = this.customFontFamily || this.themeFontFamily;
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+  }
+
+  private scrollViewportByLines(lines: number): boolean {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      if (
+        !buffer ||
+        typeof buffer.baseY !== 'number' ||
+        typeof buffer.viewportY !== 'number' ||
+        lines === 0
+      ) {
+        return false;
+      }
+
+      const targetLine = Math.max(0, Math.min(buffer.baseY, buffer.viewportY + lines));
+      if (targetLine === buffer.viewportY) return false;
+
+      this.terminal.scrollToLine(targetLine);
+      return true;
+    } catch (error) {
+      log.warn('Failed to scroll terminal viewport', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private normalizeWheelDeltaToLines(deltaY: number, deltaMode: number): number {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      return deltaY;
+    }
+
+    if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return deltaY * this.terminal.rows;
+    }
+
+    return deltaY / this.getApproximateRowHeightPx();
+  }
+
+  private getApproximateRowHeightPx(): number {
+    const rowElement = this.container.querySelector('.xterm-rows > div');
+    if (rowElement instanceof HTMLElement) {
+      const { height } = rowElement.getBoundingClientRect();
+      if (height > 0) return height;
+    }
+
+    const fontSize =
+      typeof this.terminal.options.fontSize === 'number'
+        ? this.terminal.options.fontSize
+        : DEFAULT_FONT_SIZE;
+    const lineHeight =
+      typeof this.terminal.options.lineHeight === 'number' ? this.terminal.options.lineHeight : 1.2;
+
+    return Math.max(fontSize * lineHeight, 1);
   }
 
   private scheduleFit() {

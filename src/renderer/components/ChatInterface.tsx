@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
 import { agentStatusStore } from '../lib/agentStatusStore';
@@ -398,7 +398,23 @@ const ChatInterface: React.FC<Props> = ({
   }, [activeConversationId, conversations, task.id]);
 
   // Ref to control terminal focus imperatively if needed
-  const terminalRef = useRef<{ focus: () => void }>(null);
+  const terminalRef = useRef<TerminalPaneHandle>(null);
+
+  const handleTerminalViewportScrollForwarding = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
+    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+    const target = event.target;
+    if (target instanceof Element && target.closest('[data-terminal-container]')) {
+      return;
+    }
+
+    const didScroll =
+      terminalRef.current?.scrollViewportByWheel(event.deltaY, event.deltaMode) ?? false;
+    if (didScroll) {
+      event.preventDefault();
+    }
+  };
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -1114,7 +1130,10 @@ const ChatInterface: React.FC<Props> = ({
               })()}
             </div>
           </div>
-          <div className="mt-4 min-h-0 flex-1 px-6">
+          <div
+            className="mt-4 min-h-0 flex-1 px-6"
+            onWheelCapture={handleTerminalViewportScrollForwarding}
+          >
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 agent === 'charm'
