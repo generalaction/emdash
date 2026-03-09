@@ -1114,7 +1114,12 @@ export class GitHubService {
         });
         child.stdin.write('Y\n');
         child.stdin.end();
-        child.on('close', () => resolve());
+        child.on('close', (code) => {
+          if (code !== 0) {
+            console.warn(`gh auth logout exited with code ${code}`);
+          }
+          resolve();
+        });
         child.on('error', (error) => {
           console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
           resolve();
