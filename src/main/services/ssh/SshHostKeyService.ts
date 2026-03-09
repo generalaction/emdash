@@ -132,21 +132,15 @@ export class SshHostKeyService {
    * @param host - Hostname or IP address
    * @param port - SSH port
    * @param keyType - Type of host key
-   * @param fingerprint - Host key fingerprint
+   * @param key - Raw host key buffer
    */
-  async addHostKey(
-    host: string,
-    port: number,
-    keyType: string,
-    fingerprint: string
-  ): Promise<void> {
+  async addHostKey(host: string, port: number, keyType: string, key: Buffer): Promise<void> {
     await this.initialize();
 
     const hostPort = port === 22 ? host : `[${host}]:${port}`;
-    // Store fingerprint with algorithm so we can persist correctly
-    this.knownHosts.set(hostPort, { algorithm: keyType || 'ssh-ed25519', keyBase64: fingerprint });
+    const keyBase64 = key.toString('base64');
+    this.knownHosts.set(hostPort, { algorithm: keyType || 'ssh-ed25519', keyBase64 });
 
-    // Rewrite entire file to ensure consistency
     await this.persistKnownHosts();
   }
 
