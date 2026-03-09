@@ -15,7 +15,7 @@ Setup
 
 ```bash
 # Fork this repo, then clone your fork
-git clone {GITHUB_REPO}
+git clone https://github.com/gidea/scrawl
 cd scrawl
 
 # Use the correct Node.js version (if using nvm)

@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: "\U0001F4D6 Documentation"
-    url: {GITHUB_REPO}/blob/main/README.md
+    url: https://github.com/gidea/scrawl/blob/main/README.md
     about: Check the README for usage examples and documentation
   - name: "\U0001F6E0\uFE0F Contributing"
-    url: {GITHUB_REPO}/blob/main/CONTRIBUTING.md
+    url: https://github.com/gidea/scrawl/blob/main/CONTRIBUTING.md
     about: Learn how to contribute to Scrawl

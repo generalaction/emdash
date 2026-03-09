@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
 export const metadata = {
   title: 'Scrawl - Docs',
-  description: 'Open source Agentic Writer Environment',
+  description: 'Open source Agentic Writer Environment — agenticwriting.app',
   icons: {
     icon: '/brand/favicon.ico',
   },

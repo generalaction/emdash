@@ -2,6 +2,8 @@
 
 **An Open Source Agentic Writer Environment (AWE)**
 
+[Website](https://agenticwriting.app/) · [Documentation](https://agenticwriting.app/docs) · [GitHub](https://github.com/gidea/scrawl)
+
 [![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
 
 ---
@@ -37,7 +39,7 @@ The same workspace and task-based workflows that developers use to orchestrate c
 
 ```bash
 # Clone the repo
-git clone {GITHUB_REPO}
+git clone https://github.com/gidea/scrawl
 cd scrawl
 
 # Use the correct Node.js version (22.x required)
@@ -49,7 +51,7 @@ pnpm run d
 
 ### Pre-built binaries
 
-Pre-built binaries for macOS, Windows, and Linux are planned. Check the [releases page]({GITHUB_REPO}/releases) for availability.
+Pre-built binaries for macOS, Windows, and Linux are planned. Check the [releases page](https://github.com/gidea/scrawl/releases) for availability.
 
 ## Providers
 
