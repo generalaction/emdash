@@ -1,13 +1,13 @@
 ---
 title: Remote Projects
-description: Run coding agents on remote machines over SSH
+description: Run agents on remote machines over SSH
 ---
 
-Run coding agents on a remote server over SSH. Instead of working only with local repositories, you can connect to any machine and orchestrate agents against codebases hosted there.
+Run agents on a remote server over SSH. Instead of working only with local projects, you can connect to any machine and orchestrate agents against content hosted there.
 
 <img
   src="/media/addremoteproject.png"
-  alt="Add Remote Project in Emdash"
+  alt="Add Remote Project in Scrawl"
   style={{
     width: '100%',
     maxWidth: '700px',
@@ -32,7 +32,7 @@ Enter the SSH connection info:
 - **Port** — SSH port (default: 22)
 - **Username** — your SSH user
 
-If you have an existing `~/.ssh/config`, Emdash detects it automatically. Select a host from the dropdown to pre-fill the form.
+If you have an existing `~/.ssh/config`, Scrawl detects it automatically. Select a host from the dropdown to pre-fill the form.
 
 <img
   src="/media/remoteproj1.png"
@@ -53,13 +53,13 @@ Choose an authentication method:
 
 | Method          | Description                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------ |
-| **SSH Agent**   | Uses your system SSH agent. No keys stored in Emdash. Recommended.                               |
+| **SSH Agent**   | Uses your system SSH agent. No keys stored in Scrawl. Recommended.                               |
 | **Private Key** | Point to a key file (e.g., `~/.ssh/id_ed25519`). Passphrase stored securely in your OS keychain. |
 | **Password**    | Direct password auth. Password stored in your OS keychain.                                       |
 
 Click **Test Connection** to verify before proceeding.
 
-If SSH agent auth fails, Emdash suggests falling back to key-based auth and shows common key paths.
+If SSH agent auth fails, Scrawl suggests falling back to key-based auth and shows common key paths.
 
 <img
   src="/media/remoteproj2.png"
@@ -104,7 +104,7 @@ Remote projects show a connection indicator in the sidebar:
 - **Error** — connection failed (click to retry)
 - **Disconnected** — no active session
 
-Emdash auto-connects when you select a remote project and monitors the connection with periodic health checks. If the connection drops, it reconnects automatically with exponential backoff (up to 3 attempts).
+Scrawl auto-connects when you select a remote project and monitors the connection with periodic health checks. If the connection drops, it reconnects automatically with exponential backoff (up to 3 attempts).
 
 ## How It Works
 
@@ -113,9 +113,9 @@ When you create a task on a remote project:
 1. A git worktree is created on the remote machine
 2. The agent runs in a shell session over SSH
 3. File browsing and git operations happen remotely via SFTP
-4. Terminal output streams back to your local Emdash UI in real time
+4. Terminal output streams back to your local Scrawl UI in real time
 
-All shell commands are executed on the remote server. Your local machine only runs the Emdash interface.
+All shell commands are executed on the remote server. Your local machine only runs the Scrawl interface.
 
 ## Security
 
@@ -151,7 +151,7 @@ Your remote server needs the following for full functionality:
 2. **GitHub CLI (`gh`)** installed and authenticated (required for PR features)
 3. **SSH key for GitHub** configured on the server (required for push/pull)
 
-See the [SSH Setup Guide](https://github.com/generalaction/emdash/blob/main/docs/ssh-setup.md) for detailed server preparation steps.
+See the [SSH Setup Guide]({GITHUB_REPO}/blob/main/docs/ssh-setup.md) for detailed server preparation steps.
 
 ## Current Limitations
 
@@ -163,6 +163,6 @@ Some features are not yet available for remote projects:
 - Plan lock/unlock
 - Remote lifecycle scripts
 
-## Emdash Cloud for Teams
+## Cloud for Teams
 
-For business and team setups — including managed remote environments, centralized configuration, and admin controls — visit [emdash.sh/cloud](https://emdash.sh/cloud) to learn more.
+Cloud-hosted team environments with centralized configuration and admin controls are on the Scrawl roadmap.

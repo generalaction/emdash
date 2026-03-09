@@ -3,7 +3,7 @@ title: MCP Servers
 description: Connect your agents to external tools and data sources via MCP
 ---
 
-MCP (Model Context Protocol) lets your coding agents connect to external tools and data sources — databases, APIs, browsers, and more. Emdash manages MCP server configs across all your installed agents from a single place, so you configure once and every agent picks it up.
+MCP (Model Context Protocol) lets your agents connect to external tools and data sources — databases, APIs, browsers, and more. Scrawl manages MCP server configs across all your installed agents from a single place, so you configure once and every agent picks it up.
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ Use the search box to filter by name or description.
 5. Select which agents to sync to under **Sync to agents**
 6. Click **Add**
 
-Emdash writes the config into each selected agent's native config file. The server is available in your next agent session.
+Scrawl writes the config into each selected agent's native config file. The server is available in your next agent session.
 
 ## Adding a Custom Server
 
@@ -40,7 +40,7 @@ Click an installed server card to edit its config — change credentials, update
 
 ## Agent Sync
 
-When you add or edit a server, Emdash translates the config into each agent's native format and writes it to the correct location:
+When you add or edit a server, Scrawl translates the config into each agent's native format and writes it to the correct location:
 
 | Agent          | Config file                        |
 | -------------- | ---------------------------------- |
@@ -54,7 +54,7 @@ When you add or edit a server, Emdash translates the config into each agent's na
 | GitHub Copilot | `~/.copilot/mcp-config.json`       |
 | Droid          | `~/.droid/settings.json`           |
 
-This means MCP servers configured through Emdash also work when you run these agents outside of Emdash.
+This means MCP servers configured through Scrawl also work when you run these agents outside of Scrawl.
 
 ## Transport Compatibility
 
@@ -77,8 +77,12 @@ The built-in catalog includes 40+ servers for common services:
 
 Each catalog entry includes a link to the server's documentation for setup details.
 
+## Vector Database Integration (Planned)
+
+MCP servers enable Scrawl to connect to cloud vector databases for retrieval-augmented generation (RAG). This is a key part of Scrawl's vision for research-backed writing workflows — connecting agents to your knowledge base so they can produce better-informed content. Stay tuned for built-in vector database MCP server support.
+
 ## Tips
 
 - You can sync a single MCP server to multiple agents at once — no need to configure each one separately.
 - Environment variables with credential keys are highlighted in the modal so you know what to fill in.
-- Click **Refresh** to re-detect installed agents if you've installed a new CLI since opening Emdash.
+- Click **Refresh** to re-detect installed agents if you've installed a new CLI since opening Scrawl.

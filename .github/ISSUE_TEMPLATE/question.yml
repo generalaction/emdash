@@ -1,18 +1,18 @@
 name: Question
-description: Ask a question about emdash
+description: Ask a question about Scrawl
 title: "[question]: "
 labels: ["question"]
 body:
   - type: markdown
     attributes:
       value: |
-        Have a question about emdash? We're here to help! Please provide as much detail as possible.
+        Have a question about Scrawl? We're here to help! Please provide as much detail as possible.
 
   - type: textarea
     id: question
     attributes:
       label: Your Question
-      description: What would you like to know about emdash?
+      description: What would you like to know about Scrawl?
       placeholder: Ask your question here...
     validations:
       required: true
@@ -24,8 +24,8 @@ body:
       description: |
         What are you trying to achieve? Providing context helps us give better answers.
       placeholder: |
-        e.g., "I'm trying to understand how emdash handles..."
-        or "I want to use emdash to...but..."
+        e.g., "I'm trying to understand how Scrawl handles..."
+        or "I want to use Scrawl to...but..."
 
   - type: checkboxes
     id: checklist

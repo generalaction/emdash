@@ -6,19 +6,19 @@ function Logo() {
     <div className="flex items-center gap-2">
       <Image
         src="/brand/icon-dark.png"
-        alt="Emdash"
+        alt="Scrawl"
         width={24}
         height={24}
         className="rounded-md dark:hidden"
       />
       <Image
         src="/brand/icon-light.png"
-        alt="Emdash"
+        alt="Scrawl"
         width={24}
         height={24}
         className="hidden rounded-md dark:block"
       />
-      <span className="font-semibold">Emdash</span>
+      <span className="font-semibold">Scrawl</span>
     </div>
   );
 }

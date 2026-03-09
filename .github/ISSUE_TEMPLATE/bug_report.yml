@@ -40,8 +40,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: emdash Version
-      description: What version of emdash are you running? (found in settings)
+      label: Scrawl Version
+      description: What version of Scrawl are you running? (found in settings)
       placeholder: "e.g., 0.1.0 or commit hash"
     validations:
       required: true

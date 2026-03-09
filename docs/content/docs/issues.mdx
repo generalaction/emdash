@@ -3,11 +3,11 @@ title: Passing Issues
 description: Pass issues from Linear, Jira, or GitHub directly to agents
 ---
 
-Emdash connects to Linear, Jira, and GitHub Issues. Pass issues from your tracker directly to agents. The issue title, description, and metadata become part of the agent's prompt.
+Scrawl connects to Linear, Jira, and GitHub Issues. Pass issues from your tracker directly to agents. The issue title, description, and metadata become part of the agent's prompt.
 
 <img
   src="/media/passissues.png"
-  alt="Passing issues to agents in Emdash"
+  alt="Passing issues to agents in Scrawl"
   style={{
     width: '100%',
     maxWidth: '700px',
@@ -29,13 +29,13 @@ The agent receives the full issue context and begins working immediately.
 
 ## Supported Trackers
 
-Emdash supports:
+Scrawl supports:
 
 - Linear
 - Jira
 - GitHub Issues
 
-Missing your tracker? [Open an issue](https://github.com/generalaction/emdash/issues) or message us on [Discord](https://discord.gg/f2fv7YxuR2).
+Missing your tracker? [Open an issue]({GITHUB_REPO}/issues).
 
 ## Connecting Your Tracker
 
@@ -45,17 +45,17 @@ Go to **Settings → Connections** to connect.
 
 1. Go to [Linear Settings → Security & access → Personal API keys](https://linear.app/settings/api)
 2. Create a new API key
-3. Paste the key in Emdash and click Connect
+3. Paste the key in Scrawl and click Connect
 
 ### Jira
 
 1. Go to [Atlassian Account Settings → Security → API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
 2. Create a new API token
-3. In Emdash, enter your site URL (e.g., `https://yourcompany.atlassian.net`), email, and token
+3. In Scrawl, enter your site URL (e.g., `https://yourcompany.atlassian.net`), email, and token
 
 ### GitHub Issues
 
-GitHub Issues requires the GitHub CLI (`gh`). Emdash auto-installs it if missing.
+GitHub Issues requires the GitHub CLI (`gh`). Scrawl auto-installs it if missing.
 
 1. Click **Sign in with GitHub**
 2. Copy the device code shown
@@ -63,4 +63,4 @@ GitHub Issues requires the GitHub CLI (`gh`). Emdash auto-installs it if missing
 
 ## Auto-Closing Issues
 
-When you create a PR from a task that has a linked issue, Emdash automatically closes the associated GitHub or Linear issue. This only applies to issues that were passed to the task at creation time.
+When you create a PR from a task that has a linked issue, Scrawl automatically closes the associated GitHub or Linear issue. This only applies to issues that were passed to the task at creation time.

@@ -23,9 +23,12 @@ optional_env:
   - CODEX_APPROVAL_POLICY
 ---
 
-# Emdash
+<!-- Scrawl is a fork of Emdash (https://github.com/generalaction/emdash). -->
+<!-- Technical details below reflect the inherited codebase. Env var names, file paths, and config names match the current code. -->
 
-Cross-platform Electron app that orchestrates multiple CLI coding agents (Claude Code, Codex, Qwen Code, Amp, etc.) in parallel. Each agent runs in its own Git worktree for isolation. Also supports remote development over SSH.
+# Scrawl
+
+Cross-platform Electron app that orchestrates multiple CLI agents (coding and writing) in parallel. Each agent runs in its own Git worktree for isolation. Also supports remote development over SSH. Forked from [Emdash](https://github.com/generalaction/emdash) and repositioned as an Agentic Writer Environment for copywriters, content writers, proposal writers, and technical writers.
 
 ### Tech Stack
 

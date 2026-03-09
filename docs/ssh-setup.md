@@ -1,10 +1,10 @@
 # SSH Remote Projects Setup Guide
 
-This guide covers how to use Emdash's SSH feature to work with remote projects on remote servers via SSH/SFTP.
+This guide covers how to use Scrawl's SSH feature to work with remote projects on remote servers via SSH/SFTP.
 
 ## Overview
 
-Emdash supports remote development by connecting to servers via SSH. This allows you to:
+Scrawl supports remote development by connecting to servers via SSH. This allows you to:
 
 - Run coding agents on remote machines
 - Access and edit files on remote servers through SFTP
@@ -14,7 +14,7 @@ Emdash supports remote development by connecting to servers via SSH. This allows
 ### How It Works
 
 When you add a remote project:
-1. Emdash establishes an SSH connection to your server
+1. Scrawl establishes an SSH connection to your server
 2. Files are accessed via SFTP for browsing and editing
 3. Git operations run over SSH commands
 4. Coding agents execute in remote worktrees
@@ -22,7 +22,7 @@ When you add a remote project:
 
 ## Preparing Your Remote Server
 
-Before adding a remote project in Emdash, set up your server with the required tools.
+Before adding a remote project in Scrawl, set up your server with the required tools.
 
 ### 1. Install Git
 
@@ -37,7 +37,7 @@ git config --global user.email "your@email.com"
 
 ### 2. Install GitHub CLI (for PR features)
 
-The `gh` CLI is required for creating PRs, viewing check runs, and other GitHub operations from the Emdash UI.
+The `gh` CLI is required for creating PRs, viewing check runs, and other GitHub operations from the Scrawl UI.
 
 ```bash
 # Ubuntu/Debian
@@ -74,7 +74,7 @@ ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
 ssh -T git@github.com
 ```
 
-**Important:** Use the absolute path (e.g., `/home/user/.ssh/id_github`) in `core.sshCommand`, not `~`. Emdash runs commands in a non-interactive shell where tilde expansion may not work.
+**Important:** Use the absolute path (e.g., `/home/user/.ssh/id_github`) in `core.sshCommand`, not `~`. Scrawl runs commands in a non-interactive shell where tilde expansion may not work.
 
 Alternatively, configure SSH directly in `~/.ssh/config`:
 
@@ -100,7 +100,7 @@ mkdir ~/my-project && cd ~/my-project && git init
 git remote set-url origin git@github.com:your-org/your-repo.git
 ```
 
-### 5. Install a Coding Agent
+### 5. Install a CLI Agent
 
 At least one CLI agent must be installed on the server. For example:
 
@@ -146,7 +146,7 @@ Connection:     My Server
 Project Path:   /home/user/projects/my-app
 ```
 
-5. Emdash will validate the path and detect Git configuration
+5. Scrawl will validate the path and detect Git configuration
 
 ## Connection Configuration Options
 
@@ -161,7 +161,7 @@ Project Path:   /home/user/projects/my-app
 
 ### Connection Timeouts
 
-Emdash uses sensible defaults for connection reliability:
+Scrawl uses sensible defaults for connection reliability:
 
 - **Ready Timeout**: 20 seconds (connection establishment)
 - **Keepalive Interval**: 60 seconds (connection health check)
@@ -171,11 +171,11 @@ These settings ensure stable long-running agent sessions.
 
 ## Authentication Methods
 
-Emdash supports three authentication methods, listed from most to least secure:
+Scrawl supports three authentication methods, listed from most to least secure:
 
 ### 1. SSH Agent (Recommended)
 
-Uses your system's SSH agent for key-based authentication without storing private keys in Emdash.
+Uses your system's SSH agent for key-based authentication without storing private keys in Scrawl.
 
 **Requirements:**
 - SSH agent running (`ssh-agent`)
@@ -198,7 +198,7 @@ ssh-add -l
 
 ### 2. Private Key
 
-Specify a private key file directly. Emdash reads the key file but stores passphrases securely in your system keychain.
+Specify a private key file directly. Scrawl reads the key file but stores passphrases securely in your system keychain.
 
 **Supported Key Formats:**
 - OpenSSH format (`id_rsa`, `id_ed25519`, `id_ecdsa`)
@@ -212,7 +212,7 @@ Private Key Path: /Users/you/.ssh/id_ed25519
 Passphrase:       [if key is encrypted]
 ```
 
-**Security:** Passphrases are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), not in Emdash's database.
+**Security:** Passphrases are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), not in Scrawl's database.
 
 ### 3. Password
 
@@ -227,7 +227,7 @@ Direct password authentication. Stored securely in your system keychain.
 
 ## Host Key Verification
 
-Emdash verifies server identity using SSH host keys to prevent man-in-the-middle attacks.
+Scrawl verifies server identity using SSH host keys to prevent man-in-the-middle attacks.
 
 ### First Connection
 
@@ -246,10 +246,10 @@ Verify the fingerprint matches your server's actual key before trusting.
 
 ### Managing Known Hosts
 
-Emdash uses your system's `~/.ssh/known_hosts` file for host key storage. This means:
+Scrawl uses your system's `~/.ssh/known_hosts` file for host key storage. This means:
 
-- Host keys trusted in Emdash are also trusted by your CLI SSH
-- Host keys verified via CLI SSH are trusted in Emdash
+- Host keys trusted in Scrawl are also trusted by your CLI SSH
+- Host keys verified via CLI SSH are trusted in Scrawl
 - No separate host key management needed
 
 ### Host Key Changed Warning
@@ -349,7 +349,7 @@ Host server
 Keys are more secure and convenient:
 ```bash
 # Generate Ed25519 key (recommended)
-ssh-keygen -t ed25519 -C "emdash@workstation"
+ssh-keygen -t ed25519 -C "scrawl@workstation"
 
 # Copy to server
 ssh-copy-id user@server
@@ -402,7 +402,7 @@ Host trusted-server
 Rotate SSH keys periodically:
 - Generate new keys every 6-12 months
 - Remove old keys from `authorized_keys`
-- Update Emdash connections with new key paths
+- Update Scrawl connections with new key paths
 
 ### 7. Audit Connections
 
@@ -445,12 +445,12 @@ ssh-keygen -R hostname
 ssh-keyscan -t ed25519 hostname
 ```
 
-### Emdash SSH Storage Locations
+### Scrawl SSH Storage Locations
 
 - **Connection configs:** Local SQLite database
 - **Passwords/Passphrases:** System keychain (via keytar)
 - **Host keys:** `~/.ssh/known_hosts` (shared with system SSH)
-- **Private keys:** Never stored by Emdash (only paths are stored)
+- **Private keys:** Never stored by Scrawl (only paths are stored)
 
 ---
 
