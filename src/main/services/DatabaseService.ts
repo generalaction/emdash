@@ -1,4 +1,5 @@
 import type sqlite3Type from 'sqlite3';
+import * as crypto from 'crypto';
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
@@ -626,7 +627,7 @@ export class DatabaseService {
       .where(eq(conversationsTable.taskId, taskId));
 
     // Create the new conversation
-    const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const conversationId = `conv_${crypto.randomUUID()}`;
     const newConversation = {
       id: conversationId,
       taskId,
@@ -710,7 +711,7 @@ export class DatabaseService {
     input: Omit<LineCommentInsert, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<string> {
     if (this.disabled) return '';
-    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `comment-${crypto.randomUUID()}`;
     const { db } = await getDrizzleClient();
     await db.insert(lineCommentsTable).values({
       id,
@@ -795,7 +796,7 @@ export class DatabaseService {
     }
     const { db } = await getDrizzleClient();
 
-    const id = connection.id ?? `ssh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = connection.id ?? `ssh_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
 
     const result = await db
