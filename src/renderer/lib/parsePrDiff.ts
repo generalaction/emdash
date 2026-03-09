@@ -1,5 +1,32 @@
 import type { FileChange } from '../hooks/useFileChanges';
 
+// Dedup cache for PR diff fetches — prevents duplicate IPC calls when multiple
+// components (FileChangesPanel, DiffViewer) request the same diff simultaneously.
+type PrDiffResult = {
+  success: boolean;
+  diff?: string;
+  baseBranch?: string;
+  headBranch?: string;
+  prUrl?: string;
+  error?: string;
+};
+const pendingFetches = new Map<string, Promise<PrDiffResult>>();
+
+export async function fetchPrBaseDiff(
+  worktreePath: string,
+  prNumber: number
+): Promise<PrDiffResult> {
+  const key = `${worktreePath}:${prNumber}`;
+  const existing = pendingFetches.get(key);
+  if (existing) return existing;
+
+  const promise = window.electronAPI
+    .githubGetPullRequestBaseDiff({ worktreePath, prNumber })
+    .finally(() => pendingFetches.delete(key));
+  pendingFetches.set(key, promise);
+  return promise;
+}
+
 /**
  * Parse a unified diff string into FileChange[] objects.
  * Handles added, deleted, renamed, and modified files.
@@ -16,11 +43,22 @@ export function parseDiffToFileChanges(diffText: string): FileChange[] {
     if (lines.length === 0) continue;
 
     // Parse file paths from the header: "a/path b/path"
-    const headerMatch = lines[0].match(/^a\/(.+?) b\/(.+)/);
-    if (!headerMatch) continue;
-
-    const oldPath = headerMatch[1];
-    const newPath = headerMatch[2];
+    // Use --- and +++ lines for reliable path extraction (handles spaces in paths)
+    let oldPath: string | undefined;
+    let newPath: string | undefined;
+    for (const l of lines.slice(1, 10)) {
+      if (l.startsWith('--- a/')) oldPath = l.slice(6);
+      else if (l.startsWith('--- /dev/null')) oldPath = '/dev/null';
+      else if (l.startsWith('+++ b/')) newPath = l.slice(6);
+      else if (l.startsWith('+++ /dev/null')) newPath = '/dev/null';
+    }
+    // Fallback to header regex for edge cases (e.g. binary files without ---/+++ lines)
+    if (!oldPath || !newPath) {
+      const headerMatch = lines[0].match(/^a\/(.+) b\/(.+)$/);
+      if (!headerMatch) continue;
+      oldPath = oldPath ?? headerMatch[1];
+      newPath = newPath ?? headerMatch[2];
+    }
 
     // Detect file status from diff metadata
     let status: FileChange['status'] = 'modified';

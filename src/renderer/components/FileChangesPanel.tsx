@@ -42,7 +42,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
-import { parseDiffToFileChanges } from '../lib/parsePrDiff';
+import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -159,10 +159,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     if (!prNumber || !safeTaskPath) return;
     setPrDiffLoading(true);
     try {
-      const result = await window.electronAPI.githubGetPullRequestBaseDiff({
-        worktreePath: safeTaskPath,
-        prNumber,
-      });
+      const result = await fetchPrBaseDiff(safeTaskPath, prNumber);
       if (result.success && result.diff) {
         setPrDiffChanges(parseDiffToFileChanges(result.diff));
         setPrBaseBranch(result.baseBranch || null);
@@ -816,7 +813,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               status={checkRunsStatus}
               isLoading={checkRunsLoading}
               hasPr={!!pr || isPrReview}
-              hideSummary={!hasChanges}
+              hideSummary={isPrReview ? !hasDisplayChanges : !hasChanges}
             />
             {pr && (
               <PrCommentsList

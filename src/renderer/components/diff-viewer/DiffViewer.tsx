@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useFileChanges, type FileChange } from '../../hooks/useFileChanges';
 import { useTaskScope } from '../TaskScopeContext';
-import { parseDiffToFileChanges } from '../../lib/parsePrDiff';
+import { fetchPrBaseDiff, parseDiffToFileChanges } from '../../lib/parsePrDiff';
 import { ChangesTab } from './ChangesTab';
 import { HistoryTab } from './HistoryTab';
 
@@ -35,10 +35,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
     const worktreePath = taskPath || scopedTaskPath;
     if (!prNumber || !worktreePath) return;
     try {
-      const result = await window.electronAPI.githubGetPullRequestBaseDiff({
-        worktreePath,
-        prNumber,
-      });
+      const result = await fetchPrBaseDiff(worktreePath, prNumber);
       if (result.success && result.diff) {
         setPrFileChanges(parseDiffToFileChanges(result.diff));
         setPrBaseRef(result.baseBranch ? `origin/${result.baseBranch}` : null);

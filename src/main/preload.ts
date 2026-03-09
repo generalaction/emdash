@@ -1136,6 +1136,7 @@ export interface ElectronAPI {
     diff?: string;
     baseBranch?: string;
     headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
