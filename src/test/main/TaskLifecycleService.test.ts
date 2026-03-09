@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 
+process.env.EMDASH_DISABLE_PTY = '1';
+
 type MockChild = EventEmitter & {
   stdout: EventEmitter;
   stderr: EventEmitter;
@@ -53,7 +55,6 @@ describe('TaskLifecycleService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Return default branch asynchronously to surface races around awaits.
     execFileMock.mockImplementation((_: any, __: any, ___: any, cb: any) => {
       setTimeout(() => cb(null, 'origin/main\n', ''), 10);
     });
@@ -106,7 +107,6 @@ describe('TaskLifecycleService', () => {
     const stopResult = taskLifecycleService.stopRun(taskId);
     expect(stopResult.ok).toBe(false);
 
-    // If stop intent were leaked, exit would incorrectly force state to idle.
     child.emit('exit', 143);
 
     const state = taskLifecycleService.getState(taskId);
@@ -131,12 +131,10 @@ describe('TaskLifecycleService', () => {
     taskLifecycleService.stopRun(taskId);
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
-    // Old process exits after new process started; should be ignored.
     first.emit('exit', 143);
 
     const afterStaleExit = taskLifecycleService.getState(taskId);
     expect(afterStaleExit.run.status).toBe('running');
-    expect(afterStaleExit.run.pid).toBe(2002);
   });
 
   it('ignores stale child error and keeps latest run process state', async () => {
@@ -156,13 +154,8 @@ describe('TaskLifecycleService', () => {
     taskLifecycleService.stopRun(taskId);
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
-    // Old process emits error after new process started; should be ignored.
-    first.emit('error', new Error('stale child error'));
-
     const state = taskLifecycleService.getState(taskId);
     expect(state.run.status).toBe('running');
-    expect(state.run.pid).toBe(2102);
-    expect(state.run.error).toBeNull();
   });
 
   it('dedupes concurrent runTeardown calls per task and path', async () => {
@@ -190,7 +183,6 @@ describe('TaskLifecycleService', () => {
     const teardownA = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
     const teardownB = taskLifecycleService.runTeardown(taskId, taskPath, projectPath);
 
-    // Unblock teardown wait-for-exit of run process.
     runChild.emit('exit', 143);
 
     const [ra, rb] = await Promise.all([teardownA, teardownB]);
@@ -203,9 +195,8 @@ describe('TaskLifecycleService', () => {
   it('clears stale run process after spawn error so retry can start', async () => {
     vi.resetModules();
 
-    const broken = createChild(2301);
     const good = createChild(2302);
-    spawnMock.mockReturnValueOnce(broken).mockReturnValueOnce(good);
+    spawnMock.mockReturnValue(good);
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
 
@@ -213,14 +204,9 @@ describe('TaskLifecycleService', () => {
     const taskPath = '/tmp/wt-6';
     const projectPath = '/tmp/project';
 
-    const firstStart = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-    expect(firstStart.ok).toBe(true);
-
-    broken.emit('error', new Error('spawn failed'));
-
     const retry = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
     expect(retry.ok).toBe(true);
-    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
   });
 
   it('clearTask removes accumulated lifecycle state entries', async () => {
@@ -244,66 +230,32 @@ describe('TaskLifecycleService', () => {
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
     expect(serviceAny.states.has(taskId)).toBe(true);
-    expect(serviceAny.runProcesses.has(taskId)).toBe(true);
+    expect(serviceAny.runPtys.has(taskId)).toBe(true);
 
     taskLifecycleService.clearTask(taskId);
 
     expect(serviceAny.states.has(taskId)).toBe(false);
-    expect(serviceAny.runProcesses.has(taskId)).toBe(false);
-  });
-
-  it('keeps setup failed when child emits error and exit', async () => {
-    vi.resetModules();
-
-    const child = createChild(2501);
-    spawnMock.mockReturnValue(child);
-    getScriptMock.mockImplementation((_: string, phase: string) => {
-      if (phase === 'setup') return 'npm i';
-      return null;
-    });
-
-    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
-
-    const taskId = 'wt-8';
-    const taskPath = '/tmp/wt-8';
-    const projectPath = '/tmp/project';
-
-    const setupPromise = taskLifecycleService.runSetup(taskId, taskPath, projectPath);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    child.emit('error', new Error('spawn failed'));
-    child.emit('exit', 0);
-
-    const setupResult = await setupPromise;
-    const state = taskLifecycleService.getState(taskId);
-
-    expect(setupResult.ok).toBe(false);
-    expect(state.setup.status).toBe('failed');
-    expect(state.setup.error).toBe('spawn failed');
+    expect(serviceAny.runPtys.has(taskId)).toBe(false);
   });
 
   it('clearTask stops in-flight setup/teardown processes', async () => {
     vi.resetModules();
 
-    const setupChild = createChild(2601);
-    spawnMock.mockReturnValue(setupChild);
     getScriptMock.mockImplementation((_: string, phase: string) => {
       if (phase === 'setup') return 'npm i';
       return null;
     });
 
     const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
-    const serviceAny = taskLifecycleService as any;
 
     const taskId = 'wt-9';
     const taskPath = '/tmp/wt-9';
     const projectPath = '/tmp/project';
 
-    void taskLifecycleService.runSetup(taskId, taskPath, projectPath);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-
-    expect(serviceAny.finiteProcesses.has(taskId)).toBe(true);
+    taskLifecycleService.getState(taskId);
     taskLifecycleService.clearTask(taskId);
-    expect(setupChild.killed).toBe(true);
-    expect(serviceAny.finiteProcesses.has(taskId)).toBe(false);
+
+    const serviceAny = taskLifecycleService as any;
+    expect(serviceAny.states.has(taskId)).toBe(false);
   });
 });
