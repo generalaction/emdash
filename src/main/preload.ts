@@ -217,6 +217,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree pool (reserve) management for instant task creation
   worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
     ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreePreflightReserve: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktree:preflightReserve', args),
   worktreeHasReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:hasReserve', args),
   worktreeClaimReserve: (args: {
@@ -851,6 +853,10 @@ export interface ElectronAPI {
     projectId: string;
     projectPath: string;
     baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreePreflightReserve: (args: {
+    projectId: string;
+    projectPath: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeHasReserve: (args: {
     projectId: string;

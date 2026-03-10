@@ -103,6 +103,10 @@ declare global {
         projectPath: string;
         baseRef?: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      worktreePreflightReserve: (args: {
+        projectId: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; error?: string }>;
       worktreeHasReserve: (args: {
         projectId: string;
       }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
