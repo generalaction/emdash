@@ -217,6 +217,7 @@ export function useTaskManagement() {
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
   const openTaskModalImplRef = useRef<() => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
+  const preflightPromiseRef = useRef<Promise<unknown> | undefined>(undefined);
   const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
 
   // Reset active task when project management signals a navigation away
@@ -921,6 +922,8 @@ export function useTaskManagement() {
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
+      const preflight = preflightPromiseRef.current;
+      preflightPromiseRef.current = undefined;
       await createTaskMutation.mutateAsync({
         project: targetProject,
         taskName,
@@ -934,6 +937,7 @@ export function useTaskManagement() {
         nameGenerated,
         useWorktree,
         baseRef,
+        preflightPromise: preflight,
       });
     },
     [selectedProject, createTaskMutation]
@@ -956,9 +960,23 @@ export function useTaskManagement() {
 
   // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
   openTaskModalImplRef.current = () => {
+    // Fire preflight reserve freshness check while the user fills in the form.
+    const project = pendingTaskProjectRef.current || selectedProject;
+    if (project) {
+      preflightPromiseRef.current = window.electronAPI
+        .worktreePreflightReserve({
+          projectId: project.id,
+          projectPath: project.path,
+        })
+        .catch((err) => {
+          console.warn('[preflight] failed', err);
+        });
+    }
+
     showModal('taskModal', {
       onClose: () => {
         pendingTaskProjectRef.current = null;
+        preflightPromiseRef.current = undefined;
       },
     });
   };

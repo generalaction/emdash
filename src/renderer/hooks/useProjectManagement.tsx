@@ -196,6 +196,9 @@ export const useProjectManagement = () => {
           projectPath,
           baseRef: requestedBaseRef,
         })
+        // Start preflight freshness check — it will wait for the in-progress
+        // reserve creation to complete, then verify against the remote.
+        .then(() => window.electronAPI.worktreePreflightReserve({ projectId, projectPath }))
         .catch(() => {});
     },
     []
