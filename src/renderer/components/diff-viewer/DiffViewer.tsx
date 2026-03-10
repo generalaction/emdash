@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { useFileChanges } from '../../hooks/useFileChanges';
+import { useFileChanges, type FileChange } from '../../hooks/useFileChanges';
+import { useTaskScope } from '../TaskScopeContext';
+import { fetchPrBaseDiff, parseDiffToFileChanges } from '../../lib/parsePrDiff';
 import { ChangesTab } from './ChangesTab';
 import { HistoryTab } from './HistoryTab';
 
@@ -19,8 +21,40 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   taskPath,
   initialFile,
 }) => {
+  const { prNumber, taskPath: scopedTaskPath } = useTaskScope();
+  const isPrReview = Boolean(prNumber && (taskPath || scopedTaskPath));
+
   const [activeTab, setActiveTab] = useState<Tab>('changes');
-  const { fileChanges, refreshChanges } = useFileChanges(taskPath);
+  const { fileChanges: localFileChanges, refreshChanges } = useFileChanges(taskPath);
+
+  // PR review mode: fetch PR diff changes and base branch
+  const [prFileChanges, setPrFileChanges] = useState<FileChange[]>([]);
+  const [prBaseRef, setPrBaseRef] = useState<string | null>(null);
+
+  const fetchPrDiff = useCallback(async () => {
+    const worktreePath = taskPath || scopedTaskPath;
+    if (!prNumber || !worktreePath) return;
+    try {
+      const result = await fetchPrBaseDiff(worktreePath, prNumber);
+      if (result.success) {
+        setPrFileChanges(parseDiffToFileChanges(result.diff ?? ''));
+        setPrBaseRef(result.baseBranch ? `origin/${result.baseBranch}` : null);
+      } else {
+        setPrFileChanges([]);
+        setPrBaseRef(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch PR diff for DiffViewer:', err);
+    }
+  }, [prNumber, taskPath, scopedTaskPath]);
+
+  useEffect(() => {
+    if (isPrReview) {
+      fetchPrDiff();
+    }
+  }, [isPrReview, fetchPrDiff]);
+
+  const fileChanges = isPrReview ? prFileChanges : localFileChanges;
   const fileCount = fileChanges.length;
   const [leftPanelSize, setLeftPanelSize] = useState(30);
 
@@ -65,18 +99,19 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
         {activeTab === 'changes' ? (
           <ChangesTab
             taskId={taskId}
-            taskPath={taskPath}
+            taskPath={taskPath || scopedTaskPath}
             fileChanges={fileChanges}
-            onRefreshChanges={refreshChanges}
+            onRefreshChanges={isPrReview ? undefined : refreshChanges}
             header={tabHeader}
             closeButton={closeButton}
             leftPanelSize={leftPanelSize}
             onLeftPanelResize={setLeftPanelSize}
             initialFile={initialFile}
+            baseRef={prBaseRef || undefined}
           />
         ) : (
           <HistoryTab
-            taskPath={taskPath}
+            taskPath={taskPath || scopedTaskPath}
             header={tabHeader}
             closeButton={closeButton}
             leftPanelSize={leftPanelSize}

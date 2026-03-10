@@ -56,6 +56,11 @@ export interface GitHubPullRequest {
   } | null;
 }
 
+export interface GitHubPullRequestListResult {
+  prs: GitHubPullRequest[];
+  totalCount: number;
+}
+
 export interface AuthResult {
   success: boolean;
   token?: string;
@@ -761,7 +766,12 @@ export class GitHubService {
   /**
    * List open pull requests for the repository located at projectPath.
    */
-  async getPullRequests(projectPath: string): Promise<GitHubPullRequest[]> {
+  async getPullRequests(
+    projectPath: string,
+    limit: number = 30
+  ): Promise<GitHubPullRequestListResult> {
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+
     try {
       const fields = [
         'number',
@@ -776,29 +786,95 @@ export class GitHubService {
         'headRepositoryOwner',
         'headRepository',
       ];
-      const { stdout } = await this.execGH(`gh pr list --state open --json ${fields.join(',')}`, {
-        cwd: projectPath,
-      });
+      const { stdout } = await this.execGH(
+        `gh pr list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        { cwd: projectPath }
+      );
       const list = JSON.parse(stdout || '[]');
 
-      if (!Array.isArray(list)) return [];
+      if (!Array.isArray(list)) {
+        return { prs: [], totalCount: 0 };
+      }
 
-      return list.map((item: any) => ({
-        number: item?.number,
-        title: item?.title || `PR #${item?.number ?? 'unknown'}`,
-        headRefName: item?.headRefName || '',
-        baseRefName: item?.baseRefName || '',
-        url: item?.url || '',
-        isDraft: item?.isDraft ?? false,
-        updatedAt: item?.updatedAt || null,
-        headRefOid: item?.headRefOid || undefined,
-        author: item?.author || null,
-        headRepositoryOwner: item?.headRepositoryOwner || null,
-        headRepository: item?.headRepository || null,
-      }));
+      const prs = sortByUpdatedAtDesc(
+        list.map((item: any) => ({
+          number: item?.number,
+          title: item?.title || `PR #${item?.number ?? 'unknown'}`,
+          headRefName: item?.headRefName || '',
+          baseRefName: item?.baseRefName || '',
+          url: item?.url || '',
+          isDraft: item?.isDraft ?? false,
+          updatedAt: item?.updatedAt || null,
+          headRefOid: item?.headRefOid || undefined,
+          author: item?.author || null,
+          headRepositoryOwner: item?.headRepositoryOwner || null,
+          headRepository: item?.headRepository || null,
+        }))
+      );
+
+      const totalCount = (await this.getOpenPullRequestCount(projectPath)) ?? prs.length;
+
+      return { prs, totalCount };
     } catch (error) {
       console.error('Failed to list pull requests:', error);
       throw error;
+    }
+  }
+
+  private async getOpenPullRequestCount(projectPath: string): Promise<number | null> {
+    try {
+      const { stdout: repoStdout } = await this.execGH(
+        'gh repo view --json nameWithOwner --jq .nameWithOwner',
+        { cwd: projectPath }
+      );
+      const repoNameWithOwner = repoStdout.trim();
+      if (!repoNameWithOwner) return null;
+
+      const query = `repo:${repoNameWithOwner} is:pr is:open`;
+      const { stdout } = await this.execGH(
+        `gh api search/issues --method GET -f q=${JSON.stringify(query)} --jq .total_count`,
+        { cwd: projectPath }
+      );
+
+      const totalCount = Number.parseInt(stdout.trim(), 10);
+      return Number.isFinite(totalCount) ? totalCount : null;
+    } catch (error) {
+      console.warn('Failed to fetch open PR count:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get details for a specific pull request (base/head branches, title, number).
+   */
+  async getPullRequestDetails(
+    projectPath: string,
+    prNumber: number
+  ): Promise<{
+    baseRefName: string;
+    headRefName: string;
+    title: string;
+    number: number;
+    url: string;
+  } | null> {
+    try {
+      const fields = ['baseRefName', 'headRefName', 'title', 'number', 'url'];
+      const { stdout } = await this.execGH(
+        `gh pr view ${JSON.stringify(String(prNumber))} --json ${fields.join(',')}`,
+        { cwd: projectPath }
+      );
+      const data = JSON.parse(stdout || 'null');
+      if (!data || typeof data !== 'object') return null;
+      return {
+        baseRefName: data.baseRefName || '',
+        headRefName: data.headRefName || '',
+        title: data.title || '',
+        number: data.number || prNumber,
+        url: data.url || '',
+      };
+    } catch (error) {
+      console.error('Failed to get pull request details:', error);
+      return null;
     }
   }
 
@@ -812,32 +888,48 @@ export class GitHubService {
     branchName: string
   ): Promise<string> {
     const safeBranch = branchName || `pr/${prNumber}`;
-    let previousRef: string | null = null;
 
+    // Fetch the PR ref directly without checking out (avoids touching the working tree)
     try {
-      const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', {
-        cwd: projectPath,
-      });
-      const current = (stdout || '').trim();
-      if (current) previousRef = current;
-    } catch {
-      previousRef = null;
-    }
-
-    try {
-      await this.execGH(
-        `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force`,
+      const prRef = `refs/pull/${prNumber}/head`;
+      await execAsync(
+        `git fetch origin ${JSON.stringify(prRef)}:${JSON.stringify(`refs/heads/${safeBranch}`)} --force`,
         { cwd: projectPath }
       );
-    } catch (error) {
-      console.error('Failed to checkout pull request branch via gh:', error);
-      throw error;
-    } finally {
-      if (previousRef && previousRef !== safeBranch) {
-        try {
-          await execAsync(`git checkout ${JSON.stringify(previousRef)}`, { cwd: projectPath });
-        } catch (switchErr) {
-          console.warn('Failed to restore previous branch after PR checkout:', switchErr);
+    } catch (fetchError) {
+      // Fallback: try gh pr checkout with detach to avoid working tree conflicts
+      console.warn(
+        'Fetch-based PR branch creation failed, falling back to gh pr checkout:',
+        fetchError
+      );
+      let previousRef: string | null = null;
+      try {
+        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+          cwd: projectPath,
+        });
+        const current = (stdout || '').trim();
+        if (current) previousRef = current;
+      } catch {
+        previousRef = null;
+      }
+
+      try {
+        await this.execGH(
+          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force --detach`,
+          { cwd: projectPath }
+        );
+      } catch (error) {
+        console.error('Failed to checkout pull request branch via gh:', error);
+        throw error;
+      } finally {
+        if (previousRef && previousRef !== safeBranch) {
+          try {
+            await execAsync(`git checkout ${JSON.stringify(previousRef)} --force`, {
+              cwd: projectPath,
+            });
+          } catch (switchErr) {
+            console.warn('Failed to restore previous branch after PR checkout:', switchErr);
+          }
         }
       }
     }

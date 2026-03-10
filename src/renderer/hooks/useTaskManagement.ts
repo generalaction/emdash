@@ -14,6 +14,8 @@ import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
 import type { PlainThreadSummary } from '../types/plain';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -912,6 +914,8 @@ export function useTaskManagement() {
       linkedGithubIssue: GitHubIssueSummary | null = null,
       linkedJiraIssue: JiraIssueSummary | null = null,
       linkedPlainThread: PlainThreadSummary | null = null,
+      linkedGitlabIssue: GitLabIssueSummary | null = null,
+      linkedForgejoIssue: ForgejoIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
@@ -930,6 +934,8 @@ export function useTaskManagement() {
         linkedGithubIssue,
         linkedJiraIssue,
         linkedPlainThread,
+        linkedGitlabIssue,
+        linkedForgejoIssue,
         autoApprove,
         nameGenerated,
         useWorktree,

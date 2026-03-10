@@ -3,10 +3,12 @@ import { log } from '../lib/logger';
 import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
+import { databaseService } from '../services/DatabaseService';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { homedir } from 'os';
 import { quoteShellArg } from '../utils/shellEscape';
 
@@ -238,22 +240,25 @@ export function registerGithubIpc() {
     }
   });
 
-  ipcMain.handle('github:listPullRequests', async (_, args: { projectPath: string }) => {
-    const projectPath = args?.projectPath;
-    if (!projectPath) {
-      return { success: false, error: 'Project path is required' };
-    }
+  ipcMain.handle(
+    'github:listPullRequests',
+    async (_, args: { projectPath: string; limit?: number }) => {
+      const projectPath = args?.projectPath;
+      if (!projectPath) {
+        return { success: false, error: 'Project path is required' };
+      }
 
-    try {
-      const prs = await githubService.getPullRequests(projectPath);
-      return { success: true, prs };
-    } catch (error) {
-      log.error('Failed to list pull requests:', error);
-      const message =
-        error instanceof Error ? error.message : 'Unable to list pull requests via GitHub CLI';
-      return { success: false, error: message };
+      try {
+        const result = await githubService.getPullRequests(projectPath, args?.limit);
+        return { success: true, prs: result.prs, totalCount: result.totalCount };
+      } catch (error) {
+        log.error('Failed to list pull requests:', error);
+        const message =
+          error instanceof Error ? error.message : 'Unable to list pull requests via GitHub CLI';
+        return { success: false, error: message };
+      }
     }
-  });
+  );
 
   ipcMain.handle(
     'github:createPullRequestWorktree',
@@ -280,13 +285,43 @@ export function registerGithubIpc() {
           ? args.taskName.trim()
           : `pr-${prNumber}-${defaultSlug}`;
       const branchName = args.branchName || `pr/${prNumber}`;
+      const buildTaskInfo = (taskPath: string, name: string) => ({
+        id: crypto.randomUUID(),
+        projectId,
+        name,
+        branch: branchName,
+        path: taskPath,
+        status: 'active' as const,
+        useWorktree: true,
+        metadata: {
+          prNumber,
+          prTitle: args.prTitle || null,
+        },
+      });
 
       try {
         const currentWorktrees = await worktreeService.listWorktrees(projectPath);
         const existing = currentWorktrees.find((wt) => wt.branch === branchName);
 
         if (existing) {
-          return { success: true, worktree: existing, branchName, taskName: existing.name };
+          const persistedTask = await databaseService.getTaskByPath(existing.path);
+          const existingTask = persistedTask ?? buildTaskInfo(existing.path, existing.name);
+
+          if (!persistedTask) {
+            try {
+              await databaseService.saveTask(existingTask);
+            } catch (dbError) {
+              log.warn('Failed to save existing PR review task to database:', dbError);
+            }
+          }
+
+          return {
+            success: true,
+            worktree: existing,
+            branchName,
+            taskName: existingTask.name,
+            task: existingTask,
+          };
         }
 
         await githubService.ensurePullRequestBranch(projectPath, prNumber, branchName);
@@ -307,12 +342,107 @@ export function registerGithubIpc() {
           { worktreePath }
         );
 
-        return { success: true, worktree, branchName, taskName };
+        // Save a task with PR metadata so the UI can identify it as a PR review task
+        const taskInfo = buildTaskInfo(worktree.path, taskName);
+
+        try {
+          await databaseService.saveTask(taskInfo);
+        } catch (dbError) {
+          log.warn('Failed to save PR review task to database:', dbError);
+        }
+
+        return { success: true, worktree, branchName, taskName, task: taskInfo };
       } catch (error) {
         log.error('Failed to create PR worktree:', error);
         const message =
           error instanceof Error ? error.message : 'Unable to create PR worktree via GitHub CLI';
         return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'github:getPullRequestBaseDiff',
+    async (
+      _,
+      args: {
+        worktreePath: string;
+        prNumber: number;
+      }
+    ) => {
+      const { worktreePath, prNumber } = args || ({} as typeof args);
+
+      if (!worktreePath || !prNumber) {
+        return { success: false, error: 'Missing required parameters' };
+      }
+
+      try {
+        // Find the project root from the worktree path
+        let projectRoot: string;
+        try {
+          const { stdout } = await execAsync('git rev-parse --show-toplevel', {
+            cwd: worktreePath,
+          });
+          projectRoot = stdout.trim();
+        } catch {
+          projectRoot = worktreePath;
+        }
+
+        // Get PR details (base/head branches)
+        const prDetails = await githubService.getPullRequestDetails(projectRoot, prNumber);
+        if (!prDetails) {
+          return { success: false, error: 'Could not fetch PR details' };
+        }
+
+        const { baseRefName, headRefName } = prDetails;
+
+        // Fetch the base branch to ensure we have the latest
+        try {
+          await execAsync(`git fetch origin ${quoteShellArg(baseRefName)}`, { cwd: worktreePath });
+        } catch {
+          // Best effort — base ref may already be available locally
+        }
+
+        // Use HEAD as the PR head (the worktree is checked out to the PR branch).
+        // This works for both same-repo and fork PRs, since origin/headRefName
+        // doesn't exist for fork PRs.
+        let diff: string;
+        try {
+          // Three-dot diff: changes introduced by the PR relative to the merge base
+          const { stdout } = await execAsync(
+            `git diff ${quoteShellArg(`origin/${baseRefName}`)}...HEAD`,
+            { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+          );
+          diff = stdout;
+        } catch {
+          // Fallback: two-dot diff
+          try {
+            const { stdout } = await execAsync(
+              `git diff ${quoteShellArg(`origin/${baseRefName}`)} HEAD`,
+              { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
+            );
+            diff = stdout;
+          } catch (diffError) {
+            return {
+              success: false,
+              error: diffError instanceof Error ? diffError.message : 'Failed to compute PR diff',
+            };
+          }
+        }
+
+        return {
+          success: true,
+          diff,
+          baseBranch: baseRefName,
+          headBranch: headRefName,
+          prUrl: prDetails.url,
+        };
+      } catch (error) {
+        log.error('Failed to get PR base diff:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to get PR diff',
+        };
       }
     }
   );

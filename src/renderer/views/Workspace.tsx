@@ -2,6 +2,7 @@ import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
+import { TaskScopeProvider } from '@/components/TaskScopeContext';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
@@ -401,12 +402,21 @@ export function Workspace() {
                   >
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
                       {showDiffViewer ? (
-                        <DiffViewer
-                          onClose={handleCloseDiffViewer}
-                          taskId={activeTask?.id}
-                          taskPath={diffViewerTaskPath || activeTask?.path}
-                          initialFile={diffViewerInitialFile}
-                        />
+                        <TaskScopeProvider
+                          value={{
+                            taskId: activeTask?.id,
+                            taskPath: diffViewerTaskPath || activeTask?.path,
+                            projectPath: selectedProject?.path || activeTaskProjectPath,
+                            prNumber: activeTask?.metadata?.prNumber ?? undefined,
+                          }}
+                        >
+                          <DiffViewer
+                            onClose={handleCloseDiffViewer}
+                            taskId={activeTask?.id}
+                            taskPath={diffViewerTaskPath || activeTask?.path}
+                            initialFile={diffViewerInitialFile}
+                          />
+                        </TaskScopeProvider>
                       ) : (
                         <MainContentArea
                           showSettingsPage={showSettingsPage}
@@ -440,6 +450,7 @@ export function Workspace() {
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                       onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setShowEditorMode(false);
                         setDiffViewerInitialFile(filePath ?? null);
                         setDiffViewerTaskPath(taskPath ?? null);
                         setShowDiffViewer(true);
