@@ -169,6 +169,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [selectedBranch, setSelectedBranch] = useState(contextDefaultBranch);
   const userChangedBranchRef = useRef(false);
   const taskNameInputRef = useRef<HTMLInputElement>(null);
+  // Track current modal project for race condition handling in branch loading
+  const currentModalProjectIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!userChangedBranchRef.current) {
@@ -341,6 +343,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   // Refresh branches when modal project changes (only for non-context projects)
   useEffect(() => {
     if (!selectedModalProject) return;
+
+    // Track current project for race condition handling
+    currentModalProjectIdRef.current = selectedModalProject.id;
+
     // If we're on the context project, the context already handles branch loading
     if (selectedModalProject.id === selectedProject?.id) {
       userChangedBranchRef.current = false;
@@ -350,6 +356,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
     // Load branches for the different project
     const loadBranches = async () => {
+      const projectIdAtStart = selectedModalProject.id;
       setLocalIsLoadingBranches(true);
       const initialBranch = selectedModalProject.gitInfo?.baseRef || 'main';
       setLocalBranchOptions([{ value: initialBranch, label: initialBranch }]);
@@ -386,13 +393,19 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
           }
         }
 
+        // Skip update if project changed during async operation
+        if (currentModalProjectIdRef.current !== projectIdAtStart) return;
+
         if (options.length > 0) {
           setLocalBranchOptions(options);
         }
       } catch (error) {
         console.error('Failed to load branches:', error);
       } finally {
-        setLocalIsLoadingBranches(false);
+        // Only clear loading if still on same project
+        if (currentModalProjectIdRef.current === projectIdAtStart) {
+          setLocalIsLoadingBranches(false);
+        }
       }
     };
 
