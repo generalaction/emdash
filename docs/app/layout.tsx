@@ -13,8 +13,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 
 export const metadata = {
-  title: 'Emdash - Docs',
-  description: 'Open source Agentic Development Environment',
+  title: 'Scrawl - Docs',
+  description: 'Open source Agentic Writer Environment — agenticwriting.app',
   icons: {
     icon: '/brand/favicon.ico',
   },

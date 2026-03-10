@@ -3,11 +3,11 @@ title: Skills
 description: Extend your agents with reusable skill modules
 ---
 
-Skills are reusable capability modules that extend your coding agents with specialized functionality. They follow the open [Agent Skills](https://agentskills.io) standard and work across all supported agents—Claude Code, Codex, OpenCode, Cursor, Gemini, Roo Code, and Mistral Vibe.
+Skills are reusable capability modules that extend your agents with specialized functionality. They follow the open [Agent Skills](https://agentskills.io) standard and work across all supported agents—Claude Code, Codex, OpenCode, Cursor, Gemini, Roo Code, and Mistral Vibe.
 
 <img
   src="/media/skills.png"
-  alt="Skills catalog in Emdash"
+  alt="Skills catalog in Scrawl"
   style={{
     width: '100%',
     maxWidth: '700px',
@@ -31,7 +31,7 @@ If you want to use skills from another library, feel free to let us know through
 
 <img
   src="/media/feedback.png"
-  alt="Feedback modal in Emdash"
+  alt="Feedback modal in Scrawl"
   style={{
     width: '100%',
     maxWidth: '700px',
@@ -48,7 +48,7 @@ If you want to use skills from another library, feel free to let us know through
 2. Click the skill card to view details, example prompts, and documentation
 3. Click **Install**
 
-Emdash downloads the skill to `~/.agentskills/` and automatically syncs it to all installed agents on your machine. The skill is immediately available in your next agent session.
+Scrawl downloads the skill to `~/.agentskills/` and automatically syncs it to all installed agents on your machine. The skill is immediately available in your next agent session.
 
 ## Uninstalling a Skill
 
@@ -63,7 +63,7 @@ This removes the skill from `~/.agentskills/` and removes the symlinks from all 
 2. Enter a name (lowercase, hyphens, 2–64 characters) and description
 3. Click **Create**
 
-Emdash generates a `SKILL.md` file in `~/.agentskills/<your-skill>/` and opens the directory so you can edit it. The file uses YAML frontmatter for metadata:
+Scrawl generates a `SKILL.md` file in `~/.agentskills/<your-skill>/` and opens the directory so you can edit it. The file uses YAML frontmatter for metadata:
 
 ```yaml
 ---
@@ -79,7 +79,7 @@ Custom skills sync to all installed agents just like catalog skills.
 
 ## How Skills Work
 
-Each skill is a directory containing a `SKILL.md` file. When installed, Emdash creates symlinks in each agent's config directory:
+Each skill is a directory containing a `SKILL.md` file. When installed, Scrawl creates symlinks in each agent's config directory:
 
 | Agent        | Skill location                       |
 | ------------ | ------------------------------------ |
@@ -91,7 +91,7 @@ Each skill is a directory containing a `SKILL.md` file. When installed, Emdash c
 | Roo Code     | `~/.roo/skills/<skill>/`             |
 | Mistral Vibe | `~/.vibe/skills/<skill>/`            |
 
-This means skills you install through Emdash also work when you run these agents outside of Emdash.
+This means skills you install through Scrawl also work when you run these agents outside of Scrawl.
 
 ## Example Skills
 
@@ -108,7 +108,7 @@ Each skill includes an example prompt showing how to invoke it.
 
 ## Tips
 
-- Skills persist across Emdash sessions—install once, use everywhere.
+- Skills persist across Scrawl sessions—install once, use everywhere.
 - Click the terminal icon on an installed skill to open its directory and inspect or edit the `SKILL.md` directly.
 - Custom skills appear in the "Installed" section alongside catalog skills.
-- If an agent can't find a skill, make sure the agent is detected by Emdash (check the Skills view footer for detected agents).
+- If an agent can't find a skill, make sure the agent is detected by Scrawl (check the Skills view footer for detected agents).
