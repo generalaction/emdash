@@ -111,6 +111,31 @@ describe('TerminalInputBuffer', () => {
     expect(onCapture).not.toHaveBeenCalled();
   });
 
+  it('strips OSC color query responses terminated with ST', () => {
+    const onCapture = vi.fn();
+    const buffer = new TerminalInputBuffer(onCapture);
+
+    // Simulate OSC 10/11 color responses (ST-terminated) that Codex's TUI triggers
+    buffer.feed('\x1b]10;rgb:1f1f/2929/3333\x1b\\');
+    buffer.feed('\x1b]11;rgb:0000/0000/0000\x1b\\');
+    buffer.feed('Fix the broken login flow\r');
+    buffer.confirmSubmit();
+
+    expect(onCapture).toHaveBeenCalledWith('Fix the broken login flow');
+  });
+
+  it('does not capture OSC color data as a task name', () => {
+    const onCapture = vi.fn();
+    const buffer = new TerminalInputBuffer(onCapture);
+
+    // Feed only OSC responses (no real user input) then Enter
+    buffer.feed('\x1b]10;rgb:1f1f/2929/3333\x1b\\\r');
+    buffer.confirmSubmit();
+
+    // Should not capture — the stripped content is empty
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
   it('ignores feed after completion', () => {
     const onCapture = vi.fn();
     const buffer = new TerminalInputBuffer(onCapture);
