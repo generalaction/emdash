@@ -986,7 +986,7 @@ declare global {
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'gssapi';
         privateKeyPath?: string;
         useAgent?: boolean;
         password?: string;
@@ -998,7 +998,7 @@ declare global {
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'gssapi';
         privateKeyPath?: string;
         useAgent?: boolean;
         password?: string;
@@ -1009,7 +1009,7 @@ declare global {
         host: string;
         port: number;
         username: string;
-        authType: 'password' | 'key' | 'agent';
+        authType: 'password' | 'key' | 'agent' | 'gssapi';
         privateKeyPath?: string;
         useAgent?: boolean;
       }>;
@@ -1020,7 +1020,7 @@ declare global {
           host: string;
           port: number;
           username: string;
-          authType: 'password' | 'key' | 'agent';
+          authType: 'password' | 'key' | 'agent' | 'gssapi';
           privateKeyPath?: string;
           useAgent?: boolean;
         }>
@@ -1035,7 +1035,7 @@ declare global {
               host: string;
               port: number;
               username: string;
-              authType: 'password' | 'key' | 'agent';
+              authType: 'password' | 'key' | 'agent' | 'gssapi';
               privateKeyPath?: string;
               useAgent?: boolean;
               password?: string;

@@ -1,12 +1,15 @@
 import { EventEmitter } from 'events';
 import { Client, SFTPWrapper, ConnectConfig } from 'ssh2';
 import { SshConfig, ExecResult } from '../../../shared/ssh/types';
-import { Connection, ConnectionPool } from './types';
+import { Connection, ConnectionPool, GssapiConnection } from './types';
 import { SshCredentialService } from './SshCredentialService';
 import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
+import { join } from 'path';
+import { execFile, spawn, ChildProcess } from 'child_process';
+import { access, unlink } from 'fs/promises';
 import { resolveIdentityAgent } from '../../utils/sshConfigParser';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
@@ -26,6 +29,8 @@ const POOL_WARNING_THRESHOLD = 0.8;
  */
 export class SshService extends EventEmitter {
   private connections: ConnectionPool = {};
+  private gssapiConnections: Map<string, GssapiConnection> = new Map();
+  private gssapiProcesses: Map<string, ChildProcess> = new Map();
   private pendingConnections: Map<string, Promise<string>> = new Map();
   private credentialService: SshCredentialService;
 
@@ -50,7 +55,7 @@ export class SshService extends EventEmitter {
     const connectionId = config.id ?? randomUUID();
 
     // 1. If already connected, reuse the existing connection
-    if (this.connections[connectionId]) {
+    if (this.connections[connectionId] || this.gssapiConnections.has(connectionId)) {
       return connectionId;
     }
 
@@ -61,7 +66,10 @@ export class SshService extends EventEmitter {
     }
 
     // 3. Enforce connection pool limit
-    const poolSize = Object.keys(this.connections).length + this.pendingConnections.size;
+    const poolSize =
+      Object.keys(this.connections).length +
+      this.gssapiConnections.size +
+      this.pendingConnections.size;
     if (poolSize >= MAX_CONNECTIONS) {
       throw new Error(
         `SSH connection pool limit reached (${MAX_CONNECTIONS}). ` +
@@ -74,7 +82,18 @@ export class SshService extends EventEmitter {
       );
     }
 
-    // 4. Create the connection and track the in-flight promise
+    // 4. GSSAPI uses system ssh with ControlMaster instead of ssh2
+    if (config.authType === 'gssapi') {
+      const connectionPromise = this.connectGssapi(connectionId, config);
+      this.pendingConnections.set(connectionId, connectionPromise);
+      try {
+        return await connectionPromise;
+      } finally {
+        this.pendingConnections.delete(connectionId);
+      }
+    }
+
+    // 5. Create the ssh2 connection and track the in-flight promise
     const connectionPromise = this.createConnection(connectionId, config);
     this.pendingConnections.set(connectionId, connectionPromise);
 
@@ -228,10 +247,220 @@ export class SshService extends EventEmitter {
   }
 
   /**
+   * Establishes a GSSAPI/Kerberos SSH connection using system ssh with ControlMaster.
+   * Since the ssh2 library doesn't support GSSAPI authentication, we use the system's
+   * OpenSSH client which has native Kerberos support.
+   */
+  private async connectGssapi(connectionId: string, config: SshConfig): Promise<string> {
+    const socketPath = join(tmpdir(), `emdash-ssh-${connectionId}`);
+
+    // Clean up any stale socket file
+    try {
+      await unlink(socketPath);
+    } catch {
+      // Ignore if doesn't exist
+    }
+
+    const sshArgs = [
+      '-f', // Go to background after auth
+      '-N', // No remote command
+      '-M', // ControlMaster mode
+      '-S',
+      socketPath,
+      '-o',
+      'GSSAPIAuthentication=yes',
+      '-o',
+      'GSSAPIDelegateCredentials=yes',
+      '-o',
+      'PreferredAuthentications=gssapi-with-mic,gssapi-keyex',
+      '-o',
+      'StrictHostKeyChecking=accept-new',
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=15',
+      '-p',
+      String(config.port),
+      '-l',
+      config.username,
+      config.host,
+    ];
+
+    return new Promise<string>((resolve, reject) => {
+      const proc = spawn('ssh', sshArgs, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          // Ensure Kerberos ticket cache is available
+          KRB5CCNAME: process.env.KRB5CCNAME || '',
+        },
+      });
+
+      let stderr = '';
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      // ssh -f will exit after backgrounding if auth succeeds.
+      // If it exits with code 0, the ControlMaster is running.
+      proc.on('close', (code) => {
+        if (code === 0) {
+          const gssapiConn: GssapiConnection = {
+            id: connectionId,
+            config,
+            controlSocketPath: socketPath,
+            connectedAt: new Date(),
+            lastActivity: new Date(),
+          };
+          this.gssapiConnections.set(connectionId, gssapiConn);
+          this.emit('connected', connectionId);
+          resolve(connectionId);
+        } else {
+          const errorMsg = stderr.trim() || `SSH GSSAPI authentication failed (exit code ${code})`;
+          reject(new Error(errorMsg));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error(`Failed to spawn ssh: ${err.message}`));
+      });
+
+      // Store reference for cleanup
+      this.gssapiProcesses.set(connectionId, proc);
+    });
+  }
+
+  /**
+   * Checks if a connection is using GSSAPI/Kerberos authentication.
+   */
+  isGssapiConnection(connectionId: string): boolean {
+    return this.gssapiConnections.has(connectionId);
+  }
+
+  /**
+   * Gets the GSSAPI connection info (including ControlMaster socket path).
+   */
+  getGssapiConnection(connectionId: string): GssapiConnection | undefined {
+    return this.gssapiConnections.get(connectionId);
+  }
+
+  /**
+   * Builds SSH args for GSSAPI ControlMaster connection reuse.
+   */
+  getGssapiSshArgs(connectionId: string): string[] | undefined {
+    const conn = this.gssapiConnections.get(connectionId);
+    if (!conn) return undefined;
+    return [
+      '-S',
+      conn.controlSocketPath,
+      '-o',
+      'ControlMaster=no',
+      '-p',
+      String(conn.config.port),
+      '-l',
+      conn.config.username,
+      conn.config.host,
+    ];
+  }
+
+  /**
+   * Executes a command on a GSSAPI connection using the ControlMaster socket.
+   */
+  private executeCommandGssapi(
+    conn: GssapiConnection,
+    command: string,
+    cwd?: string
+  ): Promise<ExecResult> {
+    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+    const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
+
+    return new Promise((resolve, reject) => {
+      execFile(
+        'ssh',
+        [
+          '-S',
+          conn.controlSocketPath,
+          '-o',
+          'ControlMaster=no',
+          '-p',
+          String(conn.config.port),
+          '-l',
+          conn.config.username,
+          conn.config.host,
+          fullCommand,
+        ],
+        { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err && 'code' in err && typeof (err as any).code === 'number') {
+            // Command exited with non-zero code, still a valid result
+            resolve({
+              stdout: (stdout || '').trim(),
+              stderr: (stderr || '').trim(),
+              exitCode: (err as any).code as number,
+            });
+          } else if (err) {
+            reject(err);
+          } else {
+            resolve({
+              stdout: (stdout || '').trim(),
+              stderr: (stderr || '').trim(),
+              exitCode: 0,
+            });
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Disconnects a GSSAPI connection by terminating the ControlMaster.
+   */
+  private async disconnectGssapi(connectionId: string): Promise<void> {
+    const conn = this.gssapiConnections.get(connectionId);
+    if (!conn) return;
+
+    // Send exit command to ControlMaster
+    try {
+      await new Promise<void>((resolve) => {
+        execFile(
+          'ssh',
+          ['-S', conn.controlSocketPath, '-O', 'exit', conn.config.host],
+          { timeout: 5000 },
+          () => resolve() // Ignore errors, best-effort
+        );
+      });
+    } catch {
+      // Best-effort cleanup
+    }
+
+    // Clean up socket file
+    try {
+      await unlink(conn.controlSocketPath);
+    } catch {
+      // Ignore
+    }
+
+    // Kill any lingering process
+    const proc = this.gssapiProcesses.get(connectionId);
+    if (proc && !proc.killed) {
+      proc.kill();
+    }
+
+    this.gssapiProcesses.delete(connectionId);
+    this.gssapiConnections.delete(connectionId);
+    this.emit('disconnected', connectionId);
+  }
+
+  /**
    * Disconnects an existing SSH connection.
    * @param connectionId - ID of the connection to close
    */
   async disconnect(connectionId: string): Promise<void> {
+    // Handle GSSAPI connections
+    if (this.gssapiConnections.has(connectionId)) {
+      return this.disconnectGssapi(connectionId);
+    }
+
     const connection = this.connections[connectionId];
     if (!connection) {
       return; // Already disconnected or never existed
@@ -273,6 +502,13 @@ export class SshService extends EventEmitter {
    * @returns Command execution result
    */
   async executeCommand(connectionId: string, command: string, cwd?: string): Promise<ExecResult> {
+    // Handle GSSAPI connections
+    const gssapiConn = this.gssapiConnections.get(connectionId);
+    if (gssapiConn) {
+      gssapiConn.lastActivity = new Date();
+      return this.executeCommandGssapi(gssapiConn, command, cwd);
+    }
+
     const connection = this.connections[connectionId];
     if (!connection) {
       throw new Error(`Connection ${connectionId} not found`);
@@ -328,6 +564,12 @@ export class SshService extends EventEmitter {
    * @returns SFTP wrapper instance
    */
   async getSftp(connectionId: string): Promise<SFTPWrapper> {
+    if (this.gssapiConnections.has(connectionId)) {
+      throw new Error(
+        'SFTP is not available for GSSAPI connections. Use executeCommand-based file operations instead.'
+      );
+    }
+
     const connection = this.connections[connectionId];
     if (!connection) {
       throw new Error(`Connection ${connectionId} not found`);
@@ -377,7 +619,7 @@ export class SshService extends EventEmitter {
    * @returns True if connected
    */
   isConnected(connectionId: string): boolean {
-    return connectionId in this.connections;
+    return connectionId in this.connections || this.gssapiConnections.has(connectionId);
   }
 
   /**
@@ -385,7 +627,7 @@ export class SshService extends EventEmitter {
    * @returns Array of connection IDs
    */
   listConnections(): string[] {
-    return Object.keys(this.connections);
+    return [...Object.keys(this.connections), ...this.gssapiConnections.keys()];
   }
 
   /**
@@ -394,11 +636,14 @@ export class SshService extends EventEmitter {
    */
   getConnectionInfo(connectionId: string): { connectedAt: Date; lastActivity: Date } | null {
     const conn = this.connections[connectionId];
-    if (!conn) return null;
-    return {
-      connectedAt: conn.connectedAt,
-      lastActivity: conn.lastActivity,
-    };
+    if (conn) {
+      return { connectedAt: conn.connectedAt, lastActivity: conn.lastActivity };
+    }
+    const gssapiConn = this.gssapiConnections.get(connectionId);
+    if (gssapiConn) {
+      return { connectedAt: gssapiConn.connectedAt, lastActivity: gssapiConn.lastActivity };
+    }
+    return null;
   }
 
   /**
@@ -406,7 +651,8 @@ export class SshService extends EventEmitter {
    * Useful for cleanup on shutdown.
    */
   async disconnectAll(): Promise<void> {
-    const disconnectPromises = Object.keys(this.connections).map((id) =>
+    const allIds = [...Object.keys(this.connections), ...this.gssapiConnections.keys()];
+    const disconnectPromises = allIds.map((id) =>
       this.disconnect(id).catch(() => {
         // Ignore errors during bulk disconnect
       })

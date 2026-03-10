@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { spawn, execFile } from 'child_process';
 import { SshService } from '../SshService';
 import { SshCredentialService } from '../SshCredentialService';
 import { SshConfig } from '../../../../shared/ssh/types';
+
+const mockSpawn = spawn as unknown as Mock;
+const mockExecFile = execFile as unknown as Mock;
 
 // Mock ssh2 Client
 const mockClientInstance = {
@@ -19,11 +23,19 @@ vi.mock('ssh2', () => ({
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+  unlink: vi.fn().mockResolvedValue(undefined),
+  access: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock crypto
 vi.mock('crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('test-uuid-123'),
+}));
+
+// Mock child_process
+vi.mock('child_process', () => ({
+  spawn: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 // Prevent keytar/native module loading through SshService's module-level singleton.
@@ -440,6 +452,161 @@ describe('SshService', () => {
     it('should handle disconnect for non-existent connection', async () => {
       await service.disconnect('non-existent');
       expect(mockClientInstance.end).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GSSAPI/Kerberos authentication', () => {
+    /**
+     * Helper: sets up mockSpawn to return a process that auto-triggers 'close'
+     * with the given exit code via queueMicrotask, after all handlers are registered.
+     */
+    function setupGssapiSpawn(exitCode: number, stderrOutput?: string) {
+      mockSpawn.mockImplementation(() => {
+        const stderrHandlers: Record<string, (...args: any[]) => void> = {};
+        const mockProc = {
+          on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+            if (event === 'close') {
+              // Fire close asynchronously so all handlers are registered first
+              queueMicrotask(() => {
+                if (stderrOutput && stderrHandlers['data']) {
+                  stderrHandlers['data'](Buffer.from(stderrOutput));
+                }
+                handler(exitCode);
+              });
+            }
+          }),
+          stderr: {
+            on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+              stderrHandlers[event] = handler;
+            }),
+          },
+          stdout: { on: vi.fn() },
+          stdin: { on: vi.fn() },
+          killed: false,
+          kill: vi.fn(),
+        };
+        return mockProc;
+      });
+    }
+
+    it('should establish a GSSAPI connection via ControlMaster', async () => {
+      const config: SshConfig = {
+        id: 'conn-gssapi-1',
+        name: 'GSSAPI Connection',
+        host: 'krb.example.com',
+        port: 22,
+        username: 'krbuser',
+        authType: 'gssapi',
+      };
+
+      setupGssapiSpawn(0);
+
+      const connectionId = await service.connect(config);
+      expect(connectionId).toBe('conn-gssapi-1');
+      expect(service.isConnected('conn-gssapi-1')).toBe(true);
+      expect(service.isGssapiConnection('conn-gssapi-1')).toBe(true);
+
+      // Verify spawn was called with GSSAPI flags
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'ssh',
+        expect.arrayContaining([
+          '-f',
+          '-N',
+          '-M',
+          '-o',
+          'GSSAPIAuthentication=yes',
+          '-l',
+          'krbuser',
+          'krb.example.com',
+        ]),
+        expect.any(Object)
+      );
+    });
+
+    it('should reject when GSSAPI authentication fails', async () => {
+      const config: SshConfig = {
+        id: 'conn-gssapi-fail',
+        name: 'GSSAPI Fail',
+        host: 'krb.example.com',
+        port: 22,
+        username: 'krbuser',
+        authType: 'gssapi',
+      };
+
+      setupGssapiSpawn(255, 'Permission denied');
+
+      service.on('error', () => {});
+      await expect(service.connect(config)).rejects.toThrow('Permission denied');
+    });
+
+    it('should throw SFTP error for GSSAPI connections', async () => {
+      const config: SshConfig = {
+        id: 'conn-gssapi-sftp',
+        name: 'GSSAPI SFTP',
+        host: 'krb.example.com',
+        port: 22,
+        username: 'krbuser',
+        authType: 'gssapi',
+      };
+
+      setupGssapiSpawn(0);
+      await service.connect(config);
+
+      await expect(service.getSftp('conn-gssapi-sftp')).rejects.toThrow(
+        'SFTP is not available for GSSAPI connections'
+      );
+    });
+
+    it('should execute commands via system ssh for GSSAPI connections', async () => {
+      const config: SshConfig = {
+        id: 'conn-gssapi-exec',
+        name: 'GSSAPI Exec',
+        host: 'krb.example.com',
+        port: 22,
+        username: 'krbuser',
+        authType: 'gssapi',
+      };
+
+      setupGssapiSpawn(0);
+      await service.connect(config);
+
+      // Mock execFile for command execution
+      mockExecFile.mockImplementation(
+        (cmd: string, args: string[], opts: any, callback: (...cbArgs: any[]) => void) => {
+          callback(null, 'hello world\n', '');
+        }
+      );
+
+      const result = await service.executeCommand('conn-gssapi-exec', 'echo hello world');
+      expect(result.stdout).toBe('hello world');
+      expect(result.exitCode).toBe(0);
+      expect(mockExecFile).toHaveBeenCalledWith(
+        'ssh',
+        expect.arrayContaining(['-o', 'ControlMaster=no', 'krb.example.com']),
+        expect.any(Object),
+        expect.any(Function)
+      );
+    });
+
+    it('should return GSSAPI connection info', async () => {
+      const config: SshConfig = {
+        id: 'conn-gssapi-info',
+        name: 'GSSAPI Info',
+        host: 'krb.example.com',
+        port: 22,
+        username: 'krbuser',
+        authType: 'gssapi',
+      };
+
+      setupGssapiSpawn(0);
+      await service.connect(config);
+
+      const info = service.getConnectionInfo('conn-gssapi-info');
+      expect(info).not.toBeNull();
+      expect(info?.connectedAt).toBeInstanceOf(Date);
+
+      const connections = service.listConnections();
+      expect(connections).toContain('conn-gssapi-info');
     });
   });
 

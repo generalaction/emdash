@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 
 type WizardStep = 'connection' | 'auth' | 'path' | 'confirm';
-type AuthType = 'password' | 'key' | 'agent';
+type AuthType = 'password' | 'key' | 'agent' | 'gssapi';
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
 type RepoMode = 'pick' | 'create' | 'clone';
 
@@ -806,7 +806,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         {
           id: 'auth',
           label: 'Authentication',
-          icon: formData.authType === 'password' ? Lock : Key,
+          icon:
+            formData.authType === 'password' ? Lock : formData.authType === 'gssapi' ? Globe : Key,
         },
         { id: 'path', label: 'Project Path', icon: FolderOpen },
         { id: 'confirm', label: 'Confirm', icon: Check },
@@ -1018,7 +1019,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               <RadioGroup
                 value={formData.authType}
                 onValueChange={(value) => updateField('authType', value as AuthType)}
-                className="grid grid-cols-3 gap-3"
+                className="grid grid-cols-4 gap-3"
               >
                 <div>
                   <RadioGroupItem value="password" id="auth-password" className="sr-only" />
@@ -1059,6 +1060,20 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                   >
                     <Shield className="mb-3 h-6 w-6" />
                     <span className="text-sm font-medium">Agent</span>
+                  </Label>
+                </div>
+
+                <div>
+                  <RadioGroupItem value="gssapi" id="auth-gssapi" className="sr-only" />
+                  <Label
+                    htmlFor="auth-gssapi"
+                    className={cn(
+                      'flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary',
+                      formData.authType === 'gssapi' && 'border-primary'
+                    )}
+                  >
+                    <Globe className="mb-3 h-6 w-6" />
+                    <span className="text-sm font-medium">Kerberos</span>
                   </Label>
                 </div>
               </RadioGroup>
@@ -1170,6 +1185,36 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                         <p className="pt-1">3. If not listed, add your key:</p>
                         <p className="pl-2 text-muted-foreground">ssh-add ~/.ssh/id_ed25519</p>
                         <p className="pt-1">(or your key filename if different)</p>
+                      </div>
+                    </details>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {formData.authType === 'gssapi' && (
+              <Alert>
+                <Globe className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p>
+                      GSSAPI/Kerberos authentication uses your system&apos;s Kerberos ticket. Run{' '}
+                      <code className="rounded bg-muted px-1 py-0.5 text-xs">kinit</code> before
+                      connecting.
+                    </p>
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer font-semibold text-foreground">
+                        How to set up Kerberos
+                      </summary>
+                      <div className="mt-2 space-y-1 font-mono text-xs">
+                        <p>1. Obtain a Kerberos ticket:</p>
+                        <p className="pl-2 text-muted-foreground">kinit username@REALM</p>
+                        <p className="pt-1">2. Verify the ticket is valid:</p>
+                        <p className="pl-2 text-muted-foreground">klist</p>
+                        <p className="pt-1">3. Ensure the server supports GSSAPI auth:</p>
+                        <p className="pl-2 text-muted-foreground">
+                          ssh -o GSSAPIAuthentication=yes user@host
+                        </p>
                       </div>
                     </details>
                   </div>
@@ -1489,6 +1534,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                     {formData.authType === 'password' && 'Password'}
                     {formData.authType === 'key' && 'SSH Key'}
                     {formData.authType === 'agent' && 'SSH Agent'}
+                    {formData.authType === 'gssapi' && 'GSSAPI/Kerberos'}
                   </span>
                 </div>
                 <div className="flex px-4 py-3">

@@ -118,7 +118,7 @@ export const SshConnectionForm: React.FC<Props> = ({
       setIsLoadingFromConfig(true);
 
       // Determine auth type based on config
-      let authType: 'password' | 'key' | 'agent' = 'agent';
+      let authType: 'password' | 'key' | 'agent' | 'gssapi' = 'agent';
       let privateKeyPath = '';
 
       if (host.identityAgent) {
@@ -326,7 +326,9 @@ export const SshConnectionForm: React.FC<Props> = ({
         <Label>Authentication Method</Label>
         <RadioGroup
           value={formData.authType}
-          onValueChange={(value: 'password' | 'key' | 'agent') => handleChange('authType', value)}
+          onValueChange={(value: 'password' | 'key' | 'agent' | 'gssapi') =>
+            handleChange('authType', value)
+          }
           className="flex flex-col gap-3"
         >
           <div className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-muted/50">
@@ -367,6 +369,22 @@ export const SshConnectionForm: React.FC<Props> = ({
               <div>
                 <span className="font-medium">SSH Agent</span>
                 <p className="text-xs text-muted-foreground">Use the system SSH agent</p>
+              </div>
+            </Label>
+          </div>
+
+          <div className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-muted/50">
+            <RadioGroupItem value="gssapi" id="auth-gssapi" />
+            <Label
+              htmlFor="auth-gssapi"
+              className="flex cursor-pointer items-center gap-2 font-normal"
+            >
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <span className="font-medium">GSSAPI/Kerberos</span>
+                <p className="text-xs text-muted-foreground">
+                  Use Kerberos ticket via GSSAPI (kinit)
+                </p>
               </div>
             </Label>
           </div>

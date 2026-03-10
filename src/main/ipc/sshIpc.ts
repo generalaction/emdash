@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { execFile } from 'child_process';
 import { SSH_IPC_CHANNELS } from '../../shared/ssh/types';
 import { sshService } from '../services/ssh/SshService';
 import { SshCredentialService } from '../services/ssh/SshCredentialService';
@@ -50,7 +51,7 @@ function mapRowToConfig(row: {
     host: row.host,
     port: row.port,
     username: row.username,
-    authType: row.authType as 'password' | 'key' | 'agent',
+    authType: row.authType as 'password' | 'key' | 'agent' | 'gssapi',
     privateKeyPath: row.privateKeyPath ?? undefined,
     useAgent: row.useAgent === 1,
   };
@@ -161,6 +162,61 @@ export function registerSshIpc() {
       config: SshConfig & { password?: string; passphrase?: string }
     ): Promise<ConnectionTestResult> => {
       try {
+        // GSSAPI connections use system ssh for testing (ssh2 doesn't support GSSAPI)
+        if (config.authType === 'gssapi') {
+          return new Promise((resolve) => {
+            const startTime = Date.now();
+            const debugLogs: string[] = [];
+
+            const sshArgs = [
+              '-o',
+              'GSSAPIAuthentication=yes',
+              '-o',
+              'PreferredAuthentications=gssapi-with-mic,gssapi-keyex',
+              '-o',
+              'StrictHostKeyChecking=accept-new',
+              '-o',
+              'BatchMode=yes',
+              '-o',
+              'ConnectTimeout=10',
+              '-v', // Verbose for debug logs
+              '-p',
+              String(config.port),
+              '-l',
+              config.username,
+              config.host,
+              'echo __EMDASH_SSH_OK__',
+            ];
+
+            execFile(
+              'ssh',
+              sshArgs,
+              {
+                timeout: 15000,
+                env: {
+                  ...process.env,
+                  KRB5CCNAME: process.env.KRB5CCNAME || '',
+                },
+              },
+              (err, stdout, stderr) => {
+                const latency = Date.now() - startTime;
+
+                // Capture verbose ssh output as debug logs
+                if (stderr) {
+                  debugLogs.push(...stderr.split('\n').filter(Boolean));
+                }
+
+                if (stdout && stdout.includes('__EMDASH_SSH_OK__')) {
+                  resolve({ success: true, latency, debugLogs });
+                } else {
+                  const errorMsg = err?.message || stderr?.trim() || 'GSSAPI authentication failed';
+                  resolve({ success: false, error: errorMsg, debugLogs });
+                }
+              }
+            );
+          });
+        }
+
         const { Client } = await import('ssh2');
         const debugLogs: string[] = [];
         const testClient = new Client();
@@ -571,6 +627,43 @@ export function registerSshIpc() {
           return { success: false, error: 'Access denied: path is restricted' };
         }
 
+        // GSSAPI connections use command-based file operations
+        if (sshService.isGssapiConnection(connectionId)) {
+          const result = await sshService.executeCommand(
+            connectionId,
+            `ls -la --time-style=+%s ${quoteShellArg(path)} 2>/dev/null`
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: `Failed to list files: ${result.stderr}` };
+          }
+
+          const entries: FileEntry[] = [];
+          for (const line of result.stdout.split('\n')) {
+            // Parse ls -la output: permissions links owner group size timestamp name
+            const match = line.match(
+              /^([dlscp-])([rwxsStT-]{9})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d+)\s+(.+)$/
+            );
+            if (!match) continue;
+            const [, typeChar, perms, sizeStr, mtimeStr, name] = match;
+            if (name === '.' || name === '..') continue;
+
+            let type: 'file' | 'directory' | 'symlink' = 'file';
+            if (typeChar === 'd') type = 'directory';
+            else if (typeChar === 'l') type = 'symlink';
+
+            entries.push({
+              path: `${path}/${name}`.replace(/\/+/g, '/'),
+              name,
+              type,
+              size: parseInt(sizeStr, 10),
+              modifiedAt: new Date(parseInt(mtimeStr, 10) * 1000),
+              permissions: perms,
+            });
+          }
+
+          return { success: true, files: entries };
+        }
+
         const sftp = await sshService.getSftp(connectionId);
 
         return new Promise((resolve) => {
@@ -622,6 +715,18 @@ export function registerSshIpc() {
           return { success: false, error: 'Access denied: path is restricted' };
         }
 
+        // GSSAPI connections use command-based file operations
+        if (sshService.isGssapiConnection(connectionId)) {
+          const result = await sshService.executeCommand(
+            connectionId,
+            `cat ${quoteShellArg(path)}`
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: `Failed to read file: ${result.stderr}` };
+          }
+          return { success: true, content: result.stdout };
+        }
+
         const sftp = await sshService.getSftp(connectionId);
 
         return new Promise((resolve) => {
@@ -653,6 +758,19 @@ export function registerSshIpc() {
         // Validate path to prevent writing to sensitive files
         if (!isPathSafe(path)) {
           return { success: false, error: 'Access denied: path is restricted' };
+        }
+
+        // GSSAPI connections use command-based file operations
+        if (sshService.isGssapiConnection(connectionId)) {
+          const encoded = Buffer.from(content, 'utf-8').toString('base64');
+          const result = await sshService.executeCommand(
+            connectionId,
+            `echo ${quoteShellArg(encoded)} | base64 -d > ${quoteShellArg(path)}`
+          );
+          if (result.exitCode !== 0) {
+            return { success: false, error: `Failed to write file: ${result.stderr}` };
+          }
+          return { success: true };
         }
 
         const sftp = await sshService.getSftp(connectionId);

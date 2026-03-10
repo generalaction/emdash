@@ -22,6 +22,14 @@ export interface HostKeyEntry {
   verifiedAt: Date;
 }
 
+export interface GssapiConnection {
+  id: string;
+  config: SshConfig;
+  controlSocketPath: string;
+  connectedAt: Date;
+  lastActivity: Date;
+}
+
 export interface ConnectionMetrics {
   connectionId: string;
   bytesSent: number;

@@ -63,6 +63,36 @@ export class RemotePtyService extends EventEmitter {
    * @throws Error if connection not found or shell creation fails
    */
   async startRemotePty(options: RemotePtyOptions): Promise<RemotePty> {
+    // Build the remote command (shared between ssh2 and GSSAPI paths)
+    const envEntries = Object.entries(options.env || {}).filter(([k]) => {
+      if (!isValidEnvVarName(k)) {
+        console.warn(`[RemotePtyService] Skipping invalid env var name: ${k}`);
+        return false;
+      }
+      return true;
+    });
+    const envVars = envEntries.map(([k, v]) => `export ${k}=${quoteShellArg(v)}`).join(' && ');
+    const cdCommand = options.cwd ? `cd ${quoteShellArg(options.cwd)}` : '';
+    const autoApproveFlag = options.autoApprove ? ' --full-auto' : '';
+
+    // Validate shell against allowlist (HIGH #5)
+    const shellBinary = options.shell.split(/\s+/)[0];
+    if (!ALLOWED_SHELLS.has(shellBinary)) {
+      throw new Error(
+        `Shell not allowed: ${shellBinary}. Allowed: ${[...ALLOWED_SHELLS].join(', ')}`
+      );
+    }
+
+    const fullCommand = [envVars, cdCommand, `${options.shell}${autoApproveFlag}`]
+      .filter(Boolean)
+      .join(' && ');
+
+    // GSSAPI connections: spawn system ssh with ControlMaster socket
+    if (this.sshService.isGssapiConnection(options.connectionId)) {
+      return this.startGssapiPty(options, fullCommand);
+    }
+
+    // Standard ssh2 connections
     const connection = this.sshService.getConnection(options.connectionId);
     if (!connection) {
       throw new Error(`Connection ${options.connectionId} not found`);
@@ -76,35 +106,6 @@ export class RemotePtyService extends EventEmitter {
           reject(err);
           return;
         }
-
-        // Build command with environment and cwd
-        // Validate env var keys to prevent injection (CRITICAL #1)
-        const envEntries = Object.entries(options.env || {}).filter(([k]) => {
-          if (!isValidEnvVarName(k)) {
-            console.warn(`[RemotePtyService] Skipping invalid env var name: ${k}`);
-            return false;
-          }
-          return true;
-        });
-        const envVars = envEntries.map(([k, v]) => `export ${k}=${quoteShellArg(v)}`).join(' && ');
-
-        const cdCommand = options.cwd ? `cd ${quoteShellArg(options.cwd)}` : '';
-        const autoApproveFlag = options.autoApprove ? ' --full-auto' : '';
-
-        // Validate shell against allowlist (HIGH #5)
-        const shellBinary = options.shell.split(/\s+/)[0];
-        if (!ALLOWED_SHELLS.has(shellBinary)) {
-          reject(
-            new Error(
-              `Shell not allowed: ${shellBinary}. Allowed: ${[...ALLOWED_SHELLS].join(', ')}`
-            )
-          );
-          return;
-        }
-
-        const fullCommand = [envVars, cdCommand, `${options.shell}${autoApproveFlag}`]
-          .filter(Boolean)
-          .join(' && ');
 
         // Send initial command
         stream.write(fullCommand + '\n');
@@ -136,6 +137,64 @@ export class RemotePtyService extends EventEmitter {
         resolve(pty);
       });
     });
+  }
+
+  /**
+   * Starts a remote PTY session for GSSAPI connections using system ssh with ControlMaster.
+   */
+  private async startGssapiPty(
+    options: RemotePtyOptions,
+    remoteCommand: string
+  ): Promise<RemotePty> {
+    const sshArgs = this.sshService.getGssapiSshArgs(options.connectionId);
+    if (!sshArgs) {
+      throw new Error(`GSSAPI connection ${options.connectionId} not found`);
+    }
+
+    // Use node-pty to spawn ssh -tt with the ControlMaster socket
+    let pty: typeof import('node-pty');
+    try {
+      pty = require('node-pty');
+    } catch (e: any) {
+      throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
+    }
+
+    const proc = pty.spawn('ssh', ['-tt', ...sshArgs, remoteCommand], {
+      name: 'xterm-256color',
+      cols: 120,
+      rows: 32,
+      env: {
+        TERM: 'xterm-256color',
+        HOME: process.env.HOME || require('os').homedir(),
+        PATH: process.env.PATH || '',
+        KRB5CCNAME: process.env.KRB5CCNAME || '',
+      },
+    });
+
+    // Send initial prompt if provided
+    if (options.initialPrompt) {
+      setTimeout(() => {
+        proc.write(options.initialPrompt + '\n');
+      }, 500);
+    }
+
+    const remotePty: RemotePty = {
+      id: options.id,
+      write: (data: string) => proc.write(data),
+      resize: (cols: number, rows: number) => proc.resize(cols, rows),
+      kill: () => proc.kill(),
+      onData: (callback) => proc.onData(callback),
+      onExit: (callback) => proc.onExit(({ exitCode }) => callback(exitCode)),
+    };
+
+    this.ptys.set(options.id, remotePty);
+
+    proc.onExit(() => {
+      this.ptys.delete(options.id);
+      this.emit('exit', options.id);
+    });
+
+    return remotePty;
   }
 
   /**

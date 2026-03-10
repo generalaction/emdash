@@ -13,7 +13,7 @@ export interface SshConnection {
   host: string;
   port: number;
   username: string;
-  authType: 'password' | 'key' | 'agent';
+  authType: 'password' | 'key' | 'agent' | 'gssapi';
   privateKeyPath?: string;
   useAgent?: boolean;
   state?: ConnectionState;
