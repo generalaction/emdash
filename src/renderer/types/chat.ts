@@ -33,6 +33,10 @@ export interface TaskMetadata {
   initialInjectionSent?: boolean | null;
   /** Whether this task is pinned to the top of the sidebar */
   isPinned?: boolean | null;
+  /** PR number when this task is a PR review task */
+  prNumber?: number | null;
+  /** PR title when this task is a PR review task */
+  prTitle?: string | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

@@ -139,6 +139,36 @@ describe('getFileDiff (integration)', () => {
       'File path is outside the worktree'
     );
   });
+
+  it('should use the merge-base and committed HEAD content for PR review diffs', async () => {
+    await commitFile(repo, 'file.txt', 'base\n', 'init');
+    await exec('git', ['checkout', '-b', 'feature'], { cwd: repo });
+    await commitFile(repo, 'file.txt', 'feature\n', 'feature change');
+    await exec('git', ['checkout', 'master'], { cwd: repo });
+    await commitFile(repo, 'file.txt', 'main\n', 'main change');
+    await exec('git', ['checkout', 'feature'], { cwd: repo });
+
+    await fs.promises.writeFile(path.join(repo, 'file.txt'), 'dirty working tree\n');
+
+    const result = await getFileDiff(repo, 'file.txt', 'master');
+
+    expect(result.originalContent).toBe('base');
+    expect(result.modifiedContent).toBe('feature');
+    expect(result.lines).toContainEqual({ left: 'base', type: 'del' });
+    expect(result.lines).toContainEqual({ right: 'feature', type: 'add' });
+    expect(result.lines).not.toContainEqual({ left: 'main', type: 'del' });
+    expect(result.lines).not.toContainEqual({ right: 'dirty working tree', type: 'add' });
+  });
+
+  it('should preserve review metadata when a PR diff is empty', async () => {
+    await commitFile(repo, 'file.txt', 'same\n', 'init');
+
+    const result = await getFileDiff(repo, 'file.txt', 'HEAD');
+
+    expect(result.lines).toEqual([]);
+    expect(result.originalContent).toBe('same');
+    expect(result.modifiedContent).toBe('same');
+  });
 });
 
 describe('getCommitFileDiff (integration)', () => {
