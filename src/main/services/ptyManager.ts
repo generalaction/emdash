@@ -557,6 +557,7 @@ type ProviderCliArgsOptions = {
   resumeFlag?: string;
   defaultArgs?: string[];
   extraArgs?: string[];
+  runtimeArgs?: string[];
   autoApprove?: boolean;
   autoApproveFlag?: string;
   initialPrompt?: string;
@@ -634,6 +635,14 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
     args.push(...parseShellArgs(options.autoApproveFlag));
   }
 
+  if (options.extraArgs?.length) {
+    args.push(...options.extraArgs);
+  }
+
+  if (options.runtimeArgs?.length) {
+    args.push(...options.runtimeArgs);
+  }
+
   if (
     options.initialPromptFlag !== undefined &&
     !options.useKeystrokeInjection &&
@@ -643,10 +652,6 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
       args.push(...parseShellArgs(options.initialPromptFlag));
     }
     args.push(options.initialPrompt.trim());
-  }
-
-  if (options.extraArgs?.length) {
-    args.push(...options.extraArgs);
   }
 
   return args;
@@ -1019,6 +1024,7 @@ export function startDirectPty(options: {
         resumeFlag: resolvedConfig.resumeFlag,
         defaultArgs: resolvedConfig.defaultArgs,
         extraArgs: resolvedConfig.extraArgs,
+        runtimeArgs: getProviderRuntimeCliArgs({ providerId }),
         autoApprove,
         autoApproveFlag: resolvedConfig.autoApproveFlag,
         initialPrompt,
@@ -1026,7 +1032,6 @@ export function startDirectPty(options: {
         useKeystrokeInjection: provider.useKeystrokeInjection,
       })
     );
-    cliArgs.push(...getProviderRuntimeCliArgs({ providerId }));
   }
 
   // Build minimal environment - just what the CLI needs
@@ -1265,6 +1270,7 @@ export async function startPty(options: {
             resumeFlag: resolvedConfig?.resumeFlag,
             defaultArgs: resolvedConfig?.defaultArgs,
             extraArgs: resolvedConfig?.extraArgs,
+            runtimeArgs: getProviderRuntimeCliArgs({ providerId: provider.id }),
             autoApprove,
             autoApproveFlag: resolvedConfig?.autoApproveFlag,
             initialPrompt,
@@ -1272,7 +1278,6 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
-        cliArgs.push(...getProviderRuntimeCliArgs({ providerId: provider.id }));
 
         if (resolvedConfig?.env) {
           for (const [k, v] of Object.entries(resolvedConfig.env)) {
