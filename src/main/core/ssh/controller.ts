@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type { ConnectionTestResult, SshConfig } from '@/shared/ssh/types';
+import type { ConnectionState, ConnectionTestResult, SshConfig } from '@/shared/ssh/types';
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -142,5 +142,19 @@ export const sshController = createRPCController({
   /** Returns whether the connection is currently live. */
   getState: async (connectionId: string): Promise<'connected' | 'disconnected'> => {
     return sshConnectionManager.isConnected(connectionId) ? 'connected' : 'disconnected';
+  },
+  /** Returns the current ConnectionState for every connection tracked by the manager. */
+  getConnectionState: async (): Promise<Record<string, ConnectionState>> => {
+    return sshConnectionManager.getAllConnectionStates();
+  },
+
+  /** Rename a saved SSH connection without changing any other fields. */
+  renameConnection: async (id: string, name: string): Promise<void> => {
+    const [row] = await db.select().from(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
+    if (!row) throw new Error(`SSH connection ${id} not found`);
+    await db
+      .update(sshConnectionsTable)
+      .set({ name, updatedAt: new Date().toISOString() })
+      .where(eq(sshConnectionsTable.id, id));
   },
 });

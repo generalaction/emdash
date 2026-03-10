@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { CloneFromUrlModal } from '@renderer/components/CloneFromUrlModal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
@@ -13,6 +14,7 @@ const modalRegistry = {
   newProjectModal: NewProjectModal,
   cloneFromUrlModal: CloneFromUrlModal,
   taskModal: TaskModalOverlay,
+  addProjectModal: AddProjectModal,
   addRemoteProjectModal: AddRemoteProjectModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,

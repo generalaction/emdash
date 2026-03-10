@@ -13,6 +13,7 @@ import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
 import { ModalProvider } from './contexts/ModalProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
+import { SshConnectionProvider } from './contexts/SshConnectionProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
@@ -48,33 +49,35 @@ export function App() {
           <ModalProvider>
             <WorkspaceLayoutContextProvider>
               <AppContextProvider>
-                <GithubContextProvider>
-                  <IntegrationsProvider>
-                    {/* WorkspaceViewProvider must be above data providers so navigate() is available
+                <SshConnectionProvider>
+                  <GithubContextProvider>
+                    <IntegrationsProvider>
+                      {/* WorkspaceViewProvider must be above data providers so navigate() is available
                   inside ProjectManagementProvider and TaskManagementProvider hooks */}
-                    <WorkspaceViewProvider>
-                      <ProjectManagementProvider>
-                        <TaskManagementProvider>
-                          <AppSettingsProvider>
-                            <AgentProvider>
-                              <KeyboardSettingsProvider>
-                                <BrowserProvider>
-                                  <SidebarProvider>
-                                    <RightSidebarProvider>
-                                      <ThemeProvider>
-                                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                      </ThemeProvider>
-                                    </RightSidebarProvider>
-                                  </SidebarProvider>
-                                </BrowserProvider>
-                              </KeyboardSettingsProvider>
-                            </AgentProvider>
-                          </AppSettingsProvider>
-                        </TaskManagementProvider>
-                      </ProjectManagementProvider>
-                    </WorkspaceViewProvider>
-                  </IntegrationsProvider>
-                </GithubContextProvider>
+                      <WorkspaceViewProvider>
+                        <ProjectManagementProvider>
+                          <TaskManagementProvider>
+                            <AppSettingsProvider>
+                              <AgentProvider>
+                                <KeyboardSettingsProvider>
+                                  <BrowserProvider>
+                                    <SidebarProvider>
+                                      <RightSidebarProvider>
+                                        <ThemeProvider>
+                                          <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                        </ThemeProvider>
+                                      </RightSidebarProvider>
+                                    </SidebarProvider>
+                                  </BrowserProvider>
+                                </KeyboardSettingsProvider>
+                              </AgentProvider>
+                            </AppSettingsProvider>
+                          </TaskManagementProvider>
+                        </ProjectManagementProvider>
+                      </WorkspaceViewProvider>
+                    </IntegrationsProvider>
+                  </GithubContextProvider>
+                </SshConnectionProvider>
               </AppContextProvider>
             </WorkspaceLayoutContextProvider>
           </ModalProvider>

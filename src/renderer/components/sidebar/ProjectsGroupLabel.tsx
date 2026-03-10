@@ -1,64 +1,25 @@
-import { FolderOpen, FolderPlus, Github, Plus, Server } from 'lucide-react';
+import { FolderPlus } from 'lucide-react';
 import React from 'react';
 import { Button } from '@renderer/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
 import { SidebarGroupLabel } from '@renderer/components/ui/sidebar';
-import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
+import { useShowModal } from '@renderer/contexts/ModalProvider';
 
 export function ProjectsGroupLabel() {
-  const {
-    openSelectLocalProjectPathDialog,
-    handleNewProjectClick: onNewProject,
-    handleCloneProjectClick: onCloneProject,
-    handleAddRemoteProject: onAddRemoteProject,
-  } = useProjectManagementContext();
-
-  const handleOpenLocalProjectPathDialog = async () => {
-    const result = await openSelectLocalProjectPathDialog();
-    console.log(result);
-  };
+  const showAddProjectModal = useShowModal('addProjectModal');
 
   return (
     <SidebarGroupLabel className="flex items-center justify-between pr-0">
       <span className="cursor-default select-none text-sm font-medium normal-case tracking-normal text-foreground/30">
         Projects
       </span>
-
-      <Popover>
-        <PopoverTrigger>
-          <Button variant="ghost" size="icon-sm" className="text-foreground/30">
-            <FolderPlus className="h-3.5 w-3.5" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
-          <div className="space-y-1">
-            <MenuItemButton
-              icon={FolderOpen}
-              label="Open Folder"
-              ariaLabel="Open"
-              onClick={() => handleOpenLocalProjectPathDialog?.()}
-            />
-            <MenuItemButton
-              icon={Plus}
-              label="Create New"
-              ariaLabel="New"
-              onClick={() => onNewProject?.()}
-            />
-            <MenuItemButton
-              icon={Github}
-              label="Clone"
-              ariaLabel="Clone"
-              onClick={() => onCloneProject?.()}
-            />
-            <MenuItemButton
-              icon={Server}
-              label="Remote Project"
-              ariaLabel="Remote Project"
-              onClick={() => onAddRemoteProject?.()}
-            />
-          </div>
-        </PopoverContent>
-      </Popover>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="text-foreground/30"
+        onClick={() => showAddProjectModal({})}
+      >
+        <FolderPlus className="h-3.5 w-3.5" />
+      </Button>
     </SidebarGroupLabel>
   );
 }

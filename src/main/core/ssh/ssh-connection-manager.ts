@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { Client, type ConnectConfig } from 'ssh2';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import type { ConnectionState } from '@shared/ssh/types';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
@@ -101,6 +102,23 @@ export class SshConnectionManager extends EventEmitter {
   /** IDs of all connections that have a proxy (connected or reconnecting). */
   getConnectionIds(): string[] {
     return Array.from(this.proxies.keys());
+  }
+
+  /** Returns the current ConnectionState for a single connection ID. */
+  getConnectionState(id: string): ConnectionState {
+    if (this.proxies.get(id)?.isConnected) return 'connected';
+    if (this.reconnecting.has(id)) return 'reconnecting';
+    if (this.pendingConnections.has(id)) return 'connecting';
+    return 'disconnected';
+  }
+
+  /** Returns the current ConnectionState for every tracked connection. */
+  getAllConnectionStates(): Record<string, ConnectionState> {
+    const result: Record<string, ConnectionState> = {};
+    for (const id of this.proxies.keys()) {
+      result[id] = this.getConnectionState(id);
+    }
+    return result;
   }
 
   /**

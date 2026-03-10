@@ -17,7 +17,12 @@ export interface SshConfig {
  * Connection State
  * Represents the current state of an SSH connection
  */
-export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type ConnectionState =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'error';
 
 /**
  * SSH Connection with metadata
