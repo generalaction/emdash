@@ -1267,9 +1267,249 @@ declare global {
         data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
+
+      // Content Workspace API
+      contentWorkspaceCreate: (args: {
+        projectId: string;
+        name: string;
+        kanbanColumns?: Array<{ id: string; name: string; status: string }>;
+        defaultAgents?: string[];
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: ContentWorkspace; error?: string }>;
+      contentWorkspaceGet: (
+        id: string
+      ) => Promise<{ success: boolean; data?: ContentWorkspace | null; error?: string }>;
+      contentWorkspaceGetByProject: (
+        projectId: string
+      ) => Promise<{ success: boolean; data?: ContentWorkspace[]; error?: string }>;
+      contentWorkspaceUpdate: (args: {
+        id: string;
+        name?: string;
+        kanbanColumns?: Array<{ id: string; name: string; status: string }>;
+        defaultAgents?: string[];
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: ContentWorkspace | null; error?: string }>;
+      contentWorkspaceDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+
+      // Brand Guidelines
+      contentBrandCreate: (args: {
+        workspaceId: string;
+        name: string;
+        content: string;
+        isActive?: boolean;
+      }) => Promise<{ success: boolean; data?: BrandGuideline; error?: string }>;
+      contentBrandGet: (
+        id: string
+      ) => Promise<{ success: boolean; data?: BrandGuideline | null; error?: string }>;
+      contentBrandGetByWorkspace: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; data?: BrandGuideline[]; error?: string }>;
+      contentBrandGetActive: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; data?: BrandGuideline | null; error?: string }>;
+      contentBrandUpdate: (args: {
+        id: string;
+        name?: string;
+        content?: string;
+        isActive?: boolean;
+      }) => Promise<{ success: boolean; data?: BrandGuideline | null; error?: string }>;
+      contentBrandDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+
+      // Collections
+      contentCollectionCreate: (args: {
+        workspaceId: string;
+        name: string;
+        description?: string;
+      }) => Promise<{ success: boolean; data?: ContentCollection; error?: string }>;
+      contentCollectionGet: (
+        id: string
+      ) => Promise<{ success: boolean; data?: ContentCollection | null; error?: string }>;
+      contentCollectionGetByWorkspace: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; data?: ContentCollection[]; error?: string }>;
+      contentCollectionUpdate: (args: {
+        id: string;
+        name?: string;
+        description?: string;
+      }) => Promise<{ success: boolean; data?: ContentCollection | null; error?: string }>;
+      contentCollectionDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+
+      // Knowledge Documents
+      contentKnowledgeCreate: (args: {
+        collectionId: string;
+        name: string;
+        content: string;
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: KnowledgeDocument; error?: string }>;
+      contentKnowledgeUpload: (args: {
+        collectionId: string;
+        documents: Array<{ name: string; content: string; metadata?: Record<string, unknown> }>;
+      }) => Promise<{ success: boolean; data?: KnowledgeDocument[]; error?: string }>;
+      contentKnowledgeGet: (
+        id: string
+      ) => Promise<{ success: boolean; data?: KnowledgeDocument | null; error?: string }>;
+      contentKnowledgeGetByCollection: (
+        collectionId: string
+      ) => Promise<{ success: boolean; data?: KnowledgeDocument[]; error?: string }>;
+      contentKnowledgeUpdate: (args: {
+        id: string;
+        name?: string;
+        content?: string;
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: KnowledgeDocument | null; error?: string }>;
+      contentKnowledgeDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+      contentKnowledgeGetContextForAgent: (
+        collectionId: string
+      ) => Promise<{ success: boolean; data?: string; error?: string }>;
+
+      // Content Outputs
+      contentOutputCreate: (args: {
+        taskId: string;
+        agentId: string;
+        content: string;
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: ContentOutput; error?: string }>;
+      contentOutputGet: (
+        id: string
+      ) => Promise<{ success: boolean; data?: ContentOutput | null; error?: string }>;
+      contentOutputGetByTask: (
+        taskId: string
+      ) => Promise<{ success: boolean; data?: ContentOutput[]; error?: string }>;
+      contentOutputGetByTaskAndAgent: (args: {
+        taskId: string;
+        agentId: string;
+      }) => Promise<{ success: boolean; data?: ContentOutput[]; error?: string }>;
+      contentOutputGetSelected: (
+        taskId: string
+      ) => Promise<{ success: boolean; data?: ContentOutput | null; error?: string }>;
+      contentOutputSelect: (
+        id: string
+      ) => Promise<{ success: boolean; data?: ContentOutput | null; error?: string }>;
+      contentOutputUpdate: (args: {
+        id: string;
+        content?: string;
+        metadata?: Record<string, unknown>;
+      }) => Promise<{ success: boolean; data?: ContentOutput | null; error?: string }>;
+      contentOutputDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+      contentOutputDeleteByTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+
+      // Content Context
+      contentContextGetForTask: (args: {
+        collectionId: string | null;
+        includeBrief?: boolean;
+        brief?: {
+          topic?: string;
+          audience?: string;
+          keywords?: string;
+          tone?: string;
+          notes?: string;
+        };
+        template?: string;
+      }) => Promise<{ success: boolean; data?: ContentContext; error?: string }>;
+      contentContextGetForWorkspace: (
+        workspaceId: string
+      ) => Promise<{ success: boolean; data?: ContentContext; error?: string }>;
+      contentContextComposePrompt: (args: {
+        collectionId: string | null;
+        userPrompt?: string;
+        role?: string;
+        includeBrief?: boolean;
+        brief?: {
+          topic?: string;
+          audience?: string;
+          keywords?: string;
+          tone?: string;
+          notes?: string;
+        };
+      }) => Promise<{
+        success: boolean;
+        data?: { prompt: string; context: ContentContext };
+        error?: string;
+      }>;
+
+      // Content Export
+      contentExportClipboard: (args: {
+        outputId: string;
+        options?: ExportOptions;
+      }) => Promise<{ success: boolean; error?: string }>;
+      contentExportFile: (args: {
+        outputId: string;
+        options?: ExportOptions;
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      contentExportFolder: (args: {
+        taskId: string;
+        options?: ExportOptions;
+      }) => Promise<{ success: boolean; folderPath?: string; fileCount?: number; error?: string }>;
+      contentExportSelectedToFile: (args: {
+        taskId: string;
+        options?: ExportOptions;
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
     };
   }
 }
+
+// Content Workspace Types (used by both global and exported interface)
+export type ContentKanbanColumn = { id: string; name: string; status: string };
+export type ContentWorkspace = {
+  id: string;
+  projectId: string;
+  name: string;
+  kanbanColumns: ContentKanbanColumn[];
+  defaultAgents: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+export type BrandGuideline = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  content: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+export type ContentCollection = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  documentCount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type KnowledgeDocument = {
+  id: string;
+  collectionId: string;
+  name: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+export type ContentOutput = {
+  id: string;
+  taskId: string;
+  agentId: string;
+  content: string;
+  version: number;
+  selected: boolean;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ContentContext = {
+  context: string;
+  characterCount: number;
+  hasBrand: boolean;
+  hasKnowledge: boolean;
+  documentCount: number;
+};
+
+export type ExportOptions = {
+  includeMetadata?: boolean;
+  filenameFormat?: 'simple' | 'detailed';
+};
 
 // Explicit type export for better TypeScript recognition
 export interface ElectronAPI {
@@ -1932,6 +2172,348 @@ export interface ElectronAPI {
     data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
+
+  // ============================================================================
+  // Content Workspace API
+  // ============================================================================
+
+  // Content Workspace
+  contentWorkspaceCreate: (args: {
+    projectId: string;
+    name: string;
+    kanbanColumns?: ContentKanbanColumn[];
+    defaultAgents?: string[];
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: ContentWorkspace; error?: string }>;
+
+  contentWorkspaceGet: (id: string) => Promise<{
+    success: boolean;
+    data?: ContentWorkspace | null;
+    error?: string;
+  }>;
+
+  contentWorkspaceGetByProject: (projectId: string) => Promise<{
+    success: boolean;
+    data?: ContentWorkspace[];
+    error?: string;
+  }>;
+
+  contentWorkspaceUpdate: (args: {
+    id: string;
+    name?: string;
+    kanbanColumns?: ContentKanbanColumn[];
+    defaultAgents?: string[];
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: ContentWorkspace | null; error?: string }>;
+
+  contentWorkspaceDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  // Brand Guidelines
+  contentBrandCreate: (args: {
+    workspaceId: string;
+    name: string;
+    content: string;
+    isActive?: boolean;
+  }) => Promise<{ success: boolean; data?: BrandGuideline; error?: string }>;
+
+  contentBrandGet: (id: string) => Promise<{
+    success: boolean;
+    data?: BrandGuideline | null;
+    error?: string;
+  }>;
+
+  contentBrandGetByWorkspace: (workspaceId: string) => Promise<{
+    success: boolean;
+    data?: BrandGuideline[];
+    error?: string;
+  }>;
+
+  contentBrandGetActive: (workspaceId: string) => Promise<{
+    success: boolean;
+    data?: BrandGuideline | null;
+    error?: string;
+  }>;
+
+  contentBrandUpdate: (args: {
+    id: string;
+    name?: string;
+    content?: string;
+    isActive?: boolean;
+  }) => Promise<{ success: boolean; data?: BrandGuideline | null; error?: string }>;
+
+  contentBrandDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  // Collections
+  contentCollectionCreate: (args: {
+    workspaceId: string;
+    name: string;
+    description?: string;
+  }) => Promise<{ success: boolean; data?: ContentCollection; error?: string }>;
+
+  contentCollectionGet: (id: string) => Promise<{
+    success: boolean;
+    data?: ContentCollection | null;
+    error?: string;
+  }>;
+
+  contentCollectionGetByWorkspace: (workspaceId: string) => Promise<{
+    success: boolean;
+    data?: ContentCollection[];
+    error?: string;
+  }>;
+
+  contentCollectionUpdate: (args: {
+    id: string;
+    name?: string;
+    description?: string;
+  }) => Promise<{ success: boolean; data?: ContentCollection | null; error?: string }>;
+
+  contentCollectionDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  // Knowledge Documents
+  contentKnowledgeCreate: (args: {
+    collectionId: string;
+    name: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: KnowledgeDocument; error?: string }>;
+
+  contentKnowledgeUpload: (args: {
+    collectionId: string;
+    documents: Array<{
+      name: string;
+      content: string;
+      metadata?: Record<string, unknown>;
+    }>;
+  }) => Promise<{ success: boolean; data?: KnowledgeDocument[]; error?: string }>;
+
+  contentKnowledgeGet: (id: string) => Promise<{
+    success: boolean;
+    data?: KnowledgeDocument | null;
+    error?: string;
+  }>;
+
+  contentKnowledgeGetByCollection: (collectionId: string) => Promise<{
+    success: boolean;
+    data?: KnowledgeDocument[];
+    error?: string;
+  }>;
+
+  contentKnowledgeUpdate: (args: {
+    id: string;
+    name?: string;
+    content?: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: KnowledgeDocument | null; error?: string }>;
+
+  contentKnowledgeDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  contentKnowledgeGetContextForAgent: (collectionId: string) => Promise<{
+    success: boolean;
+    data?: string;
+    error?: string;
+  }>;
+
+  // Content Outputs
+  contentOutputCreate: (args: {
+    taskId: string;
+    agentId: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: ContentOutput; error?: string }>;
+
+  contentOutputGet: (id: string) => Promise<{
+    success: boolean;
+    data?: ContentOutput | null;
+    error?: string;
+  }>;
+
+  contentOutputGetByTask: (taskId: string) => Promise<{
+    success: boolean;
+    data?: ContentOutput[];
+    error?: string;
+  }>;
+
+  contentOutputGetByTaskAndAgent: (args: {
+    taskId: string;
+    agentId: string;
+  }) => Promise<{ success: boolean; data?: ContentOutput[]; error?: string }>;
+
+  contentOutputGetSelected: (taskId: string) => Promise<{
+    success: boolean;
+    data?: ContentOutput | null;
+    error?: string;
+  }>;
+
+  contentOutputSelect: (id: string) => Promise<{
+    success: boolean;
+    data?: ContentOutput | null;
+    error?: string;
+  }>;
+
+  contentOutputUpdate: (args: {
+    id: string;
+    content?: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<{ success: boolean; data?: ContentOutput | null; error?: string }>;
+
+  contentOutputDelete: (id: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  contentOutputDeleteByTask: (taskId: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  // Content Context
+  contentContextGetForTask: (args: {
+    collectionId: string | null;
+    includeBrief?: boolean;
+    brief?: {
+      topic?: string;
+      audience?: string;
+      keywords?: string;
+      tone?: string;
+      notes?: string;
+    };
+    template?: string;
+  }) => Promise<{
+    success: boolean;
+    data?: ContentContext;
+    error?: string;
+  }>;
+
+  contentContextGetForWorkspace: (workspaceId: string) => Promise<{
+    success: boolean;
+    data?: ContentContext;
+    error?: string;
+  }>;
+
+  contentContextComposePrompt: (args: {
+    collectionId: string | null;
+    userPrompt?: string;
+    role?: string;
+    includeBrief?: boolean;
+    brief?: {
+      topic?: string;
+      audience?: string;
+      keywords?: string;
+      tone?: string;
+      notes?: string;
+    };
+  }) => Promise<{
+    success: boolean;
+    data?: {
+      prompt: string;
+      context: ContentContext;
+    };
+    error?: string;
+  }>;
+
+  // Content Export
+  contentExportClipboard: (args: {
+    outputId: string;
+    options?: ExportOptions;
+  }) => Promise<{ success: boolean; error?: string }>;
+
+  contentExportFile: (args: {
+    outputId: string;
+    options?: ExportOptions;
+  }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+
+  contentExportFolder: (args: { taskId: string; options?: ExportOptions }) => Promise<{
+    success: boolean;
+    folderPath?: string;
+    fileCount?: number;
+    error?: string;
+  }>;
+
+  contentExportSelectedToFile: (args: {
+    taskId: string;
+    options?: ExportOptions;
+  }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
 }
+
+// Content Workspace Types
+export type ContentKanbanColumn = {
+  id: string;
+  name: string;
+  status: string;
+};
+
+export type ContentWorkspace = {
+  id: string;
+  projectId: string;
+  name: string;
+  kanbanColumns: ContentKanbanColumn[];
+  defaultAgents: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BrandGuideline = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  content: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ContentCollection = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  documentCount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeDocument = {
+  id: string;
+  collectionId: string;
+  name: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ContentOutput = {
+  id: string;
+  taskId: string;
+  agentId: string;
+  content: string;
+  version: number;
+  selected: boolean;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ContentContext = {
+  context: string;
+  characterCount: number;
+  hasBrand: boolean;
+  hasKnowledge: boolean;
+  documentCount: number;
+};
+
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';
