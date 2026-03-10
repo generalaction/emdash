@@ -7,12 +7,14 @@
  * Validate a custom branch name.
  * Returns error message if invalid, null if valid.
  *
- * Rules:
+ * Rules (from git check-ref-format):
  * - No whitespace
  * - No ".." (parent directory reference)
  * - No leading "-" (git flag confusion)
  * - No ".lock" suffix (git lock file)
  * - No "@{" (reflog syntax)
+ * - No special characters: ~ ^ : ? * [ \
+ * - No control characters
  * - Max 250 characters
  */
 export function validateBranchName(name: string): string | null {
@@ -27,8 +29,10 @@ export function validateBranchName(name: string): string | null {
     return 'Branch name must be 250 characters or less';
   }
 
-  if (/\s/.test(trimmed)) {
-    return 'Branch name cannot contain whitespace';
+  // Check for whitespace and special characters forbidden by git
+  // eslint-disable-next-line no-control-regex
+  if (/[\s~^:?*[\\\x00-\x1f\x7f]/.test(trimmed)) {
+    return 'Branch name contains invalid characters (spaces, ~, ^, :, ?, *, [, \\)';
   }
 
   if (trimmed.includes('..')) {
@@ -46,9 +50,6 @@ export function validateBranchName(name: string): string | null {
   if (trimmed.includes('@{')) {
     return 'Branch name cannot contain "@{"';
   }
-
-  // Git also disallows some other characters, but we'll let the backend handle those
-  // via sanitization. These are the most common user errors.
 
   return null;
 }

@@ -5,6 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { log } from '../lib/logger';
 import { worktreeService, type WorktreeInfo } from './WorktreeService';
+import { sanitizeBranchName, sanitizeWorktreeName } from '../lib/worktreeNameUtils';
 
 const execFileAsync = promisify(execFile);
 
@@ -309,11 +310,11 @@ export class WorktreePoolService {
     const hash = this.generateShortHash();
 
     const newBranch = customBranchName
-      ? this.sanitizeBranchName(customBranchName)
+      ? sanitizeBranchName(customBranchName, prefix)
       : `${prefix}/${sluggedName}-${hash}`;
 
     const worktreeDirName = customWorktreeName
-      ? this.sanitizeWorktreeName(customWorktreeName)
+      ? sanitizeWorktreeName(customWorktreeName)
       : `${sluggedName}-${hash}`;
 
     const newPath = path.join(reserve.projectPath, '..', `worktrees/${worktreeDirName}`);
@@ -677,30 +678,6 @@ export class WorktreePoolService {
   private generateShortHash(): string {
     const bytes = crypto.randomBytes(3);
     return bytes.readUIntBE(0, 3).toString(36).slice(0, 3).padStart(3, '0');
-  }
-
-  /** Sanitize branch name to ensure it's a valid Git ref */
-  private sanitizeBranchName(name: string): string {
-    let n = name
-      .replace(/\s+/g, '-')
-      .replace(/[^A-Za-z0-9._\/-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/\/+/g, '/');
-    n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
-    if (!n || n === 'HEAD') {
-      n = `emdash/${this.slugify('task')}-${this.generateShortHash()}`;
-    }
-    return n;
-  }
-
-  /** Sanitize worktree directory name to ensure it's a valid path component */
-  private sanitizeWorktreeName(name: string): string {
-    return name
-      .replace(/[/\\:*?"<>|]/g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 100);
   }
 }
 
