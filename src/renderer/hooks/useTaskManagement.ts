@@ -915,9 +915,10 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      project?: Project | null
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = project || pendingTaskProjectRef.current || selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
