@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 import {
@@ -16,6 +17,7 @@ import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
 import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
+import { type Project } from '../types/app';
 import { agentMeta } from '../providers/meta';
 import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
@@ -34,6 +36,7 @@ import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
+import { cn } from '../lib/utils';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -68,7 +71,8 @@ interface TaskModalProps {
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
-    nameGenerated?: boolean
+    nameGenerated?: boolean,
+    project?: Project | null
   ) => Promise<void>;
 }
 
@@ -93,7 +97,8 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
         autoApprove,
         useWorktree,
         baseRef,
-        nameGenerated
+        nameGenerated,
+        project
       ) => {
         await handleCreateTask(
           name,
@@ -108,7 +113,8 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
           autoApprove,
           useWorktree,
           baseRef,
-          nameGenerated
+          nameGenerated,
+          project
         );
       }}
     />
@@ -117,17 +123,39 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
 
 const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const {
+    projects,
     selectedProject,
-    projectDefaultBranch: defaultBranch,
-    projectBranchOptions: branchOptions,
-    isLoadingBranches,
-    refreshBranches,
+    projectDefaultBranch: contextDefaultBranch,
+    projectBranchOptions: contextBranchOptions,
+    isLoadingBranches: contextIsLoadingBranches,
   } = useProjectManagementContext();
-  const { linkedGithubIssueMap } = useTaskManagementContext();
+  const { linkedGithubIssueMap, tasksByProjectId } = useTaskManagementContext();
 
-  const projectName = selectedProject?.name || '';
-  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
-  const projectPath = selectedProject?.path;
+  // Local project selection - defaults to current project
+  const [selectedModalProject, setSelectedModalProject] = useState<Project | null>(selectedProject);
+
+  // Local branch state for when modal project differs from context project
+  const [localBranchOptions, setLocalBranchOptions] = useState<{ value: string; label: string }[]>(
+    []
+  );
+  const [localIsLoadingBranches, setLocalIsLoadingBranches] = useState(false);
+
+  // Use context branch data when modal project matches selected project, otherwise use local state
+  const isUsingContextProject = selectedModalProject?.id === selectedProject?.id;
+  const branchOptions = isUsingContextProject ? contextBranchOptions : localBranchOptions;
+  const isLoadingBranches = isUsingContextProject
+    ? contextIsLoadingBranches
+    : localIsLoadingBranches;
+  const defaultBranch = selectedModalProject?.gitInfo?.baseRef || 'main';
+
+  // Derived values use local selection
+  const projectName = selectedModalProject?.name || '';
+  const existingNames = useMemo(() => {
+    if (!selectedModalProject) return [];
+    const tasks = tasksByProjectId[selectedModalProject.id] || [];
+    return tasks.map((t) => t.name);
+  }, [selectedModalProject, tasksByProjectId]);
+  const projectPath = selectedModalProject?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
@@ -150,15 +178,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   const [useWorktree, setUseWorktree] = useState(true);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
-  const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
+  const [selectedBranch, setSelectedBranch] = useState(contextDefaultBranch);
   const userChangedBranchRef = useRef(false);
   const taskNameInputRef = useRef<HTMLInputElement>(null);
+  // Track current modal project for race condition handling in branch loading
+  const currentModalProjectIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!userChangedBranchRef.current) {
-      setSelectedBranch(defaultBranch);
+      setSelectedBranch(isUsingContextProject ? contextDefaultBranch : defaultBranch);
     }
-  }, [defaultBranch]);
+  }, [contextDefaultBranch, defaultBranch, isUsingContextProject]);
 
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value);
@@ -222,7 +252,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
   // Reset form and load settings on mount
   useEffect(() => {
-    void refreshBranches();
     // Reset state
     setTaskName('');
     setAutoGeneratedName('');
@@ -331,6 +360,110 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     validate,
   ]);
 
+  // Refresh branches when modal project changes (only for non-context projects)
+  useEffect(() => {
+    if (!selectedModalProject) return;
+
+    // Track current project for race condition handling
+    currentModalProjectIdRef.current = selectedModalProject.id;
+
+    // If we're on the context project, the context already handles branch loading
+    if (selectedModalProject.id === selectedProject?.id) {
+      userChangedBranchRef.current = false;
+      setSelectedBranch(contextDefaultBranch);
+      return;
+    }
+
+    // Load branches for the different project
+    const loadBranches = async () => {
+      const projectIdAtStart = selectedModalProject.id;
+      setLocalIsLoadingBranches(true);
+      const initialBranch = selectedModalProject.gitInfo?.baseRef || 'main';
+      setLocalBranchOptions([{ value: initialBranch, label: initialBranch }]);
+
+      try {
+        let options: { value: string; label: string }[];
+
+        if (selectedModalProject.isRemote && selectedModalProject.sshConnectionId) {
+          const result = await window.electronAPI.sshExecuteCommand(
+            selectedModalProject.sshConnectionId,
+            'git branch -a --format="%(refname:short)"',
+            selectedModalProject.path
+          );
+          if (result.exitCode === 0 && result.stdout) {
+            const branches = result.stdout
+              .split('\n')
+              .map((b) => b.trim())
+              .filter((b) => b.length > 0 && !b.includes('HEAD'));
+            options = branches.map((b) => ({ value: b, label: b }));
+          } else {
+            options = [];
+          }
+        } else {
+          const res = await window.electronAPI.listRemoteBranches({
+            projectPath: selectedModalProject.path,
+          });
+          if (res.success && res.branches) {
+            options = res.branches.map((b) => ({
+              value: b.ref,
+              label: b.remote ? b.label : `${b.branch} (local)`,
+            }));
+          } else {
+            options = [];
+          }
+        }
+
+        // Skip update if project changed during async operation
+        if (currentModalProjectIdRef.current !== projectIdAtStart) return;
+
+        if (options.length > 0) {
+          setLocalBranchOptions(options);
+        }
+      } catch (error) {
+        console.error('Failed to load branches:', error);
+      } finally {
+        // Only clear loading if still on same project
+        if (currentModalProjectIdRef.current === projectIdAtStart) {
+          setLocalIsLoadingBranches(false);
+        }
+      }
+    };
+
+    userChangedBranchRef.current = false;
+    setSelectedBranch(selectedModalProject.gitInfo?.baseRef || 'main');
+    void loadBranches();
+  }, [selectedModalProject?.id, selectedProject?.id, contextDefaultBranch]);
+
+  // Handle number key shortcuts for project selection
+  useEffect(() => {
+    if (projects.length <= 1) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Skip if typing in input/textarea
+      const target = event.target as HTMLElement;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      // Check for number keys 1-9 without modifiers
+      if (!/^[1-9]$/.test(event.key)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+
+      const index = parseInt(event.key, 10) - 1;
+      if (index < projects.length) {
+        event.preventDefault();
+        setSelectedModalProject(projects[index]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [projects]);
+
   const handleNameChange = (val: string) => {
     setTaskName(val);
     setError(validate(val));
@@ -394,7 +527,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
         selectedBranch,
-        isNameGenerated
+        isNameGenerated,
+        selectedModalProject
       );
       onClose();
     } catch (error) {
@@ -424,25 +558,70 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         <DialogDescription className="text-xs">
           Create a task and open the agent workspace.
         </DialogDescription>
-        <div className="space-y-1 pt-1">
-          <p className="text-sm font-medium text-foreground">{projectName}</p>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">from</span>
-            {branchOptions.length > 0 ? (
-              <BranchSelect
-                value={selectedBranch}
-                onValueChange={handleBranchChange}
-                options={branchOptions}
-                isLoading={isLoadingBranches}
-                variant="ghost"
-              />
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
-              </span>
-            )}
+        {projects.length > 1 ? (
+          <div className="space-y-2 pt-1">
+            <div className="max-h-28 overflow-y-auto rounded-md border border-input">
+              {projects.map((project, index) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => setSelectedModalProject(project)}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                    'transition-colors hover:bg-accent',
+                    selectedModalProject?.id === project.id && 'bg-accent'
+                  )}
+                >
+                  {index < 9 && (
+                    <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {index + 1}
+                    </kbd>
+                  )}
+                  <span className="flex-1 truncate">{project.name}</span>
+                  {selectedModalProject?.id === project.id && (
+                    <Check className="h-3 w-3 shrink-0 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">from</span>
+              {branchOptions.length > 0 ? (
+                <BranchSelect
+                  value={selectedBranch}
+                  onValueChange={handleBranchChange}
+                  options={branchOptions}
+                  isLoading={isLoadingBranches}
+                  variant="ghost"
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-1 pt-1">
+            <p className="text-sm font-medium text-foreground">{projectName}</p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">from</span>
+              {branchOptions.length > 0 ? (
+                <BranchSelect
+                  value={selectedBranch}
+                  onValueChange={handleBranchChange}
+                  options={branchOptions}
+                  isLoading={isLoadingBranches}
+                  variant="ghost"
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">

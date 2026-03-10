@@ -919,11 +919,18 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      project?: Project | null
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = project || pendingTaskProjectRef.current || selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
+
+      // Navigate to target project if different from current
+      if (targetProject.id !== selectedProject?.id) {
+        setSelectedProject(targetProject);
+      }
+
       setIsCreatingTask(true);
       await createTaskMutation.mutateAsync({
         project: targetProject,
@@ -942,7 +949,7 @@ export function useTaskManagement() {
         baseRef,
       });
     },
-    [selectedProject, createTaskMutation]
+    [selectedProject, setSelectedProject, createTaskMutation]
   );
 
   const handleTaskInterfaceReady = useCallback(() => {
