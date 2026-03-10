@@ -133,7 +133,9 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
       'project-1',
       '/tmp/repo',
       'task-a',
-      'origin/main'
+      'origin/main',
+      undefined,
+      undefined
     );
     expect(saveTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({

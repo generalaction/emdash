@@ -246,7 +246,9 @@ export class WorktreePoolService {
     projectId: string,
     projectPath: string,
     taskName: string,
-    requestedBaseRef?: string
+    requestedBaseRef?: string,
+    customBranchName?: string,
+    customWorktreeName?: string
   ): Promise<ClaimResult | null> {
     const resolvedBaseRef = this.normalizeBaseRef(requestedBaseRef);
     const reserveKey = this.getReserveKey(projectId, resolvedBaseRef);
@@ -270,7 +272,12 @@ export class WorktreePoolService {
     this.reserves.delete(reserveKey);
 
     try {
-      const result = await this.transformReserve(reserve, taskName);
+      const result = await this.transformReserve(
+        reserve,
+        taskName,
+        customBranchName,
+        customWorktreeName
+      );
 
       // Start background replenishment
       this.replenishReserve(projectId, projectPath, resolvedBaseRef);
@@ -287,16 +294,29 @@ export class WorktreePoolService {
   /**
    * Transform a reserve worktree into a task worktree
    */
-  private async transformReserve(reserve: ReserveWorktree, taskName: string): Promise<ClaimResult> {
+  private async transformReserve(
+    reserve: ReserveWorktree,
+    taskName: string,
+    customBranchName?: string,
+    customWorktreeName?: string
+  ): Promise<ClaimResult> {
     const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
     const prefix = settings?.repository?.branchPrefix || 'emdash';
 
-    // Generate new names
+    // Generate new names, using custom names if provided
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
-    const newBranch = `${prefix}/${sluggedName}-${hash}`;
-    const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+
+    const newBranch = customBranchName
+      ? this.sanitizeBranchName(customBranchName)
+      : `${prefix}/${sluggedName}-${hash}`;
+
+    const worktreeDirName = customWorktreeName
+      ? this.sanitizeWorktreeName(customWorktreeName)
+      : `${sluggedName}-${hash}`;
+
+    const newPath = path.join(reserve.projectPath, '..', `worktrees/${worktreeDirName}`);
     const newId = this.stableIdFromPath(newPath);
 
     // Move the worktree (instant operation)
@@ -657,6 +677,30 @@ export class WorktreePoolService {
   private generateShortHash(): string {
     const bytes = crypto.randomBytes(3);
     return bytes.readUIntBE(0, 3).toString(36).slice(0, 3).padStart(3, '0');
+  }
+
+  /** Sanitize branch name to ensure it's a valid Git ref */
+  private sanitizeBranchName(name: string): string {
+    let n = name
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Za-z0-9._\/-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/\/+/g, '/');
+    n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
+    if (!n || n === 'HEAD') {
+      n = `emdash/${this.slugify('task')}-${this.generateShortHash()}`;
+    }
+    return n;
+  }
+
+  /** Sanitize worktree directory name to ensure it's a valid path component */
+  private sanitizeWorktreeName(name: string): string {
+    return name
+      .replace(/[/\\:*?"<>|]/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 100);
   }
 }
 

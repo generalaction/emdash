@@ -180,7 +180,9 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    baseRef?: string
+    baseRef?: string,
+    customBranchName?: string,
+    customWorktreeName?: string
   ): Promise<WorktreeInfo> {
     // Declare variables outside try block for access in catch block
     let branchName: string | undefined;
@@ -192,8 +194,17 @@ export class WorktreeService {
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
-      branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
-      worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+
+      // Use custom names if provided, otherwise auto-generate
+      branchName = customBranchName
+        ? this.sanitizeBranchName(customBranchName)
+        : this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
+
+      const worktreeDirName = customWorktreeName
+        ? this.sanitizeWorktreeName(customWorktreeName)
+        : `${sluggedName}-${hash}`;
+
+      worktreePath = path.join(projectPath, '..', `worktrees/${worktreeDirName}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
       log.info(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -398,6 +409,16 @@ export class WorktreeService {
       n = `emdash/${this.slugify('task')}-${this.generateShortHash()}`;
     }
     return n;
+  }
+
+  /** Sanitize worktree directory name to ensure it's a valid path component */
+  private sanitizeWorktreeName(name: string): string {
+    return name
+      .replace(/[/\\:*?"<>|]/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 100);
   }
 
   /** Remove a worktree */
