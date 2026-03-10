@@ -99,15 +99,22 @@ const terminateWorkspaceIfNeeded = async (
     const instance = statusResult.data;
     if (instance.status === 'terminated') return;
 
-    await window.electronAPI.workspaceTerminate({
+    const terminateResult = await window.electronAPI.workspaceTerminate({
       instanceId: instance.id,
       terminateCommand: workspaceConfig.terminateCommand,
       projectPath: project.path,
     });
-    toastFn?.({
-      title: 'Workspace terminated',
-      description: 'Remote workspace has been shut down.',
-    });
+    if (terminateResult.success) {
+      toastFn?.({
+        title: 'Workspace terminated',
+        description: 'Remote workspace has been shut down.',
+      });
+    } else {
+      toastFn?.({
+        title: 'Workspace teardown failed',
+        description: terminateResult.error || 'Terminate script failed.',
+      });
+    }
   } catch (err) {
     const { log } = await import('../lib/logger');
     log.warn('Workspace termination failed during task cleanup:', err as any);
