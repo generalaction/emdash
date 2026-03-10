@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { Client, type ConnectConfig } from 'ssh2';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import { SshClientProxy } from './ssh-client-proxy';
@@ -206,6 +208,8 @@ export class SshConnectionManager extends EventEmitter {
             connectionId: id,
           } satisfies SshConnectionEvent);
 
+          events.emit(sshConnectionEventChannel, { type: 'disconnected', connectionId: id });
+
           // Auto-reconnect unless this was an intentional disconnect or the
           // initial handshake never succeeded (resolved = false still).
           if (!this.intentionalDisconnects.has(id) && resolved) {
@@ -228,6 +232,11 @@ export class SshConnectionManager extends EventEmitter {
           proxy,
         } satisfies SshConnectionEvent);
 
+        events.emit(sshConnectionEventChannel, {
+          type: isReconnect ? 'reconnected' : 'connected',
+          connectionId: id,
+        });
+
         resolveOnce(ok(proxy));
       });
 
@@ -246,6 +255,7 @@ export class SshConnectionManager extends EventEmitter {
         type: 'reconnect-failed',
         connectionId: id,
       } satisfies SshConnectionEvent);
+      events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
       return;
     }
 
@@ -263,6 +273,13 @@ export class SshConnectionManager extends EventEmitter {
       attempt,
       delayMs,
     } satisfies SshConnectionEvent);
+
+    events.emit(sshConnectionEventChannel, {
+      type: 'reconnecting',
+      connectionId: id,
+      attempt,
+      delayMs,
+    });
 
     const timer = setTimeout(() => {
       if (this.intentionalDisconnects.has(id)) {
@@ -293,6 +310,10 @@ export class SshConnectionManager extends EventEmitter {
                 type: 'reconnect-failed',
                 connectionId: id,
               } satisfies SshConnectionEvent);
+              events.emit(sshConnectionEventChannel, {
+                type: 'reconnect-failed',
+                connectionId: id,
+              });
             } else {
               this.scheduleReconnect(id);
             }

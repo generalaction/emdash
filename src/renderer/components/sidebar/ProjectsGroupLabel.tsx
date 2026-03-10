@@ -7,7 +7,6 @@ import { useProjectManagementContext } from '@renderer/contexts/ProjectManagemen
 
 export function ProjectsGroupLabel() {
   const {
-    handleOpenProject: onOpenProject,
     openSelectLocalProjectPathDialog,
     handleNewProjectClick: onNewProject,
     handleCloneProjectClick: onCloneProject,
