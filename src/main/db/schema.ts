@@ -70,6 +70,7 @@ export const tasks = sqliteTable(
     metadata: text('metadata'),
     useWorktree: integer('use_worktree').notNull().default(1),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
+    collectionId: text('collection_id'), // FK to collections for content tasks (nullable for non-content tasks)
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -79,6 +80,7 @@ export const tasks = sqliteTable(
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
+    collectionIdIdx: index('idx_tasks_collection_id').on(table.collectionId),
   })
 );
 
@@ -171,6 +173,11 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   conversations: many(conversations),
   lineComments: many(lineComments),
+  contentOutputs: many(contentOutputs),
+  collection: one(collections, {
+    fields: [tasks.collectionId],
+    references: [collections.id],
+  }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -195,6 +202,158 @@ export const lineCommentsRelations = relations(lineComments, ({ one }) => ({
   }),
 }));
 
+// ============================================================================
+// Content Workspace Tables
+// ============================================================================
+
+export const contentWorkspaces = sqliteTable(
+  'content_workspaces',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kanbanColumns: text('kanban_columns').notNull(), // JSON array of column definitions
+    defaultAgents: text('default_agents'), // JSON array of agent IDs
+    metadata: text('metadata'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    projectIdIdx: index('idx_content_workspaces_project_id').on(table.projectId),
+  })
+);
+
+export const brandGuidelines = sqliteTable(
+  'brand_guidelines',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => contentWorkspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    content: text('content').notNull(), // Markdown content
+    isActive: integer('is_active').notNull().default(1), // 1 = current brand guide
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    workspaceIdIdx: index('idx_brand_guidelines_workspace_id').on(table.workspaceId),
+  })
+);
+
+export const collections = sqliteTable(
+  'collections',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => contentWorkspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    workspaceIdIdx: index('idx_collections_workspace_id').on(table.workspaceId),
+  })
+);
+
+export const knowledgeDocuments = sqliteTable(
+  'knowledge_documents',
+  {
+    id: text('id').primaryKey(),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(), // Filename
+    content: text('content').notNull(), // Markdown content
+    metadata: text('metadata'), // JSON for additional fields
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    collectionIdIdx: index('idx_knowledge_documents_collection_id').on(table.collectionId),
+  })
+);
+
+export const contentOutputs = sqliteTable(
+  'content_outputs',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id').notNull(), // Which agent generated this
+    content: text('content').notNull(), // Markdown content
+    version: integer('version').notNull().default(1),
+    selected: integer('selected').notNull().default(0), // 1 = user's preferred version
+    metadata: text('metadata'), // JSON (word count, etc.)
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    taskIdIdx: index('idx_content_outputs_task_id').on(table.taskId),
+  })
+);
+
+// Content Workspace Relations
+export const contentWorkspacesRelations = relations(contentWorkspaces, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [contentWorkspaces.projectId],
+    references: [projects.id],
+  }),
+  brandGuidelines: many(brandGuidelines),
+  collections: many(collections),
+}));
+
+export const brandGuidelinesRelations = relations(brandGuidelines, ({ one }) => ({
+  workspace: one(contentWorkspaces, {
+    fields: [brandGuidelines.workspaceId],
+    references: [contentWorkspaces.id],
+  }),
+}));
+
+export const collectionsRelations = relations(collections, ({ one, many }) => ({
+  workspace: one(contentWorkspaces, {
+    fields: [collections.workspaceId],
+    references: [contentWorkspaces.id],
+  }),
+  documents: many(knowledgeDocuments),
+}));
+
+export const knowledgeDocumentsRelations = relations(knowledgeDocuments, ({ one }) => ({
+  collection: one(collections, {
+    fields: [knowledgeDocuments.collectionId],
+    references: [collections.id],
+  }),
+}));
+
+export const contentOutputsRelations = relations(contentOutputs, ({ one }) => ({
+  task: one(tasks, {
+    fields: [contentOutputs.taskId],
+    references: [tasks.id],
+  }),
+}));
+
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
@@ -203,3 +362,15 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;
+
+// Content Workspace Types
+export type ContentWorkspaceRow = typeof contentWorkspaces.$inferSelect;
+export type ContentWorkspaceInsert = typeof contentWorkspaces.$inferInsert;
+export type BrandGuidelineRow = typeof brandGuidelines.$inferSelect;
+export type BrandGuidelineInsert = typeof brandGuidelines.$inferInsert;
+export type CollectionRow = typeof collections.$inferSelect;
+export type CollectionInsert = typeof collections.$inferInsert;
+export type KnowledgeDocumentRow = typeof knowledgeDocuments.$inferSelect;
+export type KnowledgeDocumentInsert = typeof knowledgeDocuments.$inferInsert;
+export type ContentOutputRow = typeof contentOutputs.$inferSelect;
+export type ContentOutputInsert = typeof contentOutputs.$inferInsert;
