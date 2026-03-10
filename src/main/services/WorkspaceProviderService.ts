@@ -124,15 +124,20 @@ export class WorkspaceProviderService extends EventEmitter {
     };
 
     try {
+      const stderrLines: string[] = [];
       const result = await this.runScript({
         command: config.terminateCommand,
         cwd: config.projectPath,
         envVars,
         timeoutMs: TERMINATE_TIMEOUT_MS,
+        onStderr: (line) => stderrLines.push(line),
       });
 
       if (result.exitCode !== 0) {
-        throw new Error(`Terminate script exited with code ${result.exitCode}`);
+        const logs = stderrLines.join('\n').trim();
+        throw new Error(
+          `Terminate script exited with code ${result.exitCode}` + (logs ? `:\n${logs}` : '')
+        );
       }
 
       // Clean up the SSH connection row if one exists.
