@@ -148,7 +148,7 @@ export class TerminalSessionManager {
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
-      scrollOnUserInput: false,
+      scrollOnUserInput: true,
       linkHandler: {
         activate: (_event, text) => openLink(text),
       },
