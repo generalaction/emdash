@@ -251,6 +251,7 @@
   },
   "pnpm": {
     "overrides": {
+      "app-builder-lib>minimatch": "10.1.2",
       "minimatch@3": "3.1.4",
       "minimatch@5": "5.1.8",
       "minimatch@9": "9.0.7",
