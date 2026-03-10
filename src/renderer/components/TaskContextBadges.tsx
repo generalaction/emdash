@@ -30,10 +30,16 @@ export const TaskContextBadges: React.FC<Props> = ({
   const resolvedTaskId = taskId ?? scopedTaskId;
   const { unsentCount } = useTaskComments(resolvedTaskId);
   const [selectedCount, setSelectedCount] = React.useState(0);
+  const hasIssueBadge = Boolean(linearIssue || githubIssue || jiraIssue);
+  const hasCommentsBadge = Boolean(resolvedTaskId && unsentCount > 0);
 
   React.useEffect(() => {
     setSelectedCount(0);
   }, [resolvedTaskId]);
+
+  if (!hasIssueBadge && !hasCommentsBadge) {
+    return null;
+  }
 
   const handleIssueClick = (url?: string) => {
     if (!url) return;
@@ -191,7 +197,7 @@ export const TaskContextBadges: React.FC<Props> = ({
         </TooltipProvider>
       )}
 
-      {resolvedTaskId && unsentCount > 0 && (
+      {hasCommentsBadge && (
         <CommentsPopover
           tooltipContent="Selected comments are appended to your next agent message."
           tooltipDelay={300}

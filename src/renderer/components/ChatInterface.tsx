@@ -1082,16 +1082,12 @@ const ChatInterface: React.FC<Props> = ({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <div className="ml-auto flex flex-shrink-0 items-center gap-2">
-                  {(task.metadata?.linearIssue ||
-                    task.metadata?.githubIssue ||
-                    task.metadata?.jiraIssue) && (
-                    <TaskContextBadges
-                      taskId={task.id}
-                      linearIssue={task.metadata?.linearIssue || null}
-                      githubIssue={task.metadata?.githubIssue || null}
-                      jiraIssue={task.metadata?.jiraIssue || null}
-                    />
-                  )}
+                  <TaskContextBadges
+                    taskId={task.id}
+                    linearIssue={task.metadata?.linearIssue || null}
+                    githubIssue={task.metadata?.githubIssue || null}
+                    jiraIssue={task.metadata?.jiraIssue || null}
+                  />
                   {autoApproveEnabled && (
                     <span
                       className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
