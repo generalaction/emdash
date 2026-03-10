@@ -1,22 +1,22 @@
 ---
 title: Running Tasks
-description: How to run tasks in Emdash
+description: How to run tasks in Scrawl
 ---
 
-A task is a unit of work for an agent. Each task gets its own git branch and worktree, keeping changes isolated until you merge.
+A task is a unit of work — a writing brief, an assignment, a draft to produce. Each task gets its own git branch and worktree, keeping changes isolated until you merge.
 
 ## Creating a Task
 
 1. Click **Add Task** or press `⌘N`
-2. Enter a name (or let Emdash auto-generate one)
-3. Select a [provider](/providers) (Claude Code, Codex, Qwen, etc.)
+2. Enter a name (or let Scrawl auto-generate one)
+3. Select a [provider](/providers) (Claude Code, Gemini, Qwen, etc.)
 4. Click **Create**
 
 The agent spawns in a terminal and starts working.
 
 <img
   src="/media/createtask.png"
-  alt="Creating a task in Emdash"
+  alt="Creating a task in Scrawl"
   style={{
     width: '100%',
     maxWidth: '700px',
@@ -27,9 +27,9 @@ The agent spawns in a terminal and starts working.
   }}
 />
 
-## Worktrees
+## Workspaces
 
-By default, each task creates a git worktree—a separate copy of your codebase on its own branch. This keeps agent changes isolated from your main branch and other tasks.
+By default, each task creates a git worktree — a separate copy of your project on its own branch. This keeps agent changes isolated from your main branch and other tasks.
 
 Worktrees are created in a sibling `worktrees/` directory outside your repo.
 
@@ -37,12 +37,12 @@ You can disable worktrees to work directly on your current branch. A warning app
 
 ## Multi-Agent Mode
 
-Run [multiple agents in parallel](/best-of-n) on the same problem:
+Run [multiple agents in parallel](/best-of-n) on the same brief:
 
-- Select multiple providers (e.g., Claude Code + Codex)
-- Or run the same provider multiple times (e.g., 3× Claude Code)
+- Select multiple providers (e.g., Claude Code + Gemini)
+- Or run the same provider multiple times (e.g., 3x Claude Code)
 
-Each agent gets its own worktree. Compare approaches and pick the best result. See [Best of N](/best-of-n).
+Each agent gets its own workspace. Compare drafts and pick the best result. See [Best of N](/best-of-n).
 
 If tasks start local servers, use `EMDASH_PORT` in your Project config script fields to avoid port collisions between parallel tasks. See [Project Configuration](/project-config).
 
@@ -52,7 +52,7 @@ Click **Advanced Options** when creating a task to access:
 
 - **Auto-approve**: Skip permission prompts for file operations (if provider supports it)
 - **Initial prompt**: Give the agent starting instructions
-- **Link an issue**: Attach a Linear, Jira, or GitHub issue (see [Passing Issues](/issues))
+- **Link an issue**: Attach a Linear, Jira, or GitHub issue as the brief (see [Passing Issues](/issues))
 
 ## After Starting
 
@@ -62,4 +62,4 @@ Once a task starts:
 2. The agent spawns in the terminal
 3. Chat with the agent or let your initial prompt guide it
 
-Terminal state saves automatically. Close and reopen Emdash, and agents resume where they left off.
+Terminal state saves automatically. Close and reopen Scrawl, and agents resume where they left off.

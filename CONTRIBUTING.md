@@ -1,6 +1,6 @@
-# Contributing to Emdash
+# Contributing to Scrawl
 
-Thanks for your interest in contributing! We favor small, focused PRs and clear intent over big bangs. This guide explains how to get set up, the workflow we use, and a few project‑specific conventions.
+Thanks for your interest in contributing! Scrawl is a fork of [Emdash](https://github.com/generalaction/emdash), repositioned as an Agentic Writer Environment for writers who want to use any LLM to create written content. We favor small, focused PRs and clear intent over big bangs. This guide explains how to get set up, the workflow we use, and a few project-specific conventions.
 
 ## Quick Start
 
@@ -9,14 +9,14 @@ Prerequisites
 - **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
 - Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
-  - At least one supported coding agent CLI (see docs for list)
+  - At least one supported CLI agent (see docs for list)
 
 Setup
 
 ```bash
 # Fork this repo, then clone your fork
-git clone https://github.com/<you>/emdash.git
-cd emdash
+git clone https://github.com/gidea/scrawl
+cd scrawl
 
 # Use the correct Node.js version (if using nvm)
 nvm use

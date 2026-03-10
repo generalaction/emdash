@@ -512,7 +512,7 @@ class AutoUpdateService {
       if (!version) return null;
 
       const response = await fetch(
-        `https://api.github.com/repos/generalaction/emdash/releases/tags/v${version}`
+        `https://api.github.com/repos/gidea/scrawl/releases/tags/v${version}`
       );
 
       if (response.ok) {

@@ -12,6 +12,7 @@ interface DiffPanelProps {
   selectedFile: string | null;
   onRefreshChanges?: () => Promise<void> | void;
   closeButton?: React.ReactNode;
+  baseRef?: string;
 }
 
 export const DiffPanel: React.FC<DiffPanelProps> = ({
@@ -21,6 +22,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
   selectedFile,
   onRefreshChanges,
   closeButton,
+  baseRef,
 }) => {
   const [viewMode, setViewMode] = useState<'stacked' | 'file'>(
     () => (localStorage.getItem('diffViewer:viewMode') as 'stacked' | 'file') || 'stacked'
@@ -83,6 +85,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
             fileChanges={fileChanges}
             diffStyle={diffStyle}
             onRefreshChanges={onRefreshChanges}
+            baseRef={baseRef}
           />
         ) : selectedFile ? (
           <FileDiffView
@@ -91,6 +94,7 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
             filePath={selectedFile}
             diffStyle={diffStyle}
             onRefreshChanges={onRefreshChanges}
+            baseRef={baseRef}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

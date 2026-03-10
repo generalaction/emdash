@@ -19,6 +19,7 @@ interface FileListProps {
   onSelectFile: (filePath: string) => void;
   taskPath?: string;
   onRefreshChanges?: () => Promise<void> | void;
+  readOnly?: boolean;
 }
 
 export const FileList: React.FC<FileListProps> = ({
@@ -27,6 +28,7 @@ export const FileList: React.FC<FileListProps> = ({
   onSelectFile,
   taskPath,
   onRefreshChanges,
+  readOnly,
 }) => {
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
@@ -122,24 +124,28 @@ export const FileList: React.FC<FileListProps> = ({
           <span className="font-medium text-foreground">{filename}</span>
           {directory && <span className="ml-1 text-muted-foreground">{directory}</span>}
         </div>
-        <button
-          className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/file:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            setRestoreTarget(file.path);
-          }}
-          title="Restore file"
-        >
-          <Undo2 className="h-3.5 w-3.5" />
-        </button>
-        <Checkbox
-          checked={file.isStaged}
-          onCheckedChange={(checked) => {
-            void handleFileStage(file.path, checked === true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className={`flex-shrink-0 transition-opacity ${file.isStaged ? '' : 'opacity-0 group-hover/file:opacity-100'}`}
-        />
+        {!readOnly && (
+          <>
+            <button
+              className="flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/file:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRestoreTarget(file.path);
+              }}
+              title="Restore file"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </button>
+            <Checkbox
+              checked={file.isStaged}
+              onCheckedChange={(checked) => {
+                void handleFileStage(file.path, checked === true);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className={`flex-shrink-0 transition-opacity ${file.isStaged ? '' : 'opacity-0 group-hover/file:opacity-100'}`}
+            />
+          </>
+        )}
       </div>
     );
   };
@@ -155,47 +161,65 @@ export const FileList: React.FC<FileListProps> = ({
   return (
     <>
       <div className="flex flex-col">
-        {/* Stage All */}
-        <div className="flex h-9 items-center gap-2 border-b border-border px-3">
-          <Checkbox
-            checked={allStaged}
-            onCheckedChange={(checked) => void handleStageAll(checked === true)}
-          />
-          <span className="text-xs font-medium text-muted-foreground">Stage All</span>
-        </div>
-
-        {/* Tracked files */}
-        {tracked.length > 0 && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 px-3 py-1.5">
-              <Checkbox
-                checked={trackedAllStaged}
-                onCheckedChange={(checked) => void handleGroupStage(tracked, checked === true)}
-              />
-              <span className="text-xs font-medium tracking-wide text-muted-foreground">
-                Tracked
+        {readOnly ? (
+          <>
+            <div className="flex h-9 items-center gap-2 border-b border-border px-3">
+              <span className="text-xs font-medium text-muted-foreground">
+                {fileChanges.length} file{fileChanges.length !== 1 ? 's' : ''} changed
               </span>
-              <span className="text-xs text-muted-foreground">({tracked.length})</span>
             </div>
-            {tracked.map((file) => renderFileRow(file, 'bg-blue-500'))}
-          </div>
-        )}
-
-        {/* Untracked files */}
-        {untracked.length > 0 && (
-          <div className={tracked.length > 0 ? 'mt-3 pt-1' : ''}>
-            <div className="flex items-center gap-2 px-3 py-1.5">
+            {fileChanges
+              .slice()
+              .sort((a, b) => a.path.localeCompare(b.path))
+              .map((file) => renderFileRow(file, 'bg-blue-500'))}
+          </>
+        ) : (
+          <>
+            {/* Stage All */}
+            <div className="flex h-9 items-center gap-2 border-b border-border px-3">
               <Checkbox
-                checked={untrackedAllStaged}
-                onCheckedChange={(checked) => void handleGroupStage(untracked, checked === true)}
+                checked={allStaged}
+                onCheckedChange={(checked) => void handleStageAll(checked === true)}
               />
-              <span className="text-xs font-medium tracking-wide text-muted-foreground">
-                Untracked
-              </span>
-              <span className="text-xs text-muted-foreground">({untracked.length})</span>
+              <span className="text-xs font-medium text-muted-foreground">Stage All</span>
             </div>
-            {untracked.map((file) => renderFileRow(file, 'bg-green-500'))}
-          </div>
+
+            {/* Tracked files */}
+            {tracked.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <Checkbox
+                    checked={trackedAllStaged}
+                    onCheckedChange={(checked) => void handleGroupStage(tracked, checked === true)}
+                  />
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground">
+                    Tracked
+                  </span>
+                  <span className="text-xs text-muted-foreground">({tracked.length})</span>
+                </div>
+                {tracked.map((file) => renderFileRow(file, 'bg-blue-500'))}
+              </div>
+            )}
+
+            {/* Untracked files */}
+            {untracked.length > 0 && (
+              <div className={tracked.length > 0 ? 'mt-3 pt-1' : ''}>
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <Checkbox
+                    checked={untrackedAllStaged}
+                    onCheckedChange={(checked) =>
+                      void handleGroupStage(untracked, checked === true)
+                    }
+                  />
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground">
+                    Untracked
+                  </span>
+                  <span className="text-xs text-muted-foreground">({untracked.length})</span>
+                </div>
+                {untracked.map((file) => renderFileRow(file, 'bg-green-500'))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

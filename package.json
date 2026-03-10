@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.27",
+  "version": "0.4.29",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -149,8 +149,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "generalaction",
-        "repo": "emdash",
+        "owner": "gidea",
+        "repo": "scrawl",
         "releaseType": "release"
       }
     ],
@@ -251,6 +251,7 @@
   },
   "pnpm": {
     "overrides": {
+      "app-builder-lib>minimatch": "10.1.2",
       "minimatch@3": "3.1.4",
       "minimatch@5": "5.1.8",
       "minimatch@9": "9.0.7",

@@ -13,7 +13,7 @@ interface GitHubRelease {
 
 async function getGithubReleases(): Promise<GitHubRelease[]> {
   try {
-    const response = await fetch('https://api.github.com/repos/generalaction/emdash/releases', {
+    const response = await fetch('https://api.github.com/repos/gidea/scrawl/releases', {
       headers: {
         Accept: 'application/vnd.github.v3+json',
         ...(process.env.GITHUB_TOKEN && {
@@ -58,7 +58,7 @@ export async function Changelog() {
         <p>
           No releases found. Check the{' '}
           <a
-            href="https://github.com/generalaction/emdash/releases"
+            href="https://github.com/gidea/scrawl/releases"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"

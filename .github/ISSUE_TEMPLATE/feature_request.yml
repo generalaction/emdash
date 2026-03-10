@@ -23,8 +23,8 @@ body:
       label: Problem or Use Case
       description: What problem does this feature solve? What use case does it address?
       placeholder: |
-        e.g., "I often need to... but currently emdash doesn't support..."
-        or "It would be helpful if emdash could..."
+        e.g., "I often need to... but currently Scrawl doesn't support..."
+        or "It would be helpful if Scrawl could..."
     validations:
       required: true
 

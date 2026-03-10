@@ -375,7 +375,8 @@ describe('ptyIpc notification lifecycle', () => {
 
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
     expect(lastSshPtyStartOpts?.target).toBe('remote-alias');
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain('exec');
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
@@ -385,7 +386,6 @@ describe('ptyIpc notification lifecycle', () => {
     expect(proc!.write).toHaveBeenCalled();
 
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
-    expect(written).toContain("cd '/tmp/task'");
     expect(written).toContain('sh -ilc');
     expect(written).toContain('command -v');
     expect(written).toContain('claude');
@@ -601,7 +601,7 @@ describe('ptyIpc notification lifecycle', () => {
       })
     );
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
@@ -649,7 +649,7 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();

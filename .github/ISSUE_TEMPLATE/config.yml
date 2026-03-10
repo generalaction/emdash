@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: 📖 Documentation
-    url: https://github.com/generalaction/emdash/blob/main/README.md
+    url: https://github.com/gidea/scrawl/blob/main/README.md
     about: Check the README for usage examples and documentation
   - name: 🛠️ Contributing
-    url: https://github.com/generalaction/emdash/blob/main/CONTRIBUTING.md
+    url: https://github.com/gidea/scrawl/blob/main/CONTRIBUTING.md
     about: Learn how to contribute to Emdash

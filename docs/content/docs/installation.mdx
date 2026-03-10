@@ -1,59 +1,42 @@
 ---
 title: Installation
-description: Get started with Emdash
+description: Get started with Scrawl
 ---
 
-## Download Emdash
-
-### macOS
-
-The easiest way to install on macOS is via Homebrew:
+## Build from Source
 
 ```bash
-brew install --cask emdash
+# Clone the repo
+git clone https://github.com/gidea/scrawl
+cd scrawl
+
+# Use the correct Node.js version (22.x required)
+nvm use
+
+# Install dependencies and start the dev server
+pnpm run d
 ```
 
-Or download directly:
+## Pre-built Binaries
 
-- [Apple Silicon (arm64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg)
-- [Intel (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg)
-
-### Windows
-
-Download the installer or portable version:
-
-- [Installer (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64-installer.exe)
-- [Portable (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe)
-
-### Linux
-
-Choose your preferred format:
-
-- [AppImage (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage)
-- [Debian package (x64)](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb)
-
-Or run via Nix:
-
-```bash
-nix run github:generalaction/emdash
-```
+Pre-built binaries for macOS, Windows, and Linux are planned. Check the [releases page](https://github.com/gidea/scrawl/releases) for availability.
 
 ## Setup
 
-### 1. Install a CLI provider
+### 1. Install a CLI agent
 
-Emdash runs coding agents through their CLI. Install at least one [provider](/providers) before getting started:
+Scrawl runs agents through their CLI. Install at least one [provider](/providers) before getting started:
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-### 2. Connect GitHub
+### 2. Connect GitHub (optional)
 
-To create PRs (and use GitHub Issues), connect your account in **Settings → Integrations**. Emdash works with OAuth or authentication via [GitHub CLI](https://cli.github.com):
+To create PRs and use GitHub Issues, connect your account in **Settings > Integrations**. Scrawl works with OAuth or authentication via [GitHub CLI](https://cli.github.com):
 
 ```bash
 gh auth login
 ```
 
-You're ready to start using Emdash.
+You're ready to start using Scrawl.

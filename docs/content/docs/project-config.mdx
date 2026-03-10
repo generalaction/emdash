@@ -1,15 +1,15 @@
 ---
 title: Project Configuration
-description: Customize Emdash behavior per project
+description: Customize Scrawl behavior per project
 ---
 
-Emdash can be configured per project from the **Project config** modal (`Edit config` on the project page). Use it to control what gets copied to worktrees and what scripts run for each task.
+Scrawl can be configured per project from the **Project config** modal (`Edit config` on the project page). Use it to control what gets copied to worktrees and what scripts run for each task.
 
 ## Copying files to worktrees
 
-When you create a new task, Emdash sets up a Git worktree so the agent can work in isolation. By default, worktrees start fresh from your repository, which means gitignored files like `.env` won't be there.
+When you create a new task, Scrawl sets up a Git worktree so the agent can work in isolation. By default, worktrees start fresh from your repository, which means gitignored files like `.env` won't be there.
 
-To solve this, Emdash automatically copies certain gitignored files from your main project into each new worktree. This happens once when the worktree is created, and only for files that don't already exist in the destination.
+To solve this, Scrawl automatically copies certain gitignored files from your main project into each new worktree. This happens once when the worktree is created, and only for files that don't already exist in the destination.
 
 The default patterns cover common environment files:
 
@@ -41,7 +41,7 @@ Patterns support basic glob syntax, so `secrets/*.json` will match all JSON file
 
 ## How it works
 
-Emdash looks for gitignored files in your main project that match your preserve patterns. For each match, it copies the file to the same relative path in the new worktree. If a file already exists in the worktree, it's left untouched, so your worktree-specific changes won't be overwritten.
+Scrawl looks for gitignored files in your main project that match your preserve patterns. For each match, it copies the file to the same relative path in the new worktree. If a file already exists in the worktree, it's left untouched, so your worktree-specific changes won't be overwritten.
 
 This means you can safely modify environment files in a worktree without worrying about them being reset when you create new tasks.
 
@@ -57,7 +57,7 @@ The setup script runs as soon as the worktree is ready, in parallel with the age
 
 ## Task env vars
 
-When a task terminal starts, Emdash injects convenience environment variables you can use inside setup scripts and other terminal commands.
+When a task terminal starts, Scrawl injects convenience environment variables you can use inside setup scripts and other terminal commands.
 
 If you run multiple tasks in parallel, do not hardcode `localhost:3000`. Use `EMDASH_PORT` so each task gets its own localhost port automatically.
 
@@ -132,6 +132,6 @@ python -m venv .venv && source .venv/bin/activate && pip install -r requirements
 
 ## Editing the config
 
-On the project page, click **Edit config**, fill the fields, then click **Save**. Emdash stores these settings in `.emdash.json`.
+On the project page, click **Edit config**, fill the fields, then click **Save**. Scrawl stores these settings in `.emdash.json`.
 
 ![Edit config button on the project page](/media/edit-config.png)

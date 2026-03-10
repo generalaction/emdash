@@ -12,6 +12,7 @@ interface StackedDiffViewProps {
   fileChanges: FileChange[];
   diffStyle: 'unified' | 'split';
   onRefreshChanges?: () => Promise<void> | void;
+  baseRef?: string;
 }
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
@@ -23,6 +24,7 @@ interface FileSectionProps {
   taskId?: string;
   diffStyle: 'unified' | 'split';
   onRefreshChanges?: () => Promise<void> | void;
+  baseRef?: string;
 }
 
 const FileSection: React.FC<FileSectionProps> = ({
@@ -31,6 +33,7 @@ const FileSection: React.FC<FileSectionProps> = ({
   taskId,
   diffStyle,
   onRefreshChanges,
+  baseRef,
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [forceLoad, setForceLoad] = useState(false);
@@ -83,14 +86,16 @@ const FileSection: React.FC<FileSectionProps> = ({
           <span className="text-green-500">+{file.additions}</span>{' '}
           <span className="text-red-500">-{file.deletions}</span>
         </span>
-        <Checkbox
-          checked={file.isStaged}
-          onCheckedChange={(checked) => {
-            void handleStage(checked === true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="ml-1 flex-shrink-0"
-        />
+        {!baseRef && (
+          <Checkbox
+            checked={file.isStaged}
+            onCheckedChange={(checked) => {
+              void handleStage(checked === true);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="ml-1 flex-shrink-0"
+          />
+        )}
       </div>
 
       {expanded && (
@@ -117,6 +122,7 @@ const FileSection: React.FC<FileSectionProps> = ({
               diffStyle={diffStyle}
               onRefreshChanges={onRefreshChanges}
               onContentHeightChange={setContentHeight}
+              baseRef={baseRef}
             />
           )}
         </div>
@@ -131,6 +137,7 @@ export const StackedDiffView: React.FC<StackedDiffViewProps> = ({
   fileChanges,
   diffStyle,
   onRefreshChanges,
+  baseRef,
 }) => {
   if (fileChanges.length === 0) {
     return (
@@ -150,6 +157,7 @@ export const StackedDiffView: React.FC<StackedDiffViewProps> = ({
           taskId={taskId}
           diffStyle={diffStyle}
           onRefreshChanges={onRefreshChanges}
+          baseRef={baseRef}
         />
       ))}
     </div>
