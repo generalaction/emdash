@@ -1,4 +1,5 @@
 export type ActivitySignal = 'busy' | 'idle' | 'neutral';
+const MAX_ACTIVITY_CHUNK_CHARS = 8_192;
 
 function stripAnsi(s: string): string {
   // Remove ANSI escape codes and carriage returns
@@ -6,6 +7,15 @@ function stripAnsi(s: string): string {
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
     .replace(/\r/g, '')
     .replace(/\x1b\][^\x07]*\x07/g, '');
+}
+
+/**
+ * Keep activity classification work bounded by sampling the most recent part
+ * of large PTY chunks. Newest output has the strongest signal for busy/idle.
+ */
+export function sampleActivityChunk(chunk: string): string {
+  if (!chunk) return '';
+  return chunk.length <= MAX_ACTIVITY_CHUNK_CHARS ? chunk : chunk.slice(-MAX_ACTIVITY_CHUNK_CHARS);
 }
 
 export function classifyActivity(
