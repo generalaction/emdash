@@ -389,6 +389,24 @@ export function useTaskManagement() {
     [activateProjectView, projects, openTaskModal]
   );
 
+  const handleSelectTaskByIndex = useCallback(
+    (index: number) => {
+      // Build a flat list of all tasks in sidebar order (by project, then pinned first within each)
+      const allTasksInOrder: Task[] = [];
+      for (const project of projects) {
+        const projectTasks = (tasksByProjectId[project.id] ?? [])
+          .slice()
+          .sort((a, b) => (b.metadata?.isPinned ? 1 : 0) - (a.metadata?.isPinned ? 1 : 0));
+        allTasksInOrder.push(...projectTasks);
+      }
+
+      if (index >= 0 && index < allTasksInOrder.length) {
+        handleSelectTask(allTasksInOrder[index]);
+      }
+    },
+    [projects, tasksByProjectId, handleSelectTask]
+  );
+
   // ---------------------------------------------------------------------------
   // Delete task mutation
   // ---------------------------------------------------------------------------
@@ -1005,6 +1023,7 @@ export function useTaskManagement() {
     handleTaskInterfaceReady,
     openTaskModal,
     handleSelectTask,
+    handleSelectTaskByIndex,
     handleNextTask,
     handlePrevTask,
     handleNewTask,

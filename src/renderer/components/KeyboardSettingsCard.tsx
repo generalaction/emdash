@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { ArrowBigUp, Command, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from '../hooks/use-toast';
 import {
   APP_SHORTCUTS,
@@ -144,7 +145,12 @@ const KeyboardSettingsCard: React.FC = () => {
     const result: Record<string, ShortcutBinding> = {};
     for (const shortcut of CONFIGURABLE_SHORTCUTS) {
       const saved = keyboard?.[shortcut.settingsKey as keyof typeof keyboard];
-      result[shortcut.settingsKey] = saved ?? { key: shortcut.key, modifier: shortcut.modifier! };
+      // Only use saved if it's a ShortcutBinding (has key and modifier)
+      if (saved && typeof saved === 'object' && 'key' in saved && 'modifier' in saved) {
+        result[shortcut.settingsKey] = saved;
+      } else {
+        result[shortcut.settingsKey] = { key: shortcut.key, modifier: shortcut.modifier! };
+      }
     }
     return result as Record<ShortcutSettingsKey, ShortcutBinding>;
   }, [settings?.keyboard]);
@@ -345,6 +351,34 @@ const KeyboardSettingsCard: React.FC = () => {
             </div>
           </div>
         ))}
+
+        {/* Number shortcuts behavior setting */}
+        <div className="flex items-center justify-between gap-4 border-t pt-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <p className="text-sm">Number shortcuts (1-9)</p>
+            <p className="text-xs text-muted-foreground">
+              Choose which modifier switches tasks vs agent tabs
+            </p>
+          </div>
+          <Select
+            value={settings?.keyboard?.numberShortcutBehavior ?? 'ctrl-tasks'}
+            onValueChange={(next) =>
+              updateSettings({
+                keyboard: { numberShortcutBehavior: next as 'ctrl-tasks' | 'cmd-tasks' },
+              })
+            }
+            disabled={loading || saving}
+          >
+            <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ctrl-tasks">⌃N for tasks, ⌘N for agents</SelectItem>
+              <SelectItem value="cmd-tasks">⌘N for tasks, ⌃N for agents</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
     </div>

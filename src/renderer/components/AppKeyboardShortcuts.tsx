@@ -49,7 +49,8 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { settings: keyboardSettings } = useKeyboardSettings();
-  const { handleNextTask, handlePrevTask, handleNewTask } = useTaskManagementContext();
+  const { handleNextTask, handlePrevTask, handleNewTask, handleSelectTaskByIndex } =
+    useTaskManagementContext();
 
   useKeyboardShortcuts({
     onToggleCommandPalette: handleToggleCommandPalette,
@@ -72,6 +73,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
       ),
     onSelectAgentTab: (tabIndex) =>
       window.dispatchEvent(new CustomEvent('emdash:select-agent-tab', { detail: { tabIndex } })),
+    onSelectTask: handleSelectTaskByIndex,
     onOpenInEditor: handleOpenInEditor,
     onCloseModal: (
       [
