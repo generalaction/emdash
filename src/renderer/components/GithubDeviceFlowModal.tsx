@@ -379,7 +379,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
                 <button
                   onClick={() =>
                     window.electronAPI.openExternal(
-                      'https://github.com/generalaction/emdash/issues'
+                      'https://github.com/gidea/scrawl/issues'
                     )
                   }
                   className="text-primary hover:underline focus:underline focus:outline-none"

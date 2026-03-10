@@ -1,142 +1,144 @@
-# Scrawl
+<img alt="Emdash banner" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
 
-**An Open Source Agentic Writer Environment (AWE)**
 
-[Website](https://agenticwriting.app/) · [Documentation](https://agenticwriting.app/docs) · [GitHub](https://github.com/gidea/scrawl)
+<div align="center" style="margin:24px 0;">
+  
+<br />
 
 [![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
+[![Downloads](https://img.shields.io/github/downloads/gidea/scrawl/total?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl)
+[![Last Commit](https://img.shields.io/github/last-commit/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/commits/main)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/graphs/commit-activity)
+<br>
+[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
+<a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
+[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
----
+<br />
 
-> **Attribution**: Scrawl is a fork of [Emdash](https://github.com/generalaction/emdash), an open-source Agentic Development Environment created by [General Action, Inc.](https://github.com/generalaction) We are grateful for their creativity and engineering — their work on parallel agent orchestration, worktree isolation, and provider-agnostic design made this project possible. Scrawl is a separate project maintained independently. No disrespect is intended to the original maintainers; we have been inspired by their vision to start this project.
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
+  </a>
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
+  </a>
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+    <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
+  </a>
 
-> **On AI-assisted writing**: We are aware of the many risks that agentic writing produces in terms of AI slop. These are risks to mitigate through craft, editing, and intentional use — not risks to avoid. The best writing comes from writers who bring their own voice, knowledge, and standards to the work.
+</div>
 
----
+<br />
 
-Scrawl is a provider-agnostic desktop app that lets you run multiple writing agents in parallel, each isolated in its own workspace, either locally or over SSH on a remote machine.
+Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-The same workspace and task-based workflows that developers use to orchestrate coding agents are available to writers — copywriters, content writers, proposal writers, and technical writers — who want to use any LLM to create written content with the same ease as having multiple agents working in parallel.
+Emdash supports 22 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
 
-[Installation](#installation) · [Capabilities](#capabilities) · [Providers](#providers) · [Roadmap](#roadmap) · [Contributing](#contributing) · [FAQ](#faq)
+**Develop on remote servers via SSH**
 
-## Capabilities
+Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development. [Learn more](https://www.emdash.sh/cloud)
 
-- **Any LLM** — Use any of 22+ CLI agents: Claude Code, Gemini, Qwen Code, Codex, and more
-- **Parallel agents** — Run multiple agents on the same writing brief, compare their drafts, and pick the best
-- **Isolated workspaces** — Each writing task gets its own git branch and worktree, keeping drafts separate
-- **Diff view** — See exactly what changed between drafts, side by side
-- **Kanban board** — Organize writing tasks visually across your workflow
-- **Issue integration** — Pull briefs from Linear, Jira, or GitHub Issues directly
-- **Skills** — Reusable prompt packages that work across agents
-- **MCP support** — Connect to external data sources and tools via the Model Context Protocol
-- **SSH remote** — Work on remote servers with the same parallel workflow as local projects
-- **Local-first** — All app data stored in a local SQLite database on your machine
+<div align="center" style="margin:24px 0;">
 
-## Installation
+[Installation](#installation) • [Providers](#providers) • [Contributing](#contributing) • [FAQ](#faq)
 
-### Build from source
+</div>
 
-```bash
-# Clone the repo
-git clone https://github.com/gidea/scrawl
-cd scrawl
+<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
 
-# Use the correct Node.js version (22.x required)
-nvm use
+# Installation
 
-# Install dependencies and start the dev server
-pnpm run d
-```
+### macOS
+- Apple Silicon: https://github.com/gidea/scrawl/releases/latest/download/emdash-arm64.dmg
+- Intel x64: https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.dmg
 
-### Pre-built binaries
+[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
+> macOS users can also: `brew install --cask emdash`
 
-Pre-built binaries for macOS, Windows, and Linux are planned. Check the [releases page](https://github.com/gidea/scrawl/releases) for availability.
+### Windows
+- Installer (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.msi
+- Portable (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.exe
 
-## Providers
+### Linux
+- AppImage (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x86_64.AppImage
+- Debian package (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-amd64.deb
 
-Scrawl supports the same 22 CLI agents as Emdash. Any agent that works with Emdash works with Scrawl. Install at least one to get started.
+### Release Overview
 
-| Provider | Install |
-| ----------- | ----------- |
-| [Amp](https://ampcode.com/manual) | `npm install -g @sourcegraph/amp@latest` |
-| [Auggie](https://docs.augmentcode.com/cli/overview) | `npm install -g @augmentcode/auggie` |
-| [Autohand Code](https://autohand.ai/code/) | `npm install -g autohand-cli` |
-| [Charm](https://github.com/charmbracelet/crush) | `npm install -g @charmland/crush` |
-| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | `curl -fsSL https://claude.ai/install.sh \| bash` |
-| [Cline](https://docs.cline.bot/cline-cli/overview) | `npm install -g cline` |
-| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | `npm install -g codebuff` |
-| [Codex](https://developers.openai.com/codex/cli/) | `npm install -g @openai/codex` |
-| [Continue](https://docs.continue.dev/guides/cli) | `npm i -g @continuedev/cli` |
-| [Cursor](https://cursor.com/cli) | `curl https://cursor.com/install -fsS \| bash` |
-| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | `curl -fsSL https://app.factory.ai/cli \| sh` |
-| [Gemini](https://github.com/google-gemini/gemini-cli) | `npm install -g @google/gemini-cli` |
-| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | `npm install -g @github/copilot` |
-| [Goose](https://github.com/block/goose) | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \| bash` |
-| [Kilocode](https://kilo.ai/docs/cli) | `npm install -g @kilocode/cli` |
-| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | `uv tool install --python 3.13 kimi-cli` |
-| [Kiro](https://kiro.dev/docs/cli/) | `curl -fsSL https://cli.kiro.dev/install \| bash` |
-| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | `curl -LsSf https://mistral.ai/vibe/install.sh \| bash` |
-| [OpenCode](https://opencode.ai/docs/) | `npm install -g opencode-ai` |
-| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | `npm install -g @mariozechner/pi-coding-agent` |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | `npm install -g @qwen-code/qwen-code` |
-| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | `acli rovodev auth login` |
+**[Latest Releases (macOS • Windows • Linux)](https://github.com/gidea/scrawl/releases/latest)**
 
-### Issue Trackers
+# Providers
 
-| Tool | Authentication |
-| ----------- | ----------- |
-| [Linear](https://linear.app) | Connect with a Linear API key |
-| [Jira](https://www.atlassian.com/software/jira) | Provide your site URL, email, and Atlassian API token |
-| [GitHub Issues](https://docs.github.com/en/issues) | Authenticate via GitHub CLI (`gh auth login`) |
+<img alt="Providers banner" src="https://github.com/user-attachments/assets/c7b32a3e-452c-4209-91ef-71bcd895e2df" />
 
-## Roadmap
+### Supported CLI Providers
 
-Scrawl inherits a mature feature set from Emdash. Here is what we are building specifically for writers:
+Emdash currently supports twenty-two CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
 
-- **Cloud vector database integration** — Connect to vector databases via MCP for retrieval-augmented generation (RAG), enabling research-backed writing workflows
-- **Writer-specific skills** — Reusable prompt packages for style guide enforcement, tone matching, audience adaptation, and format compliance
-- **Content project templates** — Pre-configured project setups for common writing workflows (blog posts, proposals, technical docs, marketing copy)
-- **Additional writer needs** — We are carefully considering what workflows writers need beyond what developers use. Community feedback will shape this
+| CLI Provider | Status | Install |
+| ----------- | ------ | ----------- |
+| [Amp](https://ampcode.com/manual) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
+| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
+| [Autohand Code](https://autohand.ai/code/) | ✅ Supported | <code>npm install -g autohand-cli</code> |
+| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
+| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
+| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | <code>npm install -g codebuff</code> |
+| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | <code>npm install -g @openai/codex</code> |
+| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
+| [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
+| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
+| [Goose](https://github.com/block/goose) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
+| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install --python 3.13 kimi-cli</code> |
+| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
+| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
+| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | <code>npm install -g @qwen-code/qwen-code</code> |
+| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | <code>acli rovodev auth login</code> |
 
-## Contributing
+### Issues
 
-Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started.
+Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent. 
 
-## FAQ
+| Tool | Status | Authentication |
+| ----------- | ------ | ----------- |
+| [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
+| [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
+| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
 
-<details>
-<summary><b>Is this the same as Emdash?</b></summary>
+# Contributing
 
-> No. Scrawl is a fork of [Emdash](https://github.com/generalaction/emdash), maintained independently. Emdash is an Agentic Development Environment for software developers. Scrawl takes the same core architecture — parallel agent orchestration, worktree isolation, provider-agnostic design — and repositions it as an Agentic Writer Environment for people who create written content. We credit the Emdash team for the foundation this project builds on.
-</details>
+Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
 
-<details>
-<summary><b>Will my writing be sent to AI providers?</b></summary>
-
-> Scrawl itself stores all data locally and does not send your content to any servers. However, when you use any CLI agent (Claude Code, Codex, Gemini, etc.), your content and prompts are sent to that provider's cloud API for processing. Each provider has their own data handling and retention policies. Review your chosen provider's privacy policy before sending sensitive content.
-</details>
+# FAQ
 
 <details>
 <summary><b>What telemetry do you collect and can I disable it?</b></summary>
 
-> We send **anonymous, allow-listed events** (app start/close, feature usage names, app/platform versions) to PostHog.
-> We **do not** send content, file paths, project names, prompts, or PII.
+> We send **anonymous, allow‑listed events** (app start/close, feature usage names, app/platform versions) to PostHog.  
+> We **do not** send code, file paths, repo names, prompts, or PII.
 >
 > **Disable telemetry:**
 >
-> - In the app: **Settings > General > Privacy & Telemetry** (toggle off)
+> - In the app: **Settings → General → Privacy & Telemetry** (toggle off)
 > - Or via env var before launch:
 >
 > ```bash
 > TELEMETRY_ENABLED=false
 > ```
+>
+> Full details: see `docs/telemetry.md`.
 </details>
 
 <details>
 <summary><b>Where is my data stored?</b></summary>
 
-> App data is local-first. We store app state in a local SQLite database:
+> **App data is local‑first**. We store app state in a local **SQLite** database:
 >
 > ```
 > macOS:   ~/Library/Application Support/emdash/emdash.db
@@ -144,48 +146,85 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > Linux:   ~/.config/emdash/emdash.db
 > ```
 >
-> Note: The database paths still use the `emdash` directory name from the upstream project. This may change in a future release.
+> **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
+>
+> You can reset the local DB by deleting it (quit the app first). The file is recreated on next launch.
 </details>
 
 <details>
 <summary><b>Do I need GitHub CLI?</b></summary>
 
-> Only if you want GitHub features (open PRs, fetch repo info, GitHub Issues integration).
-> Install and sign in:
+> **Only if you want GitHub features** (open PRs from Emdash, fetch repo info, GitHub Issues integration).  
+> Install & sign in:
 >
 > ```bash
 > gh auth login
 > ```
 >
-> If you don't use GitHub features, you can skip installing `gh`.
+> If you don’t use GitHub features, you can skip installing `gh`.
 </details>
 
 <details>
-<summary><b>I hit a native-module crash (sqlite3 / node-pty / keytar). What's the fast fix?</b></summary>
+<summary><b>How do I add a new provider?</b></summary>
+
+> Emdash is **provider‑agnostic** and built to add CLIs quickly.
+>
+> - Open a PR following the **Contributing Guide** (`CONTRIBUTING.md`).
+> - Include: provider name, how it’s invoked (CLI command), auth notes, and minimal setup steps.
+> - We’ll add it to the **Integrations** matrix and wire up provider selection in the UI.
+>
+> If you’re unsure where to start, open an issue with the CLI’s link and typical commands.
+</details>
+
+<details>
+<summary><b>I hit a native‑module crash (sqlite3 / node‑pty / keytar). What’s the fast fix?</b></summary>
 
 > This usually happens after switching Node/Electron versions.
 >
-> 1. Rebuild native modules:
+> 1) Rebuild native modules:
 >
 > ```bash
-> pnpm run rebuild
+> npm run rebuild
 > ```
 >
-> 2. If that fails, clean and reinstall:
+> 2) If that fails, clean and reinstall:
 >
 > ```bash
-> pnpm run reset
+> npm run reset
 > ```
+>
+> (Resets `node_modules`, reinstalls, and re‑builds Electron native deps.)
 </details>
+
+<details>
+<summary><b>What permissions does Emdash need?</b></summary>
+
+> - **Filesystem/Git:** to read/write your repo and create **Git worktrees** for isolation.  
+> - **Network:** only for provider CLIs you choose to use (e.g., Codex, Claude) and optional GitHub actions.  
+> - **Local DB:** to store your app state in SQLite on your machine.
+>
+> Emdash itself does **not** send your code or chats to any servers. Third‑party CLIs may transmit data per their policies.
+</details>
+
 
 <details>
 <summary><b>Can I work with remote projects over SSH?</b></summary>
 
-> Yes. Scrawl supports remote development via SSH.
+> **Yes!** Emdash supports remote development via SSH.
 >
-> 1. Go to **Settings > SSH Connections** and add your server details
+> **Setup:**
+> 1. Go to **Settings → SSH Connections** and add your server details
 > 2. Choose authentication: SSH agent (recommended), private key, or password
 > 3. Add a remote project and specify the path on the server
 >
-> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions.
+> **Requirements:**
+> - SSH access to the remote server
+> - Git installed on the remote server
+> - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
+>
+> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
 </details>
+
+[![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)
+[![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
+[![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)

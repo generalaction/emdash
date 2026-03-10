@@ -149,8 +149,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "generalaction",
-        "repo": "emdash",
+        "owner": "gidea",
+        "repo": "scrawl",
         "releaseType": "release"
       }
     ],

@@ -1270,7 +1270,7 @@ export async function startPty(options: {
   // (.profile, .bashrc, .zshrc, etc.). This is how `sudo -i`, `ssh`, and other
   // tools create clean user environments.
   //
-  // See: https://github.com/generalaction/emdash/issues/485
+  // See: https://github.com/gidea/scrawl/issues/485
   const useEnv: Record<string, string> = {
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
