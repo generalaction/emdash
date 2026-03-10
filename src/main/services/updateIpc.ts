@@ -12,7 +12,7 @@ const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
 function getLatestDownloadUrl(): string {
   const platform = process.platform;
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const baseUrl = 'https://github.com/generalaction/emdash/releases/latest/download';
+  const baseUrl = 'https://github.com/gidea/scrawl/releases/latest/download';
 
   switch (platform) {
     case 'darwin':
@@ -25,7 +25,7 @@ function getLatestDownloadUrl(): string {
       return `${baseUrl}/emdash-x64.exe`;
     default:
       // Fallback to releases page
-      return 'https://github.com/generalaction/emdash/releases/latest';
+      return 'https://github.com/gidea/scrawl/releases/latest';
   }
 }
 

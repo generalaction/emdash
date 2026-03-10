@@ -16,7 +16,7 @@ describe('patchCurrentPrBodyWithIssueFooter', () => {
         expect(bodyFileIdx).toBeGreaterThan(-1);
         capturedBodyFilePath = args[bodyFileIdx + 1];
         capturedBodyFileContent = fs.readFileSync(capturedBodyFilePath, 'utf8');
-        expect(args[2]).toBe('https://github.com/generalaction/emdash/pull/123');
+        expect(args[2]).toBe('https://github.com/gidea/scrawl/pull/123');
         return { stdout: '' };
       }
       throw new Error(`Unexpected command args: ${args.join(' ')}`);
@@ -26,7 +26,7 @@ describe('patchCurrentPrBodyWithIssueFooter', () => {
       taskPath: '/tmp/worktree',
       metadata: { githubIssue: { number: 42 } },
       execFile,
-      prUrl: 'https://github.com/generalaction/emdash/pull/123',
+      prUrl: 'https://github.com/gidea/scrawl/pull/123',
     });
 
     expect(didPatch).toBe(true);

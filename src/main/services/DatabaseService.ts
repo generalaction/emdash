@@ -1021,7 +1021,7 @@ export class DatabaseService {
         '4. Security software is blocking file access',
         '',
         'To fix: Try downloading and installing Emdash directly from:',
-        'https://github.com/generalaction/emdash/releases',
+        'https://github.com/gidea/scrawl/releases',
         '',
       ].join('\n');
 

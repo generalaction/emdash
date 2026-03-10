@@ -6,10 +6,10 @@
 <br />
 
 [![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
-[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
-[![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
-[![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/graphs/commit-activity)
+[![Downloads](https://img.shields.io/github/downloads/gidea/scrawl/total?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl)
+[![Last Commit](https://img.shields.io/github/last-commit/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/commits/main)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/graphs/commit-activity)
 <br>
 [![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
 <a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
@@ -17,13 +17,13 @@
 
 <br />
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
     <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
     <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+  <a href="https://github.com/gidea/scrawl/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
     <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
@@ -50,23 +50,23 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
-- Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
+- Apple Silicon: https://github.com/gidea/scrawl/releases/latest/download/emdash-arm64.dmg
+- Intel x64: https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.dmg
 
 [![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
 > macOS users can also: `brew install --cask emdash`
 
 ### Windows
-- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
-- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
+- Installer (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.msi
+- Portable (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.exe
 
 ### Linux
-- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage
-- Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb
+- AppImage (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x86_64.AppImage
+- Debian package (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-amd64.deb
 
 ### Release Overview
 
-**[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**
+**[Latest Releases (macOS • Windows • Linux)](https://github.com/gidea/scrawl/releases/latest)**
 
 # Providers
 
