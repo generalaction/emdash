@@ -8,6 +8,9 @@ vi.mock('electron', () => ({
 const execFileCalls: { file: string; args: string[] }[] = [];
 let issueListStdout = '[]';
 let issueSearchStdout = '[]';
+let prListStdout = '[]';
+let repoViewStdout = 'generalaction/emdash';
+let prCountStdout = '0';
 
 vi.mock('child_process', () => {
   const execFileImpl = (file: string, args?: string[] | any, options?: any, callback?: any) => {
@@ -50,6 +53,12 @@ vi.mock('child_process', () => {
       } else {
         respond(issueListStdout);
       }
+    } else if (command.startsWith('gh pr list')) {
+      respond(prListStdout);
+    } else if (command.startsWith('gh repo view --json nameWithOwner')) {
+      respond(repoViewStdout);
+    } else if (command.startsWith('gh api search/issues')) {
+      respond(prCountStdout);
     } else {
       respond('');
     }
@@ -107,6 +116,9 @@ describe('GitHubService.isAuthenticated', () => {
     execFileCalls.length = 0;
     issueListStdout = '[]';
     issueSearchStdout = '[]';
+    prListStdout = '[]';
+    repoViewStdout = 'generalaction/emdash';
+    prCountStdout = '0';
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
     getPasswordMock.mockResolvedValue(null);
@@ -150,5 +162,34 @@ describe('GitHubService.isAuthenticated', () => {
     const issues = await service.searchIssues('/tmp/repo', 'query', 20);
 
     expect(issues.map((issue) => issue.number)).toEqual([102, 101, 103]);
+  });
+
+  it('limits pull requests and returns the total open PR count', async () => {
+    prListStdout = JSON.stringify([
+      { number: 8, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
+      { number: 9, title: 'Newest', updatedAt: '2026-03-03T10:00:00.000Z' },
+    ]);
+    prCountStdout = '42';
+
+    const service = new GitHubService();
+    const result = await service.getPullRequests('/tmp/repo', 10);
+
+    expect(result.totalCount).toBe(42);
+    expect(result.prs.map((pr) => pr.number)).toEqual([9, 8]);
+    expect(
+      execFileCalls.find(
+        (c) =>
+          c.file === 'gh' &&
+          c.args.includes('pr') &&
+          c.args.includes('list') &&
+          c.args.includes('--limit') &&
+          c.args.includes('10')
+      )
+    ).toBeDefined();
+    expect(
+      execFileCalls.find(
+        (c) => c.file === 'gh' && c.args.includes('api') && c.args.includes('search/issues')
+      )
+    ).toBeDefined();
   });
 });

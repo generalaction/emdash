@@ -141,7 +141,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       aria-hidden={collapsed}
       {...rest}
     >
-      <TaskScopeProvider value={{ taskId: task?.id, taskPath: task?.path, projectPath }}>
+      <TaskScopeProvider
+        value={{
+          taskId: task?.id,
+          taskPath: task?.path,
+          projectPath,
+          prNumber: task?.metadata?.prNumber ?? undefined,
+        }}
+      >
         <div className="flex h-full w-full min-w-0 flex-col">
           {task || projectPath ? (
             <div className="flex h-full flex-col">
