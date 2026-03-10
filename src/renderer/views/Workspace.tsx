@@ -2,6 +2,7 @@ import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
+import { TaskScopeProvider } from '@/components/TaskScopeContext';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
@@ -31,6 +32,7 @@ import { useProjectManagementContext } from '@/contexts/ProjectManagementProvide
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
 import { activityStore } from '@/lib/activityStore';
+import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
 import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
@@ -81,6 +83,7 @@ export function Workspace() {
   // Agent event hook: plays sounds and updates sidebar status for all tasks
   const handleAgentEvent = useCallback((event: import('@shared/agentEvents').AgentEvent) => {
     activityStore.handleAgentEvent(event);
+    agentStatusStore.handleAgentEvent(event);
   }, []);
   useAgentEvents(handleAgentEvent);
 
@@ -248,6 +251,7 @@ export function Workspace() {
     showHomeView: projectMgmt.showHomeView,
     showSettingsPage,
     showSkillsView: projectMgmt.showSkillsView,
+    showMcpView: projectMgmt.showMcpView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });
@@ -398,12 +402,21 @@ export function Workspace() {
                   >
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
                       {showDiffViewer ? (
-                        <DiffViewer
-                          onClose={handleCloseDiffViewer}
-                          taskId={activeTask?.id}
-                          taskPath={diffViewerTaskPath || activeTask?.path}
-                          initialFile={diffViewerInitialFile}
-                        />
+                        <TaskScopeProvider
+                          value={{
+                            taskId: activeTask?.id,
+                            taskPath: diffViewerTaskPath || activeTask?.path,
+                            projectPath: selectedProject?.path || activeTaskProjectPath,
+                            prNumber: activeTask?.metadata?.prNumber ?? undefined,
+                          }}
+                        >
+                          <DiffViewer
+                            onClose={handleCloseDiffViewer}
+                            taskId={activeTask?.id}
+                            taskPath={diffViewerTaskPath || activeTask?.path}
+                            initialFile={diffViewerInitialFile}
+                          />
+                        </TaskScopeProvider>
                       ) : (
                         <MainContentArea
                           showSettingsPage={showSettingsPage}
@@ -437,6 +450,7 @@ export function Workspace() {
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                       onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setShowEditorMode(false);
                         setDiffViewerInitialFile(filePath ?? null);
                         setDiffViewerTaskPath(taskPath ?? null);
                         setShowDiffViewer(true);

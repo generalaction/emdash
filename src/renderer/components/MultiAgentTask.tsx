@@ -458,6 +458,21 @@ const MultiAgentTask: React.FC<Props> = ({
     };
   }, [variants.length]);
 
+  useEffect(() => {
+    const handleAgentTabSelection = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabIndex: number }>;
+      const tabIndex = customEvent.detail?.tabIndex;
+      if (typeof tabIndex !== 'number') return;
+      if (tabIndex < 0 || tabIndex >= variants.length) return;
+      setActiveTabIndex(tabIndex);
+    };
+
+    window.addEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    return () => {
+      window.removeEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    };
+  }, [variants.length]);
+
   if (!multi?.enabled) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

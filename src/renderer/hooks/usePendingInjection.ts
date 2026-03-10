@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 
 /**
@@ -28,6 +29,9 @@ export function usePendingInjection() {
 
   const sendNow = useCallback(async (ptyId: string, text: string) => {
     // Use carriage return to mimic Enter key for immediate submit.
+    if (text.trim()) {
+      agentStatusStore.markUserInputSubmitted({ ptyId });
+    }
     await window.electronAPI.ptyInput({ id: ptyId, data: text + '\r' });
   }, []);
 

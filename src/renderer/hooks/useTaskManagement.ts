@@ -13,6 +13,9 @@ import type { GitHubIssueLink, AgentRun } from '../types/chat';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
+import type { PlainThreadSummary } from '../types/plain';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -145,6 +148,7 @@ export function useTaskManagement() {
     setSelectedProject,
     setShowHomeView,
     setShowSkillsView,
+    setShowMcpView,
     setShowEditorMode,
     setShowKanban,
     activateProjectView,
@@ -324,6 +328,7 @@ export function useTaskManagement() {
     }
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setShowKanban(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
@@ -344,6 +349,7 @@ export function useTaskManagement() {
     setSelectedProject(project);
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -363,6 +369,7 @@ export function useTaskManagement() {
     setSelectedProject(project);
     setShowHomeView(false);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setActiveTask(task);
     setActiveTaskAgent(getAgentForTask(task));
     saveActiveIds(project.id, task.id);
@@ -906,6 +913,9 @@ export function useTaskManagement() {
       linkedLinearIssue: LinearIssueSummary | null = null,
       linkedGithubIssue: GitHubIssueSummary | null = null,
       linkedJiraIssue: JiraIssueSummary | null = null,
+      linkedPlainThread: PlainThreadSummary | null = null,
+      linkedGitlabIssue: GitLabIssueSummary | null = null,
+      linkedForgejoIssue: ForgejoIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
@@ -923,6 +933,9 @@ export function useTaskManagement() {
         linkedLinearIssue,
         linkedGithubIssue,
         linkedJiraIssue,
+        linkedPlainThread,
+        linkedGitlabIssue,
+        linkedForgejoIssue,
         autoApprove,
         nameGenerated,
         useWorktree,

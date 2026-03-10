@@ -1,12 +1,14 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Plus, Play, Square, X } from 'lucide-react';
+import { Plus, Play, RotateCw, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { useTerminalSelection } from '../hooks/useTerminalSelection';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
+import { useToast } from '../hooks/use-toast';
+import { ToastAction } from './ui/toast';
 import {
   Select,
   SelectContent,
@@ -58,6 +60,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   portSeed,
 }) => {
   const { effectiveTheme } = useTheme();
+  const { toast } = useToast();
 
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
@@ -245,8 +248,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     !!projectPath &&
     !runActionBusy &&
     runStatus !== 'running' &&
-    setupStatus !== 'running' &&
-    setupStatus !== 'failed';
+    setupStatus !== 'running';
 
   const isRunSelection = !selection.selectedLifecycle || selection.selectedLifecycle === 'run';
   const selectedTerminalScope = useMemo(() => {
@@ -260,30 +262,66 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
+      let result: { success: boolean; error?: string } | undefined;
       if (selection.selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({
+        result = await api.lifecycleSetup?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else if (selection.selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({
+        result = await api.lifecycleTeardown?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else {
-        await api.lifecycleRunStart?.({
+        result = await api.lifecycleRunStart?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       }
+      if (result && !result.success) {
+        const phase = selection.selectedLifecycle || 'run';
+        const errorMsg = result.error || 'An unknown error occurred.';
+        // If run failed due to setup, navigate to setup logs
+        const failedPhase = errorMsg.toLowerCase().includes('setup failed') ? 'setup' : phase;
+        const label = failedPhase.charAt(0).toUpperCase() + failedPhase.slice(1);
+        toast({
+          title: `${label} failed`,
+          description: errorMsg.split('\n')[0],
+          variant: 'destructive',
+          action: (
+            <ToastAction
+              altText="View logs"
+              onClick={() => selection.onChange(`lifecycle::${failedPhase}`)}
+            >
+              View logs
+            </ToastAction>
+          ),
+        });
+      }
     } catch (error) {
       console.error('Failed lifecycle play action:', error);
+      const phase = selection.selectedLifecycle || 'run';
+      const label = phase.charAt(0).toUpperCase() + phase.slice(1);
+      toast({
+        title: `${label} failed`,
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+        action: (
+          <ToastAction
+            altText="View logs"
+            onClick={() => selection.onChange(`lifecycle::${phase}`)}
+          >
+            View logs
+          </ToastAction>
+        ),
+      });
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
@@ -294,7 +332,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     task?.path,
     projectPath,
     selection.selectedLifecycle,
+    selection.onChange,
     refreshLifecycleState,
+    toast,
   ]);
 
   const handleStop = useCallback(async () => {
@@ -548,7 +588,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     })}
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    <Play className="h-3.5 w-3.5" />
+                    {isRunSelection && setupStatus === 'failed' ? (
+                      <RotateCw className="h-3.5 w-3.5" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 )}
               </TooltipTrigger>
@@ -563,7 +607,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         : setupStatus === 'running'
                           ? 'Setup is still running'
                           : setupStatus === 'failed'
-                            ? 'Setup failed'
+                            ? 'Retry setup and start run script'
                             : 'Start run script'}
                 </p>
               </TooltipContent>

@@ -6,6 +6,8 @@
  * passes validation. After firing, the buffer disables itself.
  */
 
+import { stripAnsi } from './stripAnsi';
+
 /** Strings that look like non-task-related input (confirmations, slash commands, etc.) */
 const SKIP_PATTERNS = [
   /^\//, // slash commands
@@ -19,10 +21,6 @@ const SKIP_PATTERNS = [
 ];
 
 const MIN_MESSAGE_LENGTH = 10;
-
-function stripAnsi(s: string): string {
-  return s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
-}
 
 /** Returns true if the message looks like a real task description. */
 function isRealTaskInput(message: string): boolean {

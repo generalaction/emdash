@@ -1,10 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
 import { useCreatePR } from '../hooks/useCreatePR';
-import { useFileChanges } from '../hooks/useFileChanges';
+import { useFileChanges, type FileChange } from '../hooks/useFileChanges';
+import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useCheckRuns } from '../hooks/useCheckRuns';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
@@ -13,12 +16,17 @@ import { ChecksPanel } from './CheckRunsList';
 import { PrCommentsList } from './PrCommentsList';
 import MergePrSection from './MergePrSection';
 import { FileIcon } from './FileExplorer/FileIcons';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
 import {
+  Plus,
+  Minus,
+  Undo2,
   ArrowUpRight,
-  ChevronDown,
   FileDiff,
+  GitPullRequest,
+  ChevronDown,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -35,6 +43,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
+import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -131,29 +140,66 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   className,
   onOpenChanges,
 }) => {
-  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath, prNumber } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const resolvedTaskPath = taskPath ?? scopedTaskPath;
   const safeTaskPath = resolvedTaskPath ?? '';
   const canRender = Boolean(resolvedTaskId && resolvedTaskPath);
+  const taskPathRef = useRef(safeTaskPath);
+  taskPathRef.current = safeTaskPath;
 
-  const [showDiffModal, setShowDiffModal] = useState(false);
-  const [showAllChangesModal, setShowAllChangesModal] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | undefined>(undefined);
+  // PR review mode state
+  const [prDiffChanges, setPrDiffChanges] = useState<FileChange[]>([]);
+  const [prDiffLoading, setPrDiffLoading] = useState(false);
+  const [prBaseBranch, setPrBaseBranch] = useState<string | null>(null);
+  const [prHeadBranch, setPrHeadBranch] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | null>(null);
+  const isPrReview = Boolean(prNumber && safeTaskPath);
 
-  // Reset selectedPath and action loading states when task changes
+  const fetchPrDiff = useCallback(async () => {
+    if (!prNumber || !safeTaskPath) return;
+    setPrDiffLoading(true);
+    try {
+      const result = await fetchPrBaseDiff(safeTaskPath, prNumber);
+      if (result.success) {
+        setPrDiffChanges(parseDiffToFileChanges(result.diff ?? ''));
+        setPrBaseBranch(result.baseBranch || null);
+        setPrHeadBranch(result.headBranch || null);
+        setPrUrl(result.prUrl || null);
+      } else {
+        setPrDiffChanges([]);
+        setPrBaseBranch(null);
+        setPrHeadBranch(null);
+        setPrUrl(null);
+        if (result.error) {
+          console.error('Failed to load PR diff:', result.error);
+        }
+      }
+    } catch (err) {
+      setPrDiffChanges([]);
+      setPrBaseBranch(null);
+      setPrHeadBranch(null);
+      setPrUrl(null);
+      console.error('Failed to load PR diff:', err);
+    } finally {
+      setPrDiffLoading(false);
+    }
+  }, [prNumber, safeTaskPath]);
+
   useEffect(() => {
-    setSelectedPath(undefined);
-    setIsMergingToMain(false);
-  }, [resolvedTaskPath]);
+    if (isPrReview) {
+      fetchPrDiff();
+    }
+  }, [isPrReview, fetchPrDiff]);
+
   const [stagingFiles, setStagingFiles] = useState<Set<string>>(new Set());
-  const [unstagingFiles, setUnstagingFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [isStagingAll, setIsStagingAll] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
@@ -180,6 +226,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath);
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
+  const stagedCount = fileChanges.filter((change) => change.isStaged).length;
+  const hasStagedChanges = stagedCount > 0;
   const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [activeTab, setActiveTab] = useState<ActiveTab>('changes');
   const { status: checkRunsStatus, isLoading: checkRunsLoading } = useCheckRuns(
@@ -205,6 +253,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   );
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
+
+  // Reset action loading states when task changes
+  useEffect(() => {
+    setIsMergingToMain(false);
+    setCommitMessage('');
+    setStagingFiles(new Set());
+    setRevertingFiles(new Set());
+    setRestoreTarget(null);
+    setIsStagingAll(false);
+  }, [resolvedTaskPath]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
   useEffect(() => {
@@ -242,6 +300,149 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safeTaskPath, hasChanges]);
+
+  const handleFileStage = async (filePath: string, stage: boolean, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setStagingFiles((prev) => new Set(prev).add(filePath));
+    try {
+      if (stage) {
+        await window.electronAPI.stageFile({ taskPath: safeTaskPath, filePath });
+      } else {
+        await window.electronAPI.unstageFile({ taskPath: safeTaskPath, filePath });
+      }
+    } catch (err) {
+      console.error('Staging failed:', err);
+      toast({
+        title: stage ? 'Stage Failed' : 'Unstage Failed',
+        description:
+          err instanceof Error ? err.message : 'Could not update the file staging status.',
+        variant: 'destructive',
+      });
+    } finally {
+      setStagingFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(filePath);
+        return next;
+      });
+      await refreshChanges();
+    }
+  };
+
+  const handleStageAll = async () => {
+    setIsStagingAll(true);
+    try {
+      await window.electronAPI.stageAllFiles({ taskPath: safeTaskPath });
+    } catch (err) {
+      console.error('Stage all failed:', err);
+      toast({
+        title: 'Stage All Failed',
+        description: 'Could not stage all files.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStagingAll(false);
+      await refreshChanges();
+    }
+  };
+
+  const executeRestore = async () => {
+    const filePath = restoreTarget;
+    if (!filePath) return;
+    setRestoreTarget(null);
+    setRevertingFiles((prev) => new Set(prev).add(filePath));
+    try {
+      await window.electronAPI.revertFile({ taskPath: safeTaskPath, filePath });
+      dispatchFileChangeEvent(safeTaskPath, filePath);
+    } catch (err) {
+      console.error('Restore failed:', err);
+      toast({
+        title: 'Revert Failed',
+        description: 'Could not revert the file.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRevertingFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(filePath);
+        return next;
+      });
+      await refreshChanges();
+    }
+  };
+
+  const handleCommitAndPush = async () => {
+    const trimmedMessage = commitMessage.trim();
+    if (!trimmedMessage) {
+      toast({
+        title: 'Commit Message Required',
+        description: 'Please enter a commit message.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!hasStagedChanges) {
+      toast({
+        title: 'No Staged Changes',
+        description: 'Please stage some files before committing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCommitting(true);
+    try {
+      const result = await window.electronAPI.gitCommitAndPush({
+        taskPath: safeTaskPath,
+        commitMessage: trimmedMessage,
+        createBranchIfOnDefault: true,
+      });
+
+      if (result.success) {
+        const taskPathAtCommit = safeTaskPath;
+        toast({
+          title: 'Committed and Pushed',
+          description: `Changes committed with message: "${trimmedMessage}"`,
+        });
+        setCommitMessage('');
+        await refreshChanges();
+        // Guard remaining updates against task switch during async chain
+        if (taskPathRef.current !== taskPathAtCommit) return;
+        try {
+          await refreshPr();
+        } catch {
+          // PR refresh is best-effort
+        }
+        if (taskPathRef.current !== taskPathAtCommit) return;
+        // Reload branch status so the Create PR button appears immediately
+        try {
+          setBranchStatusLoading(true);
+          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskPathAtCommit });
+          if (taskPathRef.current !== taskPathAtCommit) return;
+          setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
+        } catch {
+          if (taskPathRef.current === taskPathAtCommit) setBranchAhead(0);
+        } finally {
+          if (taskPathRef.current === taskPathAtCommit) setBranchStatusLoading(false);
+        }
+      } else {
+        toast({
+          title: 'Commit Failed',
+          description:
+            typeof result.error === 'string' ? result.error : 'Failed to commit and push changes.',
+          variant: 'destructive',
+        });
+      }
+    } catch (_error) {
+      toast({
+        title: 'Commit Failed',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommitting(false);
+    }
+  };
 
   const handleMergeToMain = async () => {
     setIsMergingToMain(true);
@@ -283,7 +484,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     } else {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('pr_viewed');
+        captureTelemetry('pr_created');
       })();
       await createPR({
         taskPath: safeTaskPath,
@@ -312,7 +513,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     );
   };
 
-  const totalChanges = fileChanges.reduce(
+  // Use PR diff changes when in PR review mode, otherwise use local file changes
+  const displayChanges = isPrReview ? prDiffChanges : fileChanges;
+  const displayLoading = isPrReview ? prDiffLoading : isLoading;
+
+  const totalChanges = displayChanges.reduce(
     (acc, change) => ({
       additions: acc.additions + change.additions,
       deletions: acc.deletions + change.deletions,
@@ -325,31 +530,64 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   }
 
   const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMergingToMain;
+  const hasDisplayChanges = displayChanges.length > 0;
 
   return (
-    <div className={`flex h-full flex-col bg-card shadow-sm ${className}`}>
-      <div className="bg-muted px-3 py-2">
-        <div className="flex w-full flex-wrap items-center justify-between gap-2">
-          <div className="flex shrink-0 items-center gap-1 text-xs">
-            {hasChanges ? (
+    <div className={`flex h-full flex-col bg-card shadow-sm ${className ?? ''}`}>
+      {/* PR review banner */}
+      {isPrReview && (
+        <motion.button
+          type="button"
+          className="flex w-full cursor-pointer items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50"
+          whileTap={{ scale: 0.97 }}
+          onClick={() => {
+            const url = prUrl || pr?.url;
+            if (url) window.electronAPI.openExternal(url);
+          }}
+          title="Open PR on GitHub"
+        >
+          <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="truncate text-xs text-emerald-700 dark:text-emerald-300">
+            Reviewing PR #{prNumber}
+            {prHeadBranch && prBaseBranch && (
               <>
-                <span className="font-medium text-green-600 dark:text-green-400">
-                  +{totalChanges.additions}
-                </span>
-                <span className="text-muted-foreground">&middot;</span>
-                <span className="font-medium text-red-600 dark:text-red-400">
-                  -{totalChanges.deletions}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
-                <span className="text-muted-foreground">&middot;</span>
-                <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+                {': '}
+                <span className="font-mono font-medium">{prHeadBranch}</span>
+                {' \u2192 '}
+                <span className="font-mono font-medium">{prBaseBranch}</span>
               </>
             )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+          </span>
+          <ArrowUpRight className="h-3 w-3 shrink-0 text-emerald-500 dark:text-emerald-400" />
+        </motion.button>
+      )}
+
+      <div className="bg-muted px-3 py-2">
+        {isPrReview ? (
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center gap-1 text-xs">
+              {hasDisplayChanges ? (
+                <>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    +{totalChanges.additions}
+                  </span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="font-medium text-red-600 dark:text-red-400">
+                    -{totalChanges.deletions}
+                  </span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="text-muted-foreground">
+                    {displayChanges.length} {displayChanges.length === 1 ? 'file' : 'files'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+                </>
+              )}
+            </div>
             {onOpenChanges && (
               <Button
                 variant="outline"
@@ -362,49 +600,151 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 <span className="hidden sm:inline">Changes</span>
               </Button>
             )}
-            {hasChanges ? (
-              <PrActionButton
-                mode={prMode}
-                onModeChange={selectPrMode}
-                onExecute={handlePrAction}
-                isLoading={isActionLoading}
-              />
-            ) : isPrLoading ? (
-              <div className="flex items-center justify-center p-1">
-                <Spinner size="sm" className="h-3.5 w-3.5" />
+          </div>
+        ) : hasChanges ? (
+          <div className="space-y-3">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1 text-xs">
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    +{totalChanges.additions}
+                  </span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="font-medium text-red-600 dark:text-red-400">
+                    -{totalChanges.deletions}
+                  </span>
+                </div>
+                {hasStagedChanges && (
+                  <span className="shrink-0 rounded bg-muted-foreground/10 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {stagedCount} staged
+                  </span>
+                )}
               </div>
-            ) : pr ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (pr.url) window.electronAPI?.openExternal?.(pr.url);
-                }}
-                className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
-              >
-                {pr.isDraft
-                  ? 'Draft'
-                  : String(pr.state).toUpperCase() === 'OPEN'
-                    ? 'View PR'
-                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-                <ArrowUpRight className="size-3" />
-              </button>
-            ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
-              <PrActionButton
-                mode={prMode}
-                onModeChange={selectPrMode}
-                onExecute={handlePrAction}
-                isLoading={isActionLoading || branchStatusLoading}
-              />
-            ) : (
-              <span className="text-xs text-muted-foreground">No PR for this task</span>
+              <div className="flex items-center gap-2">
+                {onOpenChanges && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-xs"
+                    title="View all changes and history"
+                    onClick={() => onOpenChanges(undefined, safeTaskPath)}
+                  >
+                    <FileDiff className="h-3.5 w-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Changes</span>
+                  </Button>
+                )}
+                {fileChanges.some((f) => !f.isStaged) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-xs"
+                    title="Stage all files for commit"
+                    onClick={handleStageAll}
+                    disabled={isStagingAll}
+                  >
+                    {isStagingAll ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
+                        <span className="hidden sm:inline">Stage All</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                <PrActionButton
+                  mode={prMode}
+                  onModeChange={selectPrMode}
+                  onExecute={handlePrAction}
+                  isLoading={isActionLoading}
+                />
+              </div>
+            </div>
+
+            {hasStagedChanges && (
+              <div className="flex items-center space-x-2">
+                <Input
+                  placeholder="Enter commit message..."
+                  value={commitMessage}
+                  onChange={(e) => setCommitMessage(e.target.value)}
+                  className="h-8 flex-1 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleCommitAndPush();
+                    }
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  title="Commit all staged changes and push"
+                  onClick={() => void handleCommitAndPush()}
+                  disabled={isCommitting || !commitMessage.trim()}
+                >
+                  {isCommitting ? <Spinner size="sm" /> : 'Commit & Push'}
+                </Button>
+              </div>
             )}
           </div>
-        </div>
+        ) : (
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center gap-1 text-xs">
+              <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
+              <span className="text-muted-foreground">&middot;</span>
+              <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {onOpenChanges && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
+                  title="View all changes and history"
+                  onClick={() => onOpenChanges(undefined, safeTaskPath)}
+                >
+                  <FileDiff className="mr-1.5 h-3.5 w-3.5" />
+                  Changes
+                </Button>
+              )}
+              {isPrLoading ? (
+                <div className="flex items-center justify-center p-1">
+                  <Spinner size="sm" className="h-3.5 w-3.5" />
+                </div>
+              ) : pr ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (pr.url) window.electronAPI?.openExternal?.(pr.url);
+                  }}
+                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+                >
+                  {pr.isDraft
+                    ? 'Draft'
+                    : String(pr.state).toUpperCase() === 'OPEN'
+                      ? 'View PR'
+                      : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                  <ArrowUpRight className="size-3" />
+                </button>
+              ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
+                <PrActionButton
+                  mode={prMode}
+                  onModeChange={selectPrMode}
+                  onExecute={handlePrAction}
+                  isLoading={isActionLoading || branchStatusLoading}
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">No PR for this task</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {pr && hasChanges && (
+      {pr && hasChanges && !isPrReview && (
         <div className="flex border-b border-border">
           <TabButton active={activeTab === 'changes'} onClick={() => setActiveTab('changes')}>
             Changes
@@ -423,7 +763,31 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           </TabButton>
         </div>
       )}
-      {activeTab === 'checks' && pr ? (
+
+      {/* PR review mode: tabs for PR diff + checks */}
+      {isPrReview && (
+        <div className="flex border-b border-border">
+          <TabButton active={activeTab === 'changes'} onClick={() => setActiveTab('changes')}>
+            PR Diff
+            {hasDisplayChanges && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                {displayChanges.length}
+              </span>
+            )}
+          </TabButton>
+          <TabButton active={activeTab === 'checks'} onClick={() => setActiveTab('checks')}>
+            Checks
+            {checkRunsStatus && !checkRunsStatus.allComplete && (
+              <Loader2 className="ml-1.5 inline h-3 w-3 animate-spin text-foreground" />
+            )}
+            {checkRunsStatus?.hasFailures && checkRunsStatus.allComplete && (
+              <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+            )}
+          </TabButton>
+        </div>
+      )}
+
+      {activeTab === 'checks' && (pr || isPrReview) ? (
         <>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {!hasChanges && (
@@ -456,26 +820,28 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             <ChecksPanel
               status={checkRunsStatus}
               isLoading={checkRunsLoading}
-              hasPr={!!pr}
-              hideSummary={!hasChanges}
+              hasPr={!!pr || isPrReview}
+              hideSummary={isPrReview ? !hasDisplayChanges : !hasChanges}
             />
-            <PrCommentsList
-              status={prCommentsStatus}
-              isLoading={prCommentsLoading}
-              hasPr={!!pr}
-              prUrl={pr?.url}
-            />
+            {pr && (
+              <PrCommentsList
+                status={prCommentsStatus}
+                isLoading={prCommentsLoading}
+                hasPr={!!pr}
+                prUrl={pr?.url}
+              />
+            )}
           </div>
-          <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />
+          {pr && <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />}
         </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading && fileChanges.length === 0 ? (
+          {displayLoading && displayChanges.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Spinner size="lg" className="text-muted-foreground" />
             </div>
-          ) : (
-            fileChanges.map((change, index) => (
+          ) : isPrReview ? (
+            displayChanges.map((change, index) => (
               <div
                 key={index}
                 className="flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50"
@@ -499,6 +865,94 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 </div>
               </div>
             ))
+          ) : (
+            <TooltipProvider delayDuration={100}>
+              {fileChanges.map((change) => (
+                <div
+                  key={change.path}
+                  className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
+                    change.isStaged ? 'bg-muted/50' : ''
+                  }`}
+                  onClick={() => onOpenChanges?.(change.path, safeTaskPath)}
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+                    <span className="inline-flex shrink-0 items-center justify-center text-muted-foreground">
+                      <FileIcon filename={change.path} isDirectory={false} size={16} />
+                    </span>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div className="min-w-0 truncate text-sm">{renderPath(change.path)}</div>
+                    </div>
+                  </div>
+                  <div className="ml-3 flex shrink-0 items-center gap-2">
+                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                      +{change.additions}
+                    </span>
+                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                      -{change.deletions}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            onClick={(e) => handleFileStage(change.path, !change.isStaged, e)}
+                            disabled={
+                              stagingFiles.has(change.path) || revertingFiles.has(change.path)
+                            }
+                          >
+                            {stagingFiles.has(change.path) ? (
+                              <Spinner size="sm" />
+                            ) : change.isStaged ? (
+                              <Minus className="h-4 w-4" />
+                            ) : (
+                              <Plus className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="left"
+                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                        >
+                          <p className="font-medium">
+                            {change.isStaged ? 'Unstage file' : 'Stage file for commit'}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRestoreTarget(change.path);
+                            }}
+                            disabled={
+                              stagingFiles.has(change.path) || revertingFiles.has(change.path)
+                            }
+                          >
+                            {revertingFiles.has(change.path) ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <Undo2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="left"
+                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                        >
+                          <p className="font-medium">Revert file changes</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </TooltipProvider>
           )}
         </div>
       )}
@@ -525,6 +979,30 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             >
               <GitMerge className="mr-2 h-4 w-4" />
               Merge into Main
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!restoreTarget} onOpenChange={(open) => !open && setRestoreTarget(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg">Revert file?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogDescription className="text-sm">
+            This will discard all uncommitted changes to{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              {restoreTarget?.split('/').pop()}
+            </code>{' '}
+            and restore it to the last committed version. This action cannot be undone.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void executeRestore()}
+              className="bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              Revert
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,11 +6,13 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
 import { TerminalInputBuffer } from './TerminalInputBuffer';
 import { classifyActivity } from '../lib/activityClassifier';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { consumeSubmittedInputChunk } from './submitCapture';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -105,6 +107,7 @@ export class TerminalSessionManager {
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
   private inputBuffer: TerminalInputBuffer | null = null;
+  private currentSubmittedInput = '';
   private autoCopyOnSelection = false;
   private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly pendingWriteQueue: string[] = [];
@@ -601,6 +604,8 @@ export class TerminalSessionManager {
       return;
     }
 
+    const submittedText = this.consumeSubmittedInput(filtered, isNewlineInsert);
+
     // Feed input to the buffer for first-message capture
     if (this.inputBuffer && !this.inputBuffer.isComplete) {
       this.inputBuffer.feed(filtered);
@@ -622,12 +627,18 @@ export class TerminalSessionManager {
       const stripped = filtered.replace(/[\r\n]+$/g, '');
       const enterSequence = filtered.includes('\r') ? '\r' : '\n';
       const injectedData = stripped + pendingText + enterSequence + enterSequence;
+      if (submittedText || pendingText.trim()) {
+        agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+      }
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
       pendingInjectionManager.markUsed();
       this.logSlowInputHandler(startedAt);
       return;
     }
 
+    if (isEnterPress && !isNewlineInsert && submittedText) {
+      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+    }
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
     this.logSlowInputHandler(startedAt);
   }
@@ -644,6 +655,16 @@ export class TerminalSessionManager {
       id: this.id,
       elapsedMs: Math.round(elapsedMs),
     });
+  }
+
+  private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
+    const result = consumeSubmittedInputChunk({
+      currentInput: this.currentSubmittedInput,
+      data,
+      isNewlineInsert,
+    });
+    this.currentSubmittedInput = result.currentInput;
+    return result.submittedText;
   }
 
   private cleanTerminalText(text: string): string {

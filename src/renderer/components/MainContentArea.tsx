@@ -5,6 +5,7 @@ import MultiAgentTask from './MultiAgentTask';
 import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
+import { McpPage } from './mcp/McpPage';
 import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -28,6 +29,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     selectedProject,
     showHomeView,
     showSkillsView,
+    showMcpView,
     showKanban,
     setShowKanban,
     projectDefaultBranch,
@@ -80,6 +82,10 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
 
   if (showSkillsView) {
     return <SkillsView />;
+  }
+
+  if (showMcpView) {
+    return <McpPage />;
   }
 
   if (showHomeView) {

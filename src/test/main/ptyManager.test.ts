@@ -108,6 +108,8 @@ describe('ptyManager provider command resolution', () => {
       defaultArgs: ['--model', 'gpt-5'],
       autoApprove: true,
       autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      extraArgs: ['--extra-flag'],
+      runtimeArgs: ['-c', 'notify=test'],
       initialPrompt: 'hello world',
       initialPromptFlag: '',
       useKeystrokeInjection: false,
@@ -119,7 +121,30 @@ describe('ptyManager provider command resolution', () => {
       '--model',
       'gpt-5',
       '--dangerously-bypass-approvals-and-sandbox',
+      '--extra-flag',
+      '-c',
+      'notify=test',
       'hello world',
+    ]);
+  });
+
+  it('places positional prompt after --full-auto and runtime args for Codex', async () => {
+    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+
+    const args = buildProviderCliArgs({
+      autoApprove: true,
+      autoApproveFlag: '--full-auto',
+      runtimeArgs: ['-c', 'notify=["sh","-lc","curl ...","sh"]'],
+      initialPrompt: 'fix the login bug',
+      initialPromptFlag: '',
+      useKeystrokeInjection: false,
+    });
+
+    expect(args).toEqual([
+      '--full-auto',
+      '-c',
+      'notify=["sh","-lc","curl ...","sh"]',
+      'fix the login bug',
     ]);
   });
 
@@ -235,6 +260,29 @@ describe('ptyManager provider command resolution', () => {
       expect.stringContaining('param([string]$payload)')
     );
     expect(fsMkdirSyncMock).toHaveBeenCalled();
+  });
+
+  it('uses an exact Codex thread target when one is stored', async () => {
+    fsReadFileSyncMock.mockReturnValue(
+      JSON.stringify({
+        'codex-main-task123': {
+          cwd: '/tmp/task',
+          providerId: 'codex',
+          resumeTarget: 'thread-123',
+          strategy: 'codex-thread-id',
+        },
+      })
+    );
+
+    const { getStoredExactResumeArgs, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest('/tmp/emdash-test/pty-session-map.json');
+
+    expect(getStoredExactResumeArgs('codex', 'codex-main-task123', '/tmp/task')).toEqual([
+      'resume',
+      'thread-123',
+    ]);
   });
 
   it('injects OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {

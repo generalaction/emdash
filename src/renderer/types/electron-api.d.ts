@@ -403,7 +403,7 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
-      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
@@ -461,6 +461,7 @@ declare global {
           subject: string;
           body: string;
           author: string;
+          authorEmail: string;
           date: string;
           isPushed: boolean;
           tags: string[];
@@ -864,9 +865,10 @@ declare global {
       }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;
@@ -879,6 +881,23 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
+        error?: string;
+      }>;
+      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        diff?: string;
+        baseBranch?: string;
+        headBranch?: string;
+        prUrl?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -949,6 +968,56 @@ declare global {
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       gitlabSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // Plain integration
+      plainSaveToken?: (token: string) => Promise<{
+        success: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainCheckConnection?: () => Promise<{
+        connected: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      plainInitialFetch?: (
+        limit?: number,
+        statuses?: string[]
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      plainSearchThreads?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      // Forgejo
+      forgejoSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      forgejoClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      forgejoCheckConnection?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      forgejoInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      forgejoSearchIssues?: (
         projectPath: string,
         searchTerm: string,
         limit?: number
@@ -1173,6 +1242,31 @@ declare global {
       skillsCreate: (args: { name: string; description: string; content?: string }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
+        error?: string;
+      }>;
+
+      // MCP
+      mcpLoadAll: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpLoadAllResponse;
+        error?: string;
+      }>;
+      mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpRemoveServer: (serverName: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpGetProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
+        error?: string;
+      }>;
+      mcpRefreshProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
     };
@@ -1623,9 +1717,10 @@ export interface ElectronAPI {
   }>;
   githubCheckCLIInstalled?: () => Promise<boolean>;
   githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (
-    projectPath: string
-  ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -1638,6 +1733,23 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
@@ -1682,6 +1794,38 @@ export interface ElectronAPI {
   ) => Promise<{
     success: boolean;
     issues?: any[];
+    error?: string;
+  }>;
+
+  // Plain integration
+  plainSaveToken?: (token: string) => Promise<{
+    success: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainCheckConnection?: () => Promise<{
+    connected: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  plainInitialFetch?: (
+    limit?: number,
+    statuses?: string[]
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+  plainSearchThreads?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
     error?: string;
   }>;
 
@@ -1765,6 +1909,31 @@ export interface ElectronAPI {
   skillsCreate: (args: { name: string; description: string }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
+    error?: string;
+  }>;
+
+  // MCP
+  mcpLoadAll: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpLoadAllResponse;
+    error?: string;
+  }>;
+  mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpRemoveServer: (serverName: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpGetProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
+    error?: string;
+  }>;
+  mcpRefreshProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
 }

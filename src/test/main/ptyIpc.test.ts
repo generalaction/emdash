@@ -7,10 +7,11 @@ type ExitPayload = {
 };
 
 type MockProc = {
-  onData: (cb: (data: string) => void) => void;
+  onData: (cb: (data: string) => void) => { dispose: () => void };
   onExit: (cb: (payload: ExitPayload) => void) => void;
   write: ReturnType<typeof vi.fn>;
   emitExit: (exitCode: number | null | undefined, signal?: number) => void;
+  emitData: (data: string) => void;
 };
 
 const ipcHandleHandlers = new Map<string, (...args: any[]) => any>();
@@ -28,6 +29,12 @@ const openCodeGetRemoteConfigDirMock = vi.fn(
 const openCodeGetPluginSourceMock = vi.fn(
   () => 'export const EmdashNotifyPlugin = async () => ({ event: async () => {} });\n'
 );
+const clearStoredSessionMock = vi.fn();
+const getStoredResumeTargetMock = vi.fn(() => null);
+const markCodexSessionBoundMock = vi.fn();
+const codexThreadExistsForCwdMock = vi.fn(async () => true);
+const codexFindLatestRecentThreadForCwdMock = vi.fn(async () => null);
+const codexFindLatestThreadForCwdMock = vi.fn(async () => null);
 const execFileMock = vi.fn(
   (
     _cmd: string,
@@ -43,8 +50,17 @@ let lastSshPtyStartOpts: any = null;
 
 function createMockProc(): MockProc {
   const exitHandlers: Array<(payload: ExitPayload) => void> = [];
+  const dataHandlers: Array<(data: string) => void> = [];
   return {
-    onData: vi.fn(),
+    onData: vi.fn((cb: (data: string) => void) => {
+      dataHandlers.push(cb);
+      return {
+        dispose: () => {
+          const idx = dataHandlers.indexOf(cb);
+          if (idx >= 0) dataHandlers.splice(idx, 1);
+        },
+      };
+    }),
     onExit: (cb) => {
       exitHandlers.push(cb);
     },
@@ -53,6 +69,9 @@ function createMockProc(): MockProc {
       for (const handler of exitHandlers) {
         handler({ exitCode, signal });
       }
+    },
+    emitData: (data: string) => {
+      for (const handler of [...dataHandlers]) handler(data);
     },
   };
 }
@@ -175,6 +194,9 @@ vi.mock('../../main/services/ptyManager', () => ({
   killTmuxSession: vi.fn(),
   getTmuxSessionName: vi.fn(() => ''),
   getPtyTmuxSessionName: vi.fn(() => ''),
+  clearStoredSession: clearStoredSessionMock,
+  getStoredResumeTarget: getStoredResumeTargetMock,
+  markCodexSessionBound: markCodexSessionBoundMock,
 }));
 
 vi.mock('../../main/lib/logger', () => ({
@@ -236,6 +258,14 @@ vi.mock('../../main/services/AgentEventService', () => ({
   },
 }));
 
+vi.mock('../../main/services/CodexSessionService', () => ({
+  codexSessionService: {
+    threadExistsForCwd: codexThreadExistsForCwdMock,
+    findLatestRecentThreadForCwd: codexFindLatestRecentThreadForCwdMock,
+    findLatestThreadForCwd: codexFindLatestThreadForCwdMock,
+  },
+}));
+
 vi.mock('../../main/services/ClaudeHookService', () => ({
   ClaudeHookService: {
     writeHookConfig: vi.fn(),
@@ -281,6 +311,10 @@ describe('ptyIpc notification lifecycle', () => {
     lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
     getProviderRuntimeCliArgsMock.mockClear();
+    getStoredResumeTargetMock.mockReturnValue(null);
+    codexThreadExistsForCwdMock.mockResolvedValue(true);
+    codexFindLatestRecentThreadForCwdMock.mockResolvedValue(null);
+    codexFindLatestThreadForCwdMock.mockResolvedValue(null);
   });
 
   function createSender() {
@@ -341,16 +375,17 @@ describe('ptyIpc notification lifecycle', () => {
 
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
     expect(lastSshPtyStartOpts?.target).toBe('remote-alias');
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
-
-    // Advance past the SSH MOTD delay before checking writes
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain('exec');
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
 
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
-    expect(written).toContain("cd '/tmp/task'");
     expect(written).toContain('sh -ilc');
     expect(written).toContain('command -v');
     expect(written).toContain('claude');
@@ -444,6 +479,84 @@ describe('ptyIpc notification lifecycle', () => {
     expect(ptys.has(id)).toBe(false);
   });
 
+  it('prunes stale exact Codex resume targets before local restart', async () => {
+    getStoredResumeTargetMock.mockReturnValue('thread-stale' as any);
+    codexThreadExistsForCwdMock.mockResolvedValue(false);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-stale-target');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32, resume: true }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(codexThreadExistsForCwdMock).toHaveBeenCalledWith('thread-stale', '/tmp/task');
+    expect(clearStoredSessionMock).toHaveBeenCalledWith(id);
+  });
+
+  it('binds a newly started Codex PTY to an exact thread id', async () => {
+    codexFindLatestRecentThreadForCwdMock.mockResolvedValue({
+      id: 'thread-123',
+      cwd: '/tmp/task',
+      createdAt: 1,
+      updatedAt: 1,
+      archived: false,
+    } as any);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-bind-target');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(codexFindLatestRecentThreadForCwdMock).toHaveBeenCalled();
+    expect(markCodexSessionBoundMock).toHaveBeenCalledWith(id, 'thread-123', '/tmp/task');
+  });
+
+  it('binds immediately to an existing exact-cwd Codex thread before polling', async () => {
+    codexFindLatestThreadForCwdMock.mockResolvedValue({
+      id: 'thread-existing',
+      cwd: '/tmp/task',
+      createdAt: 1,
+      updatedAt: 2,
+      archived: false,
+    } as any);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-existing-thread');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(codexFindLatestThreadForCwdMock).toHaveBeenCalledWith('/tmp/task');
+    expect(codexFindLatestRecentThreadForCwdMock).not.toHaveBeenCalled();
+    expect(markCodexSessionBoundMock).toHaveBeenCalledWith(id, 'thread-existing', '/tmp/task');
+  });
+
   it('uses resolved provider config for remote invocation flags', async () => {
     resolveProviderCommandConfigMock.mockReturnValue({
       provider: {
@@ -488,10 +601,13 @@ describe('ptyIpc notification lifecycle', () => {
       })
     );
     expect(startSshPtyMock).toHaveBeenCalledTimes(1);
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('command -v');
@@ -533,10 +649,13 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    expect(lastSshPtyStartOpts?.remoteInitCommand).toBeUndefined();
+    expect(lastSshPtyStartOpts?.remoteInitCommand).toContain("cd '/tmp/task'");
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     expect(proc!.write).toHaveBeenCalled();
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('command -v');
@@ -580,6 +699,9 @@ describe('ptyIpc notification lifecycle', () => {
     // Init keystrokes should contain hook env var exports
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('export EMDASH_HOOK_PORT=');
     expect(written).toContain('export EMDASH_HOOK_TOKEN=');
@@ -618,6 +740,9 @@ describe('ptyIpc notification lifecycle', () => {
     // No hook env in keystrokes
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).not.toContain('EMDASH_HOOK_PORT=');
     expect(written).not.toContain('mock-codex-notify');
@@ -659,6 +784,9 @@ describe('ptyIpc notification lifecycle', () => {
 
     const proc = ptys.get(id);
     expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
     expect(written).toContain('export OPENCODE_CONFIG_DIR=');
     expect(written).toContain(`$HOME/.config/emdash/agent-hooks/opencode/${id}`);

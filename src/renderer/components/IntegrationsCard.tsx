@@ -6,6 +6,8 @@ import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
 import linearSvg from '../../assets/images/Linear.svg?raw';
 import gitlabSvg from '../../assets/images/GitLab.svg?raw';
+import plainSvg from '../../assets/images/Plain.svg?raw';
+import forgejoSvg from '../../assets/images/Forgejo.svg?raw';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -20,6 +22,7 @@ import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import { useModalContext } from '../contexts/ModalProvider';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
+import ForgejoSetupForm from './integrations/ForgejoSetupForm';
 import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
@@ -49,10 +52,11 @@ const IntegrationsCard: React.FC = () => {
   const [linearConnected, setLinearConnected] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
   const [gitlabConnected, setGitlabConnected] = useState(false);
+  const [plainConnected, setPlainConnected] = useState(false);
 
   // Modal state: which integration setup is open
   const [integrationSetupModal, setIntegrationSetupModal] = useState<
-    null | 'linear' | 'jira' | 'gitlab'
+    null | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo'
   >(null);
   const [showGithubModal, setShowGithubModal] = useState(false);
 
@@ -71,11 +75,23 @@ const IntegrationsCard: React.FC = () => {
   const [gitlabToken, setGitlabToken] = useState('');
   const [gitlabLoading, setGitlabLoading] = useState(false);
 
+  // Plain state
+  const [plainInput, setPlainInput] = useState('');
+  const [plainLoading, setPlainLoading] = useState(false);
+
+  // Forgejo state
+  const [forgejoConnected, setForgejoConnected] = useState(false);
+  const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
+  const [forgejoToken, setForgejoToken] = useState('');
+  const [forgejoLoading, setForgejoLoading] = useState(false);
+
   // Error states
   const [githubError, setGithubError] = useState<string | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [gitlabError, setGitlabError] = useState<string | null>(null);
+  const [plainError, setPlainError] = useState<string | null>(null);
+  const [forgejoError, setForgejoError] = useState<string | null>(null);
   // Check connection statuses on mount
   useEffect(() => {
     const checkLinear = async () => {
@@ -105,9 +121,29 @@ const IntegrationsCard: React.FC = () => {
       }
     };
 
+    const checkPlain = async () => {
+      try {
+        const result = await window.electronAPI.plainCheckConnection?.();
+        setPlainConnected(!!result?.connected);
+      } catch {
+        setPlainConnected(false);
+      }
+    };
+
+    const checkForgejo = async () => {
+      try {
+        const result = await window.electronAPI.forgejoCheckConnection?.();
+        setForgejoConnected(!!result?.success);
+      } catch {
+        setForgejoConnected(false);
+      }
+    };
+
     void checkLinear();
     void checkJira();
     void checkGitlab();
+    void checkPlain();
+    void checkForgejo();
   }, []);
 
   // GitHub handlers
@@ -281,6 +317,81 @@ const IntegrationsCard: React.FC = () => {
     }
   }, []);
 
+  // Plain handlers
+  const handlePlainConnect = useCallback(async () => {
+    const token = plainInput.trim();
+    if (!token) return;
+
+    setPlainLoading(true);
+    setPlainError(null);
+
+    try {
+      const result = await window.electronAPI.plainSaveToken?.(token);
+      if (result?.success) {
+        setPlainConnected(true);
+        setPlainInput('');
+        setIntegrationSetupModal(null);
+      } else {
+        setPlainError(result?.error || 'Could not connect. Try again.');
+      }
+    } catch (error) {
+      console.error('Plain connect failed:', error);
+      setPlainError('Could not connect. Try again.');
+    } finally {
+      setPlainLoading(false);
+    }
+  }, [plainInput]);
+
+  const handlePlainDisconnect = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.plainClearToken?.();
+      if (result?.success) {
+        setPlainConnected(false);
+        setPlainInput('');
+      }
+    } catch (error) {
+      console.error('Plain disconnect failed:', error);
+    }
+  }, []);
+
+  // Forgejo handlers
+  const handleForgejoSubmit = useCallback(async () => {
+    setForgejoError(null);
+    setForgejoLoading(true);
+    try {
+      const res = await window.electronAPI.forgejoSaveCredentials?.({
+        instanceUrl: forgejoInstanceUrl.trim(),
+        token: forgejoToken.trim(),
+      });
+      if (res?.success) {
+        setForgejoConnected(true);
+        setForgejoInstanceUrl('');
+        setForgejoToken('');
+        setIntegrationSetupModal(null);
+      } else {
+        setForgejoError(res?.error || 'Failed to connect.');
+      }
+    } catch (e: any) {
+      setForgejoError(e?.message || 'Failed to connect.');
+    } finally {
+      setForgejoLoading(false);
+    }
+  }, [forgejoInstanceUrl, forgejoToken]);
+
+  const handleForgejoDisconnect = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.forgejoClearCredentials?.();
+      if (result?.success) {
+        setForgejoConnected(false);
+        setForgejoInstanceUrl('');
+        setForgejoToken('');
+        setIntegrationSetupModal(null);
+      }
+    } catch (error) {
+      console.error('Forgejo disconnect failed:', error);
+    }
+  }, []);
+
   const integrations = [
     {
       id: 'github',
@@ -330,6 +441,32 @@ const IntegrationsCard: React.FC = () => {
         setIntegrationSetupModal('gitlab');
       },
       onDisconnect: handleGitlabDisconnect,
+    },
+    {
+      id: 'plain',
+      name: 'Plain',
+      description: 'Work on support threads',
+      logoSvg: plainSvg,
+      connected: plainConnected,
+      loading: plainLoading,
+      onConnect: () => {
+        setPlainError(null);
+        setIntegrationSetupModal('plain');
+      },
+      onDisconnect: handlePlainDisconnect,
+    },
+    {
+      id: 'forgejo',
+      name: 'Forgejo',
+      description: 'Work on Forgejo issues',
+      logoSvg: forgejoSvg,
+      connected: forgejoConnected,
+      loading: forgejoLoading,
+      onConnect: () => {
+        setForgejoError(null);
+        setIntegrationSetupModal('forgejo');
+      },
+      onDisconnect: handleForgejoDisconnect,
     },
   ];
 
@@ -398,10 +535,65 @@ const IntegrationsCard: React.FC = () => {
             setLinearError(null);
             setJiraError(null);
             setGitlabError(null);
+            setPlainError(null);
+            setForgejoError(null);
           }
         }}
       >
         <DialogContent className="max-w-md">
+          {integrationSetupModal === 'forgejo' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Connect Forgejo</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Enter your Forgejo instance URL and a personal access token to connect.
+                </DialogDescription>
+              </DialogHeader>
+              <Separator />
+              <div className="space-y-4">
+                <ForgejoSetupForm
+                  instanceUrl={forgejoInstanceUrl}
+                  token={forgejoToken}
+                  onChange={(u) => {
+                    if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
+                    if (typeof u.token === 'string') setForgejoToken(u.token);
+                  }}
+                  onClose={() => {
+                    setIntegrationSetupModal(null);
+                    setForgejoError(null);
+                  }}
+                  canSubmit={!!(forgejoInstanceUrl.trim() && forgejoToken.trim())}
+                  error={forgejoError}
+                  onSubmit={handleForgejoSubmit}
+                  hideHeader
+                  hideFooter
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationSetupModal(null);
+                    setForgejoError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleForgejoSubmit()}
+                  disabled={!(forgejoInstanceUrl.trim() && forgejoToken.trim()) || forgejoLoading}
+                >
+                  {forgejoLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
           {integrationSetupModal === 'linear' && (
             <>
               <DialogHeader>
@@ -561,6 +753,61 @@ const IntegrationsCard: React.FC = () => {
                   disabled={!(gitlabInstanceUrl.trim() && gitlabToken.trim()) || gitlabLoading}
                 >
                   {gitlabLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {integrationSetupModal === 'plain' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Connect Plain</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Enter your Plain API key to connect your workspace.
+                </DialogDescription>
+              </DialogHeader>
+              <Separator />
+              <div className="space-y-4">
+                <Input
+                  type="password"
+                  value={plainInput}
+                  onChange={(e) => setPlainInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && plainInput.trim() && !plainLoading) {
+                      void handlePlainConnect();
+                    }
+                  }}
+                  placeholder="Enter Plain API key"
+                  className="h-9"
+                  disabled={plainLoading}
+                  autoFocus
+                />
+                {plainError && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {plainError}
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationSetupModal(null);
+                    setPlainError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handlePlainConnect()}
+                  disabled={!plainInput.trim() || plainLoading}
+                >
+                  {plainLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Connect
                 </Button>
               </DialogFooter>
