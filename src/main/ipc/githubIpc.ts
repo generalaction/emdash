@@ -4,7 +4,7 @@ import { GitHubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
 import { databaseService } from '../services/DatabaseService';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -13,6 +13,7 @@ import { homedir } from 'os';
 import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const githubService = new GitHubService();
 
 const slugify = (name: string) =>
@@ -380,7 +381,7 @@ export function registerGithubIpc() {
         // Find the project root from the worktree path
         let projectRoot: string;
         try {
-          const { stdout } = await execAsync('git rev-parse --show-toplevel', {
+          const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
             cwd: worktreePath,
           });
           projectRoot = stdout.trim();
@@ -398,7 +399,7 @@ export function registerGithubIpc() {
 
         // Fetch the base branch to ensure we have the latest
         try {
-          await execAsync(`git fetch origin ${quoteShellArg(baseRefName)}`, { cwd: worktreePath });
+          await execFileAsync('git', ['fetch', 'origin', baseRefName], { cwd: worktreePath });
         } catch {
           // Best effort — base ref may already be available locally
         }
@@ -409,16 +410,17 @@ export function registerGithubIpc() {
         let diff: string;
         try {
           // Three-dot diff: changes introduced by the PR relative to the merge base
-          const { stdout } = await execAsync(
-            `git diff ${quoteShellArg(`origin/${baseRefName}`)}...HEAD`,
-            { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
-          );
+          const { stdout } = await execFileAsync('git', ['diff', `origin/${baseRefName}...HEAD`], {
+            cwd: worktreePath,
+            maxBuffer: 10 * 1024 * 1024,
+          });
           diff = stdout;
         } catch {
           // Fallback: two-dot diff
           try {
-            const { stdout } = await execAsync(
-              `git diff ${quoteShellArg(`origin/${baseRefName}`)} HEAD`,
+            const { stdout } = await execFileAsync(
+              'git',
+              ['diff', `origin/${baseRefName}`, 'HEAD'],
               { cwd: worktreePath, maxBuffer: 10 * 1024 * 1024 }
             );
             diff = stdout;

@@ -1,4 +1,4 @@
-import { exec, spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -7,7 +7,7 @@ import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
 import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface GitHubUser {
   id: number;
@@ -431,7 +431,7 @@ export class GitHubService {
   private async authenticateGHCLI(token: string): Promise<void> {
     try {
       // Check if gh CLI is installed first
-      await execAsync('gh --version');
+      await execFileAsync('gh', ['--version']);
 
       // Security: Authenticate gh CLI with token via stdin (not shell interpolation)
       // This prevents command injection if token contains shell metacharacters
@@ -461,14 +461,15 @@ export class GitHubService {
   }
 
   /**
-   * Execute gh command with automatic re-auth on failure
+   * Execute gh command with automatic re-auth on failure.
+   * Uses execFile with array args to prevent shell injection.
    */
   private async execGH(
-    command: string,
-    options?: any
+    args: string[],
+    options?: { cwd?: string }
   ): Promise<{ stdout: string; stderr: string }> {
     try {
-      const result = await execAsync(command, { encoding: 'utf8', ...options });
+      const result = await execFileAsync('gh', args, { encoding: 'utf8', ...options });
       return {
         stdout: String(result.stdout),
         stderr: String(result.stderr),
@@ -482,7 +483,7 @@ export class GitHubService {
           await this.authenticateGHCLI(token);
 
           // Retry the command
-          const result = await execAsync(command, { encoding: 'utf8', ...options });
+          const result = await execFileAsync('gh', args, { encoding: 'utf8', ...options });
           return {
             stdout: String(result.stdout),
             stderr: String(result.stderr),
@@ -514,7 +515,16 @@ export class GitHubService {
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await this.execGH(
-        `gh issue list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        [
+          'issue',
+          'list',
+          '--state',
+          'open',
+          '--limit',
+          String(safeLimit),
+          '--json',
+          fields.join(','),
+        ],
         { cwd: projectPath }
       );
       const list = JSON.parse(stdout || '[]');
@@ -549,7 +559,18 @@ export class GitHubService {
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
       const { stdout } = await this.execGH(
-        `gh issue list --state open --search ${JSON.stringify(term)} --limit ${safeLimit} --json ${fields.join(',')}`,
+        [
+          'issue',
+          'list',
+          '--state',
+          'open',
+          '--search',
+          term,
+          '--limit',
+          String(safeLimit),
+          '--json',
+          fields.join(','),
+        ],
         { cwd: projectPath }
       );
       const list = JSON.parse(stdout || '[]');
@@ -587,7 +608,7 @@ export class GitHubService {
         'labels',
       ];
       const { stdout } = await this.execGH(
-        `gh issue view ${JSON.stringify(String(number))} --json ${fields.join(',')}`,
+        ['issue', 'view', String(number), '--json', fields.join(',')],
         { cwd: projectPath }
       );
       const data = JSON.parse(stdout || 'null');
@@ -663,7 +684,7 @@ export class GitHubService {
   private async isGHCLIAuthenticated(): Promise<boolean> {
     try {
       // gh auth status exits with 0 if authenticated, non-zero otherwise
-      await execAsync('gh auth status');
+      await execFileAsync('gh', ['auth', 'status']);
       return true;
     } catch (error) {
       // Not authenticated or gh CLI not installed
@@ -693,7 +714,7 @@ export class GitHubService {
         userData = await response.json();
       } else {
         // Use gh CLI to get user info as fallback
-        const { stdout } = await this.execGH('gh api user');
+        const { stdout } = await this.execGH(['api', 'user']);
         userData = JSON.parse(stdout);
       }
 
@@ -737,9 +758,14 @@ export class GitHubService {
   async getRepositories(_token: string): Promise<GitHubRepo[]> {
     try {
       // Use gh CLI to get repositories with correct field names
-      const { stdout } = await this.execGH(
-        'gh repo list --limit 100 --json name,nameWithOwner,description,url,defaultBranchRef,isPrivate,updatedAt,primaryLanguage,stargazerCount,forkCount'
-      );
+      const { stdout } = await this.execGH([
+        'repo',
+        'list',
+        '--limit',
+        '100',
+        '--json',
+        'name,nameWithOwner,description,url,defaultBranchRef,isPrivate,updatedAt,primaryLanguage,stargazerCount,forkCount',
+      ]);
       const repos = JSON.parse(stdout);
 
       return repos.map((repo: any) => ({
@@ -787,7 +813,7 @@ export class GitHubService {
         'headRepository',
       ];
       const { stdout } = await this.execGH(
-        `gh pr list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        ['pr', 'list', '--state', 'open', '--limit', String(safeLimit), '--json', fields.join(',')],
         { cwd: projectPath }
       );
       const list = JSON.parse(stdout || '[]');
@@ -824,7 +850,7 @@ export class GitHubService {
   private async getOpenPullRequestCount(projectPath: string): Promise<number | null> {
     try {
       const { stdout: repoStdout } = await this.execGH(
-        'gh repo view --json nameWithOwner --jq .nameWithOwner',
+        ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'],
         { cwd: projectPath }
       );
       const repoNameWithOwner = repoStdout.trim();
@@ -832,7 +858,7 @@ export class GitHubService {
 
       const query = `repo:${repoNameWithOwner} is:pr is:open`;
       const { stdout } = await this.execGH(
-        `gh api search/issues --method GET -f q=${JSON.stringify(query)} --jq .total_count`,
+        ['api', 'search/issues', '--method', 'GET', '-f', `q=${query}`, '--jq', '.total_count'],
         { cwd: projectPath }
       );
 
@@ -860,7 +886,7 @@ export class GitHubService {
     try {
       const fields = ['baseRefName', 'headRefName', 'title', 'number', 'url'];
       const { stdout } = await this.execGH(
-        `gh pr view ${JSON.stringify(String(prNumber))} --json ${fields.join(',')}`,
+        ['pr', 'view', String(prNumber), '--json', fields.join(',')],
         { cwd: projectPath }
       );
       const data = JSON.parse(stdout || 'null');
@@ -892,8 +918,9 @@ export class GitHubService {
     // Fetch the PR ref directly without checking out (avoids touching the working tree)
     try {
       const prRef = `refs/pull/${prNumber}/head`;
-      await execAsync(
-        `git fetch origin ${JSON.stringify(prRef)}:${JSON.stringify(`refs/heads/${safeBranch}`)} --force`,
+      await execFileAsync(
+        'git',
+        ['fetch', 'origin', `${prRef}:refs/heads/${safeBranch}`, '--force'],
         { cwd: projectPath }
       );
     } catch (fetchError) {
@@ -904,7 +931,7 @@ export class GitHubService {
       );
       let previousRef: string | null = null;
       try {
-        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
           cwd: projectPath,
         });
         const current = (stdout || '').trim();
@@ -915,7 +942,7 @@ export class GitHubService {
 
       try {
         await this.execGH(
-          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force --detach`,
+          ['pr', 'checkout', String(prNumber), '--branch', safeBranch, '--force', '--detach'],
           { cwd: projectPath }
         );
       } catch (error) {
@@ -924,7 +951,7 @@ export class GitHubService {
       } finally {
         if (previousRef && previousRef !== safeBranch) {
           try {
-            await execAsync(`git checkout ${JSON.stringify(previousRef)} --force`, {
+            await execFileAsync('git', ['checkout', previousRef, '--force'], {
               cwd: projectPath,
             });
           } catch (switchErr) {
@@ -1011,7 +1038,7 @@ export class GitHubService {
    */
   async checkRepositoryExists(owner: string, name: string): Promise<boolean> {
     try {
-      await this.execGH(`gh repo view ${owner}/${name}`);
+      await this.execGH(['repo', 'view', `${owner}/${name}`]);
       return true;
     } catch {
       return false;
@@ -1024,7 +1051,7 @@ export class GitHubService {
   async getOwners(): Promise<Array<{ login: string; type: 'User' | 'Organization' }>> {
     try {
       // Get current user
-      const { stdout: userStdout } = await this.execGH('gh api user');
+      const { stdout: userStdout } = await this.execGH(['api', 'user']);
       const user = JSON.parse(userStdout);
 
       const owners: Array<{ login: string; type: 'User' | 'Organization' }> = [
@@ -1033,7 +1060,7 @@ export class GitHubService {
 
       // Get organizations
       try {
-        const { stdout: orgsStdout } = await this.execGH('gh api user/orgs');
+        const { stdout: orgsStdout } = await this.execGH(['api', 'user/orgs']);
         const orgs = JSON.parse(orgsStdout);
         if (Array.isArray(orgs)) {
           for (const org of orgs) {
@@ -1064,22 +1091,24 @@ export class GitHubService {
     try {
       const { name, description, owner, isPrivate } = params;
 
-      // Build gh repo create command
+      // Build gh repo create args as array to prevent shell injection
       const visibilityFlag = isPrivate ? '--private' : '--public';
-      let command = `gh repo create ${owner}/${name} ${visibilityFlag} --confirm`;
+      const args = ['repo', 'create', `${owner}/${name}`, visibilityFlag, '--confirm'];
 
       if (description && description.trim()) {
-        // Escape description for shell
-        const desc = JSON.stringify(description.trim());
-        command += ` --description ${desc}`;
+        args.push('--description', description.trim());
       }
 
-      await this.execGH(command);
+      await this.execGH(args);
 
       // Get repository details
-      const { stdout } = await this.execGH(
-        `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
-      );
+      const { stdout } = await this.execGH([
+        'repo',
+        'view',
+        `${owner}/${name}`,
+        '--json',
+        'name,nameWithOwner,url,defaultBranchRef',
+      ]);
       const repoInfo = JSON.parse(stdout);
 
       return {
@@ -1118,15 +1147,15 @@ export class GitHubService {
       // Initialize git, add files, commit, and push
       const execOptions = { cwd: localPath };
 
-      // Add and commit
-      await execAsync('git add README.md', execOptions);
-      await execAsync('git commit -m "Initial commit"', execOptions);
+      // Add and commit (use execFileAsync to avoid shell injection)
+      await execFileAsync('git', ['add', 'README.md'], execOptions);
+      await execFileAsync('git', ['commit', '-m', 'Initial commit'], execOptions);
 
       // Push to origin
-      await execAsync('git push -u origin main', execOptions).catch(async () => {
+      await execFileAsync('git', ['push', '-u', 'origin', 'main'], execOptions).catch(async () => {
         // If main branch doesn't exist, try master
         try {
-          await execAsync('git push -u origin master', execOptions);
+          await execFileAsync('git', ['push', '-u', 'origin', 'master'], execOptions);
         } catch {
           // If both fail, let the error propagate
           throw new Error('Failed to push to remote repository');
@@ -1152,8 +1181,8 @@ export class GitHubService {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      // Clone the repository
-      await execAsync(`git clone "${repoUrl}" "${localPath}"`);
+      // Clone the repository (use execFileAsync to avoid shell injection)
+      await execFileAsync('git', ['clone', repoUrl, localPath]);
 
       return { success: true };
     } catch (error) {
@@ -1171,9 +1200,23 @@ export class GitHubService {
   async logout(): Promise<void> {
     // Run both operations in parallel since they're independent
     await Promise.allSettled([
-      // Logout from gh CLI
-      execAsync('echo Y | gh auth logout --hostname github.com').catch((error) => {
-        console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
+      // Logout from gh CLI (use spawn to pipe 'Y' via stdin instead of shell)
+      new Promise<void>((resolve) => {
+        const child = spawn('gh', ['auth', 'logout', '--hostname', 'github.com'], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        child.stdin.write('Y\n');
+        child.stdin.end();
+        child.on('close', (code) => {
+          if (code !== 0) {
+            console.warn(`gh auth logout exited with code ${code}`);
+          }
+          resolve();
+        });
+        child.on('error', (error) => {
+          console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
+          resolve();
+        });
       }),
       // Clear keychain token
       (async () => {

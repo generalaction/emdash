@@ -1,7 +1,8 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as crypto from 'crypto';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface Repo {
   id: string;
@@ -24,10 +25,12 @@ export class RepositoryManager {
     return [];
   }
 
-  async addRepository(path: string): Promise<Repo> {
+  async addRepository(repoPath: string): Promise<Repo> {
     try {
       // Validate that the path is a git repository
-      const { stdout } = await execAsync(`cd "${path}" && git rev-parse --is-inside-work-tree`);
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
+        cwd: repoPath,
+      });
 
       if (stdout.trim() !== 'true') {
         throw new Error('Not a git repository');
@@ -35,13 +38,13 @@ export class RepositoryManager {
 
       // Get repository info
       const [origin, defaultBranch] = await Promise.all([
-        this.getOrigin(path),
-        this.getDefaultBranch(path),
+        this.getOrigin(repoPath),
+        this.getDefaultBranch(repoPath),
       ]);
 
       const repo: Repo = {
         id: this.generateId(),
-        path,
+        path: repoPath,
         origin,
         defaultBranch,
         lastActivity: new Date().toISOString(),
@@ -54,28 +57,32 @@ export class RepositoryManager {
     }
   }
 
-  private async getOrigin(path: string): Promise<string> {
+  private async getOrigin(repoPath: string): Promise<string> {
     try {
-      const { stdout } = await execAsync(`cd "${path}" && git remote get-url origin`);
+      const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+        cwd: repoPath,
+      });
       return stdout.trim();
     } catch {
       return 'No origin';
     }
   }
 
-  private async getDefaultBranch(path: string): Promise<string> {
+  private async getDefaultBranch(repoPath: string): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `cd "${path}" && git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`
-      );
-      return stdout.trim() || 'main';
+      const { stdout } = await execFileAsync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
+        cwd: repoPath,
+      });
+      const ref = stdout.trim();
+      const prefix = 'refs/remotes/origin/';
+      return ref.startsWith(prefix) ? ref.slice(prefix.length) : ref || 'main';
     } catch {
       return 'main';
     }
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substr(2, 9);
+    return crypto.randomUUID();
   }
 
   getRepository(id: string): Repo | undefined {
