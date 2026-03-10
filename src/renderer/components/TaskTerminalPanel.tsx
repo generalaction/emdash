@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Plus, Play, RotateCw, Square, X } from 'lucide-react';
+import { Maximize2, Plus, Play, RotateCw, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { useTerminalSelection } from '../hooks/useTerminalSelection';
@@ -26,6 +26,8 @@ import {
   formatLifecycleLogLine,
 } from '@shared/lifecycle';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
+import { isTerminalExpandShortcut } from '../lib/terminalShortcuts';
+import { Dialog, DialogContent } from './ui/dialog';
 
 interface Task {
   id: string;
@@ -351,6 +353,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     }
   }, [task?.id, refreshLifecycleState]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
     foreground?: string;
@@ -447,251 +451,352 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     return { ...defaultTheme, ...nativeTheme };
   }, [nativeTheme, defaultTheme]);
 
+  const expandedTerminal = useMemo(() => {
+    if (!selection.activeTerminalId || !selection.parsed) return null;
+    if (selection.parsed.mode === 'task') {
+      const terminal = taskTerminals.terminals.find((t) => t.id === selection.activeTerminalId);
+      if (!terminal) return null;
+      return { scope: 'task' as const, terminal };
+    }
+    if (selection.parsed.mode === 'global') {
+      const terminal = globalTerminals.terminals.find((t) => t.id === selection.activeTerminalId);
+      if (!terminal) return null;
+      return { scope: 'global' as const, terminal };
+    }
+    return null;
+  }, [
+    selection.activeTerminalId,
+    selection.parsed,
+    taskTerminals.terminals,
+    globalTerminals.terminals,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isTerminalExpandShortcut(event)) return;
+      if (!expandedTerminal) return;
+      event.preventDefault();
+      void (async () => {
+        const { captureTelemetry } = await import('../lib/telemetryClient');
+        captureTelemetry('terminal_expanded_shortcut');
+      })();
+      setIsExpanded(true);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [expandedTerminal]);
+
   return (
-    <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
-      <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
-        <Select
-          value={selection.value}
-          onValueChange={selection.onChange}
-          open={selection.isOpen}
-          onOpenChange={selection.setIsOpen}
-        >
-          <SelectTrigger className="h-7 min-w-0 flex-1 justify-between border-none bg-transparent px-2 text-left text-xs shadow-none">
-            <span className="flex min-w-0 flex-1 items-center">
-              <span className="mr-2 inline-flex w-4 shrink-0 justify-center text-[11px] leading-none text-muted-foreground/90">
-                {'>_'}
+    <>
+      <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
+        <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
+          <Select
+            value={selection.value}
+            onValueChange={selection.onChange}
+            open={selection.isOpen}
+            onOpenChange={selection.setIsOpen}
+          >
+            <SelectTrigger className="h-7 min-w-0 flex-1 justify-between border-none bg-transparent px-2 text-left text-xs shadow-none">
+              <span className="flex min-w-0 flex-1 items-center">
+                <span className="mr-2 inline-flex w-4 shrink-0 justify-center text-[11px] leading-none text-muted-foreground/90">
+                  {'>_'}
+                </span>
+                <SelectValue placeholder="Select target" />
               </span>
-              <SelectValue placeholder="Select target" />
+            </SelectTrigger>
+            <SelectContent>
+              {task && (
+                <SelectGroup>
+                  <div className="flex items-center justify-between px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      Worktree
+                    </span>
+                    <button
+                      type="button"
+                      className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void (async () => {
+                          const { captureTelemetry } = await import('../lib/telemetryClient');
+                          captureTelemetry('terminal_new_terminal_created', { scope: 'task' });
+                        })();
+                        const newId = taskTerminals.createTerminal({ cwd: task?.path });
+                        selection.onCreateTerminal('task', newId);
+                      }}
+                      title="New worktree terminal"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {taskTerminals.terminals.map((terminal) => (
+                    <SelectItem
+                      key={`task::${terminal.id}`}
+                      value={`task::${terminal.id}`}
+                      className="text-xs"
+                    >
+                      {terminal.title}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+
+              {(projectPath || !task) && (
+                <SelectGroup>
+                  <div className="flex items-center justify-between px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      {projectPath ? 'Project' : 'Global'}
+                    </span>
+                    <button
+                      type="button"
+                      className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void (async () => {
+                          const { captureTelemetry } = await import('../lib/telemetryClient');
+                          captureTelemetry('terminal_new_terminal_created', {
+                            scope: projectPath ? 'project' : 'global',
+                          });
+                        })();
+                        const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
+                        selection.onCreateTerminal('global', newId);
+                      }}
+                      title={projectPath ? 'New project terminal' : 'New global terminal'}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {globalTerminals.terminals.map((terminal) => (
+                    <SelectItem
+                      key={`global::${terminal.id}`}
+                      value={`global::${terminal.id}`}
+                      className="text-xs"
+                    >
+                      {terminal.title}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+
+              {task && (
+                <SelectGroup>
+                  <div className="px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      Lifecycle
+                    </span>
+                  </div>
+                  <SelectItem value="lifecycle::setup" className="text-xs">
+                    Setup
+                  </SelectItem>
+                  <SelectItem value="lifecycle::run" className="text-xs">
+                    Run
+                  </SelectItem>
+                  <SelectItem value="lifecycle::teardown" className="text-xs">
+                    Teardown
+                  </SelectItem>
+                </SelectGroup>
+              )}
+            </SelectContent>
+          </Select>
+          {selectedTerminalScope && (
+            <span className="shrink-0 rounded bg-zinc-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+              {selectedTerminalScope}
             </span>
-          </SelectTrigger>
-          <SelectContent>
-            {task && (
-              <SelectGroup>
-                <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">Worktree</span>
-                  <button
-                    type="button"
-                    className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_new_terminal_created', { scope: 'task' });
-                      })();
-                      const newId = taskTerminals.createTerminal({ cwd: task?.path });
-                      selection.onCreateTerminal('task', newId);
-                    }}
-                    title="New worktree terminal"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                </div>
-                {taskTerminals.terminals.map((terminal) => (
-                  <SelectItem
-                    key={`task::${terminal.id}`}
-                    value={`task::${terminal.id}`}
-                    className="text-xs"
-                  >
-                    {terminal.title}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            )}
+          )}
 
-            {(projectPath || !task) && (
-              <SelectGroup>
-                <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">
-                    {projectPath ? 'Project' : 'Global'}
-                  </span>
-                  <button
-                    type="button"
-                    className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void (async () => {
-                        const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_new_terminal_created', {
-                          scope: projectPath ? 'project' : 'global',
-                        });
-                      })();
-                      const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
-                      selection.onCreateTerminal('global', newId);
-                    }}
-                    title={projectPath ? 'New project terminal' : 'New global terminal'}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                </div>
-                {globalTerminals.terminals.map((terminal) => (
-                  <SelectItem
-                    key={`global::${terminal.id}`}
-                    value={`global::${terminal.id}`}
-                    className="text-xs"
-                  >
-                    {terminal.title}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            )}
-
-            {task && (
-              <SelectGroup>
-                <div className="px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">Lifecycle</span>
-                </div>
-                <SelectItem value="lifecycle::setup" className="text-xs">
-                  Setup
-                </SelectItem>
-                <SelectItem value="lifecycle::run" className="text-xs">
-                  Run
-                </SelectItem>
-                <SelectItem value="lifecycle::teardown" className="text-xs">
-                  Teardown
-                </SelectItem>
-              </SelectGroup>
-            )}
-          </SelectContent>
-        </Select>
-        {selectedTerminalScope && (
-          <span className="shrink-0 rounded bg-zinc-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
-            {selectedTerminalScope}
-          </span>
-        )}
-
-        {task && (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {isRunSelection && runStatus === 'running' ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleStop}
-                    disabled={runActionBusy}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <Square className="h-3.5 w-3.5" />
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handlePlay}
-                    disabled={shouldDisablePlay({
-                      runActionBusy,
-                      hasProjectPath: !!projectPath,
-                      isRunSelection,
-                      canStartRun,
-                    })}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {isRunSelection && setupStatus === 'failed' ? (
-                      <RotateCw className="h-3.5 w-3.5" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p className="text-xs">
-                  {isRunSelection && runStatus === 'running'
-                    ? 'Stop run script'
-                    : selection.selectedLifecycle === 'setup'
-                      ? 'Run setup script'
-                      : selection.selectedLifecycle === 'teardown'
-                        ? 'Run teardown script'
-                        : setupStatus === 'running'
-                          ? 'Setup is still running'
-                          : setupStatus === 'failed'
-                            ? 'Retry setup and start run script'
-                            : 'Start run script'}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-
-        {(() => {
-          const canDelete =
-            selection.parsed?.mode === 'task'
-              ? taskTerminals.terminals.length > 1
-              : selection.parsed?.mode === 'global'
-                ? globalTerminals.terminals.length > 1
-                : false;
-          return (
+          {task && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => {
-                      if (selection.activeTerminalId && selection.parsed && canDelete) {
-                        void (async () => {
-                          const { captureTelemetry } = await import('../lib/telemetryClient');
-                          captureTelemetry('terminal_deleted');
-                        })();
-                        if (selection.parsed.mode === 'task') {
-                          taskTerminals.closeTerminal(selection.activeTerminalId);
-                        } else if (selection.parsed.mode === 'global') {
-                          globalTerminals.closeTerminal(selection.activeTerminalId);
-                        }
-                      }
-                    }}
-                    className="ml-auto text-muted-foreground hover:text-destructive"
-                    disabled={!selection.activeTerminalId || !canDelete}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
+                  {isRunSelection && runStatus === 'running' ? (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleStop}
+                      disabled={runActionBusy}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Square className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handlePlay}
+                      disabled={shouldDisablePlay({
+                        runActionBusy,
+                        hasProjectPath: !!projectPath,
+                        isRunSelection,
+                        canStartRun,
+                      })}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      {isRunSelection && setupStatus === 'failed' ? (
+                        <RotateCw className="h-3.5 w-3.5" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  )}
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="text-xs">
-                    {canDelete ? 'Close terminal tab' : 'Cannot close selected item'}
+                    {isRunSelection && runStatus === 'running'
+                      ? 'Stop run script'
+                      : selection.selectedLifecycle === 'setup'
+                        ? 'Run setup script'
+                        : selection.selectedLifecycle === 'teardown'
+                          ? 'Run teardown script'
+                          : setupStatus === 'running'
+                            ? 'Setup is still running'
+                            : setupStatus === 'failed'
+                              ? 'Retry setup and start run script'
+                              : 'Start run script'}
                   </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          );
-        })()}
-      </div>
-
-      {selection.selectedLifecycle ? (
-        <div className="flex h-full flex-1 flex-col overflow-hidden">
-          <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
-            {selection.selectedLifecycle === 'setup'
-              ? `Setup status: ${setupStatus}`
-              : selection.selectedLifecycle === 'teardown'
-                ? `Teardown status: ${teardownStatus}`
-                : `Run status: ${runStatus}`}
-          </div>
-          <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
-            {lifecycleLogs[selection.selectedLifecycle].join('') || 'No lifecycle output yet.'}
-          </pre>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            'bw-terminal relative flex-1 overflow-hidden',
-            effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-              ? agent === 'mistral'
-                ? effectiveTheme === 'dark-black'
-                  ? 'bg-[#141820]'
-                  : 'bg-[#202938]'
-                : 'bg-card'
-              : 'bg-white'
           )}
-        >
-          {task &&
-            taskTerminals.terminals.map((terminal) => {
+
+          {(() => {
+            const canDelete =
+              selection.parsed?.mode === 'task'
+                ? taskTerminals.terminals.length > 1
+                : selection.parsed?.mode === 'global'
+                  ? globalTerminals.terminals.length > 1
+                  : false;
+            return (
+              <>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="ml-auto text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          if (expandedTerminal) {
+                            void (async () => {
+                              const { captureTelemetry } = await import('../lib/telemetryClient');
+                              captureTelemetry('terminal_expanded');
+                            })();
+                            setIsExpanded(true);
+                          }
+                        }}
+                        disabled={!expandedTerminal}
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">Expand terminal</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          if (selection.activeTerminalId && selection.parsed && canDelete) {
+                            void (async () => {
+                              const { captureTelemetry } = await import('../lib/telemetryClient');
+                              captureTelemetry('terminal_deleted');
+                            })();
+                            if (selection.parsed.mode === 'task') {
+                              taskTerminals.closeTerminal(selection.activeTerminalId);
+                            } else if (selection.parsed.mode === 'global') {
+                              globalTerminals.closeTerminal(selection.activeTerminalId);
+                            }
+                          }
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                        disabled={!selection.activeTerminalId || !canDelete}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">
+                        {canDelete ? 'Close terminal tab' : 'Cannot close selected item'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </>
+            );
+          })()}
+        </div>
+
+        {selection.selectedLifecycle ? (
+          <div className="flex h-full flex-1 flex-col overflow-hidden">
+            <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+              {selection.selectedLifecycle === 'setup'
+                ? `Setup status: ${setupStatus}`
+                : selection.selectedLifecycle === 'teardown'
+                  ? `Teardown status: ${teardownStatus}`
+                  : `Run status: ${runStatus}`}
+            </div>
+            <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
+              {lifecycleLogs[selection.selectedLifecycle].join('') || 'No lifecycle output yet.'}
+            </pre>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              'bw-terminal relative flex-1 overflow-hidden',
+              effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                ? agent === 'mistral'
+                  ? effectiveTheme === 'dark-black'
+                    ? 'bg-[#141820]'
+                    : 'bg-[#202938]'
+                  : 'bg-card'
+                : 'bg-white'
+            )}
+          >
+            {task &&
+              taskTerminals.terminals.map((terminal) => {
+                const isActive =
+                  selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
+                return (
+                  <div
+                    key={`task::${terminal.id}`}
+                    className={cn(
+                      'absolute inset-0 h-full w-full transition-opacity',
+                      isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                    )}
+                  >
+                    <TerminalPane
+                      ref={(r) => setTerminalRef(terminal.id, r)}
+                      id={terminal.id}
+                      cwd={terminal.cwd || task.path}
+                      remote={
+                        remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                      }
+                      env={taskEnv}
+                      variant={
+                        effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                          ? 'dark'
+                          : 'light'
+                      }
+                      themeOverride={themeOverride}
+                      className="h-full w-full"
+                      keepAlive
+                    />
+                  </div>
+                );
+              })}
+            {globalTerminals.terminals.map((terminal) => {
               const isActive =
-                selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
+                selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
               return (
                 <div
-                  key={`task::${terminal.id}`}
+                  key={`global::${terminal.id}`}
                   className={cn(
                     'absolute inset-0 h-full w-full transition-opacity',
                     isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -700,11 +805,10 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                   <TerminalPane
                     ref={(r) => setTerminalRef(terminal.id, r)}
                     id={terminal.id}
-                    cwd={terminal.cwd || task.path}
+                    cwd={terminal.cwd || projectPath}
                     remote={
                       remote?.connectionId ? { connectionId: remote.connectionId } : undefined
                     }
-                    env={taskEnv}
                     variant={
                       effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
                         ? 'dark'
@@ -717,40 +821,47 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 </div>
               );
             })}
-          {globalTerminals.terminals.map((terminal) => {
-            const isActive =
-              selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
-            return (
-              <div
-                key={`global::${terminal.id}`}
-                className={cn(
-                  'absolute inset-0 h-full w-full transition-opacity',
-                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-                )}
-              >
-                <TerminalPane
-                  ref={(r) => setTerminalRef(terminal.id, r)}
-                  id={terminal.id}
-                  cwd={terminal.cwd || projectPath}
-                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
-                  themeOverride={themeOverride}
-                  className="h-full w-full"
-                  keepAlive
-                />
+            {totalTerminals === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
+                <p>No terminal found.</p>
               </div>
-            );
-          })}
-          {totalTerminals === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
-              <p>No terminal found.</p>
-            </div>
-          ) : null}
-        </div>
-      )}
-    </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+        <DialogContent className="flex h-[80vh] max-h-[90vh] w-[90vw] max-w-[1200px] flex-col overflow-hidden bg-background p-0">
+          <div className="flex h-full flex-1 flex-col">
+            {expandedTerminal && (
+              <div className="flex h-full flex-1">
+                <div className="bw-terminal relative h-full w-full">
+                  <TerminalPane
+                    id={expandedTerminal.terminal.id}
+                    cwd={
+                      expandedTerminal.terminal.cwd ||
+                      (expandedTerminal.scope === 'task' ? task?.path : projectPath || task?.path)
+                    }
+                    remote={
+                      remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                    }
+                    env={expandedTerminal.scope === 'task' ? taskEnv : undefined}
+                    variant={
+                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? 'dark'
+                        : 'light'
+                    }
+                    themeOverride={themeOverride}
+                    className="h-full w-full"
+                    keepAlive
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
