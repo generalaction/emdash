@@ -217,9 +217,12 @@ export function useTaskManagement() {
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
-  const openTaskModalImplRef = useRef<() => void>(() => {});
+  const openTaskModalImplRef = useRef<(project?: Project) => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
-  const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const openTaskModal = useCallback(
+    (project?: Project) => openTaskModalImplRef.current(project),
+    []
+  );
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -384,9 +387,8 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
-      openTaskModal();
+      openTaskModal(targetProject);
     },
     [activateProjectView, projects, openTaskModal]
   );
@@ -919,9 +921,10 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      overrideProject?: Project
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = overrideProject ?? pendingTaskProjectRef.current ?? selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
@@ -960,9 +963,10 @@ export function useTaskManagement() {
     };
   }, [isCreatingTask]);
 
-  // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
-  openTaskModalImplRef.current = () => {
+  openTaskModalImplRef.current = (project?: Project) => {
+    if (project === undefined) pendingTaskProjectRef.current = null;
     showModal('taskModal', {
+      initialProject: project,
       onClose: () => {
         pendingTaskProjectRef.current = null;
       },
