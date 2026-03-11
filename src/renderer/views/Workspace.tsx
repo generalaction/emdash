@@ -258,7 +258,13 @@ export function Workspace() {
   });
 
   // Show toast on update availability
-  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
+  useUpdateNotifier({
+    checkOnMount: true,
+    onOpenSettings: () => {
+      setShowEditorMode(false);
+      openSettingsPage('general');
+    },
+  });
 
   // Listen for native menu "Check for Updates" click (main → renderer)
   useEffect(() => {
@@ -476,8 +482,14 @@ export function Workspace() {
                   handleCloseSettingsPage();
                   projectMgmt.handleGoHome();
                 }}
-                handleOpenSettings={() => openSettingsPage()}
-                handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
+                handleOpenSettings={() => {
+                  setShowEditorMode(false);
+                  openSettingsPage();
+                }}
+                handleOpenKeyboardShortcuts={() => {
+                  setShowEditorMode(false);
+                  openSettingsPage('interface');
+                }}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
