@@ -649,10 +649,16 @@ export function registerPtyIpc(): void {
           }
 
           const ssh = await resolveSshInvocation(remote.connectionId);
+
+          const remoteInitCommand = cwd
+            ? `cd ${quoteShellArg(cwd)} && exec \${SHELL:-/bin/sh} -il`
+            : undefined;
+
           const proc = startSshPty({
             id,
             target: ssh.target,
             sshArgs: ssh.args,
+            remoteInitCommand,
             cols,
             rows,
             env,
@@ -674,11 +680,13 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings
           const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
           const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
-          const remoteInit = buildRemoteInitKeystrokes({ cwd, tmux: remoteTmuxOpt });
+          const remoteInit = buildRemoteInitKeystrokes({
+            cwd: undefined,
+            tmux: remoteTmuxOpt,
+          });
           if (remoteInit) {
             waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:start');
           }
@@ -1171,10 +1179,15 @@ export function registerPtyIpc(): void {
             );
           }
 
+          const remoteInitCommand = cwd
+            ? `cd ${quoteShellArg(cwd)} && exec \${SHELL:-/bin/sh} -il`
+            : undefined;
+
           const proc = startSshPty({
             id,
             target: ssh.target,
             sshArgs: ssh.args,
+            remoteInitCommand,
             cols,
             rows,
             env: mergedEnv,
@@ -1197,12 +1210,11 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings
           const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
           const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
-            cwd,
+            cwd: undefined,
             provider: remoteProvider,
             tmux: tmuxOpt,
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,

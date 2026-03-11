@@ -58,6 +58,36 @@ async function readFileTextCapped(filePath: string, maxBytes: number): Promise<s
   }
 }
 
+async function readGitTextCapped(
+  taskPath: string,
+  objectSpec: string,
+  maxBytes: number
+): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync('git', ['show', objectSpec], {
+      cwd: taskPath,
+      maxBuffer: maxBytes,
+    });
+    return stripTrailingNewline(stdout);
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveReviewBaseRef(taskPath: string, baseRef: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('git', ['merge-base', baseRef, 'HEAD'], {
+      cwd: taskPath,
+    });
+    const mergeBase = stdout.trim();
+    if (mergeBase) return mergeBase;
+  } catch {
+    // Fall back to the requested base ref when merge-base cannot be resolved.
+  }
+
+  return baseRef;
+}
+
 export type GitChange = {
   path: string;
   status: string;
@@ -261,28 +291,30 @@ export async function revertFile(
   return { action: 'reverted' };
 }
 
-export async function getFileDiff(taskPath: string, filePath: string): Promise<DiffResult> {
+export async function getFileDiff(
+  taskPath: string,
+  filePath: string,
+  baseRef?: string
+): Promise<DiffResult> {
   const absPath = path.resolve(taskPath, filePath);
   const resolvedTaskPath = path.resolve(taskPath);
   if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
     throw new Error('File path is outside the worktree');
   }
 
-  // Helper: fetch content at HEAD with size guard
+  const reviewBaseRef = baseRef ? await resolveReviewBaseRef(taskPath, baseRef) : undefined;
+  const originalRef = reviewBaseRef || 'HEAD';
+
+  // Helper: fetch content at the base ref with size guard
   const getOriginalContent = async (): Promise<string | undefined> => {
-    try {
-      const { stdout } = await execFileAsync('git', ['show', `HEAD:${filePath}`], {
-        cwd: taskPath,
-        maxBuffer: MAX_DIFF_CONTENT_BYTES,
-      });
-      return stripTrailingNewline(stdout);
-    } catch {
-      return undefined;
-    }
+    return readGitTextCapped(taskPath, `${originalRef}:${filePath}`, MAX_DIFF_CONTENT_BYTES);
   };
 
-  // Helper: read current file from disk with size guard
   const getModifiedContent = async (): Promise<string | undefined> => {
+    if (baseRef) {
+      return readGitTextCapped(taskPath, `HEAD:${filePath}`, MAX_DIFF_CONTENT_BYTES);
+    }
+
     const content = await readFileTextCapped(path.join(taskPath, filePath), MAX_DIFF_CONTENT_BYTES);
     return content !== null ? stripTrailingNewline(content) : undefined;
   };
@@ -290,11 +322,13 @@ export async function getFileDiff(taskPath: string, filePath: string): Promise<D
   // Step 1: Run git diff
   let diffStdout: string | undefined;
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath],
-      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
-    );
+    const diffArgs = baseRef
+      ? ['diff', '--no-color', '--unified=2000', originalRef, 'HEAD', '--', filePath]
+      : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
+    const { stdout } = await execFileAsync('git', diffArgs, {
+      cwd: taskPath,
+      maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+    });
     diffStdout = stdout;
   } catch {
     // git diff failed (no HEAD, untracked file, etc.) — fall through to content-only path
@@ -314,21 +348,21 @@ export async function getFileDiff(taskPath: string, filePath: string): Promise<D
       getModifiedContent(),
     ]);
 
-    // Step 4: Handle empty diff (untracked or deleted file that git reports as empty diff)
+    // Step 4: Handle empty diff (for example untracked/deleted files or an empty review diff)
     if (lines.length === 0) {
-      if (modifiedContent !== undefined) {
+      if (modifiedContent !== undefined && originalContent === undefined) {
         return {
           lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
           modifiedContent,
         };
       }
-      if (originalContent !== undefined) {
+      if (originalContent !== undefined && modifiedContent === undefined) {
         return {
           lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
           originalContent,
         };
       }
-      return { lines: [] };
+      return { lines: [], originalContent, modifiedContent };
     }
 
     return { lines, originalContent, modifiedContent };

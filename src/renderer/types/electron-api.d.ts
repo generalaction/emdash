@@ -407,7 +407,7 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
-      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
@@ -869,9 +869,10 @@ declare global {
       }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;
@@ -884,6 +885,23 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
+        error?: string;
+      }>;
+      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        diff?: string;
+        baseBranch?: string;
+        headBranch?: string;
+        prUrl?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -1688,9 +1706,10 @@ export interface ElectronAPI {
   }>;
   githubCheckCLIInstalled?: () => Promise<boolean>;
   githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (
-    projectPath: string
-  ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -1703,6 +1722,23 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
