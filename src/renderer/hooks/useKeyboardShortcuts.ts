@@ -493,8 +493,16 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       // The command palette toggle is exempt so it remains reachable from
       // any context.
       const target = event.target as HTMLElement;
+      // xterm.js uses a hidden <textarea class="xterm-helper-textarea"> to
+      // capture keyboard input.  That textarea is NOT a user-editable field,
+      // so we must exclude it — otherwise every app shortcut (Cmd+., Cmd+B,
+      // etc.) is silently skipped while a terminal has focus.
+      const isXtermTextarea = target?.classList?.contains('xterm-helper-textarea');
       const isEditableTarget =
-        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+        !isXtermTextarea &&
+        (target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.isContentEditable);
 
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
