@@ -99,6 +99,7 @@ export class TerminalSessionManager {
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
   private customFontFamily = '';
+  private customFontSize = 0;
   private themeFontFamily = '';
   private pendingFitFrame: number | null = null;
   private pendingResizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -168,8 +169,18 @@ export class TerminalSessionManager {
       this.applyEffectiveFont();
     };
 
+    const updateCustomFontSize = (size: number) => {
+      this.customFontSize = size;
+      this.applyTheme(this.lastTheme);
+      this.fitPreservingViewport();
+    };
+
     rpc.appSettings.get().then((settings) => {
       updateCustomFont(settings?.terminal?.fontFamily);
+      const size = settings?.terminal?.fontSize;
+      if (typeof size === 'number' && size >= 8 && size <= 24) {
+        updateCustomFontSize(size);
+      }
       this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
     });
 
@@ -191,6 +202,20 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-font-changed', handleFontChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
+
+    const handleFontSizeChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontSize?: number }>).detail;
+      const size = detail?.fontSize;
+      if (typeof size === 'number' && size >= 8 && size <= 24) {
+        updateCustomFontSize(size);
+      } else if (size === 0) {
+        updateCustomFontSize(0);
+      }
+    };
+    window.addEventListener('terminal-font-size-changed', handleFontSizeChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-size-changed', handleFontSizeChange)
     );
 
     const handleAutoCopyChange = (e: Event) => {
@@ -783,10 +808,14 @@ export class TerminalSessionManager {
 
     const fontFamily = (theme.override as any)?.fontFamily;
     const overrideFontSize = (theme.override as any)?.fontSize;
-    const effectiveFontSize =
-      typeof overrideFontSize === 'number' && overrideFontSize > 0
-        ? overrideFontSize
-        : (this.terminalConfigFontSize ?? DEFAULT_FONT_SIZE);
+    let effectiveFontSize: number;
+    if (this.customFontSize >= 8 && this.customFontSize <= 24) {
+      effectiveFontSize = this.customFontSize;
+    } else if (typeof overrideFontSize === 'number' && overrideFontSize > 0) {
+      effectiveFontSize = overrideFontSize;
+    } else {
+      effectiveFontSize = this.terminalConfigFontSize ?? DEFAULT_FONT_SIZE;
+    }
 
     const colorTheme = { ...theme.override };
     delete (colorTheme as any)?.fontFamily;
