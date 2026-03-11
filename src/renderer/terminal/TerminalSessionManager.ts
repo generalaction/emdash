@@ -381,10 +381,7 @@ export class TerminalSessionManager {
         }
       }
 
-      // Let global app shortcuts (Cmd+key on macOS, Ctrl+key on other platforms)
-      // pass through to the window-level shortcut handler instead of being
-      // consumed by xterm. Specific terminal Cmd+key combos (copy, kill-line,
-      // Cmd+Left/Right) are already handled above and return before this point.
+      // Let unhandled Cmd+key / Ctrl+key combos propagate to global shortcuts.
       if (
         (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey) ||
         (!IS_MAC_PLATFORM && event.ctrlKey && !event.metaKey)

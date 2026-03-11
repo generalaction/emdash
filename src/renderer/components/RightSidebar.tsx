@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import TaskTerminalPanel from './TaskTerminalPanel';
@@ -70,9 +70,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // When the sidebar collapses, blur any focused element inside it (e.g.
-  // xterm's hidden textarea) so focus returns to the main content area.
-  React.useEffect(() => {
+  // Blur focused elements inside the sidebar (e.g. xterm textarea) on collapse.
+  useEffect(() => {
     if (collapsed && asideRef.current?.contains(document.activeElement)) {
       (document.activeElement as HTMLElement)?.blur();
     }
