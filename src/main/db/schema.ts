@@ -31,17 +31,12 @@ export const projects = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     path: text('path').notNull(),
-    gitRemote: text('git_remote'),
-    gitBranch: text('git_branch'),
+    workspaceProvider: text('workspace_provider').notNull().default('local'), // 'local' | 'ssh' | 'vm'
     baseRef: text('base_ref'),
-    githubRepository: text('github_repository'),
-    githubConnected: integer('github_connected').notNull().default(0),
+    gitRemote: text('git_remote'),
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
-    isRemote: integer('is_remote').notNull().default(0), // boolean, 0=false, 1=true
-    remotePath: text('remote_path'), // path on remote server
-    environmentProvider: text('environment_provider').notNull().default('local'), // 'local' | 'ssh' | 'vm'
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -52,7 +47,6 @@ export const projects = sqliteTable(
   (table) => ({
     pathIdx: uniqueIndex('idx_projects_path').on(table.path),
     sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
-    isRemoteIdx: index('idx_projects_is_remote').on(table.isRemote),
   })
 );
 

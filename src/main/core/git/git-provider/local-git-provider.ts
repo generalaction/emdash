@@ -1,9 +1,16 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import fs from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { DiffResult, GitChange, IGitProvider } from '@main/core/workspaces/git-provider';
+import type {
+  DiffResult,
+  GitChange,
+  GitInfo,
+  IGitProvider,
+} from '@main/core/workspaces/git-provider';
 import {
   commit,
+  computeBaseRef,
   getCommitFileDiff,
   getCommitFiles,
   getFileDiff,
@@ -30,7 +37,7 @@ function resolveGitBin(): string {
   ].filter(Boolean) as string[];
   for (const p of candidates) {
     try {
-      if (existsSync(p)) return p;
+      if (fs.existsSync(p)) return p;
     } catch {}
   }
   return 'git';
@@ -173,5 +180,59 @@ export class LocalGitService implements IGitProvider {
     }
 
     return { remotePushed };
+  }
+
+  async detectInfo(): Promise<GitInfo> {
+    const resolvedPath = await fs.promises
+      .realpath(this.worktreePath)
+      .catch(() => this.worktreePath);
+
+    if (!fs.existsSync(join(resolvedPath, '.git'))) {
+      return { isGitRepo: false, baseRef: 'main', rootPath: resolvedPath };
+    }
+
+    let remote: string | undefined;
+    try {
+      const { stdout } = await execFileAsync(GIT, ['remote', 'get-url', 'origin'], {
+        cwd: resolvedPath,
+      });
+      remote = stdout.trim() || undefined;
+    } catch {}
+
+    let branch: string | undefined;
+    try {
+      const { stdout } = await execFileAsync(GIT, ['branch', '--show-current'], {
+        cwd: resolvedPath,
+      });
+      branch = stdout.trim() || undefined;
+    } catch {}
+
+    // Fall back to detecting default branch if HEAD is detached
+    if (!branch) {
+      try {
+        const { stdout } = await execFileAsync(GIT, ['remote', 'show', 'origin'], {
+          cwd: resolvedPath,
+        });
+        const match = stdout.match(/HEAD branch:\s*(\S+)/);
+        branch = match?.[1] ?? undefined;
+      } catch {}
+    }
+
+    let rootPath = resolvedPath;
+    try {
+      const { stdout } = await execFileAsync(GIT, ['rev-parse', '--show-toplevel'], {
+        cwd: resolvedPath,
+      });
+      const trimmed = stdout.trim();
+      if (trimmed) rootPath = await fs.promises.realpath(trimmed).catch(() => trimmed);
+    } catch {}
+
+    return {
+      isGitRepo: true,
+      remote,
+      branch,
+      baseRef: computeBaseRef(remote, branch),
+      rootPath,
+    };
   }
 }

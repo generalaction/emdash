@@ -4,7 +4,13 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type { ConnectionState, ConnectionTestResult, SshConfig } from '@/shared/ssh/types';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  FileEntry,
+  SshConfig,
+} from '@/shared/ssh/types';
+import { buildConnectConfigFromRow } from '@main/core/workspaces/build-connect-config';
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -157,5 +163,70 @@ export const sshController = createRPCController({
       .update(sshConnectionsTable)
       .set({ name, updatedAt: new Date().toISOString() })
       .where(eq(sshConnectionsTable.id, id));
+  },
+
+  /** List files/directories at a remote path via SFTP. */
+  listFiles: async ({
+    connectionId,
+    path: remotePath,
+  }: {
+    connectionId: string;
+    path: string;
+  }): Promise<FileEntry[]> => {
+    let proxy = sshConnectionManager.getProxy(connectionId);
+
+    if (!proxy || !proxy.isConnected) {
+      const [row] = await db
+        .select()
+        .from(sshConnectionsTable)
+        .where(eq(sshConnectionsTable.id, connectionId));
+      if (!row) throw new Error(`SSH connection ${connectionId} not found`);
+      const config = await buildConnectConfigFromRow(row);
+      const result = await sshConnectionManager.connect(connectionId, config);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      proxy = result.data;
+    }
+
+    return new Promise((resolve, reject) => {
+      proxy!.client.sftp((err, sftp) => {
+        if (err) {
+          reject(new Error(`SFTP error: ${err.message}`));
+          return;
+        }
+        sftp.readdir(remotePath, (readdirErr, list) => {
+          if (readdirErr) {
+            reject(new Error(`readdir error: ${readdirErr.message}`));
+            return;
+          }
+          const entries: FileEntry[] = list
+            .map((item) => {
+              const mode = item.attrs.mode ?? 0;
+              const isDir = (mode & 0o170000) === 0o040000;
+              const isLink = (mode & 0o170000) === 0o120000;
+              const entryType: FileEntry['type'] = isLink
+                ? 'symlink'
+                : isDir
+                  ? 'directory'
+                  : 'file';
+              const fullPath = `${remotePath.replace(/\/$/, '')}/${item.filename}`;
+              return {
+                path: fullPath,
+                name: item.filename,
+                type: entryType,
+                size: item.attrs.size ?? 0,
+                modifiedAt: new Date((item.attrs.mtime ?? 0) * 1000),
+              };
+            })
+            .sort((a, b) => {
+              if (a.type === 'directory' && b.type !== 'directory') return -1;
+              if (a.type !== 'directory' && b.type === 'directory') return 1;
+              return a.name.localeCompare(b.name);
+            });
+          resolve(entries);
+        });
+      });
+    });
   },
 });

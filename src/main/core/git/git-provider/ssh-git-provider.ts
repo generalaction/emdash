@@ -1,16 +1,24 @@
 import type { ExecResult } from '@shared/ssh/types';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import type { DiffResult, GitChange, IGitProvider } from '@main/core/workspaces/git-provider';
+import type {
+  DiffResult,
+  GitChange,
+  GitInfo,
+  IGitProvider,
+} from '@main/core/workspaces/git-provider';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { MAX_DIFF_CONTENT_BYTES, parseDiffLines, stripTrailingNewline } from './local-git-utils';
+import {
+  computeBaseRef,
+  MAX_DIFF_CONTENT_BYTES,
+  parseDiffLines,
+  stripTrailingNewline,
+} from './local-git-utils';
 
 export class SshGitService implements IGitProvider {
   constructor(
     private readonly proxy: SshClientProxy,
     private readonly worktreePath: string
   ) {}
-
-  // ─── Private helpers ──────────────────────────────────────────────────────
 
   private exec(command: string, cwd?: string): Promise<ExecResult> {
     const inner = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
@@ -74,8 +82,6 @@ export class SshGitService implements IGitProvider {
 
     return 'main';
   }
-
-  // ─── IGitProvider ─────────────────────────────────────────────────────────
 
   async getStatus(): Promise<GitChange[]> {
     const cwd = this.normalizeRemotePath(this.worktreePath);
@@ -436,5 +442,37 @@ export class SshGitService implements IGitProvider {
     }
 
     return { remotePushed };
+  }
+
+  async detectInfo(): Promise<GitInfo> {
+    const cwd = this.normalizeRemotePath(this.worktreePath);
+    // Check if it's a git repo at all
+    const checkResult = await this.exec('git rev-parse --is-inside-work-tree 2>/dev/null', cwd);
+    if (checkResult.exitCode !== 0) {
+      return { isGitRepo: false, baseRef: 'main', rootPath: cwd };
+    }
+    let remote: string | undefined;
+    const remoteResult = await this.exec('git remote get-url origin 2>/dev/null', cwd);
+    if (remoteResult.exitCode === 0) remote = remoteResult.stdout.trim() || undefined;
+    let branch: string | undefined;
+    const branchResult = await this.exec('git branch --show-current', cwd);
+    if (branchResult.exitCode === 0) branch = branchResult.stdout.trim() || undefined;
+    if (!branch) {
+      // same three-step fallback as getDefaultBranchName() already uses
+      branch = await this.getDefaultBranchName();
+    }
+
+    let rootPath = cwd;
+    const toplevelResult = await this.exec('git rev-parse --show-toplevel', cwd);
+    if (toplevelResult.exitCode === 0 && toplevelResult.stdout.trim()) {
+      rootPath = toplevelResult.stdout.trim();
+    }
+    return {
+      isGitRepo: true,
+      remote,
+      branch,
+      baseRef: computeBaseRef(remote, branch),
+      rootPath,
+    };
   }
 }

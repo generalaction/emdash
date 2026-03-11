@@ -423,4 +423,21 @@ export const githubController = createRPCController({
       };
     }
   },
+
+  createRepository: async ({
+    name,
+    owner,
+    visibility,
+  }: {
+    name: string;
+    owner: string;
+    visibility: 'public' | 'private';
+  }): Promise<{ repoUrl: string; fullName: string }> => {
+    const repoInfo = await githubService.createRepository({
+      name,
+      owner,
+      isPrivate: visibility === 'private',
+    });
+    return { repoUrl: repoInfo.url, fullName: repoInfo.fullName };
+  },
 });

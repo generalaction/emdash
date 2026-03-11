@@ -2,6 +2,7 @@ import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
 import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
 import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
 import { ComboboxPopover } from '../ui/combobox-popover';
+import { ComboxInputTrigger } from '../ui/combox-input-trigger';
 
 interface SshConnectionSelectorProps {
   connectionId?: string;

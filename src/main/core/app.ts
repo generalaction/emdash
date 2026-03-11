@@ -1,5 +1,6 @@
 import { exec, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
@@ -524,7 +525,6 @@ export const appController = createRPCController({
       };
     }
   },
-
   openSelectDirectoryDialog: async ({ title, message }: { title: string; message: string }) => {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title,
@@ -539,6 +539,7 @@ export const appController = createRPCController({
   getAppVersion: () => getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+  getDefaultProjectsDirectory: () => join(homedir(), 'Projects'),
 });
 
 export function registerAppIpc(): void {

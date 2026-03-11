@@ -15,6 +15,14 @@ export interface DiffResult {
   modifiedContent?: string;
 }
 
+export interface GitInfo {
+  isGitRepo: boolean;
+  remote?: string;
+  branch?: string;
+  baseRef: string;
+  rootPath: string;
+}
+
 export interface IGitProvider {
   getStatus(): Promise<GitChange[]>;
   getFileDiff(filePath: string): Promise<DiffResult>;
@@ -52,4 +60,5 @@ export interface IGitProvider {
     oldBranch: string,
     newBranch: string
   ): Promise<{ remotePushed: boolean }>;
+  detectInfo(): Promise<GitInfo>;
 }

@@ -83,6 +83,11 @@ export interface DeviceCodeResult {
   error?: string;
 }
 
+export interface GitHubInfo {
+  nameWithOwner: string;
+  defaultBranch: string;
+}
+
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';

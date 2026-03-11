@@ -3,13 +3,14 @@ export type LocalProject = {
   id: string;
   name: string;
   path: string;
-  baseRef: string;
-  gitRemote?: string;
-  gitBranch?: string;
-  github?: {
-    repository: string;
-    connected: boolean;
-  };
+};
+
+export type RemoteProject = {
+  type: 'remote';
+  id: string;
+  name: string;
+  remotePath: string;
+  connectionId: string;
   createdAt: string;
   updatedAt: string;
 };
