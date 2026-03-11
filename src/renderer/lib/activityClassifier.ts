@@ -3,8 +3,6 @@ import { stripAnsi } from '@shared/text/stripAnsi';
 export type ActivitySignal = 'busy' | 'idle' | 'neutral';
 const MAX_ACTIVITY_CHUNK_CHARS = 8_192;
 
-export type ActivitySignal = 'busy' | 'idle' | 'neutral';
-
 /**
  * Keep activity classification work bounded by sampling the most recent part
  * of large PTY chunks. Newest output has the strongest signal for busy/idle.
