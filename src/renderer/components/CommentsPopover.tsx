@@ -23,9 +23,9 @@ export function CommentsPopover({
   tooltipDelay = 300,
   onOpenChange,
 }: CommentsPopoverProps) {
-  const { taskId: scopedTaskId } = useTaskScope();
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId ?? '';
-  const { comments, remove } = useTaskComments(resolvedTaskId);
+  const { comments, remove } = useTaskComments(resolvedTaskId, scopedTaskPath);
 
   const groupedComments = useMemo(() => {
     const groups = new Map<string, DraftComment[]>();

@@ -1,48 +1,42 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import { draftCommentsStore, type DraftComment } from '../lib/DraftCommentsStore';
+import {
+  buildCommentScopeKey,
+  draftCommentsStore,
+  type DraftComment,
+} from '../lib/DraftCommentsStore';
 
 export type { DraftComment };
 
-export function useTaskComments(taskId?: string) {
-  const resolvedTaskId = taskId ?? '';
+export function useTaskComments(taskId?: string, taskPath?: string | null) {
+  const scopeKey = buildCommentScopeKey(taskId, taskPath);
 
   const comments = useSyncExternalStore(
-    useCallback(
-      (listener) => draftCommentsStore.subscribe(resolvedTaskId, listener),
-      [resolvedTaskId]
-    ),
-    useCallback(() => draftCommentsStore.getSnapshot(resolvedTaskId), [resolvedTaskId]),
-    useCallback(() => draftCommentsStore.getSnapshot(resolvedTaskId), [resolvedTaskId])
+    useCallback((listener) => draftCommentsStore.subscribe(scopeKey, listener), [scopeKey]),
+    useCallback(() => draftCommentsStore.getSnapshot(scopeKey), [scopeKey]),
+    useCallback(() => draftCommentsStore.getSnapshot(scopeKey), [scopeKey])
   );
 
   const count = comments.length;
 
   const add = useCallback(
-    (comment: Omit<DraftComment, 'id' | 'taskId'>) =>
-      draftCommentsStore.add(resolvedTaskId, comment),
-    [resolvedTaskId]
+    (comment: Omit<DraftComment, 'id' | 'taskId'>) => draftCommentsStore.add(scopeKey, comment),
+    [scopeKey]
   );
 
   const update = useCallback(
-    (id: string, content: string) => draftCommentsStore.update(resolvedTaskId, id, content),
-    [resolvedTaskId]
+    (id: string, content: string) => draftCommentsStore.update(scopeKey, id, content),
+    [scopeKey]
   );
 
-  const remove = useCallback(
-    (id: string) => draftCommentsStore.remove(resolvedTaskId, id),
-    [resolvedTaskId]
-  );
+  const remove = useCallback((id: string) => draftCommentsStore.remove(scopeKey, id), [scopeKey]);
 
-  const consumeAll = useCallback(
-    () => draftCommentsStore.consumeAll(resolvedTaskId),
-    [resolvedTaskId]
-  );
+  const consumeAll = useCallback(() => draftCommentsStore.consumeAll(scopeKey), [scopeKey]);
 
   return { comments, count, add, update, remove, consumeAll };
 }
 
-export function useLineComments(taskId: string, filePath?: string) {
-  const { comments: allComments, add, update, remove } = useTaskComments(taskId);
+export function useLineComments(taskId: string, filePath?: string, taskPath?: string | null) {
+  const { comments: allComments, add, update, remove } = useTaskComments(taskId, taskPath);
 
   const comments = useMemo(() => {
     if (!filePath) return [] as DraftComment[];

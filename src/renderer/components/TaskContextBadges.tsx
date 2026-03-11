@@ -26,9 +26,9 @@ export const TaskContextBadges: React.FC<Props> = ({
   githubIssue,
   jiraIssue,
 }) => {
-  const { taskId: scopedTaskId } = useTaskScope();
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
-  const { count: unsentCount } = useTaskComments(resolvedTaskId);
+  const { count: unsentCount } = useTaskComments(resolvedTaskId, scopedTaskPath);
 
   const hasAnything = !!linearIssue || !!githubIssue || !!jiraIssue || unsentCount > 0;
   if (!hasAnything) return null;

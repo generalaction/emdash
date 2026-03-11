@@ -232,7 +232,7 @@ const ChatInterface: React.FC<Props> = ({
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
   // Wire comment injection to pendingInjectionManager
-  useCommentInjection(task.id);
+  useCommentInjection(task.id, task.path);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
