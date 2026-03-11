@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
+import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CloneFromUrlModal } from '@renderer/components/CloneFromUrlModal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
@@ -15,6 +16,7 @@ const modalRegistry = {
   cloneFromUrlModal: CloneFromUrlModal,
   taskModal: TaskModalOverlay,
   addProjectModal: AddProjectModal,
+  addSshConnModal: AddSshConnModal,
   addRemoteProjectModal: AddRemoteProjectModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,
@@ -35,7 +37,7 @@ type UserArgs<MId extends ModalId> = Omit<ModalArgs<MId>, 'onSuccess' | 'onClose
 
 type ModalComponent<TProps = unknown, TResult = unknown> = (
   props: TProps & BaseModalProps<TResult>
-) => ReactNode;
+) => ReactNode | Promise<ReactNode>;
 
 type ModalId = keyof typeof modalRegistry;
 
@@ -82,12 +84,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         ...args,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onSuccess: (result: any) => {
-          args.onSuccess?.(result);
           closeModal();
+          args.onSuccess?.(result);
         },
         onClose: () => {
-          args.onClose?.();
           closeModal();
+          args.onClose?.();
         },
       };
       setActiveModalId(id);

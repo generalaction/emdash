@@ -2,7 +2,7 @@ import { exec, execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { app, clipboard, shell } from 'electron';
+import { app, clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -525,6 +525,17 @@ export const appController = createRPCController({
     }
   },
 
+  openSelectDirectoryDialog: async ({ title, message }: { title: string; message: string }) => {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      title,
+      properties: ['openDirectory'],
+      message,
+    });
+    if (result.canceled) {
+      return;
+    }
+    return result.filePaths[0];
+  },
   getAppVersion: () => getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,

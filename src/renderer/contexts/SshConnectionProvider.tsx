@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import type { ConnectionState, SshConfig } from '@shared/ssh/types';
+import type { ConnectionState, ConnectionTestResult, SshConfig } from '@shared/ssh/types';
 import { events, rpc } from '../lib/ipc';
 
 // ─── Query keys ──────────────────────────────────────────────────────────────
@@ -20,12 +20,16 @@ interface SshConnectionContextValue {
 
   /** Create or update an SSH connection. */
   saveConnection: (
-    config: SshConfig & { password?: string; passphrase?: string }
+    config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ) => Promise<SshConfig>;
   /** Rename a connection without touching credentials or other fields. */
   renameConnection: (id: string, name: string) => Promise<void>;
   /** Delete a connection and disconnect if active. */
   deleteConnection: (id: string) => Promise<void>;
+  /** Test an SSH connection without saving it. */
+  testConnection: (
+    config: SshConfig & { password?: string; passphrase?: string }
+  ) => Promise<ConnectionTestResult>;
 }
 
 const SshConnectionContext = createContext<SshConnectionContextValue | undefined>(undefined);
@@ -93,7 +97,7 @@ export function SshConnectionProvider({ children }: { children: React.ReactNode 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const saveConnectionMutation = useMutation({
-    mutationFn: (config: SshConfig & { password?: string; passphrase?: string }) =>
+    mutationFn: (config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }) =>
       rpc.ssh.saveConnection(config),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: SSH_CONNECTIONS_KEY }),
   });
@@ -115,10 +119,8 @@ export function SshConnectionProvider({ children }: { children: React.ReactNode 
     },
   });
 
-  // ── Stable callbacks ──────────────────────────────────────────────────────
-
   const saveConnection = useCallback(
-    (config: SshConfig & { password?: string; passphrase?: string }) =>
+    (config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }) =>
       saveConnectionMutation.mutateAsync(config),
     [saveConnectionMutation]
   );
@@ -131,6 +133,12 @@ export function SshConnectionProvider({ children }: { children: React.ReactNode 
   const deleteConnection = useCallback(
     (id: string) => deleteConnectionMutation.mutateAsync(id),
     [deleteConnectionMutation]
+  );
+
+  const testConnection = useCallback(
+    (config: SshConfig & { password?: string; passphrase?: string }) =>
+      rpc.ssh.testConnection(config),
+    []
   );
 
   const isLoading =
@@ -148,6 +156,7 @@ export function SshConnectionProvider({ children }: { children: React.ReactNode 
         saveConnection,
         renameConnection,
         deleteConnection,
+        testConnection,
       }}
     >
       {children}

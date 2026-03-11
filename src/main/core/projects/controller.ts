@@ -16,17 +16,6 @@ export const projectController = createRPCController({
     }
     throw new Error(result.error.type);
   },
-  openSelectLocalProjectPathDialog: async () => {
-    const result = await dialog.showOpenDialog(getMainWindow()!, {
-      title: 'Select Local Project Path',
-      properties: ['openDirectory'],
-      message: 'Select a project directory to open',
-    });
-    if (result.canceled || result.filePaths.length === 0) {
-      throw new Error('No project path selected');
-    }
-    return result.filePaths[0];
-  },
   getProjects,
   deleteProject: async (id: string) => {
     await workspaceManager.removeProject(id);

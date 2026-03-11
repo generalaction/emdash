@@ -3,7 +3,7 @@
  * Used for storing SSH connection settings
  */
 export interface SshConfig {
-  id?: string;
+  id: string;
   name: string;
   host: string;
   port: number;

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
@@ -29,9 +30,9 @@ export const sshController = createRPCController({
 
   /** Create or update an SSH connection, storing secrets in the OS keychain. */
   saveConnection: async (
-    config: SshConfig & { password?: string; passphrase?: string }
+    config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {
-    const connectionId = config.id ?? `ssh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const connectionId = randomUUID();
 
     if (config.password) {
       await sshCredentialService.storePassword(connectionId, config.password);

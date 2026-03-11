@@ -20,7 +20,7 @@ import { log } from '@main/lib/logger';
 import { buildConnectConfigFromRow } from './build-connect-config';
 import { LocalEnvironmentProvider } from './local-workspace-provider';
 import { SshEnvironmentProvider } from './ssh-workspace-provider';
-import type { EnvironmentProvider } from './workspace-provider';
+import type { EnvironmentProvider as WorkspaceProvider } from './workspace-provider';
 
 /**
  * Manages one `EnvironmentProvider` instance per project.
@@ -35,7 +35,7 @@ import type { EnvironmentProvider } from './workspace-provider';
  * type themselves.
  */
 class WorkspaceManager {
-  private providers = new Map<string, EnvironmentProvider>();
+  private providers = new Map<string, WorkspaceProvider>();
 
   /** Maps connectionId → set of projectIds using that connection. */
   private connectionProjects = new Map<string, Set<string>>();
@@ -114,7 +114,7 @@ class WorkspaceManager {
     }
   }
 
-  async addProject(project: ProjectRow): Promise<EnvironmentProvider> {
+  async addProject(project: ProjectRow): Promise<WorkspaceProvider> {
     const existing = this.providers.get(project.id);
     if (existing) return existing;
 
@@ -166,7 +166,7 @@ class WorkspaceManager {
     }
   }
 
-  getProvider(projectId: string): EnvironmentProvider | undefined {
+  getProvider(projectId: string): WorkspaceProvider | undefined {
     return this.providers.get(projectId);
   }
 
@@ -184,7 +184,7 @@ class WorkspaceManager {
     });
   }
 
-  private async createProvider(project: ProjectRow): Promise<EnvironmentProvider> {
+  private async createProvider(project: ProjectRow): Promise<WorkspaceProvider> {
     const envType = project.environmentProvider ?? 'local';
 
     if (envType === 'ssh') {
@@ -195,7 +195,7 @@ class WorkspaceManager {
     return new LocalEnvironmentProvider(project.id);
   }
 
-  private async createSshProvider(project: ProjectRow): Promise<EnvironmentProvider> {
+  private async createSshProvider(project: ProjectRow): Promise<WorkspaceProvider> {
     if (!project.sshConnectionId) {
       log.warn(
         'EnvironmentProviderManager: SSH project has no sshConnectionId, falling back to local',

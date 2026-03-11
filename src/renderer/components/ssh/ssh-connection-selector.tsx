@@ -1,26 +1,40 @@
 import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
+import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
 import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
 import { ComboboxPopover } from '../ui/combobox-popover';
 
-const connections = Array.from({ length: 30 }, (_, index) => ({
-  value: `connection-${index}`,
-  label: `Connection ${index}`,
-}));
-
 interface SshConnectionSelectorProps {
-  onValueChange: (connectionId: string) => void;
+  connectionId?: string;
+  onConnectionIdChange: (connectionId: string) => void;
   onAddConnection: () => void;
 }
 
 export function SshConnectionSelector({
-  onValueChange,
+  connectionId,
+  onConnectionIdChange,
   onAddConnection,
 }: SshConnectionSelectorProps) {
+  const { connections } = useSshConnectionContext();
+
+  const options = connections
+    .filter((c): c is typeof c & { id: string } => c.id !== undefined)
+    .map((connection) => ({
+      value: connection.id,
+      label: connection.name,
+    }));
+
   return (
     <ComboboxPopover
-      items={connections}
-      defaultValue={connections[0]}
-      onValueChange={(conn) => onValueChange(conn.value)}
+      items={options}
+      defaultValue={
+        connectionId
+          ? {
+              value: connectionId,
+              label: options.find((o) => o.value === connectionId)?.label ?? connectionId,
+            }
+          : options[0]
+      }
+      onValueChange={(conn) => onConnectionIdChange(conn.value)}
       actions={[
         {
           id: 'add',
