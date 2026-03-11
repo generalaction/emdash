@@ -11,6 +11,7 @@ import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
+import { INJECT_ENTER_DELAY_MS } from '../lib/activityConstants';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { consumeSubmittedInputChunk } from './submitCapture';
 import {
@@ -648,14 +649,18 @@ export class TerminalSessionManager {
     // Check for pending injection text when Enter is pressed (but not for newline inserts)
     const pendingText = pendingInjectionManager.getPending();
     if (pendingText && isEnterPress && !isNewlineInsert) {
-      // Append pending text to the existing input and keep the prior working behavior.
+      // Send text + line endings first, then send a bare \r after a short
+      // delay to submit.  Sending Enter separately prevents TUI
+      // "paste-detection" from swallowing it (same pattern as MultiAgentTask).
       const stripped = filtered.replace(/[\r\n]+$/g, '');
-      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-      const injectedData = stripped + pendingText + enterSequence + enterSequence;
+      const injectedData = stripped + pendingText + '\r\n';
       if (submittedText || pendingText.trim()) {
         agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
       }
       window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+      setTimeout(() => {
+        window.electronAPI.ptyInput({ id: this.id, data: '\r' });
+      }, INJECT_ENTER_DELAY_MS);
       pendingInjectionManager.markUsed();
       this.logSlowInputHandler(startedAt);
       return;
