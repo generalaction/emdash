@@ -24,6 +24,7 @@ export interface CreateTaskParams {
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  preflightPromise?: Promise<unknown>;
 }
 
 export interface CreateTaskResult {
@@ -303,6 +304,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     nameGenerated,
     useWorktree,
     baseRef,
+    preflightPromise,
   } = params;
 
   // Build prompt prefix from linked issues
@@ -526,6 +528,16 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   let warning: string | undefined;
 
   if (useWorktree) {
+    // Wait for the preflight freshness check (started when the modal opened)
+    // so the reserve is up-to-date before we claim it.  Timeout after 10s
+    // to avoid blocking task creation if ls-remote hangs.
+    if (preflightPromise) {
+      await Promise.race([
+        preflightPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+      ]);
+    }
+
     const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
       projectId: project.id,
       projectPath: project.path,

@@ -230,6 +230,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree pool (reserve) management for instant task creation
   worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
     ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreePreflightReserve: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktree:preflightReserve', args),
   worktreeHasReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:hasReserve', args),
   worktreeClaimReserve: (args: {
@@ -319,6 +321,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relPath: string,
     remote?: { connectionId: string; remotePath: string }
   ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
+  fsRename: (
+    root: string,
+    oldName: string,
+    newName: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:rename', { root, oldName, newName, ...remote }),
+  fsMkdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:mkdir', { root, relPath, ...remote }),
+  fsRmdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:rmdir', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
@@ -873,6 +885,10 @@ export interface ElectronAPI {
     projectId: string;
     projectPath: string;
     baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreePreflightReserve: (args: {
+    projectId: string;
+    projectPath: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeHasReserve: (args: {
     projectId: string;

@@ -52,6 +52,26 @@ describe('WorktreePoolService', () => {
   let projectPath: string;
   let pool: WorktreePoolService;
 
+  const addRemote = (repoPath: string, barePath: string) => {
+    // Create a bare clone to act as "origin"
+    execSync(`git clone --bare "${repoPath}" "${barePath}"`, { stdio: 'pipe' });
+    execSync(`git remote add origin "${barePath}"`, { cwd: repoPath, stdio: 'pipe' });
+    execSync('git fetch origin', { cwd: repoPath, stdio: 'pipe' });
+  };
+
+  let pusherCounter = 0;
+  const pushCommitToRemote = (barePath: string) => {
+    // Clone the bare repo to a unique temp location, make a commit, push
+    const pusherPath = `${barePath}-pusher-${++pusherCounter}`;
+    execSync(`git clone "${barePath}" "${pusherPath}"`, { stdio: 'pipe' });
+    execSync('git config user.email "test@test.com"', { cwd: pusherPath, stdio: 'pipe' });
+    execSync('git config user.name "Test"', { cwd: pusherPath, stdio: 'pipe' });
+    fs.writeFileSync(path.join(pusherPath, 'new-file.txt'), 'new content');
+    execSync('git add new-file.txt', { cwd: pusherPath, stdio: 'pipe' });
+    execSync('git commit -m "remote update"', { cwd: pusherPath, stdio: 'pipe' });
+    execSync('git push', { cwd: pusherPath, stdio: 'pipe' });
+  };
+
   const initRepo = (repoPath: string) => {
     fs.mkdirSync(repoPath, { recursive: true });
     execSync('git init', { cwd: repoPath, stdio: 'pipe' });
@@ -138,6 +158,107 @@ describe('WorktreePoolService', () => {
     expect(otherBranches).toContain(otherReserve!.branch);
 
     await otherPool.cleanup();
+  });
+
+  it('captures commitHash on reserve creation', async () => {
+    await pool.ensureReserve('project-1', projectPath, 'HEAD');
+
+    const reserve = pool.getReserve('project-1');
+    expect(reserve).toBeDefined();
+    expect(reserve!.commitHash).toBeDefined();
+    expect(reserve!.commitHash).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  describe('freshness polling', () => {
+    it('detects stale reserve and recreates it when remote changes', async () => {
+      const barePath = projectPath + '-bare';
+      addRemote(projectPath, barePath);
+
+      await pool.ensureReserve('project-1', projectPath, 'HEAD');
+      const originalReserve = pool.getReserve('project-1');
+      expect(originalReserve).toBeDefined();
+      const originalHash = originalReserve!.commitHash;
+
+      // Simulate someone pushing a new commit to origin
+      pushCommitToRemote(barePath);
+
+      // Trigger freshness check (cleanup + recreation are now awaited)
+      await (pool as any).checkAndRefreshReserves();
+
+      // Reserve should have been recreated with a new commit hash
+      const newReserve = pool.getReserve('project-1');
+      expect(newReserve).toBeDefined();
+      expect(newReserve!.commitHash).not.toBe(originalHash);
+    });
+
+    it('starts and stops freshness polling with reserve lifecycle', async () => {
+      const barePath = projectPath + '-bare';
+      addRemote(projectPath, barePath);
+
+      // No poll before any reserve
+      expect((pool as any).pollTimer).toBeUndefined();
+
+      await pool.ensureReserve('project-1', projectPath, 'HEAD');
+
+      // Poll should be running after reserve creation
+      expect((pool as any).pollTimer).toBeDefined();
+
+      // Cleanup should stop the poll
+      await pool.cleanup();
+      expect((pool as any).pollTimer).toBeUndefined();
+    });
+
+    it('does not recreate reserve when remote has not changed', async () => {
+      const barePath = projectPath + '-bare';
+      addRemote(projectPath, barePath);
+
+      await pool.ensureReserve('project-1', projectPath, 'HEAD');
+      const originalReserve = pool.getReserve('project-1');
+      const originalPath = originalReserve!.path;
+
+      // Trigger freshness check without any remote changes
+      await (pool as any).checkAndRefreshReserves();
+
+      const reserve = pool.getReserve('project-1');
+      expect(reserve).toBeDefined();
+      expect(reserve!.path).toBe(originalPath);
+    });
+  });
+
+  describe('preflightCheck', () => {
+    it('refreshes a stale reserve before claim', async () => {
+      const barePath = projectPath + '-bare';
+      addRemote(projectPath, barePath);
+
+      await pool.ensureReserve('project-1', projectPath, 'HEAD');
+      const originalHash = pool.getReserve('project-1')!.commitHash;
+
+      pushCommitToRemote(barePath);
+
+      await pool.preflightCheck('project-1', projectPath);
+
+      const newReserve = pool.getReserve('project-1');
+      expect(newReserve).toBeDefined();
+      expect(newReserve!.commitHash).not.toBe(originalHash);
+    });
+
+    it('is a no-op when remote has not changed', async () => {
+      const barePath = projectPath + '-bare';
+      addRemote(projectPath, barePath);
+
+      await pool.ensureReserve('project-1', projectPath, 'HEAD');
+      const originalPath = pool.getReserve('project-1')!.path;
+
+      await pool.preflightCheck('project-1', projectPath);
+
+      expect(pool.getReserve('project-1')!.path).toBe(originalPath);
+    });
+
+    it('creates a reserve when none exists', async () => {
+      expect(pool.getReserve('project-1')).toBeUndefined();
+      await pool.preflightCheck('project-1', projectPath);
+      expect(pool.getReserve('project-1')).toBeDefined();
+    });
   });
 
   it('resolves owner repo path correctly when repo path contains a worktrees segment', async () => {

@@ -7,6 +7,37 @@ import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
 import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
 import type { FileChange } from '@/hooks/useFileChanges';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+// Browser-compatible path utilities (renderer can't use Node's 'path' module)
+const pathUtils = {
+  dirname: (p: string) => p.substring(0, p.lastIndexOf('/')) || '.',
+  join: (...parts: string[]) => parts.filter(Boolean).join('/').replace(/\/+/g, '/'),
+  relative: (from: string, to: string) => {
+    const fromParts = from.split('/').filter(Boolean);
+    const toParts = to.split('/').filter(Boolean);
+    let i = 0;
+    while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
+    const up = fromParts.slice(i).map(() => '..');
+    return [...up, ...toParts.slice(i)].join('/') || '.';
+  },
+};
 
 export interface FileNode {
   id: string;
@@ -62,6 +93,15 @@ const TreeNode: React.FC<{
   onOpen?: (path: string) => void;
   onLoadChildren: (node: FileNode) => Promise<void>;
   fileChanges: FileChange[];
+
+  onContextMenuNewFile?: (node: FileNode) => void;
+  onContextMenuNewFolder?: (node: FileNode) => void;
+  onContextMenuRename?: (node: FileNode) => void;
+  onContextMenuDelete?: (node: FileNode) => void;
+  onContextMenuCopyPath?: (node: FileNode) => void;
+  onContextMenuCopyRelPath?: (node: FileNode) => void;
+  onContextMenuOpenTerminal?: (node: FileNode) => void;
+  onContextMenuReveal?: (node: FileNode) => void;
 }> = ({
   node,
   level,
@@ -72,7 +112,20 @@ const TreeNode: React.FC<{
   onOpen,
   onLoadChildren,
   fileChanges,
+  onContextMenuNewFile,
+  onContextMenuNewFolder,
+  onContextMenuRename,
+  onContextMenuDelete,
+  onContextMenuCopyPath,
+  onContextMenuCopyRelPath,
+  onContextMenuOpenTerminal,
+  onContextMenuReveal,
 }) => {
+  // Guard: if node is null or missing type, don't render
+  if (!node || !node.type) {
+    return null;
+  }
+
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
 
@@ -100,66 +153,111 @@ const TreeNode: React.FC<{
   };
 
   return (
-    <div>
-      <div
-        className={cn(
-          'flex h-6 cursor-pointer select-none items-center px-1 hover:bg-accent/50',
-          isSelected && 'bg-accent',
-          node.isHidden && 'opacity-60'
-        )}
-        style={{ paddingLeft: `${level * 12 + 4}px` }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        role="treeitem"
-        aria-selected={isSelected}
-        aria-expanded={node.type === 'directory' ? isExpanded : undefined}
-      >
-        {node.type === 'directory' && (
-          <span className="mr-1 text-muted-foreground">
-            {isExpanded ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-          </span>
-        )}
-        {node.type === 'file' && (
-          <span className="mr-1.5">
-            <FileIcon filename={node.name} isDirectory={false} isExpanded={false} />
-          </span>
-        )}
-        <span
-          className={cn(
-            'flex-1 truncate text-sm',
-            fileStatus === 'added' && 'text-green-500',
-            fileStatus === 'modified' && 'text-amber-500',
-            fileStatus === 'deleted' && 'text-red-500 line-through',
-            fileStatus === 'renamed' && 'text-blue-500'
-          )}
-        >
-          {node.name}
-        </span>
-      </div>
-
-      {node.type === 'directory' && isExpanded && node.children && (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
         <div>
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.id}
-              node={child}
-              level={level + 1}
-              selectedPath={selectedPath}
-              expandedPaths={expandedPaths}
-              onToggleExpand={onToggleExpand}
-              onSelect={onSelect}
-              onOpen={onOpen}
-              onLoadChildren={onLoadChildren}
-              fileChanges={fileChanges}
-            />
-          ))}
+          <div
+            className={cn(
+              'flex h-6 cursor-pointer select-none items-center px-1 hover:bg-accent/50',
+              isSelected && 'bg-accent',
+              node.isHidden && 'opacity-60'
+            )}
+            style={{ paddingLeft: `${level * 12 + 4}px` }}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
+            role="treeitem"
+            aria-selected={isSelected}
+            aria-expanded={node.type === 'directory' ? isExpanded : undefined}
+          >
+            {node.type === 'directory' && (
+              <span className="mr-1 text-muted-foreground">
+                {isExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </span>
+            )}
+            {node.type === 'file' && (
+              <span className="mr-1.5">
+                <FileIcon filename={node.name} isDirectory={false} isExpanded={false} />
+              </span>
+            )}
+            <span
+              className={cn(
+                'flex-1 truncate text-sm',
+                fileStatus === 'added' && 'text-green-500',
+                fileStatus === 'modified' && 'text-amber-500',
+                fileStatus === 'deleted' && 'text-red-500 line-through',
+                fileStatus === 'renamed' && 'text-blue-500'
+              )}
+            >
+              {node.name}
+            </span>
+          </div>
+
+          {node.type === 'directory' && isExpanded && node.children && node.children.length > 0 && (
+            <div>
+              {node.children
+                .filter((child) => child && child.id && child.type)
+                .map((child) => (
+                  <TreeNode
+                    key={child.id}
+                    node={child}
+                    level={level + 1}
+                    selectedPath={selectedPath}
+                    expandedPaths={expandedPaths}
+                    onToggleExpand={onToggleExpand}
+                    onSelect={onSelect}
+                    onOpen={onOpen}
+                    onLoadChildren={onLoadChildren}
+                    fileChanges={fileChanges}
+                    onContextMenuNewFile={onContextMenuNewFile}
+                    onContextMenuNewFolder={onContextMenuNewFolder}
+                    onContextMenuRename={onContextMenuRename}
+                    onContextMenuDelete={onContextMenuDelete}
+                    onContextMenuCopyPath={onContextMenuCopyPath}
+                    onContextMenuCopyRelPath={onContextMenuCopyRelPath}
+                    onContextMenuOpenTerminal={onContextMenuOpenTerminal}
+                    onContextMenuReveal={onContextMenuReveal}
+                  />
+                ))}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {node.type === 'directory' && (
+          <>
+            <ContextMenuItem onSelect={() => onContextMenuNewFile?.(node)}>
+              New File
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onContextMenuNewFolder?.(node)}>
+              New Folder
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        <ContextMenuItem onSelect={() => onContextMenuRename?.(node)}>Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onContextMenuDelete?.(node)}>Delete</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => onContextMenuCopyPath?.(node)}>Copy Path</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onContextMenuCopyRelPath?.(node)}>
+          Copy Relative Path
+        </ContextMenuItem>
+        {node.type === 'file' && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onContextMenuOpenTerminal?.(node)}>
+              Open in Terminal
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onContextMenuReveal?.(node)}>
+              Reveal in Finder
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
 
@@ -186,6 +284,16 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [allFiles, setAllFiles] = useState<any[]>([]);
   const restoringRef = useRef(true);
   const loadingPathsRef = useRef(new Set<string>());
+
+  // Context menu state
+  const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
+  const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [newItemValue, setNewItemValue] = useState('');
+  const [renamingNode, setRenamingNode] = useState<FileNode | null>(null);
 
   // Use the clean content search hook
   const {
@@ -244,6 +352,14 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [defaultExcludePatterns, excludePatterns]
   );
 
+  const remoteArgs = useMemo(
+    () =>
+      connectionId && remotePath
+        ? { connectionId: connectionId, remotePath: remotePath }
+        : undefined,
+    [connectionId, remotePath]
+  );
+
   // Check if an item should be excluded
   const shouldExclude = useCallback(
     (path: string): boolean => {
@@ -275,6 +391,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
       const immediateChildren = new Map<string, { type: 'file' | 'dir' }>();
 
       files.forEach((item) => {
+        if (!item || !item.path || !item.type) {
+          return;
+        }
         // Skip excluded items
         if (shouldExclude(item.path)) {
           return;
@@ -327,6 +446,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
       // Convert map to array of FileNodes
       const nodes: FileNode[] = [];
       immediateChildren.forEach((itemInfo, itemName) => {
+        // Guard: skip if itemInfo is null
+        if (!itemInfo || !itemInfo.type) {
+          return;
+        }
         const nodePath = dirPath ? `${dirPath}/${itemName}` : itemName;
         nodes.push({
           id: nodePath,
@@ -357,47 +480,48 @@ export const FileTree: React.FC<FileTreeProps> = ({
   );
 
   // Load all files once at the beginning - only when rootPath changes
-  useEffect(() => {
-    const loadAllFiles = async () => {
-      setLoading(true);
-      setError(null);
+  const loadAllFiles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      try {
-        const opts: {
-          includeDirs: boolean;
-          connectionId?: string;
-          remotePath?: string;
-        } = { includeDirs: true };
+    try {
+      const opts: {
+        includeDirs: boolean;
+        connectionId?: string;
+        remotePath?: string;
+      } = { includeDirs: true };
 
-        if (connectionId && remotePath) {
-          opts.connectionId = connectionId;
-          opts.remotePath = remotePath;
-        }
-
-        const result = await window.electronAPI.fsList(rootPath, {
-          ...opts,
-          recursive: false,
-        });
-
-        if (result.canceled) {
-          return;
-        }
-
-        if (!result.success || !result.items) {
-          throw new Error(result.error || 'Failed to load files');
-        }
-
-        // Store all files for later use
-        setAllFiles(result.items);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load files');
-      } finally {
-        setLoading(false);
+      if (connectionId && remotePath) {
+        opts.connectionId = connectionId;
+        opts.remotePath = remotePath;
       }
-    };
 
-    loadAllFiles();
+      const result = await window.electronAPI.fsList(rootPath, {
+        ...opts,
+        recursive: false,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      if (!result.success || !result.items) {
+        throw new Error(result.error || 'Failed to load files');
+      }
+
+      // Store all files for later use (filter out null/undefined items)
+      const validItems = result.items.filter((item: any) => item && item.path && item.type);
+      setAllFiles(validItems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load files');
+    } finally {
+      setLoading(false);
+    }
   }, [rootPath, connectionId, remotePath]); // Reload when rootPath or remote info changes
+
+  useEffect(() => {
+    void loadAllFiles();
+  }, [loadAllFiles]);
 
   // Build tree when files or filters change
   useEffect(() => {
@@ -436,6 +560,133 @@ export const FileTree: React.FC<FileTreeProps> = ({
     });
   }, [allFiles, buildNodesFromPath]); // Rebuild tree when files or filter function changes
 
+  // Context menu handlers
+  const getParentPath = (node: FileNode): string => {
+    const dir = pathUtils.dirname(node.path);
+    return dir === '.' ? '' : dir;
+  };
+
+  const getTargetDirectoryPath = (node: FileNode): string => {
+    return node.type === 'directory' ? node.path : getParentPath(node);
+  };
+
+  const handleCopyPath = async (node: FileNode) => {
+    const absPath = pathUtils.join(rootPath, node.path);
+    await window.electronAPI.clipboardWriteText(absPath);
+  };
+
+  const handleCopyRelativePath = async (node: FileNode) => {
+    await window.electronAPI.clipboardWriteText(node.path);
+  };
+
+  const handleOpenTerminal = async (node: FileNode) => {
+    const dirPath =
+      node.type === 'directory'
+        ? pathUtils.join(rootPath, node.path)
+        : pathUtils.join(rootPath, pathUtils.dirname(node.path));
+    await window.electronAPI.openIn({ app: 'terminal', path: dirPath });
+  };
+
+  const handleRevealInFinder = async (node: FileNode) => {
+    const filePath = pathUtils.join(rootPath, node.path);
+    await window.electronAPI.openIn({ app: 'finder', path: filePath });
+  };
+
+  const handleRenameClick = (node: FileNode) => {
+    setRenamingNode(node);
+    setRenameValue(node.name);
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleDeleteClick = (node: FileNode) => {
+    setSelectedNode(node);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleNewFileClick = (node: FileNode) => {
+    setSelectedNode(node);
+    setNewItemValue('');
+    setIsNewFileDialogOpen(true);
+  };
+
+  const handleNewFolderClick = (node: FileNode) => {
+    setSelectedNode(node);
+    setNewItemValue('');
+    setIsNewFolderDialogOpen(true);
+  };
+
+  const confirmRename = async () => {
+    if (!renamingNode || !renameValue.trim() || renameValue === renamingNode.name) {
+      setIsRenameDialogOpen(false);
+      return;
+    }
+    const parentPath = getParentPath(renamingNode);
+    const oldRelPath = renamingNode.path;
+    const newRelPath = parentPath ? `${parentPath}/${renameValue.trim()}` : renameValue.trim();
+    const result = await window.electronAPI.fsRename(rootPath, oldRelPath, newRelPath, remoteArgs);
+    if (!result.success) {
+      setError(result.error ?? 'Failed to rename file or directory');
+      return;
+    }
+    await loadAllFiles();
+    setIsRenameDialogOpen(false);
+    setRenamingNode(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedNode) return;
+    if (selectedNode.type === 'directory') {
+      const result = await window.electronAPI.fsRmdir(rootPath, selectedNode.path, remoteArgs);
+      if (!result.success) {
+        setError(result.error ?? 'Failed to remove directory');
+        return;
+      }
+    } else {
+      const result = await window.electronAPI.fsRemove(rootPath, selectedNode.path, remoteArgs);
+      if (!result.success) {
+        setError(result.error ?? 'Failed to remove file');
+        return;
+      }
+    }
+    await loadAllFiles();
+    setIsDeleteDialogOpen(false);
+    setSelectedNode(null);
+  };
+
+  const confirmNewFile = async () => {
+    if (!selectedNode || !newItemValue.trim()) {
+      setIsNewFileDialogOpen(false);
+      return;
+    }
+    const parentPath = getTargetDirectoryPath(selectedNode);
+    const relPath = parentPath ? `${parentPath}/${newItemValue.trim()}` : newItemValue.trim();
+    const result = await window.electronAPI.fsWriteFile(rootPath, relPath, '', true, remoteArgs);
+    if (!result.success) {
+      setError(result.error ?? 'Failed to create file');
+      return;
+    }
+    await loadAllFiles();
+    setIsNewFileDialogOpen(false);
+    setSelectedNode(null);
+  };
+
+  const confirmNewFolder = async () => {
+    if (!selectedNode || !newItemValue.trim()) {
+      setIsNewFolderDialogOpen(false);
+      return;
+    }
+    const parentPath = getTargetDirectoryPath(selectedNode);
+    const relPath = parentPath ? `${parentPath}/${newItemValue.trim()}` : newItemValue.trim();
+    const result = await window.electronAPI.fsMkdir(rootPath, relPath, remoteArgs);
+    if (!result.success) {
+      setError(result.error ?? 'Failed to create directory');
+      return;
+    }
+    await loadAllFiles();
+    setIsNewFolderDialogOpen(false);
+    setSelectedNode(null);
+  };
+
   // Load children for a node
   const loadChildren = useCallback(
     async (node: FileNode) => {
@@ -465,10 +716,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
           // Process new items:
           // 1. Prefix their paths so they are relative to project root
           // 2. Add them to allFiles
-          const newItems = result.items.map((item: any) => ({
-            ...item,
-            path: `${node.path}/${item.path}`, // item.path from fsList is relative to subRoot
-          }));
+          // Guard: filter out null/undefined items
+          const newItems = result.items
+            .filter((item: any) => item && item.path && item.type)
+            .map((item: any) => ({
+              ...item,
+              path: `${node.path}/${item.path}`, // item.path from fsList is relative to subRoot
+            }));
 
           setAllFiles((prev) => {
             // Remove any existing children of this node to avoid duplicates (optional but good)
@@ -596,23 +850,127 @@ export const FileTree: React.FC<FileTreeProps> = ({
         ) : (
           // File tree view
           <div role="tree" aria-label="File explorer">
-            {tree.map((child) => (
-              <TreeNode
-                key={child.id}
-                node={child}
-                level={0}
-                selectedPath={selectedFile}
-                expandedPaths={expandedPaths}
-                onToggleExpand={handleToggleExpand}
-                onSelect={onSelectFile}
-                onOpen={onOpenFile}
-                onLoadChildren={loadChildren}
-                fileChanges={fileChanges}
-              />
-            ))}
+            {tree
+              .filter((child) => child && child.id && child.type)
+              .map((child) => (
+                <TreeNode
+                  key={child.id}
+                  node={child}
+                  level={0}
+                  selectedPath={selectedFile}
+                  expandedPaths={expandedPaths}
+                  onToggleExpand={handleToggleExpand}
+                  onSelect={onSelectFile}
+                  onOpen={onOpenFile}
+                  onLoadChildren={loadChildren}
+                  fileChanges={fileChanges}
+                  onContextMenuNewFile={handleNewFileClick}
+                  onContextMenuNewFolder={handleNewFolderClick}
+                  onContextMenuRename={handleRenameClick}
+                  onContextMenuDelete={handleDeleteClick}
+                  onContextMenuCopyPath={handleCopyPath}
+                  onContextMenuCopyRelPath={handleCopyRelativePath}
+                  onContextMenuOpenTerminal={handleOpenTerminal}
+                  onContextMenuReveal={handleRevealInFinder}
+                />
+              ))}
           </div>
         )}
       </div>
+
+      {/* Rename Dialog */}
+      <AlertDialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rename</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter a new name for "{renamingNode?.name}"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRename}>Rename</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedNode?.type === 'directory' ? 'Folder' : 'File'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{selectedNode?.name}"?
+              {selectedNode?.type === 'directory' && ' This will delete all contents.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 px-4 py-2 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* New File Dialog */}
+      <AlertDialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>New File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Create a new file in "
+              {(selectedNode ? getTargetDirectoryPath(selectedNode) : '') || 'root'}"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={newItemValue}
+            onChange={(e) => setNewItemValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && confirmNewFile()}
+            placeholder="filename.ext"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmNewFile}>Create</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* New Folder Dialog */}
+      <AlertDialog open={isNewFolderDialogOpen} onOpenChange={setIsNewFolderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>New Folder</AlertDialogTitle>
+            <AlertDialogDescription>
+              Create a new folder in "
+              {(selectedNode ? getTargetDirectoryPath(selectedNode) : '') || 'root'}"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={newItemValue}
+            onChange={(e) => setNewItemValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && confirmNewFolder()}
+            placeholder="folder name"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmNewFolder}>Create</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
