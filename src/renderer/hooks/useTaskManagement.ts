@@ -217,10 +217,13 @@ export function useTaskManagement() {
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
-  const openTaskModalImplRef = useRef<() => void>(() => {});
+  const openTaskModalImplRef = useRef<(project?: Project) => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
   const preflightPromiseRef = useRef<Promise<unknown> | undefined>(undefined);
-  const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const openTaskModal = useCallback(
+    (project?: Project) => openTaskModalImplRef.current(project),
+    []
+  );
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -385,9 +388,8 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
-      openTaskModal();
+      openTaskModal(targetProject);
     },
     [activateProjectView, projects, openTaskModal]
   );
@@ -920,9 +922,10 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      overrideProject?: Project
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = overrideProject ?? pendingTaskProjectRef.current ?? selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
@@ -965,14 +968,16 @@ export function useTaskManagement() {
   }, [isCreatingTask]);
 
   // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
-  openTaskModalImplRef.current = () => {
+  openTaskModalImplRef.current = (project?: Project) => {
+    if (project === undefined) pendingTaskProjectRef.current = null;
+
     // Fire preflight reserve freshness check while the user fills in the form.
-    const project = pendingTaskProjectRef.current || selectedProject;
-    if (project) {
+    const targetProject = project ?? pendingTaskProjectRef.current ?? selectedProject;
+    if (targetProject) {
       preflightPromiseRef.current = window.electronAPI
         .worktreePreflightReserve({
-          projectId: project.id,
-          projectPath: project.path,
+          projectId: targetProject.id,
+          projectPath: targetProject.path,
         })
         .catch((err) => {
           console.warn('[preflight] failed', err);
@@ -980,6 +985,7 @@ export function useTaskManagement() {
     }
 
     showModal('taskModal', {
+      initialProject: project,
       onClose: () => {
         pendingTaskProjectRef.current = null;
         preflightPromiseRef.current = undefined;
