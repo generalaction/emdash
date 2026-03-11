@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
+import { TITLEBAR_HEIGHT } from '../constants/layout';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 interface Props {
@@ -75,12 +76,13 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal content */}
+      {/* Modal content — top margin clears the titlebar / traffic lights */}
       <div
         className={cn(
-          'relative z-10 mx-4 my-4 flex flex-1 flex-col overflow-hidden rounded-lg border shadow-2xl',
+          'relative z-10 mx-4 mb-4 flex flex-1 flex-col overflow-hidden rounded-lg border shadow-2xl',
           isDark ? 'border-zinc-700 bg-zinc-900' : 'border-border bg-background'
         )}
+        style={{ marginTop: `calc(${TITLEBAR_HEIGHT} + 8px)` }}
       >
         {/* Header */}
         <div
