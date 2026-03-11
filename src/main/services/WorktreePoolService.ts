@@ -46,6 +46,7 @@ export class WorktreePoolService {
   private readonly MAX_RESERVE_AGE_MS = 30 * 60 * 1000; // 30 minutes
 
   private pollTimer: ReturnType<typeof setTimeout> | undefined;
+  private isPolling = false;
   private readonly FRESHNESS_POLL_INTERVAL_MS = 60_000;
 
   /** Generate a unique hash for reserve identification */
@@ -357,15 +358,19 @@ export class WorktreePoolService {
   private async runPreflightCheck(projectId: string, projectPath: string): Promise<void> {
     const prefix = `${projectId}::`;
 
-    // Wait for any in-progress reserve creations for this project
+    // Wait for any in-progress reserve creations for this project (in parallel)
+    const creationWaits: Promise<void>[] = [];
     for (const [key, promise] of this.creationPromises) {
       if (key.startsWith(prefix)) {
         log.info('WorktreePool: preflight — waiting for in-progress reserve creation', {
           projectId,
           key,
         });
-        await promise;
+        creationWaits.push(promise);
       }
+    }
+    if (creationWaits.length > 0) {
+      await Promise.all(creationWaits);
     }
 
     // Collect all reserves for this project
@@ -650,15 +655,17 @@ export class WorktreePoolService {
 
   /** Start polling reserves for freshness (idempotent) */
   private startFreshnessPoll(): void {
-    if (this.pollTimer) return;
+    if (this.isPolling) return;
+    this.isPolling = true;
     this.schedulePollTick();
   }
 
   /** Schedule the next poll tick after POLL_INTERVAL_MS */
   private schedulePollTick(): void {
     this.pollTimer = setTimeout(async () => {
+      this.pollTimer = undefined;
       await this.checkAndRefreshReserves().catch(() => {});
-      if (this.pollTimer) {
+      if (this.isPolling) {
         this.schedulePollTick();
       }
     }, this.FRESHNESS_POLL_INTERVAL_MS);
@@ -666,6 +673,7 @@ export class WorktreePoolService {
 
   /** Stop freshness polling */
   private stopFreshnessPoll(): void {
+    this.isPolling = false;
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = undefined;
