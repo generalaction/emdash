@@ -103,6 +103,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    fontSize: number;
     autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
@@ -175,6 +176,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    fontSize: 0,
     autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
@@ -513,7 +515,13 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
-  out.terminal = { fontFamily, autoCopyOnSelection };
+  const rawFontSize = term?.fontSize;
+  let fontSize = 0;
+  if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
+    const clamped = Math.round(rawFontSize);
+    fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
+  }
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;
