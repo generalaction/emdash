@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { LocalProject, SshProject } from '@shared/projects/types';
 import { rpc } from '../lib/ipc';
-import type { Project } from '../types/app';
 import { useToast } from './use-toast';
 
 export const useProjectManagement = () => {
@@ -15,36 +15,12 @@ export const useProjectManagement = () => {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  const addLocalProjectMutation = useMutation({
-    mutationFn: async ({ path, name }: { path: string; name: string }) => {
-      const result = await rpc.projects.createLocalProject({ path, name });
-      return result;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
-  });
-
-  const addRemoteProjectMutation = useMutation({
-    mutationFn: async ({
-      connectionId,
-      path,
-      name,
-    }: {
-      connectionId: string;
-      path: string;
-      name: string;
-    }) => {
-      const result = await rpc.projects.createSshProject({ connectionId, path, name });
-      return result;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
-  });
-
   const deleteProjectMutation = useMutation({
     mutationFn: async (projectId: string) => {
       await rpc.projects.deleteProject(projectId);
     },
     onMutate: (projectId) => {
-      queryClient.setQueryData<Project[]>(['projects'], (old = []) =>
+      queryClient.setQueryData<Array<LocalProject | SshProject>>(['projects'], (old = []) =>
         old.filter((p) => p.id !== projectId)
       );
     },
@@ -68,26 +44,8 @@ export const useProjectManagement = () => {
     deleteProjectMutation.mutate(projectId);
   };
 
-  const addLocalProject = ({ path, name }: { path: string; name: string }) => {
-    addLocalProjectMutation.mutate({ path, name });
-  };
-
-  const addRemoteProject = ({
-    connectionId,
-    path,
-    name,
-  }: {
-    connectionId: string;
-    path: string;
-    name: string;
-  }) => {
-    addRemoteProjectMutation.mutate({ connectionId, path, name });
-  };
-
   return {
     projects,
     deleteProject,
-    addLocalProject,
-    addRemoteProject,
   };
 };

@@ -13,12 +13,14 @@ import { ImperativePanelHandle } from 'react-resizable-panels';
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
   isRightOpen: boolean;
-  leftPanelRef: RefObject<ImperativePanelHandle>;
-  rightPanelRef: RefObject<ImperativePanelHandle>;
+  leftPanelRef: RefObject<ImperativePanelHandle | null>;
+  rightPanelRef: RefObject<ImperativePanelHandle | null>;
   setIsLeftOpen: (open: boolean) => void;
   setIsRightOpen: (open: boolean) => void;
   handleDragging: (side: 'left' | 'right', dragging: boolean) => void;
   setCollapsed: (side: 'left' | 'right', collapsed: boolean) => void;
+  toggleLeft: () => void;
+  toggleRight: () => void;
 }
 
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
@@ -66,6 +68,14 @@ export function useWorkspaceLayoutService() {
     }
   }, []);
 
+  const toggleLeft = useCallback(() => {
+    setCollapsed('left', isLeftOpen);
+  }, [setCollapsed, isLeftOpen]);
+
+  const toggleRight = useCallback(() => {
+    setCollapsed('right', isRightOpen);
+  }, [setCollapsed, isRightOpen]);
+
   return {
     leftPanelRef,
     rightPanelRef,
@@ -75,6 +85,8 @@ export function useWorkspaceLayoutService() {
     isLeftOpen,
     isRightOpen,
     setCollapsed,
+    toggleLeft,
+    toggleRight,
   };
 }
 

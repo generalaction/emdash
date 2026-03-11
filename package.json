@@ -10,6 +10,7 @@
     "dev": "electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
+    "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",

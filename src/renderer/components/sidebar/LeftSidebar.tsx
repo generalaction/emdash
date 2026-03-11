@@ -1,5 +1,5 @@
 import { Home, Puzzle, Settings } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import ReorderList from '@renderer/components/ReorderList';
 import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
 import { Button } from '@renderer/components/ui/button';
@@ -11,8 +11,10 @@ import {
 } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 import type { Project } from '@renderer/types/app';
+import { SidebarProjectItem } from './ProjectItem';
+import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import {
-  Sidebar,
+  SidebarContainer,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
@@ -20,26 +22,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from '../ui/sidebar';
-import { SidebarProjectItem } from './ProjectItem';
-import { ProjectsGroupLabel } from './ProjectsGroupLabel';
+} from './sidebar-primitives';
 import { SidebarProvider } from './SidebarProvider';
 import { SidebarSpace } from './SidebarSpace';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 
-interface LeftSidebarProps {
-  onSidebarContextChange?: (state: {
-    open: boolean;
-    isMobile: boolean;
-    setOpen: (next: boolean) => void;
-  }) => void;
-}
-
-export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange }) => {
-  const { open, isMobile, setOpen } = useSidebar();
-  const { projects, handleOpenProject: onOpenProject } = useProjectManagementContext();
+export const LeftSidebar: React.FC = () => {
+  const { projects } = useProjectManagementContext();
   const { navigate } = useWorkspaceNavigation();
   const { currentView } = useWorkspaceSlots();
 
@@ -64,16 +54,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
     [setProjectOrder]
   );
 
-  useEffect(() => {
-    onSidebarContextChange?.({ open, isMobile, setOpen });
-  }, [open, isMobile, setOpen, onSidebarContextChange]);
-
   return (
     <SidebarProvider>
       <div className="relative h-full">
         <SidebarSpace />
-        <Sidebar className="!w-full lg:border-r-0">
-          <SidebarHeader className="border-b-0 px-3 py-3">
+        <SidebarContainer className="!w-full lg:border-r-0">
+          <SidebarHeader>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -147,12 +133,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ onSidebarContextChange
                   title="Put your agents to work"
                   description="Create a task and run one or more agents on it in parallel."
                   actionLabel="Open Folder"
-                  onAction={onOpenProject}
+                  onAction={() => {}}
                 />
               </div>
             )}
           </SidebarContent>
-        </Sidebar>
+        </SidebarContainer>
       </div>
     </SidebarProvider>
   );

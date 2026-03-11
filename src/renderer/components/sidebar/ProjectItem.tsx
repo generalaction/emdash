@@ -14,7 +14,7 @@ import {
 import { useRemoteProject } from '@renderer/hooks/useRemoteProject';
 import type { Project } from '@renderer/types/app';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { SidebarMenuItem } from '../ui/sidebar';
+import { SidebarMenuItem } from './sidebar-primitives';
 import { useSidebarContext } from './SidebarProvider';
 import { SidebarTaskItem } from './SidebarTaskItem';
 

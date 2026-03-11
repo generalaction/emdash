@@ -8,6 +8,13 @@
       "when": 1772901684113,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1773249736767,
+      "tag": "0001_misty_micromax",
+      "breakpoints": true
     }
   ]
 }

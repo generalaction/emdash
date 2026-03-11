@@ -4,7 +4,7 @@ import { workspaceManager } from '@main/core/workspaces/workspace-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { createLocalProject, createSshProject } from './createProject';
-import { getProjects } from './getProjects';
+import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './getProjects';
 
 export const projectController = createRPCController({
   createLocalProject,
@@ -14,4 +14,6 @@ export const projectController = createRPCController({
     await workspaceManager.removeProject(id);
     await db.delete(projects).where(eq(projects.id, id));
   },
+  getLocalProjectByPath,
+  getSshProjectByPath,
 });

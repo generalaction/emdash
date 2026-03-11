@@ -1,37 +1,23 @@
 import ProjectMainView from '@renderer/components/ProjectMainView';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
-import TitlebarContext from '@renderer/components/titlebar/TitlebarContext';
 import { useCurrentProject } from '@renderer/contexts/CurrentProjectProvider';
 import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useProjectBranchOptions } from '@renderer/hooks/useProjectBranchOptions';
 
 export function ProjectTitlebar() {
   const project = useCurrentProject();
-  const { projects } = useProjectManagementContext();
-  const { tasksByProjectId } = useTaskManagementContext();
-  const { navigate } = useWorkspaceNavigation();
-
-  const tasks = project ? (tasksByProjectId[project.id] ?? []) : [];
-  const projectWithTasks = project ? { ...project, tasks } : null;
-
   const currentPath = project?.isRemote ? project?.remotePath : project?.path || null;
 
   return (
     <Titlebar
       leftSlot={
-        <TitlebarContext
-          projects={projects.map((p) => ({
-            ...p,
-            tasks: tasksByProjectId[p.id] ?? p.tasks ?? [],
-          }))}
-          selectedProject={projectWithTasks}
-          activeTask={null}
-          onSelectProject={(p) => navigate('project', { projectId: p.id })}
-          onSelectTask={(task) => navigate('task', { projectId: task.projectId, taskId: task.id })}
-        />
+        project && (
+          <div className="flex items-center px-2">
+            <span className="text-[13px] font-medium text-muted-foreground">{project.name}</span>
+          </div>
+        )
       }
       rightSlot={
         currentPath && (
@@ -49,7 +35,7 @@ export function ProjectTitlebar() {
 
 export function ProjectMainPanel() {
   const project = useCurrentProject();
-  const { handleDeleteProject } = useProjectManagementContext();
+  const { deleteProject } = useProjectManagementContext();
   const {
     tasksByProjectId,
     openTaskModal,
@@ -78,7 +64,7 @@ export function ProjectMainPanel() {
         onDeleteTask={handleDeleteTask}
         onArchiveTask={handleArchiveTask}
         onRestoreTask={handleRestoreTask}
-        onDeleteProject={handleDeleteProject}
+        onDeleteProject={() => deleteProject(project.id)}
         branchOptions={projectBranchOptions}
         isLoadingBranches={isLoadingBranches}
         onBaseBranchChange={setProjectDefaultBranch}

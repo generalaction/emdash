@@ -11,17 +11,14 @@ import RightSidebar from '@renderer/components/RightSidebar';
 import TaskCreationLoading from '@renderer/components/TaskCreationLoading';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
-import TitlebarContext from '@renderer/components/titlebar/TitlebarContext';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { DEFAULT_EXCLUDE_PATTERNS, isMarkdownFile } from '@renderer/constants/file-explorer';
 import { useCodeEditorContext } from '@renderer/contexts/CodeEditorProvider';
 import { ConversationsProvider } from '@renderer/contexts/ConversationsProvider';
 import { useCurrentProject } from '@renderer/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@renderer/contexts/CurrentTaskProvider';
-import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
 import { useTaskViewContext } from '@renderer/contexts/TaskViewProvider';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useAutoPrRefresh } from '@renderer/hooks/useAutoPrRefresh';
 import { useEditorDiffDecorations } from '@renderer/hooks/useEditorDiffDecorations';
 import { useProjectBranchOptions } from '@renderer/hooks/useProjectBranchOptions';
@@ -39,9 +36,6 @@ import { applyMonacoTheme, defineMonacoThemes } from '@renderer/lib/monaco-theme
 export function TaskTitlebar() {
   const project = useCurrentProject();
   const task = useCurrentTask();
-  const { projects } = useProjectManagementContext();
-  const { tasksByProjectId } = useTaskManagementContext();
-  const { navigate } = useWorkspaceNavigation();
   const { view, setView } = useTaskViewContext();
 
   const isTaskMultiAgent = Boolean(task?.metadata?.multiAgent?.enabled);
@@ -49,23 +43,22 @@ export function TaskTitlebar() {
     ? null
     : task?.path || (project?.isRemote ? project?.remotePath : project?.path) || null;
 
-  const projectWithTasks = project
-    ? { ...project, tasks: tasksByProjectId[project.id] ?? project.tasks ?? [] }
-    : null;
-
   return (
     <Titlebar
       leftSlot={
-        <TitlebarContext
-          projects={projects.map((p) => ({
-            ...p,
-            tasks: tasksByProjectId[p.id] ?? p.tasks ?? [],
-          }))}
-          selectedProject={projectWithTasks}
-          activeTask={task}
-          onSelectProject={(p) => navigate('project', { projectId: p.id })}
-          onSelectTask={(t) => navigate('task', { projectId: t.projectId, taskId: t.id })}
-        />
+        project && (
+          <div className="flex items-center px-2">
+            <span className="text-[13px] font-medium text-muted-foreground">{project.name}</span>
+            {task && (
+              <>
+                <span className="px-2 text-center text-[11px] text-muted-foreground/60">/</span>
+                <span className="max-w-[218px] truncate text-[13px] font-medium text-muted-foreground">
+                  {task.name}
+                </span>
+              </>
+            )}
+          </div>
+        )
       }
       rightSlot={
         <>

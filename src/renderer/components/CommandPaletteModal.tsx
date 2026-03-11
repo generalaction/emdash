@@ -1,22 +1,19 @@
 import React from 'react';
 import type { BaseModalProps } from '../contexts/ModalProvider';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
+import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import { useTheme } from '../hooks/useTheme';
-import type { Task } from '../types/app';
 import CommandPalette from './CommandPalette';
 import { useRightSidebar } from './ui/right-sidebar';
-import { useSidebar } from './ui/sidebar';
 
 type CommandPaletteModalProps = BaseModalProps<void>;
 
 export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClose }) => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
+  const { toggleLeft: toggleLeftSidebar } = useWorkspaceLayoutContext();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
-  const { projects, handleOpenProject } = useProjectManagementContext();
-  const { handleSelectTask } = useTaskManagementContext();
+  const { projects } = useProjectManagementContext();
   const { navigate } = useWorkspaceNavigation();
 
   return (
@@ -29,11 +26,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClos
         onClose();
       }}
       onSelectTask={(projectId, taskId) => {
-        const project = projects.find((p) => p.id === projectId);
-        const task = project?.tasks?.find((w: Task) => w.id === taskId);
-        if (project && task) {
-          handleSelectTask(task);
-        }
+        navigate('task', { projectId, taskId });
         onClose();
       }}
       onOpenSettings={() => {
@@ -60,7 +53,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClos
         navigate('home');
         onClose();
       }}
-      onOpenProject={handleOpenProject}
+      onOpenProject={() => {}}
     />
   );
 };

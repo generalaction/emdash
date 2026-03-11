@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { type LocalProject, type SshProject } from '@shared/projects/types';
 import { db } from '@main/db/client';
 import { projects, sshConnections } from '@main/db/schema';
 import { LocalGitService } from '../git/git-provider/local-git-provider';
@@ -7,9 +8,9 @@ import { SshGitService } from '../git/git-provider/ssh-git-provider';
 import { sshConnectionManager } from '../ssh/ssh-connection-manager';
 import { buildConnectConfigFromRow } from '../workspaces/build-connect-config';
 import { checkIsValidDirectory } from './detectGitInfo';
-import { type LocalProject, type SshProject } from './types';
 
 export type CreateLocalProjectParams = {
+  id?: string;
   path: string;
   name: string;
 };
@@ -30,7 +31,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   const [row] = await db
     .insert(projects)
     .values({
-      id: randomUUID(),
+      id: params.id ?? randomUUID(),
       name: params.name,
       path: gitInfo.rootPath,
       workspaceProvider: 'local',
@@ -53,14 +54,13 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
 }
 
 export type CreateSshProjectParams = {
+  id?: string;
   name: string;
   path: string;
   connectionId: string;
 };
 
 export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
-  const id = randomUUID();
-
   const [sshConnectionRow] = await db
     .select()
     .from(sshConnections)
@@ -82,7 +82,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   const [row] = await db
     .insert(projects)
     .values({
-      id,
+      id: params.id ?? randomUUID(),
       name: params.name,
       path: params.path,
       workspaceProvider: 'ssh',

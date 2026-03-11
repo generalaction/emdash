@@ -1,8 +1,8 @@
 import { PanelLeft } from 'lucide-react';
 import React from 'react';
+import { useWorkspaceLayoutContext } from '../../contexts/WorkspaceLayoutProvider';
 import { Button } from '../ui/button';
 import { ShortcutHint } from '../ui/shortcut-hint';
-import { useSidebar } from '../ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface SidebarLeftToggleButtonProps {
@@ -12,15 +12,15 @@ interface SidebarLeftToggleButtonProps {
 const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
   isDisabled = false,
 }) => {
-  const { toggle, open } = useSidebar();
+  const { toggleLeft, isLeftOpen } = useWorkspaceLayoutContext();
 
   const handleClick = async () => {
     if (isDisabled) return;
-    const newState = !open;
+    const newState = !isLeftOpen;
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('toolbar_left_sidebar_clicked', { state: newState ? 'open' : 'closed' });
     });
-    toggle();
+    toggleLeft();
   };
 
   return (

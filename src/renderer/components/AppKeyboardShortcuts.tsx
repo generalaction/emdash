@@ -1,15 +1,15 @@
 import React from 'react';
 import { useRightSidebar } from '../components/ui/right-sidebar';
-import { useSidebar } from '../components/ui/sidebar';
 import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
+import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
 import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useTheme } from '../hooks/useTheme';
 
 const AppKeyboardShortcuts: React.FC = () => {
-  const { toggle: toggleLeftSidebar } = useSidebar();
+  const { toggleLeft: toggleLeftSidebar } = useWorkspaceLayoutContext();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { settings: keyboardSettings } = useKeyboardSettings();

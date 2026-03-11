@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PendingProjectsProvider } from './components/add-project-modal/pending-projects-provider';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './components/ThemeProvider';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
-import { SidebarProvider } from './components/ui/sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentProvider } from './contexts/AgentProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
@@ -52,27 +52,25 @@ export function App() {
                 <SshConnectionProvider>
                   <GithubContextProvider>
                     <IntegrationsProvider>
-                      {/* WorkspaceViewProvider must be above data providers so navigate() is available
-                  inside ProjectManagementProvider and TaskManagementProvider hooks */}
                       <WorkspaceViewProvider>
                         <ProjectManagementProvider>
-                          <TaskManagementProvider>
-                            <AppSettingsProvider>
-                              <AgentProvider>
-                                <KeyboardSettingsProvider>
-                                  <BrowserProvider>
-                                    <SidebarProvider>
+                          <PendingProjectsProvider>
+                            <TaskManagementProvider>
+                              <AppSettingsProvider>
+                                <AgentProvider>
+                                  <KeyboardSettingsProvider>
+                                    <BrowserProvider>
                                       <RightSidebarProvider>
                                         <ThemeProvider>
                                           <ErrorBoundary>{renderContent()}</ErrorBoundary>
                                         </ThemeProvider>
                                       </RightSidebarProvider>
-                                    </SidebarProvider>
-                                  </BrowserProvider>
-                                </KeyboardSettingsProvider>
-                              </AgentProvider>
-                            </AppSettingsProvider>
-                          </TaskManagementProvider>
+                                    </BrowserProvider>
+                                  </KeyboardSettingsProvider>
+                                </AgentProvider>
+                              </AppSettingsProvider>
+                            </TaskManagementProvider>
+                          </PendingProjectsProvider>
                         </ProjectManagementProvider>
                       </WorkspaceViewProvider>
                     </IntegrationsProvider>

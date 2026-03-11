@@ -1,8 +1,8 @@
 import { FolderPlus } from 'lucide-react';
 import React from 'react';
 import { Button } from '@renderer/components/ui/button';
-import { SidebarGroupLabel } from '@renderer/components/ui/sidebar';
 import { useShowModal } from '@renderer/contexts/ModalProvider';
+import { SidebarGroupLabel } from './sidebar-primitives';
 
 export function ProjectsGroupLabel() {
   const showAddProjectModal = useShowModal('addProjectModal');
