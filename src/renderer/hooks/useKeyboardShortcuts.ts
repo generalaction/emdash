@@ -601,6 +601,9 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         }
       }
 
+      // Skip number shortcuts when typing in editable fields
+      if (isEditableTarget) return;
+
       // Handle number key shortcuts (1-9) for task/agent selection
       const useCmdForTasks =
         handlers.customKeyboardSettings?.numberShortcutBehavior === 'cmd-tasks';
