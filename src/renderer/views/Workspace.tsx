@@ -155,14 +155,6 @@ export function Workspace() {
     };
   }, []);
 
-  // Listen for native menu "Settings" click (main → renderer)
-  useEffect(() => {
-    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      openSettingsPage();
-    });
-    return () => cleanup?.();
-  }, [openSettingsPage]);
-
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
@@ -188,6 +180,15 @@ export function Workspace() {
   // --- Project management (provided by ProjectManagementProvider in App.tsx) ---
   const projectMgmt = useProjectManagementContext();
   const { showEditorMode, setShowEditorMode, setShowKanban } = projectMgmt;
+
+  // Listen for native menu "Settings" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
+      setShowEditorMode(false);
+      openSettingsPage();
+    });
+    return () => cleanup?.();
+  }, [openSettingsPage, setShowEditorMode]);
 
   const handleToggleKanban = useCallback(() => {
     if (!projectMgmt.selectedProject) return;
