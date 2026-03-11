@@ -22,6 +22,7 @@ import {
   shouldPasteToTerminal,
 } from './terminalKeybindings';
 import { rpc } from '@/lib/rpc';
+import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -38,6 +39,20 @@ const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+// Keys registered as global app shortcuts (Cmd on macOS, Ctrl on Linux/Windows).
+// Used to let these combos pass through xterm to the window-level shortcut handler
+// instead of being consumed by the terminal.
+const APP_CMD_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd')
+    .map((s) => normalizeShortcutKey(s.key))
+);
+const APP_CMD_SHIFT_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd+shift')
+    .map((s) => normalizeShortcutKey(s.key))
+);
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -381,12 +396,14 @@ export class TerminalSessionManager {
         }
       }
 
-      // Let unhandled Cmd+key / Ctrl+key combos propagate to global shortcuts.
-      if (
-        (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey) ||
-        (!IS_MAC_PLATFORM && event.ctrlKey && !event.metaKey)
-      ) {
-        return false;
+      // Let registered app shortcuts propagate to the global handler.
+      const hasPlatformMod = IS_MAC_PLATFORM
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey;
+      if (hasPlatformMod) {
+        const key = normalizeShortcutKey(event.key);
+        if (!event.shiftKey && APP_CMD_KEYS.has(key)) return false;
+        if (event.shiftKey && APP_CMD_SHIFT_KEYS.has(key)) return false;
       }
 
       return true; // Let xterm handle all other keys normally
