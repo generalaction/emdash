@@ -620,7 +620,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {onOpenChanges && (
                   <Button
                     variant="outline"
@@ -695,7 +695,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               <span className="text-muted-foreground">&middot;</span>
               <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {onOpenChanges && (
                 <Button
                   variant="outline"
