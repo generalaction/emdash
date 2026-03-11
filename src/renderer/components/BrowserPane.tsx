@@ -2,6 +2,7 @@ import React from 'react';
 import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
+import { normalizeAddressBarUrl } from '@/lib/browserPaneUtils';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Button } from './ui/button';
@@ -492,8 +493,7 @@ const BrowserPane: React.FC<{
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
               e.preventDefault();
-              let next = address.trim();
-              if (!/^(?:https?|file):\/\//i.test(next)) next = `http://${next}`;
+              const next = normalizeAddressBarUrl(address);
               navigate(next);
             }}
           >

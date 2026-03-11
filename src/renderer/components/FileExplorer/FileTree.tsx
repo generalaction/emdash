@@ -7,6 +7,7 @@ import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
 import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
 import { useBrowser } from '@/providers/BrowserProvider';
+import { isHtmlFile, buildFileUrl } from '@/lib/browserPaneUtils';
 import type { FileChange } from '@/hooks/useFileChanges';
 import {
   ContextMenu,
@@ -259,7 +260,7 @@ const TreeNode: React.FC<{
             <ContextMenuItem onSelect={() => onContextMenuReveal?.(node)}>
               Reveal in Finder
             </ContextMenuItem>
-            {/\.html?$/i.test(node.name) && (
+            {isHtmlFile(node.name) && (
               <ContextMenuItem onSelect={() => onContextMenuOpenInBrowser?.(node)}>
                 Open in Browser Pane
               </ContextMenuItem>
@@ -605,8 +606,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const handleOpenInBrowser = useCallback(
     (node: FileNode) => {
-      const absPath = pathUtils.join(rootPath, node.path);
-      browser.open(`file://${absPath}`);
+      browser.open(buildFileUrl(rootPath, node.path));
     },
     [rootPath, browser]
   );
