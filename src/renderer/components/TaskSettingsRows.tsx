@@ -44,6 +44,7 @@ export const AutoInferTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) => {
   const showError =
     Boolean(taskSettings.error) &&
     (taskSettings.errorScope === 'autoInferTaskNames' || taskSettings.errorScope === 'load');
+  const isDisabled = taskSettings.loading || taskSettings.saving || !taskSettings.autoGenerateName;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -58,10 +59,15 @@ export const AutoInferTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) => {
         </div>
         <Switch
           checked={taskSettings.autoInferTaskNames}
-          disabled={taskSettings.loading || taskSettings.saving}
+          disabled={isDisabled}
           onCheckedChange={taskSettings.updateAutoInferTaskNames}
         />
       </div>
+      {!taskSettings.autoGenerateName ? (
+        <p className="text-xs text-muted-foreground">
+          Requires &ldquo;Auto-generate task names&rdquo; to be enabled.
+        </p>
+      ) : null}
       {showError ? <p className="text-xs text-destructive">{taskSettings.error}</p> : null}
     </div>
   );

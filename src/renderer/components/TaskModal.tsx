@@ -375,12 +375,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     if (!finalName) {
       // No name at all — use a random fallback; mark for post-creation rename
       finalName = generateFriendlyTaskName(normalizedExisting);
-      isNameGenerated = autoInferTaskNames;
+      isNameGenerated = autoGenerateName && autoInferTaskNames;
     } else if (!userHasTypedRef.current && !nameFromContextRef.current) {
       // User never touched the name field AND the name wasn't derived from
       // context (prompt/issue) — it's still a random fallback name.
       // Mark for post-creation rename so the first terminal message can improve it.
-      isNameGenerated = autoInferTaskNames;
+      isNameGenerated = autoGenerateName && autoInferTaskNames;
     }
     // When the name was auto-generated from context (prompt/issue),
     // it's already descriptive — don't mark it for post-creation rename.

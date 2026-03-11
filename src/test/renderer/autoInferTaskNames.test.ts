@@ -23,6 +23,7 @@ describe('autoInferTaskNames toggle logic', () => {
     it('nameGenerated should be false so post-creation rename is skipped', () => {
       // When autoInferTaskNames is false, isNameGenerated should be set to false.
       // This simulates the TaskModal submit logic.
+      const autoGenerateName = true;
       const autoInferTaskNames = false;
       const userHasTyped = false;
       const nameFromContext = false;
@@ -31,9 +32,9 @@ describe('autoInferTaskNames toggle logic', () => {
       const finalName = '';
       if (!finalName) {
         // Random fallback
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       } else if (!userHasTyped && !nameFromContext) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       }
 
       expect(isNameGenerated).toBe(false);
@@ -62,8 +63,9 @@ describe('autoInferTaskNames toggle logic', () => {
     });
 
     it('nameGenerated should be true so post-creation rename is allowed', () => {
-      // When autoInferTaskNames is true, isNameGenerated should be true
-      // for random fallback names.
+      // When both autoGenerateName and autoInferTaskNames are true,
+      // isNameGenerated should be true for random fallback names.
+      const autoGenerateName = true;
       const autoInferTaskNames = true;
       const userHasTyped = false;
       const nameFromContext = false;
@@ -72,15 +74,16 @@ describe('autoInferTaskNames toggle logic', () => {
       const finalName = '';
       if (!finalName) {
         // Random fallback
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       } else if (!userHasTyped && !nameFromContext) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       }
 
       expect(isNameGenerated).toBe(true);
     });
 
     it('nameGenerated should be false when user typed a custom name', () => {
+      const autoGenerateName = true;
       const autoInferTaskNames = true;
       const userHasTyped = true;
       const nameFromContext = false;
@@ -88,15 +91,16 @@ describe('autoInferTaskNames toggle logic', () => {
 
       let isNameGenerated = false;
       if (!finalName) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       } else if (!userHasTyped && !nameFromContext) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       }
 
       expect(isNameGenerated).toBe(false);
     });
 
     it('nameGenerated should be false when name was derived from context', () => {
+      const autoGenerateName = true;
       const autoInferTaskNames = true;
       const userHasTyped = false;
       const nameFromContext = true;
@@ -104,9 +108,45 @@ describe('autoInferTaskNames toggle logic', () => {
 
       let isNameGenerated = false;
       if (!finalName) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       } else if (!userHasTyped && !nameFromContext) {
-        isNameGenerated = autoInferTaskNames;
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
+      }
+
+      expect(isNameGenerated).toBe(false);
+    });
+  });
+
+  describe('when autoGenerateName is OFF but autoInferTaskNames is ON', () => {
+    it('nameGenerated should be false — autoGenerateName gates the flag', () => {
+      const autoGenerateName = false;
+      const autoInferTaskNames = true;
+      const userHasTyped = false;
+      const nameFromContext = false;
+
+      let isNameGenerated = false;
+      const finalName = '';
+      if (!finalName) {
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
+      } else if (!userHasTyped && !nameFromContext) {
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
+      }
+
+      expect(isNameGenerated).toBe(false);
+    });
+
+    it('nameGenerated stays false even for a non-empty random fallback name', () => {
+      const autoGenerateName = false;
+      const autoInferTaskNames = true;
+      const userHasTyped = false;
+      const nameFromContext = false;
+      const finalName = 'some-random-name';
+
+      let isNameGenerated = false;
+      if (!finalName) {
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
+      } else if (!userHasTyped && !nameFromContext) {
+        isNameGenerated = autoGenerateName && autoInferTaskNames;
       }
 
       expect(isNameGenerated).toBe(false);
