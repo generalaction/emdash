@@ -129,11 +129,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     isLoadingBranches,
     refreshBranches,
   } = useProjectManagementContext();
-  const { linkedGithubIssueMap, tasksByProjectId } = useTaskManagementContext();
+  const { linkedGithubIssueMap } = useTaskManagementContext();
 
   const project = initialProject ?? selectedProject;
   const projectName = project?.name || '';
-  const existingNames = project?.id ? (tasksByProjectId[project.id] ?? []).map((t) => t.name) : [];
+  const existingNames = (project?.tasks || []).map((w) => w.name);
   const projectPath = project?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
