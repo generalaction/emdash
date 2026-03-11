@@ -56,6 +56,8 @@ export function registerWorktreeIpc(): void {
         taskName: string;
         projectId: string;
         baseRef?: string;
+        customBranchName?: string;
+        customWorktreeName?: string;
       }
     ) => {
       try {
@@ -92,7 +94,9 @@ export function registerWorktreeIpc(): void {
           args.projectPath,
           args.taskName,
           args.projectId,
-          args.baseRef
+          args.baseRef,
+          args.customBranchName,
+          args.customWorktreeName
         );
         return { success: true, worktree };
       } catch (error) {
@@ -318,6 +322,8 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         taskName: string;
         baseRef?: string;
+        customBranchName?: string;
+        customWorktreeName?: string;
       }
     ) => {
       try {
@@ -332,7 +338,9 @@ export function registerWorktreeIpc(): void {
           args.projectId,
           args.projectPath,
           args.taskName,
-          args.baseRef
+          args.baseRef,
+          args.customBranchName,
+          args.customWorktreeName
         );
         if (result) {
           return {
@@ -359,6 +367,8 @@ export function registerWorktreeIpc(): void {
         projectPath: string;
         taskName: string;
         baseRef?: string;
+        customBranchName?: string;
+        customWorktreeName?: string;
         task: {
           projectId: string;
           name: string;
@@ -382,7 +392,9 @@ export function registerWorktreeIpc(): void {
           args.projectId,
           args.projectPath,
           args.taskName,
-          args.baseRef
+          args.baseRef,
+          args.customBranchName,
+          args.customWorktreeName
         );
         if (!claim) {
           return { success: false, error: 'No reserve available' };

@@ -24,6 +24,8 @@ export interface CreateTaskParams {
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  customBranchName?: string;
+  customWorktreeName?: string;
 }
 
 export interface CreateTaskResult {
@@ -303,6 +305,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     nameGenerated,
     useWorktree,
     baseRef,
+    customBranchName,
+    customWorktreeName,
   } = params;
 
   // Build prompt prefix from linked issues
@@ -531,6 +535,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       projectPath: project.path,
       taskName,
       baseRef,
+      customBranchName,
+      customWorktreeName,
       task: {
         projectId: project.id,
         name: taskName,
@@ -556,6 +562,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
         taskName,
         projectId: project.id,
         baseRef,
+        customBranchName,
+        customWorktreeName,
       });
       if (!worktreeResult.success) {
         throw new Error(worktreeResult.error || 'Failed to create worktree');
