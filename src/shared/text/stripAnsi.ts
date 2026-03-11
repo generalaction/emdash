@@ -1,0 +1,46 @@
+export interface StripAnsiOptions {
+  stripCsi?: boolean;
+  includePrivateCsiParams?: boolean;
+  stripOscBell?: boolean;
+  stripOscSt?: boolean;
+  stripOtherEscapes?: boolean;
+  stripCarriageReturn?: boolean;
+}
+
+const CSI_RE = /\x1b\[[0-9;]*[ -/]*[@-~]/g;
+const CSI_PRIVATE_RE = /\x1b\[[0-?]*[ -/]*[@-~]/g;
+
+export function stripAnsi(input: string, options: StripAnsiOptions = {}): string {
+  const {
+    stripCsi = true,
+    includePrivateCsiParams = false,
+    stripOscBell = true,
+    stripOscSt = false,
+    stripOtherEscapes = false,
+    stripCarriageReturn = false,
+  } = options;
+
+  let output = input;
+
+  if (stripCsi) {
+    output = output.replace(includePrivateCsiParams ? CSI_PRIVATE_RE : CSI_RE, '');
+  }
+
+  if (stripOscBell) {
+    output = output.replace(/\x1b\][^\x07]*\x07/g, '');
+  }
+
+  if (stripOscSt) {
+    output = output.replace(/\x1b\][^\x1b]*\x1b\\/g, '');
+  }
+
+  if (stripOtherEscapes) {
+    output = output.replace(/\x1b[A-Za-z]/g, '');
+  }
+
+  if (stripCarriageReturn) {
+    output = output.replace(/\r/g, '');
+  }
+
+  return output;
+}

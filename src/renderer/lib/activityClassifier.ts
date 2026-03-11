@@ -1,13 +1,9 @@
+import { stripAnsi } from '@shared/text/stripAnsi';
+
 export type ActivitySignal = 'busy' | 'idle' | 'neutral';
 const MAX_ACTIVITY_CHUNK_CHARS = 8_192;
 
-function stripAnsi(s: string): string {
-  // Remove ANSI escape codes and carriage returns
-  return s
-    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/\r/g, '')
-    .replace(/\x1b\][^\x07]*\x07/g, '');
-}
+export type ActivitySignal = 'busy' | 'idle' | 'neutral';
 
 /**
  * Keep activity classification work bounded by sampling the most recent part
@@ -23,7 +19,7 @@ export function classifyActivity(
   chunk: string
 ): ActivitySignal {
   let text = (chunk || '').toString();
-  text = stripAnsi(text);
+  text = stripAnsi(text, { stripCarriageReturn: true });
   if (!text) return 'neutral';
 
   const p = (provider || '').toLowerCase();
