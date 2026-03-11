@@ -6,7 +6,7 @@ import { SSH_CONNECTION_RESTORED_EVENT, type SshConnectionRestoredDetail } from 
 
 export type TerminalPaneHandle = {
   focus: () => void;
-  scrollViewportByWheel: (deltaY: number, deltaMode: number) => boolean;
+  scrollViewportFromWheelDelta: (deltaY: number, deltaMode: number) => boolean;
 };
 
 type Props = {
@@ -118,8 +118,8 @@ const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
         focus: () => {
           sessionRef.current?.focus();
         },
-        scrollViewportByWheel: (deltaY: number, deltaMode: number) =>
-          sessionRef.current?.scrollViewportByWheel(deltaY, deltaMode) ?? false,
+        scrollViewportFromWheelDelta: (deltaY: number, deltaMode: number) =>
+          sessionRef.current?.scrollViewportFromWheelDelta(deltaY, deltaMode) ?? false,
       }),
       []
     );

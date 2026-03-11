@@ -623,7 +623,7 @@ export class TerminalSessionManager {
     }
   }
 
-  scrollViewportByWheel(deltaY: number, deltaMode: number): boolean {
+  scrollViewportFromWheelDelta(deltaY: number, deltaMode: number): boolean {
     const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
     if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
 
@@ -632,7 +632,7 @@ export class TerminalSessionManager {
     this.wheelLineRemainder = totalDelta - wholeLines;
 
     if (wholeLines === 0) return false;
-    return this.scrollViewportByLines(wholeLines);
+    return this.scrollViewportByLineDelta(wholeLines);
   }
 
   search(
@@ -997,7 +997,7 @@ export class TerminalSessionManager {
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
   }
 
-  private scrollViewportByLines(lines: number): boolean {
+  private scrollViewportByLineDelta(lines: number): boolean {
     try {
       const buffer = this.terminal.buffer?.active;
       if (
