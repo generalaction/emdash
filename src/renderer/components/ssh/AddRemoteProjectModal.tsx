@@ -828,7 +828,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             ) : savedConnections.length > 0 ? (
               <div className="space-y-2">
                 <Label>Saved Connections</Label>
-                <div className="space-y-2">
+                <div className="max-h-[232px] space-y-2 overflow-y-auto">
                   {savedConnections.map((conn) => (
                     <button
                       key={conn.id}
