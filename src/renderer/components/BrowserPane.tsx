@@ -436,16 +436,16 @@ const BrowserPane: React.FC<{
 
   return (
     <div
-      className={cn(
-        'fixed bottom-0 left-0 right-0 z-[70] overflow-hidden',
-        paneVisible ? 'pointer-events-auto' : 'pointer-events-none'
-      )}
-      // Offset below the app titlebar so the pane’s toolbar is visible
+      className="pointer-events-none fixed bottom-0 left-0 right-0 z-[70] overflow-hidden"
+      // Offset below the app titlebar so the pane's toolbar is visible
       style={{ top: 'var(--tb, 36px)' }}
       aria-hidden={!paneVisible}
     >
       <div
-        className="absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl"
+        className={cn(
+          'absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl',
+          paneVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        )}
         style={{
           width: `${widthPct}%`,
           transform: paneVisible ? 'translateX(0)' : 'translateX(100%)',
@@ -493,7 +493,7 @@ const BrowserPane: React.FC<{
             onSubmit={(e) => {
               e.preventDefault();
               let next = address.trim();
-              if (!/^https?:\/\//i.test(next)) next = `http://${next}`;
+              if (!/^(?:https?|file):\/\//i.test(next)) next = `http://${next}`;
               navigate(next);
             }}
           >
