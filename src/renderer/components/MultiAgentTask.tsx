@@ -16,6 +16,7 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS, INJECT_ENTER_DELAY_MS } from '@/lib/activi
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
 
@@ -399,24 +400,10 @@ const MultiAgentTask: React.FC<Props> = ({
     activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
-  // Ref to the active terminal
+  // Ref to control terminal focus and viewport scrolling imperatively.
   const activeTerminalRef = useRef<TerminalPaneHandle>(null);
-
-  const handleTerminalViewportScrollForwarding = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-
-    const target = event.target;
-    if (target instanceof Element && target.closest('[data-terminal-container]')) {
-      return;
-    }
-
-    const didScroll =
-      activeTerminalRef.current?.scrollViewportByWheel(event.deltaY, event.deltaMode) ?? false;
-    if (didScroll) {
-      event.preventDefault();
-    }
-  };
+  const handleTerminalViewportWheelForwarding =
+    useTerminalViewportWheelForwarding(activeTerminalRef);
 
   // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
@@ -554,7 +541,7 @@ const MultiAgentTask: React.FC<Props> = ({
               </div>
               <div
                 className="min-h-0 flex-1 px-6 pt-4"
-                onWheelCapture={handleTerminalViewportScrollForwarding}
+                onWheelCapture={handleTerminalViewportWheelForwarding}
               >
                 <div
                   className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${

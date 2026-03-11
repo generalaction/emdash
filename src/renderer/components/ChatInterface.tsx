@@ -22,6 +22,7 @@ import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
@@ -397,24 +398,9 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [activeConversationId, conversations, task.id]);
 
-  // Ref to control terminal focus imperatively if needed
+  // Ref to control terminal focus and viewport scrolling imperatively.
   const terminalRef = useRef<TerminalPaneHandle>(null);
-
-  const handleTerminalViewportScrollForwarding = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-
-    const target = event.target;
-    if (target instanceof Element && target.closest('[data-terminal-container]')) {
-      return;
-    }
-
-    const didScroll =
-      terminalRef.current?.scrollViewportByWheel(event.deltaY, event.deltaMode) ?? false;
-    if (didScroll) {
-      event.preventDefault();
-    }
-  };
+  const handleTerminalViewportWheelForwarding = useTerminalViewportWheelForwarding(terminalRef);
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -1132,7 +1118,7 @@ const ChatInterface: React.FC<Props> = ({
           </div>
           <div
             className="mt-4 min-h-0 flex-1 px-6"
-            onWheelCapture={handleTerminalViewportScrollForwarding}
+            onWheelCapture={handleTerminalViewportWheelForwarding}
           >
             <div
               className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
