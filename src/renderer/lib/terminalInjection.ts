@@ -1,4 +1,5 @@
 import { INJECT_ENTER_DELAY_MS } from './activityConstants';
+import { stripAnsi } from '@shared/text/stripAnsi';
 import type { Agent } from '../types';
 
 export function buildCommentInjectionPayload(args: {
@@ -7,7 +8,14 @@ export function buildCommentInjectionPayload(args: {
   pendingText: string;
 }): { payload: string; submitDelayMs: number } {
   const { providerId, inputData, pendingText } = args;
-  const strippedInput = inputData.replace(/[\r\n]+$/g, '');
+  // inputData comes from TerminalSessionManager.handleTerminalInput which only
+  // strips focus-reporting CSI sequences. After PTY start, raw terminal input
+  // can still contain escape sequences (e.g. mouse reporting on click). Strip
+  // them so the payload sent to the agent is clean text + comments.
+  const strippedInput = stripAnsi(inputData, {
+    includePrivateCsiParams: true,
+    stripTrailingNewlines: true,
+  });
 
   // Claude handles raw multiline payloads correctly.
   if (providerId === 'claude') {

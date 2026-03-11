@@ -18,7 +18,12 @@ export function useCommentInjection(taskId?: string, taskPath?: string | null) {
         pendingInjectionManager.clear();
         hasPendingRef.current = false;
       }
-      return;
+      return () => {
+        if (hasPendingRef.current) {
+          pendingInjectionManager.clear();
+          hasPendingRef.current = false;
+        }
+      };
     }
 
     const formatted = formatCommentsForAgent(comments, {
@@ -33,6 +38,13 @@ export function useCommentInjection(taskId?: string, taskPath?: string | null) {
       pendingInjectionManager.clear();
       hasPendingRef.current = false;
     }
+
+    return () => {
+      if (hasPendingRef.current) {
+        pendingInjectionManager.clear();
+        hasPendingRef.current = false;
+      }
+    };
   }, [comments, resolvedTaskId]);
 
   useEffect(() => {

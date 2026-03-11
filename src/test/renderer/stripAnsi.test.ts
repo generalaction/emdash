@@ -33,6 +33,13 @@ describe('shared stripAnsi', () => {
     expect(stripAnsi('a\x1bMb', { stripOtherEscapes: true })).toBe('ab');
   });
 
+  it('strips trailing newlines when enabled', () => {
+    expect(stripAnsi('hello\r\n', { stripTrailingNewlines: true })).toBe('hello');
+    expect(stripAnsi('hello\n\r\n', { stripTrailingNewlines: true })).toBe('hello');
+    expect(stripAnsi('hello\nworld\r\n', { stripTrailingNewlines: true })).toBe('hello\nworld');
+    expect(stripAnsi('hello\r\n')).toBe('hello\r\n');
+  });
+
   it('does not strip non-escape text when stripOtherEscapes is enabled', () => {
     expect(stripAnsi('hello world', { stripOtherEscapes: true })).toBe('hello world');
     expect(stripAnsi('\x1b[32mhello\x1b[0m', { stripOtherEscapes: true })).toBe('hello');

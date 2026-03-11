@@ -5,6 +5,7 @@ export interface StripAnsiOptions {
   stripOscSt?: boolean;
   stripOtherEscapes?: boolean;
   stripCarriageReturn?: boolean;
+  stripTrailingNewlines?: boolean;
 }
 
 const CSI_RE = /\x1b\[[0-9;]*[ -/]*[@-~]/g;
@@ -18,6 +19,7 @@ export function stripAnsi(input: string, options: StripAnsiOptions = {}): string
     stripOscSt = false,
     stripOtherEscapes = false,
     stripCarriageReturn = false,
+    stripTrailingNewlines = false,
   } = options;
 
   let output = input;
@@ -40,6 +42,10 @@ export function stripAnsi(input: string, options: StripAnsiOptions = {}): string
 
   if (stripCarriageReturn) {
     output = output.replace(/\r/g, '');
+  }
+
+  if (stripTrailingNewlines) {
+    output = output.replace(/[\r\n]+$/g, '');
   }
 
   return output;
