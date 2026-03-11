@@ -281,7 +281,7 @@ const TerminalSettingsCard: React.FC = () => {
             onValueChange={(v) => applyFontSize(v === 'default' ? 0 : parseInt(v, 10))}
             disabled={loading || saving}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-9 bg-background hover:bg-accent hover:text-accent-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
