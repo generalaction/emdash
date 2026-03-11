@@ -603,9 +603,8 @@ export class LocalFileSystem implements IFileSystem {
       const fullOldPath = this.resolvePath(oldPath);
       const fullNewPath = this.resolvePath(newPath);
 
-      let oldStat;
       try {
-        oldStat = await fs.stat(fullOldPath);
+        await fs.stat(fullOldPath);
       } catch {
         return { success: false, error: 'Source does not exist' };
       }

@@ -889,8 +889,8 @@ export function registerFsIpc(): void {
         if (isRemoteRequest(args)) {
           try {
             const rfs = createRemoteFs(args);
-            const oldPath = path.join(args.remotePath, args.oldName);
-            const newPath = path.join(args.remotePath, args.newName);
+            const oldPath = path.posix.join(args.remotePath, args.oldName);
+            const newPath = path.posix.join(args.remotePath, args.newName);
             return await rfs.rename(oldPath, newPath);
           } catch (error) {
             console.error('fs:rename failed:', error);
@@ -928,7 +928,7 @@ export function registerFsIpc(): void {
         if (isRemoteRequest(args)) {
           try {
             const rfs = createRemoteFs(args);
-            const targetPath = path.join(args.remotePath, args.relPath);
+            const targetPath = path.posix.join(args.remotePath, args.relPath);
             return await rfs.mkdir(targetPath);
           } catch (error) {
             console.error('fs:mkdir remote failed:', error);
@@ -960,7 +960,7 @@ export function registerFsIpc(): void {
         if (isRemoteRequest(args)) {
           try {
             const rfs = createRemoteFs(args);
-            const targetPath = path.join(args.remotePath, args.relPath);
+            const targetPath = path.posix.join(args.remotePath, args.relPath);
             return await rfs.remove(targetPath);
           } catch (error) {
             console.error('fs:rmdir remote failed:', error);
