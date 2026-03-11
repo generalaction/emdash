@@ -80,12 +80,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
   const [expandedTerminalId, setExpandedTerminalId] = useState<string | null>(null);
-  // Bumped when the expanded modal closes to force the sidebar TerminalPane to re-attach
-  const [reattachKey, setReattachKey] = useState(0);
+  // Tracks which terminal needs a key bump to force re-attach after modal close
+  const [reattachId, setReattachId] = useState<string | null>(null);
+  const reattachCounter = useRef(0);
   const handleCloseExpandedTerminal = useCallback(() => {
+    setReattachId(expandedTerminalId);
+    reattachCounter.current += 1;
     setExpandedTerminalId(null);
-    setReattachKey((k) => k + 1);
-  }, []);
+  }, [expandedTerminalId]);
 
   const terminalRefs = useRef<Map<string, { focus: () => void }>>(new Map());
   const setTerminalRef = useCallback((id: string, ref: { focus: () => void } | null) => {
@@ -728,7 +730,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                   )}
                 >
                   <TerminalPane
-                    key={`${terminal.id}::${reattachKey}`}
+                    key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
                     ref={(r) => setTerminalRef(terminal.id, r)}
                     id={terminal.id}
                     cwd={terminal.cwd || task.path}
@@ -760,7 +762,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 )}
               >
                 <TerminalPane
-                  key={`${terminal.id}::${reattachKey}`}
+                  key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
                   ref={(r) => setTerminalRef(terminal.id, r)}
                   id={terminal.id}
                   cwd={terminal.cwd || projectPath}

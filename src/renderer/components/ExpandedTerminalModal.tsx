@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Minimize2, X } from 'lucide-react';
+import { Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
@@ -25,8 +25,7 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
     const container = containerRef.current;
     if (!container || !terminalId) return;
 
-    // Detach from sidebar, attach to this modal's container
-    terminalSessionRegistry.detach(terminalId);
+    // Attach to this modal's container — attach() internally detaches first
     const session = terminalSessionRegistry.reattach(terminalId, container);
 
     // Focus the terminal after DOM settles — double rAF ensures xterm has
@@ -98,34 +97,19 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
           >
             {title || 'Terminal'}
           </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onClose}
-              className={cn(
-                isDark
-                  ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              title="Collapse terminal (Esc)"
-            >
-              <Minimize2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onClose}
-              className={cn(
-                isDark
-                  ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              title="Close"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            className={cn(
+              isDark
+                ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            title="Collapse terminal (Esc)"
+          >
+            <Minimize2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
 
         {/* Terminal container — click to focus */}
