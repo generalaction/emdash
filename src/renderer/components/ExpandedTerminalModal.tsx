@@ -29,9 +29,12 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
     terminalSessionRegistry.detach(terminalId);
     const session = terminalSessionRegistry.reattach(terminalId, container);
 
-    // Focus the terminal after a short delay for DOM to settle
+    // Focus the terminal after DOM settles — double rAF ensures xterm has
+    // opened and fitted before we try to grab focus.
     requestAnimationFrame(() => {
-      session?.focus();
+      requestAnimationFrame(() => {
+        session?.focus();
+      });
     });
 
     return () => {
@@ -67,7 +70,7 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
   return createPortal(
     <div
       className="fixed inset-0 z-[900] flex flex-col"
-      role="dialog"
+      data-expanded-terminal="true"
       aria-label="Expanded terminal"
     >
       {/* Backdrop */}
@@ -125,8 +128,15 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
           </div>
         </div>
 
-        {/* Terminal container */}
-        <div ref={containerRef} className="flex-1 overflow-hidden" />
+        {/* Terminal container — click to focus */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden"
+          onClick={() => {
+            const session = terminalSessionRegistry.getSession(terminalId);
+            session?.focus();
+          }}
+        />
       </div>
     </div>,
     document.body
