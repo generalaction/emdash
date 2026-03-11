@@ -31,6 +31,7 @@ import {
 } from '../lib/taskNames';
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
+import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
@@ -55,6 +56,7 @@ export interface CreateTaskResult {
 
 interface TaskModalProps {
   onClose: () => void;
+  initialProject?: Project;
   onCreateTask: (
     name: string,
     initialPrompt?: string,
@@ -72,14 +74,17 @@ interface TaskModalProps {
   ) => Promise<void>;
 }
 
-export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
+export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult> & {
+  initialProject?: Project;
+};
 
-export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayProps) {
   const { handleCreateTask } = useTaskManagementContext();
 
   return (
     <TaskModal
       onClose={onClose}
+      initialProject={initialProject}
       onCreateTask={async (
         name,
         initialPrompt,
@@ -108,14 +113,15 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
           autoApprove,
           useWorktree,
           baseRef,
-          nameGenerated
+          nameGenerated,
+          initialProject ?? undefined
         );
       }}
     />
   );
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreateTask }) => {
   const {
     selectedProject,
     projectDefaultBranch: defaultBranch,
@@ -123,11 +129,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     isLoadingBranches,
     refreshBranches,
   } = useProjectManagementContext();
-  const { linkedGithubIssueMap } = useTaskManagementContext();
+  const { linkedGithubIssueMap, tasksByProjectId } = useTaskManagementContext();
 
-  const projectName = selectedProject?.name || '';
-  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
-  const projectPath = selectedProject?.path;
+  const project = initialProject ?? selectedProject;
+  const projectName = project?.name || '';
+  const existingNames = project?.id ? (tasksByProjectId[project.id] ?? []).map((t) => t.name) : [];
+  const projectPath = project?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
