@@ -3,6 +3,7 @@ import { Check, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
@@ -42,6 +43,7 @@ const TerminalSettingsCard: React.FC = () => {
   const [loadingFonts, setLoadingFonts] = useState<boolean>(false);
 
   const fontFamily = settings?.terminal?.fontFamily ?? '';
+  const fontSize = settings?.terminal?.fontSize ?? 0;
   const autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
 
   const popularOptions = useMemo<FontOption[]>(() => {
@@ -115,6 +117,16 @@ const TerminalSettingsCard: React.FC = () => {
       updateSettings({ terminal: { fontFamily: normalized } });
       window.dispatchEvent(
         new CustomEvent('terminal-font-changed', { detail: { fontFamily: normalized } })
+      );
+    },
+    [updateSettings]
+  );
+
+  const applyFontSize = useCallback(
+    (next: number) => {
+      updateSettings({ terminal: { fontSize: next } });
+      window.dispatchEvent(
+        new CustomEvent('terminal-font-size-changed', { detail: { fontSize: next } })
       );
     },
     [updateSettings]
@@ -254,6 +266,36 @@ const TerminalSettingsCard: React.FC = () => {
               </div>
             </PopoverContent>
           </Popover>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">Terminal font size</p>
+          <p className="text-sm text-muted-foreground">
+            Font size in pixels. Default uses your terminal config or 13px.
+          </p>
+        </div>
+        <div className="w-[120px] flex-shrink-0">
+          <Select
+            value={fontSize === 0 ? 'default' : String(fontSize)}
+            onValueChange={(v) => applyFontSize(v === 'default' ? 0 : parseInt(v, 10))}
+            disabled={loading || saving}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="10">10px</SelectItem>
+              <SelectItem value="11">11px</SelectItem>
+              <SelectItem value="12">12px</SelectItem>
+              <SelectItem value="13">13px</SelectItem>
+              <SelectItem value="14">14px</SelectItem>
+              <SelectItem value="16">16px</SelectItem>
+              <SelectItem value="18">18px</SelectItem>
+              <SelectItem value="20">20px</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="flex items-center justify-between gap-4">
