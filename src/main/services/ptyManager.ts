@@ -1609,6 +1609,66 @@ export interface LifecyclePtyHandle {
   kill: (signal?: string) => void;
 }
 
+function startLifecycleSpawnFallback(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  const { spawn } = require('node:child_process') as typeof import('node:child_process');
+  const { command, cwd, env } = options;
+
+  const child = spawn(command, {
+    cwd: cwd || os.homedir(),
+    shell: true,
+    detached: true,
+    env: { ...process.env, ...(env || {}) },
+  });
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  const onData = (buf: Buffer) => {
+    const str = buf.toString();
+    for (const cb of dataCallbacks) cb(str);
+  };
+  child.stdout?.on('data', onData);
+  child.stderr?.on('data', onData);
+
+  child.on('error', (error: Error) => {
+    for (const cb of errorCallbacks) cb(error);
+  });
+
+  child.on('exit', (code, signal) => {
+    for (const cb of exitCallbacks) cb(code, signal ?? null);
+  });
+
+  return {
+    pid: child.pid ?? null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: (signal?: string) => {
+      const pid = child.pid;
+      if (!pid) return;
+      try {
+        if (process.platform === 'win32') {
+          const args = ['/PID', String(pid), '/T'];
+          if (signal === 'SIGKILL') args.push('/F');
+          spawn('taskkill', args, { stdio: 'ignore' }).unref();
+        } else {
+          process.kill(-pid, (signal as NodeJS.Signals) || 'SIGTERM');
+        }
+      } catch {
+        try {
+          child.kill((signal as NodeJS.Signals) || 'SIGTERM');
+        } catch {}
+      }
+    },
+  };
+}
+
 export function startLifecyclePty(options: {
   id: string;
   command: string;
@@ -1616,11 +1676,17 @@ export function startLifecyclePty(options: {
   env?: NodeJS.ProcessEnv;
 }): LifecyclePtyHandle {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
-    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+    return startLifecycleSpawnFallback(options);
+  }
+
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch {
+    return startLifecycleSpawnFallback(options);
   }
 
   const { id, command, cwd, env } = options;
-  const pty = require('node-pty');
   const defaultShell = getDefaultShell();
 
   const useEnv: Record<string, string> = {
@@ -1657,10 +1723,10 @@ export function startLifecyclePty(options: {
     }
   });
 
-  proc.onExit(({ exitCode, signal }: { exitCode: number; signal: string }) => {
+  proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
     ptys.delete(id);
     for (const cb of exitCallbacks) {
-      cb(exitCode, signal || null);
+      cb(exitCode, signal != null ? String(signal) : null);
     }
   });
 
