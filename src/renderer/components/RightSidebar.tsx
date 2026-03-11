@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import TaskTerminalPanel from './TaskTerminalPanel';
@@ -44,6 +44,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
+  const asideRef = useRef<HTMLElement>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
 
@@ -68,6 +69,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
+
+  // When the sidebar collapses, blur any focused element inside it (e.g.
+  // xterm's hidden textarea) so focus returns to the main content area.
+  React.useEffect(() => {
+    if (collapsed && asideRef.current?.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement)?.blur();
+    }
+  }, [collapsed]);
 
   // Detect multi-agent variants in task metadata
   const variants: Array<{ agent: Agent; name: string; path: string; worktreeId?: string }> =
@@ -113,6 +122,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   return (
     <aside
+      ref={asideRef}
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
         'group/right-sidebar relative z-[45] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
