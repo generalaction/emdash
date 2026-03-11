@@ -1600,3 +1600,98 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
 export function getPtyTmuxSessionName(id: string): string | undefined {
   return ptys.get(id)?.tmuxSessionName;
 }
+
+export interface LifecyclePtyHandle {
+  pid: number | null;
+  onData: (callback: (data: string) => void) => void;
+  onExit: (callback: (exitCode: number | null, signal: string | null) => void) => void;
+  onError: (callback: (error: Error) => void) => void;
+  kill: () => void;
+}
+
+export function startLifecyclePty(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  const { id, command, cwd, env } = options;
+  const pty = require('node-pty');
+  const defaultShell = getDefaultShell();
+
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...getDisplayEnv(),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(env || {}),
+  };
+
+  const proc = pty.spawn(defaultShell, ['-ilc', command], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 32,
+    cwd: cwd || os.homedir(),
+    env: useEnv,
+  });
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  proc.onData((data: string) => {
+    for (const cb of dataCallbacks) {
+      cb(data);
+    }
+  });
+
+  proc.onExit(({ exitCode, signal }: { exitCode: number; signal: string }) => {
+    ptys.delete(id);
+    for (const cb of exitCallbacks) {
+      cb(exitCode, signal || null);
+    }
+  });
+
+  // node-pty generally throws on startup failures instead of emitting an error event,
+  // but keep the same interface as the child_process fallback.
+  const emitError = (error: unknown) => {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    for (const cb of errorCallbacks) {
+      cb(normalized);
+    }
+  };
+
+  try {
+    const maybeProc = proc as IPty & {
+      on?: (event: string, listener: (error: unknown) => void) => void;
+    };
+    maybeProc.on?.('error', emitError);
+  } catch {}
+
+  ptys.set(id, { id, proc, cwd, kind: 'local', cols: 120, rows: 32 });
+
+  return {
+    pid: typeof proc.pid === 'number' ? proc.pid : null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: () => {
+      ptys.delete(id);
+      try {
+        proc.kill();
+      } catch {}
+    },
+  };
+}
