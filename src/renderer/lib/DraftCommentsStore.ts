@@ -9,81 +9,97 @@ export type DraftComment = {
 
 const EMPTY: DraftComment[] = [];
 
+export function buildCommentScopeKey(taskId?: string, taskPath?: string | null): string {
+  const id = (taskId || '').trim();
+  if (!id) return '';
+  const path = (taskPath || '').trim();
+  return path ? `${id}::${path}` : id;
+}
+
 export class DraftCommentsStore {
   private comments = new Map<string, DraftComment[]>();
   private listeners = new Map<string, Set<() => void>>();
 
-  add(taskId: string, comment: Omit<DraftComment, 'id' | 'taskId'>): string {
+  private static MAX_COMMENTS_PER_SCOPE = 200;
+
+  add(scopeKey: string, comment: Omit<DraftComment, 'id' | 'taskId'>): string {
     const id = crypto.randomUUID();
+    const taskId = scopeKey.split('::')[0] || scopeKey;
     const draft: DraftComment = { ...comment, taskId, id };
-    const existing = this.comments.get(taskId) ?? [];
-    this.comments.set(taskId, [...existing, draft]);
-    this.emit(taskId);
+    const existing = this.comments.get(scopeKey) ?? [];
+    if (existing.length >= DraftCommentsStore.MAX_COMMENTS_PER_SCOPE) {
+      console.warn(
+        `DraftCommentsStore: reached ${DraftCommentsStore.MAX_COMMENTS_PER_SCOPE} comment limit for scope`
+      );
+      return id;
+    }
+    this.comments.set(scopeKey, [...existing, draft]);
+    this.emit(scopeKey);
     return id;
   }
 
-  update(taskId: string, commentId: string, content: string): void {
-    const list = this.comments.get(taskId);
+  update(scopeKey: string, commentId: string, content: string): void {
+    const list = this.comments.get(scopeKey);
     if (!list || !list.some((c) => c.id === commentId)) return;
     this.comments.set(
-      taskId,
+      scopeKey,
       list.map((c) => (c.id === commentId ? { ...c, content } : c))
     );
-    this.emit(taskId);
+    this.emit(scopeKey);
   }
 
-  remove(taskId: string, commentId: string): void {
-    const list = this.comments.get(taskId);
+  remove(scopeKey: string, commentId: string): void {
+    const list = this.comments.get(scopeKey);
     if (!list) return;
     const next = list.filter((c) => c.id !== commentId);
     if (next.length === list.length) return;
     if (next.length === 0) {
-      this.comments.delete(taskId);
+      this.comments.delete(scopeKey);
     } else {
-      this.comments.set(taskId, next);
+      this.comments.set(scopeKey, next);
     }
-    this.emit(taskId);
+    this.emit(scopeKey);
   }
 
-  consumeAll(taskId: string): DraftComment[] {
-    const list = this.comments.get(taskId) ?? [];
+  consumeAll(scopeKey: string): DraftComment[] {
+    const list = this.comments.get(scopeKey) ?? [];
     if (list.length > 0) {
-      this.comments.delete(taskId);
-      this.emit(taskId);
+      this.comments.delete(scopeKey);
+      this.emit(scopeKey);
     }
     return list;
   }
 
-  getAll(taskId: string): DraftComment[] {
-    return this.comments.get(taskId) ?? EMPTY;
+  getAll(scopeKey: string): DraftComment[] {
+    return this.comments.get(scopeKey) ?? EMPTY;
   }
 
-  getForFile(taskId: string, filePath: string): DraftComment[] {
-    return this.getAll(taskId).filter((c) => c.filePath === filePath);
+  getForFile(scopeKey: string, filePath: string): DraftComment[] {
+    return this.getAll(scopeKey).filter((c) => c.filePath === filePath);
   }
 
-  getCount(taskId: string): number {
-    return this.getAll(taskId).length;
+  getCount(scopeKey: string): number {
+    return this.getAll(scopeKey).length;
   }
 
   // --- React integration (useSyncExternalStore) ---
 
-  subscribe(taskId: string, listener: () => void): () => void {
-    const set = this.listeners.get(taskId) ?? new Set();
+  subscribe(scopeKey: string, listener: () => void): () => void {
+    const set = this.listeners.get(scopeKey) ?? new Set();
     set.add(listener);
-    this.listeners.set(taskId, set);
+    this.listeners.set(scopeKey, set);
     return () => {
       set.delete(listener);
-      if (set.size === 0) this.listeners.delete(taskId);
+      if (set.size === 0) this.listeners.delete(scopeKey);
     };
   }
 
-  getSnapshot(taskId: string): DraftComment[] {
-    return this.getAll(taskId);
+  getSnapshot(scopeKey: string): DraftComment[] {
+    return this.getAll(scopeKey);
   }
 
-  private emit(taskId: string): void {
-    const set = this.listeners.get(taskId);
+  private emit(scopeKey: string): void {
+    const set = this.listeners.get(scopeKey);
     if (!set) return;
     for (const fn of set) {
       try {

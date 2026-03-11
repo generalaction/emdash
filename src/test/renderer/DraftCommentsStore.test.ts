@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DraftCommentsStore } from '../../renderer/lib/DraftCommentsStore';
+import { buildCommentScopeKey, DraftCommentsStore } from '../../renderer/lib/DraftCommentsStore';
 
 describe('DraftCommentsStore', () => {
   let store: DraftCommentsStore;
@@ -45,6 +45,30 @@ describe('DraftCommentsStore', () => {
     expect(store.getAll('task-1')).toHaveLength(1);
     expect(store.getAll('task-2')).toHaveLength(1);
     expect(store.getAll('task-1')[0].content).toBe('Comment A');
+  });
+
+  it('isolates comments by scoped task path key', () => {
+    const scopeA = buildCommentScopeKey('task-1', '/repo/worktrees/codex');
+    const scopeB = buildCommentScopeKey('task-1', '/repo/worktrees/claude');
+
+    store.add(scopeA, {
+      filePath: 'a.ts',
+      lineNumber: 1,
+      lineContent: '',
+      content: 'Codex comment',
+    });
+    store.add(scopeB, {
+      filePath: 'b.ts',
+      lineNumber: 1,
+      lineContent: '',
+      content: 'Claude comment',
+    });
+
+    expect(store.getAll(scopeA)).toHaveLength(1);
+    expect(store.getAll(scopeB)).toHaveLength(1);
+    expect(store.getAll(scopeA)[0].taskId).toBe('task-1');
+    expect(store.getAll(scopeA)[0].content).toBe('Codex comment');
+    expect(store.getAll(scopeB)[0].content).toBe('Claude comment');
   });
 
   it('updates a comment', () => {
@@ -228,6 +252,30 @@ describe('DraftCommentsStore', () => {
     const snap1 = store.getSnapshot('task-1');
     const snap2 = store.getSnapshot('task-2');
     expect(snap1).toBe(snap2);
+  });
+
+  it('rejects adds beyond the per-scope limit', () => {
+    for (let i = 0; i < 200; i++) {
+      store.add('task-1', {
+        filePath: 'a.ts',
+        lineNumber: i,
+        lineContent: '',
+        content: `Comment ${i}`,
+      });
+    }
+    expect(store.getCount('task-1')).toBe(200);
+
+    // 201st should be silently rejected
+    let callCount = 0;
+    store.subscribe('task-1', () => callCount++);
+    store.add('task-1', {
+      filePath: 'a.ts',
+      lineNumber: 999,
+      lineContent: '',
+      content: 'Over the limit',
+    });
+    expect(store.getCount('task-1')).toBe(200);
+    expect(callCount).toBe(0); // no emit since nothing changed
   });
 
   it('consumeAll notifies subscribers', () => {

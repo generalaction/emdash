@@ -3,9 +3,9 @@ import { useTaskComments } from './useLineComments';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 
-export function useCommentInjection(taskId?: string) {
+export function useCommentInjection(taskId?: string, taskPath?: string | null) {
   const resolvedTaskId = taskId ?? '';
-  const { comments, consumeAll } = useTaskComments(resolvedTaskId);
+  const { comments, consumeAll } = useTaskComments(resolvedTaskId, taskPath);
   const consumeAllRef = useRef(consumeAll);
   const hasPendingRef = useRef(false);
   useLayoutEffect(() => {
