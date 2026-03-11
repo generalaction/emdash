@@ -335,8 +335,10 @@ export function Workspace() {
       handleCloseSettingsPage();
       return;
     }
+    // Close editor mode so the main content area (where settings renders) is visible
+    setShowEditorMode(false);
     openSettingsPage();
-  }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage]);
+  }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage, setShowEditorMode]);
 
   return (
     <BrowserProvider>
