@@ -454,7 +454,7 @@ class TaskLifecycleService extends EventEmitter {
         const current = this.runPtys.get(taskId);
         if (!current || current !== pty) return;
         try {
-          current.kill();
+          current.kill('SIGKILL');
         } catch {}
       }, 8_000);
       return { ok: true };

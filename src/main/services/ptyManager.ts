@@ -1606,7 +1606,7 @@ export interface LifecyclePtyHandle {
   onData: (callback: (data: string) => void) => void;
   onExit: (callback: (exitCode: number | null, signal: string | null) => void) => void;
   onError: (callback: (error: Error) => void) => void;
-  kill: () => void;
+  kill: (signal?: string) => void;
 }
 
 export function startLifecyclePty(options: {
@@ -1687,10 +1687,10 @@ export function startLifecyclePty(options: {
     onData: (cb) => dataCallbacks.push(cb),
     onExit: (cb) => exitCallbacks.push(cb),
     onError: (cb) => errorCallbacks.push(cb),
-    kill: () => {
+    kill: (signal?: string) => {
       ptys.delete(id);
       try {
-        proc.kill();
+        proc.kill(signal);
       } catch {}
     },
   };
