@@ -3,16 +3,18 @@ import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import { CommentWidget } from '../components/diff/comments/CommentWidget';
 import { CommentInput } from '../components/diff/comments/CommentInput';
-import type { LineComment } from '../types/electron-api';
+import type { DraftComment } from './DraftCommentsStore';
+
+/** Monaco MouseTargetType.GUTTER_GLYPH_MARGIN */
+const GUTTER_GLYPH_MARGIN = 2;
+
+/** Total height for comment view zones (content + padding) */
+const COMMENT_ZONE_HEIGHT_PX = 140 + 24;
 
 interface MonacoCommentManagerOptions {
-  onAddComment: (
-    lineNumber: number,
-    content: string,
-    lineContent?: string
-  ) => Promise<string | null | undefined>;
-  onEditComment: (id: string, content: string) => Promise<boolean>;
-  onDeleteComment: (id: string) => Promise<boolean>;
+  onAddComment: (lineNumber: number, content: string, lineContent?: string) => void;
+  onEditComment: (id: string, content: string) => void;
+  onDeleteComment: (id: string) => void;
 }
 
 export class MonacoCommentManager {
@@ -47,7 +49,7 @@ export class MonacoCommentManager {
     const modifiedEditor = this.editor.getModifiedEditor();
 
     this.gutterClickDisposable = modifiedEditor.onMouseDown((e) => {
-      if (e.target.type !== 2) return;
+      if (e.target.type !== GUTTER_GLYPH_MARGIN) return;
       const targetElement = e.target.element;
       if (!targetElement?.classList.contains('comment-hover-icon')) return;
 
@@ -160,13 +162,13 @@ export class MonacoCommentManager {
     }
   }
 
-  setComments(comments: LineComment[]) {
+  setComments(comments: DraftComment[]) {
     if (this.disposed) return;
 
     const modifiedEditor = this.editor.getModifiedEditor();
 
     // Group comments by line
-    const commentsByLine = new Map<number, LineComment[]>();
+    const commentsByLine = new Map<number, DraftComment[]>();
     for (const comment of comments) {
       const existing = commentsByLine.get(comment.lineNumber) ?? [];
       existing.push(comment);
@@ -176,7 +178,9 @@ export class MonacoCommentManager {
     // Update decorations (glyph margin icons)
     this.updateDecorations(commentsByLine);
 
-    const nextById = new Map<string, LineComment>(comments.map((comment) => [comment.id, comment]));
+    const nextById = new Map<string, DraftComment>(
+      comments.map((comment) => [comment.id, comment])
+    );
 
     // Update view zones with minimal churn to avoid flicker.
     modifiedEditor.changeViewZones((accessor) => {
@@ -210,7 +214,7 @@ export class MonacoCommentManager {
             accessor.removeZone(existing.zoneId);
             const zoneId = accessor.addZone({
               afterLineNumber: comment.lineNumber,
-              heightInPx: 140 + 24,
+              heightInPx: COMMENT_ZONE_HEIGHT_PX,
               domNode: existing.domNode,
               suppressMouseDown: false,
               showInHiddenAreas: true,
@@ -245,7 +249,7 @@ export class MonacoCommentManager {
 
         const zoneId = accessor.addZone({
           afterLineNumber: comment.lineNumber,
-          heightInPx: 140 + 24,
+          heightInPx: COMMENT_ZONE_HEIGHT_PX,
           domNode,
           suppressMouseDown: false,
           showInHiddenAreas: true,
@@ -261,7 +265,7 @@ export class MonacoCommentManager {
     });
   }
 
-  private updateDecorations(commentsByLine: Map<number, LineComment[]>) {
+  private updateDecorations(commentsByLine: Map<number, DraftComment[]>) {
     const modifiedEditor = this.editor.getModifiedEditor();
 
     // Update the set of commented lines for hover logic
@@ -293,8 +297,8 @@ export class MonacoCommentManager {
     this.inputRoot.render(
       React.createElement(CommentInput, {
         lineNumber,
-        onSubmit: async (content) => {
-          await this.options.onAddComment(lineNumber, content, lineContent);
+        onSubmit: (content) => {
+          this.options.onAddComment(lineNumber, content, lineContent);
           this.hideInput();
         },
         onCancel: () => this.hideInput(),
@@ -310,11 +314,10 @@ export class MonacoCommentManager {
     this.inputDomNode.style.width = '100%';
     this.inputDomNode.dataset.lineNumber = String(lineNumber);
 
-    const initialHeight = 140;
     modifiedEditor.changeViewZones((accessor) => {
       this.inputZoneId = accessor.addZone({
         afterLineNumber: lineNumber,
-        heightInPx: initialHeight + 24,
+        heightInPx: COMMENT_ZONE_HEIGHT_PX,
         domNode: this.inputDomNode!,
         suppressMouseDown: false,
         showInHiddenAreas: true,

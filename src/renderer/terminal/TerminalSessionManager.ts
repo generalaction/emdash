@@ -13,6 +13,8 @@ import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { consumeSubmittedInputChunk } from './submitCapture';
+import { isSlashCommandInput } from '../lib/slashCommand';
+import { buildCommentInjectionPayload } from '../lib/terminalInjection';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -670,20 +672,38 @@ export class TerminalSessionManager {
       })();
     }
 
-    // Check for pending injection text when Enter is pressed (but not for newline inserts)
+    // Inject pending comments when the user submits a real message.
+    // Guards:
+    //  - Bare Enter presses (TUI confirmations, menu selections) pass through
+    //    because submittedText is empty.
+    //  - Slash commands pass through so comments are preserved for the next
+    //    regular message. We also support one-char TUI mode prefixes like
+    //    "i/model" when classifying slash-command-like input.
     const pendingText = pendingInjectionManager.getPending();
-    if (pendingText && isEnterPress && !isNewlineInsert) {
-      // Append pending text to the existing input and keep the prior working behavior.
-      const stripped = filtered.replace(/[\r\n]+$/g, '');
-      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-      const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      if (submittedText || pendingText.trim()) {
+    const hasUserMessage = submittedText != null && submittedText.trim().length > 0;
+    if (
+      this.options.providerId &&
+      pendingText &&
+      isEnterPress &&
+      !isNewlineInsert &&
+      hasUserMessage
+    ) {
+      const isSlashCommand = isSlashCommandInput(submittedText);
+      if (!isSlashCommand) {
+        const { payload: injectedData, submitDelayMs } = buildCommentInjectionPayload({
+          providerId: this.options.providerId,
+          inputData: filtered,
+          pendingText,
+        });
         agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+        window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+        setTimeout(() => {
+          window.electronAPI.ptyInput({ id: this.id, data: '\r' });
+        }, submitDelayMs);
+        pendingInjectionManager.markUsed();
+        this.logSlowInputHandler(startedAt);
+        return;
       }
-      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
-      pendingInjectionManager.markUsed();
-      this.logSlowInputHandler(startedAt);
-      return;
     }
 
     if (isEnterPress && !isNewlineInsert && submittedText) {

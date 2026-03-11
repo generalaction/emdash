@@ -128,6 +128,7 @@ export const messages = sqliteTable(
   })
 );
 
+// TODO: remove after refactor (resolves migration issues)
 export const lineComments = sqliteTable(
   'line_comments',
   {

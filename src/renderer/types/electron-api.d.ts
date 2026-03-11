@@ -12,18 +12,6 @@ type ProjectSettingsPayload = {
   baseRef?: string;
 };
 
-export type LineComment = {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
-};
-
 export type ProviderCustomConfig = {
   cli?: string;
   resumeFlag?: string;
@@ -1084,46 +1072,6 @@ declare global {
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
 
-      // Line comments
-      lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
-      lineCommentsCreate: (args: {
-        taskId: string;
-        filePath: string;
-        lineNumber: number;
-        lineContent?: string;
-        content: string;
-      }) => Promise<{
-        success: boolean;
-        id?: string;
-        error?: string;
-      }>;
-      lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsDelete: (id: string) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetFormatted: (taskId: string) => Promise<{
-        success: boolean;
-        formatted?: string;
-        error?: string;
-      }>;
-      lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetUnsent: (taskId: string) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
-
       // SSH operations
       sshTestConnection: (config: {
         id?: string;
@@ -1857,46 +1805,6 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
-  // Line comments
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
-  lineCommentsCreate: (args: {
-    taskId: string;
-    filePath: string;
-    lineNumber: number;
-    lineContent?: string;
-    content: string;
-  }) => Promise<{
-    success: boolean;
-    id?: string;
-    error?: string;
-  }>;
-  lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsDelete: (id: string) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetFormatted: (taskId: string) => Promise<{
-    success: boolean;
-    formatted?: string;
-    error?: string;
-  }>;
-  lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetUnsent: (taskId: string) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
 
   // Skills management
   skillsGetCatalog: () => Promise<{
