@@ -91,6 +91,7 @@ export interface AppSettings {
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
+    autoInferTaskNames: boolean;
     autoApproveByDefault: boolean;
     createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
@@ -147,6 +148,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
+    autoInferTaskNames: true,
     autoApproveByDefault: false,
     createWorktreeByDefault: true,
     autoTrustWorktrees: true,
@@ -393,6 +395,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const tasks = (input as any)?.tasks || {};
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
+    autoInferTaskNames: Boolean(
+      tasks?.autoInferTaskNames ?? DEFAULT_SETTINGS.tasks!.autoInferTaskNames
+    ),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
