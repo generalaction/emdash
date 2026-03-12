@@ -81,4 +81,16 @@ describe('buildFileUrl', () => {
   it('handles root path only', () => {
     expect(buildFileUrl('/Users/test/index.html', '')).toBe('file:///Users/test/index.html');
   });
+
+  it('handles Windows-style root paths', () => {
+    expect(buildFileUrl('C:/Users/test/project', 'src/index.html')).toBe(
+      'file:///C:/Users/test/project/src/index.html'
+    );
+  });
+
+  it('normalises Windows backslashes', () => {
+    expect(buildFileUrl('C:\\Users\\test\\project', 'src\\index.html')).toBe(
+      'file:///C:/Users/test/project/src/index.html'
+    );
+  });
 });

@@ -20,6 +20,10 @@ export function normalizeAddressBarUrl(input: string): string {
  * Builds a `file://` URL from a root path and a relative file path.
  */
 export function buildFileUrl(rootPath: string, relativePath: string): string {
-  const joined = [rootPath, relativePath].filter(Boolean).join('/').replace(/\/+/g, '/');
-  return `file://${joined}`;
+  const joined = [rootPath, relativePath]
+    .filter(Boolean)
+    .join('/')
+    .replace(/[\\/]+/g, '/');
+  const absPath = joined.startsWith('/') ? joined : `/${joined}`;
+  return `file://${absPath}`;
 }
