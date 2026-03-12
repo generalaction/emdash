@@ -28,6 +28,7 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  vscodium: 'vscodium.png',
   terminal: 'terminal.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
@@ -108,6 +109,31 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
+      },
+    },
+  },
+  {
+    id: 'vscodium',
+    label: 'VSCodium',
+    iconPath: ICON_PATHS.vscodium,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'open -n -b com.vscodium --args {{path}}',
+          'open -n -a "VSCodium" {{path}}',
+        ],
+        checkCommands: ['codium'],
+        bundleIds: ['com.vscodium'],
+        appNames: ['VSCodium'],
+      },
+      win32: {
+        openCommands: ['start "" codium {{path}}'],
+        checkCommands: ['codium'],
+      },
+      linux: {
+        openCommands: ['codium {{path}}'],
+        checkCommands: ['codium'],
       },
     },
   },
