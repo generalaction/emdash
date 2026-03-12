@@ -8,6 +8,7 @@ import SkillsView from './skills/SkillsView';
 import { McpPage } from './mcp/McpPage';
 import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
+import WorkspaceProvisioningOverlay from './WorkspaceProvisioningOverlay';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
@@ -149,6 +150,10 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
           <div className="absolute inset-0 z-10 bg-background">
             <TaskCreationLoading />
           </div>
+        )}
+
+        {activeTask?.metadata?.workspace && !isCreatingTask && (
+          <WorkspaceProvisioningOverlay task={activeTask} project={selectedProject} />
         )}
       </div>
     );

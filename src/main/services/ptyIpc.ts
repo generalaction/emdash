@@ -693,7 +693,10 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+          // Resolve tmux config from local project settings.
+          // Workspace-provisioned connections always use tmux for session persistence.
+          const isWorkspaceConnection = remote.connectionId.startsWith('workspace-');
+          const remoteTmux = isWorkspaceConnection || (cwd ? await resolveTmuxEnabled(cwd) : false);
           const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
@@ -1225,7 +1228,10 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          const remoteTmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+          // Resolve tmux config from local project settings.
+          // Workspace-provisioned connections always use tmux for session persistence.
+          const isWorkspaceConn = remote.connectionId.startsWith('workspace-');
+          const remoteTmux = isWorkspaceConn || (cwd ? await resolveTmuxEnabled(cwd) : false);
           const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({

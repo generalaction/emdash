@@ -114,6 +114,31 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
 }
 
 /**
+ * Resolves SSH config overrides for a given hostname or alias.
+ *
+ * Parses ~/.ssh/config and finds a matching host entry by checking
+ * the Host alias. Returns the resolved fields (hostname, port, user,
+ * identityFile, identityAgent) so callers can apply them before
+ * connecting with ssh2 (which does not read ~/.ssh/config natively).
+ *
+ * Returns undefined if no matching host is found or if parsing fails.
+ */
+export async function resolveSshConfigHost(
+  hostOrAlias: string
+): Promise<SshConfigHost | undefined> {
+  try {
+    const hosts = await parseSshConfigFile();
+    return hosts.find(
+      (h) =>
+        h.host.toLowerCase() === hostOrAlias.toLowerCase() ||
+        h.hostname?.toLowerCase() === hostOrAlias.toLowerCase()
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolves the IdentityAgent socket path for a given hostname.
  *
  * Parses ~/.ssh/config and finds a matching host entry by checking

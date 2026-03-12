@@ -18,6 +18,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useCommentInjection } from '@/hooks/useCommentInjection';
 import { isSlashCommandInput } from '@/lib/slashCommand';
 import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
@@ -58,6 +59,8 @@ const MultiAgentTask: React.FC<Props> = ({
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
+  const { connectionId: wsConnectionId } = useWorkspaceConnection(task);
+  const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
@@ -571,8 +574,8 @@ const MultiAgentTask: React.FC<Props> = ({
                   />
                   <OpenInMenu
                     path={v.path}
-                    isRemote={!!projectRemoteConnectionId}
-                    sshConnectionId={projectRemoteConnectionId}
+                    isRemote={!!effectiveConnectionId}
+                    sshConnectionId={effectiveConnectionId}
                     isActive={isActive}
                   />
                 </div>
@@ -641,9 +644,7 @@ const MultiAgentTask: React.FC<Props> = ({
                       id={`${v.worktreeId}-main`}
                       cwd={v.path}
                       remote={
-                        projectRemoteConnectionId
-                          ? { connectionId: projectRemoteConnectionId }
-                          : undefined
+                        effectiveConnectionId ? { connectionId: effectiveConnectionId } : undefined
                       }
                       providerId={v.agent}
                       env={variantEnvs.get(v.worktreeId || v.path)}
