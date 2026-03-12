@@ -28,6 +28,7 @@ import {
 import { shouldDisablePlay } from '../lib/lifecycleUi';
 import { isTerminalExpandShortcut } from '../lib/terminalShortcuts';
 import { Dialog, DialogContent } from './ui/dialog';
+import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 interface Task {
   id: string;
@@ -80,14 +81,17 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
-  const terminalRefs = useRef<Map<string, { focus: () => void }>>(new Map());
-  const setTerminalRef = useCallback((id: string, ref: { focus: () => void } | null) => {
-    if (ref) {
-      terminalRefs.current.set(id, ref);
-    } else {
-      terminalRefs.current.delete(id);
-    }
-  }, []);
+  const terminalRefs = useRef<Map<string, { focus: () => void; reattach?: () => void }>>(new Map());
+  const setTerminalRef = useCallback(
+    (id: string, ref: { focus: () => void; reattach?: () => void } | null) => {
+      if (ref) {
+        terminalRefs.current.set(id, ref);
+      } else {
+        terminalRefs.current.delete(id);
+      }
+    },
+    []
+  );
 
   // Small delay to ensure the terminal pane has rendered after visibility change
   useEffect(() => {
@@ -354,6 +358,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [task?.id, refreshLifecycleState]);
 
   const [isExpanded, setIsExpanded] = useState(false);
+  // Tracks which terminal ID is in the expanded modal.
+  const expandedTerminalIdRef = useRef<string | null>(null);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -471,6 +477,28 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     globalTerminals.terminals,
   ]);
 
+  // Callback ref on the expanded container div. Radix Portal uses a two-pass mount
+  // (useLayoutEffect inside Portal sets mounted=true), so the div isn't in the DOM
+  // during the first commit. A callback ref fires when the element is actually inserted,
+  // guaranteeing session.attach() runs after the container is real.
+  const handleExpandedContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const termId = expandedTerminalIdRef.current;
+    if (!termId) return;
+    const session = terminalSessionRegistry.getSession(termId);
+    session?.attach(node);
+  }, []);
+
+  // Close the expanded dialog and move the terminal back to the mini panel immediately.
+  const handleExpandedClose = useCallback(() => {
+    const termId = expandedTerminalIdRef.current;
+    if (termId) {
+      terminalRefs.current.get(termId)?.reattach?.();
+      expandedTerminalIdRef.current = null;
+    }
+    setIsExpanded(false);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isTerminalExpandShortcut(event)) return;
@@ -480,6 +508,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         const { captureTelemetry } = await import('../lib/telemetryClient');
         captureTelemetry('terminal_expanded_shortcut');
       })();
+      expandedTerminalIdRef.current = expandedTerminal.terminal.id;
       setIsExpanded(true);
     };
 
@@ -682,6 +711,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                               const { captureTelemetry } = await import('../lib/telemetryClient');
                               captureTelemetry('terminal_expanded');
                             })();
+                            expandedTerminalIdRef.current = expandedTerminal.terminal.id;
                             setIsExpanded(true);
                           }
                         }}
@@ -787,6 +817,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       themeOverride={themeOverride}
                       className="h-full w-full"
                       keepAlive
+                      disableSnapshots
                     />
                   </div>
                 );
@@ -817,6 +848,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     themeOverride={themeOverride}
                     className="h-full w-full"
                     keepAlive
+                    disableSnapshots
                   />
                 </div>
               );
@@ -830,35 +862,19 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         )}
       </div>
 
-      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+      <Dialog
+        open={isExpanded}
+        onOpenChange={(open) => {
+          if (!open) handleExpandedClose();
+        }}
+      >
         <DialogContent className="flex h-[80vh] max-h-[90vh] w-[90vw] max-w-[1200px] flex-col overflow-hidden bg-background p-0">
-          <div className="flex h-full flex-1 flex-col">
-            {expandedTerminal && (
-              <div className="flex h-full flex-1">
-                <div className="bw-terminal relative h-full w-full">
-                  <TerminalPane
-                    id={expandedTerminal.terminal.id}
-                    cwd={
-                      expandedTerminal.terminal.cwd ||
-                      (expandedTerminal.scope === 'task' ? task?.path : projectPath || task?.path)
-                    }
-                    remote={
-                      remote?.connectionId ? { connectionId: remote.connectionId } : undefined
-                    }
-                    env={expandedTerminal.scope === 'task' ? taskEnv : undefined}
-                    variant={
-                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                        ? 'dark'
-                        : 'light'
-                    }
-                    themeOverride={themeOverride}
-                    className="h-full w-full"
-                    keepAlive
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Plain container — xterm is moved here imperatively via session.attach() */}
+          <div
+            ref={handleExpandedContainerRef}
+            className="bw-terminal h-full w-full"
+            style={{ padding: '4px 8px 8px 8px', boxSizing: 'border-box' }}
+          />
         </DialogContent>
       </Dialog>
     </>

@@ -28,9 +28,10 @@ type Props = {
   onStartSuccess?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
+  onUnmount?: () => void;
 };
 
-const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
+const TerminalPaneComponent = forwardRef<{ focus: () => void; reattach?: () => void }, Props>(
   (
     {
       id,
@@ -55,6 +56,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       onStartSuccess,
       onExit,
       onFirstMessage,
+      onUnmount,
     },
     ref
   ) => {
@@ -111,6 +113,12 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       () => ({
         focus: () => {
           sessionRef.current?.focus();
+        },
+        reattach: () => {
+          const container = containerRef.current;
+          if (container && sessionRef.current) {
+            sessionRef.current.attach(container);
+          }
         },
       }),
       []
@@ -202,6 +210,16 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         }
       };
     }, [id, keepAlive]);
+
+    // Must be registered AFTER the detach/dispose effects above so its cleanup
+    // fires after detach() — React runs useEffect cleanups in registration order.
+    const onUnmountRef = useRef(onUnmount);
+    onUnmountRef.current = onUnmount;
+    useEffect(() => {
+      return () => {
+        onUnmountRef.current?.();
+      };
+    }, []);
 
     const handleFocus = () => {
       void (async () => {
