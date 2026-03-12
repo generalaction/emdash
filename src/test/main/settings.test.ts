@@ -78,3 +78,22 @@ describe('normalizeSettings – autoInferTaskNames', () => {
     expect(result.tasks?.autoInferTaskNames).toBe(false);
   });
 });
+
+describe('normalizeSettings - changelog dismissed versions', () => {
+  it('normalizes, trims, and deduplicates versions', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        changelog: {
+          dismissedVersions: [' v0.4.31 ', '0.4.31', 'v0.4.30'],
+        },
+      })
+    );
+
+    expect(result.changelog?.dismissedVersions).toEqual(['0.4.31', '0.4.30']);
+  });
+
+  it('defaults to an empty list when missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.changelog?.dismissedVersions).toEqual([]);
+  });
+});
