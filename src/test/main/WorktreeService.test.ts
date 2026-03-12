@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 // Mock electron app before importing anything that depends on it
 vi.mock('electron', () => ({
@@ -302,6 +302,99 @@ describe('WorktreeService', () => {
 
       expect(result.copied).toContain('.claude/settings.local.json');
       expect(fs.existsSync(path.join(destDir, '.claude', 'settings.local.json'))).toBe(true);
+    });
+  });
+
+  describe('createWorktree', () => {
+    let tempDir: string;
+    let mainRepo: string;
+
+    beforeEach(async () => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-tracking-test-'));
+      mainRepo = path.join(tempDir, 'main-repo');
+
+      fs.mkdirSync(mainRepo);
+
+      // Initialize git repo with explicit main branch
+      execSync('git init -b main', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git config user.email "test@test.com"', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git config user.name "Test"', { cwd: mainRepo, stdio: 'pipe' });
+
+      // Create initial commit
+      fs.writeFileSync(path.join(mainRepo, 'README.md'), '# Test');
+      execSync('git add README.md', { cwd: mainRepo, stdio: 'pipe' });
+      execSync('git commit -m "init"', { cwd: mainRepo, stdio: 'pipe' });
+
+      // Create a fake origin remote (local path as remote)
+      const originPath = path.join(tempDir, 'origin');
+      fs.mkdirSync(originPath);
+      execSync('git init --bare', { cwd: originPath, stdio: 'pipe' });
+      execFileSync('git', ['remote', 'add', 'origin', originPath], {
+        cwd: mainRepo,
+        stdio: 'pipe',
+      });
+      execSync('git push -u origin main', { cwd: mainRepo, stdio: 'pipe' });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should create worktree branch without tracking the base ref', async () => {
+      const worktreePath = path.join(tempDir, 'test-worktree');
+      const branchName = 'test-branch';
+
+      // Create worktree using git command with --no-track (simulating what service does)
+      execFileSync(
+        'git',
+        ['worktree', 'add', '--no-track', '-b', branchName, worktreePath, 'origin/main'],
+        { cwd: mainRepo, stdio: 'pipe' }
+      );
+
+      // Verify branch has no upstream tracking
+      // Use try/catch instead of shell redirection for Windows compatibility
+      let result = '';
+      try {
+        result = execFileSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+          cwd: worktreePath,
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch (err: any) {
+        result = String(err.stderr || err.stdout || err.message);
+      }
+
+      // Should fail with "no upstream configured" or similar error
+      expect(result).toMatch(/fatal|no upstream/);
+    });
+
+    it('should have tracking set to origin/<branch> after push --set-upstream', async () => {
+      const worktreePath = path.join(tempDir, 'push-test-worktree');
+      const branchName = 'push-test-branch';
+
+      // Create worktree with --no-track
+      execFileSync(
+        'git',
+        ['worktree', 'add', '--no-track', '-b', branchName, worktreePath, 'origin/main'],
+        { cwd: mainRepo, stdio: 'pipe' }
+      );
+
+      // Make a commit and push with --set-upstream
+      fs.writeFileSync(path.join(worktreePath, 'test.txt'), 'content');
+      execSync('git add test.txt', { cwd: worktreePath, stdio: 'pipe' });
+      execSync('git commit -m "test commit"', { cwd: worktreePath, stdio: 'pipe' });
+      execFileSync('git', ['push', '--set-upstream', 'origin', branchName], {
+        cwd: worktreePath,
+        stdio: 'pipe',
+      });
+
+      // Now verify tracking is set to origin/<branch>
+      const upstream = execFileSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+        cwd: worktreePath,
+        encoding: 'utf8',
+      }).trim();
+
+      expect(upstream).toBe(`origin/${branchName}`);
     });
   });
 });

@@ -55,10 +55,23 @@ declare global {
         error?: string;
       }>;
       ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+      ptyCleanupSessions: (args: {
+        ids: string[];
+        clearSnapshots?: boolean;
+        waitForSnapshots?: boolean;
+      }) => Promise<{
+        ok: boolean;
+        cleaned: number;
+        failedIds: string[];
+        snapshotClearQueued: boolean;
+      }>;
       onPtyExit: (
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
+      onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+      onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
@@ -92,6 +105,10 @@ declare global {
         projectId: string;
         projectPath: string;
         baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreePreflightReserve: (args: {
+        projectId: string;
+        projectPath: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeHasReserve: (args: {
         projectId: string;
@@ -188,6 +205,11 @@ declare global {
         };
         error?: string;
       }>;
+      lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        logs?: { setup: string[]; run: string[]; teardown: string[] };
+        error?: string;
+      }>;
       lifecycleClearTask: (args: {
         taskId: string;
       }) => Promise<{ success: boolean; error?: string }>;
@@ -232,6 +254,32 @@ declare global {
           deletions: number;
           diff?: string;
         }>;
+        error?: string;
+      }>;
+      getDeleteRisks: (args: {
+        targets: Array<{ id: string; taskPath: string }>;
+        includePr?: boolean;
+      }) => Promise<{
+        success: boolean;
+        risks?: Record<
+          string,
+          {
+            staged: number;
+            unstaged: number;
+            untracked: number;
+            ahead: number;
+            behind: number;
+            error?: string;
+            pr?: {
+              number?: number;
+              title?: string;
+              url?: string;
+              state?: string | null;
+              isDraft?: boolean;
+            } | null;
+            prKnown: boolean;
+          }
+        >;
         error?: string;
       }>;
       watchGitStatus: (taskPath: string) => Promise<{
@@ -321,9 +369,10 @@ declare global {
         githubRepoCreated?: boolean;
         error?: string;
       }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;

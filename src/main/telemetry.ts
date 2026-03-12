@@ -72,6 +72,11 @@ type TelemetryEvent =
   | 'jira_disconnected'
   | 'jira_issues_searched'
   | 'jira_issue_selected'
+  // Plain integration
+  | 'plain_connected'
+  | 'plain_disconnected'
+  | 'plain_threads_searched'
+  | 'plain_thread_selected'
   // Container & Dev Environment
   | 'container_connect_clicked'
   | 'container_connect_success'
@@ -116,6 +121,16 @@ type TelemetryEvent =
   // GitHub issues
   | 'github_issues_searched'
   | 'github_issue_selected'
+  // GitLab integration
+  | 'gitlab_connected'
+  | 'gitlab_disconnected'
+  | 'gitlab_issues_searched'
+  | 'gitlab_issue_selected'
+  // Forgejo integration
+  | 'forgejo_connected'
+  | 'forgejo_disconnected'
+  | 'forgejo_issues_searched'
+  | 'forgejo_issue_selected'
   // Task with issue
   | 'task_created_with_issue'
   // Legacy/aggregate events

@@ -6,11 +6,15 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ensureTerminalHost } from './terminalHost';
 import { TerminalInputBuffer } from './TerminalInputBuffer';
 import { classifyActivity } from '../lib/activityClassifier';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { TerminalMetrics } from './TerminalMetrics';
 import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { consumeSubmittedInputChunk } from './submitCapture';
+import { isSlashCommandInput } from '../lib/slashCommand';
+import { buildCommentInjectionPayload } from '../lib/terminalInjection';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -20,18 +24,37 @@ import {
   shouldPasteToTerminal,
 } from './terminalKeybindings';
 import { rpc } from '@/lib/rpc';
+import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
 const FALLBACK_FONTS = 'Menlo, Monaco, Courier New, monospace';
+const DEFAULT_FONT_SIZE = 13;
 const MIN_RENDERABLE_TERMINAL_WIDTH_PX = 24;
 const MIN_RENDERABLE_TERMINAL_HEIGHT_PX = 24;
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
+const MAX_TERMINAL_WRITE_CHARS_PER_SLICE = 16_384;
+const SLOW_INPUT_HANDLER_MS = 16;
+const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+// Keys registered as global app shortcuts (Cmd on macOS, Ctrl on Linux/Windows).
+// Used to let these combos pass through xterm to the window-level shortcut handler
+// instead of being consumed by the terminal.
+const APP_CMD_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd')
+    .map((s) => normalizeShortcutKey(s.key))
+);
+const APP_CMD_SHIFT_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd+shift')
+    .map((s) => normalizeShortcutKey(s.key))
+);
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -93,6 +116,7 @@ export class TerminalSessionManager {
   private lastSnapshotAt: number | null = null;
   private lastSnapshotReason: 'interval' | 'detach' | 'dispose' | null = null;
   private customFontFamily = '';
+  private customFontSize = 0;
   private themeFontFamily = '';
   private pendingFitFrame: number | null = null;
   private pendingResizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,8 +125,17 @@ export class TerminalSessionManager {
   private isPanelResizeDragging = false;
   private hadFocusBeforeDetach = false;
   private inputBuffer: TerminalInputBuffer | null = null;
+  private currentSubmittedInput = '';
   private autoCopyOnSelection = false;
   private selectionChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly pendingWriteQueue: string[] = [];
+  private queuedWriteChars = 0;
+  private writeDrainScheduled = false;
+  private writeInFlight = false;
+  private shouldScrollToBottomAfterWrites = false;
+  private lastSlowInputLogAt = 0;
+  private terminalConfigFontSize: number | null = null;
+  private lastTheme: SessionTheme;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -112,6 +145,7 @@ export class TerminalSessionManager {
   constructor(private readonly options: TerminalSessionOptions) {
     this.initStartTime = performance.now();
     this.id = options.taskId;
+    this.lastTheme = options.theme;
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
@@ -137,7 +171,7 @@ export class TerminalSessionManager {
       rows: options.initialSize.rows,
       scrollback: options.scrollbackLines,
       convertEol: true,
-      fontSize: 13,
+      fontSize: DEFAULT_FONT_SIZE,
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
@@ -152,9 +186,29 @@ export class TerminalSessionManager {
       this.applyEffectiveFont();
     };
 
+    const updateCustomFontSize = (size: number) => {
+      this.customFontSize = size;
+      this.applyTheme(this.lastTheme);
+      this.fitPreservingViewport();
+    };
+
     rpc.appSettings.get().then((settings) => {
       updateCustomFont(settings?.terminal?.fontFamily);
+      const size = settings?.terminal?.fontSize;
+      if (typeof size === 'number' && size >= 8 && size <= 24) {
+        updateCustomFontSize(size);
+      }
       this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+    });
+
+    window.electronAPI.terminalGetTheme().then((result) => {
+      if (this.disposed) return;
+      const size = result?.ok && result.config?.theme?.fontSize;
+      if (typeof size === 'number' && size > 0) {
+        this.terminalConfigFontSize = size;
+        this.applyTheme(this.lastTheme);
+        this.fitPreservingViewport();
+      }
     });
 
     const handleFontChange = (e: Event) => {
@@ -165,6 +219,20 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-font-changed', handleFontChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-font-changed', handleFontChange)
+    );
+
+    const handleFontSizeChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ fontSize?: number }>).detail;
+      const size = detail?.fontSize;
+      if (typeof size === 'number' && size >= 8 && size <= 24) {
+        updateCustomFontSize(size);
+      } else if (size === 0) {
+        updateCustomFontSize(0);
+      }
+    };
+    window.addEventListener('terminal-font-size-changed', handleFontSizeChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-font-size-changed', handleFontSizeChange)
     );
 
     const handleAutoCopyChange = (e: Event) => {
@@ -330,6 +398,16 @@ export class TerminalSessionManager {
         }
       }
 
+      // Let registered app shortcuts propagate to the global handler.
+      const hasPlatformMod = IS_MAC_PLATFORM
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey;
+      if (hasPlatformMod) {
+        const key = normalizeShortcutKey(event.key);
+        if (!event.shiftKey && APP_CMD_KEYS.has(key)) return false;
+        if (event.shiftKey && APP_CMD_SHIFT_KEYS.has(key)) return false;
+      }
+
       return true; // Let xterm handle all other keys normally
     });
 
@@ -458,12 +536,18 @@ export class TerminalSessionManager {
   }
 
   setTheme(theme: SessionTheme) {
+    this.lastTheme = theme;
     this.applyTheme(theme);
   }
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.pendingWriteQueue.length = 0;
+    this.queuedWriteChars = 0;
+    this.writeDrainScheduled = false;
+    this.writeInFlight = false;
+    this.shouldScrollToBottomAfterWrites = false;
     this.detach();
     this.stopSnapshotTimer();
     this.cancelScheduledFit();
@@ -552,8 +636,12 @@ export class TerminalSessionManager {
   }
 
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
+    const startedAt = performance.now();
     this.emitActivity();
-    if (this.disposed) return;
+    if (this.disposed) {
+      this.logSlowInputHandler(startedAt);
+      return;
+    }
 
     // Filter out focus reporting sequences (CSI I = focus in, CSI O = focus out) only if PTY hasn't started yet.
     // This prevents raw escape sequences from appearing in the terminal before the CLI is ready,
@@ -563,7 +651,12 @@ export class TerminalSessionManager {
       filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
     }
 
-    if (!filtered) return;
+    if (!filtered) {
+      this.logSlowInputHandler(startedAt);
+      return;
+    }
+
+    const submittedText = this.consumeSubmittedInput(filtered, isNewlineInsert);
 
     // Feed input to the buffer for first-message capture
     if (this.inputBuffer && !this.inputBuffer.isComplete) {
@@ -579,19 +672,69 @@ export class TerminalSessionManager {
       })();
     }
 
-    // Check for pending injection text when Enter is pressed (but not for newline inserts)
+    // Inject pending comments when the user submits a real message.
+    // Guards:
+    //  - Bare Enter presses (TUI confirmations, menu selections) pass through
+    //    because submittedText is empty.
+    //  - Slash commands pass through so comments are preserved for the next
+    //    regular message. We also support one-char TUI mode prefixes like
+    //    "i/model" when classifying slash-command-like input.
     const pendingText = pendingInjectionManager.getPending();
-    if (pendingText && isEnterPress && !isNewlineInsert) {
-      // Append pending text to the existing input and keep the prior working behavior.
-      const stripped = filtered.replace(/[\r\n]+$/g, '');
-      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-      const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
-      pendingInjectionManager.markUsed();
-      return;
+    const hasUserMessage = submittedText != null && submittedText.trim().length > 0;
+    if (
+      this.options.providerId &&
+      pendingText &&
+      isEnterPress &&
+      !isNewlineInsert &&
+      hasUserMessage
+    ) {
+      const isSlashCommand = isSlashCommandInput(submittedText);
+      if (!isSlashCommand) {
+        const { payload: injectedData, submitDelayMs } = buildCommentInjectionPayload({
+          providerId: this.options.providerId,
+          inputData: filtered,
+          pendingText,
+        });
+        agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+        window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+        setTimeout(() => {
+          window.electronAPI.ptyInput({ id: this.id, data: '\r' });
+        }, submitDelayMs);
+        pendingInjectionManager.markUsed();
+        this.logSlowInputHandler(startedAt);
+        return;
+      }
     }
 
+    if (isEnterPress && !isNewlineInsert && submittedText) {
+      agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+    }
     window.electronAPI.ptyInput({ id: this.id, data: filtered });
+    this.logSlowInputHandler(startedAt);
+  }
+
+  private logSlowInputHandler(startedAt: number) {
+    const elapsedMs = performance.now() - startedAt;
+    if (elapsedMs < SLOW_INPUT_HANDLER_MS) return;
+
+    const now = Date.now();
+    if (now - this.lastSlowInputLogAt < SLOW_INPUT_LOG_THROTTLE_MS) return;
+    this.lastSlowInputLogAt = now;
+
+    log.warn('terminalSession:slowInputHandler', {
+      id: this.id,
+      elapsedMs: Math.round(elapsedMs),
+    });
+  }
+
+  private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
+    const result = consumeSubmittedInputChunk({
+      currentInput: this.currentSubmittedInput,
+      data,
+      isNewlineInsert,
+    });
+    this.currentSubmittedInput = result.currentInput;
+    return result.submittedText;
   }
 
   private cleanTerminalText(text: string): string {
@@ -708,22 +851,25 @@ export class TerminalSessionManager {
             ...selection,
           };
 
-    // Extract font settings before applying theme (they're not part of ITheme)
     const fontFamily = (theme.override as any)?.fontFamily;
-    const fontSize = (theme.override as any)?.fontSize;
+    const overrideFontSize = (theme.override as any)?.fontSize;
+    let effectiveFontSize: number;
+    if (this.customFontSize >= 8 && this.customFontSize <= 24) {
+      effectiveFontSize = this.customFontSize;
+    } else if (typeof overrideFontSize === 'number' && overrideFontSize > 0) {
+      effectiveFontSize = overrideFontSize;
+    } else {
+      effectiveFontSize = this.terminalConfigFontSize ?? DEFAULT_FONT_SIZE;
+    }
 
-    // Apply color theme (excluding font properties)
     const colorTheme = { ...theme.override };
     delete (colorTheme as any)?.fontFamily;
     delete (colorTheme as any)?.fontSize;
     this.terminal.options.theme = { ...base, ...colorTheme };
 
-    // Apply font settings separately
     this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
     this.applyEffectiveFont();
-    if (fontSize) {
-      this.terminal.options.fontSize = fontSize;
-    }
+    this.terminal.options.fontSize = effectiveFontSize;
   }
 
   private applyEffectiveFont() {
@@ -1072,28 +1218,8 @@ export class TerminalSessionManager {
         }
       }
 
-      try {
-        this.terminal.write(chunk);
-      } catch (err) {
-        // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
-        // in 6.0.0). Log once and continue — the terminal session stays usable.
-        log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
-      }
-      if (!this.firstFrameRendered) {
-        this.firstFrameRendered = true;
-        const firstFrameTime = performance.now() - this.initStartTime;
-        log.info('terminalSession:firstFrame timing', {
-          id: this.id,
-          firstFrameMs: Math.round(firstFrameTime),
-        });
-        try {
-          this.terminal.refresh(0, this.terminal.rows - 1);
-        } catch {}
-      }
-
-      if (isAtBottom) {
-        this.terminal.scrollToBottom();
-      }
+      if (isAtBottom) this.shouldScrollToBottomAfterWrites = true;
+      this.enqueueTerminalWrite(chunk);
     });
 
     const offExit = window.electronAPI.onPtyExit(id, (info) => {
@@ -1104,6 +1230,90 @@ export class TerminalSessionManager {
     });
 
     this.disposables.push(offData, offExit);
+  }
+
+  private enqueueTerminalWrite(chunk: string) {
+    if (!chunk || this.disposed) return;
+    this.pendingWriteQueue.push(chunk);
+    this.queuedWriteChars += chunk.length;
+    this.scheduleWriteDrain();
+  }
+
+  private scheduleWriteDrain() {
+    if (this.writeDrainScheduled || this.disposed) return;
+    this.writeDrainScheduled = true;
+    requestAnimationFrame(() => {
+      this.writeDrainScheduled = false;
+      this.drainQueuedWrites();
+    });
+  }
+
+  private dequeueWriteSlice(maxChars: number): string {
+    if (!this.pendingWriteQueue.length) return '';
+    const first = this.pendingWriteQueue[0];
+    if (first.length <= maxChars) {
+      this.pendingWriteQueue.shift();
+      this.queuedWriteChars = Math.max(0, this.queuedWriteChars - first.length);
+      return first;
+    }
+
+    const slice = first.slice(0, maxChars);
+    this.pendingWriteQueue[0] = first.slice(maxChars);
+    this.queuedWriteChars = Math.max(0, this.queuedWriteChars - slice.length);
+    return slice;
+  }
+
+  private drainQueuedWrites() {
+    if (this.disposed || this.writeInFlight) return;
+
+    const slice = this.dequeueWriteSlice(MAX_TERMINAL_WRITE_CHARS_PER_SLICE);
+    if (!slice) {
+      if (this.shouldScrollToBottomAfterWrites) {
+        this.shouldScrollToBottomAfterWrites = false;
+        try {
+          this.terminal.scrollToBottom();
+        } catch {}
+      }
+      return;
+    }
+
+    this.writeInFlight = true;
+    try {
+      this.terminal.write(slice, () => {
+        this.writeInFlight = false;
+        if (this.disposed) return;
+        this.markFirstFrameRendered();
+        if (this.queuedWriteChars > 0) {
+          this.scheduleWriteDrain();
+          return;
+        }
+        if (this.shouldScrollToBottomAfterWrites) {
+          this.shouldScrollToBottomAfterWrites = false;
+          try {
+            this.terminal.scrollToBottom();
+          } catch {}
+        }
+      });
+    } catch (err) {
+      this.writeInFlight = false;
+      // Guard against xterm.js parser errors (e.g. DECRQM "r is not defined"
+      // in 6.0.0). Log once and continue — the terminal session stays usable.
+      log.warn('terminalSession:writeError', { id: this.id, error: (err as Error)?.message });
+      if (this.queuedWriteChars > 0) this.scheduleWriteDrain();
+    }
+  }
+
+  private markFirstFrameRendered() {
+    if (this.firstFrameRendered) return;
+    this.firstFrameRendered = true;
+    const firstFrameTime = performance.now() - this.initStartTime;
+    log.info('terminalSession:firstFrame timing', {
+      id: this.id,
+      firstFrameMs: Math.round(firstFrameTime),
+    });
+    try {
+      this.terminal.refresh(0, this.terminal.rows - 1);
+    } catch {}
   }
 
   private captureSnapshot(reason: 'interval' | 'detach' | 'dispose'): Promise<void> {

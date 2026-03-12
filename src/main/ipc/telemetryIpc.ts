@@ -83,6 +83,16 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   // GitHub issues
   'github_issues_searched',
   'github_issue_selected',
+  // GitLab integration
+  'gitlab_connected',
+  'gitlab_disconnected',
+  'gitlab_issues_searched',
+  'gitlab_issue_selected',
+  // Forgejo integration
+  'forgejo_connected',
+  'forgejo_disconnected',
+  'forgejo_issues_searched',
+  'forgejo_issue_selected',
   // Task with issue
   'task_created_with_issue',
   // Settings & Preferences

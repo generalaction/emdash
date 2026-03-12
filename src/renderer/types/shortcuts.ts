@@ -51,6 +51,7 @@ export interface ShortcutMapping {
   priority: 'modal' | 'global';
   requiresClosed?: boolean;
   isCommandPalette?: boolean;
+  allowInInput?: boolean;
 }
 
 /**
@@ -89,6 +90,7 @@ export interface GlobalShortcutHandlers {
   // Agent switching (within same task)
   onNextAgent?: () => void;
   onPrevAgent?: () => void;
+  onSelectAgentTab?: (tabIndex: number) => void;
 
   // Open in editor
   onOpenInEditor?: () => void;
@@ -96,6 +98,10 @@ export interface GlobalShortcutHandlers {
   // State checks
   isCommandPaletteOpen?: boolean;
   isSettingsOpen?: boolean;
+  isBrowserOpen?: boolean;
+  isDiffViewerOpen?: boolean;
+  isEditorOpen?: boolean;
+  isKanbanOpen?: boolean;
 
   // Custom keyboard settings
   customKeyboardSettings?: KeyboardSettings;

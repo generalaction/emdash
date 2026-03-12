@@ -16,6 +16,20 @@ interface UseFileChangesOptions {
   idleIntervalMs?: number;
 }
 
+type IdleCallbackWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+export function shouldRefreshFileChanges(
+  taskPath: string | undefined,
+  isActive: boolean,
+  isDocumentVisible: boolean
+): boolean {
+  return Boolean(taskPath) && isActive && isDocumentVisible;
+}
+
 export function useFileChanges(taskPath?: string, options: UseFileChangesOptions = {}) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,10 +37,6 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const [isDocumentVisible, setIsDocumentVisible] = useState(() => {
     if (typeof document === 'undefined') return true;
     return document.visibilityState === 'visible';
-  });
-  const [isWindowFocused, setIsWindowFocused] = useState(() => {
-    if (typeof document === 'undefined') return true;
-    return document.hasFocus();
   });
 
   const { isActive = true, idleIntervalMs = 60000 } = options;
@@ -62,17 +72,11 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     const handleVisibility = () => {
       setIsDocumentVisible(document.visibilityState === 'visible');
     };
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
 
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
     };
   }, []);
 
@@ -167,7 +171,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const clearIdleHandle = useCallback(() => {
     if (idleHandleRef.current === null) return;
     if (idleHandleModeRef.current === 'idle') {
-      const cancelIdle = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
+      const cancelIdle = (window as IdleCallbackWindow).cancelIdleCallback;
       cancelIdle?.(idleHandleRef.current);
     } else {
       clearTimeout(idleHandleRef.current);
@@ -186,9 +190,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
       scheduleIdleRefresh();
     };
 
-    const requestIdle = (window as any).requestIdleCallback as
-      | ((cb: () => void, options?: { timeout: number }) => number)
-      | undefined;
+    const requestIdle = (window as IdleCallbackWindow).requestIdleCallback;
 
     if (requestIdle) {
       idleHandleModeRef.current = 'idle';
@@ -199,7 +201,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     }
   }, [clearIdleHandle, fetchFileChanges, idleIntervalMs]);
 
-  const shouldPoll = Boolean(taskPath) && isActive && isDocumentVisible && isWindowFocused;
+  const shouldPoll = shouldRefreshFileChanges(taskPath, isActive, isDocumentVisible);
 
   useEffect(() => {
     shouldPollRef.current = shouldPoll;

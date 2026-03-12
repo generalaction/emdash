@@ -3,6 +3,7 @@ import { URL } from 'node:url';
 import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 
 type JiraCreds = { siteUrl: string; email: string };
 
@@ -126,7 +127,7 @@ export default class JiraService {
     for (const jql of jqlCandidates) {
       try {
         const issues = await this.searchRaw(siteUrl, email, token, jql, limit);
-        if (issues.length > 0) return this.normalizeIssues(siteUrl, issues);
+        if (issues.length > 0) return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, issues));
       } catch {
         // Try next candidate if this one is forbidden or failed
       }
@@ -144,7 +145,7 @@ export default class JiraService {
             // skip individual failures
           }
         }
-        if (results.length > 0) return this.normalizeIssues(siteUrl, results);
+        if (results.length > 0) return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, results));
       }
     } catch {
       // ignore
@@ -160,7 +161,7 @@ export default class JiraService {
     const inner = `text ~ \"${sanitized}\" OR key = ${term}`;
     const jql = inner;
     const data = await this.searchRaw(siteUrl, email, token, jql, limit);
-    return this.normalizeIssues(siteUrl, data);
+    return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, data));
   }
 
   private async requireAuth(): Promise<{ siteUrl: string; email: string; token: string }> {
@@ -261,7 +262,7 @@ export default class JiraService {
       const keyUpper = term.toUpperCase();
       try {
         const issue = await this.getIssueByKey(siteUrl, email, token, keyUpper);
-        if (issue) return this.normalizeIssues(siteUrl, [issue]);
+        if (issue) return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, [issue]));
       } catch {
         // If direct fetch fails (404/403/etc.), falling back to JQL search below
       }
@@ -277,7 +278,7 @@ export default class JiraService {
         : '';
     const jql = `text ~ "${sanitized}"${extraKey}${keyClause}`;
     const data = await this.searchRaw(siteUrl, email, token, jql, limit);
-    return this.normalizeIssues(siteUrl, data);
+    return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, data));
   }
 
   private async fetchProjectKeys(siteUrl: string, email: string, token: string): Promise<string[]> {

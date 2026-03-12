@@ -88,16 +88,11 @@ export interface AppSettings {
     osNotifications: boolean;
     soundFocusMode: 'always' | 'unfocused';
   };
-  mcp?: {
-    context7?: {
-      enabled: boolean;
-      installHintsDismissed?: Record<string, boolean>;
-    };
-  };
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
     autoApproveByDefault: boolean;
+    createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
   };
   projects?: {
@@ -108,6 +103,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    fontSize: number;
     autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
@@ -148,16 +144,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     osNotifications: true,
     soundFocusMode: 'always',
   },
-  mcp: {
-    context7: {
-      enabled: false,
-      installHintsDismissed: {},
-    },
-  },
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
     autoApproveByDefault: false,
+    createWorktreeByDefault: true,
     autoTrustWorktrees: true,
   },
   projects: {
@@ -174,8 +165,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     nextProject: TASK_SWITCH_DEFAULTS.next,
     prevProject: TASK_SWITCH_DEFAULTS.prev,
     newTask: { key: 'n', modifier: 'cmd' },
-    nextAgent: { key: 'k', modifier: 'cmd+shift' },
-    prevAgent: { key: 'j', modifier: 'cmd+shift' },
+    nextAgent: { key: ']', modifier: 'cmd+shift' },
+    prevAgent: { key: '[', modifier: 'cmd+shift' },
   },
   interface: {
     autoRightSidebarBehavior: false,
@@ -185,6 +176,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    fontSize: 0,
     autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
@@ -353,12 +345,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
     },
-    mcp: {
-      context7: {
-        enabled: DEFAULT_SETTINGS.mcp!.context7!.enabled,
-        installHintsDismissed: {},
-      },
-    },
   };
 
   // Repository
@@ -397,19 +383,6 @@ export function normalizeSettings(input: AppSettings): AppSettings {
         : DEFAULT_SETTINGS.notifications!.soundFocusMode,
   };
 
-  // MCP
-  const mcp = (input as any)?.mcp || {};
-  const c7 = mcp?.context7 || {};
-  out.mcp = {
-    context7: {
-      enabled: Boolean(c7?.enabled ?? DEFAULT_SETTINGS.mcp!.context7!.enabled),
-      installHintsDismissed:
-        c7?.installHintsDismissed && typeof c7.installHintsDismissed === 'object'
-          ? { ...c7.installHintsDismissed }
-          : {},
-    },
-  };
-
   // Default provider
   const defaultProvider = (input as any)?.defaultProvider;
   out.defaultProvider = isValidProviderId(defaultProvider)
@@ -422,6 +395,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
+    ),
+    createWorktreeByDefault: Boolean(
+      tasks?.createWorktreeByDefault ?? DEFAULT_SETTINGS.tasks!.createWorktreeByDefault
     ),
     autoTrustWorktrees: Boolean(
       tasks?.autoTrustWorktrees ?? DEFAULT_SETTINGS.tasks!.autoTrustWorktrees
@@ -539,7 +515,13 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
-  out.terminal = { fontFamily, autoCopyOnSelection };
+  const rawFontSize = term?.fontSize;
+  let fontSize = 0;
+  if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
+    const clamped = Math.round(rawFontSize);
+    fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
+  }
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;

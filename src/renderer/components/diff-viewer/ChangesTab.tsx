@@ -15,6 +15,7 @@ interface ChangesTabProps {
   leftPanelSize?: number;
   onLeftPanelResize?: (size: number) => void;
   initialFile?: string | null;
+  baseRef?: string;
 }
 
 export const ChangesTab: React.FC<ChangesTabProps> = ({
@@ -27,6 +28,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
   leftPanelSize = 30,
   onLeftPanelResize,
   initialFile,
+  baseRef,
 }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const initialFileConsumed = React.useRef(false);
@@ -72,13 +74,16 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
               onSelectFile={setSelectedFile}
               taskPath={taskPath}
               onRefreshChanges={onRefreshChanges}
+              readOnly={!!baseRef}
             />
           </div>
-          <CommitArea
-            taskPath={taskPath}
-            fileChanges={fileChanges}
-            onRefreshChanges={onRefreshChanges}
-          />
+          {!baseRef && (
+            <CommitArea
+              taskPath={taskPath}
+              fileChanges={fileChanges}
+              onRefreshChanges={onRefreshChanges}
+            />
+          )}
         </div>
       </ResizablePanel>
 
@@ -93,6 +98,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
           selectedFile={selectedFile}
           onRefreshChanges={onRefreshChanges}
           closeButton={closeButton}
+          baseRef={baseRef}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

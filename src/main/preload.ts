@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
+import type { McpServer } from '../shared/mcp/types';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -124,6 +125,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptySaveSnapshot: (args: { id: string; payload: TerminalSnapshotPayload }) =>
     ipcRenderer.invoke('pty:snapshot:save', args),
   ptyClearSnapshot: (args: { id: string }) => ipcRenderer.invoke('pty:snapshot:clear', args),
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => ipcRenderer.invoke('pty:cleanupSessions', args),
   onPtyExit: (id: string, listener: (info: { exitCode: number; signal?: number }) => void) => {
     const channel = `pty:exit:${id}`;
     const wrapped = (_: Electron.IpcRendererEvent, info: { exitCode: number; signal?: number }) =>
@@ -133,6 +139,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onPtyStarted: (listener: (data: { id: string }) => void) => {
     const channel = 'pty:started';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => {
+    const channel = 'pty:activity';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string; chunk?: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => {
+    const channel = 'pty:exit:global';
     const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
@@ -211,6 +230,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree pool (reserve) management for instant task creation
   worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
     ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreePreflightReserve: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktree:preflightReserve', args),
   worktreeHasReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:hasReserve', args),
   worktreeClaimReserve: (args: {
@@ -247,6 +268,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lifecycleTeardown: (args: { taskId: string; taskPath: string; projectPath: string }) =>
     ipcRenderer.invoke('lifecycle:teardown', args),
   lifecycleGetState: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getState', args),
+  lifecycleGetLogs: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:getLogs', args),
   lifecycleClearTask: (args: { taskId: string }) => ipcRenderer.invoke('lifecycle:clearTask', args),
   onLifecycleEvent: (listener: (data: any) => void) => {
     const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
@@ -299,6 +321,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relPath: string,
     remote?: { connectionId: string; remotePath: string }
   ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
+  fsRename: (
+    root: string,
+    oldName: string,
+    newName: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:rename', { root, oldName, newName, ...remote }),
+  fsMkdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:mkdir', { root, relPath, ...remote }),
+  fsRmdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:rmdir', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
@@ -311,6 +343,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Project management
   openProject: () => ipcRenderer.invoke('project:open'),
+  openFile: (args?: { title?: string; message?: string; filters?: Electron.FileFilter[] }) =>
+    ipcRenderer.invoke('project:openFile', args),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
   updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
@@ -319,6 +353,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
   getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  getDeleteRisks: (args: {
+    targets: Array<{ id: string; taskPath: string }>;
+    includePr?: boolean;
+  }) => ipcRenderer.invoke('git:get-delete-risks', args),
   watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
   unwatchGitStatus: (taskPath: string, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
@@ -329,7 +367,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: { taskPath: string; filePath: string }) =>
+  getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) =>
     ipcRenderer.invoke('git:get-file-diff', args),
   stageFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:stage-file', args),
@@ -377,6 +415,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     admin?: boolean;
   }) => ipcRenderer.invoke('git:merge-pr', args),
   getPrStatus: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-pr-status', args),
+  enableAutoMerge: (args: {
+    taskPath: string;
+    prNumber?: number;
+    strategy?: 'merge' | 'squash' | 'rebase';
+  }) => ipcRenderer.invoke('git:enable-auto-merge', args),
+  disableAutoMerge: (args: { taskPath: string; prNumber?: number }) =>
+    ipcRenderer.invoke('git:disable-auto-merge', args),
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
   getPrComments: (args: { taskPath: string; prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
@@ -461,8 +506,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPrivate: boolean;
     gitignoreTemplate?: string;
   }) => ipcRenderer.invoke('github:createNewProject', params),
-  githubListPullRequests: (projectPath: string) =>
-    ipcRenderer.invoke('github:listPullRequests', { projectPath }),
+  githubListPullRequests: (args: { projectPath: string; limit?: number }) =>
+    ipcRenderer.invoke('github:listPullRequests', args),
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -471,6 +516,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName?: string;
     branchName?: string;
   }) => ipcRenderer.invoke('github:createPullRequestWorktree', args),
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) =>
+    ipcRenderer.invoke('github:getPullRequestBaseDiff', args),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
   githubCheckCLIInstalled: () => ipcRenderer.invoke('github:checkCLIInstalled'),
   githubInstallCLI: () => ipcRenderer.invoke('github:installCLI'),
@@ -496,6 +543,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),
   jiraSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('jira:searchIssues', searchTerm, limit),
+  // GitLab integration
+  gitlabSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('gitlab:saveCredentials', args),
+  gitlabClearCredentials: () => ipcRenderer.invoke('gitlab:clearCredentials'),
+  gitlabCheckConnection: () => ipcRenderer.invoke('gitlab:checkConnection'),
+  gitlabInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:initialFetch', { projectPath, limit }),
+  gitlabSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('gitlab:searchIssues', { projectPath, searchTerm, limit }),
+  // Plain integration
+  plainSaveToken: (token: string) => ipcRenderer.invoke('plain:saveToken', token),
+  plainCheckConnection: () => ipcRenderer.invoke('plain:checkConnection'),
+  plainClearToken: () => ipcRenderer.invoke('plain:clearToken'),
+  plainInitialFetch: (limit?: number, statuses?: string[]) =>
+    ipcRenderer.invoke('plain:initialFetch', limit, statuses),
+  plainSearchThreads: (searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
+  // Forgejo integration
+  forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('forgejo:saveCredentials', args),
+  forgejoClearCredentials: () => ipcRenderer.invoke('forgejo:clearCredentials'),
+  forgejoCheckConnection: () => ipcRenderer.invoke('forgejo:checkConnection'),
+  forgejoInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:initialFetch', { projectPath, limit }),
+  forgejoSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>
@@ -503,19 +576,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProviderCustomConfigs: () => ipcRenderer.invoke('providers:getAllCustomConfigs'),
   updateProviderCustomConfig: (providerId: string, config: any) =>
     ipcRenderer.invoke('providers:updateCustomConfig', providerId, config),
-
-  // Line comments management
-  lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) =>
-    ipcRenderer.invoke('lineComments:get', args),
-  lineCommentsUpdate: (input: { id: string; content: string }) =>
-    ipcRenderer.invoke('lineComments:update', input),
-  lineCommentsDelete: (id: string) => ipcRenderer.invoke('lineComments:delete', id),
-  lineCommentsGetFormatted: (taskId: string) =>
-    ipcRenderer.invoke('lineComments:getFormatted', taskId),
-  lineCommentsMarkSent: (commentIds: string[]) =>
-    ipcRenderer.invoke('lineComments:markSent', commentIds),
-  lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
@@ -735,6 +795,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+
+  // MCP
+  mcpLoadAll: () => ipcRenderer.invoke('mcp:load-all'),
+  mcpSaveServer: (server: McpServer) => ipcRenderer.invoke('mcp:save-server', server),
+  mcpRemoveServer: (serverName: string) => ipcRenderer.invoke('mcp:remove-server', serverName),
+  mcpGetProviders: () => ipcRenderer.invoke('mcp:get-providers'),
+  mcpRefreshProviders: () => ipcRenderer.invoke('mcp:refresh-providers'),
 });
 
 // Type definitions for the exposed API
@@ -798,6 +865,16 @@ export interface ElectronAPI {
     payload: TerminalSnapshotPayload;
   }) => Promise<{ ok: boolean; error?: string }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    cleaned: number;
+    failedIds: string[];
+    snapshotClearQueued: boolean;
+  }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
@@ -835,6 +912,10 @@ export interface ElectronAPI {
     projectId: string;
     projectPath: string;
     baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreePreflightReserve: (args: {
+    projectId: string;
+    projectPath: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeHasReserve: (args: {
     projectId: string;
@@ -954,6 +1035,32 @@ export interface ElectronAPI {
     }>;
     error?: string;
   }>;
+  getDeleteRisks: (args: {
+    targets: Array<{ id: string; taskPath: string }>;
+    includePr?: boolean;
+  }) => Promise<{
+    success: boolean;
+    risks?: Record<
+      string,
+      {
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        ahead: number;
+        behind: number;
+        error?: string;
+        pr?: {
+          number?: number;
+          title?: string;
+          url?: string;
+          state?: string | null;
+          isDraft?: boolean;
+        } | null;
+        prKnown: boolean;
+      }
+    >;
+    error?: string;
+  }>;
   watchGitStatus: (taskPath: string) => Promise<{
     success: boolean;
     watchId?: string;
@@ -1063,9 +1170,10 @@ export interface ElectronAPI {
     repoUrl: string,
     localPath: string
   ) => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (
-    projectPath: string
-  ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -1078,6 +1186,23 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;

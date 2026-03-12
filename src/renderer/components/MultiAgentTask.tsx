@@ -9,16 +9,23 @@ import { agentMeta } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
 import AgentLogo from './AgentLogo';
 import { useTheme } from '@/hooks/useTheme';
-import { classifyActivity } from '@/lib/activityClassifier';
+import { classifyActivity, sampleActivityChunk } from '@/lib/activityClassifier';
 import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
-import { BUSY_HOLD_MS, CLEAR_BUSY_MS, INJECT_ENTER_DELAY_MS } from '@/lib/activityConstants';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
 import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
+import { useCommentInjection } from '@/hooks/useCommentInjection';
+import { isSlashCommandInput } from '@/lib/slashCommand';
+import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
+import { formatCommentsForAgent } from '@/lib/formatCommentsForAgent';
+import { buildPromptInjectionPayload } from '@/lib/terminalInjection';
+import { TaskScopeProvider } from './TaskScopeContext';
+import TaskContextBadges from './TaskContextBadges';
 
 interface Props {
   task: Task;
@@ -56,6 +63,9 @@ const MultiAgentTask: React.FC<Props> = ({
   const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
+
+  const activeVariantPath = variants[activeTabIndex]?.path ?? task.path;
+  useCommentInjection(task.id, activeVariantPath);
 
   const variantEnvs = useMemo(() => {
     if (!projectPath) return new Map<string, Record<string, string>>();
@@ -203,75 +213,130 @@ const MultiAgentTask: React.FC<Props> = ({
     return null;
   }, [task.metadata]);
 
-  const injectPrompt = async (ptyId: string, agent: Agent, text: string) => {
+  const injectPrompt = async (ptyId: string, agent: Agent, text: string): Promise<boolean> => {
     const trimmed = (text || '').trim();
-    if (!trimmed) return;
-    let sent = false;
-    let silenceTimer: any = null;
-    const send = () => {
-      if (sent) return;
-      sent = true;
-      try {
-        const pty = (window as any).electronAPI?.ptyInput;
-        if (!pty) return;
-        // Send text + line endings first so the TUI displays the input,
-        // then send a bare \r after a short delay to submit.  Sending
-        // Enter separately prevents TUI "paste-detection" from swallowing it.
-        pty({ id: ptyId, data: trimmed + '\r\n' });
-        setTimeout(() => {
-          pty({ id: ptyId, data: '\r' });
-        }, INJECT_ENTER_DELAY_MS);
-      } catch {}
-    };
-    const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 1000);
-      try {
-        const signal = classifyActivity(agent, chunk);
-        if (signal === 'idle' && !sent) {
-          setTimeout(send, 200);
+    if (!trimmed) return false;
+
+    return await new Promise<boolean>((resolve) => {
+      let sent = false;
+      let finished = false;
+      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+      let eagerTimer: ReturnType<typeof setTimeout> | null = null;
+      let hardTimer: ReturnType<typeof setTimeout> | null = null;
+      let offData: (() => void) | undefined;
+      let offStarted: (() => void) | undefined;
+
+      const cleanup = () => {
+        if (silenceTimer) {
+          clearTimeout(silenceTimer);
+          silenceTimer = null;
         }
-      } catch {}
-    });
-    const offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
-      if (info?.id === ptyId) {
+        if (eagerTimer) {
+          clearTimeout(eagerTimer);
+          eagerTimer = null;
+        }
+        if (hardTimer) {
+          clearTimeout(hardTimer);
+          hardTimer = null;
+        }
+        offData?.();
+        offStarted?.();
+      };
+
+      const finish = (didInject: boolean) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(didInject);
+      };
+
+      const send = () => {
+        if (sent) return;
+        sent = true;
+        try {
+          const pty = (window as any).electronAPI?.ptyInput;
+          if (!pty) {
+            finish(false);
+            return;
+          }
+          const { payload, submitDelayMs } = buildPromptInjectionPayload({ agent, text: trimmed });
+          pty({ id: ptyId, data: payload });
+          setTimeout(() => {
+            try {
+              pty({ id: ptyId, data: '\r' });
+            } catch {}
+          }, submitDelayMs);
+          finish(true);
+        } catch {
+          finish(false);
+        }
+      };
+
+      offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (!sent) send();
-        }, 1500);
-      }
-    });
-    // Fallback in case no events arrive
-    // Try once shortly in case PTY is already interactive
-    const eager = setTimeout(() => {
-      if (!sent) send();
-    }, 300);
+        }, 1000);
+        try {
+          const signal = classifyActivity(agent, chunk);
+          if (signal === 'idle' && !sent) {
+            setTimeout(send, 200);
+          }
+        } catch {}
+      });
 
-    const hard = setTimeout(() => {
-      if (!sent) send();
-    }, 5000);
-    // Give the injector a brief window; cleanup shortly after send
-    setTimeout(() => {
-      clearTimeout(eager);
-      clearTimeout(hard);
-      if (silenceTimer) clearTimeout(silenceTimer);
-      offData?.();
-      offStarted?.();
-    }, 6000);
+      offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
+        if (info?.id === ptyId) {
+          if (silenceTimer) clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            if (!sent) send();
+          }, 1500);
+        }
+      });
+
+      eagerTimer = setTimeout(() => {
+        if (!sent) send();
+      }, 300);
+
+      hardTimer = setTimeout(() => {
+        if (!sent) send();
+      }, 5000);
+    });
   };
 
   const handleRunAll = async () => {
     const msg = prompt.trim();
     if (!msg) return;
+    const isSlashCommand = isSlashCommandInput(msg);
     // Send concurrently via PTY injection for all agents (Codex/Claude included)
-    const tasks: Promise<any>[] = [];
-    variants.forEach((v) => {
-      const termId = `${v.worktreeId}-main`;
-      tasks.push(injectPrompt(termId, v.agent, msg));
-    });
-    await Promise.all(tasks);
+    const tasks: Promise<{ scopeKey: string | null; injected: boolean }>[] = variants.map(
+      async (v) => {
+        const termId = `${v.worktreeId}-main`;
+        let messageWithComments = msg;
+        let scopeKey: string | null = null;
+        if (!isSlashCommand) {
+          scopeKey = buildCommentScopeKey(task.id, v.path);
+          const comments = draftCommentsStore.getAll(scopeKey);
+          const pendingText = formatCommentsForAgent(comments, {
+            includeIntro: false,
+            leadingNewline: true,
+          });
+          if (pendingText) {
+            messageWithComments = `${msg}${pendingText}`;
+          } else {
+            scopeKey = null;
+          }
+        }
+        const injected = await injectPrompt(termId, v.agent, messageWithComments);
+        return { scopeKey, injected };
+      }
+    );
+    const results = await Promise.all(tasks);
+    for (const result of results) {
+      if (result.scopeKey && result.injected) {
+        draftCommentsStore.consumeAll(result.scopeKey);
+      }
+    }
     setPrompt('');
   };
 
@@ -354,7 +419,8 @@ const MultiAgentTask: React.FC<Props> = ({
 
       const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
         try {
-          const signal = classifyActivity(variant.agent, chunk || '');
+          const sampledChunk = sampleActivityChunk(chunk || '');
+          const signal = classifyActivity(variant.agent, sampledChunk);
           if (signal === 'busy') setBusy(variantId, true);
           else if (signal === 'idle') setBusy(variantId, false);
           else armNeutral(variantId);
@@ -460,6 +526,21 @@ const MultiAgentTask: React.FC<Props> = ({
     };
   }, [variants.length]);
 
+  useEffect(() => {
+    const handleAgentTabSelection = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabIndex: number }>;
+      const tabIndex = customEvent.detail?.tabIndex;
+      if (typeof tabIndex !== 'number') return;
+      if (tabIndex < 0 || tabIndex >= variants.length) return;
+      setActiveTabIndex(tabIndex);
+    };
+
+    window.addEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    return () => {
+      window.removeEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    };
+  }, [variants.length]);
+
   if (!multi?.enabled) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -473,191 +554,197 @@ const MultiAgentTask: React.FC<Props> = ({
   }
 
   return (
-    <div className="relative flex h-full flex-col">
-      {variants.map((v, idx) => {
-        const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
-        const isActive = idx === activeTabIndex;
-        return (
-          <div
-            key={v.worktreeId}
-            className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
-          >
-            <div className="flex h-full flex-col">
-              <div className="flex items-center justify-end gap-2 px-3 py-1.5">
-                <OpenInMenu
-                  path={v.path}
-                  isRemote={!!effectiveConnectionId}
-                  sshConnectionId={effectiveConnectionId}
-                  isActive={isActive}
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-center px-4 py-2">
-                <TooltipProvider delayDuration={250}>
-                  <div className="flex items-center gap-2">
-                    {variants.map((variant, tabIdx) => {
-                      const asset = agentAssets[variant.agent];
-                      const meta = agentMeta[variant.agent];
-                      const isTabActive = tabIdx === activeTabIndex;
-                      return (
-                        <Tooltip key={variant.worktreeId}>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              onClick={() => setActiveTabIndex(tabIdx)}
-                              className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all ${
-                                isTabActive
-                                  ? 'border-2 border-foreground/30 bg-background text-foreground shadow-sm'
-                                  : 'border border-border/50 bg-transparent text-muted-foreground hover:border-border/70 hover:bg-background/50 hover:text-foreground'
-                              }`}
-                            >
-                              {asset?.logo ? (
-                                <AgentLogo
-                                  logo={asset.logo}
-                                  alt={asset.alt || meta?.label || variant.agent}
-                                  isSvg={asset.isSvg}
-                                  invertInDark={asset.invertInDark}
-                                  className="h-4 w-4 shrink-0"
-                                />
-                              ) : null}
-                              <span>{getVariantDisplayLabel(variant)}</span>
-                              {variantBusy[variant.worktreeId] ? (
-                                <Spinner
-                                  size="sm"
-                                  className={
-                                    isTabActive ? 'text-foreground' : 'text-muted-foreground'
-                                  }
-                                />
-                              ) : null}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{variant.name}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                </TooltipProvider>
-              </div>
-              <div className="min-h-0 flex-1 px-6 pt-4">
-                <div
-                  className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                    v.agent === 'mistral'
-                      ? isDark
-                        ? 'bg-[#202938]'
-                        : 'bg-white'
-                      : isDark
-                        ? 'bg-card'
-                        : 'bg-white'
-                  }`}
-                >
-                  <TerminalPane
-                    ref={isActive ? activeTerminalRef : undefined}
-                    id={`${v.worktreeId}-main`}
-                    cwd={v.path}
-                    remote={
-                      effectiveConnectionId ? { connectionId: effectiveConnectionId } : undefined
-                    }
-                    providerId={v.agent}
-                    env={variantEnvs.get(v.worktreeId || v.path)}
-                    autoApprove={
-                      Boolean(task.metadata?.autoApprove) &&
-                      Boolean(agentMeta[v.agent]?.autoApproveFlag)
-                    }
-                    initialPrompt={
-                      agentMeta[v.agent]?.initialPromptFlag !== undefined &&
-                      !agentMeta[v.agent]?.useKeystrokeInjection &&
-                      !task.metadata?.initialInjectionSent
-                        ? (initialInjection ?? undefined)
-                        : undefined
-                    }
-                    keepAlive
-                    mapShiftEnterToCtrlJ
-                    variant={isDark ? 'dark' : 'light'}
-                    themeOverride={
-                      v.agent === 'mistral'
-                        ? {
-                            background:
-                              effectiveTheme === 'dark-black'
-                                ? '#141820'
-                                : isDark
-                                  ? '#202938'
-                                  : '#ffffff',
-                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                            selectionForeground: isDark ? '#f9fafb' : '#0f172a',
-                          }
-                        : effectiveTheme === 'dark-black'
-                          ? {
-                              background: '#000000',
-                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                              selectionForeground: '#f9fafb',
-                            }
-                          : undefined
-                    }
-                    className="h-full w-full"
-                    onStartSuccess={() => {
-                      // For agents WITHOUT CLI flag support or with keystroke injection, type prompt in
-                      if (
-                        initialInjection &&
-                        !task.metadata?.initialInjectionSent &&
-                        (agentMeta[v.agent]?.initialPromptFlag === undefined ||
-                          agentMeta[v.agent]?.useKeystrokeInjection)
-                      ) {
-                        void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
-                      }
-                      // Mark initial injection as sent so it won't re-run on restart
-                      if (initialInjection && !task.metadata?.initialInjectionSent) {
-                        void rpc.db.saveTask({
-                          ...task,
-                          metadata: {
-                            ...task.metadata,
-                            initialInjectionSent: true,
-                          },
-                        });
-                      }
-                    }}
+    <TaskScopeProvider value={{ taskId: task.id, taskPath: activeVariantPath, projectPath }}>
+      <div className="relative flex h-full flex-col">
+        {variants.map((v, idx) => {
+          const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+          const isActive = idx === activeTabIndex;
+          return (
+            <div
+              key={v.worktreeId}
+              className={`flex-1 overflow-hidden ${isActive ? '' : 'invisible absolute inset-0'}`}
+            >
+              <div className="flex h-full flex-col">
+                <div className="flex items-center justify-end gap-2 px-3 py-1.5">
+                  <TaskContextBadges
+                    taskId={task.id}
+                    linearIssue={task.metadata?.linearIssue || null}
+                    githubIssue={task.metadata?.githubIssue || null}
+                    jiraIssue={task.metadata?.jiraIssue || null}
                   />
+                  <OpenInMenu
+                    path={v.path}
+                    isRemote={!!effectiveConnectionId}
+                    sshConnectionId={effectiveConnectionId}
+                    isActive={isActive}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-center px-4 py-2">
+                  <TooltipProvider delayDuration={250}>
+                    <div className="flex items-center gap-2">
+                      {variants.map((variant, tabIdx) => {
+                        const asset = agentAssets[variant.agent];
+                        const meta = agentMeta[variant.agent];
+                        const isTabActive = tabIdx === activeTabIndex;
+                        return (
+                          <Tooltip key={variant.worktreeId}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTabIndex(tabIdx)}
+                                className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all ${
+                                  isTabActive
+                                    ? 'border-2 border-foreground/30 bg-background text-foreground shadow-sm'
+                                    : 'border border-border/50 bg-transparent text-muted-foreground hover:border-border/70 hover:bg-background/50 hover:text-foreground'
+                                }`}
+                              >
+                                {asset?.logo ? (
+                                  <AgentLogo
+                                    logo={asset.logo}
+                                    alt={asset.alt || meta?.label || variant.agent}
+                                    isSvg={asset.isSvg}
+                                    invertInDark={asset.invertInDark}
+                                    className="h-4 w-4 shrink-0"
+                                  />
+                                ) : null}
+                                <span>{getVariantDisplayLabel(variant)}</span>
+                                {variantBusy[variant.worktreeId] ? (
+                                  <Spinner
+                                    size="sm"
+                                    className={
+                                      isTabActive ? 'text-foreground' : 'text-muted-foreground'
+                                    }
+                                  />
+                                ) : null}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{variant.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  </TooltipProvider>
+                </div>
+                <div className="min-h-0 flex-1 px-6 pt-4">
+                  <div
+                    className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+                      v.agent === 'mistral'
+                        ? isDark
+                          ? 'bg-[#202938]'
+                          : 'bg-white'
+                        : isDark
+                          ? 'bg-card'
+                          : 'bg-white'
+                    }`}
+                  >
+                    <TerminalPane
+                      ref={isActive ? activeTerminalRef : undefined}
+                      id={`${v.worktreeId}-main`}
+                      cwd={v.path}
+                      remote={
+                        effectiveConnectionId ? { connectionId: effectiveConnectionId } : undefined
+                      }
+                      providerId={v.agent}
+                      env={variantEnvs.get(v.worktreeId || v.path)}
+                      autoApprove={
+                        Boolean(task.metadata?.autoApprove) &&
+                        Boolean(agentMeta[v.agent]?.autoApproveFlag)
+                      }
+                      initialPrompt={
+                        agentMeta[v.agent]?.initialPromptFlag !== undefined &&
+                        !agentMeta[v.agent]?.useKeystrokeInjection &&
+                        !task.metadata?.initialInjectionSent
+                          ? (initialInjection ?? undefined)
+                          : undefined
+                      }
+                      keepAlive
+                      mapShiftEnterToCtrlJ
+                      variant={isDark ? 'dark' : 'light'}
+                      themeOverride={
+                        v.agent === 'mistral'
+                          ? {
+                              background:
+                                effectiveTheme === 'dark-black'
+                                  ? '#141820'
+                                  : isDark
+                                    ? '#202938'
+                                    : '#ffffff',
+                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                              selectionForeground: isDark ? '#f9fafb' : '#0f172a',
+                            }
+                          : effectiveTheme === 'dark-black'
+                            ? {
+                                background: '#000000',
+                                selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                                selectionForeground: '#f9fafb',
+                              }
+                            : undefined
+                      }
+                      className="h-full w-full"
+                      onStartSuccess={() => {
+                        if (
+                          initialInjection &&
+                          !task.metadata?.initialInjectionSent &&
+                          (agentMeta[v.agent]?.initialPromptFlag === undefined ||
+                            agentMeta[v.agent]?.useKeystrokeInjection)
+                        ) {
+                          void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
+                        }
+                        if (initialInjection && !task.metadata?.initialInjectionSent) {
+                          void rpc.db.saveTask({
+                            ...task,
+                            metadata: {
+                              ...task.metadata,
+                              initialInjectionSent: true,
+                            },
+                          });
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
 
-      <div className="px-6 pb-6 pt-4">
-        <div className="mx-auto max-w-4xl">
-          <div className="relative rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-card">
-            <div className="flex items-center gap-2 rounded-md px-4 py-3">
-              <Input
-                className="h-9 flex-1 border-border bg-muted dark:border-border dark:bg-muted"
-                placeholder="Tell the agents what to do..."
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (prompt.trim()) {
-                      void handleRunAll();
+        <div className="px-6 pb-6 pt-4">
+          <div className="mx-auto max-w-4xl">
+            <div className="relative rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-card">
+              <div className="flex items-center gap-2 rounded-md px-4 py-3">
+                <Input
+                  className="h-9 flex-1 border-border bg-muted dark:border-border dark:bg-muted"
+                  placeholder="Tell the agents what to do..."
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (prompt.trim()) {
+                        void handleRunAll();
+                      }
                     }
-                  }
-                }}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 border border-border bg-muted px-3 text-xs font-medium hover:bg-muted dark:border-border dark:bg-muted dark:hover:bg-muted"
-                onClick={handleRunAll}
-                disabled={!prompt.trim()}
-                title="Run in all panes (Enter)"
-                aria-label="Run in all panes"
-              >
-                <CornerDownLeft className="h-4 w-4" />
-              </Button>
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 border border-border bg-muted px-3 text-xs font-medium hover:bg-muted dark:border-border dark:bg-muted dark:hover:bg-muted"
+                  onClick={handleRunAll}
+                  disabled={!prompt.trim()}
+                  title="Run in all panes (Enter)"
+                  aria-label="Run in all panes"
+                >
+                  <CornerDownLeft className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </TaskScopeProvider>
   );
 };
 

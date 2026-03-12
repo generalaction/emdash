@@ -1,13 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { Button } from '../../ui/button';
-import { RelativeTime } from '../../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
 import { Comment, useTextareaAutoFocus } from './CommentCard';
-import type { LineComment } from '../../../types/electron-api';
+import type { DraftComment } from '../../../lib/DraftCommentsStore';
 
 interface CommentWidgetProps {
-  comment: LineComment;
+  comment: DraftComment;
   onEdit: (content: string) => void;
   onDelete: () => void;
 }
@@ -57,16 +56,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
       <Comment.Header>
         <Comment.Title>
           {isEditing ? 'Edit comment' : 'Comment'}
-          <Comment.Meta className="ml-2">
-            (Line {comment.lineNumber}
-            {!isEditing && (
-              <>
-                {' '}
-                • <RelativeTime value={comment.updatedAt} />
-              </>
-            )}
-            )
-          </Comment.Meta>
+          <Comment.Meta className="ml-2">(Line {comment.lineNumber})</Comment.Meta>
         </Comment.Title>
         <TooltipProvider delayDuration={400}>
           <Comment.Actions>

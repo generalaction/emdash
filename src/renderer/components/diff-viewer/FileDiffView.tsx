@@ -22,6 +22,7 @@ interface FileDiffViewProps {
   diffStyle: 'unified' | 'split';
   onRefreshChanges?: () => Promise<void> | void;
   onContentHeightChange?: (height: number) => void;
+  baseRef?: string;
 }
 
 export const FileDiffView: React.FC<FileDiffViewProps> = ({
@@ -31,6 +32,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   diffStyle,
   onRefreshChanges,
   onContentHeightChange,
+  baseRef,
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
@@ -60,6 +62,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   useDiffEditorComments({
     editor: editorInstance,
     taskId: taskId ?? '',
+    taskPath,
     filePath,
   });
 
@@ -102,6 +105,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         const diffRes = await window.electronAPI.getFileDiff({
           taskPath,
           filePath,
+          baseRef,
         });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
@@ -112,16 +116,16 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         const originalContent = diffRes.diff.originalContent ?? converted.original;
         let modifiedContent = diffRes.diff.modifiedContent ?? converted.modified;
 
-        // Re-read the file from disk to get the most up-to-date content.
-        // The agent may still be writing while we render, so this ensures
-        // we show the latest version rather than a stale backend snapshot.
-        try {
-          const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
-          if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
-            modifiedContent = readRes.content.replace(/\n$/, '');
+        if (!baseRef) {
+          // Re-read the file from disk to get the most up-to-date working tree content.
+          try {
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
+            if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
+              modifiedContent = readRes.content.replace(/\n$/, '');
+            }
+          } catch {
+            // fallback to diff-based content
           }
-        } catch {
-          // fallback to diff-based content
         }
 
         if (!cancelled) {
@@ -153,7 +157,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [taskPath, filePath]);
+  }, [taskPath, filePath, baseRef]);
 
   // Inject diff panel styles (always update content so theme-dependent colors refresh)
   useEffect(() => {
@@ -373,7 +377,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         theme={monacoTheme}
         options={{
           ...DIFF_EDITOR_BASE_OPTIONS,
-          readOnly: false,
+          readOnly: !!baseRef,
           renderSideBySide: diffStyle === 'split',
           glyphMargin: true,
           lineDecorationsWidth: 16,

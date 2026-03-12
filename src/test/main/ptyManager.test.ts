@@ -5,9 +5,12 @@ const getProviderCustomConfigMock = vi.fn();
 const fsReadFileSyncMock = vi.fn();
 const fsExistsSyncMock = vi.fn();
 const fsWriteFileSyncMock = vi.fn();
+const fsMkdirSyncMock = vi.fn();
 const fsStatSyncMock = vi.fn();
 const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
+const agentEventGetPortMock = vi.fn(() => 0);
+const agentEventGetTokenMock = vi.fn(() => '');
 
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
@@ -40,6 +43,7 @@ vi.mock('fs', () => {
     readFileSync: (...args: any[]) => fsReadFileSyncMock(...args),
     existsSync: (...args: any[]) => fsExistsSyncMock(...args),
     writeFileSync: (...args: any[]) => fsWriteFileSyncMock(...args),
+    mkdirSync: (...args: any[]) => fsMkdirSyncMock(...args),
     statSync: (...args: any[]) => fsStatSyncMock(...args),
     accessSync: (...args: any[]) => fsAccessSyncMock(...args),
     readdirSync: (...args: any[]) => fsReaddirSyncMock(...args),
@@ -56,8 +60,8 @@ vi.mock('electron', () => ({
 
 vi.mock('../../main/services/AgentEventService', () => ({
   agentEventService: {
-    getPort: () => 0,
-    getToken: () => '',
+    getPort: () => agentEventGetPortMock(),
+    getToken: () => agentEventGetTokenMock(),
   },
 }));
 
@@ -70,6 +74,10 @@ describe('ptyManager provider command resolution', () => {
       path: '/usr/local/bin/codex',
     });
     getProviderCustomConfigMock.mockReturnValue(undefined);
+    agentEventGetPortMock.mockReturnValue(0);
+    agentEventGetTokenMock.mockReturnValue('');
+    fsMkdirSyncMock.mockImplementation(() => undefined);
+    fsWriteFileSyncMock.mockImplementation(() => undefined);
   });
 
   it('resolves provider command config from custom settings', async () => {
@@ -100,6 +108,8 @@ describe('ptyManager provider command resolution', () => {
       defaultArgs: ['--model', 'gpt-5'],
       autoApprove: true,
       autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      extraArgs: ['--extra-flag'],
+      runtimeArgs: ['-c', 'notify=test'],
       initialPrompt: 'hello world',
       initialPromptFlag: '',
       useKeystrokeInjection: false,
@@ -111,7 +121,30 @@ describe('ptyManager provider command resolution', () => {
       '--model',
       'gpt-5',
       '--dangerously-bypass-approvals-and-sandbox',
+      '--extra-flag',
+      '-c',
+      'notify=test',
       'hello world',
+    ]);
+  });
+
+  it('places positional prompt after --full-auto and runtime args for Codex', async () => {
+    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+
+    const args = buildProviderCliArgs({
+      autoApprove: true,
+      autoApproveFlag: '--full-auto',
+      runtimeArgs: ['-c', 'notify=["sh","-lc","curl ...","sh"]'],
+      initialPrompt: 'fix the login bug',
+      initialPromptFlag: '',
+      useKeystrokeInjection: false,
+    });
+
+    expect(args).toEqual([
+      '--full-auto',
+      '-c',
+      'notify=["sh","-lc","curl ...","sh"]',
+      'fix the login bug',
     ]);
   });
 
@@ -191,6 +224,100 @@ describe('ptyManager provider command resolution', () => {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
       }
     }
+  });
+
+  it('adds Codex notify runtime config when hooks are enabled', async () => {
+    agentEventGetPortMock.mockReturnValue(43123);
+
+    const { getProviderRuntimeCliArgs } = await import('../../main/services/ptyManager');
+    const args = getProviderRuntimeCliArgs({
+      providerId: 'codex',
+    });
+
+    expect(args).toContain('-c');
+    const notifyArg = args.find((arg) => arg.startsWith('notify='));
+    expect(notifyArg).toContain('X-Emdash-Event-Type: notification');
+    expect(notifyArg).toContain('$EMDASH_HOOK_PORT');
+  });
+
+  it('uses a PowerShell file for Codex notify runtime config on Windows', async () => {
+    agentEventGetPortMock.mockReturnValue(43123);
+
+    const { getProviderRuntimeCliArgs } = await import('../../main/services/ptyManager');
+    const args = getProviderRuntimeCliArgs({
+      providerId: 'codex',
+      platform: 'win32',
+    });
+
+    expect(args).toContain('-c');
+    const notifyArg = args.find((arg) => arg.startsWith('notify='));
+    expect(notifyArg).toContain('powershell.exe');
+    expect(notifyArg).toContain('"-File"');
+    expect(notifyArg).toContain('emdash-codex-notify.ps1');
+    expect(notifyArg).not.toContain('"sh"');
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('emdash-codex-notify.ps1'),
+      expect.stringContaining('param([string]$payload)')
+    );
+    expect(fsMkdirSyncMock).toHaveBeenCalled();
+  });
+
+  it('uses an exact Codex thread target when one is stored', async () => {
+    fsReadFileSyncMock.mockReturnValue(
+      JSON.stringify({
+        'codex-main-task123': {
+          cwd: '/tmp/task',
+          providerId: 'codex',
+          resumeTarget: 'thread-123',
+          strategy: 'codex-thread-id',
+        },
+      })
+    );
+
+    const { getStoredExactResumeArgs, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest('/tmp/emdash-test/pty-session-map.json');
+
+    expect(getStoredExactResumeArgs('codex', 'codex-main-task123', '/tmp/task')).toEqual([
+      'resume',
+      'thread-123',
+    ]);
+  });
+
+  it('injects OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'opencode-main-task-123',
+      providerId: 'opencode',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBe(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123'
+    );
+    expect(fsMkdirSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins',
+      { recursive: true }
+    );
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins/emdash-notify.js',
+      expect.stringContaining('session.idle')
+    );
+  });
+
+  it('does not inject OPENCODE_CONFIG_DIR for non-OpenCode PTYs', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'codex-main-task-shell',
+      providerId: 'codex',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBeUndefined();
+    expect(fsWriteFileSyncMock).not.toHaveBeenCalled();
   });
 });
 

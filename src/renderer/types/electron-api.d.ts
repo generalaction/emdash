@@ -1,6 +1,7 @@
 // Updated for Codex integration
 
 import type { AgentEvent } from '../../shared/agentEvents';
+import type { AutoMergeRequest } from '../lib/prStatus';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -9,18 +10,6 @@ type ProjectSettingsPayload = {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
-};
-
-export type LineComment = {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
 };
 
 export type ProviderCustomConfig = {
@@ -114,11 +103,23 @@ declare global {
         error?: string;
       }>;
       ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+      ptyCleanupSessions: (args: {
+        ids: string[];
+        clearSnapshots?: boolean;
+        waitForSnapshots?: boolean;
+      }) => Promise<{
+        ok: boolean;
+        cleaned: number;
+        failedIds: string[];
+        snapshotClearQueued: boolean;
+      }>;
       onPtyExit: (
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+      onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
       onAgentEvent: (
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
@@ -194,6 +195,10 @@ declare global {
         projectId: string;
         projectPath: string;
         baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreePreflightReserve: (args: {
+        projectId: string;
+        projectPath: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeHasReserve: (args: {
         projectId: string;
@@ -290,6 +295,11 @@ declare global {
         };
         error?: string;
       }>;
+      lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        logs?: { setup: string[]; run: string[]; teardown: string[] };
+        error?: string;
+      }>;
       lifecycleClearTask: (args: {
         taskId: string;
       }) => Promise<{ success: boolean; error?: string }>;
@@ -297,6 +307,15 @@ declare global {
 
       // Project management
       openProject: () => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+      }>;
+      openFile: (args?: {
+        title?: string;
+        message?: string;
+        filters?: Electron.FileFilter[];
+      }) => Promise<{
         success: boolean;
         path?: string;
         error?: string;
@@ -335,6 +354,32 @@ declare global {
         }>;
         error?: string;
       }>;
+      getDeleteRisks: (args: {
+        targets: Array<{ id: string; taskPath: string }>;
+        includePr?: boolean;
+      }) => Promise<{
+        success: boolean;
+        risks?: Record<
+          string,
+          {
+            staged: number;
+            unstaged: number;
+            untracked: number;
+            ahead: number;
+            behind: number;
+            error?: string;
+            pr?: {
+              number?: number;
+              title?: string;
+              url?: string;
+              state?: string | null;
+              isDraft?: boolean;
+            } | null;
+            prKnown: boolean;
+          }
+        >;
+        error?: string;
+      }>;
       watchGitStatus: (taskPath: string) => Promise<{
         success: boolean;
         watchId?: string;
@@ -350,7 +395,7 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
-      getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+      getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) => Promise<{
         success: boolean;
         diff?: {
           lines: Array<{
@@ -408,6 +453,7 @@ declare global {
           subject: string;
           body: string;
           author: string;
+          authorEmail: string;
           date: string;
           isPushed: boolean;
           tags: string[];
@@ -519,7 +565,22 @@ declare global {
           additions?: number;
           deletions?: number;
           changedFiles?: number;
+          autoMergeRequest?: AutoMergeRequest | null;
         } | null;
+        error?: string;
+      }>;
+      enableAutoMerge: (args: {
+        taskPath: string;
+        prNumber?: number;
+        strategy?: 'merge' | 'squash' | 'rebase';
+      }) => Promise<{
+        success: boolean;
+        output?: string;
+        error?: string;
+      }>;
+      disableAutoMerge: (args: { taskPath: string; prNumber?: number }) => Promise<{
+        success: boolean;
+        output?: string;
         error?: string;
       }>;
       getCheckRuns: (args: { taskPath: string }) => Promise<{
@@ -708,6 +769,24 @@ declare global {
         relPath: string,
         remote?: { connectionId: string; remotePath: string }
       ) => Promise<{ success: boolean; error?: string }>;
+
+      fsRename: (
+        root: string,
+        oldName: string,
+        newName: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsMkdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsRmdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+
       getProjectConfig: (
         projectPath: string
       ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
@@ -800,9 +879,10 @@ declare global {
       }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
-      githubListPullRequests: (
-        projectPath: string
-      ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+      githubListPullRequests: (args: {
+        projectPath: string;
+        limit?: number;
+      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
         projectId: string;
@@ -815,6 +895,23 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
+        error?: string;
+      }>;
+      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        diff?: string;
+        baseBranch?: string;
+        headBranch?: string;
+        prUrl?: string;
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -868,6 +965,77 @@ declare global {
         searchTerm: string,
         limit?: number
       ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // GitLab
+      gitlabSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      gitlabClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      gitlabCheckConnection?: () => Promise<{
+        success: boolean;
+        username?: string;
+        instanceUrl?: string;
+        error?: string;
+      }>;
+      gitlabInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      gitlabSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      // Plain integration
+      plainSaveToken?: (token: string) => Promise<{
+        success: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainCheckConnection?: () => Promise<{
+        connected: boolean;
+        workspaceName?: string;
+        error?: string;
+      }>;
+      plainClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      plainInitialFetch?: (
+        limit?: number,
+        statuses?: string[]
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      plainSearchThreads?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        threads?: any[];
+        error?: string;
+      }>;
+      // Forgejo
+      forgejoSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      forgejoClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      forgejoCheckConnection?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      forgejoInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      forgejoSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];
@@ -907,46 +1075,6 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
-
-      // Line comments
-      lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
-      lineCommentsCreate: (args: {
-        taskId: string;
-        filePath: string;
-        lineNumber: number;
-        lineContent?: string;
-        content: string;
-      }) => Promise<{
-        success: boolean;
-        id?: string;
-        error?: string;
-      }>;
-      lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsDelete: (id: string) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetFormatted: (taskId: string) => Promise<{
-        success: boolean;
-        formatted?: string;
-        error?: string;
-      }>;
-      lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetUnsent: (taskId: string) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
 
       // SSH operations
       sshTestConnection: (config: {
@@ -1132,6 +1260,31 @@ declare global {
       onWorkspaceProvisionComplete: (
         listener: (data: { instanceId: string; status: string; error?: string }) => void
       ) => () => void;
+
+      // MCP
+      mcpLoadAll: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpLoadAllResponse;
+        error?: string;
+      }>;
+      mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpRemoveServer: (serverName: string) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      mcpGetProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
+        error?: string;
+      }>;
+      mcpRefreshProviders: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/mcp/types').McpProvidersResponse[];
+        error?: string;
+      }>;
     };
   }
 }
@@ -1209,11 +1362,23 @@ export interface ElectronAPI {
     error?: string;
   }>;
   ptyClearSnapshot: (args: { id: string }) => Promise<{ ok: boolean }>;
+  ptyCleanupSessions: (args: {
+    ids: string[];
+    clearSnapshots?: boolean;
+    waitForSnapshots?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    cleaned: number;
+    failedIds: string[];
+    snapshotClearQueued: boolean;
+  }>;
   onPtyExit: (
     id: string,
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
   onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
   onAgentEvent: (
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
   ) => () => void;
@@ -1353,11 +1518,25 @@ export interface ElectronAPI {
     };
     error?: string;
   }>;
+  lifecycleGetLogs: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    logs?: { setup: string[]; run: string[]; teardown: string[] };
+    error?: string;
+  }>;
   lifecycleClearTask: (args: { taskId: string }) => Promise<{ success: boolean; error?: string }>;
   onLifecycleEvent: (listener: (data: any) => void) => () => void;
 
   // Project management
   openProject: () => Promise<{
+    success: boolean;
+    path?: string;
+    error?: string;
+  }>;
+  openFile: (args?: {
+    title?: string;
+    message?: string;
+    filters?: Electron.FileFilter[];
+  }) => Promise<{
     success: boolean;
     path?: string;
     error?: string;
@@ -1554,9 +1733,10 @@ export interface ElectronAPI {
   }>;
   githubCheckCLIInstalled?: () => Promise<boolean>;
   githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (
-    projectPath: string
-  ) => Promise<{ success: boolean; prs?: any[]; error?: string }>;
+  githubListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
     projectId: string;
@@ -1569,6 +1749,23 @@ export interface ElectronAPI {
     worktree?: any;
     branchName?: string;
     taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
     error?: string;
   }>;
   githubLogout: () => Promise<void>;
@@ -1616,52 +1813,44 @@ export interface ElectronAPI {
     error?: string;
   }>;
 
+  // Plain integration
+  plainSaveToken?: (token: string) => Promise<{
+    success: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainCheckConnection?: () => Promise<{
+    connected: boolean;
+    workspaceName?: string;
+    error?: string;
+  }>;
+  plainClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  plainInitialFetch?: (
+    limit?: number,
+    statuses?: string[]
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+  plainSearchThreads?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    threads?: any[];
+    error?: string;
+  }>;
+
   // Debug helpers
   debugAppendLog: (
     filePath: string,
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
-  // Line comments
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
-  lineCommentsCreate: (args: {
-    taskId: string;
-    filePath: string;
-    lineNumber: number;
-    lineContent?: string;
-    content: string;
-  }) => Promise<{
-    success: boolean;
-    id?: string;
-    error?: string;
-  }>;
-  lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsDelete: (id: string) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetFormatted: (taskId: string) => Promise<{
-    success: boolean;
-    formatted?: string;
-    error?: string;
-  }>;
-  lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetUnsent: (taskId: string) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
 
   // Skills management
   skillsGetCatalog: () => Promise<{
@@ -1738,6 +1927,31 @@ export interface ElectronAPI {
   onWorkspaceProvisionComplete: (
     listener: (data: { instanceId: string; status: string; error?: string }) => void
   ) => () => void;
+
+  // MCP
+  mcpLoadAll: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpLoadAllResponse;
+    error?: string;
+  }>;
+  mcpSaveServer: (server: import('../../shared/mcp/types').McpServer) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpRemoveServer: (serverName: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  mcpGetProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
+    error?: string;
+  }>;
+  mcpRefreshProviders: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/mcp/types').McpProvidersResponse[];
+    error?: string;
+  }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

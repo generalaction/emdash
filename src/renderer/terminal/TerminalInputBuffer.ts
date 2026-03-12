@@ -6,9 +6,11 @@
  * passes validation. After firing, the buffer disables itself.
  */
 
-/** Strings that look like non-task-related input (confirmations, slash commands, etc.) */
+import { isSlashCommandInput } from '../lib/slashCommand';
+import { stripAnsi } from '@shared/text/stripAnsi';
+
+/** Strings that look like non-task-related input (confirmations, menu picks, etc.) */
 const SKIP_PATTERNS = [
-  /^\//, // slash commands
   /^y(es)?$/i, // confirmations
   /^n(o)?$/i,
   /^ok$/i,
@@ -20,14 +22,11 @@ const SKIP_PATTERNS = [
 
 const MIN_MESSAGE_LENGTH = 10;
 
-function stripAnsi(s: string): string {
-  return s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
-}
-
 /** Returns true if the message looks like a real task description. */
 function isRealTaskInput(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed || trimmed.length < MIN_MESSAGE_LENGTH) return false;
+  if (isSlashCommandInput(trimmed)) return false;
   for (const pattern of SKIP_PATTERNS) {
     if (pattern.test(trimmed)) return false;
   }
@@ -48,7 +47,7 @@ export class TerminalInputBuffer {
   feed(data: string): void {
     if (this.captured) return;
 
-    const clean = stripAnsi(data);
+    const clean = stripAnsi(data, { includePrivateCsiParams: true, stripOscSt: true });
     for (const ch of clean) {
       if (ch === '\r' || ch === '\n') {
         // Enter pressed — snapshot the buffer as a pending message

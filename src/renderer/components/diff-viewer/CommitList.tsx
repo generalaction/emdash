@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { ArrowUp, Tag } from 'lucide-react';
 
 interface Commit {
@@ -6,6 +6,7 @@ interface Commit {
   subject: string;
   body: string;
   author: string;
+  authorEmail: string;
   date: string;
   isPushed: boolean;
   tags: string[];
@@ -44,6 +45,45 @@ function formatRelativeDate(dateStr: string): string {
   if (diffMonths < 12) return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`;
   const diffYears = Math.floor(diffDays / 365);
   return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
+}
+
+/** Try to extract a GitHub username from an email address. */
+function githubLoginFromEmail(email: string): string | null {
+  if (!email) return null;
+  // GitHub noreply: 12345+username@users.noreply.github.com
+  const noreply = email.match(/^\d+\+([^@]+)@users\.noreply\.github\.com$/i);
+  if (noreply) return noreply[1];
+  // Older noreply: username@users.noreply.github.com
+  const oldNoreply = email.match(/^([^@]+)@users\.noreply\.github\.com$/i);
+  if (oldNoreply) return oldNoreply[1];
+  return null;
+}
+
+function getAvatarUrl(author: string, authorEmail: string): string {
+  const login = githubLoginFromEmail(authorEmail);
+  if (login) return `https://github.com/${login}.png?size=40`;
+  // Fall back to trying the author name as a GitHub username
+  return `https://github.com/${author}.png?size=40`;
+}
+
+function AuthorAvatar({ author, authorEmail }: { author: string; authorEmail: string }) {
+  const [failed, setFailed] = useState(false);
+
+  const url = getAvatarUrl(author, authorEmail);
+
+  if (failed) return null;
+
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-4 w-4 shrink-0 rounded-sm"
+      onError={(e: SyntheticEvent<HTMLImageElement>) => {
+        e.currentTarget.style.display = 'none';
+        setFailed(true);
+      }}
+    />
+  );
 }
 
 export const CommitList: React.FC<CommitListProps> = ({
@@ -164,8 +204,11 @@ export const CommitList: React.FC<CommitListProps> = ({
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {commit.subject ? <div className="truncate text-sm">{commit.subject}</div> : null}
-              <div className="text-xs text-muted-foreground">
-                {commit.author} &middot; {formatRelativeDate(commit.date)}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <AuthorAvatar author={commit.author} authorEmail={commit.authorEmail} />
+                <span className="truncate">
+                  {commit.author} &middot; {formatRelativeDate(commit.date)}
+                </span>
               </div>
             </div>
             {commit.tags.length > 0 &&

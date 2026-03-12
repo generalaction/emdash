@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
+import { Spinner } from './ui/spinner';
 import {
   DialogContent,
   DialogDescription,
@@ -10,7 +11,6 @@ import {
 import type { BaseModalProps } from '@/contexts/ModalProvider';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
-import { Separator } from './ui/separator';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
@@ -21,6 +21,9 @@ import { isValidProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
+import { type GitLabIssueSummary } from '../types/gitlab';
+import { type PlainThreadSummary } from '../types/plain';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 import {
   generateFriendlyTaskName,
   normalizeTaskName,
@@ -28,6 +31,7 @@ import {
 } from '../lib/taskNames';
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
+import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
@@ -41,6 +45,9 @@ export interface CreateTaskResult {
   linkedLinearIssue?: LinearIssueSummary | null;
   linkedGithubIssue?: GitHubIssueSummary | null;
   linkedJiraIssue?: JiraIssueSummary | null;
+  linkedPlainThread?: PlainThreadSummary | null;
+  linkedGitlabIssue?: GitLabIssueSummary | null;
+  linkedForgejoIssue?: ForgejoIssueSummary | null;
   autoApprove?: boolean;
   useWorktree?: boolean;
   baseRef?: string;
@@ -56,6 +63,7 @@ export interface CreateTaskResult {
 
 interface TaskModalProps {
   onClose: () => void;
+  initialProject?: Project;
   onCreateTask: (
     name: string,
     initialPrompt?: string,
@@ -63,78 +71,101 @@ interface TaskModalProps {
     linkedLinearIssue?: LinearIssueSummary | null,
     linkedGithubIssue?: GitHubIssueSummary | null,
     linkedJiraIssue?: JiraIssueSummary | null,
+    linkedPlainThread?: PlainThreadSummary | null,
+    linkedGitlabIssue?: GitLabIssueSummary | null,
+    linkedForgejoIssue?: ForgejoIssueSummary | null,
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
     nameGenerated?: boolean,
     useRemoteWorkspace?: boolean,
     workspaceProvider?: { provisionCommand: string; terminateCommand: string }
-  ) => void;
+  ) => Promise<void>;
 }
 
-export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
+export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult> & {
+  initialProject?: Project;
+};
 
-export function TaskModalOverlay({ onSuccess, onClose }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayProps) {
+  const { handleCreateTask } = useTaskManagementContext();
+
   return (
     <TaskModal
       onClose={onClose}
-      onCreateTask={(
+      initialProject={initialProject}
+      onCreateTask={async (
         name,
         initialPrompt,
         agentRuns,
         linkedLinearIssue,
         linkedGithubIssue,
         linkedJiraIssue,
+        linkedPlainThread,
+        linkedGitlabIssue,
+        linkedForgejoIssue,
         autoApprove,
         useWorktree,
         baseRef,
         nameGenerated,
         useRemoteWorkspace,
         workspaceProvider
-      ) =>
-        onSuccess({
+      ) => {
+        await handleCreateTask(
           name,
           initialPrompt,
           agentRuns,
-          linkedLinearIssue,
-          linkedGithubIssue,
-          linkedJiraIssue,
+          linkedLinearIssue ?? null,
+          linkedGithubIssue ?? null,
+          linkedJiraIssue ?? null,
+          linkedPlainThread ?? null,
+          linkedGitlabIssue ?? null,
+          linkedForgejoIssue ?? null,
           autoApprove,
           useWorktree,
           baseRef,
           nameGenerated,
           useRemoteWorkspace,
           workspaceProvider,
-        })
-      }
+          initialProject ?? undefined
+        );
+      }}
     />
   );
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreateTask }) => {
   const {
     selectedProject,
     projectDefaultBranch: defaultBranch,
     projectBranchOptions: branchOptions,
     isLoadingBranches,
+    refreshBranches,
   } = useProjectManagementContext();
   const { linkedGithubIssueMap } = useTaskManagementContext();
 
-  const projectName = selectedProject?.name || '';
-  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
-  const projectPath = selectedProject?.path;
+  const project = initialProject ?? selectedProject;
+  const projectName = project?.name || '';
+  const existingNames = (project?.tasks || []).map((w) => w.name);
+  const projectPath = project?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Advanced settings state
   const [initialPrompt, setInitialPrompt] = useState('');
   const [selectedLinearIssue, setSelectedLinearIssue] = useState<LinearIssueSummary | null>(null);
   const [selectedGithubIssue, setSelectedGithubIssue] = useState<GitHubIssueSummary | null>(null);
   const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssueSummary | null>(null);
+  const [selectedGitlabIssue, setSelectedGitlabIssue] = useState<GitLabIssueSummary | null>(null);
+  const [selectedPlainThread, setSelectedPlainThread] = useState<PlainThreadSummary | null>(null);
+  const [selectedForgejoIssue, setSelectedForgejoIssue] = useState<ForgejoIssueSummary | null>(
+    null
+  );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
   const [useRemoteWorkspace, setUseRemoteWorkspace] = useState(false);
@@ -227,6 +258,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       setSelectedLinearIssue(null);
       setSelectedGithubIssue(null);
       setSelectedJiraIssue(null);
+      setSelectedGitlabIssue(null);
+      setSelectedPlainThread(null);
+      setSelectedForgejoIssue(null);
       setInitialPrompt('');
     }
   }, [hasInitialPromptSupport]);
@@ -238,6 +272,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
   // Reset form and load settings on mount
   useEffect(() => {
+    void refreshBranches();
     // Reset state
     setTaskName('');
     setAutoGeneratedName('');
@@ -248,6 +283,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     setSelectedLinearIssue(null);
     setSelectedGithubIssue(null);
     setSelectedJiraIssue(null);
+    setSelectedGitlabIssue(null);
+    setSelectedPlainThread(null);
+    setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
     userHasTypedRef.current = false;
@@ -278,6 +316,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
       const autoApproveByDefault = settings?.tasks?.autoApproveByDefault ?? false;
       setAutoApprove(autoApproveByDefault && !!agentMeta[agent]?.autoApproveFlag);
 
+      const createWorktreeByDefault = settings?.tasks?.createWorktreeByDefault ?? true;
+      setUseWorktree(createWorktreeByDefault);
+
       // Handle auto-generate setting
       const shouldAutoGenerate = settings?.tasks?.autoGenerateName !== false;
       setAutoGenerateName(shouldAutoGenerate);
@@ -298,7 +339,14 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     if (!autoGenerateName || userHasTypedRef.current) return;
 
     // Immediate for issue linking, debounced for typed prompts
-    const hasIssue = !!(selectedLinearIssue || selectedGithubIssue || selectedJiraIssue);
+    const hasIssue = !!(
+      selectedLinearIssue ||
+      selectedGithubIssue ||
+      selectedJiraIssue ||
+      selectedPlainThread ||
+      selectedGitlabIssue ||
+      selectedForgejoIssue
+    );
     const delay = hasIssue ? 0 : 400;
 
     const timer = setTimeout(() => {
@@ -308,6 +356,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         linearIssue: selectedLinearIssue,
         githubIssue: selectedGithubIssue,
         jiraIssue: selectedJiraIssue,
+        plainThread: selectedPlainThread,
+        gitlabIssue: selectedGitlabIssue,
+        forgejoIssue: selectedForgejoIssue,
       });
       if (generated) {
         nameFromContextRef.current = true;
@@ -324,6 +375,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     selectedLinearIssue,
     selectedGithubIssue,
     selectedJiraIssue,
+    selectedPlainThread,
+    selectedGitlabIssue,
+    selectedForgejoIssue,
     validate,
   ]);
 
@@ -374,19 +428,19 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     // When the name was auto-generated from context (prompt/issue),
     // it's already descriptive — don't mark it for post-creation rename.
 
-    // Close modal immediately - task creation happens in background
-    // The task will appear in sidebar via optimistic UI update
-    onClose();
+    setIsCreating(true);
 
-    // Fire and forget - don't await
     try {
-      onCreateTask(
+      await onCreateTask(
         finalName,
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
         agentRuns,
         selectedLinearIssue,
         selectedGithubIssue,
         selectedJiraIssue,
+        selectedPlainThread,
+        selectedGitlabIssue,
+        selectedForgejoIssue,
         hasAutoApproveSupport ? autoApprove : false,
         useRemoteWorkspace ? false : useWorktree,
         selectedBranch,
@@ -394,8 +448,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         useRemoteWorkspace,
         useRemoteWorkspace && workspaceProviderConfig ? workspaceProviderConfig : undefined
       );
+      onClose();
     } catch (error) {
       console.error('Failed to create task:', error);
+      setIsCreating(false);
     }
   };
 
@@ -406,10 +462,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
   return (
     <DialogContent
-      className="max-h-[calc(100vh-48px)] max-w-md overflow-visible"
+      className="flex max-h-[calc(100vh-48px)] max-w-md flex-col overflow-hidden p-0"
       onOpenAutoFocus={handleOpenAutoFocus}
+      onInteractOutside={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        if (isCreating) e.preventDefault();
+      }}
     >
-      <DialogHeader>
+      <DialogHeader className="shrink-0 px-6 pr-12 pt-6">
         <DialogTitle>New Task</DialogTitle>
         <DialogDescription className="text-xs">
           Create a task and open the agent workspace.
@@ -435,69 +497,88 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         </div>
       </DialogHeader>
 
-      <Separator />
+      <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+          <div>
+            <Label htmlFor="task-name" className="mb-2 block">
+              Task name (optional)
+            </Label>
+            <SlugInput
+              ref={taskNameInputRef}
+              id="task-name"
+              value={taskName}
+              onChange={handleNameChange}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                setTouched(true);
+                setIsFocused(false);
+              }}
+              placeholder="refactor-api-routes"
+              maxLength={MAX_TASK_NAME_LENGTH}
+              className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
+              aria-invalid={touched && !!error && !isFocused}
+            />
+          </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Label htmlFor="task-name" className="mb-2 block">
-            Task name (optional)
-          </Label>
-          <SlugInput
-            ref={taskNameInputRef}
-            id="task-name"
-            value={taskName}
-            onChange={handleNameChange}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => {
-              setTouched(true);
-              setIsFocused(false);
-            }}
-            placeholder="refactor-api-routes"
-            maxLength={MAX_TASK_NAME_LENGTH}
-            className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
-            aria-invalid={touched && !!error && !isFocused}
+          <div className="flex items-center gap-4">
+            <Label className="shrink-0">Agent</Label>
+            <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
+          </div>
+
+          <TaskAdvancedSettings
+            isOpen={true}
+            projectPath={projectPath}
+            useWorktree={useWorktree}
+            onUseWorktreeChange={setUseWorktree}
+            useRemoteWorkspace={useRemoteWorkspace}
+            onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
+            hasWorkspaceProvider={!!workspaceProviderConfig}
+            autoApprove={autoApprove}
+            onAutoApproveChange={setAutoApprove}
+            hasAutoApproveSupport={hasAutoApproveSupport}
+            initialPrompt={initialPrompt}
+            onInitialPromptChange={setInitialPrompt}
+            hasInitialPromptSupport={hasInitialPromptSupport}
+            selectedLinearIssue={selectedLinearIssue}
+            onLinearIssueChange={setSelectedLinearIssue}
+            isLinearConnected={integrations.isLinearConnected}
+            onLinearConnect={integrations.handleLinearConnect}
+            selectedGithubIssue={selectedGithubIssue}
+            onGithubIssueChange={setSelectedGithubIssue}
+            linkedGithubIssueMap={linkedGithubIssueMap}
+            isGithubConnected={integrations.isGithubConnected}
+            onGithubConnect={integrations.handleGithubConnect}
+            githubLoading={integrations.githubLoading}
+            githubInstalled={integrations.githubInstalled}
+            selectedJiraIssue={selectedJiraIssue}
+            onJiraIssueChange={setSelectedJiraIssue}
+            isJiraConnected={integrations.isJiraConnected}
+            onJiraConnect={integrations.handleJiraConnect}
+            selectedGitlabIssue={selectedGitlabIssue}
+            onGitlabIssueChange={setSelectedGitlabIssue}
+            isGitlabConnected={integrations.isGitlabConnected}
+            onGitlabConnect={integrations.handleGitlabConnect}
+            selectedPlainThread={selectedPlainThread}
+            onPlainThreadChange={setSelectedPlainThread}
+            isPlainConnected={integrations.isPlainConnected}
+            onPlainConnect={integrations.handlePlainConnect}
+            selectedForgejoIssue={selectedForgejoIssue}
+            onForgejoIssueChange={setSelectedForgejoIssue}
+            isForgejoConnected={integrations.isForgejoConnected}
+            onForgejoConnect={integrations.handleForgejoConnect}
           />
         </div>
 
-        <div className="flex items-center gap-4">
-          <Label className="shrink-0">Agent</Label>
-          <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
-        </div>
-
-        <TaskAdvancedSettings
-          isOpen={true}
-          projectPath={projectPath}
-          useWorktree={useWorktree}
-          onUseWorktreeChange={setUseWorktree}
-          useRemoteWorkspace={useRemoteWorkspace}
-          onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
-          hasWorkspaceProvider={!!workspaceProviderConfig}
-          autoApprove={autoApprove}
-          onAutoApproveChange={setAutoApprove}
-          hasAutoApproveSupport={hasAutoApproveSupport}
-          initialPrompt={initialPrompt}
-          onInitialPromptChange={setInitialPrompt}
-          hasInitialPromptSupport={hasInitialPromptSupport}
-          selectedLinearIssue={selectedLinearIssue}
-          onLinearIssueChange={setSelectedLinearIssue}
-          isLinearConnected={integrations.isLinearConnected}
-          onLinearConnect={integrations.handleLinearConnect}
-          selectedGithubIssue={selectedGithubIssue}
-          onGithubIssueChange={setSelectedGithubIssue}
-          linkedGithubIssueMap={linkedGithubIssueMap}
-          isGithubConnected={integrations.isGithubConnected}
-          onGithubConnect={integrations.handleGithubConnect}
-          githubLoading={integrations.githubLoading}
-          githubInstalled={integrations.githubInstalled}
-          selectedJiraIssue={selectedJiraIssue}
-          onJiraIssueChange={setSelectedJiraIssue}
-          isJiraConnected={integrations.isJiraConnected}
-          onJiraConnect={integrations.handleJiraConnect}
-        />
-
-        <DialogFooter>
-          <Button type="submit" disabled={!!error}>
-            Create
+        <DialogFooter className="shrink-0 px-6 py-4">
+          <Button type="submit" disabled={!!error || isCreating} aria-busy={isCreating}>
+            {isCreating ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Creating…
+              </>
+            ) : (
+              'Create'
+            )}
           </Button>
         </DialogFooter>
       </form>

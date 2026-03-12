@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import FileChangesPanel from './FileChangesPanel';
 import TaskTerminalPanel from './TaskTerminalPanel';
@@ -45,6 +45,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
+  const asideRef = useRef<HTMLElement>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
 
@@ -74,6 +75,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
+
+  // Blur focused elements inside the sidebar (e.g. xterm textarea) on collapse.
+  useEffect(() => {
+    if (collapsed && asideRef.current?.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement)?.blur();
+    }
+  }, [collapsed]);
 
   // Detect multi-agent variants in task metadata
   const variants: Array<{ agent: Agent; name: string; path: string; worktreeId?: string }> =
@@ -119,6 +127,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   return (
     <aside
+      ref={asideRef}
       data-state={collapsed ? 'collapsed' : 'open'}
       className={cn(
         'group/right-sidebar relative z-[45] flex h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden transition-all duration-200 ease-linear',
@@ -147,7 +156,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       aria-hidden={collapsed}
       {...rest}
     >
-      <TaskScopeProvider value={{ taskId: task?.id, taskPath: task?.path, projectPath }}>
+      <TaskScopeProvider
+        value={{
+          taskId: task?.id,
+          taskPath: task?.path,
+          projectPath,
+          prNumber: task?.metadata?.prNumber ?? undefined,
+        }}
+      >
         <div className="flex h-full w-full min-w-0 flex-col">
           {task || projectPath ? (
             <div className="flex h-full flex-col">
@@ -323,37 +339,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               )}
             </div>
           ) : (
-            <ResizablePanelGroup
-              direction="vertical"
-              autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
-              className="text-sm text-muted-foreground"
-            >
-              <ResizablePanel defaultSize={50} minSize={20}>
-                <div className="flex h-full flex-col bg-background">
-                  <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                    <span className="whitespace-nowrap">Changes</span>
-                  </div>
-                  <div className="flex flex-1 items-center justify-center px-4 text-center">
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                      Select a task to review file changes.
-                    </span>
-                  </div>
-                </div>
-              </ResizablePanel>
-              <ResizableHandle />
-              <ResizablePanel defaultSize={50} minSize={20}>
-                <div className="flex h-full flex-col bg-background">
-                  <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                    <span className="whitespace-nowrap">Terminal</span>
-                  </div>
-                  <div className="flex flex-1 items-center justify-center px-4 text-center">
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                      Select a task to open its terminal.
-                    </span>
-                  </div>
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+            <TaskTerminalPanel task={null} agent={undefined} className="h-full min-h-0" />
           )}
         </div>
       </TaskScopeProvider>

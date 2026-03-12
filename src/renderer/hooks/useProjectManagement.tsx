@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastAction } from '@radix-ui/react-toast';
 import { pickDefaultBranch } from '../components/BranchSelect';
@@ -89,9 +89,14 @@ export const useProjectManagement = () => {
   const queryClient = useQueryClient();
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  const activeProjectIdRef = useRef<string | null>(null);
+  activeProjectIdRef.current = selectedProject?.id || null;
+
   // Always start on home view (e.g. after app restart)
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
+  const [showMcpView, setShowMcpView] = useState(false);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
   // Trigger counters — incremented to signal task management to reset active task / auto-open modal
@@ -204,6 +209,7 @@ export const useProjectManagement = () => {
       setSelectedProject(project);
       setShowHomeView(false);
       setShowSkillsView(false);
+      setShowMcpView(false);
       setResetTaskTrigger((t) => t + 1);
       setShowEditorMode(false);
       setShowKanban(false);
@@ -225,6 +231,7 @@ export const useProjectManagement = () => {
     setSelectedProject(null);
     setShowHomeView(true);
     setShowSkillsView(false);
+    setShowMcpView(false);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -238,6 +245,21 @@ export const useProjectManagement = () => {
     setSelectedProject(null);
     setShowHomeView(false);
     setShowSkillsView(true);
+    setShowMcpView(false);
+    setResetTaskTrigger((t) => t + 1);
+    setShowEditorMode(false);
+    setShowKanban(false);
+    saveActiveIds(null, null);
+  };
+
+  const handleGoToMcp = () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('mcp_view_opened');
+    });
+    setSelectedProject(null);
+    setShowHomeView(false);
+    setShowSkillsView(false);
+    setShowMcpView(true);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -339,18 +361,6 @@ export const useProjectManagement = () => {
     void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('project_clone_clicked');
     });
-    if (!isAuthenticated || !ghInstalled) {
-      toast({
-        title: 'GitHub authentication required',
-        variant: 'destructive',
-        action: (
-          <ToastAction altText="Connect GitHub" onClick={handleGithubConnect}>
-            Connect GitHub
-          </ToastAction>
-        ),
-      });
-      return;
-    }
     showModal('cloneFromUrlModal', { onSuccess: handleCloneSuccess });
   };
 
@@ -504,9 +514,70 @@ export const useProjectManagement = () => {
     showModal('addRemoteProjectModal', { onSuccess: handleRemoteProjectSuccess });
   }, [showModal, handleRemoteProjectSuccess]);
 
-  // ---------------------------------------------------------------------------
-  // Branch loading for the selected project
-  // ---------------------------------------------------------------------------
+  const refreshBranches = useCallback(async () => {
+    if (!selectedProject) return;
+
+    const originProjectId = selectedProject.id;
+
+    setIsLoadingBranches(true);
+    try {
+      let options: { value: string; label: string }[];
+
+      if (selectedProject.isRemote && selectedProject.sshConnectionId) {
+        // Load branches over SSH for remote projects
+        const result = await window.electronAPI.sshExecuteCommand(
+          selectedProject.sshConnectionId,
+          'git branch -a --format="%(refname:short)"',
+          selectedProject.path
+        );
+        if (result.exitCode === 0 && result.stdout) {
+          const branches = result.stdout
+            .split('\n')
+            .map((b) => b.trim())
+            .filter((b) => b.length > 0 && !b.includes('HEAD'));
+          options = branches.map((b) => ({
+            value: b,
+            label: b,
+          }));
+        } else {
+          options = [];
+        }
+      } else {
+        const res = await window.electronAPI.listRemoteBranches({
+          projectPath: selectedProject.path,
+        });
+        if (res.success && res.branches) {
+          options = res.branches.map((b) => ({
+            value: b.ref,
+            label: b.remote ? b.label : `${b.branch} (local)`,
+          }));
+        } else {
+          options = [];
+        }
+      }
+
+      if (activeProjectIdRef.current !== originProjectId) {
+        return;
+      }
+
+      // Only update state if we found branches
+      if (options.length > 0) {
+        setProjectBranchOptions(options);
+        const currentRef = selectedProject.gitInfo?.baseRef;
+        const defaultBranch = pickDefaultBranch(options, currentRef);
+        setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
+      }
+    } catch (error) {
+      console.error('Failed to load branches:', error);
+    } finally {
+      if (activeProjectIdRef.current === originProjectId) {
+        setIsLoadingBranches(false);
+        setHasResolvedBranchOptions(true);
+      }
+    }
+  }, [selectedProject]);
+
+  // Initial load when project changes
   useEffect(() => {
     if (!selectedProject) {
       setProjectBranchOptions([]);
@@ -521,63 +592,8 @@ export const useProjectManagement = () => {
     setProjectDefaultBranch(initialBranch);
     setHasResolvedBranchOptions(false);
 
-    let cancelled = false;
-    const loadBranches = async () => {
-      setIsLoadingBranches(true);
-      try {
-        let options: { value: string; label: string }[];
-
-        if (selectedProject.isRemote && selectedProject.sshConnectionId) {
-          const result = await window.electronAPI.sshExecuteCommand(
-            selectedProject.sshConnectionId,
-            'git branch -a --format="%(refname:short)"',
-            selectedProject.path
-          );
-          if (cancelled) return;
-          if (result.exitCode === 0 && result.stdout) {
-            const branches = result.stdout
-              .split('\n')
-              .map((b) => b.trim())
-              .filter((b) => b.length > 0 && !b.includes('HEAD'));
-            options = branches.map((b) => ({ value: b, label: b }));
-          } else {
-            options = [];
-          }
-        } else {
-          const res = await window.electronAPI.listRemoteBranches({
-            projectPath: selectedProject.path,
-          });
-          if (cancelled) return;
-          if (res.success && res.branches) {
-            options = res.branches.map((b) => ({
-              value: b.ref,
-              label: b.remote ? b.label : `${b.branch} (local)`,
-            }));
-          } else {
-            options = [];
-          }
-        }
-
-        if (!cancelled && options.length > 0) {
-          setProjectBranchOptions(options);
-          const defaultBranch = pickDefaultBranch(options, currentRef);
-          setProjectDefaultBranch(defaultBranch ?? currentRef ?? 'main');
-        }
-      } catch (error) {
-        console.error('Failed to load branches:', error);
-      } finally {
-        if (!cancelled) {
-          setIsLoadingBranches(false);
-          setHasResolvedBranchOptions(true);
-        }
-      }
-    };
-
-    void loadBranches();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProject]);
+    void refreshBranches();
+  }, [selectedProject, refreshBranches]);
 
   // Keep reserves warm for the currently selected base ref.
   useEffect(() => {
@@ -616,6 +632,8 @@ export const useProjectManagement = () => {
     setShowHomeView,
     showSkillsView,
     setShowSkillsView,
+    showMcpView,
+    setShowMcpView,
     showEditorMode,
     setShowEditorMode,
     showKanban,
@@ -623,10 +641,12 @@ export const useProjectManagement = () => {
     resetTaskTrigger,
     autoOpenTaskModalTrigger,
     handleGoToSkills,
+    handleGoToMcp,
     projectBranchOptions,
     projectDefaultBranch,
     setProjectDefaultBranch,
     isLoadingBranches,
+    refreshBranches,
     activateProjectView,
     handleGoHome,
     handleSelectProject,

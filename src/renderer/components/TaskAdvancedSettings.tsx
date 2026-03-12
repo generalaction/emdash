@@ -10,12 +10,21 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { LinearIssueSelector } from './LinearIssueSelector';
 import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
+import { GitLabIssueSelector } from './GitLabIssueSelector';
+import { PlainThreadSelector } from './PlainThreadSelector';
+import { ForgejoIssueSelector } from './ForgejoIssueSelector';
 import LinearSetupForm from './integrations/LinearSetupForm';
 import JiraSetupForm from './integrations/JiraSetupForm';
+import GitLabSetupForm from './integrations/GitLabSetupForm';
+import PlainSetupForm from './integrations/PlainSetupForm';
+import ForgejoSetupForm from './integrations/ForgejoSetupForm';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
+import { type GitLabIssueSummary } from '../types/gitlab';
+import { type PlainThreadSummary } from '../types/plain';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 
 interface TaskAdvancedSettingsProps {
   isOpen: boolean;
@@ -60,6 +69,24 @@ interface TaskAdvancedSettingsProps {
   onJiraIssueChange: (issue: JiraIssueSummary | null) => void;
   isJiraConnected: boolean | null;
   onJiraConnect: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
+
+  // GitLab
+  selectedGitlabIssue: GitLabIssueSummary | null;
+  onGitlabIssueChange: (issue: GitLabIssueSummary | null) => void;
+  isGitlabConnected: boolean | null;
+  onGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
+
+  // Plain
+  selectedPlainThread: PlainThreadSummary | null;
+  onPlainThreadChange: (thread: PlainThreadSummary | null) => void;
+  isPlainConnected: boolean | null;
+  onPlainConnect: (apiKey: string) => Promise<void>;
+
+  // Forgejo
+  selectedForgejoIssue: ForgejoIssueSummary | null;
+  onForgejoIssueChange: (issue: ForgejoIssueSummary | null) => void;
+  isForgejoConnected: boolean | null;
+  onForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
@@ -91,6 +118,18 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onJiraIssueChange,
   isJiraConnected,
   onJiraConnect,
+  selectedGitlabIssue,
+  onGitlabIssueChange,
+  isGitlabConnected,
+  onGitlabConnect,
+  selectedPlainThread,
+  onPlainThreadChange,
+  isPlainConnected,
+  onPlainConnect,
+  selectedForgejoIssue,
+  onForgejoIssueChange,
+  isForgejoConnected,
+  onForgejoConnect,
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -107,6 +146,24 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const [jiraEmail, setJiraEmail] = useState('');
   const [jiraToken, setJiraToken] = useState('');
   const [jiraConnectionError, setJiraConnectionError] = useState<string | null>(null);
+
+  // GitLab setup state
+  const [gitlabSetupOpen, setGitlabSetupOpen] = useState(false);
+  const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
+  const [gitlabToken, setGitlabToken] = useState('');
+  const [gitlabConnectionError, setGitlabConnectionError] = useState<string | null>(null);
+
+  // Plain setup state
+  const [plainSetupOpen, setPlainSetupOpen] = useState(false);
+  const [plainApiKey, setPlainApiKey] = useState('');
+  const [plainConnectionError, setPlainConnectionError] = useState<string | null>(null);
+  const [autoOpenPlainSelector, setAutoOpenPlainSelector] = useState(false);
+
+  // Forgejo setup state
+  const [forgejoSetupOpen, setForgejoSetupOpen] = useState(false);
+  const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
+  const [forgejoToken, setForgejoToken] = useState('');
+  const [forgejoConnectionError, setForgejoConnectionError] = useState<string | null>(null);
 
   const handleLinearConnect = useCallback(async () => {
     const trimmedKey = linearApiKey.trim();
@@ -140,15 +197,70 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
   }, [jiraSite, jiraEmail, jiraToken, onJiraConnect]);
 
+  const handleGitlabConnect = useCallback(async () => {
+    setGitlabConnectionError(null);
+    try {
+      await onGitlabConnect({
+        instanceUrl: gitlabInstanceUrl.trim(),
+        token: gitlabToken.trim(),
+      });
+      setGitlabSetupOpen(false);
+      setGitlabInstanceUrl('');
+      setGitlabToken('');
+    } catch (error: any) {
+      setGitlabConnectionError(error?.message || 'Failed to connect.');
+    }
+  }, [gitlabInstanceUrl, gitlabToken, onGitlabConnect]);
+
+  const handlePlainConnect = useCallback(async () => {
+    const trimmedKey = plainApiKey.trim();
+    if (!trimmedKey) return;
+
+    setPlainConnectionError(null);
+    try {
+      await onPlainConnect(trimmedKey);
+      setPlainSetupOpen(false);
+      setPlainApiKey('');
+      setAutoOpenPlainSelector(true);
+    } catch (error: any) {
+      setPlainConnectionError(error?.message || 'Could not connect Plain. Try again.');
+    }
+  }, [plainApiKey, onPlainConnect]);
+
+  const handleForgejoConnect = useCallback(async () => {
+    setForgejoConnectionError(null);
+    try {
+      await onForgejoConnect({
+        instanceUrl: forgejoInstanceUrl.trim(),
+        token: forgejoToken.trim(),
+      });
+      setForgejoSetupOpen(false);
+      setForgejoInstanceUrl('');
+      setForgejoToken('');
+    } catch (error: any) {
+      setForgejoConnectionError(error?.message || 'Failed to connect.');
+    }
+  }, [forgejoInstanceUrl, forgejoToken, onForgejoConnect]);
+
   const handleLinearIssueChange = useCallback(
     (issue: LinearIssueSummary | null) => {
       onLinearIssueChange(issue);
       if (issue) {
         onGithubIssueChange(null);
         onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+        onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
-    [onLinearIssueChange, onGithubIssueChange, onJiraIssueChange]
+    [
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
+      onPlainThreadChange,
+      onForgejoIssueChange,
+    ]
   );
 
   const handleGithubIssueChange = useCallback(
@@ -157,9 +269,19 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       if (issue) {
         onLinearIssueChange(null);
         onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+        onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
-    [onGithubIssueChange, onLinearIssueChange, onJiraIssueChange]
+    [
+      onGithubIssueChange,
+      onLinearIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
+      onPlainThreadChange,
+      onForgejoIssueChange,
+    ]
   );
 
   const handleJiraIssueChange = useCallback(
@@ -168,9 +290,82 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       if (issue) {
         onLinearIssueChange(null);
         onGithubIssueChange(null);
+        onGitlabIssueChange(null);
+        onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
-    [onJiraIssueChange, onLinearIssueChange, onGithubIssueChange]
+    [
+      onJiraIssueChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onGitlabIssueChange,
+      onPlainThreadChange,
+      onForgejoIssueChange,
+    ]
+  );
+
+  const handleGitlabIssueChange = useCallback(
+    (issue: GitLabIssueSummary | null) => {
+      onGitlabIssueChange(issue);
+      if (issue) {
+        onLinearIssueChange(null);
+        onGithubIssueChange(null);
+        onJiraIssueChange(null);
+        onPlainThreadChange(null);
+        onForgejoIssueChange(null);
+      }
+    },
+    [
+      onGitlabIssueChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onPlainThreadChange,
+      onForgejoIssueChange,
+    ]
+  );
+
+  const handlePlainThreadChange = useCallback(
+    (thread: PlainThreadSummary | null) => {
+      onPlainThreadChange(thread);
+      if (thread) {
+        onLinearIssueChange(null);
+        onGithubIssueChange(null);
+        onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+        onForgejoIssueChange(null);
+      }
+    },
+    [
+      onPlainThreadChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
+      onForgejoIssueChange,
+    ]
+  );
+
+  const handleForgejoIssueChange = useCallback(
+    (issue: ForgejoIssueSummary | null) => {
+      onForgejoIssueChange(issue);
+      if (issue) {
+        onLinearIssueChange(null);
+        onGithubIssueChange(null);
+        onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+        onPlainThreadChange(null);
+      }
+    },
+    [
+      onForgejoIssueChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
+      onPlainThreadChange,
+    ]
   );
 
   const getInitialPromptPlaceholder = () => {
@@ -185,6 +380,15 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
     if (selectedJiraIssue) {
       return `e.g. Fix the attached Jira ticket ${selectedJiraIssue.key} — describe any constraints.`;
+    }
+    if (selectedGitlabIssue) {
+      return `e.g. Fix the attached GitLab issue #${selectedGitlabIssue.iid} — describe any constraints.`;
+    }
+    if (selectedPlainThread) {
+      return `e.g. Fix the customer-reported issue "${selectedPlainThread.title}" — describe any constraints.`;
+    }
+    if (selectedForgejoIssue) {
+      return `e.g. Fix the attached Forgejo issue #${selectedForgejoIssue.number} — describe any constraints.`;
     }
     return 'e.g. Summarize the key problems and propose a plan.';
   };
@@ -324,7 +528,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !hasInitialPromptSupport ||
                         !isLinearConnected ||
                         !!selectedGithubIssue ||
-                        !!selectedJiraIssue
+                        !!selectedJiraIssue ||
+                        !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       autoOpen={autoOpenLinearSelector}
@@ -362,7 +569,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !hasInitialPromptSupport ||
                         !isGithubConnected ||
                         !!selectedJiraIssue ||
-                        !!selectedLinearIssue
+                        !!selectedLinearIssue ||
+                        !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isGithubConnected ? 'Select a GitHub issue' : 'Select issue'}
@@ -406,7 +616,10 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !hasInitialPromptSupport ||
                         !isJiraConnected ||
                         !!selectedLinearIssue ||
-                        !!selectedGithubIssue
+                        !!selectedGithubIssue ||
+                        !!selectedGitlabIssue ||
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isJiraConnected ? 'Select a Jira issue' : 'Select issue'}
@@ -419,6 +632,119 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       variant="outline"
                       className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
                       onClick={() => setJiraSetupOpen(true)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="gitlab-issue" className="pt-2">
+                  GitLab issue
+                </Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <GitLabIssueSelector
+                      projectPath={projectPath || ''}
+                      selectedIssue={selectedGitlabIssue}
+                      onIssueChange={handleGitlabIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isGitlabConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue ||
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
+                      }
+                      className="w-full"
+                      placeholder={isGitlabConnected ? 'Select a GitLab issue' : 'Select issue'}
+                    />
+                  </div>
+                  {!isGitlabConnected && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setGitlabSetupOpen(true)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="plain-thread" className="pt-2">
+                  Plain thread
+                </Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <PlainThreadSelector
+                      selectedThread={selectedPlainThread}
+                      onThreadChange={handlePlainThreadChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isPlainConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue ||
+                        !!selectedGitlabIssue
+                      }
+                      className="w-full"
+                      autoOpen={autoOpenPlainSelector}
+                      onAutoOpenHandled={() => setAutoOpenPlainSelector(false)}
+                      placeholder={isPlainConnected ? 'Select a Plain thread' : 'Select thread'}
+                    />
+                  </div>
+                  {!isPlainConnected && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setPlainSetupOpen(true)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="forgejo-issue" className="pt-2">
+                  Forgejo issue
+                </Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <ForgejoIssueSelector
+                      projectPath={projectPath || ''}
+                      selectedIssue={selectedForgejoIssue}
+                      onIssueChange={handleForgejoIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isForgejoConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue ||
+                        !!selectedGitlabIssue
+                      }
+                      className="w-full"
+                      placeholder={isForgejoConnected ? 'Select a Forgejo issue' : 'Select issue'}
+                    />
+                  </div>
+                  {!isForgejoConnected && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setForgejoSetupOpen(true)}
                     >
                       Connect
                     </Button>
@@ -509,6 +835,107 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
                 error={jiraConnectionError}
                 onSubmit={() => void handleJiraConnect()}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {gitlabSetupOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setGitlabSetupOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-xl border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <GitLabSetupForm
+                instanceUrl={gitlabInstanceUrl}
+                token={gitlabToken}
+                onChange={(u) => {
+                  if (typeof u.instanceUrl === 'string') setGitlabInstanceUrl(u.instanceUrl);
+                  if (typeof u.token === 'string') setGitlabToken(u.token);
+                }}
+                onClose={() => setGitlabSetupOpen(false)}
+                canSubmit={!!(gitlabInstanceUrl.trim() && gitlabToken.trim())}
+                error={gitlabConnectionError}
+                onSubmit={() => void handleGitlabConnect()}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {plainSetupOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPlainSetupOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-xl border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <PlainSetupForm
+                apiKey={plainApiKey}
+                onChange={(value) => setPlainApiKey(value)}
+                onSubmit={() => void handlePlainConnect()}
+                onClose={() => setPlainSetupOpen(false)}
+                canSubmit={!!plainApiKey.trim()}
+                error={plainConnectionError}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {forgejoSetupOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setForgejoSetupOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-xl border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ForgejoSetupForm
+                instanceUrl={forgejoInstanceUrl}
+                token={forgejoToken}
+                onChange={(u) => {
+                  if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
+                  if (typeof u.token === 'string') setForgejoToken(u.token);
+                }}
+                onClose={() => setForgejoSetupOpen(false)}
+                canSubmit={!!(forgejoInstanceUrl.trim() && forgejoToken.trim())}
+                error={forgejoConnectionError}
+                onSubmit={() => void handleForgejoConnect()}
               />
             </motion.div>
           </motion.div>

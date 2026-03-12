@@ -1,12 +1,14 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Bot, Plus, Play, Square, X } from 'lucide-react';
+import { Plus, Play, RotateCw, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { useTerminalSelection } from '../hooks/useTerminalSelection';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
+import { useToast } from '../hooks/use-toast';
+import { ToastAction } from './ui/toast';
 import {
   Select,
   SelectContent,
@@ -17,6 +19,12 @@ import {
 } from './ui/select';
 import type { Agent } from '../types';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import {
+  type LifecycleLogs,
+  type LifecyclePhase,
+  MAX_LIFECYCLE_LOG_LINES,
+  formatLifecycleLogLine,
+} from '@shared/lifecycle';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
 
 interface Task {
@@ -41,8 +49,6 @@ interface Props {
 }
 
 type LifecyclePhaseStatus = 'idle' | 'running' | 'succeeded' | 'failed';
-type LifecyclePhase = 'setup' | 'run' | 'teardown';
-type LifecycleLogs = Record<LifecyclePhase, string[]>;
 
 const TaskTerminalPanelComponent: React.FC<Props> = ({
   task,
@@ -54,14 +60,21 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   portSeed,
 }) => {
   const { effectiveTheme } = useTheme();
+  const { toast } = useToast();
 
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
   // Global terminals are scoped per variant (or project when no task) so each
   // agent worktree gets its own global terminal and simultaneous variants don't conflict.
-  const globalKey = task?.path ? `global::${task.path}` : `global::${projectPath}`;
-  const globalTerminals = useTaskTerminals(globalKey, projectPath, { defaultCwd: projectPath });
+  const effectiveCwd = projectPath;
+  // Use a stable key for the home page case so terminals aren't orphaned.
+  const globalKey = task?.path
+    ? `global::${task.path}`
+    : projectPath
+      ? `global::${projectPath}`
+      : 'global::home';
+  const globalTerminals = useTaskTerminals(globalKey, effectiveCwd);
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
@@ -123,6 +136,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       if (res.state.run?.status) setRunStatus(res.state.run.status);
       if (res.state.setup?.status) setSetupStatus(res.state.setup.status);
       if (res.state.teardown?.status) setTeardownStatus(res.state.teardown.status);
+
+      // Restore buffered logs from the main process
+      if (typeof api?.lifecycleGetLogs === 'function') {
+        const logsRes = await api.lifecycleGetLogs({ taskId });
+        if (activeTaskIdRef.current !== taskId) return;
+        if (logsRes?.success && logsRes.logs) {
+          setLifecycleLogs(logsRes.logs);
+        }
+      }
     } catch {}
   }, [task?.id]);
 
@@ -152,37 +174,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           ? (evt.phase as LifecyclePhase)
           : null;
       if (phase) {
-        if (evt.status === 'starting') {
+        const line = formatLifecycleLogLine(phase, evt.status, evt);
+        if (line !== null) {
           setLifecycleLogs((prev) => ({
             ...prev,
-            [phase]: [...prev[phase], `$ ${phase} started\n`].slice(-300),
-          }));
-        } else if (evt.status === 'line' && typeof evt.line === 'string') {
-          setLifecycleLogs((prev) => ({
-            ...prev,
-            [phase]: [...prev[phase], evt.line].slice(-300),
-          }));
-        } else if (evt.status === 'done') {
-          setLifecycleLogs((prev) => ({
-            ...prev,
-            [phase]: [...prev[phase], `$ ${phase} finished (exit ${evt.exitCode ?? 0})\n`].slice(
-              -300
-            ),
-          }));
-        } else if (evt.status === 'error') {
-          const detail = typeof evt.error === 'string' ? `: ${evt.error}` : '';
-          setLifecycleLogs((prev) => ({
-            ...prev,
-            [phase]: [
-              ...prev[phase],
-              `$ ${phase} failed (exit ${evt.exitCode ?? 'unknown'})${detail}\n`,
-            ].slice(-300),
-          }));
-        } else if (phase === 'run' && evt.status === 'exit') {
-          const code = evt.exitCode === null ? 'signal' : evt.exitCode;
-          setLifecycleLogs((prev) => ({
-            ...prev,
-            run: [...prev.run, `$ run exited (${code})\n`].slice(-300),
+            [phase]: [...prev[phase], line].slice(-MAX_LIFECYCLE_LOG_LINES),
           }));
         }
       }
@@ -252,45 +248,80 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     !!projectPath &&
     !runActionBusy &&
     runStatus !== 'running' &&
-    setupStatus !== 'running' &&
-    setupStatus !== 'failed';
+    setupStatus !== 'running';
 
   const isRunSelection = !selection.selectedLifecycle || selection.selectedLifecycle === 'run';
   const selectedTerminalScope = useMemo(() => {
     if (selection.parsed?.mode === 'task') return 'WORKTREE';
-    if (selection.parsed?.mode === 'global') return 'GLOBAL';
+    if (selection.parsed?.mode === 'global') return projectPath ? 'PROJECT' : 'GLOBAL';
     return null;
-  }, [selection.parsed?.mode]);
+  }, [selection.parsed?.mode, projectPath]);
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
+      let result: { success: boolean; error?: string } | undefined;
       if (selection.selectedLifecycle === 'setup') {
-        await api.lifecycleSetup?.({
+        result = await api.lifecycleSetup?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else if (selection.selectedLifecycle === 'teardown') {
-        await api.lifecycleTeardown?.({
+        result = await api.lifecycleTeardown?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       } else {
-        await api.lifecycleRunStart?.({
+        result = await api.lifecycleRunStart?.({
           taskId: task.id,
           taskPath: task.path,
           projectPath,
           taskName: task.name,
         });
       }
+      if (result && !result.success) {
+        const phase = selection.selectedLifecycle || 'run';
+        const errorMsg = result.error || 'An unknown error occurred.';
+        // If run failed due to setup, navigate to setup logs
+        const failedPhase = errorMsg.toLowerCase().includes('setup failed') ? 'setup' : phase;
+        const label = failedPhase.charAt(0).toUpperCase() + failedPhase.slice(1);
+        toast({
+          title: `${label} failed`,
+          description: errorMsg.split('\n')[0],
+          variant: 'destructive',
+          action: (
+            <ToastAction
+              altText="View logs"
+              onClick={() => selection.onChange(`lifecycle::${failedPhase}`)}
+            >
+              View logs
+            </ToastAction>
+          ),
+        });
+      }
     } catch (error) {
       console.error('Failed lifecycle play action:', error);
+      const phase = selection.selectedLifecycle || 'run';
+      const label = phase.charAt(0).toUpperCase() + phase.slice(1);
+      toast({
+        title: `${label} failed`,
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+        action: (
+          <ToastAction
+            altText="View logs"
+            onClick={() => selection.onChange(`lifecycle::${phase}`)}
+          >
+            View logs
+          </ToastAction>
+        ),
+      });
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
@@ -301,7 +332,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     task?.path,
     projectPath,
     selection.selectedLifecycle,
+    selection.onChange,
     refreshLifecycleState,
+    toast,
   ]);
 
   const handleStop = useCallback(async () => {
@@ -414,18 +447,6 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     return { ...defaultTheme, ...nativeTheme };
   }, [nativeTheme, defaultTheme]);
 
-  if (!task && !projectPath) {
-    return (
-      <div className={`flex h-full flex-col items-center justify-center bg-muted ${className}`}>
-        <Bot className="mb-2 h-8 w-8 text-muted-foreground" />
-        <h3 className="mb-1 text-sm text-muted-foreground">No Task Selected</h3>
-        <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
-          Select a task to view its terminal
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
@@ -478,10 +499,12 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               </SelectGroup>
             )}
 
-            {projectPath && (
+            {(projectPath || !task) && (
               <SelectGroup>
                 <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">Global</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground">
+                    {projectPath ? 'Project' : 'Global'}
+                  </span>
                   <button
                     type="button"
                     className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -490,12 +513,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       e.stopPropagation();
                       void (async () => {
                         const { captureTelemetry } = await import('../lib/telemetryClient');
-                        captureTelemetry('terminal_new_terminal_created', { scope: 'global' });
+                        captureTelemetry('terminal_new_terminal_created', {
+                          scope: projectPath ? 'project' : 'global',
+                        });
                       })();
-                      const newId = globalTerminals.createTerminal({ cwd: projectPath });
+                      const newId = globalTerminals.createTerminal({ cwd: effectiveCwd });
                       selection.onCreateTerminal('global', newId);
                     }}
-                    title="New global terminal"
+                    title={projectPath ? 'New project terminal' : 'New global terminal'}
                   >
                     <Plus className="h-3 w-3" />
                   </button>
@@ -563,7 +588,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     })}
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    <Play className="h-3.5 w-3.5" />
+                    {isRunSelection && setupStatus === 'failed' ? (
+                      <RotateCw className="h-3.5 w-3.5" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 )}
               </TooltipTrigger>
@@ -578,7 +607,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         : setupStatus === 'running'
                           ? 'Setup is still running'
                           : setupStatus === 'failed'
-                            ? 'Setup failed'
+                            ? 'Retry setup and start run script'
                             : 'Start run script'}
                 </p>
               </TooltipContent>
@@ -656,33 +685,38 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               : 'bg-white'
           )}
         >
-          {taskTerminals.terminals.map((terminal) => {
-            const isActive =
-              selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
-            return (
-              <div
-                key={`task::${terminal.id}`}
-                className={cn(
-                  'absolute inset-0 h-full w-full transition-opacity',
-                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-                )}
-              >
-                <TerminalPane
-                  ref={(r) => setTerminalRef(terminal.id, r)}
-                  id={terminal.id}
-                  cwd={terminal.cwd || task?.path}
-                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
-                  env={taskEnv}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
-                  themeOverride={themeOverride}
-                  className="h-full w-full"
-                  keepAlive
-                />
-              </div>
-            );
-          })}
+          {task &&
+            taskTerminals.terminals.map((terminal) => {
+              const isActive =
+                selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
+              return (
+                <div
+                  key={`task::${terminal.id}`}
+                  className={cn(
+                    'absolute inset-0 h-full w-full transition-opacity',
+                    isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                  )}
+                >
+                  <TerminalPane
+                    ref={(r) => setTerminalRef(terminal.id, r)}
+                    id={terminal.id}
+                    cwd={terminal.cwd || task.path}
+                    remote={
+                      remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                    }
+                    env={taskEnv}
+                    variant={
+                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? 'dark'
+                        : 'light'
+                    }
+                    themeOverride={themeOverride}
+                    className="h-full w-full"
+                    keepAlive
+                  />
+                </div>
+              );
+            })}
           {globalTerminals.terminals.map((terminal) => {
             const isActive =
               selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;

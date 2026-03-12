@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { promisify } from 'util';
 
 const execCalls: string[] = [];
+let issueListStdout = '[]';
+let issueSearchStdout = '[]';
+let prListStdout = '[]';
+let repoViewStdout = 'generalaction/emdash';
+let prCountStdout = '0';
 
 vi.mock('child_process', () => {
   const execImpl = (command: string, options?: any, callback?: any) => {
@@ -28,6 +33,18 @@ vi.mock('child_process', () => {
           avatar_url: '',
         })
       );
+    } else if (command.startsWith('gh issue list')) {
+      if (command.includes('--search')) {
+        respond(issueSearchStdout);
+      } else {
+        respond(issueListStdout);
+      }
+    } else if (command.startsWith('gh pr list')) {
+      respond(prListStdout);
+    } else if (command.startsWith('gh repo view --json nameWithOwner')) {
+      respond(repoViewStdout);
+    } else if (command.startsWith('gh api search/issues')) {
+      respond(prCountStdout);
     } else {
       respond('');
     }
@@ -75,6 +92,11 @@ import { GitHubService } from '../../main/services/GitHubService';
 describe('GitHubService.isAuthenticated', () => {
   beforeEach(() => {
     execCalls.length = 0;
+    issueListStdout = '[]';
+    issueSearchStdout = '[]';
+    prListStdout = '[]';
+    repoViewStdout = 'generalaction/emdash';
+    prCountStdout = '0';
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
     getPasswordMock.mockResolvedValue(null);
@@ -89,5 +111,49 @@ describe('GitHubService.isAuthenticated', () => {
     expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
     expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
     expect(setPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('sorts listed issues by updatedAt descending', async () => {
+    issueListStdout = JSON.stringify([
+      { number: 11, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
+      { number: 12, title: 'Newest', updatedAt: '2026-03-03T12:00:00.000Z' },
+      { number: 13, title: 'No timestamp', updatedAt: null },
+    ]);
+
+    const service = new GitHubService();
+    const issues = await service.listIssues('/tmp/repo', 50);
+
+    expect(issues.map((issue) => issue.number)).toEqual([12, 11, 13]);
+  });
+
+  it('sorts searched issues by updatedAt descending', async () => {
+    issueSearchStdout = JSON.stringify([
+      { number: 101, title: 'Stale', updatedAt: '2026-03-02T08:00:00.000Z' },
+      { number: 102, title: 'Fresh', updatedAt: '2026-03-04T08:00:00.000Z' },
+      { number: 103, title: 'Bad date', updatedAt: 'invalid' },
+    ]);
+
+    const service = new GitHubService();
+    const issues = await service.searchIssues('/tmp/repo', 'query', 20);
+
+    expect(issues.map((issue) => issue.number)).toEqual([102, 101, 103]);
+  });
+
+  it('limits pull requests and returns the total open PR count', async () => {
+    prListStdout = JSON.stringify([
+      { number: 8, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
+      { number: 9, title: 'Newest', updatedAt: '2026-03-03T10:00:00.000Z' },
+    ]);
+    prCountStdout = '42';
+
+    const service = new GitHubService();
+    const result = await service.getPullRequests('/tmp/repo', 10);
+
+    expect(result.totalCount).toBe(42);
+    expect(result.prs.map((pr) => pr.number)).toEqual([9, 8]);
+    expect(
+      execCalls.find((cmd) => cmd.startsWith('gh pr list --state open --limit 10'))
+    ).toBeDefined();
+    expect(execCalls.find((cmd) => cmd.startsWith('gh api search/issues'))).toBeDefined();
   });
 });

@@ -5,13 +5,16 @@ import { useTheme } from '../hooks/useTheme';
 import { TerminalPane } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
+import { agentStatusStore } from '../lib/agentStatusStore';
 import { agentMeta } from '../providers/meta';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
+import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskContextBadges from './TaskContextBadges';
-import { Spinner } from './ui/spinner';
+import { useConversationStatus } from '../hooks/useConversationStatus';
+import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
-import { useTaskComments } from '../hooks/useLineComments';
+import { useCommentInjection } from '../hooks/useCommentInjection';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -21,7 +24,6 @@ import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
-import { DeleteChatModal } from './DeleteChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import { getTaskEnvVars } from '@shared/task/envVars';
@@ -49,6 +51,93 @@ interface Props {
   initialAgent?: Agent;
   onTaskInterfaceReady?: () => void;
   onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
+}
+
+function ConversationTabButton({
+  conversation,
+  activeConversationId,
+  onSwitchChat,
+  onCloseChat,
+  totalConversationCount,
+  sameAgentCount,
+  showNumber,
+  fallbackBusy,
+  taskId,
+}: {
+  conversation: Conversation;
+  activeConversationId: string | null;
+  onSwitchChat: (conversationId: string) => void;
+  onCloseChat: (conversationId: string) => void;
+  totalConversationCount: number;
+  sameAgentCount: number;
+  showNumber: boolean;
+  fallbackBusy: boolean;
+  taskId: string;
+}) {
+  const isActive = conversation.id === activeConversationId;
+  const convAgent = conversation.provider ?? 'claude';
+  const config = agentConfig[convAgent as Agent];
+  const agentName = config?.name || convAgent;
+  const semanticStatus = useConversationStatus({
+    statusId: conversation.isMain ? taskId : conversation.id,
+    ptySuffix: conversation.isMain ? taskId : conversation.id,
+    ptyKind: conversation.isMain ? 'main' : 'chat',
+  });
+  const unread = useStatusUnread(conversation.isMain ? taskId : conversation.id);
+  const displayStatus = semanticStatus === 'unknown' && fallbackBusy ? 'working' : semanticStatus;
+
+  return (
+    <button
+      onClick={() => onSwitchChat(conversation.id)}
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
+        'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isActive
+          ? 'bg-background text-foreground shadow-sm'
+          : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+      )}
+      title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+    >
+      {config?.logo && (
+        <AgentLogo
+          logo={config.logo}
+          alt={config.alt}
+          isSvg={config.isSvg}
+          invertInDark={config.invertInDark}
+          className="h-3.5 w-3.5 flex-shrink-0"
+        />
+      )}
+      <span className="max-w-[10rem] truncate">
+        {agentName}
+        {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
+      </span>
+      {totalConversationCount > 1 ? (
+        <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
+      ) : null}
+      {totalConversationCount > 1 && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCloseChat(conversation.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCloseChat(conversation.id);
+            }
+          }}
+          className="ml-1 rounded hover:bg-background/20"
+          title="Close chat"
+        >
+          <X className="h-3 w-3" />
+        </span>
+      )}
+    </button>
+  );
 }
 
 const ChatInterface: React.FC<Props> = ({
@@ -83,9 +172,8 @@ const ChatInterface: React.FC<Props> = ({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
-  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
 
@@ -170,8 +258,8 @@ const ChatInterface: React.FC<Props> = ({
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Line comments for agent context injection
-  const { formatted: commentsContext } = useTaskComments(task.id);
+  // Wire comment injection to pendingInjectionManager
+  useCommentInjection(task.id, task.path);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -196,9 +284,12 @@ const ChatInterface: React.FC<Props> = ({
 
   // Load conversations when task changes
   useEffect(() => {
+    let cancelled = false;
+
     const loadConversations = async () => {
       setConversationsLoaded(false);
       const loadedConversations = await rpc.db.getConversations(task.id);
+      if (cancelled) return;
 
       if (loadedConversations.length > 0) {
         setConversations(loadedConversations);
@@ -224,37 +315,38 @@ const ChatInterface: React.FC<Props> = ({
             conversationId: firstConv.id,
           });
         }
-        setConversationsLoaded(true);
+        if (!cancelled) setConversationsLoaded(true);
       } else {
         // No conversations exist - create default for backward compatibility
         // This ensures existing tasks always have at least one conversation
         // (preserves pre-multi-chat behavior)
-        const defaultConversation = await rpc.db.getOrCreateDefaultConversation(task.id);
+        const taskAgent = (task.agentId || agent) as string;
+        const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
+          taskId: task.id,
+          provider: taskAgent,
+        });
+        if (cancelled) return;
         if (defaultConversation) {
-          // For backward compatibility: use task.agentId if available, otherwise use current agent
-          // This preserves the original agent choice for tasks created before multi-chat
-          const taskAgent = task.agentId || agent;
-          const conversationWithAgent = {
-            ...defaultConversation,
-            provider: taskAgent,
-            isMain: true,
-            isActive: true,
-          };
-          setConversations([conversationWithAgent]);
+          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
+          setConversations([
+            {
+              ...defaultConversation,
+              isMain: true,
+              isActive: true,
+            },
+          ]);
           setActiveConversationId(defaultConversation.id);
-
-          // Update the agent state to match
-          setAgent(taskAgent as Agent);
-
-          // Save the agent to the conversation
-          await rpc.db.saveConversation(conversationWithAgent);
-          setConversationsLoaded(true);
+          setAgent((defaultConversation.provider || taskAgent) as Agent);
+          if (!cancelled) setConversationsLoaded(true);
         }
       }
     };
 
     loadConversations();
-  }, [task.id, task.agentId]); // provider is intentionally not included as a dependency
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id, task.agentId]); // agent is intentionally not included as a dependency
 
   // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
   useEffect(() => {
@@ -306,8 +398,47 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [task.id, conversations, mainConversationId]);
 
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) return;
+    agentStatusStore.markSeen(activeConversation.isMain ? task.id : activeConversation.id);
+  }, [activeConversationId, conversations, task.id]);
+
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+    if (!activeConversation) {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+      return;
+    }
+
+    agentStatusStore.setActiveView({
+      taskId: task.id,
+      statusId: activeConversation.isMain ? task.id : activeConversation.id,
+    });
+
+    return () => {
+      agentStatusStore.setActiveView({ taskId: null, statusId: null });
+    };
+  }, [activeConversationId, conversations, task.id]);
+
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
+
+  const handleTerminalActivity = useCallback(() => {
+    const storageKey = `agent:locked:${task.id}`;
+    const writeToken = `${storageKey}:${agent}`;
+    if (lockedAgentWriteRef.current === writeToken) return;
+    lockedAgentWriteRef.current = writeToken;
+
+    try {
+      if (window.localStorage.getItem(storageKey) === agent) return;
+      window.localStorage.setItem(storageKey, agent);
+    } catch {}
+  }, [agent, task.id]);
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -545,7 +676,7 @@ const ChatInterface: React.FC<Props> = ({
   );
 
   const handleCloseChat = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string) => {
       if (conversations.length <= 1) {
         toast({
           title: 'Cannot Close',
@@ -555,52 +686,39 @@ const ChatInterface: React.FC<Props> = ({
         return;
       }
 
-      // Show the delete confirmation modal
-      setChatToDelete(conversationId);
-      setShowDeleteChatModal(true);
-    },
-    [conversations.length, toast]
-  );
+      // Dispose the terminal for this chat
+      const convToDelete = conversations.find((c) => c.id === conversationId);
+      const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
+      const terminalToDispose = makePtyId(convAgent, 'chat', conversationId);
+      terminalSessionRegistry.dispose(terminalToDispose);
 
-  const handleConfirmDeleteChat = useCallback(async () => {
-    if (!chatToDelete) return;
+      await rpc.db.deleteConversation(conversationId);
 
-    // Only dispose the terminal when actually deleting the chat
-    // Find the conversation to get its provider
-    const convToDelete = conversations.find((c) => c.id === chatToDelete);
-    const convAgent = (convToDelete?.provider || agent) as Agent;
-    const terminalToDispose = makePtyId(convAgent, 'chat', chatToDelete);
-    terminalSessionRegistry.dispose(terminalToDispose);
-
-    await rpc.db.deleteConversation(chatToDelete);
-
-    // Reload conversations
-    const updatedConversations = await rpc.db.getConversations(task.id);
-    setConversations(updatedConversations);
-    // Switch to another chat if we deleted the active one
-    if (chatToDelete === activeConversationId && updatedConversations.length > 0) {
-      const newActive = updatedConversations[0];
-      await rpc.db.setActiveConversation({
-        taskId: task.id,
-        conversationId: newActive.id,
-      });
-      setActiveConversationId(newActive.id);
-      // Update provider if needed
-      if (newActive.provider) {
-        setAgent(newActive.provider as Agent);
+      // Reload conversations
+      const updatedConversations = await rpc.db.getConversations(task.id);
+      setConversations(updatedConversations);
+      // Switch to another chat if we deleted the active one
+      if (conversationId === activeConversationId && updatedConversations.length > 0) {
+        const newActive = updatedConversations[0];
+        await rpc.db.setActiveConversation({
+          taskId: task.id,
+          conversationId: newActive.id,
+        });
+        setActiveConversationId(newActive.id);
+        // Update provider if needed
+        if (newActive.provider) {
+          setAgent(newActive.provider as Agent);
+        }
       }
-    }
 
-    try {
-      window.dispatchEvent(
-        new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-      );
-    } catch {}
-
-    // Clear the state
-    setChatToDelete(null);
-    setShowDeleteChatModal(false);
-  }, [chatToDelete, conversations, agent, task.id, activeConversationId]);
+      try {
+        window.dispatchEvent(
+          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        );
+      } catch {}
+    },
+    [conversations, agent, task.id, activeConversationId, toast]
+  );
 
   // Persist last-selected agent per task (including Droid)
   useEffect(() => {
@@ -710,21 +828,21 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     const handleAgentSwitch = (event: Event) => {
       const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
-      if (conversations.length <= 1) return;
+      if (sortedConversations.length <= 1) return;
       const direction = customEvent.detail?.direction;
       if (!direction) return;
 
-      const currentIndex = conversations.findIndex((c) => c.id === activeConversationId);
+      const currentIndex = sortedConversations.findIndex((c) => c.id === activeConversationId);
       if (currentIndex === -1) return;
 
       let newIndex: number;
       if (direction === 'prev') {
-        newIndex = currentIndex <= 0 ? conversations.length - 1 : currentIndex - 1;
+        newIndex = currentIndex <= 0 ? sortedConversations.length - 1 : currentIndex - 1;
       } else {
-        newIndex = (currentIndex + 1) % conversations.length;
+        newIndex = (currentIndex + 1) % sortedConversations.length;
       }
 
-      const newConversation = conversations[newIndex];
+      const newConversation = sortedConversations[newIndex];
       if (newConversation) {
         handleSwitchChat(newConversation.id);
       }
@@ -734,7 +852,26 @@ const ChatInterface: React.FC<Props> = ({
     return () => {
       window.removeEventListener('emdash:switch-agent', handleAgentSwitch);
     };
-  }, [conversations, activeConversationId, handleSwitchChat]);
+  }, [sortedConversations, activeConversationId, handleSwitchChat]);
+
+  useEffect(() => {
+    const handleAgentTabSelection = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabIndex: number }>;
+      const tabIndex = customEvent.detail?.tabIndex;
+      if (typeof tabIndex !== 'number') return;
+      if (tabIndex < 0 || tabIndex >= sortedConversations.length) return;
+
+      const selectedConversation = sortedConversations[tabIndex];
+      if (selectedConversation) {
+        handleSwitchChat(selectedConversation.id);
+      }
+    };
+
+    window.addEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    return () => {
+      window.removeEventListener('emdash:select-agent-tab', handleAgentTabSelection);
+    };
+  }, [sortedConversations, handleSwitchChat]);
 
   // Close active chat tab on Cmd+W
   useEffect(() => {
@@ -781,12 +918,7 @@ const ChatInterface: React.FC<Props> = ({
         const body = trimmed.length > max ? trimmed.slice(0, max) + '\n…' : trimmed;
         parts.push('', 'Issue Description:', body);
       }
-      const linearContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${linearContent}`;
-      }
-      return linearContent;
+      return parts.join('\n');
     }
 
     const gh = (md as any)?.githubIssue as
@@ -832,12 +964,7 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
         parts.push('', 'Issue Description:', clipped);
       }
-      const ghContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${ghContent}`;
-      }
-      return ghContent;
+      return parts.join('\n');
     }
 
     const j = md?.jiraIssue as any;
@@ -858,21 +985,11 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
         lines.push('', 'Issue Description:', clipped);
       }
-      const jiraContent = lines.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${jiraContent}`;
-      }
-      return jiraContent;
-    }
-
-    // If we have comments but no other context, return just the comments
-    if (commentsContext) {
-      return `The user has left the following comments on the code changes:\n\n${commentsContext}`;
+      return lines.join('\n');
     }
 
     return null;
-  }, [isTerminal, isMainConversation, task.metadata, commentsContext]);
+  }, [isTerminal, isMainConversation, task.metadata]);
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
@@ -937,16 +1054,6 @@ const ChatInterface: React.FC<Props> = ({
           installedAgents={installedAgents}
         />
 
-        <DeleteChatModal
-          open={showDeleteChatModal}
-          onOpenChange={setShowDeleteChatModal}
-          onConfirm={handleConfirmDeleteChat}
-          onCancel={() => {
-            setChatToDelete(null);
-            setShowDeleteChatModal(false);
-          }}
-        />
-
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
             <div className="mx-auto max-w-4xl space-y-2">
@@ -960,78 +1067,30 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 >
                   {sortedConversations.map((conv, index) => {
-                    const isActive = conv.id === activeConversationId;
-                    const convAgent = conv.provider || agent;
-                    const config = agentConfig[convAgent as Agent];
-                    const agentName = config?.name || convAgent;
+                    const convAgent = conv.provider ?? 'claude';
                     const isBusy = busyByConversationId[conv.id] === true;
 
                     // Count how many chats use the same agent up to this point
                     const sameAgentCount = sortedConversations
                       .slice(0, index + 1)
-                      .filter((c) => (c.provider || agent) === convAgent).length;
+                      .filter((c) => (c.provider ?? 'claude') === convAgent).length;
                     const showNumber =
-                      sortedConversations.filter((c) => (c.provider || agent) === convAgent)
+                      sortedConversations.filter((c) => (c.provider ?? 'claude') === convAgent)
                         .length > 1;
 
                     return (
-                      <button
+                      <ConversationTabButton
                         key={conv.id}
-                        onClick={() => handleSwitchChat(conv.id)}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
-                          'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                          isActive
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                        )}
-                        title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
-                      >
-                        {config?.logo && (
-                          <AgentLogo
-                            logo={config.logo}
-                            alt={config.alt}
-                            isSvg={config.isSvg}
-                            invertInDark={config.invertInDark}
-                            className="h-3.5 w-3.5 flex-shrink-0"
-                          />
-                        )}
-                        <span className="max-w-[10rem] truncate">
-                          {agentName}
-                          {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
-                        </span>
-                        {isBusy && conversations.length > 1 ? (
-                          <Spinner
-                            size="sm"
-                            className={cn(
-                              'h-3 w-3 flex-shrink-0',
-                              isActive ? 'text-foreground' : 'text-muted-foreground'
-                            )}
-                          />
-                        ) : null}
-                        {conversations.length > 1 && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCloseChat(conv.id);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleCloseChat(conv.id);
-                              }
-                            }}
-                            className="ml-1 rounded hover:bg-background/20"
-                            title="Close chat"
-                          >
-                            <X className="h-3 w-3" />
-                          </span>
-                        )}
-                      </button>
+                        conversation={conv}
+                        activeConversationId={activeConversationId}
+                        onSwitchChat={handleSwitchChat}
+                        onCloseChat={handleCloseChat}
+                        totalConversationCount={conversations.length}
+                        sameAgentCount={sameAgentCount}
+                        showNumber={showNumber}
+                        fallbackBusy={isBusy}
+                        taskId={task.id}
+                      />
                     );
                   })}
                 </div>
@@ -1043,16 +1102,12 @@ const ChatInterface: React.FC<Props> = ({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <div className="ml-auto flex flex-shrink-0 items-center gap-2">
-                  {(task.metadata?.linearIssue ||
-                    task.metadata?.githubIssue ||
-                    task.metadata?.jiraIssue) && (
-                    <TaskContextBadges
-                      taskId={task.id}
-                      linearIssue={task.metadata?.linearIssue || null}
-                      githubIssue={task.metadata?.githubIssue || null}
-                      jiraIssue={task.metadata?.jiraIssue || null}
-                    />
-                  )}
+                  <TaskContextBadges
+                    taskId={task.id}
+                    linearIssue={task.metadata?.linearIssue || null}
+                    githubIssue={task.metadata?.githubIssue || null}
+                    jiraIssue={task.metadata?.jiraIssue || null}
+                  />
                   {autoApproveEnabled && (
                     <span
                       className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
@@ -1127,11 +1182,7 @@ const ChatInterface: React.FC<Props> = ({
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
                   disableSnapshots={false}
-                  onActivity={() => {
-                    try {
-                      window.localStorage.setItem(`agent:locked:${task.id}`, agent);
-                    } catch {}
-                  }}
+                  onActivity={handleTerminalActivity}
                   onStartError={(message) => {
                     setCliStartError(message);
                   }}

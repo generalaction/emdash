@@ -1,6 +1,8 @@
 import React from 'react';
+import { Info } from 'lucide-react';
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
@@ -14,7 +16,25 @@ const NotificationSettingsCard: React.FC = () => {
       {/* Master toggle */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
-          <p className="text-sm font-medium text-foreground">Notifications</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground">Notifications</p>
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+                    aria-label="Show supported agents for notifications"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  Supported by Claude Code, Codex, Droid, and OpenCode.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <p className="text-sm text-muted-foreground">
             Get notified when agents need your attention.
           </p>

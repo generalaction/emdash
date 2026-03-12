@@ -594,4 +594,45 @@ export class LocalFileSystem implements IFileSystem {
       return { success: false, error: err.message };
     }
   }
+
+  /**
+   * Rename a file or directory
+   */
+  async rename(oldPath: string, newPath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const fullOldPath = this.resolvePath(oldPath);
+      const fullNewPath = this.resolvePath(newPath);
+
+      try {
+        await fs.stat(fullOldPath);
+      } catch {
+        return { success: false, error: 'Source does not exist' };
+      }
+
+      try {
+        await fs.stat(fullNewPath);
+        return { success: false, error: 'Destination already exists' };
+      } catch {
+        // Destination doesn't exist - good
+      }
+
+      await fs.rename(fullOldPath, fullNewPath);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Create a directory
+   */
+  async mkdir(dirPath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const fullPath = this.resolvePath(dirPath);
+      await fs.mkdir(fullPath, { recursive: true });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
 }

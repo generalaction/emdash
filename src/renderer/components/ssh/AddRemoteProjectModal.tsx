@@ -259,9 +259,8 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
         authType = 'key';
         privateKeyPath = host.identityFile;
       } else {
-        // No key specified - default to key auth with ed25519 (most common modern key)
-        authType = 'key';
-        privateKeyPath = '~/.ssh/id_ed25519';
+        // No key specified - default to agent auth (most compatible)
+        authType = 'agent';
       }
 
       setFormData((prev) => ({
@@ -829,7 +828,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
             ) : savedConnections.length > 0 ? (
               <div className="space-y-2">
                 <Label>Saved Connections</Label>
-                <div className="space-y-2">
+                <div className="max-h-[232px] space-y-2 overflow-y-auto">
                   {savedConnections.map((conn) => (
                     <button
                       key={conn.id}
@@ -1111,7 +1110,10 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const result = await window.electronAPI.openProject();
+                          const result = await window.electronAPI.openFile({
+                            title: 'Select SSH Private Key',
+                            message: 'Select your SSH private key file',
+                          });
                           if (result.success && result.path) {
                             updateField('privateKeyPath', result.path);
                           }

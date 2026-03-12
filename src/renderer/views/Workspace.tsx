@@ -2,6 +2,7 @@ import AppKeyboardShortcuts from '@/components/AppKeyboardShortcuts';
 import BrowserPane from '@/components/BrowserPane';
 import CommandPaletteWrapper from '@/components/CommandPaletteWrapper';
 import { DiffViewer } from '@/components/diff-viewer';
+import { TaskScopeProvider } from '@/components/TaskScopeContext';
 import CodeEditor from '@/components/FileExplorer/CodeEditor';
 import { LeftSidebar } from '@/components/sidebar/LeftSidebar';
 import MainContentArea from '@/components/MainContentArea';
@@ -31,10 +32,11 @@ import { useProjectManagementContext } from '@/contexts/ProjectManagementProvide
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
 import { activityStore } from '@/lib/activityStore';
+import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
 import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
-import BrowserProvider from '@/providers/BrowserProvider';
+import BrowserProvider, { useBrowser } from '@/providers/BrowserProvider';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { SettingsPageTab } from '@/components/SettingsPage';
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
@@ -60,6 +62,20 @@ const RightSidebarBridge: React.FC<{
   return null;
 };
 
+/** Bridge that reads BrowserProvider context and forwards it to AppKeyboardShortcuts */
+const BrowserAwareShortcuts: React.FC<
+  Omit<React.ComponentProps<typeof AppKeyboardShortcuts>, 'showBrowser' | 'handleCloseBrowser'>
+> = (props) => {
+  const browser = useBrowser();
+  return (
+    <AppKeyboardShortcuts
+      {...props}
+      showBrowser={browser.isOpen}
+      handleCloseBrowser={browser.close}
+    />
+  );
+};
+
 export function Workspace() {
   useTheme(); // Initialize theme on app startup
   const { showModal } = useModalContext();
@@ -67,6 +83,7 @@ export function Workspace() {
   // Agent event hook: plays sounds and updates sidebar status for all tasks
   const handleAgentEvent = useCallback((event: import('@shared/agentEvents').AgentEvent) => {
     activityStore.handleAgentEvent(event);
+    agentStatusStore.handleAgentEvent(event);
   }, []);
   useAgentEvents(handleAgentEvent);
 
@@ -100,6 +117,11 @@ export function Workspace() {
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
+  const handleCloseDiffViewer = useCallback(() => {
+    setShowDiffViewer(false);
+    setDiffViewerInitialFile(null);
+    setDiffViewerTaskPath(null);
+  }, []);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
     right: false,
@@ -176,6 +198,8 @@ export function Workspace() {
     setShowKanban(false);
     setShowEditorMode((v) => !v);
   }, [setShowKanban, setShowEditorMode]);
+  const handleCloseEditor = useCallback(() => setShowEditorMode(false), [setShowEditorMode]);
+  const handleCloseKanban = useCallback(() => setShowKanban(false), [setShowKanban]);
 
   // --- Task management ---
   const taskMgmt = useTaskManagementContext();
@@ -225,6 +249,9 @@ export function Workspace() {
     showDiffViewer,
     isInitialLoadComplete: projectMgmt.isInitialLoadComplete,
     showHomeView: projectMgmt.showHomeView,
+    showSettingsPage,
+    showSkillsView: projectMgmt.showSkillsView,
+    showMcpView: projectMgmt.showMcpView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });
@@ -245,7 +272,14 @@ export function Workspace() {
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
-  const { activeTask } = taskMgmt;
+  const { activeTask, isCreatingTask } = taskMgmt;
+
+  // Hide the sidebar while the task is being created OR while it's still the
+  // optimistic placeholder (id starts with "optimistic-"). The latter guards
+  // against handleTaskInterfaceReady clearing isCreatingTask too early (it fires
+  // when ChatInterface first mounts with the placeholder, before onSuccess).
+  const isOptimisticTask = activeTask?.id?.startsWith('optimistic-') ?? false;
+  const effectiveTask = isCreatingTask || isOptimisticTask ? null : activeTask;
   const activeTaskProjectPath = useMemo(
     () =>
       activeTask?.projectId
@@ -313,13 +347,19 @@ export function Workspace() {
         <KeyboardSettingsProvider>
           <SidebarProvider>
             <RightSidebarProvider>
-              <AppKeyboardShortcuts
+              <BrowserAwareShortcuts
                 showCommandPalette={showCommandPalette}
                 showSettings={showSettingsPage}
+                showDiffViewer={showDiffViewer}
+                showEditor={showEditorMode && !!activeTask && !!selectedProject}
+                showKanban={!!projectMgmt.showKanban && !!selectedProject}
                 handleToggleCommandPalette={handleToggleCommandPalette}
                 handleOpenSettings={handleToggleSettingsPage}
                 handleCloseCommandPalette={handleCloseCommandPalette}
                 handleCloseSettings={handleCloseSettingsPage}
+                handleCloseDiffViewer={handleCloseDiffViewer}
+                handleCloseEditor={handleCloseEditor}
+                handleCloseKanban={handleCloseKanban}
                 handleToggleKanban={handleToggleKanban}
                 handleToggleEditor={handleToggleEditor}
                 handleOpenInEditor={handleOpenInEditor}
@@ -369,16 +409,21 @@ export function Workspace() {
                   >
                     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
                       {showDiffViewer ? (
-                        <DiffViewer
-                          onClose={() => {
-                            setShowDiffViewer(false);
-                            setDiffViewerInitialFile(null);
-                            setDiffViewerTaskPath(null);
+                        <TaskScopeProvider
+                          value={{
+                            taskId: activeTask?.id,
+                            taskPath: diffViewerTaskPath || activeTask?.path,
+                            projectPath: selectedProject?.path || activeTaskProjectPath,
+                            prNumber: activeTask?.metadata?.prNumber ?? undefined,
                           }}
-                          taskId={activeTask?.id}
-                          taskPath={diffViewerTaskPath || activeTask?.path}
-                          initialFile={diffViewerInitialFile}
-                        />
+                        >
+                          <DiffViewer
+                            onClose={handleCloseDiffViewer}
+                            taskId={activeTask?.id}
+                            taskPath={diffViewerTaskPath || activeTask?.path}
+                            initialFile={diffViewerInitialFile}
+                          />
+                        </TaskScopeProvider>
                       ) : (
                         <MainContentArea
                           showSettingsPage={showSettingsPage}
@@ -404,7 +449,7 @@ export function Workspace() {
                     order={3}
                   >
                     <RightSidebar
-                      task={activeTask}
+                      task={effectiveTask}
                       projectPath={selectedProject?.path || activeTaskProjectPath}
                       projectRemoteConnectionId={derivedRemoteConnectionId}
                       projectRemotePath={derivedRemotePath}
@@ -412,6 +457,7 @@ export function Workspace() {
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                       onOpenChanges={(filePath?: string, taskPath?: string) => {
+                        setShowEditorMode(false);
                         setDiffViewerInitialFile(filePath ?? null);
                         setDiffViewerTaskPath(taskPath ?? null);
                         setShowDiffViewer(true);
@@ -436,7 +482,7 @@ export function Workspace() {
                   taskPath={activeTask.path}
                   taskName={activeTask.name}
                   projectName={selectedProject.name}
-                  onClose={() => setShowEditorMode(false)}
+                  onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
                 />
