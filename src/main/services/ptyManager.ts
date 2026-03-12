@@ -1600,3 +1600,77 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
 export function getPtyTmuxSessionName(id: string): string | undefined {
   return ptys.get(id)?.tmuxSessionName;
 }
+
+export interface LifecyclePtyHandle {
+  onData: (callback: (data: string) => void) => void;
+  onExit: (callback: (exitCode: number | null, signal: string | null) => void) => void;
+  kill: () => void;
+}
+
+export function startLifecyclePty(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
+  }
+
+  const { id, command, cwd, env } = options;
+
+  const pty = require('node-pty');
+
+  const defaultShell = getDefaultShell();
+
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    SHELL: defaultShell,
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...getDisplayEnv(),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(env || {}),
+  };
+
+  const proc = pty.spawn(defaultShell, ['-ilc', command], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 32,
+    cwd: cwd || os.homedir(),
+    env: useEnv,
+  });
+
+  const dataCallbacks: ((data: string) => void)[] = [];
+  const exitCallbacks: ((exitCode: number | null, signal: string | null) => void)[] = [];
+
+  proc.onData((data: string) => {
+    for (const cb of dataCallbacks) {
+      cb(data);
+    }
+  });
+
+  proc.onExit(({ exitCode, signal }: { exitCode: number; signal: string }) => {
+    ptys.delete(id);
+    for (const cb of exitCallbacks) {
+      cb(exitCode, signal || null);
+    }
+  });
+
+  ptys.set(id, { id, proc, cwd, kind: 'local', cols: 120, rows: 32 });
+
+  return {
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    kill: () => {
+      ptys.delete(id);
+      try {
+        proc.kill();
+      } catch {}
+    },
+  };
+}
