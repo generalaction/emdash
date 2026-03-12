@@ -622,6 +622,14 @@ declare global {
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
       }>;
+      onHostPreviewEvent: (
+        listener: (data: {
+          type: 'url' | 'setup' | 'exit';
+          taskId: string;
+          url?: string;
+          status?: string;
+        }) => void
+      ) => () => void;
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
       paste: () => Promise<{ success: boolean; error?: string }>;

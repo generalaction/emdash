@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
-import { Plus, Play, RotateCw, Square, X } from 'lucide-react';
+import { Plus, Play, RotateCw, Square, X, ExternalLink, Globe } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { useTerminalSelection } from '../hooks/useTerminalSelection';
@@ -28,6 +28,7 @@ import {
   formatLifecycleLogLine,
 } from '@shared/lifecycle';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
+import { normalizeUrl } from '@shared/urls';
 
 interface Task {
   id: string;
@@ -64,6 +65,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const { effectiveTheme } = useTheme();
   const { toast } = useToast();
 
+  const [detectedUrls, setDetectedUrls] = useState<string[]>([]);
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+
   // Use path in the key to differentiate multi-agent variants that share the same task.id
   const taskKey = task ? `${task.id}::${task.path}` : 'task-placeholder';
   const taskTerminals = useTaskTerminals(taskKey, task?.path);
@@ -99,6 +103,40 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     }, 50);
     return () => clearTimeout(timer);
   }, [selection.activeTerminalId]);
+
+  useEffect(() => {
+    // Reset URLs when task changes
+    setDetectedUrls([]);
+    setSelectedUrl(null);
+
+    if (!task?.id) return;
+
+    const off = window.electronAPI?.onLifecycleEvent?.((data: any) => {
+      if (data?.taskId !== task.id) return;
+
+      // Extract URL from run line output
+      if (data?.phase === 'run' && data?.status === 'line' && data?.line) {
+        const url = normalizeUrl(data.line);
+        if (url) {
+          setDetectedUrls((prev) => {
+            if (prev.includes(url)) return prev;
+            setSelectedUrl((current) => current || url);
+            return [...prev, url];
+          });
+        }
+      }
+
+      // Reset URLs when run exits
+      if (data?.phase === 'run' && (data?.status === 'done' || data?.status === 'error')) {
+        setDetectedUrls([]);
+        setSelectedUrl(null);
+      }
+    });
+
+    return () => {
+      off?.();
+    };
+  }, [task?.id]);
 
   const [runStatus, setRunStatus] = useState<LifecyclePhaseStatus>('idle');
   const [setupStatus, setSetupStatus] = useState<LifecyclePhaseStatus>('idle');
@@ -631,6 +669,52 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                           : setupStatus === 'failed'
                             ? 'Retry setup and start run script'
                             : 'Start run script'}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {task && detectedUrls.length > 0 && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {detectedUrls.length > 1 ? (
+                  <Select
+                    value={selectedUrl || ''}
+                    onValueChange={(value) => {
+                      setSelectedUrl(value);
+                      window.electronAPI.openExternal(value);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-auto min-w-[40px] gap-2 border-none bg-transparent px-2 text-xs shadow-none hover:bg-accent">
+                      <Globe className="h-3.5 w-3.5" />
+                      <SelectValue placeholder="Open URL" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {detectedUrls.map((url) => (
+                          <SelectItem key={url} value={url} className="text-xs">
+                            {url.replace('http://localhost:', 'port: ')}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => selectedUrl && window.electronAPI.openExternal(selectedUrl)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">
+                  {selectedUrl ? `Open ${selectedUrl} in browser` : 'No URL detected yet'}
                 </p>
               </TooltipContent>
             </Tooltip>
