@@ -147,6 +147,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
   const changelogNotification = useChangelogNotification();
   const changelogEntry = changelogNotification.entry;
+  const changelogCardRef = useRef<HTMLDivElement | null>(null);
+  const [changelogCardHeight, setChangelogCardHeight] = useState(0);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
@@ -174,6 +176,27 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     },
     [onCloseSettingsPage]
   );
+
+  useEffect(() => {
+    const card = changelogCardRef.current;
+    if (!card || !changelogNotification.isVisible || !changelogEntry) {
+      setChangelogCardHeight(0);
+      return;
+    }
+
+    const updateHeight = () => {
+      setChangelogCardHeight(card.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(card);
+
+    return () => observer.disconnect();
+  }, [changelogNotification.isVisible, changelogEntry]);
 
   return (
     <div className="relative h-full">
@@ -234,8 +257,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             )}
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent className="flex min-h-0 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <SidebarContent className="relative flex min-h-0 flex-col overflow-hidden">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+            style={{
+              paddingBottom:
+                changelogNotification.isVisible && changelogEntry
+                  ? changelogCardHeight + 28
+                  : undefined,
+            }}
+          >
             <SidebarGroup>
               <ProjectsGroupLabel />
               <SidebarGroupContent>
@@ -420,7 +451,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           </div>
 
           {changelogNotification.isVisible && changelogEntry && (
-            <div className="border-t border-border/70 px-1 pt-3">
+            <div ref={changelogCardRef} className="absolute inset-x-3 bottom-4 z-10">
               <ChangelogNotificationCard
                 entry={changelogEntry}
                 onOpen={() =>
