@@ -5,8 +5,7 @@ import { buildSessionEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { log } from '@main/lib/logger';
-import { ok, Result } from '@main/lib/result';
-import { CreateSessionError, ITerminalProvider, TerminalSpawnOptions } from '../terminal-provider';
+import { ITerminalProvider, TerminalSpawnOptions } from '../terminal-provider';
 import type { GeneralSessionConfig } from './general-session';
 
 const DEFAULT_COLS = 80;
@@ -22,7 +21,7 @@ export class LocalTerminalProvider implements ITerminalProvider {
     private readonly taskId: string
   ) {}
 
-  async spawnTerminal(opts: TerminalSpawnOptions): Promise<Result<void, CreateSessionError>> {
+  async spawnTerminal(opts: TerminalSpawnOptions): Promise<void> {
     const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
 
     const cfg: GeneralSessionConfig = {
@@ -74,7 +73,7 @@ export class LocalTerminalProvider implements ITerminalProvider {
     return ok();
   }
 
-  killTerminal(terminalId: string): void {
+  async killTerminal(terminalId: string): Promise<void> {
     this.deletedTerminals.add(terminalId);
     const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
     const pty = this.sessions.get(sessionId);
@@ -89,7 +88,7 @@ export class LocalTerminalProvider implements ITerminalProvider {
     setTimeout(() => this.deletedTerminals.delete(terminalId), 10_000);
   }
 
-  destroyAll(): void {
+  async destroyAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();

@@ -11,10 +11,10 @@ export type Issue = {
 
 export type Task = {
   id: string;
-  status: TaskLifecycleStatus;
   projectId: string;
-  branch?: string; // if the task has a branch, we should use worktrees
-  worktreePath?: string;
+  status: TaskLifecycleStatus;
+  sourceBranch: string;
+  taskBranch?: string;
   name: string;
   createdAt: string;
   updatedAt: string;

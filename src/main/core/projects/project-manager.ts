@@ -12,7 +12,9 @@ import {
 import { log } from '@main/lib/logger';
 import { getProjects } from '../projects/operations/getProjects';
 import { createProvider } from './create-project-provider';
+import { createLocalProvider } from './local-project-provider';
 import type { ProjectProvider } from './project-provider';
+import { createSshProvider } from './ssh-project-provider';
 
 class ProjectManager {
   private providers = new Map<string, ProjectProvider>();
@@ -97,6 +99,13 @@ class ProjectManager {
     const ids = Array.from(this.providers.keys());
     await Promise.allSettled(ids.map((id) => this.removeProject(id)));
   }
+}
+
+export async function createProvider(project: LocalProject | SshProject): Promise<ProjectProvider> {
+  if (project.type === 'ssh') {
+    return await createSshProvider(project);
+  }
+  return await createLocalProvider(project);
 }
 
 export const projectManager = new ProjectManager();

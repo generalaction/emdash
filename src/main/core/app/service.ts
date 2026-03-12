@@ -34,7 +34,7 @@ import {
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
 
-export class AppService {
+class AppService {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
@@ -99,7 +99,7 @@ export class AppService {
     const platform = process.platform as PlatformKey;
     const availability: Record<string, boolean> = {};
 
-    for (const openInApp of OPEN_IN_APPS) {
+    for (const openInApp of Object.values(OPEN_IN_APPS)) {
       const platformConfig = openInApp.platforms[platform];
       if (!platformConfig && !openInApp.alwaysAvailable) {
         availability[openInApp.id] = false;

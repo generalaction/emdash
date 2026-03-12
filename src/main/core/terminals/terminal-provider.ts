@@ -1,6 +1,5 @@
 import { LocalSpawnError } from '@main/core/pty/local-pty';
 import { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
-import { Result } from '@main/lib/result';
 
 export type CreateSessionError = LocalSpawnError | Ssh2OpenError;
 
@@ -13,6 +12,7 @@ export type TerminalSpawnOptions = {
 };
 
 export interface ITerminalProvider {
-  spawnTerminal(opts: TerminalSpawnOptions): Promise<Result<void, CreateSessionError>>;
-  killTerminal(terminalId: string): void;
+  spawnTerminal(opts: TerminalSpawnOptions): Promise<void>;
+  killTerminal(terminalId: string): Promise<void>;
+  destroyAll(): Promise<void>;
 }

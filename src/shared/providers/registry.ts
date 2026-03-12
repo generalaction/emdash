@@ -23,6 +23,8 @@ export const PROVIDER_IDS = [
   'autohand',
 ] as const;
 
+export const DEFAULT_PROVIDER_ID = 'claude';
+
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export type ProviderDefinition = {

@@ -1,3 +1,4 @@
+import { Conversation } from '@shared/conversations/types';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -11,6 +12,7 @@ import { Pty } from '@main/core/pty/pty';
 import { buildSessionEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
@@ -28,24 +30,30 @@ export class LocalConversationProvider implements IConversationProvider {
     private readonly taskId: string
   ) {}
 
-  async startSession(opts: ConversationStartOptions): Promise<Result<void, CreateSessionError>> {
-    const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.conversationId);
+  async startSession(conversation: Conversation): Promise<void> {
+    const sessionId = makePtySessionId(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
+    if (this.sessions.has(sessionId)) return;
 
-    // Idempotent: if a live session already exists, return immediately.
-    if (this.sessions.has(sessionId)) return ok();
+    const providerConfig = (await appSettingsService.getAppSettingsKey('providerConfigs'))[
+      conversation.providerId
+    ];
 
     const cfg: AgentSessionConfig = {
-      taskId: opts.taskId,
-      conversationId: opts.conversationId,
-      providerId: opts.providerId as ProviderId,
-      command: opts.command,
-      args: opts.args,
+      taskId: conversation.taskId,
+      conversationId: conversation.id,
+      providerId: conversation.providerId,
+      command: providerConfig.cli,
+      args: providerConfig.defaultArgs ?? [],
       cwd: opts.cwd,
-      sessionId: opts.agentSessionId,
-      shellSetup: opts.shellSetup,
-      tmuxSessionName: opts.tmuxSessionName,
-      autoApprove: opts.autoApprove ?? false,
-      resume: opts.resume ?? false,
+      sessionId: conversation.resumeSessionId,
+      shellSetup: providerConfig.shellSetup,
+      tmuxSessionName: providerConfig.tmuxSessionName,
+      autoApprove: providerConfig.autoApproveFlag ?? false,
+      resume: providerConfig.resumeFlag ?? false,
     };
 
     const env = buildSessionEnv('agent');
@@ -95,7 +103,7 @@ export class LocalConversationProvider implements IConversationProvider {
     ptySessionRegistry.unregister(sessionId);
   }
 
-  destroyAll(): void {
+  async destroyAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();

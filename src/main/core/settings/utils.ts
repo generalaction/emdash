@@ -1,7 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { app } from 'electron';
+import { join } from 'node:path';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 

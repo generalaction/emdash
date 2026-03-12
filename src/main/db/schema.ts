@@ -58,6 +58,20 @@ export const projects = sqliteTable(
   })
 );
 
+export const appSettings = sqliteTable(
+  'app_settings',
+  {
+    key: text('key').primaryKey(),
+    value: text('value').notNull(),
+    updatedAt: integer('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    keyIdx: uniqueIndex('idx_app_settings_key').on(table.key),
+  })
+);
+
 export const tasks = sqliteTable(
   'tasks',
   {

@@ -1,3 +1,4 @@
+import { Conversation } from '@shared/conversations/types';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -26,7 +27,7 @@ export class SshConversationProvider implements IConversationProvider {
     private readonly proxy: SshClientProxy
   ) {}
 
-  async startSession(opts: ConversationStartOptions): Promise<Result<void, CreateSessionError>> {
+  async startSession(conversation: Conversation): Promise<void> {
     const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.conversationId);
 
     if (this.sessions.has(sessionId)) return ok();
@@ -77,7 +78,7 @@ export class SshConversationProvider implements IConversationProvider {
     return ok();
   }
 
-  stopSession(conversationId: string): void {
+  async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     const pty = this.sessions.get(sessionId);
     if (!pty) return;
@@ -90,7 +91,7 @@ export class SshConversationProvider implements IConversationProvider {
     ptySessionRegistry.unregister(sessionId);
   }
 
-  destroyAll(): void {
+  async destroyAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();

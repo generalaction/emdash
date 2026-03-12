@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { ProjectSettings, ProjectSettingsProvider, projectSettingsSchema } from './schema';
 
 export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
@@ -34,7 +35,7 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     if (settings.worktreeDirectory) {
       return settings.worktreeDirectory;
     }
-    return path.join(this.projectPath, 'worktrees');
+    return (await appSettingsService.getAppSettingsKey('localProject')).defaultWorktreeDirectory;
   }
 }
 
@@ -65,5 +66,13 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
       const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
       await this.fs.write('.emdash.json', JSON.stringify(defaultSettings, null, 2));
     }
+  }
+
+  async getWorktreeDirectory(): Promise<string> {
+    const settings = await this.get();
+    if (settings.worktreeDirectory) {
+      return settings.worktreeDirectory;
+    }
+    return path.join('emdash', 'worktrees');
   }
 }

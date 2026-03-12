@@ -498,7 +498,7 @@ export const appController = createRPCController({
       });
     };
 
-    for (const app of OPEN_IN_APPS) {
+    for (const app of Object.values(OPEN_IN_APPS)) {
       // Skip apps that don't have platform-specific config
       const platformConfig = app.platforms[platform];
       if (!platformConfig && !app.alwaysAvailable) {

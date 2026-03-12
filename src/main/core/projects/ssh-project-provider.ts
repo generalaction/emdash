@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
+import { Task } from 'vitest';
+import { Conversation } from '@shared/conversations/types';
+import { SshProject } from '@shared/projects/types';
+import { Terminal } from '@shared/terminal/types';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { SshGitService } from '@main/core/git/impl/ssh-git-provider';
@@ -10,17 +14,32 @@ import {
   sshConnectionManager,
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
-import { SshTerminalProvider } from '@main/core/terminals/terminal-provider/ssh-terminal-provider';
+import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from './project-provider';
+import { ProjectSettingsProvider } from './settings/schema';
 
 interface SshProvisionArgs extends BaseTaskProvisionArgs {
   workingDirectory: string;
 }
 
-export class SshProjectProvider implements ProjectProvider<SshProvisionArgs> {
+export async function createSshProvider(project: SshProject): Promise<SshProjectProvider> {
+  try {
+    const proxy = await sshConnectionManager.connect(project.connectionId);
+    return new SshProjectProvider(project.id, project.connectionId, proxy);
+  } catch (error) {
+    log.warn('createSshProvider: SSH connection failed', {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+export class SshProjectProvider implements ProjectProvider {
   readonly type = 'ssh';
+  readonly settings: ProjectSettingsProvider;
 
   private environments = new Map<string, TaskProvider>();
   private agentProviders = new Map<string, SshConversationProvider>();
@@ -61,12 +80,12 @@ export class SshProjectProvider implements ProjectProvider<SshProvisionArgs> {
     });
   }
 
-  async provisionTask({
-    taskId,
-    terminals,
-    workingDirectory,
-  }: SshProvisionArgs): Promise<TaskProvider> {
-    const existing = this.environments.get(taskId);
+  async provisionTask(
+    task: Task,
+    conversations: Conversation[],
+    terminals: Terminal[]
+  ): Promise<TaskProvider> {
+    const existing = this.environments.get(task.id);
     if (existing) return existing;
 
     const fs = new SshFileSystem(this.proxy, workingDirectory);

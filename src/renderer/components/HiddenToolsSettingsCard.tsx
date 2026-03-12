@@ -30,7 +30,7 @@ export default function HiddenToolsSettingsCard() {
 
       const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
       const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of OPEN_IN_APPS) {
+      for (const app of Object.values(OPEN_IN_APPS)) {
         const iconPath = getResolvedIconPath(app, platform);
         loadedLabels[app.id] = getResolvedLabel(app, platform);
         try {
@@ -56,7 +56,7 @@ export default function HiddenToolsSettingsCard() {
 
   // Sort: detected first, then alphabetically by label
   const sortedApps = useMemo(() => {
-    return [...OPEN_IN_APPS].sort((a, b) => {
+    return Object.values(OPEN_IN_APPS).sort((a, b) => {
       const aDetected = availability[a.id] ?? a.alwaysAvailable ?? false;
       const bDetected = availability[b.id] ?? b.alwaysAvailable ?? false;
       if (aDetected && !bDetected) return -1;

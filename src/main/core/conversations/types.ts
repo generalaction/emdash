@@ -1,12 +1,13 @@
+import { Conversation } from '@shared/conversations/types';
 import { LocalSpawnError } from '@main/core/pty/local-pty';
 import { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
-import { Result } from '@main/lib/result';
 
 export type CreateSessionError = LocalSpawnError | Ssh2OpenError;
 
 export interface IConversationProvider {
-  startSession(opts: ConversationStartOptions): Promise<Result<void, CreateSessionError>>;
-  stopSession(conversationId: string): void;
+  startSession(conversation: Conversation): Promise<void>;
+  stopSession(conversationId: string): Promise<void>;
+  destroyAll(): Promise<void>;
 }
 
 export type ConversationStartOptions = {
@@ -23,18 +24,4 @@ export type ConversationStartOptions = {
   tmuxSessionName?: string;
   autoApprove?: boolean;
   resume?: boolean;
-};
-
-export type Conversation = {
-  id: string;
-  taskId: string;
-  title: string;
-  provider: string | null;
-  isMain: boolean;
-  displayOrder: number;
-  agentSessionId: string | null;
-  type: 'agent' | 'shell';
-  metadata: string | null;
-  createdAt: string;
-  updatedAt: string;
 };

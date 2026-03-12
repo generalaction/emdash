@@ -6,9 +6,11 @@ import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
+import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
+import { projectManager } from './core/projects/project-manager';
+import { appSettingsService } from './core/settings/settings-service';
 import { autoUpdateService } from './core/updates/AutoUpdateService';
-import { projectManager } from './core/workspaces/project-manager';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
@@ -83,9 +85,11 @@ app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
+  appService.initialize();
+  appSettingsService.initialize();
+
   registerRPCRouter(rpcRouter, ipcMain);
 
-  // Initialize per-project workspace providers and hydrate existing task sessions.
   projectManager.initialize().catch((e) => {
     log.error('Failed to initialize environment providers:', e);
   });

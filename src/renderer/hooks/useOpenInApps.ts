@@ -3,6 +3,7 @@ import {
   getResolvedIconPath,
   getResolvedLabel,
   OPEN_IN_APPS,
+  type OpenInAppConfig,
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
@@ -13,7 +14,7 @@ export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;
   labels: Partial<Record<OpenInAppId, string>>;
   availability: Record<string, boolean>;
-  installedApps: typeof OPEN_IN_APPS;
+  installedApps: OpenInAppConfig[];
   loading: boolean;
 }
 
@@ -36,7 +37,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
 
       const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
       const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of OPEN_IN_APPS) {
+      for (const app of Object.values(OPEN_IN_APPS)) {
         const iconPath = getResolvedIconPath(app, platform);
         loadedLabels[app.id] = getResolvedLabel(app, platform);
         try {
@@ -69,8 +70,10 @@ export function useOpenInApps(): UseOpenInAppsResult {
   // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
     const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
-    if (loading) return OPEN_IN_APPS;
-    return OPEN_IN_APPS.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
+    if (loading) return Object.values(OPEN_IN_APPS);
+    return Object.values(OPEN_IN_APPS).filter(
+      (app) => availability[app.id] && !hiddenApps.includes(app.id)
+    );
   }, [availability, loading, settings?.hiddenOpenInApps]);
 
   return { icons, labels, availability, installedApps, loading };

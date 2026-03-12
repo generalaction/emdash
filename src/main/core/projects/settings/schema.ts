@@ -36,7 +36,7 @@ export const projectSettingsSchema = z.object({
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
 export interface ProjectSettingsProvider {
-  getWorktreeDirectory(): string;
+  getWorktreeDirectory(): Promise<string>;
   get(): Promise<ProjectSettings>;
   update(settings: ProjectSettings): Promise<void>;
   ensure(): Promise<void>;
