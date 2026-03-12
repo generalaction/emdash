@@ -184,11 +184,10 @@ export function Workspace() {
   // Listen for native menu "Settings" click (main → renderer)
   useEffect(() => {
     const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      setShowEditorMode(false);
       openSettingsPage();
     });
     return () => cleanup?.();
-  }, [openSettingsPage, setShowEditorMode]);
+  }, [openSettingsPage]);
 
   const handleToggleKanban = useCallback(() => {
     if (!projectMgmt.selectedProject) return;
@@ -260,10 +259,7 @@ export function Workspace() {
   // Show toast on update availability
   useUpdateNotifier({
     checkOnMount: true,
-    onOpenSettings: () => {
-      setShowEditorMode(false);
-      openSettingsPage('general');
-    },
+    onOpenSettings: () => openSettingsPage('general'),
   });
 
   // Listen for native menu "Check for Updates" click (main → renderer)
@@ -342,10 +338,8 @@ export function Workspace() {
       handleCloseSettingsPage();
       return;
     }
-    // Close editor mode so the main content area (where settings renders) is visible
-    setShowEditorMode(false);
     openSettingsPage();
-  }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage, setShowEditorMode]);
+  }, [showSettingsPage, handleCloseSettingsPage, openSettingsPage]);
 
   return (
     <BrowserProvider>
@@ -482,14 +476,8 @@ export function Workspace() {
                   handleCloseSettingsPage();
                   projectMgmt.handleGoHome();
                 }}
-                handleOpenSettings={() => {
-                  setShowEditorMode(false);
-                  openSettingsPage();
-                }}
-                handleOpenKeyboardShortcuts={() => {
-                  setShowEditorMode(false);
-                  openSettingsPage('interface');
-                }}
+                handleOpenSettings={() => openSettingsPage()}
+                handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor
@@ -500,6 +488,9 @@ export function Workspace() {
                   onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
+                  showSettingsPage={showSettingsPage}
+                  settingsPageInitialTab={settingsPageInitialTab}
+                  onCloseSettingsPage={handleCloseSettingsPage}
                 />
               )}
 
