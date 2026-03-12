@@ -37,6 +37,7 @@ const ICON_PATHS = {
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
+  'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
 } as const;
 
@@ -302,6 +303,28 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['rustrover {{path}}'],
         checkCommands: ['rustrover'],
+      },
+    },
+  },
+  {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['studio {{path}}', 'open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+        checkCommands: ['studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
       },
     },
   },
