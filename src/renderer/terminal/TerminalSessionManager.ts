@@ -23,6 +23,12 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
+import {
+  collectTerminalSearchMatches,
+  getNextTerminalSearchIndex,
+  type TerminalSearchBufferLike,
+  type TerminalSearchMatch,
+} from './terminalSearch';
 import { rpc } from '@/lib/rpc';
 import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
@@ -136,6 +142,8 @@ export class TerminalSessionManager {
   private lastSlowInputLogAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private activeSearchQuery = '';
+  private activeSearchMatch: TerminalSearchMatch | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -603,6 +611,73 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to scroll to bottom', { id: this.id, error });
     }
+  }
+
+  search(
+    query: string,
+    options: { direction?: 'next' | 'prev'; reset?: boolean } = {}
+  ): {
+    found: boolean;
+    currentIndex: number;
+    total: number;
+  } {
+    const normalizedQuery = query;
+    if (!normalizedQuery) {
+      this.clearSearch();
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const buffer = this.terminal.buffer?.active as TerminalSearchBufferLike | undefined;
+    if (!buffer) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const matches = collectTerminalSearchMatches(buffer, normalizedQuery);
+    if (matches.length === 0) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      try {
+        this.terminal.clearSelection();
+      } catch {}
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const direction = options.direction ?? 'next';
+    const currentMatch =
+      !options.reset && this.activeSearchQuery === normalizedQuery ? this.activeSearchMatch : null;
+    const matchIndex = getNextTerminalSearchIndex(matches, currentMatch, direction);
+    const match = matches[matchIndex];
+
+    this.activeSearchQuery = normalizedQuery;
+    this.activeSearchMatch = match;
+
+    try {
+      this.terminal.select(match.col, match.row, match.length);
+      const contextRows = Math.max(0, Math.floor(this.terminal.rows / 2));
+      this.terminal.scrollToLine(Math.max(0, match.row - contextRows));
+    } catch (error) {
+      log.warn('Failed to apply terminal search match', {
+        id: this.id,
+        query: normalizedQuery,
+        error,
+      });
+    }
+
+    return {
+      found: true,
+      currentIndex: matchIndex + 1,
+      total: matches.length,
+    };
+  }
+
+  clearSearch() {
+    this.activeSearchQuery = '';
+    this.activeSearchMatch = null;
+    try {
+      this.terminal.clearSelection();
+    } catch {}
   }
 
   registerActivityListener(listener: () => void): () => void {

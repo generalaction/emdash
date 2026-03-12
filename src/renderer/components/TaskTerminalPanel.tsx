@@ -9,6 +9,8 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { Button } from './ui/button';
 import { useToast } from '../hooks/use-toast';
 import { ToastAction } from './ui/toast';
+import { useTerminalSearch } from '../hooks/useTerminalSearch';
+import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 import {
   Select,
   SelectContent,
@@ -78,6 +80,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
 
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const terminalRefs = useRef<Map<string, { focus: () => void }>>(new Map());
   const setTerminalRef = useCallback((id: string, ref: { focus: () => void } | null) => {
     if (ref) {
@@ -242,6 +245,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [runStatus, selection.onChange]);
 
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
+  const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
 
   const canStartRun =
     !!task &&
@@ -256,6 +260,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     if (selection.parsed?.mode === 'global') return projectPath ? 'PROJECT' : 'GLOBAL';
     return null;
   }, [selection.parsed?.mode, projectPath]);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminalId: selection.selectedLifecycle ? null : selection.activeTerminalId,
+    containerRef: panelRef,
+    enabled: hasActiveTerminal,
+    onCloseFocus: () => {
+      if (selection.activeTerminalId && !selection.selectedLifecycle) {
+        terminalRefs.current.get(selection.activeTerminalId)?.focus();
+      }
+    },
+  });
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;
@@ -448,7 +470,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [nativeTheme, defaultTheme]);
 
   return (
-    <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
+    <div ref={panelRef} className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <Select
           value={selection.value}
@@ -685,6 +707,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               : 'bg-white'
           )}
         >
+          <TerminalSearchOverlay
+            isOpen={isSearchOpen && hasActiveTerminal}
+            searchQuery={searchQuery}
+            searchStatus={searchStatus}
+            searchInputRef={searchInputRef}
+            onQueryChange={handleSearchQueryChange}
+            onStep={stepSearch}
+            onClose={closeSearch}
+          />
           {task &&
             taskTerminals.terminals.map((terminal) => {
               const isActive =

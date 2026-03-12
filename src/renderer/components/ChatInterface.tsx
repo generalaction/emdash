@@ -32,6 +32,8 @@ import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
+import { useTerminalSearch } from '../hooks/useTerminalSearch';
+import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 
 declare const window: Window & {
   electronAPI: {
@@ -401,6 +403,21 @@ const ChatInterface: React.FC<Props> = ({
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
+  const terminalPanelRef = useRef<HTMLDivElement | null>(null);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminalId,
+    containerRef: terminalPanelRef,
+    enabled: true,
+    onCloseFocus: () => terminalRef.current?.focus(),
+  });
 
   const handleTerminalActivity = useCallback(() => {
     const storageKey = `agent:locked:${task.id}`;
@@ -1132,7 +1149,8 @@ const ChatInterface: React.FC<Props> = ({
           </div>
           <div className="mt-4 min-h-0 flex-1 px-6">
             <div
-              className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              ref={terminalPanelRef}
+              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
@@ -1148,6 +1166,16 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
+              <TerminalSearchOverlay
+                isOpen={isSearchOpen}
+                fullWidth
+                searchQuery={searchQuery}
+                searchStatus={searchStatus}
+                searchInputRef={searchInputRef}
+                onQueryChange={handleSearchQueryChange}
+                onStep={stepSearch}
+                onClose={closeSearch}
+              />
               {/* Wait for conversations to load to ensure stable terminalId */}
               {conversationsLoaded && (
                 <TerminalPane
