@@ -30,6 +30,7 @@ const ICON_PATHS = {
   vscode: 'vscode.png',
   vscodium: 'vscodium.png',
   terminal: 'terminal.png',
+  xcode: 'xcode.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
@@ -154,6 +155,19 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
         ],
+      },
+    },
+  },
+  {
+    id: 'xcode',
+    label: 'Xcode',
+    iconPath: ICON_PATHS.xcode,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -b com.apple.dt.Xcode {{path}}', 'open -a "Xcode" {{path}}'],
+        bundleIds: ['com.apple.dt.Xcode'],
+        appNames: ['Xcode'],
       },
     },
   },
