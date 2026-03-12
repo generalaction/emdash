@@ -1,4 +1,4 @@
-import { parseSshConfigFile } from '@main/utils/sshConfigParser';
+import { parseSshConfigFile } from '@main/core/ssh/sshConfigParser';
 
 export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
   try {

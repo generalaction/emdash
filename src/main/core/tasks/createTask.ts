@@ -1,181 +1,89 @@
-import { eq, sql } from 'drizzle-orm';
-import { ensureProjectSettings } from '@main/core/projects/ensureProjectSettings';
-import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { buildSessionEnv } from '@main/core/pty/pty-env';
-import { worktreePoolService } from '@main/core/worktrees/WorktreePoolService';
-import { worktreeService } from '@main/core/worktrees/WorktreeService';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { sql } from 'drizzle-orm';
+import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks/types';
+import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
-import { conversations, projects, tasks, type TaskRow } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-import { err, ok, Result } from '@main/lib/result';
-import type { Task, TaskMetadata } from './core';
-
-export type LinkedIssue =
-  | { source: 'github'; number: number; title: string; url?: string; body?: string }
-  | { source: 'linear'; identifier: string; title: string; url?: string; description?: string }
-  | { source: 'jira'; key: string; summary: string; url?: string };
+import { tasks } from '@main/db/schema';
 
 export type CreateTaskParams = {
+  id?: string;
   projectId: string;
+  projectProvider: 'ssh' | 'local';
+  /** Absolute path to the main repository */
+  projectPath: string;
   name: string;
-  useWorktree: boolean;
-  linkedIssue?: LinkedIssue;
-  sourceBranch?: string;
-  initialConversation: {
-    agentId: string;
-    initialPrompt?: string;
-  };
+  /** The branch to fork the new worktree from */
+  sourceBranch: string;
+  /** If true, create a new git branch before the worktree */
+  createBranch?: boolean;
+  /** Explicit branch name; auto-generated from name if omitted */
+  branchName?: string;
+  linkedIssue?: Issue;
 };
 
-export type CreateTaskError =
-  | { type: 'project_not_found' }
-  | { type: 'worktree_failed'; message: string }
-  | { type: 'db_failed'; message: string }
-  | { type: 'project_settings_failed'; message: string };
+export async function createTask(params: CreateTaskParams): Promise<Task> {
+  const id = params.id ?? randomUUID();
+  const suffix = Math.random().toString(36).slice(2, 7);
+  const branchName = params.branchName ?? `${params.name}-${suffix}`;
+  const worktreesDir = path.join(params.projectPath, '..', 'worktrees');
 
-export type CreateTaskResult = { task: Task; conversationId: string };
+  let worktreePath: string | undefined;
 
-export function mapTaskRow(row: TaskRow): Task {
-  const meta: TaskMetadata = row.metadata ? JSON.parse(row.metadata) : {};
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    name: row.name,
-    status: meta.lifecycleStatus ?? 'in_progress',
-    sourceBranch: meta.sourceBranch ?? '',
-    branch: row.branch,
-    path: row.path,
-    linkedIssue: meta.linkedIssue,
-    archivedAt: row.archivedAt ?? undefined,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    initialConversation: {
-      agentId: row.agentId ?? '',
-      initialPrompt: meta.initialPrompt ?? '',
-    },
-  };
-}
+  // if (params.createBranch && params.projectProvider === 'local') {
+  //   const claim = await worktreePoolService.claimReserve(
+  //     params.projectId,
+  //     params.projectPath,
+  //     params.name,
+  //     params.sourceBranch
+  //   );
+  //   worktreePath = claim?.worktree.path;
 
-export async function createTask(
-  params: CreateTaskParams
-): Promise<Result<CreateTaskResult, CreateTaskError>> {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, params.projectId))
-    .limit(1);
+  //   if (!claim?.worktree) {
+  //     const worktreeService = createLocalWorktreeService(params.projectPath, worktreesDir);
 
-  if (!project) return err({ type: 'project_not_found' });
+  //     const worktree = await worktreeService.createWorktree(branchName, params.sourceBranch);
+  //     worktreePath = worktree.path;
+  //   }
+  // }
 
-  const effectiveBaseRef = params.sourceBranch ?? project.baseRef ?? undefined;
+  const [taskRow] = await db
+    .insert(tasks)
+    .values({
+      id,
+      projectId: params.projectId,
+      name: params.name,
+      branch: params.createBranch ? branchName : undefined,
+      status: 'todo' as TaskLifecycleStatus,
+      worktreePath: worktreePath,
+      linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .returning();
 
-  const projectSettings = ensureProjectSettings(project.path);
-  if (!projectSettings.success)
-    return err({ type: 'project_settings_failed', message: projectSettings.error.kind });
-
-  let worktree;
-  try {
-    const claim = await worktreePoolService.claimReserve(
-      params.projectId,
-      project.path,
-      params.name,
-      effectiveBaseRef
-    );
-    worktree =
-      claim?.worktree ??
-      (await worktreeService.createWorktree(
-        project.path,
-        params.name,
-        params.projectId,
-        effectiveBaseRef
-      ));
-  } catch (e) {
-    return err({ type: 'worktree_failed', message: (e as Error).message });
-  }
-
-  const metadata: TaskMetadata = {
-    lifecycleStatus: 'todo',
-    linkedIssue: params.linkedIssue,
-    sourceBranch: effectiveBaseRef,
-    initialPrompt: params.initialConversation.initialPrompt,
+  const task: Task = {
+    id,
+    projectId: params.projectId,
+    name: params.name,
+    branch: params.createBranch ? branchName : undefined,
+    status: 'todo' as TaskLifecycleStatus,
+    worktreePath: worktreePath,
+    linkedIssue: params.linkedIssue ? params.linkedIssue : undefined,
+    updatedAt: taskRow.updatedAt,
+    createdAt: taskRow.createdAt,
   };
 
-  let taskRow: TaskRow;
-  try {
-    [taskRow] = await db
-      .insert(tasks)
-      .values({
-        id: worktree.id,
-        projectId: params.projectId,
-        name: params.name,
-        branch: worktree.branch,
-        path: worktree.path,
-        status: 'todo',
-        agentId: params.initialConversation.agentId,
-        metadata: JSON.stringify(metadata),
-        useWorktree: params.useWorktree ? 1 : 0,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .returning();
-  } catch (e) {
-    return err({ type: 'db_failed', message: (e as Error).message });
+  const workspace = projectManager.getProject(params.projectId);
+  if (!workspace) {
+    throw new Error('Workspace not found');
   }
 
-  const conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  const agentSessionId = crypto.randomUUID();
-
-  await db.insert(conversations).values({
-    id: conversationId,
-    taskId: taskRow.id,
-    title: params.name,
-    provider: params.initialConversation.agentId,
-    isMain: 1,
-    isActive: 1,
-    displayOrder: 0,
-    type: 'agent',
-    agentSessionId,
-    updatedAt: sql`CURRENT_TIMESTAMP`,
+  const env = await workspace.provisionTask({
+    taskId: id,
+    workingDirectory: params.projectPath,
+    conversations: [],
+    terminals: [],
   });
 
-  const setupScript = projectSettings.data.scripts?.setup?.trim();
-  if (setupScript) {
-    runSetupScript(taskRow.id, worktree.path, setupScript);
-  }
-
-  return ok({ task: mapTaskRow(taskRow), conversationId });
-}
-
-function runSetupScript(taskId: string, taskPath: string, command: string): void {
-  let buffer = '';
-
-  const env = buildSessionEnv('lifecycle');
-  const shell = process.env.SHELL ?? '/bin/sh';
-  const result = spawnLocalPty({
-    id: crypto.randomUUID(),
-    command: shell,
-    args: ['-c', command],
-    cwd: taskPath,
-    env,
-    cols: 80,
-    rows: 24,
-  });
-
-  if (!result.success) {
-    log.error('createTask: setup script spawn failed', { taskId, error: result.error });
-    return;
-  }
-
-  const pty = result.data;
-  pty.onData((chunk) => {
-    buffer += chunk;
-  });
-  pty.onExit(({ exitCode }) => {
-    db.update(tasks)
-      .set({ setupScriptBuffer: buffer })
-      .where(eq(tasks.id, taskId))
-      .catch((e) =>
-        log.error('createTask: failed to write setup script buffer', { taskId, error: e })
-      );
-    log.info('createTask: setup script finished', { taskId, exitCode });
-  });
+  return task;
 }

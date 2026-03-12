@@ -8,7 +8,7 @@ import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { autoUpdateService } from './core/updates/AutoUpdateService';
-import { workspaceManager } from './core/workspaces/workspace-manager';
+import { projectManager } from './core/workspaces/project-manager';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
@@ -86,7 +86,7 @@ app.whenReady().then(async () => {
   registerRPCRouter(rpcRouter, ipcMain);
 
   // Initialize per-project workspace providers and hydrate existing task sessions.
-  workspaceManager.initialize().catch((e) => {
+  projectManager.initialize().catch((e) => {
     log.error('Failed to initialize environment providers:', e);
   });
 
@@ -118,5 +118,5 @@ app.on('before-quit', () => {
   // Cleanup auto-update service
   autoUpdateService.shutdown();
   // Tear down all active task environments (closes SSH channels, cleans PTY sessions)
-  workspaceManager.shutdown().catch(() => {});
+  projectManager.shutdown().catch(() => {});
 });

@@ -42,6 +42,7 @@ export interface AddProjectModalProps extends BaseModalProps<void> {
 export function AddProjectModal({
   strategy: strategyProp,
   mode: modeProp,
+  onClose,
   connectionId: connectionIdProp,
 }: AddProjectModalProps) {
   const [strategy, setStrategy] = useState<Strategy>(strategyProp ?? 'local');
@@ -80,6 +81,7 @@ export function AddProjectModal({
         const project = await rpc.projects.getLocalProjectByPath(pickState.path);
         if (project) {
           navigate('project', { projectId: project.id });
+          onClose();
           return;
         }
       }
@@ -87,18 +89,21 @@ export function AddProjectModal({
         const project = await rpc.projects.getSshProjectByPath(pickState.path, connectionId!);
         if (project) {
           navigate('project', { projectId: project.id });
+          onClose();
           return;
         }
       }
     } catch (e) {
       console.error(e);
     }
+
+    const id = crypto.randomUUID();
     switch (mode) {
       case 'pick':
-        startPickProject({ name: pickState.name, path: pickState.path });
+        startPickProject(id, { name: pickState.name, path: pickState.path });
         break;
       case 'new':
-        startNewProject({
+        startNewProject(id, {
           name: newState.name,
           path: newState.path,
           repositoryName: newState.repositoryName,
@@ -107,13 +112,15 @@ export function AddProjectModal({
         });
         break;
       case 'clone':
-        startCloneProject({
+        startCloneProject(id, {
           name: cloneState.name,
           path: cloneState.path,
           repositoryUrl: cloneState.repositoryUrl,
         });
         break;
     }
+    onClose();
+    navigate('project', { projectId: id });
   };
 
   return (

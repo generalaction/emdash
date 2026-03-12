@@ -1,5 +1,12 @@
 import { relations, sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -12,6 +19,7 @@ export const sshConnections = sqliteTable(
     authType: text('auth_type').notNull().default('agent'), // 'password' | 'key' | 'agent'
     privateKeyPath: text('private_key_path'), // optional, for key auth
     useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
+    metadata: text('metadata'), // JSON for additional connection-specific data
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -54,18 +62,16 @@ export const tasks = sqliteTable(
   'tasks',
   {
     id: text('id').primaryKey(),
+    status: text('status').notNull(),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
+    branch: text('branch'),
+    worktreePath: text('worktree_path'),
     name: text('name').notNull(),
-    branch: text('branch').notNull(),
-    path: text('path').notNull(),
-    status: text('status').notNull().default('idle'),
-    agentId: text('agent_id'),
+    linkedIssue: text('linked_issue'),
     metadata: text('metadata'),
-    useWorktree: integer('use_worktree').notNull().default(1),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
-    setupScriptBuffer: text('setup_script_buffer'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -75,6 +81,42 @@ export const tasks = sqliteTable(
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
+  })
+);
+
+export const pullRequests = sqliteTable(
+  'pull_requests',
+  {
+    url: text('url').primaryKey(),
+    title: text('title').notNull(),
+    status: text('status').notNull().default('open'),
+    provider: text('provider').notNull().default('github'),
+    author: text('author'),
+    metadata: text('metadata'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
+  })
+);
+
+export const tasksPullRequests = sqliteTable(
+  'tasks_pull_requests',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    pullRequestUrl: text('pull_request_url')
+      .notNull()
+      .references(() => pullRequests.url, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.taskId, table.pullRequestUrl] }),
   })
 );
 

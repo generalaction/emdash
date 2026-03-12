@@ -1,12 +1,12 @@
 import { planEventChannel } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/ipc/rpc';
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { projectManager } from '@main/core/workspaces/project-manager';
 import { events } from '@main/lib/events';
 import { err, ok } from '@main/lib/result';
-import { FileSystemErrorCodes, type ListOptions, type SearchOptions } from './fs-provider/types';
+import { FileSystemErrorCodes, type ListOptions, type SearchOptions } from './types';
 
 function resolveEnv(projectId: string, taskId: string) {
-  return workspaceManager.getProvider(projectId)?.getEnvironment(taskId) ?? null;
+  return projectManager.getProject(projectId)?.getTask(taskId) ?? null;
 }
 
 export const filesController = createRPCController({

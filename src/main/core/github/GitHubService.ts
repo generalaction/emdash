@@ -12,6 +12,7 @@ import {
   githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
+import type { Issue } from '@shared/tasks/types';
 import type { GitHubUser } from '@shared/types/github';
 import { events } from '@main/lib/events';
 import { identify as telemetryIdentify } from '@main/lib/telemetry';
@@ -86,6 +87,48 @@ export interface DeviceCodeResult {
 export interface GitHubInfo {
   nameWithOwner: string;
   defaultBranch: string;
+}
+
+export interface GitHubIssueAssignee {
+  login?: string;
+  name?: string;
+}
+
+export interface GitHubIssueLabel {
+  name?: string;
+}
+
+interface GitHubIssueBase {
+  number: number;
+  url?: string;
+  state?: string;
+  updatedAt?: string | null;
+  assignees?: GitHubIssueAssignee[];
+  labels?: GitHubIssueLabel[];
+}
+
+export interface GitHubIssue extends GitHubIssueBase {
+  title: string;
+}
+
+export interface GitHubIssueDetail extends GitHubIssueBase {
+  title?: string;
+  body?: string;
+}
+
+export function toGeneralIssue(
+  issue: GitHubIssue | GitHubIssueDetail,
+  repoOwner: string,
+  repoName: string
+): Issue {
+  return {
+    provider: 'github',
+    identifier: `${repoOwner}/${repoName}#${issue.number}`,
+    title: issue.title ?? '',
+    url: issue.url ?? `https://github.com/${repoOwner}/${repoName}/issues/${issue.number}`,
+    description: (issue as GitHubIssueDetail).body ?? undefined,
+    updatedAt: issue.updatedAt ?? undefined,
+  };
 }
 
 export class GitHubService {
@@ -480,20 +523,7 @@ export class GitHubService {
   /**
    * List open GitHub issues for the current repo (cwd = projectPath)
    */
-  async listIssues(
-    projectPath: string,
-    limit: number = 50
-  ): Promise<
-    Array<{
-      number: number;
-      title: string;
-      url?: string;
-      state?: string;
-      updatedAt?: string | null;
-      assignees?: Array<{ login?: string; name?: string }>;
-      labels?: Array<{ name?: string }>;
-    }>
-  > {
+  async listIssues(projectPath: string, limit: number = 50): Promise<GitHubIssue[]> {
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
     try {
       const fields = ['number', 'title', 'url', 'state', 'updatedAt', 'assignees', 'labels'];
@@ -515,17 +545,7 @@ export class GitHubService {
     projectPath: string,
     searchTerm: string,
     limit: number = 20
-  ): Promise<
-    Array<{
-      number: number;
-      title: string;
-      url?: string;
-      state?: string;
-      updatedAt?: string | null;
-      assignees?: Array<{ login?: string; name?: string }>;
-      labels?: Array<{ name?: string }>;
-    }>
-  > {
+  ): Promise<GitHubIssue[]> {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
     const term = String(searchTerm || '').trim();
     if (!term) return [];
@@ -546,19 +566,7 @@ export class GitHubService {
   }
 
   /** Get a single issue with body for enrichment */
-  async getIssue(
-    projectPath: string,
-    number: number
-  ): Promise<{
-    number: number;
-    title?: string;
-    body?: string;
-    url?: string;
-    state?: string;
-    updatedAt?: string | null;
-    assignees?: Array<{ login?: string; name?: string }>;
-    labels?: Array<{ name?: string }>;
-  } | null> {
+  async getIssue(projectPath: string, number: number): Promise<GitHubIssueDetail | null> {
     try {
       const fields = [
         'number',

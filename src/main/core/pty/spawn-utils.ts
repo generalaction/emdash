@@ -1,4 +1,4 @@
-import type { AgentSessionConfig } from '../conversations/agent-provider/agent-session';
+import type { AgentSessionConfig } from '../conversations/impl/agent-session';
 import type { GeneralSessionConfig } from '../terminals/terminal-provider/general-session';
 
 export type SessionType = 'agent' | 'general' | 'lifecycle';

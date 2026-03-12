@@ -1,19 +1,15 @@
-import { eq } from 'drizzle-orm';
 import { createRPCController } from '@shared/ipc/rpc';
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
-import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
-import { createLocalProject, createSshProject } from './createProject';
-import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './getProjects';
+import { createLocalProject, createSshProject } from './operations/createProject';
+import { deleteProject } from './operations/deleteProject';
+import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
+import { renameProject } from './operations/renameProject';
 
 export const projectController = createRPCController({
   createLocalProject,
   createSshProject,
   getProjects,
-  deleteProject: async (id: string) => {
-    await workspaceManager.removeProject(id);
-    await db.delete(projects).where(eq(projects.id, id));
-  },
+  deleteProject,
+  renameProject,
   getLocalProjectByPath,
   getSshProjectByPath,
 });

@@ -1,7 +1,8 @@
 import { createRPCController } from '@/shared/ipc/rpc';
-import { getAppSettings, updateAppSettings, type AppSettingsUpdate } from './settings';
+import { settingsService } from './settings-service';
+import { type AppSettingsUpdate } from './utils';
 
 export const appSettingsController = createRPCController({
-  get: () => getAppSettings(),
-  update: (partial: AppSettingsUpdate) => updateAppSettings(partial ?? {}),
+  get: () => settingsService.getAppSettings(),
+  update: (partial: AppSettingsUpdate) => settingsService.updateAppSettings(partial ?? {}),
 });

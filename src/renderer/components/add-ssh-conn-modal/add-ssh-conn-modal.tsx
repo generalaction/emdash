@@ -25,8 +25,6 @@ import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group'
 import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
 import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
 
-// ─── Validation schema ────────────────────────────────────────────────────────
-
 const formSchema = z
   .object({
     name: z.string().min(1, 'Name is required'),
@@ -145,7 +143,6 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
         <DialogTitle>Add SSH Connection</DialogTitle>
         <DialogDescription>Configure a connection to a remote server over SSH.</DialogDescription>
       </DialogHeader>
-
       <form
         id="add-ssh-conn-form"
         onSubmit={(e) => {

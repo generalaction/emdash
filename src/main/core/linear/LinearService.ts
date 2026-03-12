@@ -1,8 +1,42 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
+import type { Issue } from '@shared/tasks/types';
 import { capture } from '@main/lib/telemetry';
 
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
+
+export interface LinearIssueState {
+  name: string;
+  type: string;
+  color: string;
+}
+
+export interface LinearTeam {
+  name: string;
+  key: string;
+}
+
+export interface LinearProject {
+  name: string;
+}
+
+export interface LinearAssignee {
+  displayName: string;
+  name: string;
+}
+
+export interface LinearIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  description: string | null;
+  url: string;
+  state: LinearIssueState;
+  team: LinearTeam;
+  project: LinearProject | null;
+  assignee: LinearAssignee | null;
+  updatedAt: string;
+}
 
 export interface LinearViewer {
   name?: string | null;
@@ -17,6 +51,17 @@ export interface LinearConnectionStatus {
   workspaceName?: string;
   viewer?: LinearViewer;
   error?: string;
+}
+
+export function toGeneralIssue(issue: LinearIssue): Issue {
+  return {
+    provider: 'linear',
+    identifier: issue.identifier,
+    title: issue.title,
+    url: issue.url,
+    description: issue.description ?? undefined,
+    updatedAt: issue.updatedAt,
+  };
 }
 
 interface GraphQLResponse<T> {
@@ -82,7 +127,7 @@ export class LinearService {
     }
   }
 
-  async initialFetch(limit = 50): Promise<any[]> {
+  async initialFetch(limit = 50): Promise<LinearIssue[]> {
     const token = await this.getStoredToken();
     if (!token) {
       throw new Error('Linear token not set. Connect Linear in settings first.');
@@ -115,14 +160,14 @@ export class LinearService {
       }
     `;
 
-    const response = await this.graphql<{ issues: { nodes: any[] } }>(token, query, {
+    const response = await this.graphql<{ issues: { nodes: LinearIssue[] } }>(token, query, {
       limit: sanitizedLimit,
     });
 
     return response?.issues?.nodes ?? [];
   }
 
-  async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
+  async searchIssues(searchTerm: string, limit = 20): Promise<LinearIssue[]> {
     const token = await this.getStoredToken();
     if (!token) {
       throw new Error('Linear token not set. Connect Linear in settings first.');
@@ -155,7 +200,7 @@ export class LinearService {
     `;
 
     try {
-      const searchResponse = await this.graphql<{ searchIssues: { nodes: any[] } }>(
+      const searchResponse = await this.graphql<{ searchIssues: { nodes: LinearIssue[] } }>(
         token,
         searchQuery,
         {
@@ -276,3 +321,5 @@ export class LinearService {
     }
   }
 }
+
+export const linearService = new LinearService();

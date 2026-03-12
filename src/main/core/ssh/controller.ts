@@ -10,7 +10,6 @@ import type {
   FileEntry,
   SshConfig,
 } from '@/shared/ssh/types';
-import { buildConnectConfigFromRow } from '@main/core/workspaces/build-connect-config';
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -27,6 +26,7 @@ export const sshController = createRPCController({
       name: row.name,
       host: row.host,
       port: row.port,
+      worktreesDir: row.metadata ? JSON.parse(row.metadata).worktreesDir : undefined,
       username: row.username,
       authType: row.authType as 'password' | 'key' | 'agent',
       privateKeyPath: row.privateKeyPath ?? undefined,
@@ -49,11 +49,16 @@ export const sshController = createRPCController({
 
     const { password: _p, passphrase: _pp, ...dbConfig } = config;
 
+    const metadata: Record<string, unknown> = {
+      worktreesDir: config.worktreesDir,
+    };
+
     const insertData: SshConnectionInsert = {
       id: connectionId,
       name: dbConfig.name,
       host: dbConfig.host,
       port: dbConfig.port,
+      metadata: JSON.stringify(metadata),
       username: dbConfig.username,
       authType: dbConfig.authType,
       privateKeyPath: dbConfig.privateKeyPath ?? null,
@@ -69,6 +74,7 @@ export const sshController = createRPCController({
           name: insertData.name,
           host: insertData.host,
           port: insertData.port,
+          metadata: insertData.metadata,
           username: insertData.username,
           authType: insertData.authType,
           privateKeyPath: insertData.privateKeyPath,
@@ -77,7 +83,7 @@ export const sshController = createRPCController({
         },
       });
 
-    return { ...dbConfig, id: connectionId };
+    return { ...dbConfig, id: connectionId, worktreesDir: config.worktreesDir };
   },
 
   /** Delete a saved SSH connection and its stored credentials. */
@@ -176,17 +182,7 @@ export const sshController = createRPCController({
     let proxy = sshConnectionManager.getProxy(connectionId);
 
     if (!proxy || !proxy.isConnected) {
-      const [row] = await db
-        .select()
-        .from(sshConnectionsTable)
-        .where(eq(sshConnectionsTable.id, connectionId));
-      if (!row) throw new Error(`SSH connection ${connectionId} not found`);
-      const config = await buildConnectConfigFromRow(row);
-      const result = await sshConnectionManager.connect(connectionId, config);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      proxy = result.data;
+      proxy = await sshConnectionManager.connect(connectionId);
     }
 
     return new Promise((resolve, reject) => {

@@ -1,15 +1,15 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { projectManager } from '@main/core/projects/project-manager';
+import { db } from '@main/db/client';
+import { conversations, projects, tasks, type ConversationRow } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import { err, ok } from '@main/lib/result';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { db } from '../../db/client';
-import { conversations, projects, tasks, type ConversationRow } from '../../db/schema';
-import { log } from '../../lib/logger';
-import { err, ok } from '../../lib/result';
 import { buildAgentCommand } from '../pty/build-agent-command';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import type { Conversation } from './core';
+import type { Conversation } from './types';
 
 function mapConversationRow(row: ConversationRow): Conversation {
   return {
@@ -41,7 +41,7 @@ export type CreateConversationParams = {
 };
 
 export const conversationController = createRPCController({
-  getConversations: async (taskId: string) => {
+  getConversations: async (projectId: string, taskId: string) => {
     const rows = await db
       .select()
       .from(conversations)
@@ -50,7 +50,7 @@ export const conversationController = createRPCController({
     return rows.map(mapConversationRow);
   },
 
-  createConversation: async (params: CreateConversationParams) => {
+  createConversation: async (projectId: string, params: CreateConversationParams) => {
     const { taskId, provider, title, type = 'agent', autoApprove, resume, initialPrompt } = params;
 
     const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -84,12 +84,6 @@ export const conversationController = createRPCController({
       .returning();
 
     if (type === 'agent') {
-      const [project] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, task.projectId))
-        .limit(1);
-
       if (project) {
         const providerId: ProviderId | null = isValidProviderId(provider) ? provider : null;
         const { command, args } = providerId
@@ -102,14 +96,14 @@ export const conversationController = createRPCController({
             })
           : { command: provider, args: [] };
 
-        const provider_ = workspaceManager.getProvider(project.id);
+        const provider_ = projectManager.getProject(project.id);
         if (!provider_) {
           log.warn('conversationController.createConversation: no provider for project', {
             projectId: project.id,
           });
         } else {
           provider_
-            .provision({ task, projectPath: project.path, conversations: [], terminals: [] })
+            .provisionTask({ task, projectPath: project.path, conversations: [], terminals: [] })
             .then((env) =>
               env.agentProvider.startSession({
                 projectId: project.id,
@@ -159,8 +153,8 @@ export const conversationController = createRPCController({
         .where(eq(projects.id, task.projectId))
         .limit(1);
       if (project) {
-        const provider = workspaceManager.getProvider(project.id);
-        const env = provider?.getEnvironment(task.id);
+        const provider = projectManager.getProject(project.id);
+        const env = provider?.getTask(task.id);
         if (env) {
           env.agentProvider.stopSession(id);
         } else {
@@ -259,14 +253,14 @@ export const conversationController = createRPCController({
         })
       : { command: conversationRow.provider ?? 'sh', args: [] };
 
-    const envProvider = workspaceManager.getProvider(project.id);
+    const envProvider = projectManager.getProject(project.id);
     if (!envProvider) {
       log.warn('conversations.startSession: no provider for project', { projectId: project.id });
       return err({ type: 'provider_not_found' as const });
     }
 
     envProvider
-      .provision({ task, projectPath: project.path, conversations: [], terminals: [] })
+      .provisionTask({ task, projectPath: project.path, conversations: [], terminals: [] })
       .then((env) =>
         env.agentProvider.startSession({
           projectId: project.id,

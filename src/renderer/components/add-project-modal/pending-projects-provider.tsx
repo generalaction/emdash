@@ -3,14 +3,14 @@ import { createContext, ReactNode, useContext, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { BaseModeData, CloneModeData, ModeData, NewModeData } from './add-project-modal';
 
-type PendingProjectStage =
+export type PendingProjectStage =
   | 'creating-repo' // GitHub API call (new mode only)
   | 'cloning' // git clone — the slow one
   | 'initializing' // README + commit + push (new mode only)
   | 'registering' // DB insert
   | 'error';
 
-interface PendingProject {
+export interface PendingProject {
   id: string;
   name: string;
   mode: 'new' | 'clone' | 'pick';
@@ -23,9 +23,9 @@ export type PendingProjectsContextValue = {
   pendingProjects: PendingProject[];
   updatePending: (id: string, update: Partial<PendingProject>) => void;
   removePending: (id: string) => void;
-  startNewProject: (data: NewModeData) => Promise<void>;
-  startCloneProject: (data: CloneModeData) => Promise<void>;
-  startPickProject: (data: BaseModeData) => Promise<void>;
+  startNewProject: (id: string, data: NewModeData) => Promise<void>;
+  startCloneProject: (id: string, data: CloneModeData) => Promise<void>;
+  startPickProject: (id: string, data: BaseModeData) => Promise<void>;
 };
 
 const PendingProjectsContext = createContext<PendingProjectsContextValue | null>(null);
@@ -40,13 +40,11 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
   const removePending = (id: string) =>
     setPendingProjects((prev) => prev.filter((p) => p.id !== id));
 
-  const startPickProject = async (data: BaseModeData) => {
-    const pendingId = crypto.randomUUID();
-
+  const startPickProject = async (id: string, data: BaseModeData) => {
     setPendingProjects((prev) => [
       ...prev,
       {
-        id: pendingId,
+        id,
         name: data.name,
         mode: 'pick',
         stage: 'registering',
@@ -55,25 +53,22 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      await rpc.projects.createLocalProject({ path: data.path, name: data.name });
-      updatePending(pendingId, { stage: 'registering' });
-      removePending(pendingId);
+      await rpc.projects.createLocalProject({ id, path: data.path, name: data.name });
+      removePending(id);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {
-      updatePending(pendingId, {
+      updatePending(id, {
         stage: 'error',
         error: err instanceof Error ? err.message : 'Unknown error',
       });
     }
   };
 
-  const startCloneProject = async (data: CloneModeData) => {
-    const pendingId = crypto.randomUUID();
-
+  const startCloneProject = async (id: string, data: CloneModeData) => {
     setPendingProjects((prev) => [
       ...prev,
       {
-        id: pendingId,
+        id,
         name: data.name,
         mode: 'clone',
         stage: 'cloning',
@@ -84,24 +79,23 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
     try {
       const result = await rpc.github.cloneRepository(data.repositoryUrl, data.path);
       if (!result.success) throw new Error(result.error);
-      updatePending(pendingId, { stage: 'registering' });
-      await rpc.projects.createLocalProject({ path: data.path, name: data.name });
-      removePending(pendingId);
+      updatePending(id, { stage: 'registering' });
+      await rpc.projects.createLocalProject({ id, path: data.path, name: data.name });
+      removePending(id);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {
-      updatePending(pendingId, {
+      updatePending(id, {
         stage: 'error',
         error: err instanceof Error ? err.message : 'Unknown error',
       });
     }
   };
 
-  const startNewProject = async (data: NewModeData) => {
-    const pendingId = crypto.randomUUID();
+  const startNewProject = async (id: string, data: NewModeData) => {
     setPendingProjects((prev) => [
       ...prev,
       {
-        id: pendingId,
+        id,
         name: data.name,
         mode: 'new',
         stage: 'creating-repo',
@@ -116,15 +110,16 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
         isPrivate: data.repositoryVisibility === 'private',
       });
       if (!result.success || !result.repoUrl) throw new Error(result.error);
-      updatePending(pendingId, { stage: 'cloning' });
-      const cloneResult = await rpc.github.cloneRepository(result.repoUrl, data.path);
+      updatePending(id, { stage: 'cloning' });
+      const clonePath = data.path + '/' + data.name;
+      const cloneResult = await rpc.github.cloneRepository(result.repoUrl, clonePath);
       if (!cloneResult.success) throw new Error(cloneResult.error);
-      updatePending(pendingId, { stage: 'registering' });
-      await rpc.projects.createLocalProject({ path: data.path, name: data.name });
-      removePending(pendingId);
+      updatePending(id, { stage: 'registering' });
+      await rpc.projects.createLocalProject({ id, path: data.path, name: data.name });
+      removePending(id);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {
-      updatePending(pendingId, {
+      updatePending(id, {
         stage: 'error',
         error: err instanceof Error ? err.message : 'Unknown error',
       });

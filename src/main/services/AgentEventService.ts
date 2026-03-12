@@ -7,7 +7,7 @@ import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { getMainWindow } from '@main/app/window';
-import { getAppSettings } from '@main/core/settings/settings';
+import { getAppSettings } from '@main/core/settings/utils';
 import { db } from '@main/db/client';
 import { conversations, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';

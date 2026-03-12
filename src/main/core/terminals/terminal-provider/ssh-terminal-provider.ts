@@ -8,7 +8,7 @@ import {
   CreateSessionError,
   ITerminalProvider,
   TerminalSpawnOptions,
-} from '@main/core/workspaces/terminal-provider';
+} from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
 import type { GeneralSessionConfig } from './general-session';
@@ -35,7 +35,6 @@ export class SshTerminalProvider implements ITerminalProvider {
     const cfg: GeneralSessionConfig = {
       taskId: opts.taskId,
       cwd: opts.cwd,
-      projectPath: opts.projectPath,
       shellSetup: opts.shellSetup,
     };
 

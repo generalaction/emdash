@@ -3,14 +3,10 @@ import { request } from 'node:https';
 import { join } from 'node:path';
 import { URL } from 'node:url';
 import { app } from 'electron';
+import type { Issue } from '@shared/tasks/types';
 import { capture } from '@main/lib/telemetry';
 
-type JiraCreds = { siteUrl: string; email: string };
-
-function encodeBasic(email: string, token: string) {
-  const raw = `${email}:${token}`;
-  return Buffer.from(raw).toString('base64');
-}
+// ── Public types ────────────────────────────────────────────────────────────
 
 export interface JiraConnectionStatus {
   connected: boolean;
@@ -19,6 +15,97 @@ export interface JiraConnectionStatus {
   siteUrl?: string;
   error?: string;
 }
+
+export interface JiraIssueStatus {
+  name: string;
+}
+
+export interface JiraIssueProject {
+  key: string;
+  name: string;
+}
+
+export interface JiraIssueAssignee {
+  displayName: string;
+  name: string;
+}
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  summary: string;
+  description: string | null;
+  url: string;
+  status: JiraIssueStatus | null;
+  project: JiraIssueProject | null;
+  assignee: JiraIssueAssignee | null;
+  updatedAt: string | null;
+}
+
+export function toGeneralIssue(issue: JiraIssue): Issue {
+  return {
+    provider: 'jira',
+    identifier: issue.key,
+    title: issue.summary,
+    url: issue.url,
+    description: issue.description ?? undefined,
+    updatedAt: issue.updatedAt ?? undefined,
+  };
+}
+
+// ── Internal types ───────────────────────────────────────────────────────────
+
+type JiraCreds = { siteUrl: string; email: string };
+
+interface JiraUser {
+  accountId?: string;
+  displayName?: string;
+  name?: string;
+  errorMessages?: string[];
+}
+
+interface RawJiraIssueFields {
+  summary?: string;
+  description?: AdfNode | null;
+  updated?: string | null;
+  project?: { key?: string; name?: string } | null;
+  status?: { name?: string } | null;
+  assignee?: { displayName?: string; name?: string } | null;
+}
+
+interface RawJiraIssue {
+  id?: string;
+  key?: string;
+  fields?: RawJiraIssueFields;
+  errorMessages?: string[];
+}
+
+interface RawJiraSearchResult {
+  issues?: RawJiraIssue[];
+}
+
+interface AdfNode {
+  type?: string;
+  text?: string;
+  content?: AdfNode[];
+}
+
+interface JiraPickerSection {
+  issues?: Array<{ key?: string }>;
+}
+
+interface JiraPickerResult {
+  sections?: JiraPickerSection[];
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function encodeBasic(email: string, token: string) {
+  const raw = `${email}:${token}`;
+  return Buffer.from(raw).toString('base64');
+}
+
+// ── Service ──────────────────────────────────────────────────────────────────
 
 export default class JiraService {
   private readonly SERVICE = 'emdash-jira';
@@ -30,7 +117,7 @@ export default class JiraService {
     try {
       if (!existsSync(this.CONF_FILE)) return null;
       const raw = readFileSync(this.CONF_FILE, 'utf8');
-      const obj = JSON.parse(raw);
+      const obj = JSON.parse(raw) as Partial<JiraCreds>;
       const siteUrl = String(obj?.siteUrl || '').trim();
       const email = String(obj?.email || '').trim();
       if (!siteUrl || !email) return null;
@@ -42,8 +129,7 @@ export default class JiraService {
 
   private writeCreds(creds: JiraCreds) {
     const { siteUrl, email } = creds;
-    const obj: any = { siteUrl, email };
-    writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
+    writeFileSync(this.CONF_FILE, JSON.stringify({ siteUrl, email }), 'utf8');
   }
 
   async saveCredentials(
@@ -62,8 +148,8 @@ export default class JiraService {
       this.writeCreds({ siteUrl, email });
       capture('jira_connected');
       return { success: true, displayName: me?.displayName };
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -79,8 +165,8 @@ export default class JiraService {
       } catch {}
       capture('jira_disconnected');
       return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -103,12 +189,12 @@ export default class JiraService {
         displayName: me?.displayName,
         siteUrl: creds.siteUrl,
       };
-    } catch (e: any) {
-      return { connected: false, error: e?.message || String(e) };
+    } catch (e) {
+      return { connected: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
-  async initialFetch(limit = 50): Promise<any[]> {
+  async initialFetch(limit = 50): Promise<JiraIssue[]> {
     const { siteUrl, email, token } = await this.requireAuth();
     const jqlCandidates: string[] = [];
     // Pragmatic fallbacks that typically work with limited permissions
@@ -130,7 +216,7 @@ export default class JiraService {
     try {
       const keys = await this.getRecentIssueKeys(siteUrl, email, token, limit);
       if (keys.length > 0) {
-        const results: any[] = [];
+        const results: RawJiraIssue[] = [];
         for (const key of keys.slice(0, limit)) {
           try {
             const issue = await this.getIssueByKey(siteUrl, email, token, key);
@@ -147,7 +233,7 @@ export default class JiraService {
     return [];
   }
 
-  async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
+  async searchIssues(searchTerm: string, limit = 20): Promise<JiraIssue[]> {
     const term = (searchTerm || '').trim();
     if (!term) return [];
     const { siteUrl, email, token } = await this.requireAuth();
@@ -167,10 +253,10 @@ export default class JiraService {
     return { ...creds, token };
   }
 
-  private async getMyself(siteUrl: string, email: string, token: string): Promise<any> {
+  private async getMyself(siteUrl: string, email: string, token: string): Promise<JiraUser> {
     const url = new URL('/rest/api/3/myself', siteUrl);
     const body = await this.doGet(url, email, token);
-    const data = JSON.parse(body || '{}');
+    const data = JSON.parse(body || '{}') as JiraUser;
     if (!data || data.errorMessages) {
       throw new Error('Failed to verify Jira token.');
     }
@@ -183,7 +269,7 @@ export default class JiraService {
     token: string,
     jql: string,
     limit: number
-  ) {
+  ): Promise<RawJiraIssue[]> {
     const url = new URL('/rest/api/3/search', siteUrl);
     const payload = JSON.stringify({
       jql,
@@ -193,7 +279,7 @@ export default class JiraService {
     const body = await this.doRequest(url, email, token, 'POST', payload, {
       'Content-Type': 'application/json',
     });
-    const data = JSON.parse(body || '{}');
+    const data = JSON.parse(body || '{}') as RawJiraSearchResult;
     return Array.isArray(data?.issues) ? data.issues : [];
   }
 
@@ -246,7 +332,7 @@ export default class JiraService {
   }
 
   // Enhanced search that supports direct issue-key lookups and robust quoting
-  async smartSearchIssues(searchTerm: string, limit = 20): Promise<any[]> {
+  async smartSearchIssues(searchTerm: string, limit = 20): Promise<JiraIssue[]> {
     const term = (searchTerm || '').trim();
     if (!term) return [];
     const { siteUrl, email, token } = await this.requireAuth();
@@ -279,9 +365,9 @@ export default class JiraService {
     try {
       const url = new URL('/rest/api/3/project', siteUrl);
       const body = await this.doGet(url, email, token);
-      const data = JSON.parse(body || '[]');
+      const data = JSON.parse(body || '[]') as Array<{ key?: string }>;
       if (!Array.isArray(data)) return [];
-      return data.map((p: any) => String(p?.key || '')).filter(Boolean);
+      return data.map((p) => String(p?.key || '')).filter(Boolean);
     } catch {
       return [];
     }
@@ -292,11 +378,11 @@ export default class JiraService {
     email: string,
     token: string,
     key: string
-  ): Promise<any | null> {
+  ): Promise<RawJiraIssue | null> {
     const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
     url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
     const body = await this.doGet(url, email, token);
-    const data = JSON.parse(body || '{}');
+    const data = JSON.parse(body || '{}') as RawJiraIssue;
     if (!data || data.errorMessages) return null;
     return data;
   }
@@ -312,7 +398,7 @@ export default class JiraService {
     url.searchParams.set('query', '');
     url.searchParams.set('currentJQL', '');
     const body = await this.doGet(url, email, token);
-    const data = JSON.parse(body || '{}');
+    const data = JSON.parse(body || '{}') as JiraPickerResult;
     const keys: string[] = [];
     const sections = Array.isArray(data?.sections) ? data.sections : [];
     for (const sec of sections) {
@@ -327,17 +413,17 @@ export default class JiraService {
     return keys;
   }
 
-  private static flattenAdf(node: any): string {
+  private static flattenAdf(node: AdfNode | string | null | undefined): string {
     if (!node) return '';
     if (typeof node === 'string') return node;
     if (node.type === 'text') return node.text || '';
     if (Array.isArray(node.content)) {
-      const parts = node.content.map((c: any) => JiraService.flattenAdf(c));
+      const parts = node.content.map((c) => JiraService.flattenAdf(c));
       // Add newlines between block-level nodes (paragraphs, headings, etc.)
-      if (['doc', 'bulletList', 'orderedList'].includes(node.type)) {
+      if (['doc', 'bulletList', 'orderedList'].includes(node.type ?? '')) {
         return parts.join('\n');
       }
-      if (['paragraph', 'heading', 'listItem'].includes(node.type)) {
+      if (['paragraph', 'heading', 'listItem'].includes(node.type ?? '')) {
         return parts.join('');
       }
       return parts.join('');
@@ -345,23 +431,32 @@ export default class JiraService {
     return '';
   }
 
-  private normalizeIssues(siteUrl: string, rawIssues: any[]): any[] {
+  private normalizeIssues(siteUrl: string, rawIssues: RawJiraIssue[]): JiraIssue[] {
     const base = siteUrl.replace(/\/$/, '');
     return (rawIssues || []).map((it) => {
-      const fields = it?.fields || {};
+      const fields = it?.fields ?? {};
       return {
         id: String(it?.id || it?.key || ''),
         key: String(it?.key || ''),
         summary: String(fields?.summary || ''),
         description: fields?.description ? JiraService.flattenAdf(fields.description) : null,
         url: `${base}/browse/${it?.key}`,
-        status: fields?.status ? { name: fields.status.name } : null,
-        project: fields?.project ? { key: fields.project.key, name: fields.project.name } : null,
-        assignee: fields?.assignee
-          ? { displayName: fields.assignee.displayName, name: fields.assignee.name }
-          : null,
-        updatedAt: fields?.updated || null,
+        status: fields?.status?.name ? { name: fields.status.name } : null,
+        project:
+          fields?.project?.key && fields?.project?.name
+            ? { key: fields.project.key, name: fields.project.name }
+            : null,
+        assignee:
+          fields?.assignee?.displayName != null
+            ? {
+                displayName: fields.assignee.displayName ?? '',
+                name: fields.assignee.name ?? '',
+              }
+            : null,
+        updatedAt: fields?.updated ?? null,
       };
     });
   }
 }
+
+export const jiraService = new JiraService();

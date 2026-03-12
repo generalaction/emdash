@@ -6,11 +6,7 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
-import {
-  CreateSessionError,
-  ITerminalProvider,
-  TerminalSpawnOptions,
-} from '../../workspaces/terminal-provider';
+import { CreateSessionError, ITerminalProvider, TerminalSpawnOptions } from '../terminal-provider';
 import type { GeneralSessionConfig } from './general-session';
 
 const DEFAULT_COLS = 80;

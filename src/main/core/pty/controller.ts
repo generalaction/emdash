@@ -1,6 +1,6 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { SshEnvironmentProvider } from '@main/core/workspaces/ssh-workspace-provider';
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { projectManager } from '@main/core/workspaces/project-manager';
+import { SshProjectProvider } from '@main/core/workspaces/ssh-project-provider';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
 import { ptySessionRegistry } from './pty-session-registry';
@@ -51,8 +51,8 @@ export const ptyController = createRPCController({
         return err({ type: 'invalid_session' as const });
       }
 
-      const provider = workspaceManager.getProvider(projectId);
-      if (!provider || !(provider instanceof SshEnvironmentProvider)) {
+      const provider = projectManager.getProject(projectId);
+      if (!provider || !(provider instanceof SshProjectProvider)) {
         return err({ type: 'not_ssh' as const });
       }
 

@@ -1,7 +1,7 @@
 import { CornerDownLeft } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
-import { getTaskEnvVars } from '@shared/task/envVars';
+import { getTaskEnvVars } from '@shared/tasks/envVars';
 import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { classifyActivity } from '@renderer/lib/activityClassifier';

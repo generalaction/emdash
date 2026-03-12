@@ -1,10 +1,10 @@
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { projectManager } from '@main/core/workspaces/project-manager';
 import { createRPCController } from '../../../shared/ipc/rpc';
 import { log } from '../../lib/logger';
 import { err, ok } from '../../lib/result';
 
 function resolveEnv(projectId: string, taskId: string) {
-  const env = workspaceManager.getProvider(projectId)?.getEnvironment(taskId);
+  const env = projectManager.getProject(projectId)?.getTask(taskId);
   return env ?? null;
 }
 

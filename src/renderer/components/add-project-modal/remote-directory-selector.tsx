@@ -1,10 +1,11 @@
-import { ChevronUp, FileCode, Folder, RefreshCw } from 'lucide-react';
+import { ChevronUp, FileCode, Folder, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { FileEntry } from '@shared/ssh/types';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/lib/utils';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;
@@ -21,7 +22,7 @@ export function RemoteDirectorySelector({
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
-  const [hasBrowsed, setHasBrowsed] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (connectionId) void loadDirectory(currentPath || '/');
@@ -35,7 +36,6 @@ export function RemoteDirectorySelector({
     try {
       const entries = await rpc.ssh.listFiles({ connectionId, path });
       setFileEntries(entries);
-      setHasBrowsed(true);
     } catch (e) {
       setBrowseError(e instanceof Error ? e.message : 'Failed to list directory');
       setFileEntries([]);
@@ -65,28 +65,38 @@ export function RemoteDirectorySelector({
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-1">
-        <Input
-          placeholder="/home/user/project"
-          value={currentPath}
-          onChange={(e) => handleManualPathChange(e.target.value)}
-          className="flex-1"
+      <Popover
+        open={open}
+        onOpenChange={(newOpen, eventDetails) => {
+          // Prevent the trigger click from toggling the popover closed —
+          // it should only close on outside press, Escape, or focus-out.
+          if (!newOpen && eventDetails.reason === 'trigger-press') return;
+          setOpen(newOpen);
+        }}
+      >
+        <PopoverTrigger
+          render={
+            <Input
+              placeholder="/home/user/project"
+              value={currentPath}
+              onChange={(e) => handleManualPathChange(e.target.value)}
+              onFocus={() => {
+                if (connectionId) {
+                  setOpen(true);
+                  void loadDirectory(currentPath || '/');
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void loadDirectory(currentPath);
+                }
+              }}
+              disabled={!connectionId}
+            />
+          }
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 shrink-0"
-          disabled={!connectionId || isBrowsing}
-          onClick={() => void loadDirectory(currentPath)}
-          title="Browse directory"
-        >
-          <RefreshCw className={cn('h-4 w-4', isBrowsing && 'animate-spin')} />
-        </Button>
-      </div>
-
-      {(hasBrowsed || isBrowsing) && (
-        <div className="overflow-hidden rounded-md border">
+        <PopoverContent align="start" sideOffset={4} className="w-[--anchor-width] p-0">
           <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
             <Button
               type="button"
@@ -101,12 +111,15 @@ export function RemoteDirectorySelector({
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {currentPath || '/'}
             </span>
+            {isBrowsing && (
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+            )}
           </div>
 
-          <div className="max-h-[200px] overflow-y-auto">
+          <div className="max-h-[240px] overflow-y-auto">
             {isBrowsing && fileEntries.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : browseError ? (
               <div className="py-4 text-center text-sm text-destructive">{browseError}</div>
@@ -122,7 +135,7 @@ export function RemoteDirectorySelector({
                     disabled={entry.type !== 'directory'}
                     className={cn(
                       'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent',
-                      entry.type === 'directory' && 'font-medium cursor-pointer',
+                      entry.type === 'directory' && 'cursor-pointer font-medium',
                       entry.type !== 'directory' && 'cursor-default opacity-50'
                     )}
                   >
@@ -142,8 +155,8 @@ export function RemoteDirectorySelector({
               </div>
             )}
           </div>
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
 
       {!connectionId && (
         <p className="text-xs text-muted-foreground">

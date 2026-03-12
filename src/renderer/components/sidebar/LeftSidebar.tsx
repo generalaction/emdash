@@ -1,5 +1,10 @@
-import { Home, Puzzle, Settings } from 'lucide-react';
+import { AlertCircle, Home, Loader2, Puzzle, Settings } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
+import type { LocalProject, SshProject } from '@shared/projects/types';
+import {
+  usePendingProjectsContext,
+  type PendingProject,
+} from '@renderer/components/add-project-modal/pending-projects-provider';
 import ReorderList from '@renderer/components/ReorderList';
 import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
 import { Button } from '@renderer/components/ui/button';
@@ -28,8 +33,49 @@ import { SidebarSpace } from './SidebarSpace';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 
+type SidebarListItem =
+  | { status: 'ready'; data: LocalProject | SshProject }
+  | { status: 'creating'; data: PendingProject };
+
+const STAGE_LABEL: Record<PendingProject['stage'], string> = {
+  'creating-repo': 'Creating repository…',
+  cloning: 'Cloning…',
+  initializing: 'Initializing…',
+  registering: 'Registering…',
+  error: 'Failed',
+};
+
+const PendingSidebarItem = React.memo<{ project: PendingProject }>(({ project }) => {
+  const { navigate } = useWorkspaceNavigation();
+  const isError = project.stage === 'error';
+
+  return (
+    <button
+      type="button"
+      className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+      onClick={() => navigate('project', { projectId: project.id })}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        {isError ? (
+          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+        ) : (
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-foreground/80">{project.name}</span>
+        <span className="block truncate text-xs text-muted-foreground/60">
+          {STAGE_LABEL[project.stage]}
+        </span>
+      </span>
+    </button>
+  );
+});
+PendingSidebarItem.displayName = 'PendingSidebarItem';
+
 export const LeftSidebar: React.FC = () => {
   const { projects } = useProjectManagementContext();
+  const { pendingProjects } = usePendingProjectsContext();
   const { navigate } = useWorkspaceNavigation();
   const { currentView } = useWorkspaceSlots();
 
@@ -47,9 +93,29 @@ export const LeftSidebar: React.FC = () => {
     });
   }, [projects, projectOrder]);
 
-  const handleReorderProjects = useCallback(
-    (newOrder: Project[]) => {
-      setProjectOrder(newOrder.map((p) => p.id));
+  // Merge pending (prepended) + real projects into a single unified list for ReorderList
+  const allItems = useMemo<SidebarListItem[]>(() => {
+    const pendingItems: SidebarListItem[] = pendingProjects.map((p) => ({
+      status: 'creating',
+      data: p,
+    }));
+    const realItems: SidebarListItem[] = sortedProjects.map((p) => ({
+      status: 'ready',
+      data: p,
+    }));
+    return [...pendingItems, ...realItems];
+  }, [pendingProjects, sortedProjects]);
+
+  const handleReorder = useCallback(
+    (newOrder: SidebarListItem[]) => {
+      // Only persist order for real (ready) projects
+      const realIds = newOrder
+        .filter(
+          (item): item is { status: 'ready'; data: LocalProject | SshProject } =>
+            item.status === 'ready'
+        )
+        .map((item) => item.data.id);
+      setProjectOrder(realIds);
     },
     [setProjectOrder]
   );
@@ -116,18 +182,26 @@ export const LeftSidebar: React.FC = () => {
                   <ReorderList
                     as="div"
                     axis="y"
-                    items={sortedProjects}
-                    onReorder={(newOrder) => handleReorderProjects(newOrder as Project[])}
+                    items={allItems}
+                    onReorder={(newOrder) => handleReorder(newOrder as SidebarListItem[])}
                     className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
                     itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
-                    getKey={(p) => (p as Project).id}
+                    getKey={(item) => (item as SidebarListItem).data.id}
                   >
-                    {(project) => <SidebarProjectItem project={project as Project} />}
+                    {(item) => {
+                      const sidebarItem = item as SidebarListItem;
+                      if (sidebarItem.status === 'creating') {
+                        return <PendingSidebarItem project={sidebarItem.data} />;
+                      }
+                      return (
+                        <SidebarProjectItem project={sidebarItem.data as unknown as Project} />
+                      );
+                    }}
                   </ReorderList>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            {projects.length === 0 && (
+            {projects.length === 0 && pendingProjects.length === 0 && (
               <div className="mt-auto">
                 <SidebarEmptyState
                   title="Put your agents to work"

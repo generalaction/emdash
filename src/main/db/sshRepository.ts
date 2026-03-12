@@ -63,7 +63,7 @@ export class SshRepository {
     // First update any projects using this connection
     await db
       .update(projects)
-      .set({ sshConnectionId: null, isRemote: 0 })
+      .set({ sshConnectionId: null })
       .where(eq(projects.sshConnectionId, id));
 
     // Then delete the connection

@@ -11,6 +11,7 @@ export interface SshConfig {
   authType: 'password' | 'key' | 'agent';
   privateKeyPath?: string;
   useAgent?: boolean;
+  worktreesDir?: string;
 }
 
 /**

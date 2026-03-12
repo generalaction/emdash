@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { useTaskManagement } from '../hooks/useTaskManagement';
+import { useProjectManagementContext } from './ProjectManagementProvider';
 
 type TaskManagementContextValue = ReturnType<typeof useTaskManagement>;
 
@@ -16,6 +17,7 @@ export function useTaskManagementContext(): TaskManagementContextValue {
 }
 
 export function TaskManagementProvider({ children }: { children: React.ReactNode }) {
+  const { projects } = useProjectManagementContext();
   const taskManagement = useTaskManagement();
   return (
     <TaskManagementContext.Provider value={taskManagement}>

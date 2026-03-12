@@ -1,6 +1,6 @@
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '@shared/ipc/rpc';
-import { workspaceManager } from '@main/core/workspaces/workspace-manager';
+import { projectManager } from '@main/core/workspaces/project-manager';
 import { db } from '@main/db/client';
 import { projects, tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -48,7 +48,7 @@ export const terminalsController = createRPCController({
       .limit(1);
 
     if (project) {
-      const provider = workspaceManager.getProvider(project.id);
+      const provider = projectManager.getProject(project.id);
       if (!provider) {
         log.warn('terminalsController.createTerminal: no provider for project', {
           projectId: project.id,
@@ -56,7 +56,7 @@ export const terminalsController = createRPCController({
       } else {
         // Ensure task environment is provisioned, then spawn the terminal.
         provider
-          .provision({
+          .provisionTask({
             task,
             projectPath: project.path,
             conversations: [],
@@ -111,8 +111,8 @@ export const terminalsController = createRPCController({
         .limit(1);
 
       if (project) {
-        const provider = workspaceManager.getProvider(project.id);
-        const env = provider?.getEnvironment(task.id);
+        const provider = projectManager.getProject(project.id);
+        const env = provider?.getTask(task.id);
         if (env) {
           env.terminalProvider.killTerminal(terminalId);
         }

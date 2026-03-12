@@ -1,11 +1,39 @@
 import { EventEmitter } from 'node:events';
+import { eq } from 'drizzle-orm';
 import { Client, type ConnectConfig } from 'ssh2';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
 import type { ConnectionState } from '@shared/ssh/types';
+import { db } from '@main/db/client';
+import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@main/lib/result';
+import { buildConnectConfigFromRow } from './build-connect-config';
 import { SshClientProxy } from './ssh-client-proxy';
+
+// ─── Error classes ────────────────────────────────────────────────────────────
+
+export class SshAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SshAuthError';
+  }
+}
+
+export class SshTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SshTimeoutError';
+  }
+}
+
+export class SshConnectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SshConnectionError';
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SshConnectionEvent =
   | { type: 'connected'; connectionId: string; proxy: SshClientProxy }
@@ -14,13 +42,6 @@ export type SshConnectionEvent =
   | { type: 'reconnected'; connectionId: string; proxy: SshClientProxy }
   | { type: 'reconnect-failed'; connectionId: string }
   | { type: 'error'; connectionId: string; error: Error };
-
-export type SshConnectError =
-  | { kind: 'auth-failed'; message: string }
-  | { kind: 'connect-failed'; message: string }
-  | { kind: 'timeout'; message: string };
-
-// ─── Configuration ────────────────────────────────────────────────────────────
 
 /** Delays (ms) between successive reconnect attempts. Length = max attempts. */
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 20_000];
@@ -36,11 +57,7 @@ export class SshConnectionManager extends EventEmitter {
   /** One stable proxy per connection ID — survives reconnects. */
   private proxies: Map<string, SshClientProxy> = new Map();
 
-  private pendingConnections: Map<string, Promise<Result<SshClientProxy, SshConnectError>>> =
-    new Map();
-
-  /** Configs stored for reconnection. */
-  private storedConfigs: Map<string, ConnectConfig> = new Map();
+  private pendingConnections: Map<string, Promise<SshClientProxy>> = new Map();
 
   /** Tracks ongoing reconnect backoff state per connection. */
   private reconnecting: Map<string, ReconnectState> = new Map();
@@ -58,27 +75,27 @@ export class SshConnectionManager extends EventEmitter {
    *
    * - Reuses an existing connection if already in the pool.
    * - Concurrent calls for the same ID coalesce to a single attempt.
-   * - Returns the stable SshClientProxy for this connection so callers can
-   *   hold a reference that survives reconnects.
+   * - Throws SshAuthError, SshTimeoutError, or SshConnectionError on failure.
    */
-  async connect(
-    id: string,
-    config: ConnectConfig
-  ): Promise<Result<SshClientProxy, SshConnectError>> {
+  async connect(id: string): Promise<SshClientProxy> {
     this.intentionalDisconnects.delete(id);
 
     const existing = this.proxies.get(id);
-    if (existing?.isConnected) {
-      log.info('SshConnectionManager: reusing existing connection', { connectionId: id });
-      return ok(existing);
-    }
+    if (existing?.isConnected) return existing;
 
     const pending = this.pendingConnections.get(id);
-    if (pending) {
-      log.info('SshConnectionManager: coalescing to in-flight connection', { connectionId: id });
-      return pending;
+    if (pending) return await pending;
+
+    const [row] = await db.select().from(sshConnections).where(eq(sshConnections.id, id)).limit(1);
+
+    if (!row) {
+      throw new SshConnectionError(`SSH connection '${id}' not found`);
     }
 
+    const config = await buildConnectConfigFromRow(row);
+    if (!config) {
+      throw new SshConnectionError(`SSH connection '${id}' has unsupported auth configuration`);
+    }
     const connectionPromise = this.createConnection(id, config);
     this.pendingConnections.set(id, connectionPromise);
 
@@ -135,7 +152,6 @@ export class SshConnectionManager extends EventEmitter {
         connectionId: id,
       });
       this.proxies.delete(id);
-      this.storedConfigs.delete(id);
       return;
     }
 
@@ -147,7 +163,6 @@ export class SshConnectionManager extends EventEmitter {
         log.warn('SshConnectionManager: disconnect timed out, forcing close', { connectionId: id });
         proxy.invalidate();
         this.proxies.delete(id);
-        this.storedConfigs.delete(id);
         resolve();
       }, 5_000);
 
@@ -155,7 +170,6 @@ export class SshConnectionManager extends EventEmitter {
         clearTimeout(timeout);
         proxy.invalidate();
         this.proxies.delete(id);
-        this.storedConfigs.delete(id);
         resolve();
       });
 
@@ -170,19 +184,14 @@ export class SshConnectionManager extends EventEmitter {
     await Promise.all(ids.map((id) => this.disconnect(id)));
   }
 
-  // ─── Internals ────────────────────────────────────────────────────────────
+  // ─── Private ─────────────────────────────────────────────────────────────
 
-  private createConnection(
-    id: string,
-    config: ConnectConfig
-  ): Promise<Result<SshClientProxy, SshConnectError>> {
+  private createConnection(id: string, config: ConnectConfig): Promise<SshClientProxy> {
     log.info('SshConnectionManager: creating connection', {
       connectionId: id,
       host: config.host,
       username: config.username,
     });
-
-    this.storedConfigs.set(id, config);
 
     // Ensure a stable proxy exists for this ID.
     const proxy = this.proxies.get(id) ?? new SshClientProxy();
@@ -190,12 +199,12 @@ export class SshConnectionManager extends EventEmitter {
 
     const client = new Client();
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let resolved = false;
-      const resolveOnce = (result: Result<SshClientProxy, SshConnectError>) => {
+      const resolveOnce = (p: SshClientProxy) => {
         if (!resolved) {
           resolved = true;
-          resolve(result);
+          resolve(p);
         }
       };
 
@@ -211,7 +220,7 @@ export class SshConnectionManager extends EventEmitter {
           error,
         } satisfies SshConnectionEvent);
 
-        resolveOnce(err(classifyError(error)));
+        reject(classifyError(error));
       });
 
       client.on('close', () => {
@@ -255,7 +264,7 @@ export class SshConnectionManager extends EventEmitter {
           connectionId: id,
         });
 
-        resolveOnce(ok(proxy));
+        resolveOnce(proxy);
       });
 
       client.connect(config);
@@ -305,40 +314,29 @@ export class SshConnectionManager extends EventEmitter {
         return;
       }
 
-      const config = this.storedConfigs.get(id);
-      if (!config) {
-        this.reconnecting.delete(id);
-        return;
-      }
-
-      const connectionPromise = this.createConnection(id, config);
+      const connectionPromise = this.connect(id);
       this.pendingConnections.set(id, connectionPromise);
 
       connectionPromise
-        .then((result) => {
-          if (!result.success) {
-            const error = result.error;
-            // Auth failures won't resolve with retries — stop immediately.
-            if (error.kind === 'auth-failed') {
-              log.error('SshConnectionManager: reconnect stopped — auth failure', {
-                connectionId: id,
-              });
-              this.reconnecting.delete(id);
-              this.emit('connection-event', {
-                type: 'reconnect-failed',
-                connectionId: id,
-              } satisfies SshConnectionEvent);
-              events.emit(sshConnectionEventChannel, {
-                type: 'reconnect-failed',
-                connectionId: id,
-              });
-            } else {
-              this.scheduleReconnect(id);
-            }
-          }
-        })
-        .finally(() => {
+        .then(() => {
           this.pendingConnections.delete(id);
+        })
+        .catch((error: unknown) => {
+          this.pendingConnections.delete(id);
+          // Auth failures won't resolve with retries — stop immediately.
+          if (error instanceof SshAuthError) {
+            log.error('SshConnectionManager: reconnect stopped — auth failure', {
+              connectionId: id,
+            });
+            this.reconnecting.delete(id);
+            this.emit('connection-event', {
+              type: 'reconnect-failed',
+              connectionId: id,
+            } satisfies SshConnectionEvent);
+            events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
+          } else {
+            this.scheduleReconnect(id);
+          }
         });
     }, delayMs);
 
@@ -356,14 +354,13 @@ export class SshConnectionManager extends EventEmitter {
 
 export const sshConnectionManager = new SshConnectionManager();
 
-function classifyError(error: Error): SshConnectError {
+function classifyError(error: Error): SshAuthError | SshTimeoutError | SshConnectionError {
   const msg = error.message.toLowerCase();
-
   if (msg.includes('authentication') || msg.includes('auth') || msg.includes('permission denied')) {
-    return { kind: 'auth-failed', message: error.message };
+    return new SshAuthError(error.message);
   }
   if (msg.includes('timeout') || msg.includes('timed out')) {
-    return { kind: 'timeout', message: error.message };
+    return new SshTimeoutError(error.message);
   }
-  return { kind: 'connect-failed', message: error.message };
+  return new SshConnectionError(error.message);
 }

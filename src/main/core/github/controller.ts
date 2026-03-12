@@ -9,7 +9,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import type { GitHubUser } from '@shared/types/github';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import { githubService } from '@main/core/github/GitHubService';
-import { getAppSettings } from '@main/core/settings/settings';
+import { getAppSettings } from '@main/core/settings/utils';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 

@@ -23,10 +23,9 @@ export type Task = {
   id: string; // stable hash derived from the worktree path
   projectId: string;
   name: string;
+  path: string;
   status: TaskLifecycleStatus;
   sourceBranch: string;
-  branch: string;
-  path: string;
   linkedIssue?: LinkedIssue;
   pr?: TaskPr;
   archivedAt?: string;
