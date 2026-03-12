@@ -7,6 +7,8 @@ export type ShortcutModifier =
   | 'cmd+shift'
   | 'ctrl+shift';
 
+export type NumberShortcutBehavior = 'ctrl-tasks' | 'cmd-tasks';
+
 export interface ShortcutBinding {
   key: string;
   modifier: ShortcutModifier;
@@ -27,6 +29,7 @@ export interface KeyboardSettings {
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
   openInEditor?: ShortcutBinding;
+  numberShortcutBehavior?: NumberShortcutBehavior;
 }
 
 export interface ShortcutConfig {
@@ -91,6 +94,9 @@ export interface GlobalShortcutHandlers {
   onNextAgent?: () => void;
   onPrevAgent?: () => void;
   onSelectAgentTab?: (tabIndex: number) => void;
+
+  // Task selection by number (Ctrl+1-9)
+  onSelectTask?: (index: number) => void;
 
   // Open in editor
   onOpenInEditor?: () => void;

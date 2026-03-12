@@ -34,6 +34,8 @@ export interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
+export type NumberShortcutBehavior = 'ctrl-tasks' | 'cmd-tasks';
+
 export interface KeyboardSettings {
   commandPalette?: ShortcutBinding;
   settings?: ShortcutBinding;
@@ -48,6 +50,7 @@ export interface KeyboardSettings {
   newTask?: ShortcutBinding;
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
+  numberShortcutBehavior?: NumberShortcutBehavior;
 }
 
 export interface InterfaceSettings {
@@ -169,6 +172,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
+    numberShortcutBehavior: 'ctrl-tasks',
   },
   interface: {
     autoRightSidebarBehavior: false,
@@ -455,6 +459,10 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
+    numberShortcutBehavior:
+      keyboard.numberShortcutBehavior === 'cmd-tasks'
+        ? 'cmd-tasks'
+        : DEFAULT_SETTINGS.keyboard!.numberShortcutBehavior,
   };
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();
   const isLegacyArrowPair =

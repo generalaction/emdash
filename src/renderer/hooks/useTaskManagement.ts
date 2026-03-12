@@ -394,6 +394,45 @@ export function useTaskManagement() {
     [activateProjectView, projects, openTaskModal]
   );
 
+  const handleSelectTaskByIndex = useCallback(
+    (index: number) => {
+      // Sort projects using the same order as LeftSidebar (from localStorage)
+      let sortedProjects = projects;
+      try {
+        const stored = localStorage.getItem('sidebarProjectOrder');
+        if (stored) {
+          const projectOrder: string[] = JSON.parse(stored);
+          if (projectOrder.length > 0) {
+            sortedProjects = [...projects].sort((a, b) => {
+              const ai = projectOrder.indexOf(a.id);
+              const bi = projectOrder.indexOf(b.id);
+              if (ai === -1 && bi === -1) return 0;
+              if (ai === -1) return -1;
+              if (bi === -1) return 1;
+              return ai - bi;
+            });
+          }
+        }
+      } catch {
+        // Use default order if localStorage read fails
+      }
+
+      // Build a flat list of all tasks in sidebar order (by project, then pinned first within each)
+      const allTasksInOrder: Task[] = [];
+      for (const project of sortedProjects) {
+        const projectTasks = (tasksByProjectId[project.id] ?? [])
+          .slice()
+          .sort((a, b) => (b.metadata?.isPinned ? 1 : 0) - (a.metadata?.isPinned ? 1 : 0));
+        allTasksInOrder.push(...projectTasks);
+      }
+
+      if (index >= 0 && index < allTasksInOrder.length) {
+        handleSelectTask(allTasksInOrder[index]);
+      }
+    },
+    [projects, tasksByProjectId, handleSelectTask]
+  );
+
   // ---------------------------------------------------------------------------
   // Delete task mutation
   // ---------------------------------------------------------------------------
@@ -1035,6 +1074,7 @@ export function useTaskManagement() {
     handleTaskInterfaceReady,
     openTaskModal,
     handleSelectTask,
+    handleSelectTaskByIndex,
     handleNextTask,
     handlePrevTask,
     handleNewTask,
