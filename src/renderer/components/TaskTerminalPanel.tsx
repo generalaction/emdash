@@ -120,9 +120,11 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         if (url) {
           setDetectedUrls((prev) => {
             if (prev.includes(url)) return prev;
-            setSelectedUrl((current) => current || url);
             return [...prev, url];
           });
+          if (!selectedUrl) {
+            setSelectedUrl(url);
+          }
         }
       }
 
@@ -679,38 +681,40 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                {detectedUrls.length > 1 ? (
-                  <Select
-                    value={selectedUrl || ''}
-                    onValueChange={(value) => {
-                      setSelectedUrl(value);
-                      window.electronAPI.openExternal(value);
-                    }}
-                  >
-                    <SelectTrigger className="h-7 w-auto min-w-[40px] gap-2 border-none bg-transparent px-2 text-xs shadow-none hover:bg-accent">
-                      <Globe className="h-3.5 w-3.5" />
-                      <SelectValue placeholder="Open URL" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {detectedUrls.map((url) => (
-                          <SelectItem key={url} value={url} className="text-xs">
-                            {url.replace('http://localhost:', 'port: ')}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => selectedUrl && window.electronAPI.openExternal(selectedUrl)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+                <span className="inline-flex items-center">
+                  {detectedUrls.length > 1 ? (
+                    <Select
+                      value={selectedUrl || ''}
+                      onValueChange={(value) => {
+                        setSelectedUrl(value);
+                        window.electronAPI.openExternal(value);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-auto min-w-[40px] gap-2 border-none bg-transparent px-2 text-xs shadow-none hover:bg-accent">
+                        <Globe className="h-3.5 w-3.5" />
+                        <SelectValue placeholder="Open URL" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {detectedUrls.map((url) => (
+                            <SelectItem key={url} value={url} className="text-xs">
+                              {url.replace(/^https?:\/\/localhost:/, 'port: ')}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => selectedUrl && window.electronAPI.openExternal(selectedUrl)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </span>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p className="text-xs">
