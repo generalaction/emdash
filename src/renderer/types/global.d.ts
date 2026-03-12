@@ -1,4 +1,6 @@
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import type { DiffPayload } from '../../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../../shared/git/types';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -246,8 +248,9 @@ declare global {
         changes?: Array<{
           path: string;
           status: string;
-          additions: number;
-          deletions: number;
+          additions: number | null;
+          deletions: number | null;
+          isStaged: boolean;
           diff?: string;
         }>;
         error?: string;
@@ -293,6 +296,25 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
+      getFileDiff: (args: {
+        taskPath: string;
+        filePath: string;
+        baseRef?: string;
+        forceLarge?: boolean;
+      }) => Promise<{
+        success: boolean;
+        diff?: DiffPayload;
+        error?: string;
+      }>;
+      updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        action?: 'reverted';
+        error?: string;
+      }>;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
