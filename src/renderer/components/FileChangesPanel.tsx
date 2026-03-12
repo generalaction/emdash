@@ -515,19 +515,27 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     return (
       <span className="flex min-w-0" title={p}>
         <span
-          className={`shrink-0 font-medium ${
-            isDeleted ? 'text-foreground line-through' : 'text-foreground'
-          }`}
+          className={['shrink-0 font-medium text-foreground', isDeleted ? 'line-through' : '']
+            .filter(Boolean)
+            .join(' ')}
         >
           {base}
         </span>
-        {dir && <span className="ml-1 truncate text-muted-foreground">{dir}</span>}
+        {dir && (
+          <span
+            className={['ml-1 truncate text-muted-foreground', isDeleted ? 'line-through' : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {dir}
+          </span>
+        )}
       </span>
     );
   };
 
   const shouldShowDiffPill = (value: number | null | undefined) =>
-    typeof value !== 'number' || value !== 0;
+    typeof value === 'number' && value !== 0;
 
   // Use PR diff changes when in PR review mode, otherwise use local file changes
   const displayChanges = isPrReview ? prDiffChanges : fileChanges;
