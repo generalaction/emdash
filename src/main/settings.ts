@@ -148,7 +148,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
-    autoInferTaskNames: false,
+    autoInferTaskNames: true,
     autoApproveByDefault: false,
     createWorktreeByDefault: true,
     autoTrustWorktrees: true,

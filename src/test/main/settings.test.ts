@@ -48,14 +48,14 @@ describe('normalizeSettings – taskHoverAction', () => {
 });
 
 describe('normalizeSettings – autoInferTaskNames', () => {
-  it('defaults to false when tasks section is missing', () => {
+  it('defaults to true when tasks section is missing', () => {
     const result = normalizeSettings(makeSettings());
-    expect(result.tasks?.autoInferTaskNames).toBe(false);
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
   });
 
-  it('defaults to false when tasks section is empty', () => {
+  it('defaults to true when tasks section is empty', () => {
     const result = normalizeSettings(makeSettings({ tasks: {} as any }));
-    expect(result.tasks?.autoInferTaskNames).toBe(false);
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
   });
 
   it('preserves true when explicitly set', () => {

@@ -6,7 +6,7 @@ import {
 import { generateFriendlyTaskName } from '../../renderer/lib/taskNames';
 
 describe('autoInferTaskNames toggle logic', () => {
-  describe('when autoInferTaskNames is OFF (default)', () => {
+  describe('when autoInferTaskNames is OFF', () => {
     it('random name generator produces a valid name', () => {
       const name = generateFriendlyTaskName([]);
       expect(name).toBeTruthy();
@@ -41,7 +41,7 @@ describe('autoInferTaskNames toggle logic', () => {
     });
   });
 
-  describe('when autoInferTaskNames is ON', () => {
+  describe('when autoInferTaskNames is ON (default)', () => {
     it('context-based inference returns a slug from a prompt', () => {
       const result = generateTaskNameFromContext({
         initialPrompt: 'Fix the broken authentication on the login page',
