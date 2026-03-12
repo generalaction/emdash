@@ -2608,4 +2608,58 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  ipcMain.handle(
+    'git:delete-remote-branch',
+    async (_, args: { projectPath: string; branch: string; remote?: string }) => {
+      try {
+        const { remoteBranchService } = await import('../services/RemoteBranchService');
+        const result = await remoteBranchService.deleteRemoteBranch(
+          args.projectPath,
+          args.branch,
+          args.remote
+        );
+        return { ...result };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'git:evaluate-branch-cleanup',
+    async (
+      _,
+      args: {
+        projectPath: string;
+        branch: string;
+        mode: string;
+        daysThreshold: number;
+      }
+    ) => {
+      try {
+        const { remoteBranchService } = await import('../services/RemoteBranchService');
+        const { isValidRemoteBranchCleanupMode } = await import('../../shared/remoteBranchCleanup');
+        if (!isValidRemoteBranchCleanupMode(args.mode)) {
+          return { success: true, action: 'skip' as const };
+        }
+        const action = await remoteBranchService.evaluateCleanupAction(
+          args.projectPath,
+          args.branch,
+          args.mode,
+          args.daysThreshold
+        );
+        return { success: true, action };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          action: 'skip' as const,
+        };
+      }
+    }
+  );
 }
