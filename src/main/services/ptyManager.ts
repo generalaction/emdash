@@ -525,7 +525,7 @@ export function applySessionIsolation(
     return true;
   }
 
-  if (hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
+  if (isResume && hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
     // Main chat transitioning to multi-chat mode. Try to discover its
     // existing session from Claude's local storage and adopt it.
     const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
