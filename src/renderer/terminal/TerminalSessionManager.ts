@@ -22,6 +22,7 @@ import {
   shouldPasteToTerminal,
 } from './terminalKeybindings';
 import { rpc } from '@/lib/rpc';
+import { computeResizeDelay } from './resizeUtils';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -35,6 +36,7 @@ const PTY_RESIZE_DEBOUNCE_MS = 60;
 // single pending timer so only the final stable size is sent, preventing the
 // shell from getting multiple SIGWINCH events (which prints extra prompt lines).
 const POST_ATTACH_STABILIZE_MS = 400;
+
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
@@ -815,8 +817,11 @@ export class TerminalSessionManager {
 
     // During the post-attach stabilization window, defer the flush to the end
     // of the window so all layout-settling fits collapse into one PTY resize.
-    const stabilizeRemaining = this.attachStabilizeDeadline - Date.now();
-    const delay = stabilizeRemaining > 0 ? stabilizeRemaining : PTY_RESIZE_DEBOUNCE_MS;
+    const delay = computeResizeDelay(
+      this.attachStabilizeDeadline,
+      Date.now(),
+      PTY_RESIZE_DEBOUNCE_MS
+    );
 
     if (this.pendingResizeTimer) {
       clearTimeout(this.pendingResizeTimer);
