@@ -101,7 +101,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
     showKanban: isKanbanOpen,
     showEditorMode: isEditorOpen,
   } = useProjectManagementContext();
-  const { activeTask, handleSelectTask: onSelectTask } = useTaskManagementContext();
+  const { activeTask, handleSelectTask: onSelectTask, tasksByProjectId } = useTaskManagementContext();
   const { user: githubUser } = useGithubContext();
 
   const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
@@ -207,6 +207,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
             <TitlebarContext
               projects={projects}
               selectedProject={selectedProject}
+              tasks={selectedProject ? (tasksByProjectId[selectedProject.id] ?? []) : []}
               activeTask={activeTask}
               onSelectProject={onSelectProject}
               onSelectTask={onSelectTask}
