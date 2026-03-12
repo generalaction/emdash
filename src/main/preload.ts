@@ -3,6 +3,8 @@ import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
 import type { McpServer } from '../shared/mcp/types';
+import type { DiffPayload } from '../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../shared/git/types';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -143,6 +145,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => {
+    const channel = 'pty:activity';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string; chunk?: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => {
+    const channel = 'pty:exit:global';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
     const channel = 'agent:event';
     const wrapped = (
@@ -217,6 +232,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree pool (reserve) management for instant task creation
   worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
     ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreePreflightReserve: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktree:preflightReserve', args),
   worktreeHasReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:hasReserve', args),
   worktreeClaimReserve: (args: {
@@ -306,6 +323,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relPath: string,
     remote?: { connectionId: string; remotePath: string }
   ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
+  fsRename: (
+    root: string,
+    oldName: string,
+    newName: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:rename', { root, oldName, newName, ...remote }),
+  fsMkdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:mkdir', { root, relPath, ...remote }),
+  fsRmdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:rmdir', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
@@ -340,13 +367,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) =>
-    ipcRenderer.invoke('git:get-file-diff', args),
-  stageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:stage-file', args),
-  stageAllFiles: (args: { taskPath: string }) => ipcRenderer.invoke('git:stage-all-files', args),
-  unstageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:unstage-file', args),
+  getFileDiff: (args: {
+    taskPath: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-file-diff', args),
+  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) =>
+    ipcRenderer.invoke('git:update-index', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommit: (args: { taskPath: string; message: string }) =>
@@ -359,8 +387,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-latest-commit', args),
   gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
     ipcRenderer.invoke('git:get-commit-files', args),
-  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
-    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitGetCommitFileDiff: (args: {
+    taskPath: string;
+    commitHash: string;
+    filePath: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-commit-file-diff', args),
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
@@ -533,6 +565,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('plain:initialFetch', limit, statuses),
   plainSearchThreads: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
+  // Forgejo integration
+  forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('forgejo:saveCredentials', args),
+  forgejoClearCredentials: () => ipcRenderer.invoke('forgejo:clearCredentials'),
+  forgejoCheckConnection: () => ipcRenderer.invoke('forgejo:checkConnection'),
+  forgejoInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:initialFetch', { projectPath, limit }),
+  forgejoSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>
@@ -540,19 +581,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProviderCustomConfigs: () => ipcRenderer.invoke('providers:getAllCustomConfigs'),
   updateProviderCustomConfig: (providerId: string, config: any) =>
     ipcRenderer.invoke('providers:updateCustomConfig', providerId, config),
-
-  // Line comments management
-  lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) =>
-    ipcRenderer.invoke('lineComments:get', args),
-  lineCommentsUpdate: (input: { id: string; content: string }) =>
-    ipcRenderer.invoke('lineComments:update', input),
-  lineCommentsDelete: (id: string) => ipcRenderer.invoke('lineComments:delete', id),
-  lineCommentsGetFormatted: (taskId: string) =>
-    ipcRenderer.invoke('lineComments:getFormatted', taskId),
-  lineCommentsMarkSent: (commentIds: string[]) =>
-    ipcRenderer.invoke('lineComments:markSent', commentIds),
-  lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
@@ -852,6 +880,10 @@ export interface ElectronAPI {
     projectPath: string;
     baseRef?: string;
   }) => Promise<{ success: boolean; error?: string }>;
+  worktreePreflightReserve: (args: {
+    projectId: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   worktreeHasReserve: (args: {
     projectId: string;
   }) => Promise<{ success: boolean; hasReserve?: boolean; error?: string }>;
@@ -964,8 +996,9 @@ export interface ElectronAPI {
     changes?: Array<{
       path: string;
       status: string;
-      additions: number;
-      deletions: number;
+      additions: number | null;
+      deletions: number | null;
+      isStaged: boolean;
       diff?: string;
     }>;
     error?: string;
@@ -1011,9 +1044,23 @@ export interface ElectronAPI {
   onGitStatusChanged: (
     listener: (data: { taskPath: string; error?: string }) => void
   ) => () => void;
-  getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+  getFileDiff: (args: {
+    taskPath: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => Promise<{
     success: boolean;
-    diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };
+    diff?: DiffPayload;
+    error?: string;
+  }>;
+  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+    success: boolean;
+    action?: 'reverted';
     error?: string;
   }>;
   gitCommitAndPush: (args: {

@@ -9,6 +9,8 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { Button } from './ui/button';
 import { useToast } from '../hooks/use-toast';
 import { ToastAction } from './ui/toast';
+import { useTerminalSearch } from '../hooks/useTerminalSearch';
+import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 import {
   Select,
   SelectContent,
@@ -249,6 +251,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
 
+  const lifecycleLogContent = useMemo(() => {
+    if (!selection.selectedLifecycle) return '';
+    const content = lifecycleLogs[selection.selectedLifecycle].join('');
+    return content || 'No lifecycle output yet.';
+  }, [lifecycleLogs, selection.selectedLifecycle]);
+
+  const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
+
   const canStartRun =
     !!task &&
     !!projectPath &&
@@ -262,6 +272,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     if (selection.parsed?.mode === 'global') return projectPath ? 'PROJECT' : 'GLOBAL';
     return null;
   }, [selection.parsed?.mode, projectPath]);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminalId: selection.selectedLifecycle ? null : selection.activeTerminalId,
+    containerRef: panelRef,
+    enabled: hasActiveTerminal,
+    onCloseFocus: () => {
+      if (selection.activeTerminalId && !selection.selectedLifecycle) {
+        terminalRefs.current.get(selection.activeTerminalId)?.focus();
+      }
+    },
+  });
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;

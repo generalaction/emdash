@@ -1,40 +1,74 @@
 import { SshService } from './ssh/SshService';
 import type { ExecResult } from '../../shared/ssh/types';
 import { quoteShellArg } from '../utils/shellEscape';
-import type { GitChange } from './GitService';
-import { parseDiffLines, stripTrailingNewline, MAX_DIFF_CONTENT_BYTES } from '../utils/diffParser';
-import type { DiffLine, DiffResult } from '../utils/diffParser';
+import { parseDiffLines, MAX_DIFF_CONTENT_BYTES, MAX_DIFF_OUTPUT_BYTES } from '../utils/diffParser';
+import { parseGitStatusOutput, parseNumstatOutput } from '../utils/gitStatusParser';
+import type { DiffResult } from '../utils/diffParser';
+import { updateIndexShared } from './git-core/indexShared';
+import { parseTaggedRemoteContent } from './git-core/remoteTaggedContent';
+import { revertFileShared } from './git-core/revertShared';
+import {
+  applyUntrackedLineCounts,
+  buildStatusChanges,
+  MAX_UNTRACKED_LINECOUNT_BYTES,
+} from './git-core/statusShared';
+import { resolveWorkingTreeDiffResult } from './git-core/workingTreeDiffShared';
+import type {
+  GitChange,
+  GitIndexUpdateArgs,
+  GitStatus,
+  WorktreeInfo,
+} from '../../shared/git/types';
 
-export interface WorktreeInfo {
-  path: string;
-  branch: string;
-  isMain: boolean;
-}
-
-export interface GitStatusFile {
-  status: string;
-  path: string;
-}
-
-export interface GitStatus {
-  branch: string;
-  isClean: boolean;
-  files: GitStatusFile[];
-}
+export type { GitStatus, WorktreeInfo } from '../../shared/git/types';
 
 export class RemoteGitService {
   constructor(private sshService: SshService) {}
+  private static readonly FORCE_LOAD_DIFF_CONTENT_BYTES = 5 * 1024 * 1024;
+  private static readonly FORCE_LOAD_DIFF_OUTPUT_BYTES = 30 * 1024 * 1024;
 
   private normalizeRemotePath(p: string): string {
     // Remote paths should use forward slashes.
     return p.replace(/\\/g, '/').replace(/\/+$/g, '');
   }
 
+  private ensureSafeRelativeFilePath(filePath: string): string {
+    const normalized = filePath
+      .replace(/\\/g, '/')
+      .replace(/^\.\/+/, '')
+      .replace(/\/+/g, '/');
+    if (!normalized || normalized === '.' || normalized.includes('\0')) {
+      throw new Error('Invalid file path');
+    }
+    if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
+      throw new Error('File path is outside the worktree');
+    }
+    if (normalized.split('/').includes('..')) {
+      throw new Error('File path is outside the worktree');
+    }
+    return normalized;
+  }
+
+  private async resolveReviewBaseRef(
+    connectionId: string,
+    cwd: string,
+    baseRef: string
+  ): Promise<string> {
+    const mergeBaseResult = await this.sshService.executeCommand(
+      connectionId,
+      `git merge-base ${quoteShellArg(baseRef)} HEAD`,
+      cwd
+    );
+    const mergeBase = (mergeBaseResult.stdout || '').trim();
+    return mergeBaseResult.exitCode === 0 && mergeBase ? mergeBase : baseRef;
+  }
+
   async getStatus(connectionId: string, worktreePath: string): Promise<GitStatus> {
+    const cwd = this.normalizeRemotePath(worktreePath);
     const result = await this.sshService.executeCommand(
       connectionId,
       'git status --porcelain -b',
-      worktreePath
+      cwd
     );
 
     if (result.exitCode !== 0) {
@@ -235,22 +269,18 @@ export class RemoteGitService {
     const stagedFiles: string[] = [];
     const unstagedFiles: string[] = [];
     const untrackedFiles: string[] = [];
-    const lines = (result.stdout || '')
-      .trim()
-      .split('\n')
-      .filter((l) => l.length > 0);
+    const entries = parseGitStatusOutput(result.stdout || '');
 
-    for (const line of lines) {
-      const status = line.substring(0, 2);
-      const file = line.substring(3);
-      if (status.includes('A') || status.includes('M') || status.includes('D')) {
-        stagedFiles.push(file);
+    for (const entry of entries) {
+      if (entry.isStaged) {
+        stagedFiles.push(entry.path);
       }
-      if (status[1] === 'M' || status[1] === 'D') {
-        unstagedFiles.push(file);
+      const worktreeStatus = entry.statusCode.padEnd(2, '.')[1];
+      if (worktreeStatus !== '.' && worktreeStatus !== ' ' && worktreeStatus !== '?') {
+        unstagedFiles.push(entry.path);
       }
-      if (status.includes('??')) {
-        untrackedFiles.push(file);
+      if (entry.statusCode.includes('?')) {
+        untrackedFiles.push(entry.path);
       }
     }
 
@@ -308,7 +338,6 @@ export class RemoteGitService {
    */
   async getStatusDetailed(connectionId: string, worktreePath: string): Promise<GitChange[]> {
     const cwd = this.normalizeRemotePath(worktreePath);
-
     // Verify git repo
     const verifyResult = await this.sshService.executeCommand(
       connectionId,
@@ -319,23 +348,31 @@ export class RemoteGitService {
       return [];
     }
 
-    // Get porcelain status
-    const statusResult = await this.sshService.executeCommand(
+    let statusOutput = '';
+    const statusV2Result = await this.sshService.executeCommand(
       connectionId,
-      'git status --porcelain --untracked-files=all',
+      'git status --porcelain=v2 -z --untracked-files=all',
       cwd
     );
-    if (statusResult.exitCode !== 0) {
-      throw new Error(`Git status failed: ${statusResult.stderr}`);
+    if (statusV2Result.exitCode === 0) {
+      statusOutput = statusV2Result.stdout || '';
+    } else {
+      // Fallback for older remote git versions.
+      const statusV1Result = await this.sshService.executeCommand(
+        connectionId,
+        'git status --porcelain --untracked-files=all',
+        cwd
+      );
+      if (statusV1Result.exitCode !== 0) {
+        const stderr = (statusV1Result.stderr || statusV2Result.stderr || '').trim();
+        throw new Error(stderr || 'Failed to read git status');
+      }
+      statusOutput = statusV1Result.stdout || '';
     }
 
-    const statusOutput = statusResult.stdout;
     if (!statusOutput.trim()) return [];
 
-    const statusLines = statusOutput
-      .split('\n')
-      .map((l) => l.replace(/\r$/, ''))
-      .filter((l) => l.length > 0);
+    const entries = parseGitStatusOutput(statusOutput);
 
     // Batch-fetch numstat for staged and unstaged changes (one SSH call each, not per-file)
     const [stagedNumstat, unstagedNumstat] = await Promise.all([
@@ -343,185 +380,251 @@ export class RemoteGitService {
       this.sshService.executeCommand(connectionId, 'git diff --numstat', cwd),
     ]);
 
-    const parseNumstat = (stdout: string): Map<string, { add: number; del: number }> => {
-      const map = new Map<string, { add: number; del: number }>();
-      for (const line of stdout.split('\n').filter((l) => l.trim())) {
-        const parts = line.split('\t');
-        if (parts.length >= 3) {
-          const add = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
-          const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
-          map.set(parts[2], { add, del });
-        }
-      }
-      return map;
-    };
-
-    const stagedStats = parseNumstat(stagedNumstat.stdout || '');
-    const unstagedStats = parseNumstat(unstagedNumstat.stdout || '');
-
-    // Collect untracked file paths so we can batch their line counts
-    const untrackedPaths: string[] = [];
-
-    const changes: GitChange[] = [];
-    for (const line of statusLines) {
-      const statusCode = line.substring(0, 2);
-      let filePath = line.substring(3);
-      if (statusCode.includes('R') && filePath.includes('->')) {
-        const parts = filePath.split('->');
-        filePath = parts[parts.length - 1].trim();
-      }
-
-      let status = 'modified';
-      if (statusCode.includes('A') || statusCode.includes('?')) status = 'added';
-      else if (statusCode.includes('D')) status = 'deleted';
-      else if (statusCode.includes('R')) status = 'renamed';
-      else if (statusCode.includes('M')) status = 'modified';
-
-      const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-
-      const staged = stagedStats.get(filePath);
-      const unstaged = unstagedStats.get(filePath);
-      const additions = (staged?.add ?? 0) + (unstaged?.add ?? 0);
-      const deletions = (staged?.del ?? 0) + (unstaged?.del ?? 0);
-
-      if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-        untrackedPaths.push(filePath);
-      }
-
-      changes.push({ path: filePath, status, additions, deletions, isStaged });
-    }
+    const stagedStats = parseNumstatOutput(stagedNumstat.stdout || '');
+    const unstagedStats = parseNumstatOutput(unstagedNumstat.stdout || '');
+    const { changes, untrackedPathsNeedingCounts } = buildStatusChanges(
+      entries,
+      stagedStats,
+      unstagedStats
+    );
 
     // Batch line-count for untracked files (skip files > 512KB)
-    if (untrackedPaths.length > 0) {
-      const escaped = untrackedPaths.map((f) => quoteShellArg(f)).join(' ');
-      // For each file: if <= 512KB, count newlines; otherwise print -1
-      const script =
-        `for f in ${escaped}; do ` +
-        `s=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null); ` +
-        `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then ` +
-        `wc -l < "$f" 2>/dev/null || echo -1; ` +
-        `else echo -1; fi; done`;
-      const countResult = await this.sshService.executeCommand(connectionId, script, cwd);
-      if (countResult.exitCode === 0) {
-        const counts = countResult.stdout
-          .split('\n')
-          .map((l) => l.trim())
-          .filter((l) => l.length > 0);
-        for (let i = 0; i < untrackedPaths.length && i < counts.length; i++) {
-          const count = parseInt(counts[i], 10);
-          if (count >= 0) {
-            const change = changes.find((c) => c.path === untrackedPaths[i]);
-            if (change) change.additions = count;
-          }
-        }
-      }
+    if (untrackedPathsNeedingCounts.length === 0) {
+      return changes;
     }
 
-    return changes;
+    const escaped = untrackedPathsNeedingCounts
+      .map((filePath) => quoteShellArg(filePath))
+      .join(' ');
+    // For each file: if <= 512KB, count newlines; otherwise print -1
+    const script =
+      `for f in ${escaped}; do ` +
+      `s=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null); ` +
+      `if [ "$s" -le ${MAX_UNTRACKED_LINECOUNT_BYTES} ] 2>/dev/null; then ` +
+      `wc -l < "$f" 2>/dev/null || echo -1; ` +
+      `else echo -1; fi; done`;
+    const countResult = await this.sshService.executeCommand(connectionId, script, cwd);
+    if (countResult.exitCode !== 0) {
+      return changes;
+    }
+
+    const parsedCounts = (countResult.stdout || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    const untrackedCountByPath = new Map<string, number | null>();
+    for (let i = 0; i < untrackedPathsNeedingCounts.length; i++) {
+      const countValue = parsedCounts[i];
+      if (countValue === undefined) {
+        untrackedCountByPath.set(untrackedPathsNeedingCounts[i], null);
+        continue;
+      }
+      const count = Number.parseInt(countValue, 10);
+      untrackedCountByPath.set(
+        untrackedPathsNeedingCounts[i],
+        Number.isFinite(count) && count >= 0 ? count : null
+      );
+    }
+
+    return applyUntrackedLineCounts(changes, untrackedCountByPath);
   }
 
   /**
    * Per-file diff matching the shape returned by local GitService.getFileDiff().
-   * Uses a diff-first pattern: run git diff, check for binary, then fetch content only if non-binary.
    */
   async getFileDiff(
     connectionId: string,
     worktreePath: string,
-    filePath: string
+    filePath: string,
+    baseRef?: string,
+    forceLarge?: boolean
   ): Promise<DiffResult> {
     const cwd = this.normalizeRemotePath(worktreePath);
+    const safeFilePath = this.ensureSafeRelativeFilePath(filePath);
+    const diffContentLimit = forceLarge
+      ? RemoteGitService.FORCE_LOAD_DIFF_CONTENT_BYTES
+      : MAX_DIFF_CONTENT_BYTES;
+    const diffOutputLimit = forceLarge
+      ? RemoteGitService.FORCE_LOAD_DIFF_OUTPUT_BYTES
+      : MAX_DIFF_OUTPUT_BYTES;
+    const reviewBaseRef = baseRef
+      ? await this.resolveReviewBaseRef(connectionId, cwd, baseRef)
+      : undefined;
+    const originalRef = reviewBaseRef || 'HEAD';
+
+    const readGitObjectTextCapped = async (objectSpec: string) => {
+      const result = await this.sshService.executeCommand(
+        connectionId,
+        `if git cat-file -e ${quoteShellArg(objectSpec)} 2>/dev/null; then ` +
+          `s=$(git cat-file -s ${quoteShellArg(objectSpec)} 2>/dev/null); ` +
+          `if [ "$s" -le ${diffContentLimit} ] 2>/dev/null; then ` +
+          `printf "__EMDASH_CONTENT__\\n"; git show ${quoteShellArg(objectSpec)}; ` +
+          `else echo "__EMDASH_TOO_LARGE__"; fi; ` +
+          `else echo "__EMDASH_MISSING__"; fi`,
+        cwd
+      );
+      return parseTaggedRemoteContent(result);
+    };
+
+    const readWorkingFileTextCapped = async (remoteFilePath: string) => {
+      const result = await this.sshService.executeCommand(
+        connectionId,
+        `if [ -f ${quoteShellArg(remoteFilePath)} ]; then ` +
+          `s=$(stat -c%s ${quoteShellArg(remoteFilePath)} 2>/dev/null || stat -f%z ${quoteShellArg(remoteFilePath)} 2>/dev/null); ` +
+          `if [ "$s" -le ${diffContentLimit} ] 2>/dev/null; then ` +
+          `printf "__EMDASH_CONTENT__\\n"; cat ${quoteShellArg(remoteFilePath)}; ` +
+          `else echo "__EMDASH_TOO_LARGE__"; fi; ` +
+          `else echo "__EMDASH_MISSING__"; fi`,
+        cwd
+      );
+      return parseTaggedRemoteContent(result);
+    };
+
+    const getOriginalContent = async () => {
+      return readGitObjectTextCapped(`${originalRef}:${safeFilePath}`);
+    };
+
+    const getModifiedContent = async () => {
+      if (baseRef) {
+        return readGitObjectTextCapped(`HEAD:${safeFilePath}`);
+      }
+      return readWorkingFileTextCapped(safeFilePath);
+    };
+
+    const [original, modified] = await Promise.all([getOriginalContent(), getModifiedContent()]);
+
+    // Fast path: if content probe already indicates binary/oversized file, skip full git diff.
+    if (original.isBinary || modified.isBinary) {
+      return { lines: [], mode: 'binary', isBinary: true };
+    }
+    if (original.tooLarge || modified.tooLarge) {
+      return resolveWorkingTreeDiffResult({
+        diffStdout: undefined,
+        diffLines: [],
+        hasHunk: false,
+        diffTooLarge: true,
+        diffFailed: false,
+        original,
+        modified,
+      });
+    }
 
     // Step 1: Run git diff
-    const diffResult = await this.sshService.executeCommand(
-      connectionId,
-      `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(filePath)}`,
-      cwd
-    );
+    let diffStdout: string | undefined;
+    let diffTooLarge = false;
+    let diffFailed = false;
+    let diffLines: DiffResult['lines'] = [];
+    let hasHunk = false;
+    const diffCommand = baseRef
+      ? `git diff --no-color --unified=2000 ${quoteShellArg(originalRef)} HEAD -- ${quoteShellArg(safeFilePath)}`
+      : `git diff --no-color --unified=2000 HEAD -- ${quoteShellArg(safeFilePath)}`;
+    const diffResult = await this.sshService.executeCommand(connectionId, diffCommand, cwd);
+    if (diffResult.exitCode === 0) {
+      diffStdout = diffResult.stdout || '';
+      diffTooLarge = Buffer.byteLength(diffStdout, 'utf8') > diffOutputLimit;
 
-    // Step 2: Parse and check binary
-    let diffLines: DiffLine[] = [];
-    if (diffResult.exitCode === 0 && diffResult.stdout.trim()) {
-      const { lines, isBinary } = parseDiffLines(diffResult.stdout);
-      if (isBinary) {
-        return { lines: [], isBinary: true };
+      if (diffStdout.trim()) {
+        const likelyBinary =
+          diffStdout.includes('Binary files ') || diffStdout.includes('GIT binary patch');
+        if (likelyBinary) {
+          return { lines: [], mode: 'binary', isBinary: true };
+        }
+
+        if (!diffTooLarge) {
+          const parsed = parseDiffLines(diffStdout);
+          if (parsed.isBinary) {
+            return { lines: [], mode: 'binary', isBinary: true };
+          }
+          diffLines = parsed.lines;
+          hasHunk = parsed.hasHunk;
+        }
       }
-      diffLines = lines;
+    } else {
+      diffFailed = true;
     }
 
-    // Step 3: Fetch content ONCE (non-binary only, covers both diff-success and fallback paths)
-    const [showResult, catResult] = await Promise.all([
-      this.sshService.executeCommand(
-        connectionId,
-        `s=$(git cat-file -s HEAD:${quoteShellArg(filePath)} 2>/dev/null); ` +
-          `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then git show HEAD:${quoteShellArg(filePath)}; ` +
-          `else echo "__EMDASH_TOO_LARGE__"; fi`,
-        cwd
-      ),
-      this.sshService.executeCommand(
-        connectionId,
-        `s=$(stat -c%s ${quoteShellArg(filePath)} 2>/dev/null || stat -f%z ${quoteShellArg(filePath)} 2>/dev/null); ` +
-          `if [ "$s" -le ${MAX_DIFF_CONTENT_BYTES} ] 2>/dev/null; then cat ${quoteShellArg(filePath)}; else echo "__EMDASH_TOO_LARGE__"; fi`,
-        cwd
-      ),
-    ]);
-
-    const rawOriginal =
-      showResult.exitCode === 0 ? stripTrailingNewline(showResult.stdout) : undefined;
-    const originalContent = rawOriginal === '__EMDASH_TOO_LARGE__' ? undefined : rawOriginal;
-
-    const rawModified =
-      catResult.exitCode === 0 ? stripTrailingNewline(catResult.stdout) : undefined;
-    const modifiedContent = rawModified === '__EMDASH_TOO_LARGE__' ? undefined : rawModified;
-
-    // Step 4: Return based on what we have
-    if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
-
-    // Fallback: empty diff or diff failed — determine untracked/deleted from content
-    if (modifiedContent !== undefined) {
-      return {
-        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-        modifiedContent,
-      };
-    }
-    if (originalContent !== undefined) {
-      return {
-        lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-        originalContent,
-      };
-    }
-    return { lines: [] };
+    return resolveWorkingTreeDiffResult({
+      diffStdout,
+      diffLines,
+      hasHunk,
+      diffTooLarge,
+      diffFailed,
+      original,
+      modified,
+    });
   }
 
-  async stageFile(connectionId: string, worktreePath: string, filePath: string): Promise<void> {
+  async updateIndex(
+    connectionId: string,
+    worktreePath: string,
+    args: GitIndexUpdateArgs
+  ): Promise<void> {
     const cwd = this.normalizeRemotePath(worktreePath);
-    const result = await this.sshService.executeCommand(
-      connectionId,
-      `git add -- ${quoteShellArg(filePath)}`,
-      cwd
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(`Failed to stage file: ${result.stderr}`);
-    }
-  }
-
-  async stageAllFiles(connectionId: string, worktreePath: string): Promise<void> {
-    const cwd = this.normalizeRemotePath(worktreePath);
-    const result = await this.sshService.executeCommand(connectionId, 'git add -A', cwd);
-    if (result.exitCode !== 0) {
-      throw new Error(`Failed to stage all files: ${result.stderr}`);
-    }
-  }
-
-  async unstageFile(connectionId: string, worktreePath: string, filePath: string): Promise<void> {
-    const cwd = this.normalizeRemotePath(worktreePath);
-    const result = await this.sshService.executeCommand(
-      connectionId,
-      `git reset HEAD -- ${quoteShellArg(filePath)}`,
-      cwd
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(`Failed to unstage file: ${result.stderr}`);
-    }
+    await updateIndexShared(args, {
+      stageAll: async () => {
+        const result = await this.sshService.executeCommand(connectionId, 'git add -A', cwd);
+        if (result.exitCode !== 0) {
+          throw new Error(`Failed to stage all files: ${result.stderr}`);
+        }
+      },
+      resetAll: async () => {
+        const result = await this.sshService.executeCommand(
+          connectionId,
+          'git reset HEAD -- .',
+          cwd
+        );
+        return result.exitCode === 0;
+      },
+      listStagedPaths: async () => {
+        const stagedResult = await this.sshService.executeCommand(
+          connectionId,
+          'git diff --cached --name-only',
+          cwd
+        );
+        return (stagedResult.stdout || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+      },
+      stagePaths: async (filePaths) => {
+        const files = filePaths.map((filePath) => quoteShellArg(filePath)).join(' ');
+        const result = await this.sshService.executeCommand(
+          connectionId,
+          `git add -- ${files}`,
+          cwd
+        );
+        if (result.exitCode !== 0) {
+          throw new Error(`Failed to stage files: ${result.stderr}`);
+        }
+      },
+      resetPaths: async (filePaths) => {
+        const files = filePaths.map((filePath) => quoteShellArg(filePath)).join(' ');
+        const result = await this.sshService.executeCommand(
+          connectionId,
+          `git reset HEAD -- ${files}`,
+          cwd
+        );
+        return result.exitCode === 0;
+      },
+      resetPath: async (filePath) => {
+        const result = await this.sshService.executeCommand(
+          connectionId,
+          `git reset HEAD -- ${quoteShellArg(filePath)}`,
+          cwd
+        );
+        return result.exitCode === 0;
+      },
+      removePathFromIndex: async (filePath) => {
+        const fallback = await this.sshService.executeCommand(
+          connectionId,
+          `git rm --cached -- ${quoteShellArg(filePath)}`,
+          cwd
+        );
+        if (fallback.exitCode !== 0) {
+          throw new Error(`Failed to unstage file: ${fallback.stderr}`);
+        }
+      },
+    });
   }
 
   async revertFile(
@@ -530,34 +633,34 @@ export class RemoteGitService {
     filePath: string
   ): Promise<{ action: 'reverted' }> {
     const cwd = this.normalizeRemotePath(worktreePath);
-
-    // Check if file exists in HEAD
-    const catFileResult = await this.sshService.executeCommand(
-      connectionId,
-      `git cat-file -e HEAD:${quoteShellArg(filePath)}`,
-      cwd
-    );
-
-    if (catFileResult.exitCode !== 0) {
-      // File doesn't exist in HEAD — it's untracked. Delete it.
-      await this.sshService.executeCommand(
-        connectionId,
-        `rm -f -- ${quoteShellArg(filePath)}`,
-        cwd
-      );
-      return { action: 'reverted' };
-    }
-
-    // File exists in HEAD — revert it
-    const checkoutResult = await this.sshService.executeCommand(
-      connectionId,
-      `git checkout HEAD -- ${quoteShellArg(filePath)}`,
-      cwd
-    );
-    if (checkoutResult.exitCode !== 0) {
-      throw new Error(`Failed to revert file: ${checkoutResult.stderr}`);
-    }
-    return { action: 'reverted' };
+    return revertFileShared(filePath, {
+      normalizeFilePath: (pathInput) => this.ensureSafeRelativeFilePath(pathInput),
+      existsInHead: async (safePath) => {
+        const catFileResult = await this.sshService.executeCommand(
+          connectionId,
+          `git cat-file -e HEAD:${quoteShellArg(safePath)}`,
+          cwd
+        );
+        return catFileResult.exitCode === 0;
+      },
+      deleteUntracked: async (safePath) => {
+        await this.sshService.executeCommand(
+          connectionId,
+          `rm -f -- ${quoteShellArg(safePath)}`,
+          cwd
+        );
+      },
+      checkoutHead: async (safePath) => {
+        const checkoutResult = await this.sshService.executeCommand(
+          connectionId,
+          `git checkout HEAD -- ${quoteShellArg(safePath)}`,
+          cwd
+        );
+        if (checkoutResult.exitCode !== 0) {
+          throw new Error(`Failed to revert file: ${checkoutResult.stderr}`);
+        }
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -652,9 +755,10 @@ export class RemoteGitService {
 
     let ahead = 0;
     let behind = 0;
+    const compareRef = `origin/${defaultBranch}...HEAD`;
     const revListResult = await this.sshService.executeCommand(
       connectionId,
-      `git rev-list --left-right --count origin/${quoteShellArg(defaultBranch)}...HEAD 2>/dev/null`,
+      `git rev-list --left-right --count ${quoteShellArg(compareRef)} 2>/dev/null`,
       cwd
     );
     if (revListResult.exitCode === 0) {

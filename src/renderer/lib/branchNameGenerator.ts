@@ -3,6 +3,8 @@ import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
 import type { PlainThreadSummary } from '../types/plain';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { ForgejoIssueSummary } from '../types/forgejo';
 
 const MAX_NAME_LENGTH = 64;
 const MIN_INPUT_LENGTH = 10;
@@ -60,6 +62,8 @@ export interface TaskNameContext {
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
   plainThread?: PlainThreadSummary | null;
+  gitlabIssue?: GitLabIssueSummary | null;
+  forgejoIssue?: ForgejoIssueSummary | null;
 }
 
 /**
@@ -113,5 +117,15 @@ function getIssueText(context: TaskNameContext): string | null {
     return parts.length > 0 ? parts.join(' ') : null;
   }
 
+  if (context.gitlabIssue) {
+    const { title, description } = context.gitlabIssue as any;
+    const parts = [title, description].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : null;
+  }
+  if (context.forgejoIssue) {
+    const { title, description } = context.forgejoIssue as any;
+    const parts = [title, description].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : null;
+  }
   return null;
 }

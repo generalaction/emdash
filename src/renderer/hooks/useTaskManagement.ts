@@ -14,6 +14,8 @@ import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
 import type { PlainThreadSummary } from '../types/plain';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -215,9 +217,13 @@ export function useTaskManagement() {
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
-  const openTaskModalImplRef = useRef<() => void>(() => {});
+  const openTaskModalImplRef = useRef<(project?: Project) => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
-  const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const preflightPromiseRef = useRef<Promise<unknown> | undefined>(undefined);
+  const openTaskModal = useCallback(
+    (project?: Project) => openTaskModalImplRef.current(project),
+    []
+  );
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -382,9 +388,8 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
-      openTaskModal();
+      openTaskModal(targetProject);
     },
     [activateProjectView, projects, openTaskModal]
   );
@@ -912,15 +917,20 @@ export function useTaskManagement() {
       linkedGithubIssue: GitHubIssueSummary | null = null,
       linkedJiraIssue: JiraIssueSummary | null = null,
       linkedPlainThread: PlainThreadSummary | null = null,
+      linkedGitlabIssue: GitLabIssueSummary | null = null,
+      linkedForgejoIssue: ForgejoIssueSummary | null = null,
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      overrideProject?: Project
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = overrideProject ?? pendingTaskProjectRef.current ?? selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
+      const preflight = preflightPromiseRef.current;
+      preflightPromiseRef.current = undefined;
       await createTaskMutation.mutateAsync({
         project: targetProject,
         taskName,
@@ -930,10 +940,13 @@ export function useTaskManagement() {
         linkedGithubIssue,
         linkedJiraIssue,
         linkedPlainThread,
+        linkedGitlabIssue,
+        linkedForgejoIssue,
         autoApprove,
         nameGenerated,
         useWorktree,
         baseRef,
+        preflightPromise: preflight,
       });
     },
     [selectedProject, createTaskMutation]
@@ -955,10 +968,27 @@ export function useTaskManagement() {
   }, [isCreatingTask]);
 
   // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
-  openTaskModalImplRef.current = () => {
+  openTaskModalImplRef.current = (project?: Project) => {
+    if (project === undefined) pendingTaskProjectRef.current = null;
+
+    // Fire preflight reserve freshness check while the user fills in the form.
+    const targetProject = project ?? pendingTaskProjectRef.current ?? selectedProject;
+    if (targetProject) {
+      preflightPromiseRef.current = window.electronAPI
+        .worktreePreflightReserve({
+          projectId: targetProject.id,
+          projectPath: targetProject.path,
+        })
+        .catch((err) => {
+          console.warn('[preflight] failed', err);
+        });
+    }
+
     showModal('taskModal', {
+      initialProject: project,
       onClose: () => {
         pendingTaskProjectRef.current = null;
+        preflightPromiseRef.current = undefined;
       },
     });
   };

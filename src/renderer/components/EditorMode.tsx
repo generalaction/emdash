@@ -195,10 +195,10 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       const result = await window.electronAPI.fsList(taskPath, { includeDirs: true });
 
       if (result.success && result.items) {
-        // Filter using whitelist approach
-        const filteredItems = showIgnoredFiles
-          ? result.items
-          : result.items.filter((item) => shouldIncludeFile(item.path));
+        // Filter out null/invalid items and apply whitelist approach
+        const filteredItems = result.items
+          .filter((item) => item && item.type)
+          .filter((item) => showIgnoredFiles || shouldIncludeFile(item.path));
 
         // Sort items: directories first, then files, both alphabetically
         const sortedItems = filteredItems.sort((a, b) => {
@@ -329,10 +329,10 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
       const result = await window.electronAPI.fsList(fullPath, { includeDirs: true });
 
       if (result.success && result.items) {
-        // Filter using whitelist approach
-        const filteredItems = showIgnoredFiles
-          ? result.items
-          : result.items.filter((item) => shouldIncludeFile(item.path));
+        // Filter out null/invalid items and apply whitelist approach
+        const filteredItems = result.items
+          .filter((item) => item && item.type)
+          .filter((item) => showIgnoredFiles || shouldIncludeFile(item.path));
 
         // Sort items: directories first, then files, both alphabetically
         const sortedItems = filteredItems.sort((a, b) => {
@@ -412,7 +412,8 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
   };
 
   // Render file tree recursively
-  const renderFileTree = (node: FileNode, level: number = 0) => {
+  const renderFileTree = (node: FileNode | null, level: number = 0) => {
+    if (!node) return null;
     const isExpanded = expandedDirs.has(node.path);
     const isSelected = selectedFile === node.path;
 
@@ -449,7 +450,11 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
           <span className="truncate text-sm">{node.name}</span>
         </div>
         {node.type === 'directory' && isExpanded && node.children && (
-          <div>{node.children.map((child) => renderFileTree(child, level + 1))}</div>
+          <div>
+            {node.children
+              .filter((child) => child)
+              .map((child) => renderFileTree(child, level + 1))}
+          </div>
         )}
       </div>
     );

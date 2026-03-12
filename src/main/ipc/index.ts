@@ -19,7 +19,6 @@ import { appSettingsController } from './settingsIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
-import { registerLineCommentsIpc } from './lineCommentsIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
 import { registerMcpIpc } from './mcpIpc';
@@ -27,6 +26,7 @@ import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
 import { registerPlainIpc } from './plainIpc';
+import { registerForgejoIpc } from './forgejoIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
@@ -53,8 +53,6 @@ export function registerAllIpc() {
   registerHostPreviewIpc();
   registerBrowserIpc();
   registerNetIpc();
-  registerLineCommentsIpc();
-
   // Existing modules
   registerPtyIpc();
   registerWorktreeIpc();
@@ -69,4 +67,5 @@ export function registerAllIpc() {
   registerMcpIpc();
   registerGitlabIpc();
   registerPlainIpc();
+  registerForgejoIpc();
 }

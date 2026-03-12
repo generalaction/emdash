@@ -1,11 +1,11 @@
-import { stripAnsi } from './stripAnsi';
+import { stripAnsi } from '@shared/text/stripAnsi';
 
 export function consumeSubmittedInputChunk(args: {
   currentInput: string;
   data: string;
   isNewlineInsert: boolean;
 }): { currentInput: string; submittedText: string | null } {
-  const clean = stripAnsi(args.data);
+  const clean = stripAnsi(args.data, { includePrivateCsiParams: true, stripOscSt: true });
   let currentInput = args.currentInput;
   let submittedText: string | null = null;
 

@@ -91,6 +91,7 @@ export interface AppSettings {
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
+    autoInferTaskNames: boolean;
     autoApproveByDefault: boolean;
     createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
@@ -103,6 +104,7 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    fontSize: number;
     autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
@@ -146,6 +148,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
+    autoInferTaskNames: true,
     autoApproveByDefault: false,
     createWorktreeByDefault: true,
     autoTrustWorktrees: true,
@@ -175,6 +178,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    fontSize: 0,
     autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
@@ -391,6 +395,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const tasks = (input as any)?.tasks || {};
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
+    autoInferTaskNames: Boolean(
+      tasks?.autoInferTaskNames ?? DEFAULT_SETTINGS.tasks!.autoInferTaskNames
+    ),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
@@ -513,7 +520,13 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
-  out.terminal = { fontFamily, autoCopyOnSelection };
+  const rawFontSize = term?.fontSize;
+  let fontSize = 0;
+  if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
+    const clamped = Math.round(rawFontSize);
+    fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
+  }
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;

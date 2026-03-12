@@ -7,6 +7,7 @@ import jiraSvg from '../../assets/images/Jira.svg?raw';
 import linearSvg from '../../assets/images/Linear.svg?raw';
 import gitlabSvg from '../../assets/images/GitLab.svg?raw';
 import plainSvg from '../../assets/images/Plain.svg?raw';
+import forgejoSvg from '../../assets/images/Forgejo.svg?raw';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -21,6 +22,7 @@ import { Separator } from './ui/separator';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import { useModalContext } from '../contexts/ModalProvider';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
+import ForgejoSetupForm from './integrations/ForgejoSetupForm';
 import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
@@ -54,7 +56,7 @@ const IntegrationsCard: React.FC = () => {
 
   // Modal state: which integration setup is open
   const [integrationSetupModal, setIntegrationSetupModal] = useState<
-    null | 'linear' | 'jira' | 'gitlab' | 'plain'
+    null | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo'
   >(null);
   const [showGithubModal, setShowGithubModal] = useState(false);
 
@@ -77,12 +79,19 @@ const IntegrationsCard: React.FC = () => {
   const [plainInput, setPlainInput] = useState('');
   const [plainLoading, setPlainLoading] = useState(false);
 
+  // Forgejo state
+  const [forgejoConnected, setForgejoConnected] = useState(false);
+  const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
+  const [forgejoToken, setForgejoToken] = useState('');
+  const [forgejoLoading, setForgejoLoading] = useState(false);
+
   // Error states
   const [githubError, setGithubError] = useState<string | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [gitlabError, setGitlabError] = useState<string | null>(null);
   const [plainError, setPlainError] = useState<string | null>(null);
+  const [forgejoError, setForgejoError] = useState<string | null>(null);
   // Check connection statuses on mount
   useEffect(() => {
     const checkLinear = async () => {
@@ -121,10 +130,20 @@ const IntegrationsCard: React.FC = () => {
       }
     };
 
+    const checkForgejo = async () => {
+      try {
+        const result = await window.electronAPI.forgejoCheckConnection?.();
+        setForgejoConnected(!!result?.success);
+      } catch {
+        setForgejoConnected(false);
+      }
+    };
+
     void checkLinear();
     void checkJira();
     void checkGitlab();
     void checkPlain();
+    void checkForgejo();
   }, []);
 
   // GitHub handlers
@@ -335,6 +354,44 @@ const IntegrationsCard: React.FC = () => {
     }
   }, []);
 
+  // Forgejo handlers
+  const handleForgejoSubmit = useCallback(async () => {
+    setForgejoError(null);
+    setForgejoLoading(true);
+    try {
+      const res = await window.electronAPI.forgejoSaveCredentials?.({
+        instanceUrl: forgejoInstanceUrl.trim(),
+        token: forgejoToken.trim(),
+      });
+      if (res?.success) {
+        setForgejoConnected(true);
+        setForgejoInstanceUrl('');
+        setForgejoToken('');
+        setIntegrationSetupModal(null);
+      } else {
+        setForgejoError(res?.error || 'Failed to connect.');
+      }
+    } catch (e: any) {
+      setForgejoError(e?.message || 'Failed to connect.');
+    } finally {
+      setForgejoLoading(false);
+    }
+  }, [forgejoInstanceUrl, forgejoToken]);
+
+  const handleForgejoDisconnect = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.forgejoClearCredentials?.();
+      if (result?.success) {
+        setForgejoConnected(false);
+        setForgejoInstanceUrl('');
+        setForgejoToken('');
+        setIntegrationSetupModal(null);
+      }
+    } catch (error) {
+      console.error('Forgejo disconnect failed:', error);
+    }
+  }, []);
+
   const integrations = [
     {
       id: 'github',
@@ -397,6 +454,19 @@ const IntegrationsCard: React.FC = () => {
         setIntegrationSetupModal('plain');
       },
       onDisconnect: handlePlainDisconnect,
+    },
+    {
+      id: 'forgejo',
+      name: 'Forgejo',
+      description: 'Work on Forgejo issues',
+      logoSvg: forgejoSvg,
+      connected: forgejoConnected,
+      loading: forgejoLoading,
+      onConnect: () => {
+        setForgejoError(null);
+        setIntegrationSetupModal('forgejo');
+      },
+      onDisconnect: handleForgejoDisconnect,
     },
   ];
 
@@ -466,10 +536,64 @@ const IntegrationsCard: React.FC = () => {
             setJiraError(null);
             setGitlabError(null);
             setPlainError(null);
+            setForgejoError(null);
           }
         }}
       >
         <DialogContent className="max-w-md">
+          {integrationSetupModal === 'forgejo' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Connect Forgejo</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Enter your Forgejo instance URL and a personal access token to connect.
+                </DialogDescription>
+              </DialogHeader>
+              <Separator />
+              <div className="space-y-4">
+                <ForgejoSetupForm
+                  instanceUrl={forgejoInstanceUrl}
+                  token={forgejoToken}
+                  onChange={(u) => {
+                    if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
+                    if (typeof u.token === 'string') setForgejoToken(u.token);
+                  }}
+                  onClose={() => {
+                    setIntegrationSetupModal(null);
+                    setForgejoError(null);
+                  }}
+                  canSubmit={!!(forgejoInstanceUrl.trim() && forgejoToken.trim())}
+                  error={forgejoError}
+                  onSubmit={handleForgejoSubmit}
+                  hideHeader
+                  hideFooter
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationSetupModal(null);
+                    setForgejoError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleForgejoSubmit()}
+                  disabled={!(forgejoInstanceUrl.trim() && forgejoToken.trim()) || forgejoLoading}
+                >
+                  {forgejoLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
           {integrationSetupModal === 'linear' && (
             <>
               <DialogHeader>

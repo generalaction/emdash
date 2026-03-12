@@ -27,6 +27,10 @@ interface IntegrationStatus {
   // Plain
   isPlainConnected: boolean | null;
   handlePlainConnect: (apiKey: string) => Promise<void>;
+
+  // Forgejo
+  isForgejoConnected: boolean | null;
+  handleForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -38,6 +42,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const [isJiraConnected, setIsJiraConnected] = useState<boolean | null>(null);
   const [isGitlabConnected, setIsGitlabConnected] = useState<boolean | null>(null);
   const [isPlainConnected, setIsPlainConnected] = useState<boolean | null>(null);
+  const [isForgejoConnected, setIsForgejoConnected] = useState<boolean | null>(null);
 
   const {
     installed: githubInstalled,
@@ -205,6 +210,44 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     }
   }, []);
 
+  // Check Forgejo connection
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancel = false;
+    const api = window.electronAPI as any;
+    if (!api?.forgejoCheckConnection) {
+      setIsForgejoConnected(false);
+      return;
+    }
+    api
+      .forgejoCheckConnection()
+      .then((res: any) => {
+        if (!cancel) setIsForgejoConnected(!!res?.success);
+      })
+      .catch(() => {
+        if (!cancel) setIsForgejoConnected(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isOpen]);
+
+  const handleForgejoConnect = useCallback(
+    async (credentials: { instanceUrl: string; token: string }) => {
+      const api = window.electronAPI as any;
+      const res = await api?.forgejoSaveCredentials?.({
+        instanceUrl: credentials.instanceUrl,
+        token: credentials.token,
+      });
+      if (res?.success) {
+        setIsForgejoConnected(true);
+      } else {
+        throw new Error(res?.error || 'Failed to connect.');
+      }
+    },
+    []
+  );
+
   return {
     isLinearConnected,
     handleLinearConnect,
@@ -218,5 +261,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     handleGitlabConnect,
     isPlainConnected,
     handlePlainConnect,
+    isForgejoConnected,
+    handleForgejoConnect,
   };
 }

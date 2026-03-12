@@ -525,7 +525,7 @@ export function applySessionIsolation(
     return true;
   }
 
-  if (hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
+  if (isResume && hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
     // Main chat transitioning to multi-chat mode. Try to discover its
     // existing session from Claude's local storage and adopt it.
     const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
@@ -667,6 +667,7 @@ type ProviderCliArgsOptions = {
   resumeFlag?: string;
   defaultArgs?: string[];
   extraArgs?: string[];
+  runtimeArgs?: string[];
   autoApprove?: boolean;
   autoApproveFlag?: string;
   initialPrompt?: string;
@@ -744,6 +745,14 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
     args.push(...parseShellArgs(options.autoApproveFlag));
   }
 
+  if (options.extraArgs?.length) {
+    args.push(...options.extraArgs);
+  }
+
+  if (options.runtimeArgs?.length) {
+    args.push(...options.runtimeArgs);
+  }
+
   if (
     options.initialPromptFlag !== undefined &&
     !options.useKeystrokeInjection &&
@@ -753,10 +762,6 @@ export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] 
       args.push(...parseShellArgs(options.initialPromptFlag));
     }
     args.push(options.initialPrompt.trim());
-  }
-
-  if (options.extraArgs?.length) {
-    args.push(...options.extraArgs);
   }
 
   return args;
@@ -1131,6 +1136,7 @@ export function startDirectPty(options: {
         resumeFlag: resolvedConfig.resumeFlag,
         defaultArgs: resolvedConfig.defaultArgs,
         extraArgs: resolvedConfig.extraArgs,
+        runtimeArgs: getProviderRuntimeCliArgs({ providerId }),
         autoApprove,
         autoApproveFlag: resolvedConfig.autoApproveFlag,
         initialPrompt,
@@ -1138,7 +1144,6 @@ export function startDirectPty(options: {
         useKeystrokeInjection: provider.useKeystrokeInjection,
       })
     );
-    cliArgs.push(...getProviderRuntimeCliArgs({ providerId }));
   }
 
   // Build minimal environment - just what the CLI needs
@@ -1379,6 +1384,7 @@ export async function startPty(options: {
             resumeFlag: resolvedConfig?.resumeFlag,
             defaultArgs: resolvedConfig?.defaultArgs,
             extraArgs: resolvedConfig?.extraArgs,
+            runtimeArgs: getProviderRuntimeCliArgs({ providerId: provider.id }),
             autoApprove,
             autoApproveFlag: resolvedConfig?.autoApproveFlag,
             initialPrompt,
@@ -1386,7 +1392,6 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
-        cliArgs.push(...getProviderRuntimeCliArgs({ providerId: provider.id }));
 
         if (resolvedConfig?.env) {
           for (const [k, v] of Object.entries(resolvedConfig.env)) {
@@ -1594,4 +1599,165 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
 
 export function getPtyTmuxSessionName(id: string): string | undefined {
   return ptys.get(id)?.tmuxSessionName;
+}
+
+export interface LifecyclePtyHandle {
+  pid: number | null;
+  onData: (callback: (data: string) => void) => void;
+  onExit: (callback: (exitCode: number | null, signal: string | null) => void) => void;
+  onError: (callback: (error: Error) => void) => void;
+  kill: (signal?: string) => void;
+}
+
+function startLifecycleSpawnFallback(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  const { spawn } = require('node:child_process') as typeof import('node:child_process');
+  const { command, cwd, env } = options;
+
+  const child = spawn(command, {
+    cwd: cwd || os.homedir(),
+    shell: true,
+    detached: true,
+    env: { ...process.env, ...(env || {}) },
+  });
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  const onData = (buf: Buffer) => {
+    const str = buf.toString();
+    for (const cb of dataCallbacks) cb(str);
+  };
+  child.stdout?.on('data', onData);
+  child.stderr?.on('data', onData);
+
+  child.on('error', (error: Error) => {
+    for (const cb of errorCallbacks) cb(error);
+  });
+
+  child.on('exit', (code, signal) => {
+    for (const cb of exitCallbacks) cb(code, signal ?? null);
+  });
+
+  return {
+    pid: child.pid ?? null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: (signal?: string) => {
+      const pid = child.pid;
+      if (!pid) return;
+      try {
+        if (process.platform === 'win32') {
+          const args = ['/PID', String(pid), '/T'];
+          if (signal === 'SIGKILL') args.push('/F');
+          spawn('taskkill', args, { stdio: 'ignore' }).unref();
+        } else {
+          process.kill(-pid, (signal as NodeJS.Signals) || 'SIGTERM');
+        }
+      } catch {
+        try {
+          child.kill((signal as NodeJS.Signals) || 'SIGTERM');
+        } catch {}
+      }
+    },
+  };
+}
+
+export function startLifecyclePty(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    return startLifecycleSpawnFallback(options);
+  }
+
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch {
+    return startLifecycleSpawnFallback(options);
+  }
+
+  const { id, command, cwd, env } = options;
+  const defaultShell = getDefaultShell();
+
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...getDisplayEnv(),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(env || {}),
+  };
+
+  const proc = pty.spawn(defaultShell, ['-ilc', command], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 32,
+    cwd: cwd || os.homedir(),
+    env: useEnv,
+  });
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  proc.onData((data: string) => {
+    for (const cb of dataCallbacks) {
+      cb(data);
+    }
+  });
+
+  proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+    ptys.delete(id);
+    for (const cb of exitCallbacks) {
+      cb(exitCode, signal != null ? String(signal) : null);
+    }
+  });
+
+  // node-pty generally throws on startup failures instead of emitting an error event,
+  // but keep the same interface as the child_process fallback.
+  const emitError = (error: unknown) => {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    for (const cb of errorCallbacks) {
+      cb(normalized);
+    }
+  };
+
+  try {
+    const maybeProc = proc as IPty & {
+      on?: (event: string, listener: (error: unknown) => void) => void;
+    };
+    maybeProc.on?.('error', emitError);
+  } catch {}
+
+  ptys.set(id, { id, proc, cwd, kind: 'local', cols: 120, rows: 32 });
+
+  return {
+    pid: typeof proc.pid === 'number' ? proc.pid : null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: (signal?: string) => {
+      ptys.delete(id);
+      try {
+        proc.kill(signal);
+      } catch {}
+    },
+  };
 }
