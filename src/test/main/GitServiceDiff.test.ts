@@ -39,6 +39,7 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'file.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.isBinary).toBeFalsy();
     expect(result.originalContent).toBe('hello\nworld');
     expect(result.modifiedContent).toBe('hello\nchanged');
@@ -54,9 +55,24 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'new.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBeUndefined();
     expect(result.modifiedContent).toBe('line1\nline2');
     expect(result.lines.every((l) => l.type === 'add')).toBe(true);
+  });
+
+  it('should classify untracked binary files as binary', async () => {
+    await commitFile(repo, 'init.txt', 'x\n', 'init');
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05]);
+    await fs.promises.writeFile(path.join(repo, 'new.bin'), binary);
+
+    const result = await getFileDiff(repo, 'new.bin');
+
+    expect(result.mode).toBe('binary');
+    expect(result.isBinary).toBe(true);
+    expect(result.lines).toEqual([]);
+    expect(result.originalContent).toBeUndefined();
+    expect(result.modifiedContent).toBeUndefined();
   });
 
   it('should handle a deleted file (exists at HEAD, removed from disk)', async () => {
@@ -65,6 +81,7 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'doomed.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBe('goodbye\nworld');
     expect(result.modifiedContent).toBeUndefined();
     expect(result.lines.every((l) => l.type === 'del')).toBe(true);
@@ -90,6 +107,7 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'img.png');
 
+    expect(result.mode).toBe('binary');
     expect(result.isBinary).toBe(true);
     expect(result.lines).toEqual([]);
     expect(result.originalContent).toBeUndefined();
@@ -102,11 +120,12 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'file.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBe('content');
     expect(result.modifiedContent).toBe('');
   });
 
-  it('should return undefined content for files exceeding MAX_DIFF_CONTENT_BYTES', async () => {
+  it('should short-circuit oversized files without generating patch lines', async () => {
     // Create a file just over 512KB
     const bigContent = 'x'.repeat(520 * 1024) + '\n';
     await commitFile(repo, 'big.txt', bigContent, 'init');
@@ -116,11 +135,12 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'big.txt');
 
+    expect(result.mode).toBe('largeText');
     // Content exceeds 512KB — should be undefined
     expect(result.originalContent).toBeUndefined();
     expect(result.modifiedContent).toBeUndefined();
-    // Diff lines should still work
-    expect(result.lines.length).toBeGreaterThan(0);
+    // Oversized files now avoid expensive patch generation until force-load.
+    expect(result.lines).toEqual([]);
   });
 
   it('should handle a file in an empty repo (no HEAD)', async () => {
@@ -129,6 +149,7 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'first.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBeUndefined();
     expect(result.modifiedContent).toBe('hello');
     expect(result.lines.every((l) => l.type === 'add')).toBe(true);
@@ -142,16 +163,21 @@ describe('getFileDiff (integration)', () => {
 
   it('should use the merge-base and committed HEAD content for PR review diffs', async () => {
     await commitFile(repo, 'file.txt', 'base\n', 'init');
+    const { stdout: branchStdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: repo,
+    });
+    const defaultBranch = branchStdout.trim();
     await exec('git', ['checkout', '-b', 'feature'], { cwd: repo });
     await commitFile(repo, 'file.txt', 'feature\n', 'feature change');
-    await exec('git', ['checkout', 'master'], { cwd: repo });
+    await exec('git', ['checkout', defaultBranch], { cwd: repo });
     await commitFile(repo, 'file.txt', 'main\n', 'main change');
     await exec('git', ['checkout', 'feature'], { cwd: repo });
 
     await fs.promises.writeFile(path.join(repo, 'file.txt'), 'dirty working tree\n');
 
-    const result = await getFileDiff(repo, 'file.txt', 'master');
+    const result = await getFileDiff(repo, 'file.txt', defaultBranch);
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBe('base');
     expect(result.modifiedContent).toBe('feature');
     expect(result.lines).toContainEqual({ left: 'base', type: 'del' });
@@ -165,6 +191,7 @@ describe('getFileDiff (integration)', () => {
 
     const result = await getFileDiff(repo, 'file.txt', 'HEAD');
 
+    expect(result.mode).toBe('text');
     expect(result.lines).toEqual([]);
     expect(result.originalContent).toBe('same');
     expect(result.modifiedContent).toBe('same');
@@ -192,6 +219,7 @@ describe('getCommitFileDiff (integration)', () => {
 
     const result = await getCommitFileDiff(repo, hash, 'file.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.isBinary).toBeFalsy();
     expect(result.originalContent).toBe('hello\nworld');
     expect(result.modifiedContent).toBe('hello\nchanged');
@@ -206,6 +234,7 @@ describe('getCommitFileDiff (integration)', () => {
 
     const result = await getCommitFileDiff(repo, hash, 'file.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBeUndefined();
     expect(result.modifiedContent).toBe('first\nfile');
     expect(result.lines.every((l) => l.type === 'add')).toBe(true);
@@ -220,6 +249,7 @@ describe('getCommitFileDiff (integration)', () => {
 
     const result = await getCommitFileDiff(repo, hash, 'empty.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.modifiedContent).toBe('');
     expect(result.lines).toEqual([]);
   });
@@ -246,6 +276,7 @@ describe('getCommitFileDiff (integration)', () => {
 
     const result = await getCommitFileDiff(repo, hash, 'img.png');
 
+    expect(result.mode).toBe('binary');
     expect(result.isBinary).toBe(true);
     expect(result.lines).toEqual([]);
     expect(result.originalContent).toBeUndefined();
@@ -261,6 +292,7 @@ describe('getCommitFileDiff (integration)', () => {
 
     const result = await getCommitFileDiff(repo, hash, 'file.txt');
 
+    expect(result.mode).toBe('text');
     expect(result.originalContent).toBe('content');
     expect(result.modifiedContent).toBeUndefined();
     expect(result.lines.every((l) => l.type === 'del')).toBe(true);
@@ -274,5 +306,20 @@ describe('getCommitFileDiff (integration)', () => {
     await expect(getCommitFileDiff(repo, hash, '../../../etc/passwd')).rejects.toThrow(
       'File path is outside the worktree'
     );
+  });
+
+  it('should normalize relative path variants for commit diffs', async () => {
+    await commitFile(repo, 'file.txt', 'line-1\n', 'init');
+    await fs.promises.writeFile(path.join(repo, 'file.txt'), 'line-2\n');
+    await exec('git', ['add', 'file.txt'], { cwd: repo });
+    await exec('git', ['commit', '-m', 'update'], { cwd: repo });
+    const { stdout } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repo });
+    const hash = stdout.trim();
+
+    const result = await getCommitFileDiff(repo, hash, './file.txt');
+
+    expect(result.mode).toBe('text');
+    expect(result.lines).toContainEqual({ left: 'line-1', type: 'del' });
+    expect(result.lines).toContainEqual({ right: 'line-2', type: 'add' });
   });
 });

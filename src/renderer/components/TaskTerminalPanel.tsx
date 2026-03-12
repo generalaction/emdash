@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
+import { LifecycleTerminalView } from './LifecycleTerminalView';
 import { Plus, Play, RotateCw, Square, X, Maximize2 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -9,6 +10,8 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { Button } from './ui/button';
 import { useToast } from '../hooks/use-toast';
 import { ToastAction } from './ui/toast';
+import { useTerminalSearch } from '../hooks/useTerminalSearch';
+import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 import {
   Select,
   SelectContent,
@@ -89,6 +92,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     setExpandedTerminalId(null);
   }, [expandedTerminalId]);
 
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const terminalRefs = useRef<Map<string, { focus: () => void }>>(new Map());
   const setTerminalRef = useCallback((id: string, ref: { focus: () => void } | null) => {
     if (ref) {
@@ -254,6 +258,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
 
+  const lifecycleLogContent = useMemo(() => {
+    if (!selection.selectedLifecycle) return '';
+    const content = lifecycleLogs[selection.selectedLifecycle].join('');
+    return content || 'No lifecycle output yet.';
+  }, [lifecycleLogs, selection.selectedLifecycle]);
+
+  const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
+
   const canStartRun =
     !!task &&
     !!projectPath &&
@@ -267,6 +279,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     if (selection.parsed?.mode === 'global') return projectPath ? 'PROJECT' : 'GLOBAL';
     return null;
   }, [selection.parsed?.mode, projectPath]);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminalId: selection.selectedLifecycle ? null : selection.activeTerminalId,
+    containerRef: panelRef,
+    enabled: hasActiveTerminal,
+    onCloseFocus: () => {
+      if (selection.activeTerminalId && !selection.selectedLifecycle) {
+        terminalRefs.current.get(selection.activeTerminalId)?.focus();
+      }
+    },
+  });
 
   const handlePlay = useCallback(async () => {
     if (!task || !projectPath) return;
@@ -459,7 +489,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [nativeTheme, defaultTheme]);
 
   return (
-    <div className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
+    <div ref={panelRef} className={cn('flex h-full min-w-0 flex-col bg-card', className)}>
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <Select
           value={selection.value}
@@ -700,9 +730,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 ? `Teardown status: ${teardownStatus}`
                 : `Run status: ${runStatus}`}
           </div>
-          <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
-            {lifecycleLogs[selection.selectedLifecycle].join('') || 'No lifecycle output yet.'}
-          </pre>
+          <LifecycleTerminalView
+            key={`${task?.id ?? 'no-task'}-${selection.selectedLifecycle}`}
+            content={lifecycleLogContent}
+            variant={
+              effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+            }
+            themeOverride={themeOverride}
+            className="flex-1"
+          />
         </div>
       ) : (
         <div
@@ -717,6 +753,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               : 'bg-white'
           )}
         >
+          <TerminalSearchOverlay
+            isOpen={isSearchOpen && hasActiveTerminal}
+            searchQuery={searchQuery}
+            searchStatus={searchStatus}
+            searchInputRef={searchInputRef}
+            onQueryChange={handleSearchQueryChange}
+            onStep={stepSearch}
+            onClose={closeSearch}
+          />
           {task &&
             taskTerminals.terminals.map((terminal) => {
               const isActive =

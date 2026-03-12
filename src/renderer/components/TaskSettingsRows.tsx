@@ -40,6 +40,39 @@ export const AutoGenerateTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) =
   );
 };
 
+export const AutoInferTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) => {
+  const showError =
+    Boolean(taskSettings.error) &&
+    (taskSettings.errorScope === 'autoInferTaskNames' || taskSettings.errorScope === 'load');
+  const isDisabled = taskSettings.loading || taskSettings.saving || !taskSettings.autoGenerateName;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">
+            Auto-infer task names from conversation
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Replaces the generated task name with one inferred from the conversation context.
+          </p>
+        </div>
+        <Switch
+          checked={taskSettings.autoInferTaskNames}
+          disabled={isDisabled}
+          onCheckedChange={taskSettings.updateAutoInferTaskNames}
+        />
+      </div>
+      {!taskSettings.autoGenerateName ? (
+        <p className="text-xs text-muted-foreground">
+          Requires &ldquo;Auto-generate task names&rdquo; to be enabled.
+        </p>
+      ) : null}
+      {showError ? <p className="text-xs text-destructive">{taskSettings.error}</p> : null}
+    </div>
+  );
+};
+
 export const AutoApproveByDefaultRow: React.FC<RowProps> = ({ taskSettings }) => {
   const showError =
     Boolean(taskSettings.error) && taskSettings.errorScope === 'autoApproveByDefault';
