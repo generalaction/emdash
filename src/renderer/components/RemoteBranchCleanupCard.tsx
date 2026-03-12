@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { Input } from './ui/input';
 import type { RemoteBranchCleanupMode } from '../../shared/remoteBranchCleanup';
@@ -32,6 +32,12 @@ const RemoteBranchCleanupCard: React.FC = () => {
 
   const currentMode: RemoteBranchCleanupMode = settings?.repository?.remoteBranchCleanup ?? 'never';
   const currentDays = settings?.repository?.remoteBranchCleanupDaysThreshold ?? 7;
+
+  // Controlled local state for the days input, synced with settings
+  const [localDays, setLocalDays] = useState<string>(String(currentDays));
+  useEffect(() => {
+    setLocalDays(String(currentDays));
+  }, [currentDays]);
 
   return (
     <div className="grid gap-4">
@@ -83,14 +89,18 @@ const RemoteBranchCleanupCard: React.FC = () => {
               type="number"
               min={1}
               max={365}
-              defaultValue={currentDays}
-              onBlur={(e) => {
-                const raw = parseInt(e.target.value, 10);
+              value={localDays}
+              onChange={(e) => {
+                setLocalDays(e.target.value);
+              }}
+              onBlur={() => {
+                const raw = parseInt(localDays, 10);
                 if (!Number.isFinite(raw) || raw < 1) {
-                  e.target.value = String(currentDays);
+                  setLocalDays(String(currentDays));
                   return;
                 }
                 const clamped = Math.min(365, Math.max(1, raw));
+                setLocalDays(String(clamped));
                 updateSettings({
                   repository: { remoteBranchCleanupDaysThreshold: clamped },
                 });

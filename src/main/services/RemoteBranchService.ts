@@ -22,7 +22,6 @@ export interface RemoteBranchDeletionResult {
 const ALREADY_ABSENT_PATTERNS = [
   /remote ref does not exist/i,
   /unknown revision/i,
-  /not found/i,
   /error: unable to delete '[^']*': remote ref does not exist/i,
 ];
 
@@ -153,14 +152,14 @@ export class RemoteBranchService {
   ): Promise<boolean> {
     const dateStr = await getLastCommitDate(projectPath, branch);
     if (!dateStr) {
-      // Cannot determine — treat as stale so users aren't surprised by
-      // branches that silently escape cleanup.
-      return true;
+      // Cannot determine — fail closed (skip deletion) to prevent
+      // accidental removal of live branches we can't verify.
+      return false;
     }
 
     const commitDate = new Date(dateStr);
     if (isNaN(commitDate.getTime())) {
-      return true;
+      return false;
     }
 
     const now = new Date();

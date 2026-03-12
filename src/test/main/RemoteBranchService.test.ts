@@ -89,7 +89,7 @@ describe('RemoteBranchService.deleteRemoteBranch', () => {
     expect(result.message).toContain('already absent');
   });
 
-  it('handles "not found" error gracefully', async () => {
+  it('returns failure for generic "not found" error (not treated as already-absent)', async () => {
     const err = Object.assign(new Error('branch not found'), {
       stderr: 'error: branch not found',
     });
@@ -97,8 +97,8 @@ describe('RemoteBranchService.deleteRemoteBranch', () => {
 
     const result = await service.deleteRemoteBranch('/repo', 'feature/gone');
 
-    expect(result.success).toBe(true);
-    expect(result.alreadyAbsent).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.alreadyAbsent).toBe(false);
   });
 
   it('handles "unknown revision" error gracefully', async () => {
@@ -208,20 +208,20 @@ describe('RemoteBranchService.isBranchStale', () => {
     expect(result).toBe(false);
   });
 
-  it('returns true when date cannot be determined (no commits)', async () => {
+  it('returns false when date cannot be determined (fail-closed)', async () => {
     mockExecFileAsync.mockRejectedValueOnce(new Error('unknown revision'));
 
     const result = await service.isBranchStale('/repo', 'feature/gone', 7);
 
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
-  it('returns true when git returns empty output', async () => {
+  it('returns false when git returns empty output (fail-closed)', async () => {
     mockExecFileAsync.mockResolvedValueOnce({ stdout: '' });
 
     const result = await service.isBranchStale('/repo', 'feature/empty', 7);
 
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
   it('returns true for exactly the threshold boundary', async () => {
@@ -233,12 +233,12 @@ describe('RemoteBranchService.isBranchStale', () => {
     expect(result).toBe(true);
   });
 
-  it('returns true for invalid date string', async () => {
+  it('returns false for invalid date string (fail-closed)', async () => {
     mockExecFileAsync.mockResolvedValueOnce({ stdout: 'not-a-real-date\n' });
 
     const result = await service.isBranchStale('/repo', 'feature/bad', 7);
 
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 });
 
@@ -274,6 +274,13 @@ describe('RemoteBranchService.evaluateCleanupAction', () => {
     mockExecFileAsync.mockResolvedValueOnce({ stdout: freshDate + '\n' });
 
     const result = await service.evaluateCleanupAction('/repo', 'feature/fresh', 'auto', 7);
+    expect(result).toBe('skip');
+  });
+
+  it('returns "skip" for mode "auto" when branch date is unknown (fail-closed)', async () => {
+    mockExecFileAsync.mockRejectedValueOnce(new Error('unknown revision'));
+
+    const result = await service.evaluateCleanupAction('/repo', 'feature/unknown', 'auto', 7);
     expect(result).toBe('skip');
   });
 

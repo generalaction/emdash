@@ -354,8 +354,19 @@ export function useTaskManagement() {
       switch (result.action) {
         case 'delete':
           return true;
-        case 'ask':
-          return window.confirm(`Also delete remote branch "${task.branch}" on origin?`);
+        case 'ask': {
+          const confirmed = await new Promise<boolean>((resolve) => {
+            showModal('confirmModal', {
+              title: 'Delete remote branch?',
+              description: `Also delete remote branch "${task.branch}" on origin?`,
+              confirmLabel: 'Delete',
+              cancelLabel: 'Keep',
+              onSuccess: () => resolve(true),
+              onClose: () => resolve(false),
+            });
+          });
+          return confirmed;
+        }
         case 'skip':
         default:
           return false;
@@ -635,7 +646,7 @@ export function useTaskManagement() {
         return false;
       }
     },
-    [deleteTaskMutation, toast, settings]
+    [deleteTaskMutation, toast, settings, showModal]
   );
 
   // ---------------------------------------------------------------------------
@@ -737,7 +748,7 @@ export function useTaskManagement() {
         return false;
       }
     },
-    [archiveTaskMutation, settings]
+    [archiveTaskMutation, settings, showModal]
   );
 
   // ---------------------------------------------------------------------------
