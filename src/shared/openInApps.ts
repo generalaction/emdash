@@ -316,7 +316,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
         openCommands: ['studio {{path}}', 'open -a "Android Studio" {{path}}'],
         bundleIds: ['com.google.android.studio'],
         appNames: ['Android Studio'],
-        checkCommands: ['studio64', 'studio'],
+        checkCommands: ['studio'],
       },
       win32: {
         openCommands: ['studio64 {{path}}', 'studio {{path}}'],
