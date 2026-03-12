@@ -1,12 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
+import type { DiffWarning } from '@shared/diff/types';
 import type { DiffLine } from '../../hooks/useFileDiff';
-import {
-  convertDiffLinesToMonacoFormat,
-  getMonacoLanguageId,
-  isBinaryFile,
-} from '../../lib/diffUtils';
+import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
 import { registerDiffThemes, getDiffThemeName } from '../../lib/monacoDiffThemes';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
@@ -14,6 +11,16 @@ import { dispatchFileChangeEvent } from '../../lib/fileChangeEvents';
 import { useDiffEditorComments } from '../../hooks/useDiffEditorComments';
 import { useTheme } from '../../hooks/useTheme';
 import { registerActiveCodeEditor } from '../../lib/activeCodeEditor';
+import { DiffWarnings } from './DiffWarnings';
+
+const FILE_VIEW_READ_MAX_BYTES = 2 * 1024 * 1024;
+const FILE_VIEW_FORCE_READ_MAX_BYTES = 5 * 1024 * 1024;
+
+function modeToMessage(mode: 'binary' | 'largeText' | 'unrenderable'): string {
+  if (mode === 'binary') return 'Binary file - diff preview is not available';
+  if (mode === 'largeText') return 'Diff is too large to render';
+  return 'Diff could not be rendered';
+}
 
 interface FileDiffViewProps {
   taskPath?: string;
@@ -42,10 +49,13 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     modified: string;
     initialModified: string;
     language: string;
+    mode?: 'text' | 'binary' | 'largeText' | 'unrenderable';
     loading: boolean;
     error: string | null;
+    warnings?: DiffWarning[];
   } | null>(null);
   const [modifiedDraft, setModifiedDraft] = useState('');
+  const [forceLargeLoad, setForceLargeLoad] = useState(false);
 
   const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneDiffEditor | null>(
     null
@@ -67,21 +77,12 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
 
   // Load file data
   useEffect(() => {
+    setForceLargeLoad(false);
+  }, [taskPath, filePath, baseRef]);
+
+  useEffect(() => {
     if (!taskPath || !filePath) {
       setFileData(null);
-      setModifiedDraft('');
-      return;
-    }
-
-    if (isBinaryFile(filePath)) {
-      setFileData({
-        original: '',
-        modified: '',
-        initialModified: '',
-        language: 'plaintext',
-        loading: false,
-        error: 'Binary file — diff not available',
-      });
       setModifiedDraft('');
       return;
     }
@@ -105,9 +106,28 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
           taskPath,
           filePath,
           baseRef,
+          forceLarge: forceLargeLoad,
         });
         if (!diffRes?.success || !diffRes.diff) {
           throw new Error(diffRes?.error || 'Failed to load diff');
+        }
+
+        const mode = diffRes.diff.mode ?? (diffRes.diff.isBinary ? 'binary' : 'text');
+        if (mode !== 'text') {
+          if (!cancelled) {
+            setFileData({
+              original: '',
+              modified: '',
+              initialModified: '',
+              language,
+              mode,
+              loading: false,
+              error: modeToMessage(mode),
+              warnings: diffRes.diff.warnings,
+            });
+            setModifiedDraft('');
+          }
+          return;
         }
 
         const diffLines: DiffLine[] = diffRes.diff.lines;
@@ -118,8 +138,16 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
         if (!baseRef) {
           // Re-read the file from disk to get the most up-to-date working tree content.
           try {
-            const readRes = await window.electronAPI.fsRead(taskPath, filePath, 2 * 1024 * 1024);
-            if (readRes?.success && readRes.content !== undefined && readRes.content !== null) {
+            const maxReadBytes = forceLargeLoad
+              ? FILE_VIEW_FORCE_READ_MAX_BYTES
+              : FILE_VIEW_READ_MAX_BYTES;
+            const readRes = await window.electronAPI.fsRead(taskPath, filePath, maxReadBytes);
+            if (
+              readRes?.success &&
+              readRes.truncated !== true &&
+              readRes.content !== undefined &&
+              readRes.content !== null
+            ) {
               modifiedContent = readRes.content.replace(/\n$/, '');
             }
           } catch {
@@ -133,8 +161,10 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
             modified: modifiedContent,
             initialModified: modifiedContent,
             language,
+            mode: 'text',
             loading: false,
             error: null,
+            warnings: diffRes.diff.warnings,
           });
           setModifiedDraft(modifiedContent);
         }
@@ -145,6 +175,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
             modified: '',
             initialModified: '',
             language,
+            mode: undefined,
             loading: false,
             error: (error as Error)?.message ?? String(error),
           });
@@ -156,7 +187,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [taskPath, filePath, baseRef]);
+  }, [taskPath, filePath, baseRef, forceLargeLoad]);
 
   // Inject diff panel styles (always update content so theme-dependent colors refresh)
   useEffect(() => {
@@ -360,29 +391,44 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
 
   if (fileData.error) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {fileData.error}
+      <div className="flex h-full min-h-0 flex-col">
+        <DiffWarnings warnings={fileData.warnings} />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+          <span>{fileData.error}</span>
+          {fileData.mode === 'largeText' && !forceLargeLoad && (
+            <button
+              type="button"
+              className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted"
+              onClick={() => setForceLargeLoad(true)}
+            >
+              Load anyway
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full">
-      <DiffEditor
-        height="100%"
-        language={fileData.language}
-        original={fileData.original}
-        modified={modifiedDraft}
-        theme={monacoTheme}
-        options={{
-          ...DIFF_EDITOR_BASE_OPTIONS,
-          readOnly: !!baseRef,
-          renderSideBySide: diffStyle === 'split',
-          glyphMargin: true,
-          lineDecorationsWidth: 16,
-        }}
-        onMount={handleEditorDidMount}
-      />
+    <div className="flex h-full min-h-0 flex-col">
+      <DiffWarnings warnings={fileData.warnings} />
+      <div className="min-h-0 flex-1">
+        <DiffEditor
+          height="100%"
+          language={fileData.language}
+          original={fileData.original}
+          modified={modifiedDraft}
+          theme={monacoTheme}
+          options={{
+            ...DIFF_EDITOR_BASE_OPTIONS,
+            readOnly: !!baseRef,
+            renderSideBySide: diffStyle === 'split',
+            glyphMargin: true,
+            lineDecorationsWidth: 16,
+          }}
+          onMount={handleEditorDidMount}
+        />
+      </div>
     </div>
   );
 };
