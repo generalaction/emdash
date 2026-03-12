@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
+import { LifecycleTerminalView } from './LifecycleTerminalView';
 import { Plus, Play, RotateCw, Square, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -245,6 +246,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [runStatus, selection.onChange]);
 
   const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
+
+  const lifecycleLogContent = useMemo(() => {
+    if (!selection.selectedLifecycle) return '';
+    const content = lifecycleLogs[selection.selectedLifecycle].join('');
+    return content || 'No lifecycle output yet.';
+  }, [lifecycleLogs, selection.selectedLifecycle]);
+
   const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
 
   const canStartRun =
@@ -690,9 +698,15 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 ? `Teardown status: ${teardownStatus}`
                 : `Run status: ${runStatus}`}
           </div>
-          <pre className="h-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-foreground">
-            {lifecycleLogs[selection.selectedLifecycle].join('') || 'No lifecycle output yet.'}
-          </pre>
+          <LifecycleTerminalView
+            key={`${task?.id ?? 'no-task'}-${selection.selectedLifecycle}`}
+            content={lifecycleLogContent}
+            variant={
+              effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
+            }
+            themeOverride={themeOverride}
+            className="flex-1"
+          />
         </div>
       ) : (
         <div
