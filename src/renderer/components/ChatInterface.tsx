@@ -30,6 +30,7 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
 
 declare const window: Window & {
@@ -984,12 +985,18 @@ const ChatInterface: React.FC<Props> = ({
     } catch {}
   }, [agent, task.id]);
 
-  // Auto-rename task from first terminal message (only if name was auto-generated)
+  // Auto-rename task from first terminal message (only if name was auto-generated
+  // and the auto-infer setting is enabled)
+  const { settings: appSettings } = useAppSettings();
+  const autoInferTaskNames = appSettings?.tasks?.autoInferTaskNames ?? false;
+
   const handleFirstMessage = useCallback(
     (message: string) => {
       if (!project || !onRenameTask) return;
       // Only rename if this task's name was auto-generated
       if (!task.metadata?.nameGenerated) return;
+      // Only rename if auto-infer is enabled
+      if (!autoInferTaskNames) return;
       // Skip multi-agent tasks
       if (task.metadata?.multiAgent?.enabled) return;
 
@@ -1000,11 +1007,12 @@ const ChatInterface: React.FC<Props> = ({
       const uniqueName = ensureUniqueTaskName(generated, existingNames);
       void onRenameTask(project, task, uniqueName);
     },
-    [project, task, onRenameTask]
+    [project, task, onRenameTask, autoInferTaskNames]
   );
 
   // Whether to enable first-message capture for this task
   const shouldCaptureFirstMessage = !!(
+    autoInferTaskNames &&
     task.metadata?.nameGenerated &&
     !task.metadata?.multiAgent?.enabled &&
     project &&
