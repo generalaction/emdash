@@ -252,7 +252,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const content = lifecycleLogs[selection.selectedLifecycle].join('');
     return content || 'No lifecycle output yet.';
   }, [lifecycleLogs, selection.selectedLifecycle]);
-  
+
   const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
 
   const canStartRun =
