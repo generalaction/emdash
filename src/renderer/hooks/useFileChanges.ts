@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
 import { getCachedGitStatus } from '@/lib/gitStatusCache';
+import { filterVisibleGitStatusChanges } from '@/lib/gitStatusFilters';
+import { useGitStatusAutoRefresh } from '@/hooks/internal/useGitStatusAutoRefresh';
 
 export interface FileChange {
   path: string;
   status: 'added' | 'modified' | 'deleted' | 'renamed';
-  additions: number;
-  deletions: number;
+  additions: number | null;
+  deletions: number | null;
   isStaged: boolean;
   diff?: string;
 }
@@ -15,12 +17,6 @@ interface UseFileChangesOptions {
   isActive?: boolean;
   idleIntervalMs?: number;
 }
-
-type IdleCallbackWindow = Window &
-  typeof globalThis & {
-    requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
-    cancelIdleCallback?: (id: number) => void;
-  };
 
 export function shouldRefreshFileChanges(
   taskPath: string | undefined,
@@ -43,9 +39,6 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const taskPathRef = useRef(taskPath);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
-  const shouldPollRef = useRef(false);
-  const idleHandleRef = useRef<number | null>(null);
-  const idleHandleModeRef = useRef<'idle' | 'timeout' | null>(null);
   const mountedRef = useRef(true);
   const pendingRefreshRef = useRef(false);
   const pendingInitialLoadRef = useRef(false);
@@ -122,16 +115,15 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
         }
 
         if (result?.success && result.changes && result.changes.length > 0) {
-          const changes: FileChange[] = result.changes
-            .map((change) => ({
-              path: change.path,
-              status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
-              additions: change.additions || 0,
-              deletions: change.deletions || 0,
-              isStaged: change.isStaged || false,
-              diff: change.diff,
-            }))
-            .filter((c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md');
+          const visibleChanges = filterVisibleGitStatusChanges(result.changes);
+          const changes: FileChange[] = visibleChanges.map((change) => ({
+            path: change.path,
+            status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
+            additions: change.additions ?? null,
+            deletions: change.deletions ?? null,
+            isStaged: change.isStaged || false,
+            diff: change.diff,
+          }));
           setFileChanges(changes);
         } else {
           setFileChanges([]);
@@ -168,120 +160,31 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     [queueRefresh]
   );
 
-  const clearIdleHandle = useCallback(() => {
-    if (idleHandleRef.current === null) return;
-    if (idleHandleModeRef.current === 'idle') {
-      const cancelIdle = (window as IdleCallbackWindow).cancelIdleCallback;
-      cancelIdle?.(idleHandleRef.current);
-    } else {
-      clearTimeout(idleHandleRef.current);
-    }
-    idleHandleRef.current = null;
-    idleHandleModeRef.current = null;
-  }, []);
-
-  const scheduleIdleRefresh = useCallback(() => {
-    if (!shouldPollRef.current) return;
-    clearIdleHandle();
-
-    const run = () => {
-      if (!shouldPollRef.current) return;
-      void fetchFileChanges(false);
-      scheduleIdleRefresh();
-    };
-
-    const requestIdle = (window as IdleCallbackWindow).requestIdleCallback;
-
-    if (requestIdle) {
-      idleHandleModeRef.current = 'idle';
-      idleHandleRef.current = requestIdle(run, { timeout: idleIntervalMs });
-    } else {
-      idleHandleModeRef.current = 'timeout';
-      idleHandleRef.current = window.setTimeout(run, idleIntervalMs);
-    }
-  }, [clearIdleHandle, fetchFileChanges, idleIntervalMs]);
-
   const shouldPoll = shouldRefreshFileChanges(taskPath, isActive, isDocumentVisible);
-
-  useEffect(() => {
-    shouldPollRef.current = shouldPoll;
-  }, [shouldPoll]);
-
-  useEffect(() => {
-    if (!taskPath || !shouldPoll) {
-      clearIdleHandle();
-      return;
-    }
-
-    void fetchFileChanges(!hasLoadedRef.current);
-    scheduleIdleRefresh();
-
-    return () => {
-      clearIdleHandle();
-    };
-  }, [taskPath, shouldPoll, fetchFileChanges, scheduleIdleRefresh, clearIdleHandle]);
+  const { shouldPollRef, scheduleWatcherRefresh, clearScheduledRefresh } = useGitStatusAutoRefresh({
+    taskPath,
+    shouldPoll,
+    idleIntervalMs,
+    hasLoadedRef,
+    fetchChanges: fetchFileChanges,
+  });
 
   useEffect(() => {
     if (!taskPath) return undefined;
 
     const unsubscribe = subscribeToFileChanges((event) => {
       if (event.detail.taskPath === taskPath && shouldPollRef.current) {
-        void fetchFileChanges(false, { force: true });
+        scheduleWatcherRefresh({ force: true });
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [taskPath, fetchFileChanges]);
-
-  useEffect(() => {
-    if (!taskPath) return;
-    const api = window.electronAPI;
-    let off: (() => void) | undefined;
-    let watchId: string | undefined;
-    let disposed = false;
-
-    const watchPromise = api.watchGitStatus
-      ? api.watchGitStatus(taskPath)
-      : Promise.resolve({ success: false });
-
-    watchPromise
-      .then((res: { success?: boolean; watchId?: string }) => {
-        if (disposed) {
-          if (res?.success && res.watchId && api.unwatchGitStatus) {
-            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
-          }
-          return;
-        }
-        if (!res?.success) {
-          return;
-        }
-        watchId = res.watchId;
-        if (api.onGitStatusChanged) {
-          off = api.onGitStatusChanged((event) => {
-            if (event?.taskPath !== taskPath) return;
-            if (!shouldPollRef.current) return;
-            if (event?.error === 'watcher-error') {
-              void fetchFileChanges(false, { force: true });
-              return;
-            }
-            void fetchFileChanges(false, { force: true });
-          });
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      disposed = true;
-      off?.();
-      if (api.unwatchGitStatus && watchId) {
-        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
-      }
-    };
-  }, [taskPath, fetchFileChanges]);
+  }, [taskPath, shouldPollRef, scheduleWatcherRefresh]);
 
   const refreshChanges = async () => {
+    clearScheduledRefresh();
     await fetchFileChanges(true, { force: true });
   };
 

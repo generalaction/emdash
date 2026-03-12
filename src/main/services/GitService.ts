@@ -8,10 +8,28 @@ import {
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
 } from '../utils/diffParser';
-import type { DiffLine, DiffResult } from '../utils/diffParser';
+import { parseGitStatusOutput, parseNumstatOutput } from '../utils/gitStatusParser';
+import type { DiffResult } from '../utils/diffParser';
+import {
+  buildAddedDiffLines,
+  buildDeletedDiffLines,
+  buildOptionalDiffWarnings,
+  isMaxBufferError,
+  type CappedTextResult,
+} from './git-core/diffShared';
+import { updateIndexShared } from './git-core/indexShared';
+import { revertFileShared } from './git-core/revertShared';
+import {
+  applyUntrackedLineCounts,
+  buildStatusChanges,
+  MAX_UNTRACKED_LINECOUNT_BYTES,
+} from './git-core/statusShared';
+import { resolveWorkingTreeDiffResult } from './git-core/workingTreeDiffShared';
+import type { GitChange, GitIndexUpdateArgs } from '../../shared/git/types';
 
 const execFileAsync = promisify(execFile);
-const MAX_UNTRACKED_LINECOUNT_BYTES = 512 * 1024;
+const FORCE_LOAD_DIFF_CONTENT_BYTES = 5 * 1024 * 1024;
+const FORCE_LOAD_DIFF_OUTPUT_BYTES = 30 * 1024 * 1024;
 
 async function countFileNewlinesCapped(filePath: string, maxBytes: number): Promise<number | null> {
   let stat: fs.Stats;
@@ -39,22 +57,35 @@ async function countFileNewlinesCapped(filePath: string, maxBytes: number): Prom
   });
 }
 
-async function readFileTextCapped(filePath: string, maxBytes: number): Promise<string | null> {
+async function readFileTextCapped(filePath: string, maxBytes: number): Promise<CappedTextResult> {
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(filePath);
   } catch {
-    return null;
+    return { exists: false, tooLarge: false };
   }
 
-  if (!stat.isFile() || stat.size > maxBytes) {
-    return null;
+  if (!stat.isFile()) {
+    return { exists: false, tooLarge: false };
+  }
+  if (stat.size > maxBytes) {
+    return { exists: true, tooLarge: true };
   }
 
   try {
-    return await fs.promises.readFile(filePath, 'utf8');
+    const contentBuffer = await fs.promises.readFile(filePath);
+    if (contentBuffer.includes(0x00)) {
+      return { exists: true, tooLarge: false, isBinary: true };
+    }
+
+    const content = contentBuffer.toString('utf8');
+    return {
+      exists: true,
+      tooLarge: false,
+      content: stripTrailingNewline(content),
+    };
   } catch {
-    return null;
+    return { exists: true, tooLarge: false };
   }
 }
 
@@ -62,15 +93,40 @@ async function readGitTextCapped(
   taskPath: string,
   objectSpec: string,
   maxBytes: number
-): Promise<string | undefined> {
+): Promise<CappedTextResult> {
   try {
-    const { stdout } = await execFileAsync('git', ['show', objectSpec], {
+    const { stdout: sizeStdout } = await execFileAsync('git', ['cat-file', '-s', objectSpec], {
+      cwd: taskPath,
+    });
+    const size = parseInt(sizeStdout.trim(), 10);
+    if (Number.isFinite(size) && size > maxBytes) {
+      return { exists: true, tooLarge: true };
+    }
+  } catch {
+    return { exists: false, tooLarge: false };
+  }
+
+  try {
+    const { stdout } = (await execFileAsync('git', ['show', objectSpec], {
       cwd: taskPath,
       maxBuffer: maxBytes,
-    });
-    return stripTrailingNewline(stdout);
-  } catch {
-    return undefined;
+      encoding: 'buffer',
+    })) as { stdout: Buffer };
+
+    if (stdout.includes(0x00)) {
+      return { exists: true, tooLarge: false, isBinary: true };
+    }
+
+    return {
+      exists: true,
+      tooLarge: false,
+      content: stripTrailingNewline(stdout.toString('utf8')),
+    };
+  } catch (error) {
+    if (isMaxBufferError(error)) {
+      return { exists: true, tooLarge: true };
+    }
+    return { exists: true, tooLarge: false };
   }
 }
 
@@ -88,306 +144,268 @@ async function resolveReviewBaseRef(taskPath: string, baseRef: string): Promise<
   return baseRef;
 }
 
-export type GitChange = {
-  path: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  isStaged: boolean;
-};
-
 export async function getStatus(taskPath: string): Promise<GitChange[]> {
   try {
-    await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
-      cwd: taskPath,
-    });
+    try {
+      await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
+        cwd: taskPath,
+      });
+    } catch {
+      return [];
+    }
+
+    let statusOutput = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['status', '--porcelain=v2', '-z', '--untracked-files=all'],
+        {
+          cwd: taskPath,
+          maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+        }
+      );
+      statusOutput = stdout;
+    } catch {
+      // Fallback for older git versions that do not support porcelain v2.
+      const { stdout } = await execFileAsync(
+        'git',
+        ['status', '--porcelain', '--untracked-files=all'],
+        {
+          cwd: taskPath,
+          maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+        }
+      );
+      statusOutput = stdout;
+    }
+
+    if (!statusOutput.trim()) return [];
+
+    const entries = parseGitStatusOutput(statusOutput);
+
+    const [stagedResult, unstagedResult] = await Promise.all([
+      execFileAsync('git', ['diff', '--numstat', '--cached'], {
+        cwd: taskPath,
+        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+      }).catch(() => ({
+        stdout: '',
+        stderr: '',
+      })),
+      execFileAsync('git', ['diff', '--numstat'], {
+        cwd: taskPath,
+        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+      }).catch(() => ({
+        stdout: '',
+        stderr: '',
+      })),
+    ]);
+
+    const stagedMap = parseNumstatOutput(stagedResult.stdout);
+    const unstagedMap = parseNumstatOutput(unstagedResult.stdout);
+    const { changes, untrackedPathsNeedingCounts } = buildStatusChanges(
+      entries,
+      stagedMap,
+      unstagedMap
+    );
+
+    if (untrackedPathsNeedingCounts.length === 0) {
+      return changes;
+    }
+
+    const counts = await Promise.all(
+      untrackedPathsNeedingCounts.map((filePath) =>
+        countFileNewlinesCapped(path.join(taskPath, filePath), MAX_UNTRACKED_LINECOUNT_BYTES)
+      )
+    );
+    const untrackedMap = new Map<string, number | null>();
+    for (let i = 0; i < untrackedPathsNeedingCounts.length; i++) {
+      untrackedMap.set(untrackedPathsNeedingCounts[i], counts[i] ?? null);
+    }
+
+    return applyUntrackedLineCounts(changes, untrackedMap);
   } catch {
     return [];
   }
+}
 
-  const { stdout: statusOutput } = await execFileAsync(
-    'git',
-    ['status', '--porcelain', '--untracked-files=all'],
-    {
-      cwd: taskPath,
-    }
-  );
-
-  if (!statusOutput.trim()) return [];
-
-  const statusLines = statusOutput
-    .split('\n')
-    .map((l) => l.replace(/\r$/, ''))
-    .filter((l) => l.length > 0);
-
-  // Parse status lines into file entries
-  const entries: Array<{
-    filePath: string;
-    status: string;
-    statusCode: string;
-    isStaged: boolean;
-  }> = [];
-
-  for (const line of statusLines) {
-    const statusCode = line.substring(0, 2);
-    let filePath = line.substring(3);
-    if (statusCode.includes('R') && filePath.includes('->')) {
-      const parts = filePath.split('->');
-      filePath = parts[parts.length - 1].trim();
-    }
-
-    let status = 'modified';
-    if (statusCode.includes('A') || statusCode.includes('?')) status = 'added';
-    else if (statusCode.includes('D')) status = 'deleted';
-    else if (statusCode.includes('R')) status = 'renamed';
-    else if (statusCode.includes('M')) status = 'modified';
-
-    const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-    entries.push({ filePath, status, statusCode, isStaged });
+function normalizeLocalRelativeFilePath(taskPath: string, filePath: string): string {
+  const absPath = path.resolve(taskPath, filePath);
+  const resolvedTaskPath = path.resolve(taskPath);
+  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
+    throw new Error('File path is outside the worktree');
   }
 
-  // Batch: run ONE staged numstat and ONE unstaged numstat for ALL files at once and parse the file
-  // into a map of file paths to their additions and deletions
-  // Map { filePath: { add: number, del: number } }
-  // Resolve git's rename notation to the new (destination) file path.
-  // Formats: "old.ts => new.ts" or "src/{Old => New}.tsx"
-  const resolveRenamePath = (file: string): string => {
-    if (!file.includes(' => ')) return file;
-    // In-place rename with braces: "src/{Old => New}.tsx"
-    if (file.includes('{')) {
-      return file.replace(/\{[^}]+ => ([^}]+)\}/g, '$1').replace(/\/\//g, '/');
-    }
-    // Full rename: "old.ts => new.ts"
-    return file.split(' => ').pop()!.trim();
-  };
+  const relativePath = path.relative(resolvedTaskPath, absPath);
+  const normalizedPath = relativePath.split(path.sep).join('/');
+  if (!normalizedPath || normalizedPath === '.') {
+    throw new Error('Invalid file path');
+  }
 
-  const parseNumstatMap = (stdout: string): Map<string, { add: number; del: number }> => {
-    const map = new Map<string, { add: number; del: number }>();
-    if (!stdout || !stdout.trim()) return map;
-    for (const line of stdout.trim().split('\n')) {
-      if (!line.trim()) continue;
-      const parts = line.split('\t');
-      if (parts.length >= 3) {
-        const add = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
-        const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
-        const file = resolveRenamePath(parts.slice(2).join('\t'));
-        const existing = map.get(file);
-        if (existing) {
-          existing.add += add;
-          existing.del += del;
-        } else {
-          map.set(file, { add, del });
-        }
+  return normalizedPath;
+}
+
+export async function updateIndex(taskPath: string, args: GitIndexUpdateArgs): Promise<void> {
+  await updateIndexShared(args, {
+    stageAll: async () => {
+      await execFileAsync('git', ['add', '-A'], { cwd: taskPath });
+    },
+    resetAll: async () => {
+      try {
+        await execFileAsync('git', ['reset', 'HEAD', '--', '.'], { cwd: taskPath });
+        return true;
+      } catch {
+        return false;
       }
-    }
-    return map;
-  };
-
-  const [stagedResult, unstagedResult] = await Promise.all([
-    execFileAsync('git', ['diff', '--numstat', '--cached'], { cwd: taskPath }).catch(() => ({
-      stdout: '',
-      stderr: '',
-    })),
-    execFileAsync('git', ['diff', '--numstat'], { cwd: taskPath }).catch(() => ({
-      stdout: '',
-      stderr: '',
-    })),
-  ]);
-
-  const stagedMap = parseNumstatMap(stagedResult.stdout);
-  const unstagedMap = parseNumstatMap(unstagedResult.stdout);
-
-  // Count lines for untracked files in parallel
-  const untrackedEntries = entries.filter(
-    (e) => e.statusCode.includes('?') && !stagedMap.has(e.filePath) && !unstagedMap.has(e.filePath)
-  );
-  const untrackedCounts = await Promise.all(
-    untrackedEntries.map((e) =>
-      countFileNewlinesCapped(path.join(taskPath, e.filePath), MAX_UNTRACKED_LINECOUNT_BYTES)
-    )
-  );
-  const untrackedMap = new Map<string, number>();
-  untrackedEntries.forEach((e, i) => {
-    if (typeof untrackedCounts[i] === 'number') {
-      untrackedMap.set(e.filePath, untrackedCounts[i]!);
-    }
+    },
+    listStagedPaths: async () => {
+      const { stdout } = await execFileAsync('git', ['diff', '--cached', '--name-only'], {
+        cwd: taskPath,
+      });
+      return stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    },
+    stagePaths: async (filePaths) => {
+      await execFileAsync('git', ['add', '--', ...filePaths], { cwd: taskPath });
+    },
+    resetPaths: async (filePaths) => {
+      try {
+        await execFileAsync('git', ['reset', 'HEAD', '--', ...filePaths], { cwd: taskPath });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    resetPath: async (filePath) => {
+      try {
+        await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    removePathFromIndex: async (filePath) => {
+      await execFileAsync('git', ['rm', '--cached', '--', filePath], { cwd: taskPath });
+    },
   });
-
-  // Assemble results
-  const changes: GitChange[] = entries.map((e) => {
-    const staged = stagedMap.get(e.filePath);
-    const unstaged = unstagedMap.get(e.filePath);
-    let additions = (staged?.add ?? 0) + (unstaged?.add ?? 0);
-    const deletions = (staged?.del ?? 0) + (unstaged?.del ?? 0);
-
-    if (additions === 0 && deletions === 0 && untrackedMap.has(e.filePath)) {
-      additions = untrackedMap.get(e.filePath)!;
-    }
-
-    return {
-      path: e.filePath,
-      status: e.status,
-      additions,
-      deletions,
-      isStaged: e.isStaged,
-    };
-  });
-
-  return changes;
-}
-
-export async function stageFile(taskPath: string, filePath: string): Promise<void> {
-  await execFileAsync('git', ['add', '--', filePath], { cwd: taskPath });
-}
-
-export async function stageAllFiles(taskPath: string): Promise<void> {
-  await execFileAsync('git', ['add', '-A'], { cwd: taskPath });
-}
-
-export async function unstageFile(taskPath: string, filePath: string): Promise<void> {
-  try {
-    await execFileAsync('git', ['reset', 'HEAD', '--', filePath], { cwd: taskPath });
-  } catch {
-    // HEAD may not exist (no commits yet) — use rm --cached instead
-    await execFileAsync('git', ['rm', '--cached', '--', filePath], { cwd: taskPath });
-  }
 }
 
 export async function revertFile(
   taskPath: string,
   filePath: string
-): Promise<{ action: 'unstaged' | 'reverted' }> {
-  // Validate filePath doesn't escape the worktree
-  const absPath = path.resolve(taskPath, filePath);
-  const resolvedTaskPath = path.resolve(taskPath);
-  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
-    throw new Error('File path is outside the worktree');
-  }
-
-  // Check if file is tracked in git (exists in HEAD)
-  let fileExistsInHead = false;
-  try {
-    await execFileAsync('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: taskPath });
-    fileExistsInHead = true;
-  } catch {
-    // File doesn't exist in HEAD (it's a new/untracked file), delete it
-    if (fs.existsSync(absPath)) {
-      fs.unlinkSync(absPath);
-    }
-    return { action: 'reverted' };
-  }
-
-  // File exists in HEAD, revert it
-  if (fileExistsInHead) {
-    try {
-      await execFileAsync('git', ['checkout', 'HEAD', '--', filePath], { cwd: taskPath });
-    } catch (error) {
-      // If checkout fails, don't delete the file - throw the error instead
-      throw new Error(
-        `Failed to revert file: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-  return { action: 'reverted' };
+): Promise<{ action: 'reverted' }> {
+  return revertFileShared(filePath, {
+    normalizeFilePath: (pathInput) => normalizeLocalRelativeFilePath(taskPath, pathInput),
+    existsInHead: async (safePath) => {
+      try {
+        await execFileAsync('git', ['cat-file', '-e', `HEAD:${safePath}`], { cwd: taskPath });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    deleteUntracked: async (safePath) => {
+      const absPath = path.resolve(taskPath, safePath);
+      if (fs.existsSync(absPath)) {
+        fs.unlinkSync(absPath);
+      }
+    },
+    checkoutHead: async (safePath) => {
+      try {
+        await execFileAsync('git', ['checkout', 'HEAD', '--', safePath], { cwd: taskPath });
+      } catch (error) {
+        throw new Error(
+          `Failed to revert file: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    },
+  });
 }
 
 export async function getFileDiff(
   taskPath: string,
   filePath: string,
-  baseRef?: string
+  baseRef?: string,
+  forceLarge?: boolean
 ): Promise<DiffResult> {
-  const absPath = path.resolve(taskPath, filePath);
-  const resolvedTaskPath = path.resolve(taskPath);
-  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
-    throw new Error('File path is outside the worktree');
-  }
+  const safeFilePath = normalizeLocalRelativeFilePath(taskPath, filePath);
+  const diffContentLimit = forceLarge ? FORCE_LOAD_DIFF_CONTENT_BYTES : MAX_DIFF_CONTENT_BYTES;
+  const diffOutputLimit = forceLarge ? FORCE_LOAD_DIFF_OUTPUT_BYTES : MAX_DIFF_OUTPUT_BYTES;
 
   const reviewBaseRef = baseRef ? await resolveReviewBaseRef(taskPath, baseRef) : undefined;
   const originalRef = reviewBaseRef || 'HEAD';
 
   // Helper: fetch content at the base ref with size guard
-  const getOriginalContent = async (): Promise<string | undefined> => {
-    return readGitTextCapped(taskPath, `${originalRef}:${filePath}`, MAX_DIFF_CONTENT_BYTES);
+  const getOriginalContent = async (): Promise<CappedTextResult> => {
+    return readGitTextCapped(taskPath, `${originalRef}:${safeFilePath}`, diffContentLimit);
   };
 
-  const getModifiedContent = async (): Promise<string | undefined> => {
+  const getModifiedContent = async (): Promise<CappedTextResult> => {
     if (baseRef) {
-      return readGitTextCapped(taskPath, `HEAD:${filePath}`, MAX_DIFF_CONTENT_BYTES);
+      return readGitTextCapped(taskPath, `HEAD:${safeFilePath}`, diffContentLimit);
     }
 
-    const content = await readFileTextCapped(path.join(taskPath, filePath), MAX_DIFF_CONTENT_BYTES);
-    return content !== null ? stripTrailingNewline(content) : undefined;
+    return readFileTextCapped(path.join(taskPath, safeFilePath), diffContentLimit);
   };
+
+  const [original, modified] = await Promise.all([getOriginalContent(), getModifiedContent()]);
+
+  // Fast path: if we already know this file is binary or too large, skip expensive diff generation.
+  if (original.isBinary || modified.isBinary) {
+    return { lines: [], mode: 'binary', isBinary: true };
+  }
+  if (original.tooLarge || modified.tooLarge) {
+    return resolveWorkingTreeDiffResult({
+      diffStdout: undefined,
+      diffLines: [],
+      hasHunk: false,
+      diffTooLarge: true,
+      diffFailed: false,
+      original,
+      modified,
+    });
+  }
 
   // Step 1: Run git diff
   let diffStdout: string | undefined;
+  let diffTooLarge = false;
+  let diffFailed = false;
   try {
     const diffArgs = baseRef
-      ? ['diff', '--no-color', '--unified=2000', originalRef, 'HEAD', '--', filePath]
-      : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
+      ? ['diff', '--no-color', '--unified=2000', originalRef, 'HEAD', '--', safeFilePath]
+      : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', safeFilePath];
     const { stdout } = await execFileAsync('git', diffArgs, {
       cwd: taskPath,
-      maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+      maxBuffer: diffOutputLimit,
     });
     diffStdout = stdout;
-  } catch {
+  } catch (error) {
+    diffTooLarge = isMaxBufferError(error);
+    diffFailed = !diffTooLarge;
     // git diff failed (no HEAD, untracked file, etc.) — fall through to content-only path
   }
 
-  // Step 2: Parse diff and check binary
+  // Step 2: Parse diff and check mode
+  let diffLines: DiffResult['lines'] = [];
+  let hasHunk = false;
   if (diffStdout !== undefined) {
-    const { lines, isBinary } = parseDiffLines(diffStdout);
-
-    if (isBinary) {
-      return { lines: [], isBinary: true };
+    const parsed = parseDiffLines(diffStdout);
+    if (parsed.isBinary) {
+      return { lines: [], mode: 'binary', isBinary: true };
     }
-
-    // Step 3: Fetch content (only for non-binary)
-    const [originalContent, modifiedContent] = await Promise.all([
-      getOriginalContent(),
-      getModifiedContent(),
-    ]);
-
-    // Step 4: Handle empty diff (for example untracked/deleted files or an empty review diff)
-    if (lines.length === 0) {
-      if (modifiedContent !== undefined && originalContent === undefined) {
-        return {
-          lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-          modifiedContent,
-        };
-      }
-      if (originalContent !== undefined && modifiedContent === undefined) {
-        return {
-          lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-          originalContent,
-        };
-      }
-      return { lines: [], originalContent, modifiedContent };
-    }
-
-    return { lines, originalContent, modifiedContent };
+    diffLines = parsed.lines;
+    hasHunk = parsed.hasHunk;
   }
 
-  // Fallback: git diff failed — try content-only approach
-  const [originalContent, modifiedContent] = await Promise.all([
-    getOriginalContent(),
-    getModifiedContent(),
-  ]);
-
-  if (modifiedContent !== undefined) {
-    return {
-      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-      originalContent,
-      modifiedContent,
-    };
-  }
-  if (originalContent !== undefined) {
-    return {
-      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-      originalContent,
-    };
-  }
-  return { lines: [] };
+  return resolveWorkingTreeDiffResult({
+    diffStdout,
+    diffLines,
+    hasHunk,
+    diffTooLarge,
+    diffFailed,
+    original,
+    modified,
+  });
 }
 
 /** Commit staged files (no push). Returns the commit hash. */
@@ -619,25 +637,16 @@ export async function getCommitFiles(
 export async function getCommitFileDiff(
   taskPath: string,
   commitHash: string,
-  filePath: string
+  filePath: string,
+  forceLarge?: boolean
 ): Promise<DiffResult> {
-  const absPath = path.resolve(taskPath, filePath);
-  const resolvedTaskPath = path.resolve(taskPath);
-  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
-    throw new Error('File path is outside the worktree');
-  }
+  const safeFilePath = normalizeLocalRelativeFilePath(taskPath, filePath);
+  const diffContentLimit = forceLarge ? FORCE_LOAD_DIFF_CONTENT_BYTES : MAX_DIFF_CONTENT_BYTES;
+  const diffOutputLimit = forceLarge ? FORCE_LOAD_DIFF_OUTPUT_BYTES : MAX_DIFF_OUTPUT_BYTES;
 
   // Helper: fetch content at a given ref with size guard
-  const getContentAt = async (ref: string): Promise<string | undefined> => {
-    try {
-      const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
-        cwd: taskPath,
-        maxBuffer: MAX_DIFF_CONTENT_BYTES,
-      });
-      return stripTrailingNewline(stdout);
-    } catch {
-      return undefined;
-    }
+  const getContentAt = async (ref: string): Promise<CappedTextResult> => {
+    return readGitTextCapped(taskPath, `${ref}:${safeFilePath}`, diffContentLimit);
   };
 
   // Check if this is a root commit (no parent)
@@ -649,65 +658,153 @@ export async function getCommitFileDiff(
   }
 
   if (!hasParent) {
-    const modifiedContent = await getContentAt(commitHash);
+    const modified = await getContentAt(commitHash);
+    const modifiedContent = modified.content;
+
+    if (modified.isBinary) {
+      const result = { lines: [], mode: 'binary' as const, isBinary: true };
+      return result;
+    }
+    if (modified.tooLarge) {
+      const result = { lines: [], mode: 'largeText' as const };
+      return result;
+    }
     if (modifiedContent === undefined) {
-      return { lines: [] };
+      const result = { lines: [], mode: 'unrenderable' as const };
+      return result;
     }
     if (modifiedContent === '') {
-      return { lines: [], modifiedContent };
+      const result = { lines: [], mode: 'text' as const, modifiedContent };
+      return result;
     }
-    return {
-      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+    const lines = buildAddedDiffLines(modifiedContent);
+    const result = {
+      lines,
+      mode: 'text' as const,
       modifiedContent,
+      warnings: buildOptionalDiffWarnings(undefined, modifiedContent, lines),
     };
+    return result;
+  }
+
+  const [original, modified] = await Promise.all([
+    getContentAt(`${commitHash}~1`),
+    getContentAt(commitHash),
+  ]);
+  if (original.isBinary || modified.isBinary) {
+    const result = { lines: [], mode: 'binary' as const, isBinary: true };
+    return result;
+  }
+  if (original.tooLarge || modified.tooLarge) {
+    const originalContent = original.content;
+    const modifiedContent = modified.content;
+    const result = {
+      lines: [],
+      mode: 'largeText' as const,
+      originalContent,
+      modifiedContent,
+      warnings: buildOptionalDiffWarnings(originalContent, modifiedContent, []),
+    };
+    return result;
   }
 
   // Run diff
   let diffStdout: string | undefined;
+  let diffTooLarge = false;
+  let diffFailed = false;
   try {
     const { stdout } = await execFileAsync(
       'git',
-      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
-      { cwd: taskPath, maxBuffer: MAX_DIFF_OUTPUT_BYTES }
+      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', safeFilePath],
+      { cwd: taskPath, maxBuffer: diffOutputLimit }
     );
     diffStdout = stdout;
-  } catch {
+  } catch (error) {
+    diffTooLarge = isMaxBufferError(error);
+    diffFailed = !diffTooLarge;
     // diff too large or git error — fall through to content-only path
   }
 
-  let diffLines: DiffLine[] = [];
+  let diffLines: DiffResult['lines'] = [];
+  let hasHunk = false;
   if (diffStdout !== undefined) {
-    const { lines, isBinary } = parseDiffLines(diffStdout);
+    const { lines, isBinary, hasHunk: parsedHasHunk } = parseDiffLines(diffStdout);
     if (isBinary) {
-      return { lines: [], isBinary: true };
+      const result = { lines: [], mode: 'binary' as const, isBinary: true };
+      return result;
     }
     diffLines = lines;
+    hasHunk = parsedHasHunk;
   }
 
-  // Fetch content AFTER binary check to avoid fetching binary blobs
-  const [originalContent, modifiedContent] = await Promise.all([
-    getContentAt(`${commitHash}~1`),
-    getContentAt(commitHash),
-  ]);
+  const originalContent = original.content;
+  const modifiedContent = modified.content;
+  const warnings = buildOptionalDiffWarnings(originalContent, modifiedContent, diffLines);
 
-  if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
+  if (diffTooLarge || original.tooLarge || modified.tooLarge) {
+    const result = {
+      lines: diffLines,
+      mode: 'largeText' as const,
+      originalContent,
+      modifiedContent,
+      warnings,
+    };
+    return result;
+  }
+
+  if (diffLines.length > 0) {
+    const result = {
+      lines: diffLines,
+      mode: 'text' as const,
+      originalContent,
+      modifiedContent,
+      warnings,
+    };
+    return result;
+  }
+
+  if (!hasHunk && diffStdout !== undefined && diffStdout.trim()) {
+    const result = {
+      lines: [],
+      mode: 'unrenderable' as const,
+      originalContent,
+      modifiedContent,
+      warnings: buildOptionalDiffWarnings(originalContent, modifiedContent, []),
+    };
+    return result;
+  }
 
   // Fallback: diff failed or empty — determine from content
   if (modifiedContent !== undefined && modifiedContent !== '') {
-    return {
-      lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
+    const lines = buildAddedDiffLines(modifiedContent);
+    const result = {
+      lines,
+      mode: 'text' as const,
       originalContent,
       modifiedContent,
+      warnings: buildOptionalDiffWarnings(originalContent, modifiedContent, lines),
     };
+    return result;
   }
   if (originalContent !== undefined) {
-    return {
-      lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
+    const lines = buildDeletedDiffLines(originalContent);
+    const result = {
+      lines,
+      mode: 'text' as const,
       originalContent,
       modifiedContent,
+      warnings: buildOptionalDiffWarnings(originalContent, modifiedContent, lines),
     };
+    return result;
   }
-  return { lines: [], originalContent, modifiedContent };
+  const fallbackMode: DiffResult['mode'] = diffFailed ? 'unrenderable' : 'text';
+  const result = {
+    lines: [],
+    mode: fallbackMode,
+    originalContent,
+    modifiedContent,
+  };
+  return result;
 }
 
 /** Soft-reset the latest commit. Returns the commit message that was reset. */

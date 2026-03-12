@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { FileChange } from '../../hooks/useFileChanges';
+import { formatDiffCount } from '../../lib/gitChangePresentation';
 import { DiffToolbar } from './DiffToolbar';
 import { FileDiffView } from './FileDiffView';
 import { splitPath } from './pathUtils';
@@ -70,8 +71,8 @@ export const DiffPanel: React.FC<DiffPanelProps> = ({
               {directory && <span className="truncate text-muted-foreground">{directory}</span>}
               {fileChange && (
                 <span className="ml-auto shrink-0">
-                  <span className="text-green-500">+{fileChange.additions}</span>{' '}
-                  <span className="text-red-500">-{fileChange.deletions}</span>
+                  <span className="text-green-500">+{formatDiffCount(fileChange.additions)}</span>{' '}
+                  <span className="text-red-500">-{formatDiffCount(fileChange.deletions)}</span>
                 </span>
               )}
             </div>

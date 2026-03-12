@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildDiffWarnings,
+  detectLineEndingStyle,
   parseDiffLines,
   stripTrailingNewline,
   MAX_DIFF_CONTENT_BYTES,
@@ -19,9 +21,10 @@ describe('parseDiffLines', () => {
       '+new line\n' +
       ' world\n';
 
-    const { lines, isBinary } = parseDiffLines(stdout);
+    const { lines, isBinary, hasHunk } = parseDiffLines(stdout);
 
     expect(isBinary).toBe(false);
+    expect(hasHunk).toBe(true);
     expect(lines).toEqual([
       { left: 'hello', right: 'hello', type: 'context' },
       { left: 'old line', type: 'del' },
@@ -78,6 +81,36 @@ describe('parseDiffLines', () => {
     expect(lines).toEqual([]);
   });
 
+  it('should parse hunk headers with omitted line counts', () => {
+    const stdout =
+      'diff --git a/f.txt b/f.txt\n' +
+      'index 123..456 100644\n' +
+      '--- a/f.txt\n' +
+      '+++ b/f.txt\n' +
+      '@@ -1 +1 @@\n' +
+      '-old\n' +
+      '+new\n';
+
+    const { lines, hasHunk } = parseDiffLines(stdout);
+    expect(hasHunk).toBe(true);
+    expect(lines).toEqual([
+      { left: 'old', type: 'del' },
+      { right: 'new', type: 'add' },
+    ]);
+  });
+
+  it('should detect git binary patch format', () => {
+    const stdout =
+      'diff --git a/a.bin b/a.bin\n' +
+      'index 111..222 100644\n' +
+      'GIT binary patch\n' +
+      'literal 12\n';
+
+    const { lines, isBinary } = parseDiffLines(stdout);
+    expect(isBinary).toBe(true);
+    expect(lines).toEqual([]);
+  });
+
   it('should return empty for empty input', () => {
     const { lines, isBinary } = parseDiffLines('');
     expect(lines).toEqual([]);
@@ -89,6 +122,38 @@ describe('parseDiffLines', () => {
     expect(lines).toEqual([
       { left: 'some unexpected line', right: 'some unexpected line', type: 'context' },
     ]);
+  });
+});
+
+describe('buildDiffWarnings', () => {
+  it('should detect hidden bidi text', () => {
+    const warnings = buildDiffWarnings({
+      lines: [{ right: `safe\u202Etext`, type: 'add' }],
+    });
+    expect(warnings).toEqual([{ kind: 'hidden-bidi' }]);
+  });
+
+  it('should detect line ending changes', () => {
+    const warnings = buildDiffWarnings({
+      originalContent: 'a\r\nb\r\n',
+      modifiedContent: 'a\nb\n',
+    });
+    expect(warnings).toContainEqual({
+      kind: 'line-endings-change',
+      from: 'crlf',
+      to: 'lf',
+    });
+  });
+});
+
+describe('detectLineEndingStyle', () => {
+  it('should return none for missing or empty text', () => {
+    expect(detectLineEndingStyle(undefined)).toBe('none');
+    expect(detectLineEndingStyle('')).toBe('none');
+  });
+
+  it('should detect mixed line endings', () => {
+    expect(detectLineEndingStyle('a\r\nb\nc\r')).toBe('mixed');
   });
 });
 
