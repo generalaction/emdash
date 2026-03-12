@@ -72,6 +72,20 @@ describe('parseGitStatusOutput', () => {
       },
     ]);
   });
+
+  it('ignores porcelain v1 branch and ignored metadata lines', () => {
+    const output = ['## main...origin/main', '!! ignored.log', ' M changed.ts'].join('\n');
+
+    const entries = parseGitStatusOutput(output);
+    expect(entries).toEqual([
+      {
+        path: 'changed.ts',
+        statusCode: ' M',
+        status: 'modified',
+        isStaged: false,
+      },
+    ]);
+  });
 });
 
 describe('parseNumstatOutput', () => {

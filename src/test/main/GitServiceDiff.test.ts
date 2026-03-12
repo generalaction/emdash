@@ -307,4 +307,19 @@ describe('getCommitFileDiff (integration)', () => {
       'File path is outside the worktree'
     );
   });
+
+  it('should normalize relative path variants for commit diffs', async () => {
+    await commitFile(repo, 'file.txt', 'line-1\n', 'init');
+    await fs.promises.writeFile(path.join(repo, 'file.txt'), 'line-2\n');
+    await exec('git', ['add', 'file.txt'], { cwd: repo });
+    await exec('git', ['commit', '-m', 'update'], { cwd: repo });
+    const { stdout } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repo });
+    const hash = stdout.trim();
+
+    const result = await getCommitFileDiff(repo, hash, './file.txt');
+
+    expect(result.mode).toBe('text');
+    expect(result.lines).toContainEqual({ left: 'line-1', type: 'del' });
+    expect(result.lines).toContainEqual({ right: 'line-2', type: 'add' });
+  });
 });

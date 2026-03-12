@@ -640,17 +640,13 @@ export async function getCommitFileDiff(
   filePath: string,
   forceLarge?: boolean
 ): Promise<DiffResult> {
-  const absPath = path.resolve(taskPath, filePath);
-  const resolvedTaskPath = path.resolve(taskPath);
-  if (!absPath.startsWith(resolvedTaskPath + path.sep) && absPath !== resolvedTaskPath) {
-    throw new Error('File path is outside the worktree');
-  }
+  const safeFilePath = normalizeLocalRelativeFilePath(taskPath, filePath);
   const diffContentLimit = forceLarge ? FORCE_LOAD_DIFF_CONTENT_BYTES : MAX_DIFF_CONTENT_BYTES;
   const diffOutputLimit = forceLarge ? FORCE_LOAD_DIFF_OUTPUT_BYTES : MAX_DIFF_OUTPUT_BYTES;
 
   // Helper: fetch content at a given ref with size guard
   const getContentAt = async (ref: string): Promise<CappedTextResult> => {
-    return readGitTextCapped(taskPath, `${ref}:${filePath}`, diffContentLimit);
+    return readGitTextCapped(taskPath, `${ref}:${safeFilePath}`, diffContentLimit);
   };
 
   // Check if this is a root commit (no parent)
@@ -719,7 +715,7 @@ export async function getCommitFileDiff(
   try {
     const { stdout } = await execFileAsync(
       'git',
-      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
+      ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', safeFilePath],
       { cwd: taskPath, maxBuffer: diffOutputLimit }
     );
     diffStdout = stdout;

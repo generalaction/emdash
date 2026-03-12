@@ -51,6 +51,10 @@ function parsePorcelainV1Line(line: string): ParsedGitStatusEntry | null {
   if (line.length < 3) return null;
 
   const statusCode = line.slice(0, 2);
+  if (statusCode === '##' || statusCode === '!!') {
+    // Branch metadata and ignored-path lines are not file changes.
+    return null;
+  }
   let filePath = line.slice(3);
   let oldPath: string | undefined;
 
