@@ -5,6 +5,8 @@ import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
 import { type PlainThreadSummary } from '../types/plain';
+import { type GitLabIssueSummary } from '../types/gitlab';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 import { rpc } from './rpc';
 
 export interface CreateTaskParams {
@@ -16,12 +18,15 @@ export interface CreateTaskParams {
   linkedGithubIssue: GitHubIssueSummary | null;
   linkedJiraIssue: JiraIssueSummary | null;
   linkedPlainThread: PlainThreadSummary | null;
+  linkedGitlabIssue: GitLabIssueSummary | null;
+  linkedForgejoIssue: ForgejoIssueSummary | null;
   autoApprove?: boolean;
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
   customBranchName?: string;
   customWorktreeName?: string;
+  preflightPromise?: Promise<unknown>;
 }
 
 export interface CreateTaskResult {
@@ -66,7 +71,9 @@ function seedIssueContext(
       taskMetadata?.linearIssue ||
       taskMetadata?.githubIssue ||
       taskMetadata?.jiraIssue ||
-      taskMetadata?.plainThread;
+      taskMetadata?.plainThread ||
+      taskMetadata?.gitlabIssue ||
+      taskMetadata?.forgejoIssue;
     if (!hasIssueContext) return;
 
     let conversationId: string | undefined;
@@ -217,6 +224,65 @@ function seedIssueContext(
         log.error('Failed to seed task with Plain thread context:', seedError as any);
       }
     }
+
+    if (taskMetadata?.gitlabIssue) {
+      try {
+        const issue = taskMetadata.gitlabIssue;
+        const detailParts: string[] = [];
+        if (issue.state) detailParts.push(`State: ${issue.state}`);
+        if (issue.assignee?.name || issue.assignee?.username)
+          detailParts.push(`Assignee: ${issue.assignee.name || issue.assignee.username}`);
+        if (Array.isArray(issue.labels) && issue.labels.length)
+          detailParts.push(`Labels: ${issue.labels.join(', ')}`);
+        const lines = [`Linked GitLab issue: #${issue.iid} — ${issue.title}`];
+        if (detailParts.length) lines.push(`Details: ${detailParts.join(' • ')}`);
+        if (issue.web_url) lines.push(`URL: ${issue.web_url}`);
+        if (issue.description) {
+          lines.push('');
+          lines.push('Issue Description:');
+          lines.push(String(issue.description).trim());
+        }
+        await rpc.db.saveMessage({
+          id: `gitlab-context-${taskId}`,
+          conversationId,
+          content: lines.join('\n'),
+          sender: 'agent',
+          metadata: JSON.stringify({ isGitLabContext: true, gitlabIssue: issue }),
+        });
+      } catch (seedError) {
+        const { log } = await import('./logger');
+        log.error('Failed to seed task with GitLab issue context:', seedError as any);
+      }
+    }
+
+    if (taskMetadata?.forgejoIssue) {
+      try {
+        const issue = taskMetadata.forgejoIssue;
+        const detailParts: string[] = [];
+        if (issue.state) detailParts.push(`State: ${issue.state}`);
+        if (issue.assignee?.name) detailParts.push(`Assignee: ${issue.assignee.name}`);
+        if (Array.isArray(issue.labels) && issue.labels.length)
+          detailParts.push(`Labels: ${issue.labels.join(', ')}`);
+        const lines = [`Linked Forgejo issue: #${issue.number} — ${issue.title}`];
+        if (detailParts.length) lines.push(`Details: ${detailParts.join(' • ')}`);
+        if (issue.html_url) lines.push(`URL: ${issue.html_url}`);
+        if (issue.description) {
+          lines.push('');
+          lines.push('Issue Description:');
+          lines.push(String(issue.description).trim());
+        }
+        await rpc.db.saveMessage({
+          id: `forgejo-context-${taskId}`,
+          conversationId,
+          content: lines.join('\n'),
+          sender: 'agent',
+          metadata: JSON.stringify({ isForgejoContext: true, forgejoIssue: issue }),
+        });
+      } catch (seedError) {
+        const { log } = await import('./logger');
+        log.error('Failed to seed task with Forgejo issue context:', seedError as any);
+      }
+    }
   })();
 }
 
@@ -234,12 +300,15 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedGithubIssue,
     linkedJiraIssue,
     linkedPlainThread,
+    linkedGitlabIssue,
+    linkedForgejoIssue,
     autoApprove,
     nameGenerated,
     useWorktree,
     baseRef,
     customBranchName,
     customWorktreeName,
+    preflightPromise,
   } = params;
 
   // Build prompt prefix from linked issues
@@ -277,6 +346,16 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       }
       parts.push('');
     }
+    if (linkedGitlabIssue) {
+      parts.push(`GitLab: #${linkedGitlabIssue.iid} — ${linkedGitlabIssue.title}`);
+      if (linkedGitlabIssue.web_url) parts.push(`URL: ${linkedGitlabIssue.web_url}`);
+      parts.push('');
+    }
+    if (linkedForgejoIssue) {
+      parts.push(`Forgejo: #${linkedForgejoIssue.number} — ${linkedForgejoIssue.title}`);
+      if (linkedForgejoIssue.html_url) parts.push(`URL: ${linkedForgejoIssue.html_url}`);
+      parts.push('');
+    }
     if (initialPrompt && initialPrompt.trim()) {
       parts.push(initialPrompt.trim());
     }
@@ -288,6 +367,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedJiraIssue ||
     linkedGithubIssue ||
     linkedPlainThread ||
+    linkedGitlabIssue ||
+    linkedForgejoIssue ||
     preparedPrompt ||
     autoApprove ||
     nameGenerated
@@ -296,6 +377,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           jiraIssue: linkedJiraIssue ?? null,
           githubIssue: linkedGithubIssue ?? null,
           plainThread: linkedPlainThread ?? null,
+          gitlabIssue: linkedGitlabIssue ?? null,
+          forgejoIssue: linkedForgejoIssue ?? null,
           initialPrompt: preparedPrompt ?? null,
           autoApprove: autoApprove ?? null,
           nameGenerated: nameGenerated ?? null,
@@ -432,6 +515,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
       if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
       if (linkedPlainThread) captureTelemetry('task_created_with_issue', { source: 'plain' });
+      if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
+      if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
     });
 
     return { task: finalTask };
@@ -447,6 +532,16 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   let warning: string | undefined;
 
   if (useWorktree) {
+    // Wait for the preflight freshness check (started when the modal opened)
+    // so the reserve is up-to-date before we claim it.  Timeout after 10s
+    // to avoid blocking task creation if ls-remote hangs.
+    if (preflightPromise) {
+      await Promise.race([
+        preflightPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+      ]);
+    }
+
     const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
       projectId: project.id,
       projectPath: project.path,
@@ -535,6 +630,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
     if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
     if (linkedPlainThread) captureTelemetry('task_created_with_issue', { source: 'plain' });
+    if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
+    if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
   });
   seedIssueContext(newTask.id, taskMetadata, newTask.agentId || primaryAgent);
 

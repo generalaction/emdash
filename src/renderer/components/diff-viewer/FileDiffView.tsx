@@ -62,6 +62,7 @@ export const FileDiffView: React.FC<FileDiffViewProps> = ({
   useDiffEditorComments({
     editor: editorInstance,
     taskId: taskId ?? '',
+    taskPath,
     filePath,
   });
 

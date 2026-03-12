@@ -143,6 +143,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => {
+    const channel = 'pty:activity';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string; chunk?: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => {
+    const channel = 'pty:exit:global';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { id: string }) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onAgentEvent: (listener: (event: AgentEvent, meta: { appFocused: boolean }) => void) => {
     const channel = 'agent:event';
     const wrapped = (
@@ -217,6 +230,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Worktree pool (reserve) management for instant task creation
   worktreeEnsureReserve: (args: { projectId: string; projectPath: string; baseRef?: string }) =>
     ipcRenderer.invoke('worktree:ensureReserve', args),
+  worktreePreflightReserve: (args: { projectId: string; projectPath: string }) =>
+    ipcRenderer.invoke('worktree:preflightReserve', args),
   worktreeHasReserve: (args: { projectId: string }) =>
     ipcRenderer.invoke('worktree:hasReserve', args),
   worktreeClaimReserve: (args: {
@@ -306,6 +321,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     relPath: string,
     remote?: { connectionId: string; remotePath: string }
   ) => ipcRenderer.invoke('fs:remove', { root, relPath, ...remote }),
+  fsRename: (
+    root: string,
+    oldName: string,
+    newName: string,
+    remote?: { connectionId: string; remotePath: string }
+  ) => ipcRenderer.invoke('fs:rename', { root, oldName, newName, ...remote }),
+  fsMkdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:mkdir', { root, relPath, ...remote }),
+  fsRmdir: (root: string, relPath: string, remote?: { connectionId: string; remotePath: string }) =>
+    ipcRenderer.invoke('fs:rmdir', { root, relPath, ...remote }),
   getProjectConfig: (projectPath: string) =>
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
@@ -533,6 +558,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('plain:initialFetch', limit, statuses),
   plainSearchThreads: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
+  // Forgejo integration
+  forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
+    ipcRenderer.invoke('forgejo:saveCredentials', args),
+  forgejoClearCredentials: () => ipcRenderer.invoke('forgejo:clearCredentials'),
+  forgejoCheckConnection: () => ipcRenderer.invoke('forgejo:checkConnection'),
+  forgejoInitialFetch: (projectPath: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:initialFetch', { projectPath, limit }),
+  forgejoSearchIssues: (projectPath: string, searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('forgejo:searchIssues', { projectPath, searchTerm, limit }),
   getProviderStatuses: (opts?: { refresh?: boolean; providers?: string[]; providerId?: string }) =>
     ipcRenderer.invoke('providers:getStatuses', opts ?? {}),
   getProviderCustomConfig: (providerId: string) =>
@@ -540,19 +574,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProviderCustomConfigs: () => ipcRenderer.invoke('providers:getAllCustomConfigs'),
   updateProviderCustomConfig: (providerId: string, config: any) =>
     ipcRenderer.invoke('providers:updateCustomConfig', providerId, config),
-
-  // Line comments management
-  lineCommentsCreate: (input: any) => ipcRenderer.invoke('lineComments:create', input),
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) =>
-    ipcRenderer.invoke('lineComments:get', args),
-  lineCommentsUpdate: (input: { id: string; content: string }) =>
-    ipcRenderer.invoke('lineComments:update', input),
-  lineCommentsDelete: (id: string) => ipcRenderer.invoke('lineComments:delete', id),
-  lineCommentsGetFormatted: (taskId: string) =>
-    ipcRenderer.invoke('lineComments:getFormatted', taskId),
-  lineCommentsMarkSent: (commentIds: string[]) =>
-    ipcRenderer.invoke('lineComments:markSent', commentIds),
-  lineCommentsGetUnsent: (taskId: string) => ipcRenderer.invoke('lineComments:getUnsent', taskId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>
@@ -851,6 +872,10 @@ export interface ElectronAPI {
     projectId: string;
     projectPath: string;
     baseRef?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  worktreePreflightReserve: (args: {
+    projectId: string;
+    projectPath: string;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeHasReserve: (args: {
     projectId: string;

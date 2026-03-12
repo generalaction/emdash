@@ -493,8 +493,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       // The command palette toggle is exempt so it remains reachable from
       // any context.
       const target = event.target as HTMLElement;
+      // Exclude xterm's hidden textarea from the editable-target check —
+      // it captures keyboard input but is not a user-editable field.
+      const isXtermTextarea = target?.classList?.contains('xterm-helper-textarea');
       const isEditableTarget =
-        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+        !isXtermTextarea &&
+        (target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.isContentEditable);
 
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);

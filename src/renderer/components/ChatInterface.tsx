@@ -14,7 +14,7 @@ import TaskContextBadges from './TaskContextBadges';
 import { useConversationStatus } from '../hooks/useConversationStatus';
 import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
-import { useTaskComments } from '../hooks/useLineComments';
+import { useCommentInjection } from '../hooks/useCommentInjection';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -168,6 +168,7 @@ const ChatInterface: React.FC<Props> = ({
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
 
@@ -230,8 +231,8 @@ const ChatInterface: React.FC<Props> = ({
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Line comments for agent context injection
-  const { formatted: commentsContext } = useTaskComments(task.id);
+  // Wire comment injection to pendingInjectionManager
+  useCommentInjection(task.id, task.path);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -399,6 +400,18 @@ const ChatInterface: React.FC<Props> = ({
 
   // Ref to control terminal focus imperatively if needed
   const terminalRef = useRef<{ focus: () => void }>(null);
+
+  const handleTerminalActivity = useCallback(() => {
+    const storageKey = `agent:locked:${task.id}`;
+    const writeToken = `${storageKey}:${agent}`;
+    if (lockedAgentWriteRef.current === writeToken) return;
+    lockedAgentWriteRef.current = writeToken;
+
+    try {
+      if (window.localStorage.getItem(storageKey) === agent) return;
+      window.localStorage.setItem(storageKey, agent);
+    } catch {}
+  }, [agent, task.id]);
 
   // Auto-focus terminal when switching to this task
   useEffect(() => {
@@ -878,12 +891,7 @@ const ChatInterface: React.FC<Props> = ({
         const body = trimmed.length > max ? trimmed.slice(0, max) + '\n…' : trimmed;
         parts.push('', 'Issue Description:', body);
       }
-      const linearContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${linearContent}`;
-      }
-      return linearContent;
+      return parts.join('\n');
     }
 
     const gh = (md as any)?.githubIssue as
@@ -929,12 +937,7 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
         parts.push('', 'Issue Description:', clipped);
       }
-      const ghContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${ghContent}`;
-      }
-      return ghContent;
+      return parts.join('\n');
     }
 
     const j = md?.jiraIssue as any;
@@ -955,21 +958,11 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
         lines.push('', 'Issue Description:', clipped);
       }
-      const jiraContent = lines.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${jiraContent}`;
-      }
-      return jiraContent;
-    }
-
-    // If we have comments but no other context, return just the comments
-    if (commentsContext) {
-      return `The user has left the following comments on the code changes:\n\n${commentsContext}`;
+      return lines.join('\n');
     }
 
     return null;
-  }, [isTerminal, isMainConversation, task.metadata, commentsContext]);
+  }, [isTerminal, isMainConversation, task.metadata]);
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
@@ -1082,16 +1075,12 @@ const ChatInterface: React.FC<Props> = ({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <div className="ml-auto flex flex-shrink-0 items-center gap-2">
-                  {(task.metadata?.linearIssue ||
-                    task.metadata?.githubIssue ||
-                    task.metadata?.jiraIssue) && (
-                    <TaskContextBadges
-                      taskId={task.id}
-                      linearIssue={task.metadata?.linearIssue || null}
-                      githubIssue={task.metadata?.githubIssue || null}
-                      jiraIssue={task.metadata?.jiraIssue || null}
-                    />
-                  )}
+                  <TaskContextBadges
+                    taskId={task.id}
+                    linearIssue={task.metadata?.linearIssue || null}
+                    githubIssue={task.metadata?.githubIssue || null}
+                    jiraIssue={task.metadata?.jiraIssue || null}
+                  />
                   {autoApproveEnabled && (
                     <span
                       className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
@@ -1168,11 +1157,7 @@ const ChatInterface: React.FC<Props> = ({
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
                   disableSnapshots={false}
-                  onActivity={() => {
-                    try {
-                      window.localStorage.setItem(`agent:locked:${task.id}`, agent);
-                    } catch {}
-                  }}
+                  onActivity={handleTerminalActivity}
                   onStartError={(message) => {
                     setCliStartError(message);
                   }}

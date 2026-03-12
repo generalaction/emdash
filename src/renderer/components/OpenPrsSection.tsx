@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { usePullRequests, type PullRequestSummary } from '../hooks/usePullRequests';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Spinner } from './ui/spinner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
 import { ArrowUpRight, ChevronDown, ChevronRight, Github, Loader2, Search } from 'lucide-react';
@@ -102,14 +101,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
   };
 
   if (loading && prs.length === 0) {
-    return (
-      <div className="mt-8 px-10">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">Open PRs</h2>
-          <Spinner size="sm" className="ml-2 h-4 w-4" />
-        </div>
-      </div>
-    );
+    return null; // Don't show section until PRs are loaded
   }
 
   if (error && prs.length === 0) {

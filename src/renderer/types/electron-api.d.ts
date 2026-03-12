@@ -12,18 +12,6 @@ type ProjectSettingsPayload = {
   baseRef?: string;
 };
 
-export type LineComment = {
-  id: string;
-  taskId: string;
-  filePath: string;
-  lineNumber: number;
-  lineContent?: string | null;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string | null;
-};
-
 export type ProviderCustomConfig = {
   cli?: string;
   resumeFlag?: string;
@@ -130,6 +118,8 @@ declare global {
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
       onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+      onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
       onAgentEvent: (
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
@@ -207,6 +197,10 @@ declare global {
         projectId: string;
         projectPath: string;
         baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreePreflightReserve: (args: {
+        projectId: string;
+        projectPath: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeHasReserve: (args: {
         projectId: string;
@@ -781,6 +775,24 @@ declare global {
         relPath: string,
         remote?: { connectionId: string; remotePath: string }
       ) => Promise<{ success: boolean; error?: string }>;
+
+      fsRename: (
+        root: string,
+        oldName: string,
+        newName: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsMkdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+      fsRmdir: (
+        root: string,
+        relPath: string,
+        remote?: { connectionId: string; remotePath: string }
+      ) => Promise<{ success: boolean; error?: string }>;
+
       getProjectConfig: (
         projectPath: string
       ) => Promise<{ success: boolean; path?: string; content?: string; error?: string }>;
@@ -1007,6 +1019,25 @@ declare global {
         threads?: any[];
         error?: string;
       }>;
+      // Forgejo
+      forgejoSaveCredentials?: (args: {
+        instanceUrl: string;
+        token: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      forgejoClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
+      forgejoCheckConnection?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      forgejoInitialFetch?: (
+        projectPath: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
+      forgejoSearchIssues?: (
+        projectPath: string,
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
       getProviderStatuses?: (opts?: {
         refresh?: boolean;
         providers?: string[];
@@ -1046,46 +1077,6 @@ declare global {
         content: string,
         options?: { reset?: boolean }
       ) => Promise<{ success: boolean; error?: string }>;
-
-      // Line comments
-      lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
-      lineCommentsCreate: (args: {
-        taskId: string;
-        filePath: string;
-        lineNumber: number;
-        lineContent?: string;
-        content: string;
-      }) => Promise<{
-        success: boolean;
-        id?: string;
-        error?: string;
-      }>;
-      lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsDelete: (id: string) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetFormatted: (taskId: string) => Promise<{
-        success: boolean;
-        formatted?: string;
-        error?: string;
-      }>;
-      lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
-      lineCommentsGetUnsent: (taskId: string) => Promise<{
-        success: boolean;
-        comments?: LineComment[];
-        error?: string;
-      }>;
 
       // SSH operations
       sshTestConnection: (config: {
@@ -1346,6 +1337,8 @@ export interface ElectronAPI {
     listener: (info: { exitCode: number; signal?: number }) => void
   ) => () => void;
   onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+  onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+  onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
   onAgentEvent: (
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
   ) => () => void;
@@ -1824,46 +1817,6 @@ export interface ElectronAPI {
     content: string,
     options?: { reset?: boolean }
   ) => Promise<{ success: boolean; error?: string }>;
-
-  // Line comments
-  lineCommentsGet: (args: { taskId: string; filePath?: string }) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
-  lineCommentsCreate: (args: {
-    taskId: string;
-    filePath: string;
-    lineNumber: number;
-    lineContent?: string;
-    content: string;
-  }) => Promise<{
-    success: boolean;
-    id?: string;
-    error?: string;
-  }>;
-  lineCommentsUpdate: (args: { id: string; content: string }) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsDelete: (id: string) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetFormatted: (taskId: string) => Promise<{
-    success: boolean;
-    formatted?: string;
-    error?: string;
-  }>;
-  lineCommentsMarkSent: (commentIds: string[]) => Promise<{
-    success: boolean;
-    error?: string;
-  }>;
-  lineCommentsGetUnsent: (taskId: string) => Promise<{
-    success: boolean;
-    comments?: LineComment[];
-    error?: string;
-  }>;
 
   // Skills management
   skillsGetCatalog: () => Promise<{
