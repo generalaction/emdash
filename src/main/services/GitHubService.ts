@@ -897,7 +897,7 @@ export class GitHubService {
         { cwd: projectPath }
       );
     } catch (fetchError) {
-      // Fallback: try gh pr checkout with detach to avoid working tree conflicts
+      // Fallback: use gh pr checkout to create/sync the local PR branch.
       console.warn(
         'Fetch-based PR branch creation failed, falling back to gh pr checkout:',
         fetchError
@@ -931,7 +931,7 @@ export class GitHubService {
           });
         }
       } catch (error) {
-        console.error('Failed to checkout pull request branch via gh:', error);
+        console.error('Failed during PR branch checkout or local-ref creation:', error);
         throw error;
       } finally {
         if (previousRef && previousRef !== safeBranch) {
