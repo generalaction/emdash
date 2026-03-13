@@ -118,7 +118,6 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     label: 'VS Code Insiders',
     iconPath: ICON_PATHS.vscode,
     autoInstall: true,
-    supportsRemote: true,
     hideIfUnavailable: true,
     platforms: {
       darwin: {
