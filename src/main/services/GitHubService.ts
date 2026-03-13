@@ -915,9 +915,21 @@ export class GitHubService {
 
       try {
         await this.execGH(
-          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force --detach`,
+          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force`,
           { cwd: projectPath }
         );
+        // Some gh/fork combinations can leave HEAD detached without a local branch ref.
+        // Ensure the requested local branch exists for downstream worktree creation.
+        try {
+          await execAsync(
+            `git show-ref --verify --quiet ${JSON.stringify(`refs/heads/${safeBranch}`)}`,
+            { cwd: projectPath }
+          );
+        } catch {
+          await execAsync(`git branch --force ${JSON.stringify(safeBranch)} HEAD`, {
+            cwd: projectPath,
+          });
+        }
       } catch (error) {
         console.error('Failed to checkout pull request branch via gh:', error);
         throw error;
