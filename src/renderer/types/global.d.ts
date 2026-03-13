@@ -407,6 +407,16 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          agentId: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
