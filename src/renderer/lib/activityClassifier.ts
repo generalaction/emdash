@@ -75,6 +75,7 @@ export function classifyActivity(
     if (/Ready|Awaiting input|Press Enter/i.test(text)) return 'idle';
     if (/\b\/(status|approvals|model)\b/i.test(text)) return 'idle';
     if (/send\s+\S*\s*newline|transcript|quit/i.test(text)) return 'idle';
+    if (/What would you like|Type your message|Enter your message/i.test(text)) return 'idle';
   }
 
   if (p === 'copilot') {
