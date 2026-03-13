@@ -3,25 +3,34 @@ title: Scrawl Overview
 description: An Open Source Agentic Writer Environment (AWE)
 ---
 
-Scrawl is an open source desktop app for running multiple writing agents in parallel. Each agent works in an isolated Git worktree, so they don't interfere with each other. Forked from [Emdash](https://github.com/generalaction/emdash) and repositioned for writers — copywriters, content writers, proposal writers, and technical writers.
+Scrawl is an open source desktop app for running multiple writing agents in parallel. Each agent works in an isolated Git worktree, so they don't interfere with each other. We call it an **Agentic Writer Environment (AWE)**.
+
+Built for copywriters, content writers, proposal writers, and technical writers — Scrawl brings the same parallel, isolated, reviewable workflow that developers use with coding agents to the work of producing written content.
+
+> **Attribution.** Scrawl is a fork of [Emdash](https://github.com/generalaction/emdash), an Agentic Development Environment built by the team at [generalaction](https://github.com/generalaction). We mean no disrespect to the original maintainers — their architecture and creativity were the direct inspiration for this project. Scrawl takes that foundation and repositions it for writers.
 
 ## Capabilities
 
-- **[Parallel agents](/parallel-agents):** Run multiple agents on the same writing brief, each in its own workspace
-- **[Provider support](/providers):** Use any of 22+ CLI-based agents: Claude Code, Gemini, Qwen Code, and more
+- **[Parallel agents](/providers):** Run multiple agents on the same writing brief, each in its own isolated workspace
+- **[Provider support](/providers):** Use any of 22+ CLI-based agents — Claude Code, Gemini, Qwen Code, and more
 - **[Best-of-N](/best-of-n):** Run multiple agents on the same brief, compare their drafts, and pick the best
-- **[Diff view](/diff-view):** Review changes across agents side-by-side
-- **[Kanban view](/kanban-view):** Organize writing tasks visually across your workflow
-- **[Issue integration](/issues):** Pull briefs from Linear, Jira, or GitHub Issues directly
+- **[Diff view](/diff-view):** Review every change an agent made before it lands
+- **[Kanban view](/kanban-view):** Organize writing tasks across your content pipeline
+- **[Briefs & tickets](/issues):** Pull writing assignments from Linear, Jira, or GitHub Issues directly
+- **[Skills](/skills):** Install reusable prompt packages for style guide enforcement, tone matching, and format compliance
 
 ## How It Works
 
-Click "Add Task" to create one or more workspaces. Each workspace runs its own agent. You can then review the diff when done, iterate if needed, and open a PR inside of Scrawl.
+Click **Add Task** to create one or more workspaces. Each workspace runs its own agent on your brief. Review the diff when done, iterate if needed, and open a PR inside Scrawl.
+
+The writer sets the brief, reviews the output, and makes the final call. Agents draft; writers decide.
+
+## A Note on AI-Generated Content
+
+Agentic writing carries real risks: generic output, voice homogenization, factual errors. Scrawl is designed to mitigate these — not by avoiding AI assistance, but by keeping humans meaningfully in the loop at every step. Best-of-N comparison, structured diff review, and skills for style enforcement are the core mechanisms.
 
 ## Get Involved
 
 Scrawl is [open source](https://github.com/gidea/scrawl) and welcomes contributions — see the [contributing guide](/contributing).
-
-Visit [agenticwriting.app](https://agenticwriting.app/) for more information.
 
 Available for macOS, Windows, and Linux.

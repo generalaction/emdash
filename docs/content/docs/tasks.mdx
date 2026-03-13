@@ -3,7 +3,7 @@ title: Running Tasks
 description: How to run tasks in Scrawl
 ---
 
-A task is a unit of work — a writing brief, an assignment, a draft to produce. Each task gets its own git branch and worktree, keeping changes isolated until you merge.
+A task is a unit of work — a writing brief, a draft to produce, a section to rewrite. Each task gets its own git branch and worktree, keeping changes isolated until you review and merge them.
 
 ## Creating a Task
 
@@ -12,7 +12,7 @@ A task is a unit of work — a writing brief, an assignment, a draft to produce.
 3. Select a [provider](/providers) (Claude Code, Gemini, Qwen, etc.)
 4. Click **Create**
 
-The agent spawns in a terminal and starts working.
+The agent spawns in a terminal and starts working on your brief.
 
 <img
   src="/media/createtask.png"
@@ -29,7 +29,7 @@ The agent spawns in a terminal and starts working.
 
 ## Workspaces
 
-By default, each task creates a git worktree — a separate copy of your project on its own branch. This keeps agent changes isolated from your main branch and other tasks.
+Each task creates a git worktree — a separate copy of your project on its own branch. This keeps agent output isolated from your main branch and from other tasks running in parallel.
 
 Worktrees are created in a sibling `worktrees/` directory outside your repo.
 
@@ -40,25 +40,25 @@ You can disable worktrees to work directly on your current branch. A warning app
 Run [multiple agents in parallel](/best-of-n) on the same brief:
 
 - Select multiple providers (e.g., Claude Code + Gemini)
-- Or run the same provider multiple times (e.g., 3x Claude Code)
+- Or run the same provider multiple times (e.g., 3× Claude Code with different instructions)
 
 Each agent gets its own workspace. Compare drafts and pick the best result. See [Best of N](/best-of-n).
 
-If tasks start local servers, use `EMDASH_PORT` in your Project config script fields to avoid port collisions between parallel tasks. See [Project Configuration](/project-config).
+This is one of the core techniques for avoiding generic output: different agents approach the same brief differently, giving you real choices rather than a single draft to accept or reject.
 
 ## Advanced Options
 
 Click **Advanced Options** when creating a task to access:
 
-- **Auto-approve**: Skip permission prompts for file operations (if provider supports it)
-- **Initial prompt**: Give the agent starting instructions
-- **Link an issue**: Attach a Linear, Jira, or GitHub issue as the brief (see [Passing Issues](/issues))
+- **Auto-approve**: Skip permission prompts for file operations (if the agent supports it)
+- **Initial prompt**: Give the agent its writing brief and any style or format instructions
+- **Link a brief**: Attach a Linear, Jira, or GitHub issue as the writing assignment (see [Briefs & Tickets](/issues))
 
 ## After Starting
 
 Once a task starts:
 
-1. A new branch is created and pushed to your remote
+1. A new branch is created
 2. The agent spawns in the terminal
 3. Chat with the agent or let your initial prompt guide it
 

@@ -1,19 +1,13 @@
-<img alt="Emdash banner" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
+<div align="center">
 
+# Scrawl
 
-<div align="center" style="margin:24px 0;">
-  
-<br />
+**An Agentic Writer Environment (AWE)**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
 [![Downloads](https://img.shields.io/github/downloads/gidea/scrawl/total?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl)
 [![Last Commit](https://img.shields.io/github/last-commit/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/commits/main)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/gidea/scrawl?labelColor=333333&color=666666)](https://github.com/gidea/scrawl/graphs/commit-activity)
-<br>
-[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
-<a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
-[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 <br />
 
@@ -31,97 +25,129 @@
 
 <br />
 
-Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
+Scrawl is a provider-agnostic desktop app that lets writers run multiple AI agents in parallel, each working in its own isolated Git worktree — locally or over SSH. We call it an **Agentic Writer Environment (AWE)**.
 
-Emdash supports 22 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
+The same parallel, isolated, reviewable workflow that developers use with coding agents — applied to written content. Copywriters, content writers, proposal writers, and technical writers can orchestrate multiple agents on the same brief, compare drafts side-by-side, iterate, and publish — with humans staying meaningfully in the loop throughout.
 
-**Develop on remote servers via SSH**
+Scrawl supports 22+ CLI agents, including Claude Code, Gemini, Qwen Code, and Codex. Pass writing briefs directly from Linear, GitHub Issues, or Jira; review diffs between drafts; and manage your content pipeline on a Kanban board.
 
-Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development. [Learn more](https://www.emdash.sh/cloud)
+> **A note on AI-generated content quality.** Agentic writing carries real risks — generic output, voice homogenization, factual errors, and the erosion of distinct authorial voice. We are aware of these. Our answer is not to avoid agentic writing, but to build tools that keep humans meaningfully in the loop: Best-of-N draft comparison, structured diff review before publishing, style guide enforcement via skills, and source attribution in RAG workflows. The goal is augmented writers, not replaced ones.
 
-<div align="center" style="margin:24px 0;">
+---
 
-[Installation](#installation) • [Providers](#providers) • [Contributing](#contributing) • [FAQ](#faq)
+> **Attribution.** Scrawl is a fork of [Emdash](https://github.com/generalaction/emdash), an Agentic Development Environment built by the team at [generalaction](https://github.com/generalaction). We mean no disrespect to the original maintainers — Emdash's architecture, worktree isolation model, and multi-agent orchestration were the direct inspiration for this project. We are grateful for their creativity and open source work. Scrawl takes that foundation and repositions it for a different audience: writers who want the same parallel, isolated, reviewable workflow for written content.
+
+---
+
+<div align="center">
+
+[Installation](#installation) • [Agents](#agents) • [Briefs & Tickets](#briefs--tickets) • [Contributing](#contributing) • [FAQ](#faq)
 
 </div>
 
-<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
+<img alt="Scrawl product" src="./docs/public/media/product.jpeg" />
 
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/gidea/scrawl/releases/latest/download/emdash-arm64.dmg
-- Intel x64: https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.dmg
-
-[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
-> macOS users can also: `brew install --cask emdash`
+- Apple Silicon: https://github.com/gidea/scrawl/releases/latest/download/scrawl-arm64.dmg
+- Intel x64: https://github.com/gidea/scrawl/releases/latest/download/scrawl-x64.dmg
 
 ### Windows
-- Installer (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.msi
-- Portable (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x64.exe
+- Installer (x64): https://github.com/gidea/scrawl/releases/latest/download/scrawl-x64.msi
+- Portable (x64): https://github.com/gidea/scrawl/releases/latest/download/scrawl-x64.exe
 
 ### Linux
-- AppImage (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-x86_64.AppImage
-- Debian package (x64): https://github.com/gidea/scrawl/releases/latest/download/emdash-amd64.deb
+- AppImage (x64): https://github.com/gidea/scrawl/releases/latest/download/scrawl-x86_64.AppImage
+- Debian package (x64): https://github.com/gidea/scrawl/releases/latest/download/scrawl-amd64.deb
 
 ### Release Overview
 
 **[Latest Releases (macOS • Windows • Linux)](https://github.com/gidea/scrawl/releases/latest)**
 
-# Providers
+# Agents
 
-<img alt="Providers banner" src="https://github.com/user-attachments/assets/c7b32a3e-452c-4209-91ef-71bcd895e2df" />
+Scrawl is provider-agnostic — it works with any CLI agent you already have installed. Agents are detected automatically; no configuration required.
 
-### Supported CLI Providers
+### Supported CLI Agents
 
-Emdash currently supports twenty-two CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
+| CLI Agent | Install |
+| --------- | ------- |
+| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
+| [Codex](https://developers.openai.com/codex/cli/) | <code>npm install -g @openai/codex</code> |
+| [Gemini](https://github.com/google-gemini/gemini-cli) | <code>npm install -g @google/gemini-cli</code> |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | <code>npm install -g @qwen-code/qwen-code</code> |
+| [Amp](https://ampcode.com/manual) | <code>npm install -g @sourcegraph/amp@latest</code> |
+| [Auggie](https://docs.augmentcode.com/cli/overview) | <code>npm install -g @augmentcode/auggie</code> |
+| [Autohand Code](https://autohand.ai/code/) | <code>npm install -g autohand-cli</code> |
+| [Charm](https://github.com/charmbracelet/crush) | <code>npm install -g @charmland/crush</code> |
+| [Cline](https://docs.cline.bot/cline-cli/overview) | <code>npm install -g cline</code> |
+| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | <code>npm install -g codebuff</code> |
+| [Continue](https://docs.continue.dev/guides/cli) | <code>npm i -g @continuedev/cli</code> |
+| [Cursor](https://cursor.com/cli) | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | <code>npm install -g @github/copilot</code> |
+| [Goose](https://github.com/block/goose) | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [Kilocode](https://kilo.ai/docs/cli) | <code>npm install -g @kilocode/cli</code> |
+| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | <code>uv tool install --python 3.13 kimi-cli</code> |
+| [Kiro](https://kiro.dev/docs/cli/) | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
+| [OpenCode](https://opencode.ai/docs/) | <code>npm install -g opencode-ai</code> |
+| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | <code>npm install -g @mariozechner/pi-coding-agent</code> |
+| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | <code>acli rovodev auth login</code> |
 
-| CLI Provider | Status | Install |
-| ----------- | ------ | ----------- |
-| [Amp](https://ampcode.com/manual) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
-| [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
-| [Autohand Code](https://autohand.ai/code/) | ✅ Supported | <code>npm install -g autohand-cli</code> |
-| [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
-| [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
-| [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
-| [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | <code>npm install -g codebuff</code> |
-| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | <code>npm install -g @openai/codex</code> |
-| [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
-| [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
-| [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
-| [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
-| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
-| [Goose](https://github.com/block/goose) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
-| [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
-| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install --python 3.13 kimi-cli</code> |
-| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
-| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
-| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
-| [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | <code>npm install -g @qwen-code/qwen-code</code> |
-| [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | <code>acli rovodev auth login</code> |
+# Briefs & Tickets
 
-### Issues
+Scrawl lets you pass content briefs and writing tickets straight from your project management tools to an agent.
 
-Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent. 
+| Tool | Authentication |
+| ---- | -------------- |
+| [Linear](https://linear.app) | Connect with a Linear API key |
+| [Jira](https://www.atlassian.com/software/jira) | Provide your site URL, email, and Atlassian API token |
+| [GitHub Issues](https://docs.github.com/en/issues) | Authenticate via GitHub CLI (`gh auth login`) |
 
-| Tool | Status | Authentication |
-| ----------- | ------ | ----------- |
-| [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
-| [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
-| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
+**Develop on remote servers via SSH**
+
+Connect to remote machines via SSH/SFTP to work with remote content repositories. Scrawl supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local writing.
 
 # Contributing
 
-Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started, and join our [Discord](https://discord.gg/f2fv7YxuR2) to discuss.
+Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get started.
 
 # FAQ
 
 <details>
+<summary><b>What is an Agentic Writer Environment?</b></summary>
+
+> An AWE is a workspace where multiple AI writing agents run in parallel, each in an isolated environment, and a human reviewer controls what gets merged. Think of it like a writing room where each agent takes a different angle on the same brief — you compare the drafts, pick what works, and iterate.
+>
+> The key principles:
+> - **Isolation**: each agent works on its own branch, so drafts don't interfere with each other
+> - **Comparison**: Best-of-N mode lets you run the same brief across multiple agents and compare results
+> - **Human review**: diffs are always human-reviewable before anything is published or merged
+> - **Augmentation, not replacement**: the writer sets the brief, reviews the output, and makes the final call
+
+</details>
+
+<details>
+<summary><b>What about AI slop — won't this just produce generic content?</b></summary>
+
+> That's a real risk and one we take seriously. Agentic writing can produce generic, homogenized, or factually wrong output. We're building Scrawl to mitigate this, not ignore it:
+>
+> - **Best-of-N comparison** — run multiple agents and pick the draft with the strongest voice
+> - **Diff review** — every change is visible before it lands; nothing gets merged silently
+> - **Skills for style enforcement** — install a skill that encodes your house style, tone guidelines, or audience profile; agents apply it on every run
+> - **RAG with source attribution** — planned: agents cite sources when drawing on retrieved content
+>
+> The goal is a workflow where the writer's judgment remains central. Agents draft; writers decide.
+
+</details>
+
+<details>
 <summary><b>What telemetry do you collect and can I disable it?</b></summary>
 
-> We send **anonymous, allow‑listed events** (app start/close, feature usage names, app/platform versions) to PostHog.  
-> We **do not** send code, file paths, repo names, prompts, or PII.
+> We send **anonymous, allow-listed events** (app start/close, feature usage names, app/platform versions) to PostHog.
+> We **do not** send content, file paths, repo names, prompts, or PII.
 >
 > **Disable telemetry:**
 >
@@ -131,14 +157,13 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > ```bash
 > TELEMETRY_ENABLED=false
 > ```
->
-> Full details: see `docs/telemetry.md`.
+
 </details>
 
 <details>
 <summary><b>Where is my data stored?</b></summary>
 
-> **App data is local‑first**. We store app state in a local **SQLite** database:
+> **App data is local-first.** We store app state in a local **SQLite** database:
 >
 > ```
 > macOS:   ~/Library/Application Support/emdash/emdash.db
@@ -146,71 +171,72 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > Linux:   ~/.config/emdash/emdash.db
 > ```
 >
-> **Privacy Note:** While Emdash itself stores data locally, **when you use any coding agent (Claude Code, Codex, Qwen, etc.), your code and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
+> **Privacy note:** While Scrawl itself stores data locally, **when you use any agent (Claude Code, Codex, Gemini, etc.), your content and prompts are sent to that provider's cloud API servers** for processing. Each provider has their own data handling and retention policies.
 >
 > You can reset the local DB by deleting it (quit the app first). The file is recreated on next launch.
+
 </details>
 
 <details>
 <summary><b>Do I need GitHub CLI?</b></summary>
 
-> **Only if you want GitHub features** (open PRs from Emdash, fetch repo info, GitHub Issues integration).  
-> Install & sign in:
+> **Only if you want GitHub features** (open PRs from Scrawl, fetch repo info, GitHub Issues integration).
 >
 > ```bash
 > gh auth login
 > ```
 >
-> If you don’t use GitHub features, you can skip installing `gh`.
+> If you don't use GitHub features, you can skip installing `gh`.
+
 </details>
 
 <details>
-<summary><b>How do I add a new provider?</b></summary>
+<summary><b>How do I add a new agent?</b></summary>
 
-> Emdash is **provider‑agnostic** and built to add CLIs quickly.
+> Scrawl is **provider-agnostic** and built to add CLI agents quickly.
 >
 > - Open a PR following the **Contributing Guide** (`CONTRIBUTING.md`).
-> - Include: provider name, how it’s invoked (CLI command), auth notes, and minimal setup steps.
-> - We’ll add it to the **Integrations** matrix and wire up provider selection in the UI.
+> - Include: agent name, CLI command, auth notes, and minimal setup steps.
+> - We'll add it to the supported agents table and wire up provider selection in the UI.
 >
-> If you’re unsure where to start, open an issue with the CLI’s link and typical commands.
+> If you're unsure where to start, open an issue with the CLI's link and typical commands.
+
 </details>
 
 <details>
-<summary><b>I hit a native‑module crash (sqlite3 / node‑pty / keytar). What’s the fast fix?</b></summary>
+<summary><b>I hit a native-module crash (sqlite3 / node-pty / keytar). What's the fast fix?</b></summary>
 
 > This usually happens after switching Node/Electron versions.
 >
 > 1) Rebuild native modules:
 >
 > ```bash
-> npm run rebuild
+> pnpm run rebuild
 > ```
 >
 > 2) If that fails, clean and reinstall:
 >
 > ```bash
-> npm run reset
+> pnpm run reset
 > ```
->
-> (Resets `node_modules`, reinstalls, and re‑builds Electron native deps.)
+
 </details>
 
 <details>
-<summary><b>What permissions does Emdash need?</b></summary>
+<summary><b>What permissions does Scrawl need?</b></summary>
 
-> - **Filesystem/Git:** to read/write your repo and create **Git worktrees** for isolation.  
-> - **Network:** only for provider CLIs you choose to use (e.g., Codex, Claude) and optional GitHub actions.  
+> - **Filesystem/Git:** to read/write your content repo and create **Git worktrees** for isolation.
+> - **Network:** only for the agent CLIs you choose to use and optional GitHub actions.
 > - **Local DB:** to store your app state in SQLite on your machine.
 >
-> Emdash itself does **not** send your code or chats to any servers. Third‑party CLIs may transmit data per their policies.
-</details>
+> Scrawl itself does **not** send your content or chats to any servers. Third-party agent CLIs may transmit data per their policies.
 
+</details>
 
 <details>
 <summary><b>Can I work with remote projects over SSH?</b></summary>
 
-> **Yes!** Emdash supports remote development via SSH.
+> **Yes.** Scrawl supports remote development via SSH.
 >
 > **Setup:**
 > 1. Go to **Settings → SSH Connections** and add your server details
@@ -222,9 +248,6 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > - Git installed on the remote server
 > - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
 >
-> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
-</details>
+> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions.
 
-[![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)
-[![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
-[![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
+</details>

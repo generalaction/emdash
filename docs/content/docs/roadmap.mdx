@@ -3,7 +3,7 @@ title: Roadmap
 description: Scrawl Product Roadmap
 ---
 
-Scrawl is [open source](https://github.com/gidea/scrawl) and we strive to be fully transparent about what we're working on and what's next. This roadmap is a living document that we'll update as we make progress.
+Scrawl is [open source](https://github.com/gidea/scrawl) and we strive to be fully transparent about what we're working on and what's next. This roadmap is a living document updated as we make progress.
 
 ## Inherited from Emdash
 
@@ -24,14 +24,26 @@ Scrawl inherits a mature feature set from [Emdash](https://github.com/generalact
 
 These are the features we're building specifically for writers:
 
-- **Cloud vector database integration** — Connect to vector databases via MCP for retrieval-augmented generation (RAG), enabling research-backed writing workflows
-- **Writer-specific skills** — Reusable prompt packages for style guide enforcement, tone matching, audience adaptation, and format compliance
-- **Content project templates** — Pre-configured project setups for common writing workflows (blog posts, proposals, technical docs, marketing copy)
-- **Writer-optimized UI** — Interface refinements tailored to content creation workflows rather than software development
+- **Cloud vector database integration** — Connect to vector databases via MCP for retrieval-augmented generation (RAG), enabling research-backed writing workflows where agents cite sources rather than hallucinate them
+- **Writer-specific skills** — Reusable prompt packages for style guide enforcement, tone matching, audience adaptation, and format compliance (e.g., "apply AP style", "match our brand voice", "format as a technical spec")
+- **Content project templates** — Pre-configured project setups for common writing workflows: blog posts, proposals, technical documentation, marketing copy
+- **Writer-optimized UI** — Interface refinements tailored to content creation workflows, reducing friction for non-developer users
+- **Source attribution in RAG workflows** — Agents surface the sources they drew from, reducing silent fabrication
+
+## Our Stance on AI-Generated Content Quality
+
+We take the risk of AI slop seriously. Agentic writing can produce generic, homogenized content that erodes distinct voice and degrades the quality of what gets published. Our answer is not to avoid agentic writing — it's to build better guardrails into the workflow:
+
+- **Best-of-N comparison**: run multiple agents on the same brief and compare drafts before choosing one. Different agents produce meaningfully different output.
+- **Structured diff review**: every change an agent makes is visible and human-reviewable before it merges. Nothing lands silently.
+- **Style enforcement via skills**: install a skill that encodes your house style, tone guidelines, or audience profile. Agents apply it on every run, reducing drift toward generic defaults.
+- **Source attribution**: planned for RAG workflows — agents cite what they drew from, so fabricated claims are easier to catch.
+
+The goal is augmented writers, not replaced ones. The writer sets the brief, reviews the output, and makes the final call.
 
 ## Community Input
 
-We are carefully considering what additional needs writers have beyond what developers use. Community feedback will shape the roadmap.
+We are carefully considering what additional needs writers have beyond what developers use. Community feedback shapes the roadmap.
 
 - **[Submit a feature request](https://github.com/gidea/scrawl/issues/new?labels=enhancement)** — Open a new issue with the enhancement label
 - **[View existing requests](https://github.com/gidea/scrawl/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)** — See and vote on community feature requests

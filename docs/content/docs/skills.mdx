@@ -3,7 +3,9 @@ title: Skills
 description: Extend your agents with reusable skill modules
 ---
 
-Skills are reusable capability modules that extend your agents with specialized functionality. They follow the open [Agent Skills](https://agentskills.io) standard and work across all supported agents—Claude Code, Codex, OpenCode, Cursor, Gemini, Roo Code, and Mistral Vibe.
+Skills are reusable prompt packages that extend your agents with specialized capabilities. They follow the open [Agent Skills](https://agentskills.io) standard and work across all supported agents — Claude Code, Codex, OpenCode, Cursor, Gemini, Roo Code, and Mistral Vibe.
+
+For writers, skills are the primary mechanism for keeping agent output on-brand and avoiding generic drift. A skill encodes your house style, tone guidelines, audience profile, or format requirements — and agents apply it automatically on every run.
 
 <img
   src="/media/skills.png"
@@ -26,21 +28,6 @@ Open the Skills view by clicking **Skills** (puzzle icon) in the left sidebar. Y
 - [Anthropic skill library](https://github.com/anthropics/skills/)
 
 Use the search box to filter by name or description. Click **Refresh** to fetch the latest skills from GitHub.
-
-If you want to use skills from another library, feel free to let us know through the feedback modal in the app.
-
-<img
-  src="/media/feedback.png"
-  alt="Feedback modal in Scrawl"
-  style={{
-    width: '100%',
-    maxWidth: '700px',
-    margin: '20px auto',
-    display: 'block',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-  }}
-/>
 
 ## Installing a Skill
 
@@ -67,48 +54,58 @@ Scrawl generates a `SKILL.md` file in `~/.agentskills/<your-skill>/` and opens t
 
 ```yaml
 ---
-name: 'my-skill'
-description: 'What this skill does'
+name: 'house-style'
+description: 'Enforce our brand voice and AP style guidelines'
 ---
-# My Skill
+# House Style
 
-Instructions and documentation for the agent...
+Always write in second person. Use AP style. Avoid passive voice.
+Sentences should be under 25 words. No jargon without definition.
+Target audience: mid-market B2B buyers, non-technical.
 ```
 
 Custom skills sync to all installed agents just like catalog skills.
+
+## Writer-Specific Skills
+
+The most impactful skills for writing workflows are ones you create yourself, encoding your specific requirements:
+
+- **Style guides** — house rules for voice, tone, grammar, and formatting
+- **Audience profiles** — who the content is for, what they know, what they care about
+- **Format templates** — structure requirements for proposals, technical docs, blog posts, email sequences
+- **Brand voice** — adjectives that describe the desired tone, examples of good and bad output
+
+A style guide skill is one of the best defenses against generic AI output. Without one, agents default to a neutral, averaged voice. With one, they have concrete constraints to work within.
 
 ## How Skills Work
 
 Each skill is a directory containing a `SKILL.md` file. When installed, Scrawl creates symlinks in each agent's config directory:
 
-| Agent        | Skill location                       |
-| ------------ | ------------------------------------ |
-| Claude Code  | `~/.claude/commands/<skill>/`        |
-| Codex        | `~/.codex/skills/<skill>/`           |
-| OpenCode     | `~/.config/opencode/skills/<skill>/` |
-| Cursor       | `~/.cursor/skills/<skill>/`          |
-| Gemini       | `~/.gemini/skills/<skill>/`          |
-| Roo Code     | `~/.roo/skills/<skill>/`             |
-| Mistral Vibe | `~/.vibe/skills/<skill>/`            |
+| Agent | Skill location |
+| ----- | -------------- |
+| Claude Code | `~/.claude/commands/<skill>/` |
+| Codex | `~/.codex/skills/<skill>/` |
+| OpenCode | `~/.config/opencode/skills/<skill>/` |
+| Cursor | `~/.cursor/skills/<skill>/` |
+| Gemini | `~/.gemini/skills/<skill>/` |
+| Roo Code | `~/.roo/skills/<skill>/` |
+| Mistral Vibe | `~/.vibe/skills/<skill>/` |
 
-This means skills you install through Scrawl also work when you run these agents outside of Scrawl.
+Skills you install through Scrawl also work when you run these agents outside of Scrawl.
 
 ## Example Skills
 
 The catalog includes skills for many common workflows:
 
-- **Deployment**: Cloudflare, Vercel, Netlify deploy
-- **Design**: Figma integration, design implementation
-- **GitHub**: Address PR comments, fix CI failures
 - **Documentation**: Word docs, Jupyter notebooks
-- **Content**: Image generation
+- **Content**: Image generation, blog post formatting
 - **Integrations**: Linear, Notion, Stripe, Twilio
-
-Each skill includes an example prompt showing how to invoke it.
+- **Deployment**: Cloudflare, Vercel, Netlify
+- **GitHub**: Address PR comments, fix CI failures
 
 ## Tips
 
-- Skills persist across Scrawl sessions—install once, use everywhere.
-- Click the terminal icon on an installed skill to open its directory and inspect or edit the `SKILL.md` directly.
+- Skills persist across Scrawl sessions — install once, use everywhere.
+- Click the terminal icon on an installed skill to open its directory and edit the `SKILL.md` directly.
 - Custom skills appear in the "Installed" section alongside catalog skills.
 - If an agent can't find a skill, make sure the agent is detected by Scrawl (check the Skills view footer for detected agents).
