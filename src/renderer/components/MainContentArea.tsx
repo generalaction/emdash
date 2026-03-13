@@ -45,6 +45,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   const {
     activeTask,
     activeTaskAgent,
+    tasksByProjectId,
     isCreatingTask,
     handleTaskInterfaceReady: onTaskInterfaceReady,
     openTaskModal,
@@ -70,6 +71,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <KanbanBoard
           project={selectedProject}
+          tasks={tasksByProjectId[selectedProject.id] ?? []}
           onOpenTask={(ws: any) => {
             handleSelectTask(ws);
             setShowKanban(false);

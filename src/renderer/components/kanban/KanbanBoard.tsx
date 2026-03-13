@@ -18,10 +18,13 @@ const titles: Record<KanbanStatus, string> = {
 
 const KanbanBoard: React.FC<{
   project: Project;
+  tasks: Task[];
   onOpenTask?: (ws: Task) => void;
   onCreateTask?: () => void;
-}> = ({ project, onOpenTask, onCreateTask }) => {
+}> = ({ project, tasks, onOpenTask, onCreateTask }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
+  const wsList = React.useMemo(() => tasks ?? [], [tasks]);
+  const taskSignature = React.useMemo(() => wsList.map((task) => task.id).join(','), [wsList]);
 
   React.useEffect(() => {
     setStatusMap(getAll());
@@ -31,7 +34,6 @@ const KanbanBoard: React.FC<{
   React.useEffect(() => {
     const offs: Array<() => void> = [];
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const wsList = project.tasks || [];
     for (const ws of wsList) {
       // Watch PTY output to capture terminal-based providers as activity
       offs.push(watchTaskPty(ws.id));
@@ -99,12 +101,11 @@ const KanbanBoard: React.FC<{
     }
     return () => offs.forEach((f) => f());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, project.tasks?.length]);
+  }, [project.id, taskSignature]);
 
   // Promote any task with local changes directly to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -150,12 +151,11 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.tasks?.length]);
+  }, [project.id, taskSignature]);
 
   // Promote any task with an open PR to "Ready for review" (done)
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -201,11 +201,10 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.tasks?.length]);
+  }, [project.id, taskSignature]);
 
   React.useEffect(() => {
     let cancelled = false;
-    const wsList = project.tasks || [];
     const check = async () => {
       for (const ws of wsList) {
         const variantPaths: string[] = (() => {
@@ -253,14 +252,14 @@ const KanbanBoard: React.FC<{
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [project.id, project.tasks?.length]);
+  }, [project.id, taskSignature]);
 
   const byStatus: Record<KanbanStatus, Task[]> = { todo: [], 'in-progress': [], done: [] };
-  for (const ws of project.tasks || []) {
+  for (const ws of wsList) {
     const s = statusMap[ws.id] || 'todo';
     byStatus[s].push(ws);
   }
-  const hasAny = (project.tasks?.length ?? 0) > 0;
+  const hasAny = wsList.length > 0;
 
   const handleDrop = (target: KanbanStatus, taskId: string) => {
     setStatus(taskId, target);
