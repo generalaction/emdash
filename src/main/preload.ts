@@ -1185,6 +1185,7 @@ export interface ElectronAPI {
       branch: string;
       projectId: string;
       status: string;
+      agentId: string;
       metadata?: { prNumber?: number; prTitle?: string | null };
     };
     error?: string;

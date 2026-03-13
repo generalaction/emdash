@@ -65,21 +65,9 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           branch: result.task.branch,
           path: result.task.path,
           status: result.task.status as Task['status'],
+          agentId: result.task.agentId,
           useWorktree: true,
           metadata: result.task.metadata,
-        };
-        onReviewPr(task);
-      } else if (result.success && result.worktree) {
-        // Fallback: worktree was created but task came from an existing match
-        const task: Task = {
-          id: result.worktree.id || crypto.randomUUID(),
-          projectId,
-          name: result.taskName || `PR #${pr.number}`,
-          branch: result.branchName || '',
-          path: result.worktree.path || '',
-          status: 'active',
-          useWorktree: true,
-          metadata: { prNumber: pr.number, prTitle: pr.title },
         };
         onReviewPr(task);
       } else {
