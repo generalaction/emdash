@@ -260,28 +260,32 @@ const BrowserPane: React.FC<{
       return;
     }
 
-    requestAnimationFrame(() => {
-      const bounds = computeBounds();
-      if (bounds && bounds.width > 0 && bounds.height > 0) {
-        if (hasBoundsChanged(bounds)) {
-          lastBoundsRef.current = bounds;
-          try {
-            (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
-            setTimeout(() => {
-              const updatedBounds = computeBounds();
-              if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
-                if (hasBoundsChanged(updatedBounds)) {
-                  lastBoundsRef.current = updatedBounds;
-                  try {
-                    (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
-                  } catch {}
+    // Delay show until after browserLoadURL has fired (URL_LOAD_DELAY_MS) to avoid
+    // a white flash caused by the WebContentsView becoming visible before the URL loads.
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        const bounds = computeBounds();
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+          if (hasBoundsChanged(bounds)) {
+            lastBoundsRef.current = bounds;
+            try {
+              (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+              setTimeout(() => {
+                const updatedBounds = computeBounds();
+                if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
+                  if (hasBoundsChanged(updatedBounds)) {
+                    lastBoundsRef.current = updatedBounds;
+                    try {
+                      (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
+                    } catch {}
+                  }
                 }
-              }
-            }, BOUNDS_UPDATE_DELAY_MS);
-          } catch {}
+              }, BOUNDS_UPDATE_DELAY_MS);
+            } catch {}
+          }
         }
-      }
-    });
+      });
+    }, URL_LOAD_DELAY_MS + 20);
 
     const onResize = () => {
       const bounds = computeBounds();
