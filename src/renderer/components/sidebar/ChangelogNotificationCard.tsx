@@ -1,3 +1,5 @@
+import { Badge } from '@/components/ui/badge';
+import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import type { ChangelogEntry } from '@shared/changelog';
@@ -16,6 +18,8 @@ export function ChangelogNotificationCard({
   onDismiss,
   className,
 }: ChangelogNotificationCardProps) {
+  const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
+
   return (
     <motion.div
       whileTap={{ scale: 0.97 }}
@@ -30,6 +34,11 @@ export function ChangelogNotificationCard({
         className="flex w-full flex-col gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/30"
       >
         <div className="pr-8">
+          {publishedAt && (
+            <Badge variant="outline" className="mb-2 h-5 px-2 text-[11px] font-medium">
+              {publishedAt}
+            </Badge>
+          )}
           <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground">
             {entry.title}
           </h3>

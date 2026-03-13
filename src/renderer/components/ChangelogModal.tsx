@@ -1,6 +1,8 @@
+import { Badge } from '@/components/ui/badge';
 import { BaseModalProps } from '@/contexts/ModalProvider';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { DialogContent } from '@/components/ui/dialog';
+import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { EMDASH_CHANGELOG_URL, type ChangelogEntry } from '@shared/changelog';
 import { ExternalLink } from 'lucide-react';
 
@@ -10,18 +12,6 @@ interface ChangelogModalProps {
 
 export function ChangelogModalOverlay({ entry }: BaseModalProps<void> & ChangelogModalProps) {
   return <ChangelogModal entry={entry} />;
-}
-
-function formatPublishedAt(value?: string): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(parsed);
 }
 
 function normalizeLeadLine(value: string): string {
@@ -66,7 +56,7 @@ function stripLeadingReleaseHeadings(content: string, entry: ChangelogEntry): st
 }
 
 function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
-  const publishedAt = formatPublishedAt(entry.publishedAt);
+  const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
   const content = stripLeadingReleaseHeadings(entry.content, entry);
 
   return (
@@ -83,9 +73,11 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
 
       <div className="max-h-[min(75vh,44rem)] overflow-y-auto px-6 py-5">
         {publishedAt && (
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            {publishedAt}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Badge variant="outline" className="h-5 px-2 text-[11px] font-medium">
+              {publishedAt}
+            </Badge>
+          </div>
         )}
         <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
           {entry.title}

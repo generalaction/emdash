@@ -32,6 +32,58 @@ function firstString(...values: Array<unknown>): string | undefined {
   return undefined;
 }
 
+const MONTH_NAME_PATTERN =
+  '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)';
+const HUMAN_DATE_REGEX = new RegExp(`\\b(${MONTH_NAME_PATTERN}\\s+\\d{1,2},\\s+\\d{4})\\b`, 'i');
+const ISO_DATE_REGEX = /\b(\d{4}-\d{2}-\d{2}(?:[tT][0-9:.+-Z]*)?)\b/;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractPublishedAtFromText(value: string): string | undefined {
+  const normalized = stripTags(value).replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+
+  const humanDate = normalized.match(HUMAN_DATE_REGEX)?.[1];
+  if (humanDate) return humanDate;
+
+  const isoDate = normalized.match(ISO_DATE_REGEX)?.[1];
+  if (isoDate) return isoDate;
+
+  return undefined;
+}
+
+function extractPublishedAtForVersion(value: string, version?: string): string | undefined {
+  if (!version) return extractPublishedAtFromText(value);
+
+  const normalized = stripTags(value).replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+
+  const escapedVersion = escapeRegex(version);
+  const leadingDate = normalized.match(
+    new RegExp(`(${MONTH_NAME_PATTERN}\\s+\\d{1,2},\\s+\\d{4})\\s+v?${escapedVersion}\\b`, 'i')
+  )?.[1];
+  if (leadingDate) return leadingDate;
+
+  const trailingDate = normalized.match(
+    new RegExp(`v?${escapedVersion}\\b\\s+(${MONTH_NAME_PATTERN}\\s+\\d{1,2},\\s+\\d{4})`, 'i')
+  )?.[1];
+  if (trailingDate) return trailingDate;
+
+  const leadingIsoDate = normalized.match(
+    new RegExp(`(\\d{4}-\\d{2}-\\d{2}(?:[tT][0-9:.+-Z]*)?)\\s+v?${escapedVersion}\\b`, 'i')
+  )?.[1];
+  if (leadingIsoDate) return leadingIsoDate;
+
+  const trailingIsoDate = normalized.match(
+    new RegExp(`v?${escapedVersion}\\b\\s+(\\d{4}-\\d{2}-\\d{2}(?:[tT][0-9:.+-Z]*)?)`, 'i')
+  )?.[1];
+  if (trailingIsoDate) return trailingIsoDate;
+
+  return undefined;
+}
+
 function decodeHtmlEntities(input: string): string {
   return input
     .replace(/&nbsp;/gi, ' ')
@@ -237,6 +289,15 @@ async function fetchJson(url: string): Promise<unknown | null> {
   return response.json();
 }
 
+async function fetchHtml(url: string): Promise<string | null> {
+  const response = await fetch(url, {
+    headers: { Accept: 'text/html,application/xhtml+xml', 'Cache-Control': 'no-cache' },
+  });
+
+  if (!response.ok) return null;
+  return response.text();
+}
+
 function extractTime(block: string): string | undefined {
   const datetime = block.match(/<time\b[^>]*datetime=(["'])(.*?)\1/i)?.[2];
   if (datetime?.trim()) return datetime.trim();
@@ -258,6 +319,18 @@ function extractSummary(block: string): string | undefined {
   return summary || undefined;
 }
 
+function withResolvedHtmlPublishedAt(
+  entry: ChangelogEntry | null,
+  html: string,
+  requestedVersion?: string
+): ChangelogEntry | null {
+  if (!entry) return null;
+  if (entry.publishedAt) return entry;
+
+  const publishedAt = extractPublishedAtForVersion(html, requestedVersion ?? entry.version);
+  return publishedAt ? { ...entry, publishedAt } : entry;
+}
+
 export function parseChangelogHtml(html: string, requestedVersion?: string): ChangelogEntry | null {
   const blocks = html.match(/<(article|section)\b[\s\S]*?<\/\1>/gi) ?? [];
   const candidates: ChangelogEntry[] = [];
@@ -277,7 +350,7 @@ export function parseChangelogHtml(html: string, requestedVersion?: string): Cha
         title: extractTitle(block),
         summary: extractSummary(block),
         contentHtml: block,
-        publishedAt: extractTime(block),
+        publishedAt: extractTime(block) ?? extractPublishedAtForVersion(block, versionFromBlock),
       },
       requestedVersion
     );
@@ -288,24 +361,46 @@ export function parseChangelogHtml(html: string, requestedVersion?: string): Cha
   }
 
   if (candidates.length > 0) {
-    return pickBestCandidate(candidates, requestedVersion);
+    return withResolvedHtmlPublishedAt(
+      pickBestCandidate(candidates, requestedVersion),
+      html,
+      requestedVersion
+    );
   }
 
-  const fallback = normalizeEntry(
-    {
-      version: normalizeChangelogVersion(requestedVersion) ?? undefined,
-      title: extractTitle(html),
-      summary: extractSummary(html),
-      contentHtml: html,
-      publishedAt: extractTime(html),
-    },
+  return withResolvedHtmlPublishedAt(
+    normalizeEntry(
+      {
+        version: normalizeChangelogVersion(requestedVersion) ?? undefined,
+        title: extractTitle(html),
+        summary: extractSummary(html),
+        contentHtml: html,
+        publishedAt:
+          extractTime(html) ??
+          extractPublishedAtForVersion(
+            html,
+            normalizeChangelogVersion(requestedVersion) ?? undefined
+          ),
+      },
+      requestedVersion
+    ),
+    html,
     requestedVersion
   );
-
-  return fallback;
 }
 
 class ChangelogService {
+  private async getHtmlEntry(requestedVersion?: string): Promise<ChangelogEntry | null> {
+    try {
+      const html = await fetchHtml(EMDASH_CHANGELOG_URL);
+      if (!html) return null;
+      return parseChangelogHtml(html, requestedVersion);
+    } catch (error) {
+      log.error('Failed to fetch changelog HTML', error);
+      return null;
+    }
+  }
+
   async getLatestEntry(requestedVersion?: string): Promise<ChangelogEntry | null> {
     const version = normalizeChangelogVersion(requestedVersion);
     const apiUrls = [
@@ -326,23 +421,24 @@ class ChangelogService {
           .map((candidate) => normalizeEntry(candidate, version ?? undefined))
           .filter((candidate): candidate is ChangelogEntry => candidate !== null);
         const match = pickBestCandidate(entries, version ?? undefined);
-        if (match) return match;
+        if (match) {
+          if (match.publishedAt) return match;
+
+          const htmlEntry = await this.getHtmlEntry(match.version);
+          if (!htmlEntry) return match;
+
+          return {
+            ...match,
+            publishedAt: htmlEntry.publishedAt ?? match.publishedAt,
+            url: match.url ?? htmlEntry.url,
+          };
+        }
       } catch (error) {
         log.debug('Changelog JSON fetch failed', { url, error });
       }
     }
 
-    try {
-      const response = await fetch(EMDASH_CHANGELOG_URL, {
-        headers: { Accept: 'text/html,application/xhtml+xml', 'Cache-Control': 'no-cache' },
-      });
-      if (!response.ok) return null;
-      const html = await response.text();
-      return parseChangelogHtml(html, version ?? undefined);
-    } catch (error) {
-      log.error('Failed to fetch changelog HTML', error);
-      return null;
-    }
+    return this.getHtmlEntry(version ?? undefined);
   }
 }
 
