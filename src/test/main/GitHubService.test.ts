@@ -5,7 +5,7 @@ const execCalls: string[] = [];
 let issueListStdout = '[]';
 let issueSearchStdout = '[]';
 let prListStdout = '[]';
-let repoViewStdout = 'generalaction/emdash';
+let repoViewStdout = 'gidea/scrawl';
 let prCountStdout = '0';
 
 vi.mock('child_process', () => {
@@ -95,7 +95,7 @@ describe('GitHubService.isAuthenticated', () => {
     issueListStdout = '[]';
     issueSearchStdout = '[]';
     prListStdout = '[]';
-    repoViewStdout = 'generalaction/emdash';
+    repoViewStdout = 'gidea/scrawl';
     prCountStdout = '0';
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
