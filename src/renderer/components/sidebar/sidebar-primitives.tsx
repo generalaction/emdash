@@ -8,7 +8,7 @@ export const SidebarContainer = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'group/sidebar relative z-50 flex h-full flex-col border-r border-border bg-gray-50 text-sm text-foreground dark:bg-muted/10',
+      'group/sidebar relative z-50 flex h-full flex-col bg-accent text-sm text-foreground dark:bg-muted/10',
       className
     )}
     {...props}
@@ -56,7 +56,7 @@ export const SidebarGroupLabel = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70',
+      'text-xs font-semibold uppercase tracking-wide text-muted-foreground/70',
       className
     )}
     {...props}
@@ -81,9 +81,17 @@ SidebarMenu.displayName = 'SidebarMenu';
 
 export const SidebarMenuItem = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('list-none', className)} {...props} />
+  React.HTMLAttributes<HTMLDivElement> & { isActive?: boolean }
+>(({ className, isActive, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground',
+      className
+    )}
+    data-active={isActive ? 'true' : undefined}
+    {...props}
+  />
 ));
 SidebarMenuItem.displayName = 'SidebarMenuItem';
 
@@ -97,7 +105,7 @@ export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenu
       ref={ref}
       data-active={isActive ? 'true' : undefined}
       className={cn(
-        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground',
+        'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground',
         className
       )}
       {...props}

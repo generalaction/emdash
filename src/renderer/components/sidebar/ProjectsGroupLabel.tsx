@@ -8,17 +8,17 @@ export function ProjectsGroupLabel() {
   const showAddProjectModal = useShowModal('addProjectModal');
 
   return (
-    <SidebarGroupLabel className="flex items-center justify-between pr-0">
-      <span className="cursor-default select-none text-sm font-medium normal-case tracking-normal text-foreground/30">
+    <SidebarGroupLabel className="flex items-center justify-between pl-3 pr-1">
+      <span className="cursor-default select-none text-xs font-medium normal-case tracking-normal text-muted-foreground">
         Projects
       </span>
       <Button
         variant="ghost"
         size="icon-sm"
-        className="text-foreground/30"
+        className="text-foreground/30 h-7 w-7"
         onClick={() => showAddProjectModal({})}
       >
-        <FolderPlus className="h-3.5 w-3.5" />
+        <FolderPlus className="h-4 w-4" />
       </Button>
     </SidebarGroupLabel>
   );

@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Archive, ChevronRight, FolderClosed, FolderOpen, Plus, RotateCcw } from 'lucide-react';
 import React from 'react';
 import type { ConnectionState } from '@renderer/components/ssh';
@@ -12,6 +11,7 @@ import {
   useWorkspaceWrapParams,
 } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useRemoteProject } from '@renderer/hooks/useRemoteProject';
+import { cn } from '@renderer/lib/utils';
 import type { Project } from '@renderer/types/app';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { SidebarMenuItem } from './sidebar-primitives';
@@ -35,11 +35,12 @@ const ProjectNameContent = React.memo<ProjectNameContentProps>(({ project }) => 
   const connectionId = getConnectionId(project);
 
   if (!connectionId && !isRemoteProject(project)) {
-    return <span className="flex-1 truncate">{project.name}</span>;
+    return <div className="min-w-0 truncate">{project.name}</div>;
   }
 
   return (
     <div className="flex min-w-0 items-center gap-2">
+      <span className="flex-1 truncate">{project.name}</span>
       {connectionId && (
         <RemoteProjectIndicator
           host={remote.host || undefined}
@@ -49,7 +50,6 @@ const ProjectNameContent = React.memo<ProjectNameContentProps>(({ project }) => 
           disabled={remote.isLoading}
         />
       )}
-      <span className="flex-1 truncate">{project.name}</span>
     </div>
   );
 });
@@ -58,6 +58,20 @@ ProjectNameContent.displayName = 'ProjectNameContent';
 interface SidebarProjectItemProps {
   project: Project;
 }
+
+const SidebarItemMiniButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ className, ...props }, ref) => (
+  <button
+    ref={ref}
+    className={cn(
+      'w-7 h-7 flex items-center justify-center hover:bg-accent-layer rounded-md',
+      className
+    )}
+    {...props}
+  />
+));
 
 export const SidebarProjectItem = React.memo<SidebarProjectItemProps>(({ project }) => {
   const { forceOpenIds, setForceOpenIds, pinnedTaskIds } = useSidebarContext();
@@ -84,7 +98,7 @@ export const SidebarProjectItem = React.memo<SidebarProjectItemProps>(({ project
     .sort((a, b) => (pinnedTaskIds.has(b.id) ? 1 : 0) - (pinnedTaskIds.has(a.id) ? 1 : 0));
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className="justify-between flex item px-1 py-1" isActive={isProjectActive}>
       <Collapsible
         defaultOpen
         open={forceOpenIds.has(project.id) ? true : undefined}
@@ -97,41 +111,34 @@ export const SidebarProjectItem = React.memo<SidebarProjectItemProps>(({ project
             });
           }
         }}
-        className="group/collapsible"
+        className="group/collapsible w-full"
       >
-        <div
-          className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-        >
-          <CollapsibleTrigger>
+        <div className="flex items-center justify-between">
+          <div className="flex flex-1 min-w-0 items-stretch gap-1">
+            <CollapsibleTrigger className="flex-0">
+              <SidebarItemMiniButton type="button">
+                <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
+                <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
+              </SidebarItemMiniButton>
+            </CollapsibleTrigger>
             <button
               type="button"
-              className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 dark:hover:bg-white/5"
+              className="min-w-0 flex-1 flex items-center overflow-hidden text-left"
+              onClick={() => navigate('project', { projectId: project.id })}
             >
-              <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
-              <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
+              <ProjectNameContent project={project} />
             </button>
-          </CollapsibleTrigger>
-          <motion.button
+          </div>
+          <SidebarItemMiniButton
             type="button"
-            className="min-w-0 flex-1 truncate bg-transparent text-left text-foreground/60"
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate('project', { projectId: project.id })}
+            className="p-0.5 text-muted-foreground hover:bg-black/5"
+            onClick={() => onCreateTaskForProject(project)}
           >
-            <ProjectNameContent project={project} />
-          </motion.button>
-          {onCreateTaskForProject && (
-            <button
-              type="button"
-              className="p-0.5 text-muted-foreground hover:bg-black/5"
-              onClick={() => onCreateTaskForProject(project)}
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          )}
+            <Plus className="h-4 w-4" />
+          </SidebarItemMiniButton>
         </div>
-
-        <CollapsibleContent className="mt-1 min-w-0 data-[state=closed]:hidden">
-          <div className="flex min-w-0 flex-col gap-1">
+        <CollapsibleContent className=" min-w-0 data-[state=closed]:hidden">
+          <div className="flex min-w-0 flex-col gap-1 data-[state=open]:mt-1">
             {sortedTasks.map((task) => (
               <SidebarTaskItem
                 key={task.id}

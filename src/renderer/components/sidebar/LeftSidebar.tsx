@@ -7,7 +7,6 @@ import {
 } from '@renderer/components/add-project-modal/pending-projects-provider';
 import ReorderList from '@renderer/components/ReorderList';
 import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
-import { Button } from '@renderer/components/ui/button';
 import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
 import {
   isCurrentView,
@@ -16,6 +15,7 @@ import {
 } from '@renderer/contexts/WorkspaceNavigationContext';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 import type { Project } from '@renderer/types/app';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { SidebarProjectItem } from './ProjectItem';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import {
@@ -55,19 +55,28 @@ const PendingSidebarItem = React.memo<{ project: PendingProject }>(({ project })
       className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
       onClick={() => navigate('project', { projectId: project.id })}
     >
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-        {isError ? (
-          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-        ) : (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-foreground/80">{project.name}</span>
-        <span className="block truncate text-xs text-muted-foreground/60">
-          {STAGE_LABEL[project.stage]}
+      <SidebarMenuItem>
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <Tooltip>
+            <TooltipTrigger>
+              {isError ? (
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+              ) : (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p className="text-xs">{STAGE_LABEL[project.stage]}</p>
+            </TooltipContent>
+          </Tooltip>
         </span>
-      </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-foreground/80">{project.name}</span>
+          <span className="block truncate text-xs text-muted-foreground/60">
+            {STAGE_LABEL[project.stage]}
+          </span>
+        </span>
+      </SidebarMenuItem>
     </button>
   );
 });
@@ -124,54 +133,36 @@ export const LeftSidebar: React.FC = () => {
     <SidebarProvider>
       <div className="relative h-full">
         <SidebarSpace />
-        <SidebarContainer className="!w-full lg:border-r-0">
+        <SidebarContainer className="w-full lg:border-r-0">
           <SidebarHeader>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  className={`min-w-0 ${isCurrentView(currentView, 'home') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate('home')}
-                    aria-label="Home"
-                    className="w-full justify-start"
-                  >
-                    <Home className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium">Home</span>
-                  </Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  className={`min-w-0 ${isCurrentView(currentView, 'skills') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate('skills')}
-                    aria-label="Skills"
-                    className="w-full justify-start"
-                  >
-                    <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium">Skills</span>
-                  </Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  className={`min-w-0 ${isCurrentView(currentView, 'settings') ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate('settings')}
-                    aria-label="Settings"
-                    className="w-full justify-start"
-                  >
-                    <Settings className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium">Settings</span>
-                  </Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={isCurrentView(currentView, 'home')}
+                onClick={() => navigate('home')}
+                aria-label="Home"
+                className="w-full justify-start"
+              >
+                <Home className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                Home
+              </SidebarMenuButton>
+              <SidebarMenuButton
+                isActive={isCurrentView(currentView, 'skills')}
+                onClick={() => navigate('skills')}
+                aria-label="Home"
+                className="w-full justify-start"
+              >
+                <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                Skills
+              </SidebarMenuButton>
+              <SidebarMenuButton
+                isActive={isCurrentView(currentView, 'settings')}
+                onClick={() => navigate('settings')}
+                aria-label="Home"
+                className="w-full justify-start"
+              >
+                <Settings className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                Settings
+              </SidebarMenuButton>
             </SidebarMenu>
           </SidebarHeader>
           <SidebarContent className="flex flex-col">
