@@ -1,4 +1,4 @@
-import { ProviderId } from '@shared/providers/registry';
+import { ProviderId } from '@shared/agent-provider-registry';
 
 export type Conversation = {
   id: string;

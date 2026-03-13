@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { type LocalProject, type SshProject } from '@shared/projects/types';
+import { type LocalProject, type SshProject } from '@shared/projects';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { LocalGitService } from '@main/core/git/impl/local-git-provider';
 import { SshGitService } from '@main/core/git/impl/ssh-git-provider';

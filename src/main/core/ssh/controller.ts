@@ -4,12 +4,7 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type {
-  ConnectionState,
-  ConnectionTestResult,
-  FileEntry,
-  SshConfig,
-} from '@/shared/ssh/types';
+import type { ConnectionState, ConnectionTestResult, FileEntry, SshConfig } from '@shared/ssh';
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';

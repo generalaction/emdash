@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { eq } from 'drizzle-orm';
 import { Client, type ConnectConfig } from 'ssh2';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import type { ConnectionState } from '@shared/ssh/types';
+import type { ConnectionState } from '@shared/ssh';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';

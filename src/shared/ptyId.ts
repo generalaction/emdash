@@ -1,4 +1,4 @@
-import { PROVIDER_IDS, type ProviderId } from './providers/registry';
+import { PROVIDER_IDS, type ProviderId } from './agent-provider-registry';
 
 const CONV_SEP = '-conv-';
 

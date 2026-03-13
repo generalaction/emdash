@@ -1,6 +1,6 @@
 import { Download, Eye, EyeOff, FolderOpen, Key, Lock, Server, Shield, User } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
-import type { SshConfig, SshConfigHost } from '@shared/ssh/types';
+import type { SshConfig, SshConfigHost } from '@shared/ssh';
 import { cn } from '@renderer/lib/utils';
 import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';

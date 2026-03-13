@@ -1,4 +1,4 @@
-import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks/types';
+import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { TaskRow } from '@main/db/schema';
 
 export function mapTaskRowToTask(row: TaskRow): Task {

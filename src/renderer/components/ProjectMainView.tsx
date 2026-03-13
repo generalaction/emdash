@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { getProvider, type ProviderId } from '@shared/agent-provider-registry';
 import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
 import { useToast } from '../hooks/use-toast';
 import { usePrStatus } from '../hooks/usePrStatus';

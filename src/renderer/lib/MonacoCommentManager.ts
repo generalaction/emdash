@@ -1,7 +1,7 @@
 import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import type { LineComment } from '@shared/types/lineComment';
+import type { LineComment } from '@shared/lineComment';
 import { CommentInput } from '../components/diff/comments/CommentInput';
 import { CommentWidget } from '../components/diff/comments/CommentWidget';
 

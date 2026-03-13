@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useContext } from 'react';
-import { LocalProject, SshProject } from '@shared/projects/types';
+import { LocalProject, SshProject } from '@shared/projects';
 import { useToast } from '@renderer/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 

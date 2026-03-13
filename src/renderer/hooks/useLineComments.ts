@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import type { LineComment } from '@shared/types/lineComment';
+import type { LineComment } from '@shared/lineComment';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 import { rpc } from '../lib/ipc';
 

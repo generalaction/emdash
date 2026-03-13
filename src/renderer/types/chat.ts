@@ -1,4 +1,4 @@
-import type { ProviderId } from '@shared/providers/registry';
+import type { ProviderId } from '@shared/agent-provider-registry';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 import { type LinearIssueSummary } from './linear';

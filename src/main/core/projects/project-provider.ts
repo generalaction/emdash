@@ -1,8 +1,7 @@
-import { Conversation } from '@shared/conversations/types';
-import { Task } from '@shared/tasks/types';
-import { Terminal } from '@shared/terminal/types';
+import { Conversation } from '@shared/conversations';
+import { Task } from '@shared/tasks';
+import { Terminal } from '@shared/terminals';
 import type { IFileSystem } from '@main/core/fs/types';
-import type { Pty } from '@main/core/pty/pty';
 import { IConversationProvider } from '../conversations/types';
 import type { IGitProvider } from '../git/types';
 import { ITerminalProvider } from '../terminals/terminal-provider';
@@ -21,8 +20,6 @@ export interface TaskProvider {
   readonly git: IGitProvider;
   readonly conversationProvider: IConversationProvider;
   readonly terminalProvider: ITerminalProvider;
-  /** Returns a fresh PTY for running lifecycle scripts (setup/teardown). */
-  readonly getPty: () => Promise<Pty>;
 }
 
 export interface ProjectProvider {

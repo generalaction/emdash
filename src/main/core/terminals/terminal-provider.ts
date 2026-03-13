@@ -1,8 +1,4 @@
-import { Terminal } from '@shared/terminal/types';
-import { LocalSpawnError } from '@main/core/pty/local-pty';
-import { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
-
-export type CreateSessionError = LocalSpawnError | Ssh2OpenError;
+import { Terminal } from '@shared/terminals';
 
 export interface ITerminalProvider {
   spawnTerminal(terminal: Terminal): Promise<void>;

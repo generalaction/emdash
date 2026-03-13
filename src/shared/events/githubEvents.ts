@@ -1,5 +1,5 @@
+import type { GitHubUser } from '@shared/github';
 import { defineEvent } from '@shared/ipc/events';
-import type { GitHubUser } from '@shared/types/github';
 
 export const githubAuthDeviceCodeChannel = defineEvent<{
   userCode: string;

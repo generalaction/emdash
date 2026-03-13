@@ -1,8 +1,8 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { projectManager } from '@main/core/workspaces/project-manager';
-import { SshProjectProvider } from '@main/core/workspaces/ssh-project-provider';
+import { SshProjectProvider } from '@main/core/projects/_ssh-project-provider';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
+import { projectManager } from '../projects/project-manager';
 import { ptySessionRegistry } from './pty-session-registry';
 
 export const ptyController = createRPCController({

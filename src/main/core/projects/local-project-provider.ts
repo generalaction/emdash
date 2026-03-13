@@ -1,7 +1,7 @@
-import { Conversation } from '@shared/conversations/types';
-import { LocalProject } from '@shared/projects/types';
-import { Task } from '@shared/tasks/types';
-import { Terminal } from '@shared/terminal/types';
+import { Conversation } from '@shared/conversations';
+import { LocalProject } from '@shared/projects';
+import { Task } from '@shared/tasks';
+import { Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { LocalGitService } from '@main/core/git/impl/local-git-provider';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
@@ -73,23 +73,11 @@ export class LocalProjectProvider implements ProjectProvider {
       taskId: task.id,
     });
 
-    const terminalProvider = new LocalTerminalProvider(this.project.id, task.id);
-
-    const getPty = async () => {
-      const result = spawnLocalPty({
-        id: crypto.randomUUID(),
-        command: process.env.SHELL ?? '/bin/sh',
-        args: [],
-        cwd: workDir,
-        env: {},
-        cols: 80,
-        rows: 24,
-      });
-      if (!result.success) {
-        throw new Error(`Failed to spawn lifecycle PTY: ${result.error.kind}`);
-      }
-      return result.data;
-    };
+    const terminalProvider = new LocalTerminalProvider({
+      projectId: this.project.id,
+      taskId: task.id,
+      taskPath: workDir,
+    });
 
     const taskEnv: TaskProvider = {
       taskId: task.id,
@@ -98,7 +86,6 @@ export class LocalProjectProvider implements ProjectProvider {
       git,
       conversationProvider,
       terminalProvider,
-      getPty,
     };
 
     this.tasks.set(task.id, taskEnv);
@@ -107,19 +94,12 @@ export class LocalProjectProvider implements ProjectProvider {
 
     Promise.all(
       terminals.map((term) =>
-        terminalProvider
-          .spawnTerminal({
-            projectId: this.project.id,
+        terminalProvider.spawnTerminal(term).catch((e) => {
+          log.error('LocalEnvironmentProvider: failed to hydrate terminal', {
             terminalId: term.id,
-            taskId: task.id,
-            cwd: workDir,
-          })
-          .catch((e) => {
-            log.error('LocalEnvironmentProvider: failed to hydrate terminal', {
-              terminalId: term.id,
-              error: String(e),
-            });
-          })
+            error: String(e),
+          });
+        })
       )
     );
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConnectionState, SshConfigHost } from '../../shared/ssh/types';
+import type { ConnectionState, SshConfigHost } from '../../shared/ssh';
 import type { SshConnection, SshConnectionConfig } from '../components/ssh';
 import { rpc } from '../lib/ipc';
 

@@ -1,6 +1,6 @@
 import { Check, CheckCircle2, ChevronDown, Copy, Play, XCircle, Zap } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import type { ConnectionTestResult } from '@shared/ssh/types';
+import type { ConnectionTestResult } from '@shared/ssh';
 import { cn } from '@renderer/lib/utils';
 import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';

@@ -1,5 +1,6 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { projectManager } from './project-manager';
 import { ExecFn } from './worktrees/worktree-service';
 
 const execAsync = promisify(exec);
@@ -26,4 +27,8 @@ export function getLocalExec(): ExecFn {
   ) => {
     return execAsync(`command ${command} ${args.join(' ')}`, options);
   };
+}
+
+export function resolveTask(projectId: string, taskId: string) {
+  return projectManager.getProject(projectId)?.getTask(taskId) ?? null;
 }

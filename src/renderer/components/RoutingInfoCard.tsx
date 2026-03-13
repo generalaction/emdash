@@ -1,6 +1,6 @@
 import { ArrowUpRight, Check, Copy, Workflow } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { getInstallCommandForProvider } from '@shared/agent-provider-registry';
 import { Button } from './ui/button';
 
 export const RoutingInfoCard: React.FC = () => {

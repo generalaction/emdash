@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form';
 import { CheckCircle2, ChevronDown, ChevronUp, LoaderCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import * as z from 'zod';
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh/types';
+import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { Button } from '@renderer/components/ui/button';
 import {
   DialogContent,

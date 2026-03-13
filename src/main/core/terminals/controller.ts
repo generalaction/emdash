@@ -1,21 +1,10 @@
 import { count, eq, sql } from 'drizzle-orm';
 import { createRPCController } from '@shared/ipc/rpc';
-import { projectManager } from '@main/core/workspaces/project-manager';
+import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projects, tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
-import type { Terminal } from './core';
-
-function mapTerminalRow(row: {
-  id: string;
-  taskId: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-}): Terminal {
-  return { id: row.id, taskId: row.taskId, name: row.name };
-}
 
 export const terminalsController = createRPCController({
   createTerminal: async (taskId: string, name?: string) => {

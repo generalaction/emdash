@@ -1,6 +1,6 @@
 import { Settings2, Sparkles } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { PROVIDERS } from '@shared/providers/registry';
+import { PROVIDERS } from '@shared/agent-provider-registry';
 import { agentAssets } from '@renderer/providers/assets';
 import { rpc } from '../lib/ipc';
 import { CliAgentStatus } from '../types/connections';

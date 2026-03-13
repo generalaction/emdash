@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isValidProviderId } from '@shared/providers/registry';
+import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
 import { rpc } from '@renderer/lib/ipc';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';

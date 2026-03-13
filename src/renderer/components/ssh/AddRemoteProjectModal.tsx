@@ -19,7 +19,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh/types';
+import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { useCloseGuard } from '@renderer/hooks/useCloseGuard';
 import { cn } from '@renderer/lib/utils';
 import { rpc } from '../../lib/ipc';

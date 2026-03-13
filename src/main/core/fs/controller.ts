@@ -1,17 +1,13 @@
 import { planEventChannel } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/ipc/rpc';
-import { projectManager } from '@main/core/workspaces/project-manager';
 import { events } from '@main/lib/events';
 import { err, ok } from '@main/lib/result';
+import { resolveTask } from '../projects/utils';
 import { FileSystemErrorCodes, type ListOptions, type SearchOptions } from './types';
-
-function resolveEnv(projectId: string, taskId: string) {
-  return projectManager.getProject(projectId)?.getTask(taskId) ?? null;
-}
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -24,7 +20,7 @@ export const filesController = createRPCController({
   },
 
   readFile: async (projectId: string, taskId: string, filePath: string, maxBytes?: number) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -37,7 +33,7 @@ export const filesController = createRPCController({
   },
 
   writeFile: async (projectId: string, taskId: string, filePath: string, content: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -61,7 +57,7 @@ export const filesController = createRPCController({
   },
 
   removeFile: async (projectId: string, taskId: string, filePath: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -92,7 +88,7 @@ export const filesController = createRPCController({
   },
 
   readImage: async (projectId: string, taskId: string, filePath: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -117,7 +113,7 @@ export const filesController = createRPCController({
     query: string,
     options?: SearchOptions
   ) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -130,7 +126,7 @@ export const filesController = createRPCController({
   },
 
   statFile: async (projectId: string, taskId: string, filePath: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -143,7 +139,7 @@ export const filesController = createRPCController({
   },
 
   fileExists: async (projectId: string, taskId: string, filePath: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -156,7 +152,7 @@ export const filesController = createRPCController({
   },
 
   getProjectConfig: async (projectId: string, taskId: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -176,7 +172,7 @@ export const filesController = createRPCController({
   },
 
   saveProjectConfig: async (projectId: string, taskId: string, content: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
@@ -196,7 +192,7 @@ export const filesController = createRPCController({
   },
 
   saveAttachment: async (projectId: string, taskId: string, srcPath: string, subdir?: string) => {
-    const env = resolveEnv(projectId, taskId);
+    const env = resolveTask(projectId, taskId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 

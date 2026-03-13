@@ -1,5 +1,5 @@
-import { Conversation } from '@shared/conversations/types';
-import { ProviderId } from '@shared/providers/registry';
+import { ProviderId } from '@shared/agent-provider-registry';
+import { Conversation } from '@shared/conversations';
 import { ConversationRow } from '@main/db/schema';
 
 export function mapConversationRowToConversation(row: ConversationRow): Conversation {

@@ -1,6 +1,9 @@
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
+import {
+  getDocUrlForProvider,
+  getInstallCommandForProvider,
+} from '@shared/agent-provider-registry';
 import { agentAssets } from '@renderer/providers/assets';
 import { type UiAgent } from '@renderer/providers/meta';
 import AgentLogo from './AgentLogo';

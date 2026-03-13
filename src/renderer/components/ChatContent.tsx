@@ -1,5 +1,5 @@
 import React from 'react';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
+import { getInstallCommandForProvider } from '@shared/agent-provider-registry';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { useChatView } from '../contexts/ChatViewProvider';
 import { useConversations } from '../contexts/ConversationsProvider';

@@ -1,4 +1,4 @@
-import { Terminal } from '@shared/terminal/types';
+import { Terminal } from '@shared/terminals';
 import { TerminalRow } from '@main/db/schema';
 
 export function mapTerminalRowToTerminal(row: TerminalRow): Terminal {

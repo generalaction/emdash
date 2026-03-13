@@ -1,5 +1,5 @@
 import { eq, isNull } from 'drizzle-orm';
-import { LocalProject, SshProject } from '@shared/projects/types';
+import { LocalProject, SshProject } from '@shared/projects';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';

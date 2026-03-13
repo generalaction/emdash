@@ -1,6 +1,5 @@
 import { createRPCRouter } from '../shared/ipc/rpc';
-import { projectSettingsController } from './_deprecated/_project-settings';
-import { appController } from './core/app/app';
+import { appController } from './core/app/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
 import { filesController } from './core/fs/controller';
@@ -19,8 +18,8 @@ import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 
 export const rpcRouter = createRPCRouter({
-  appSettings: appSettingsController,
   app: appController,
+  appSettings: appSettingsController,
   fs: filesController,
   update: updateController,
   pty: ptyController,
@@ -29,7 +28,6 @@ export const rpcRouter = createRPCRouter({
   linear: linearController,
   lineComments: lineCommentsController,
   skills: skillsController,
-  projectSettings: projectSettingsController,
   ssh: sshController,
   projects: projectController,
   tasks: taskController,

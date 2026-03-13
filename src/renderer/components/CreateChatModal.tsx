@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { isValidProviderId } from '@shared/providers/registry';
+import { isValidProviderId } from '@shared/agent-provider-registry';
 import { rpc } from '@renderer/lib/ipc';
 import { agentConfig } from '../lib/agentConfig';
 import type { Agent } from '../types';

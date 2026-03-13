@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getProvider, type ProviderId } from '@shared/providers/registry';
+import { getProvider, type ProviderId } from '@shared/agent-provider-registry';
 import { rpc } from '../lib/ipc';
 
 interface AgentNameInfo {

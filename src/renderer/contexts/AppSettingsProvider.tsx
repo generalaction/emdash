@@ -1,30 +1,49 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useCallback, useContext } from 'react';
-import { AppSettings, AppSettingsUpdate } from 'src/main/settings';
+import { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 
 interface AppSettingsContextValue {
   settings: AppSettings | undefined;
   isLoading: boolean;
   isSaving: boolean;
-  updateSettings: (settings: AppSettingsUpdate) => void;
+  updateSettings: (update: AppSettingsUpdate) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
+
+type AppSettingsUpdate = {
+  [K in AppSettingsKey]: { key: K; value: AppSettings[K] };
+}[AppSettingsKey];
+
+function applyUpdate<K extends AppSettingsKey>(
+  settings: AppSettings,
+  key: K,
+  value: AppSettings[K]
+): AppSettings {
+  return { ...settings, [key]: value };
+}
 
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['appSettings'],
-    queryFn: () => rpc.appSettings.get(),
+    queryFn: () => rpc.appSettings.getAll(),
     staleTime: 60_000,
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (update: AppSettingsUpdate) => rpc.appSettings.update(update),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings'] });
+    mutationFn: ({ key, value }: AppSettingsUpdate) => rpc.appSettings.update(key, value),
+    onMutate: (update) => {
+      const previousSettings = queryClient.getQueryData<AppSettings>(['appSettings']);
+      queryClient.setQueryData(['appSettings'], (old: AppSettings) =>
+        applyUpdate(old, update.key, update.value)
+      );
+      return { previousSettings };
+    },
+    onError: (_error, _update, context) => {
+      queryClient.setQueryData(['appSettings'], context?.previousSettings);
     },
   });
 

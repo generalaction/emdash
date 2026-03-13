@@ -1,4 +1,4 @@
-import { Conversation } from '@shared/conversations/types';
+import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { IConversationProvider } from '@main/core/conversations/types';

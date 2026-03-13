@@ -1,4 +1,4 @@
-import type { ExecResult } from '@shared/ssh/types';
+import type { ExecResult } from '@shared/ssh';
 import type { DiffResult, GitChange, GitInfo, IGitProvider } from '@main/core/git/types';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';

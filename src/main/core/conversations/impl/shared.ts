@@ -1,5 +1,5 @@
+import { ProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel } from '@shared/events/agentEvents';
-import { ProviderId } from '@shared/providers/registry';
 import { Pty } from '@main/core/pty/pty';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';

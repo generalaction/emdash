@@ -1,6 +1,6 @@
 import { ChevronUp, FileCode, Folder, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { FileEntry } from '@shared/ssh/types';
+import type { FileEntry } from '@shared/ssh';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/lib/utils';
 import { Button } from '../ui/button';

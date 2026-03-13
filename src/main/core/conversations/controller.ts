@@ -1,31 +1,14 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
-import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
+import { eq, sql } from 'drizzle-orm';
+import { isValidProviderId, type ProviderId } from '@shared/agent-provider-registry';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
-import { conversations, projects, tasks, type ConversationRow } from '@main/db/schema';
+import { conversations, projects, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
 import { createRPCController } from '../../../shared/ipc/rpc';
-import { buildAgentCommand } from '../pty/build-agent-command';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import type { Conversation } from './types';
-
-function mapConversationRow(row: ConversationRow): Conversation {
-  return {
-    id: row.id,
-    taskId: row.taskId,
-    title: row.title,
-    provider: row.provider ?? null,
-    isMain: row.isMain === 1,
-    displayOrder: row.displayOrder,
-    agentSessionId: row.agentSessionId ?? null,
-    type: (row.type as 'agent' | 'shell') ?? 'agent',
-    metadata: row.metadata ?? null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
+import { mapConversationRowToConversation } from './utils';
 
 export type CreateConversationParams = {
   taskId: string;
@@ -41,9 +24,9 @@ export type CreateConversationParams = {
 };
 
 export const conversationController = createRPCController({
-  getConversations: async (projectId: string, taskId: string) => {
+  getConversations: async (taskId: string) => {
     const rows = await db.select().from(conversations).where(eq(conversations.taskId, taskId));
-    return rows.map(mapConversationRow);
+    return rows.map(mapConversationRowToConversation);
   },
 
   createConversation: async (projectId: string, params: CreateConversationParams) => {
@@ -79,61 +62,7 @@ export const conversationController = createRPCController({
       })
       .returning();
 
-    if (type === 'agent') {
-      if (project) {
-        const providerId: ProviderId | null = isValidProviderId(provider) ? provider : null;
-        const { command, args } = providerId
-          ? buildAgentCommand({
-              providerId,
-              autoApprove: autoApprove ?? false,
-              resume: resume ?? false,
-              initialPrompt,
-              sessionId: agentSessionId,
-            })
-          : { command: provider, args: [] };
-
-        const provider_ = projectManager.getProject(project.id);
-        if (!provider_) {
-          log.warn('conversationController.createConversation: no provider for project', {
-            projectId: project.id,
-          });
-        } else {
-          provider_
-            .provisionTask({ task, projectPath: project.path, conversations: [], terminals: [] })
-            .then((env) =>
-              env.agentProvider.startSession({
-                projectId: project.id,
-                conversationId,
-                taskId,
-                providerId: providerId ?? 'codex',
-                command,
-                args,
-                cwd: task.path,
-                projectPath: project.path,
-                agentSessionId,
-                autoApprove: autoApprove ?? false,
-                resume: resume ?? false,
-              })
-            )
-            .then((result) => {
-              if (!result.success) {
-                log.error('conversationController: failed to spawn agent PTY', {
-                  conversationId,
-                  error: result.error,
-                });
-              }
-            })
-            .catch((e) =>
-              log.error('conversationController: unexpected PTY spawn error', {
-                conversationId,
-                error: String(e),
-              })
-            );
-        }
-      }
-    }
-
-    return ok(mapConversationRow(row));
+    return mapConversationRowToConversation(row);
   },
 
   deleteConversation: async (id: string) => {

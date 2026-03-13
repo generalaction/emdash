@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { LocalProject, SshProject } from '@shared/projects/types';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 

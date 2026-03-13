@@ -1,6 +1,6 @@
-import { Conversation } from '@shared/conversations/types';
+import { ProviderId } from '@shared/agent-provider-registry';
+import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { ProviderId } from '@shared/providers/registry';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type {
   ConversationStartOptions,

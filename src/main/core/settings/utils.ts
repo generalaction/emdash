@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { isValidProviderId, type ProviderId } from '@shared/agent-provider-registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
-import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];

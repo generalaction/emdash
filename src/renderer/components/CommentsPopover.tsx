@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import type { LineComment } from '@shared/types/lineComment';
+import type { LineComment } from '@shared/lineComment';
 import { useTaskComments } from '../hooks/useLineComments';
 import { usePendingInjection } from '../hooks/usePendingInjection';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';

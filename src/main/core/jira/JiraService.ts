@@ -3,7 +3,7 @@ import { request } from 'node:https';
 import { join } from 'node:path';
 import { URL } from 'node:url';
 import { app } from 'electron';
-import type { Issue } from '@shared/tasks/types';
+import type { Issue } from '@shared/tasks';
 import { capture } from '@main/lib/telemetry';
 
 // ── Public types ────────────────────────────────────────────────────────────

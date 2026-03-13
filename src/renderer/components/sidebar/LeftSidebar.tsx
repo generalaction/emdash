@@ -1,6 +1,6 @@
 import { AlertCircle, Home, Loader2, Puzzle, Settings } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
-import type { LocalProject, SshProject } from '@shared/projects/types';
+import type { LocalProject, SshProject } from '@shared/projects';
 import {
   usePendingProjectsContext,
   type PendingProject,

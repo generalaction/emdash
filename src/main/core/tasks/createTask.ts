@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks/types';
+import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';

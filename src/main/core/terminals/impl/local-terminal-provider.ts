@@ -1,5 +1,5 @@
 import { makePtySessionId } from '@shared/ptySessionId';
-import { Terminal } from '@shared/terminal/types';
+import { Terminal } from '@shared/terminals';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';

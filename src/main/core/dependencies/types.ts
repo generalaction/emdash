@@ -1,4 +1,4 @@
-import type { ProviderId } from '@shared/providers/registry';
+import type { ProviderId } from '@shared/agent-provider-registry';
 
 export type DependencyCategory = 'core' | 'agent';
 

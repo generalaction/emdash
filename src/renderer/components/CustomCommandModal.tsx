@@ -2,7 +2,7 @@ import { Info, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
+import { PROVIDERS, type ProviderDefinition } from '@shared/agent-provider-registry';
 import { rpc } from '../lib/ipc';
 import type { ProviderCustomConfig } from '../types/electron-api';
 import { Button } from './ui/button';

@@ -15,6 +15,13 @@
       "when": 1773249736767,
       "tag": "0001_misty_micromax",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773368354700,
+      "tag": "0002_amused_exiles",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,4 @@
-import { Conversation } from '@shared/conversations/types';
-import { LocalSpawnError } from '@main/core/pty/local-pty';
-import { Ssh2OpenError } from '@main/core/pty/ssh2-pty';
-
-export type CreateSessionError = LocalSpawnError | Ssh2OpenError;
+import { Conversation } from '@shared/conversations';
 
 export interface IConversationProvider {
   startSession(conversation: Conversation): Promise<void>;

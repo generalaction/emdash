@@ -12,8 +12,8 @@ import {
   githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
-import type { Issue } from '@shared/tasks/types';
-import type { GitHubUser } from '@shared/types/github';
+import type { GitHubUser } from '@shared/github';
+import type { Issue } from '@shared/tasks';
 import { events } from '@main/lib/events';
 import { identify as telemetryIdentify } from '@main/lib/telemetry';
 

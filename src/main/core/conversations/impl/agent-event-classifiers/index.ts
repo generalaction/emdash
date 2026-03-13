@@ -1,4 +1,4 @@
-import type { ProviderId } from '@shared/providers/registry';
+import type { ProviderId } from '@shared/agent-provider-registry';
 import { createAmpClassifier } from './amp';
 import { createAuggieClassifier } from './auggie';
 import { createAutohandClassifier } from './autohand';

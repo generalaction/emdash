@@ -154,7 +154,6 @@ export const conversations = sqliteTable(
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
-    activeIdx: index('idx_conversations_active').on(table.taskId, table.isActive),
   })
 );
 

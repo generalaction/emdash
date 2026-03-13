@@ -1,6 +1,9 @@
 import { ArrowUpRight, Check, Copy, Play } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { getDocUrlForProvider, getInstallCommandForProvider } from '@shared/providers/registry';
+import {
+  getDocUrlForProvider,
+  getInstallCommandForProvider,
+} from '@shared/agent-provider-registry';
 import { agentMeta, type UiAgent } from '../providers/meta';
 import { Button } from './ui/button';
 

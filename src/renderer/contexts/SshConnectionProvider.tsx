@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import type { ConnectionState, ConnectionTestResult, SshConfig } from '@shared/ssh/types';
+import type { ConnectionState, ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { events, rpc } from '../lib/ipc';
 
 // ─── Query keys ──────────────────────────────────────────────────────────────
