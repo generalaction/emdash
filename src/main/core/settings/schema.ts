@@ -1,64 +1,41 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import z from 'zod';
 import { DEFAULT_PROVIDER_ID, PROVIDER_IDS, PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
 
-export const localProjectSettingsSchema = z
-  .object({
-    defaultProjectsDirectory: z.string(),
-    defaultWorktreeDirectory: z.string(),
-    branchPrefix: z.string(),
-    pushOnCreate: z.boolean(),
-  })
-  .default({
-    defaultProjectsDirectory: join(homedir(), 'emdash', 'projects'),
-    defaultWorktreeDirectory: join(homedir(), 'emdash', 'worktrees'),
-    branchPrefix: 'emdash',
-    pushOnCreate: true,
-  });
+export const localProjectSettingsSchema = z.object({
+  defaultProjectsDirectory: z.string(),
+  defaultWorktreeDirectory: z.string(),
+  branchPrefix: z.string(),
+  pushOnCreate: z.boolean(),
+});
 
-export const notificationSettingsSchema = z
-  .object({
-    enabled: z.boolean(),
-    sound: z.boolean(),
-    osNotifications: z.boolean(),
-    soundFocusMode: z.enum(['always', 'unfocused']),
-  })
-  .default({
-    enabled: true,
-    sound: true,
-    osNotifications: true,
-    soundFocusMode: 'always',
-  });
+export const notificationSettingsSchema = z.object({
+  enabled: z.boolean(),
+  sound: z.boolean(),
+  osNotifications: z.boolean(),
+  soundFocusMode: z.enum(['always', 'unfocused']),
+});
 
-export const taskSettingsSchema = z
-  .object({
-    autoGenerateName: z.boolean(),
-    autoApproveByDefault: z.boolean(),
-    autoTrustWorktrees: z.boolean(),
-  })
-  .default({
-    autoGenerateName: true,
-    autoApproveByDefault: false,
-    autoTrustWorktrees: true,
-  });
+export const taskSettingsSchema = z.object({
+  autoGenerateName: z.boolean(),
+  autoApproveByDefault: z.boolean(),
+  autoTrustWorktrees: z.boolean(),
+});
 
-export const terminalSettingsSchema = z
-  .object({
-    fontFamily: z.string().optional(),
-    autoCopyOnSelection: z.boolean(),
-  })
-  .default({ autoCopyOnSelection: false });
+export const terminalSettingsSchema = z.object({
+  fontFamily: z.string().optional(),
+  autoCopyOnSelection: z.boolean(),
+});
 
+// z.optional().default() keeps the TypeScript type non-optional while still allowing
+// undefined as a stored value.
 export const themeSchema = z
   .optional(z.enum(['light', 'dark', 'dark-black', 'system']))
   .default('system');
 
 export const defaultAgentSchema = z.optional(z.enum(PROVIDER_IDS)).default(DEFAULT_PROVIDER_ID);
 
-// Each field is optional — defaults live in the renderer's APP_SHORTCUTS registry,
-// not here, because some defaults are platform-specific (resolved at runtime).
+// Each field is optional — defaults live in settings-registry.ts.
 export const keyboardSettingsSchema = z
   .optional(
     z.object({
@@ -78,23 +55,9 @@ export const keyboardSettingsSchema = z
       openInEditor: z.string().optional(),
     })
   )
-  .default({
-    commandPalette: 'Mod+K',
-    settings: 'Mod+,',
-    toggleLeftSidebar: 'Mod+B',
-    toggleRightSidebar: 'Mod+.',
-    toggleTheme: 'Mod+T',
-    toggleKanban: 'Mod+P',
-    toggleEditor: 'Mod+E',
-    closeModal: 'Escape',
-    nextProject: 'Mod+]',
-    prevProject: 'Mod+[',
-    newTask: 'Mod+N',
-    nextAgent: 'Mod+Shift+K',
-    prevAgent: 'Mod+Shift+J',
-    openInEditor: 'Mod+E',
-  });
+  .default({});
 
+// providerConfigs schema — used by OverrideSettings for per-item validation.
 export const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
   resumeFlag: z.string().optional(),
@@ -106,6 +69,7 @@ export const providerCustomConfigEntrySchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 
+// External defaults for providerConfigs, sourced from the provider registry.
 export const providerConfigDefaults = Object.fromEntries(
   PROVIDERS.filter(
     (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
@@ -122,16 +86,6 @@ export const providerConfigDefaults = Object.fromEntries(
   ])
 );
 
-// Runtime/consumer type — registry defaults are merged in at read time.
-export const providerCustomConfigsSchema = z
-  .record(z.string(), providerCustomConfigEntrySchema)
-  .default(providerConfigDefaults);
-
-// Persistence type — only user-modified fields are stored; no registry defaults baked in.
-export const providerConfigOverridesSchema = z
-  .record(z.string(), providerCustomConfigEntrySchema)
-  .default({});
-
 export const mcpSettingsSchema = z
   .object({
     context7: z
@@ -143,30 +97,23 @@ export const mcpSettingsSchema = z
   })
   .default({ context7: { enabled: false } });
 
-export const interfaceSettingsSchema = z
-  .object({
-    taskHoverAction: z.enum(['delete', 'archive']),
-    autoRightSidebarBehavior: z.boolean(),
-  })
-  .default({ taskHoverAction: 'delete', autoRightSidebarBehavior: false });
+export const interfaceSettingsSchema = z.object({
+  taskHoverAction: z.enum(['delete', 'archive']),
+  autoRightSidebarBehavior: z.boolean(),
+});
 
-export const browserPreviewSettingsSchema = z
-  .object({ enabled: z.boolean() })
-  .default({ enabled: true });
+export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
-export const openInSettingsSchema = z
-  .object({
-    default: openInAppIdSchema,
-    hidden: z.array(openInAppIdSchema),
-  })
-  .default({ default: 'terminal', hidden: [] });
+export const openInSettingsSchema = z.object({
+  default: openInAppIdSchema,
+  hidden: z.array(openInAppIdSchema),
+});
 
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
-  providerConfigs: providerConfigOverridesSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
   openIn: openInSettingsSchema,
@@ -176,12 +123,12 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
 } as const;
 
+// providerConfigs is intentionally excluded — it is managed by OverrideSettings.
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
-  providerConfigs: providerCustomConfigsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
   openIn: openInSettingsSchema,

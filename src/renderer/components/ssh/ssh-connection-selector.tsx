@@ -2,7 +2,6 @@ import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
 import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
 import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
 import { ComboboxPopover } from '../ui/combobox-popover';
-import { ComboxInputTrigger } from '../ui/combox-input-trigger';
 
 interface SshConnectionSelectorProps {
   connectionId?: string;
@@ -48,7 +47,9 @@ export function SshConnectionSelector({
         <ComboboxTrigger
           render={
             <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-              <ComboboxValue />
+              <ComboboxValue
+                placeholder={<p className="text-muted-foreground">Select or add a connection</p>}
+              />
               <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
             </button>
           }

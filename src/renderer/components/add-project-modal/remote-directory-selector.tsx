@@ -18,7 +18,7 @@ export function RemoteDirectorySelector({
   value,
   onChange,
 }: RemoteDirectorySelectorProps) {
-  const [currentPath, setCurrentPath] = useState(value || '/');
+  const [currentPath, setCurrentPath] = useState<undefined | string>(value);
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function RemoteDirectorySelector({
   };
 
   const navigateUp = () => {
-    const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
+    const parent = currentPath?.split('/').slice(0, -1).join('/') || '/';
     setCurrentPath(parent);
     onChange(parent);
     void loadDirectory(parent);
@@ -89,7 +89,7 @@ export function RemoteDirectorySelector({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  void loadDirectory(currentPath);
+                  void loadDirectory(currentPath || '/');
                 }
               }}
               disabled={!connectionId}
@@ -108,7 +108,7 @@ export function RemoteDirectorySelector({
             >
               <ChevronUp className="h-4 w-4" />
             </Button>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-left">
               {currentPath || '/'}
             </span>
             {isBrowsing && (
@@ -157,7 +157,6 @@ export function RemoteDirectorySelector({
           </div>
         </PopoverContent>
       </Popover>
-
       {!connectionId && (
         <p className="text-xs text-muted-foreground">
           Select an SSH connection to browse remote directories.

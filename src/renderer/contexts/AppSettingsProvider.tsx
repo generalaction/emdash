@@ -4,8 +4,14 @@ import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 
 // ---------------------------------------------------------------------------
-// Merge helper — works for both object keys and primitive keys (theme, defaultAgent).
+// Per-key hook — the primary API for settings components.
 // ---------------------------------------------------------------------------
+
+type SettingsMeta<K extends AppSettingsKey> = {
+  value: AppSettings[K];
+  defaults: AppSettings[K];
+  overrides: Partial<AppSettings[K]>;
+};
 
 function mergeValue<K extends AppSettingsKey>(
   current: AppSettings[K] | undefined,
@@ -22,51 +28,40 @@ function mergeValue<K extends AppSettingsKey>(
   return partial as AppSettings[K];
 }
 
-// ---------------------------------------------------------------------------
-// Per-key hook — the primary API for settings/ components.
-// After a mutation, also invalidates the assembled 'all' cache so
-// consumers of useAppSettings() see the update on next render.
-// ---------------------------------------------------------------------------
-
 export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery<AppSettings[K]>({
-    queryKey: ['appSettings', key] as const,
-    queryFn: () => rpc.appSettings.get(key) as Promise<AppSettings[K]>,
+  const { data, isLoading } = useQuery<SettingsMeta<K>>({
+    queryKey: ['appSettings', key, 'meta'] as const,
+    queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
     staleTime: 60_000,
   });
 
-  const mutation = useMutation<
+  const updateMutation = useMutation<
     void,
     Error,
     Partial<AppSettings[K]>,
-    { prev: AppSettings[K] | undefined }
+    { prev: SettingsMeta<K> | undefined }
   >({
     mutationFn: (partial) => {
-      const current = queryClient.getQueryData<AppSettings[K]>(['appSettings', key]);
-      // providerConfigs is excluded from the generic update; writes go through updateProviderConfig.
-      return rpc.appSettings.update(
-        key as Exclude<K, 'providerConfigs'>,
-        mergeValue(current, partial) as AppSettings[Exclude<K, 'providerConfigs'>]
-      ) as Promise<void>;
+      const current = queryClient.getQueryData<SettingsMeta<K>>(['appSettings', key, 'meta']);
+      const merged = mergeValue(current?.value, partial);
+      return rpc.appSettings.update(key, merged) as Promise<void>;
     },
     onMutate: async (partial) => {
-      await queryClient.cancelQueries({ queryKey: ['appSettings', key] });
-      const prev = queryClient.getQueryData<AppSettings[K]>(['appSettings', key]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      queryClient.setQueryData(['appSettings', key], (old: any) =>
-        mergeValue(old as AppSettings[K], partial)
+      await queryClient.cancelQueries({ queryKey: ['appSettings', key, 'meta'] });
+      const prev = queryClient.getQueryData<SettingsMeta<K>>(['appSettings', key, 'meta']);
+      queryClient.setQueryData(['appSettings', key, 'meta'], (old: SettingsMeta<K> | undefined) =>
+        old ? { ...old, value: mergeValue(old.value, partial) } : old
       );
-      // Optimistically patch the assembled 'all' cache as well.
       queryClient.setQueryData(['appSettings', 'all'], (all: AppSettings | undefined) =>
-        all ? ({ ...all, [key]: mergeValue(all[key as K], partial) } as AppSettings) : all
+        all && prev ? ({ ...all, [key]: mergeValue(prev.value, partial) } as AppSettings) : all
       );
       return { prev };
     },
     onError: (_err, _partial, ctx) => {
       if (ctx?.prev !== undefined) {
-        queryClient.setQueryData(['appSettings', key], ctx.prev);
+        queryClient.setQueryData(['appSettings', key, 'meta'], ctx.prev);
       }
       queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
@@ -75,22 +70,45 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     },
   });
 
+  const resetMutation = useMutation<void, Error, void>({
+    mutationFn: () => rpc.appSettings.reset(key) as Promise<void>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+    },
+  });
+
+  const resetFieldMutation = useMutation<void, Error, keyof AppSettings[K]>({
+    mutationFn: (field) => rpc.appSettings.resetField(key, field as string) as Promise<void>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+    },
+  });
+
   return {
-    value: data,
+    value: data?.value,
+    defaults: data?.defaults,
+    overrides: data?.overrides,
     isLoading,
-    isSaving: mutation.isPending,
-    update: mutation.mutate,
+    isSaving: updateMutation.isPending,
+    isOverridden: !!(data?.overrides && Object.keys(data.overrides).length > 0),
+    isFieldOverridden: (field: keyof AppSettings[K]) =>
+      !!(data?.overrides && field in data.overrides),
+    update: updateMutation.mutate,
+    reset: resetMutation.mutate,
+    resetField: (field: keyof AppSettings[K]) => resetFieldMutation.mutate(field),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Backward-compatible context — out-of-scope consumers that still call
-// useAppSettings(). Uses a single getAll query instead of 12 separate ones.
+// Backward-compatible context for consumers using useAppSettings().
+// Uses a single getAll query.
 // ---------------------------------------------------------------------------
 
 type AppSettingsUpdate = {
-  [K in Exclude<AppSettingsKey, 'providerConfigs'>]: { key: K; value: Partial<AppSettings[K]> };
-}[Exclude<AppSettingsKey, 'providerConfigs'>];
+  [K in AppSettingsKey]: { key: K; value: Partial<AppSettings[K]> };
+}[AppSettingsKey];
 
 interface AppSettingsContextValue {
   settings: AppSettings | undefined;
@@ -112,8 +130,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
   const updateMutation = useMutation({
     mutationFn: ({ key, value }: AppSettingsUpdate) => {
-      const current = queryClient.getQueryData<AppSettings[typeof key]>(['appSettings', key]);
-      return rpc.appSettings.update(key, mergeValue(current, value));
+      const current = queryClient.getQueryData<AppSettings>(['appSettings', 'all']);
+      const merged = mergeValue(current?.[key], value);
+      return rpc.appSettings.update(key, merged);
     },
     onMutate: ({ key, value }) => {
       const prev = queryClient.getQueryData(['appSettings', 'all']);

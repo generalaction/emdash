@@ -7,7 +7,7 @@ import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { parsePtyId } from '@shared/ptyId';
 import { getMainWindow } from '@main/app/window';
-import { getAppSettings } from '@main/core/settings/utils';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { conversations, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -134,9 +134,9 @@ class AgentEventService {
 
   private async maybeShowOsNotification(event: AgentEvent, appFocused: boolean): Promise<void> {
     try {
-      const settings = getAppSettings();
-      if (!settings.notifications?.enabled) return;
-      if (!settings.notifications?.osNotifications) return;
+      const notifications = await appSettingsService.get('notifications');
+      if (!notifications?.enabled) return;
+      if (!notifications?.osNotifications) return;
       if (appFocused) return;
       if (!Notification.isSupported()) return;
 

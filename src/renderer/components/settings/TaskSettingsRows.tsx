@@ -4,6 +4,7 @@ import { useTaskSettings } from '../../hooks/useTaskSettings';
 import { agentMeta } from '../../providers/meta';
 import { Switch } from '../ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { ResetToDefaultButton } from './ResetToDefaultButton';
 
 const SUPPORTED_AUTO_APPROVE_AGENTS = Object.values(agentMeta)
   .filter((meta) => Boolean(meta.autoApproveFlag))
@@ -22,11 +23,20 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
           Automatically suggests a task name when creating a new task.
         </p>
       </div>
-      <Switch
-        checked={taskSettings.autoGenerateName}
-        disabled={taskSettings.loading || taskSettings.saving}
-        onCheckedChange={taskSettings.updateAutoGenerateName}
-      />
+      <div className="flex items-center gap-1">
+        {taskSettings.isFieldOverridden('autoGenerateName') && (
+          <ResetToDefaultButton
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoGenerateName}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+        )}
+        <Switch
+          checked={taskSettings.autoGenerateName}
+          disabled={taskSettings.loading || taskSettings.saving}
+          onCheckedChange={taskSettings.updateAutoGenerateName}
+        />
+      </div>
     </div>
   );
 };
@@ -60,11 +70,20 @@ export const AutoApproveByDefaultRow: React.FC = () => {
           Skips permission prompts for file operations in new tasks.
         </p>
       </div>
-      <Switch
-        checked={taskSettings.autoApproveByDefault}
-        disabled={taskSettings.loading || taskSettings.saving}
-        onCheckedChange={taskSettings.updateAutoApproveByDefault}
-      />
+      <div className="flex items-center gap-1">
+        {taskSettings.isFieldOverridden('autoApproveByDefault') && (
+          <ResetToDefaultButton
+            defaultLabel="off"
+            onReset={taskSettings.resetAutoApproveByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+        )}
+        <Switch
+          checked={taskSettings.autoApproveByDefault}
+          disabled={taskSettings.loading || taskSettings.saving}
+          onCheckedChange={taskSettings.updateAutoApproveByDefault}
+        />
+      </div>
     </div>
   );
 };
@@ -99,11 +118,20 @@ export const AutoTrustWorktreesRow: React.FC = () => {
           Skip the folder trust prompt in Claude Code for new tasks.
         </p>
       </div>
-      <Switch
-        checked={taskSettings.autoTrustWorktrees}
-        disabled={taskSettings.loading || taskSettings.saving}
-        onCheckedChange={taskSettings.updateAutoTrustWorktrees}
-      />
+      <div className="flex items-center gap-1">
+        {taskSettings.isFieldOverridden('autoTrustWorktrees') && (
+          <ResetToDefaultButton
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoTrustWorktrees}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+        )}
+        <Switch
+          checked={taskSettings.autoTrustWorktrees}
+          disabled={taskSettings.loading || taskSettings.saving}
+          onCheckedChange={taskSettings.updateAutoTrustWorktrees}
+        />
+      </div>
     </div>
   );
 };

@@ -1,12 +1,20 @@
 import { useForm } from '@tanstack/react-form';
-import { CheckCircle2, ChevronDown, ChevronUp, LoaderCircle, XCircle } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  LoaderCircle,
+  XCircle,
+  XIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import * as z from 'zod';
 import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { Button } from '@renderer/components/ui/button';
 import {
+  DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -138,10 +146,21 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
   };
 
   return (
-    <DialogContent className="sm:max-w-lg" showCloseButton={false}>
-      <DialogHeader>
-        <DialogTitle>Add SSH Connection</DialogTitle>
-        <DialogDescription>Configure a connection to a remote server over SSH.</DialogDescription>
+    <DialogContent showCloseButton={false}>
+      <DialogHeader className="flex-row items-center gap-2 -mt-2 w-full justify-between">
+        <div className="flex items-center gap-2 -ml-2">
+          <Button variant="ghost" size="icon-sm" onClick={onClose}>
+            <ArrowLeftIcon className="w-4 h-4" />
+          </Button>
+          <DialogTitle>Add SSH Connection</DialogTitle>
+        </div>
+        <DialogClose
+          render={
+            <Button variant="ghost" size="icon-sm" className="-mr-2">
+              <XIcon className="w-4 h-4" />
+            </Button>
+          }
+        />
       </DialogHeader>
       <form
         id="add-ssh-conn-form"
@@ -406,9 +425,6 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           )}
         </Button>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
           <Button type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
@@ -416,7 +432,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
                 Saving…
               </>
             ) : (
-              'Save Connection'
+              'Save'
             )}
           </Button>
         </div>

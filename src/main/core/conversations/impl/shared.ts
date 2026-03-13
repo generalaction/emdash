@@ -1,7 +1,7 @@
 import { ProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { Pty } from '@main/core/pty/pty';
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { events } from '@main/lib/events';
 import { createClassifier } from './agent-event-classifiers';
 
@@ -50,9 +50,7 @@ export async function buildAgentCommand({
   sessionId: string;
   isResuming?: boolean;
 }) {
-  const providerConfig = (await appSettingsService.getAppSettingsKey('providerConfigs'))[
-    providerId
-  ];
+  const providerConfig = await providerOverrideSettings.getItem(providerId);
 
   const cli = providerConfig?.cli;
   const args: string[] = [];

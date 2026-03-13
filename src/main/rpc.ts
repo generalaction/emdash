@@ -11,6 +11,7 @@ import { linearController } from './core/linear/controller';
 import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
 import { appSettingsController } from './core/settings/controller';
+import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
 import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
@@ -20,6 +21,7 @@ import { updateController } from './core/updates/controller';
 export const rpcRouter = createRPCRouter({
   app: appController,
   appSettings: appSettingsController,
+  providerSettings: providerSettingsController,
   fs: filesController,
   update: updateController,
   pty: ptyController,

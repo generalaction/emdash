@@ -144,7 +144,7 @@ export function AddProjectModal({
             <ClonePanel strategy={'local'} state={cloneState} />
           </ModeTabs>
         </TabsContent>
-        <TabsContent value="ssh" className="flex flex-col gap-4">
+        <TabsContent value="ssh" className="flex flex-col gap-6">
           <Field>
             <FieldLabel>SSH Connection</FieldLabel>
             <SshConnectionSelector
@@ -162,7 +162,7 @@ export function AddProjectModal({
       </Tabs>
       <DialogFooter>
         <Button type="button" onClick={handleSubmit}>
-          Submit
+          Create
         </Button>
       </DialogFooter>
     </DialogContent>

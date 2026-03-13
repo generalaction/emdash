@@ -13,7 +13,11 @@ export function ModeTabs({
   children: React.ReactNode;
 }) {
   return (
-    <Tabs.Root value={mode} onValueChange={(v) => onModeChange(v as Mode)}>
+    <Tabs.Root
+      value={mode}
+      onValueChange={(v) => onModeChange(v as Mode)}
+      className="flex flex-col gap-6"
+    >
       <Tabs.List className="w-full flex gap-2">
         <Tabs.Tab
           value="pick"
@@ -43,7 +47,7 @@ export function ModeTabs({
           }
         />
       </Tabs.List>
-      {children}
+      <div>{children}</div>
     </Tabs.Root>
   );
 }

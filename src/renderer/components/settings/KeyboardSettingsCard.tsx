@@ -1,5 +1,4 @@
 import { formatForDisplay, useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
-import { RotateCcw } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import { toast } from '../../hooks/use-toast';
@@ -9,7 +8,7 @@ import {
   type ShortcutSettingsKey,
 } from '../../hooks/useKeyboardShortcuts';
 import { Button } from '../ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { ResetToDefaultButton } from './ResetToDefaultButton';
 
 const CONFIGURABLE_SHORTCUTS = (
   Object.entries(APP_SHORTCUTS) as [
@@ -24,6 +23,8 @@ const KeyboardSettingsCard: React.FC = () => {
     update,
     isLoading: loading,
     isSaving: saving,
+    isFieldOverridden,
+    resetField,
   } = useAppSettingsKey('keyboard');
 
   const [editingKey, setEditingKey] = useState<ShortcutSettingsKey | null>(null);
@@ -32,7 +33,6 @@ const KeyboardSettingsCard: React.FC = () => {
     onRecord: (hotkey: Hotkey) => {
       if (!editingKey) return;
 
-      // Conflict check: any other action already bound to this hotkey?
       const conflict = CONFIGURABLE_SHORTCUTS.find(([key]) => {
         if (key === editingKey) return false;
         return getEffectiveHotkey(key, keyboard) === hotkey;
@@ -63,15 +63,12 @@ const KeyboardSettingsCard: React.FC = () => {
   };
 
   const handleReset = (key: ShortcutSettingsKey) => {
-    // Remove the override — falls back to default
-    update({ [key]: undefined });
+    resetField(key);
     toast({
       title: 'Shortcut reset',
       description: `${APP_SHORTCUTS[key].label} reset to default.`,
     });
   };
-
-  const isModified = (key: ShortcutSettingsKey) => Boolean(keyboard?.[key]);
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
@@ -111,27 +108,12 @@ const KeyboardSettingsCard: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {isModified(key) ? (
-                      <TooltipProvider delay={150}>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleReset(key)}
-                              disabled={loading || saving}
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Reset to default shortcut</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : null}
+                    {isFieldOverridden(key) && (
+                      <ResetToDefaultButton
+                        onReset={() => handleReset(key)}
+                        disabled={loading || saving}
+                      />
+                    )}
                     <Button
                       type="button"
                       variant="outline"

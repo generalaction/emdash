@@ -9,7 +9,7 @@ export const ButtonCard = forwardRef<HTMLButtonElement, ButtonCardProps>(
       <button
         ref={ref}
         className={cn(
-          'w-full border border-border rounded-md p-4 hover:bg-muted/20 transition-colors flex flex-col items-center justify-center gap-2 data-active:bg-muted/20 data-active:border-primary',
+          'w-full border border-border rounded-md p-4 hover:bg-muted/30 transition-colors flex flex-col items-center justify-center gap-2 data-active:shadow-sm data-active:text-primary text-muted-foreground data-active:bg-muted/40 data-active:border-primary/40',
           className
         )}
         {...props}

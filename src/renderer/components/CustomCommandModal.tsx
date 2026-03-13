@@ -1,11 +1,10 @@
-import { Info, Plus, RotateCcw, Trash2, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { PROVIDERS, type ProviderDefinition } from '@shared/agent-provider-registry';
-import type { AppSettings, ProviderCustomConfig } from '@shared/app-settings';
-import { rpc } from '../lib/ipc';
+import type { ProviderCustomConfig } from '@shared/app-settings';
+import { useProviderSettings } from '../hooks/useProviderSettings';
 import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -38,87 +37,50 @@ const getDefaultFromProvider = (provider: ProviderDefinition | undefined): FormS
   envEntries: [],
 });
 
+const configToFormState = (config: ProviderCustomConfig, fallback: FormState): FormState => ({
+  cli: config.cli ?? fallback.cli,
+  resumeFlag: config.resumeFlag ?? fallback.resumeFlag,
+  defaultArgs: Array.isArray(config.defaultArgs)
+    ? config.defaultArgs.join(' ')
+    : (config.defaultArgs ?? fallback.defaultArgs),
+  extraArgs: config.extraArgs ?? '',
+  autoApproveFlag: config.autoApproveFlag ?? fallback.autoApproveFlag,
+  initialPromptFlag: config.initialPromptFlag ?? fallback.initialPromptFlag,
+  envEntries: config.env ? Object.entries(config.env).map(([key, value]) => ({ key, value })) : [],
+});
+
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
-  const shouldReduceMotion = useReducedMotion();
   const provider = useMemo(() => PROVIDERS.find((p) => p.id === providerId), [providerId]);
+  const registryDefaults = useMemo(() => getDefaultFromProvider(provider), [provider]);
 
-  const defaults = useMemo(() => getDefaultFromProvider(provider), [provider]);
+  const {
+    value: storedConfig,
+    isOverridden,
+    isLoading,
+    update,
+    reset,
+  } = useProviderSettings(providerId);
 
-  const [form, setForm] = useState<FormState>(defaults);
-  const [hasCustomConfig, setHasCustomConfig] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState<FormState>(registryDefaults);
   const [saving, setSaving] = useState(false);
 
-  // Handle Escape key to close modal
   useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  // Load existing custom config
-  useEffect(() => {
-    if (!isOpen || !providerId) return;
-
-    const loadConfig = async () => {
-      setLoading(true);
-      try {
-        const allConfigs = await (rpc.appSettings.get('providerConfigs') as Promise<
-          AppSettings['providerConfigs']
-        >);
-        const config = allConfigs?.[providerId];
-        if (config && Object.keys(config).length > 0) {
-          const env = config.env;
-          const envEntries: EnvEntry[] =
-            env && typeof env === 'object'
-              ? Object.entries(env).map(([key, value]) => ({ key, value: String(value) }))
-              : [];
-          setForm({
-            cli: config.cli ?? defaults.cli,
-            resumeFlag: config.resumeFlag ?? defaults.resumeFlag,
-            defaultArgs: Array.isArray(config.defaultArgs)
-              ? config.defaultArgs.join(' ')
-              : (config.defaultArgs ?? defaults.defaultArgs),
-            extraArgs: config.extraArgs ?? '',
-            autoApproveFlag: config.autoApproveFlag ?? defaults.autoApproveFlag,
-            initialPromptFlag: config.initialPromptFlag ?? defaults.initialPromptFlag,
-            envEntries,
-          });
-          setHasCustomConfig(true);
-        } else {
-          setForm(defaults);
-          setHasCustomConfig(false);
-        }
-      } catch (error) {
-        console.error('Failed to load provider custom config:', error);
-        setForm(defaults);
-        setHasCustomConfig(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadConfig();
-  }, [isOpen, providerId, defaults]);
+    if (!isOpen || isLoading) return;
+    if (storedConfig && isOverridden) {
+      setForm(configToFormState(storedConfig, registryDefaults));
+    } else {
+      setForm(registryDefaults);
+    }
+  }, [isOpen, isLoading, storedConfig, isOverridden, registryDefaults]);
 
   const handleChange = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const setEnvEntry = useCallback((index: number, update: Partial<EnvEntry>) => {
+  const setEnvEntry = useCallback((index: number, entryUpdate: Partial<EnvEntry>) => {
     setForm((prev) => {
       const next = [...prev.envEntries];
-      next[index] = { ...next[index], ...update };
+      next[index] = { ...next[index], ...entryUpdate };
       return { ...prev, envEntries: next };
     });
   }, []);
@@ -135,8 +97,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   }, []);
 
   const handleResetToDefaults = useCallback(() => {
-    setForm(defaults);
-  }, [defaults]);
+    setForm(registryDefaults);
+  }, [registryDefaults]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -149,18 +111,19 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         }
       }
 
-      const isDefault =
-        form.cli === defaults.cli &&
-        form.resumeFlag === defaults.resumeFlag &&
-        form.defaultArgs === defaults.defaultArgs &&
+      const isAtDefaults =
+        form.cli === registryDefaults.cli &&
+        form.resumeFlag === registryDefaults.resumeFlag &&
+        form.defaultArgs === registryDefaults.defaultArgs &&
         form.extraArgs === '' &&
-        form.autoApproveFlag === defaults.autoApproveFlag &&
-        form.initialPromptFlag === defaults.initialPromptFlag &&
+        form.autoApproveFlag === registryDefaults.autoApproveFlag &&
+        form.initialPromptFlag === registryDefaults.initialPromptFlag &&
         form.envEntries.every((e) => !e.key.trim());
 
-      if (isDefault) {
-        await rpc.appSettings.updateProviderConfig(providerId, undefined);
-        setHasCustomConfig(false);
+      if (isAtDefaults) {
+        await new Promise<void>((resolve, reject) =>
+          reset(undefined, { onSuccess: resolve, onError: reject })
+        );
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
@@ -171,8 +134,9 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
           initialPromptFlag: form.initialPromptFlag,
           env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         };
-        await rpc.appSettings.updateProviderConfig(providerId, config);
-        setHasCustomConfig(true);
+        await new Promise<void>((resolve, reject) =>
+          update(config, { onSuccess: resolve, onError: reject })
+        );
       }
       onClose();
     } catch (error) {
@@ -180,7 +144,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     } finally {
       setSaving(false);
     }
-  }, [form, defaults, providerId, onClose]);
+  }, [form, registryDefaults, reset, update, onClose]);
 
   const previewCommand = useMemo(() => {
     const parts: string[] = [];
@@ -195,284 +159,237 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   }, [form]);
 
   const hasChanges = useMemo(() => {
-    if (hasCustomConfig) return true;
+    if (isOverridden) return true;
     const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
     return (
-      form.cli !== defaults.cli ||
-      form.resumeFlag !== defaults.resumeFlag ||
-      form.defaultArgs !== defaults.defaultArgs ||
+      form.cli !== registryDefaults.cli ||
+      form.resumeFlag !== registryDefaults.resumeFlag ||
+      form.defaultArgs !== registryDefaults.defaultArgs ||
       form.extraArgs !== '' ||
-      form.autoApproveFlag !== defaults.autoApproveFlag ||
-      form.initialPromptFlag !== defaults.initialPromptFlag ||
+      form.autoApproveFlag !== registryDefaults.autoApproveFlag ||
+      form.initialPromptFlag !== registryDefaults.initialPromptFlag ||
       hasEnv
     );
-  }, [form, defaults, hasCustomConfig]);
+  }, [form, registryDefaults, isOverridden]);
 
   if (!provider) return null;
 
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="custom-command-title"
-          className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-130"
-          initial={shouldReduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0 }}
-          transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.12, ease: 'easeOut' }}
-          onClick={onClose}
-        >
-          <motion.div
-            onClick={(e) => e.stopPropagation()}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 8, scale: 0.995 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={
-              shouldReduceMotion
-                ? { opacity: 1, y: 0, scale: 1 }
-                : { opacity: 0, y: 6, scale: 0.995 }
-            }
-            transition={
-              shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-            }
-            className="mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl z-130"
-          >
-            {/* Header */}
-            <header className="flex items-center justify-between border-b border-border/60 px-6 py-4">
-              <div>
-                <h2 id="custom-command-title" className="text-lg font-semibold">
-                  {provider.name} Execution Settings
-                </h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Customize the agent execution command
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="h-8 w-8"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </header>
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="p-0 gap-0 overflow-hidden max-w-lg" showCloseButton={false}>
+        <DialogHeader className="flex-row items-start justify-between border-b border-border/60 px-6 py-4 gap-4">
+          <div>
+            <DialogTitle className="text-lg font-semibold">
+              {provider.name} Execution Settings
+            </DialogTitle>
+            <DialogDescription className="mt-0.5">
+              Customize the agent execution command
+            </DialogDescription>
+          </div>
+        </DialogHeader>
 
-            {/* Body */}
-            <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-sm text-muted-foreground">Loading...</div>
+        <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* CLI Command */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="cli" className="text-sm font-medium">
+                    CLI Command
+                  </Label>
+                  <FieldTooltip content="The CLI command to execute (e.g., claude, codex)" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* CLI Command */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="cli" className="text-sm font-medium">
-                        CLI Command
-                      </Label>
-                      <FieldTooltip content="The CLI command to execute (e.g., claude, codex)" />
-                    </div>
-                    <Input
-                      id="cli"
-                      value={form.cli}
-                      onChange={(e) => handleChange('cli', e.target.value)}
-                      placeholder={defaults.cli || 'CLI command'}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+                <Input
+                  id="cli"
+                  value={form.cli}
+                  onChange={(e) => handleChange('cli', e.target.value)}
+                  placeholder={registryDefaults.cli || 'CLI command'}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Resume Flag */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="resumeFlag" className="text-sm font-medium">
-                        Resume Flag
-                      </Label>
-                      <FieldTooltip content="Flag used when resuming a session (e.g., -c -r)" />
-                    </div>
-                    <Input
-                      id="resumeFlag"
-                      value={form.resumeFlag}
-                      onChange={(e) => handleChange('resumeFlag', e.target.value)}
-                      placeholder={defaults.resumeFlag || '(none)'}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+              {/* Resume Flag */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="resumeFlag" className="text-sm font-medium">
+                    Resume Flag
+                  </Label>
+                  <FieldTooltip content="Flag used when resuming a session (e.g., -c -r)" />
+                </div>
+                <Input
+                  id="resumeFlag"
+                  value={form.resumeFlag}
+                  onChange={(e) => handleChange('resumeFlag', e.target.value)}
+                  placeholder={registryDefaults.resumeFlag || '(none)'}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Default Args */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="defaultArgs" className="text-sm font-medium">
-                        Default Args
-                      </Label>
-                      <FieldTooltip content="Default arguments (e.g., run -s)" />
-                    </div>
-                    <Input
-                      id="defaultArgs"
-                      value={form.defaultArgs}
-                      onChange={(e) => handleChange('defaultArgs', e.target.value)}
-                      placeholder={defaults.defaultArgs || '(none)'}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+              {/* Default Args */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="defaultArgs" className="text-sm font-medium">
+                    Default Args
+                  </Label>
+                  <FieldTooltip content="Default arguments (e.g., run -s)" />
+                </div>
+                <Input
+                  id="defaultArgs"
+                  value={form.defaultArgs}
+                  onChange={(e) => handleChange('defaultArgs', e.target.value)}
+                  placeholder={registryDefaults.defaultArgs || '(none)'}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Additional parameters */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="extraArgs" className="text-sm font-medium">
-                        Additional parameters
-                      </Label>
-                      <FieldTooltip content="Extra flags appended to the command (e.g. --enable-all-github-mcp-tools)" />
-                    </div>
-                    <Input
-                      id="extraArgs"
-                      value={form.extraArgs}
-                      onChange={(e) => handleChange('extraArgs', e.target.value)}
-                      placeholder="e.g. --enable-all-github-mcp-tools"
-                      className="font-mono text-sm"
-                    />
-                  </div>
+              {/* Additional parameters */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="extraArgs" className="text-sm font-medium">
+                    Additional parameters
+                  </Label>
+                  <FieldTooltip content="Extra flags appended to the command (e.g. --enable-all-github-mcp-tools)" />
+                </div>
+                <Input
+                  id="extraArgs"
+                  value={form.extraArgs}
+                  onChange={(e) => handleChange('extraArgs', e.target.value)}
+                  placeholder="e.g. --enable-all-github-mcp-tools"
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Environment variables */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm font-medium">Environment variables</Label>
-                      <FieldTooltip content="Environment variables set when running the agent" />
-                    </div>
-                    <div className="space-y-2">
-                      {form.envEntries.map((entry, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <Input
-                            value={entry.key}
-                            onChange={(e) => setEnvEntry(i, { key: e.target.value })}
-                            placeholder="KEY"
-                            className="min-w-0 flex-1 font-mono text-sm"
-                          />
-                          <Input
-                            value={entry.value}
-                            onChange={(e) => setEnvEntry(i, { value: e.target.value })}
-                            placeholder="value"
-                            className="min-w-0 flex-1 font-mono text-sm"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeEnvEntry(i)}
-                            className="h-8 w-8 shrink-0"
-                            aria-label="Remove"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))}
+              {/* Environment variables */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Environment variables</Label>
+                  <FieldTooltip content="Environment variables set when running the agent" />
+                </div>
+                <div className="space-y-2">
+                  {form.envEntries.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={entry.key}
+                        onChange={(e) => setEnvEntry(i, { key: e.target.value })}
+                        placeholder="KEY"
+                        className="min-w-0 flex-1 font-mono text-sm"
+                      />
+                      <Input
+                        value={entry.value}
+                        onChange={(e) => setEnvEntry(i, { value: e.target.value })}
+                        placeholder="value"
+                        className="min-w-0 flex-1 font-mono text-sm"
+                      />
                       <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addEnvEntry}
-                        className="gap-1.5"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeEnvEntry(i)}
+                        className="h-8 w-8 shrink-0"
+                        aria-label="Remove"
                       >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add variable
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addEnvEntry}
+                    className="gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add variable
+                  </Button>
+                </div>
+              </div>
 
-                  {/* Auto-approve Flag */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="autoApproveFlag" className="text-sm font-medium">
-                        Auto-approve Flag
-                      </Label>
-                      <FieldTooltip content="Flag used in auto-approve mode" />
-                    </div>
-                    <Input
-                      id="autoApproveFlag"
-                      value={form.autoApproveFlag}
-                      onChange={(e) => handleChange('autoApproveFlag', e.target.value)}
-                      placeholder={defaults.autoApproveFlag || '(none)'}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+              {/* Auto-approve Flag */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="autoApproveFlag" className="text-sm font-medium">
+                    Auto-approve Flag
+                  </Label>
+                  <FieldTooltip content="Flag used in auto-approve mode" />
+                </div>
+                <Input
+                  id="autoApproveFlag"
+                  value={form.autoApproveFlag}
+                  onChange={(e) => handleChange('autoApproveFlag', e.target.value)}
+                  placeholder={registryDefaults.autoApproveFlag || '(none)'}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Initial Prompt Flag */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="initialPromptFlag" className="text-sm font-medium">
-                        Initial Prompt Flag
-                      </Label>
-                      <FieldTooltip content="Flag for passing initial prompt (empty means pass directly)" />
-                    </div>
-                    <Input
-                      id="initialPromptFlag"
-                      value={form.initialPromptFlag}
-                      onChange={(e) => handleChange('initialPromptFlag', e.target.value)}
-                      placeholder={defaults.initialPromptFlag || '(pass directly)'}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+              {/* Initial Prompt Flag */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="initialPromptFlag" className="text-sm font-medium">
+                    Initial Prompt Flag
+                  </Label>
+                  <FieldTooltip content="Flag for passing initial prompt (empty means pass directly)" />
+                </div>
+                <Input
+                  id="initialPromptFlag"
+                  value={form.initialPromptFlag}
+                  onChange={(e) => handleChange('initialPromptFlag', e.target.value)}
+                  placeholder={registryDefaults.initialPromptFlag || '(pass directly)'}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-                  {/* Preview */}
-                  <div className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      Command Preview
-                    </div>
-                    <code className="block break-all font-mono text-sm text-foreground">
-                      {previewCommand}
-                    </code>
-                  </div>
+              {/* Preview */}
+              <div className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  Command Preview
+                </div>
+                <code className="block break-all font-mono text-sm text-foreground">
+                  {previewCommand}
+                </code>
+              </div>
 
-                  {hasCustomConfig && (
-                    <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-400">
-                      Custom configuration is applied
-                    </div>
-                  )}
+              {isOverridden && (
+                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-400">
+                  Custom configuration is applied
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Footer */}
-            <footer className="flex items-center justify-between border-t border-border/60 px-6 py-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleResetToDefaults}
-                disabled={loading || saving}
-                className="gap-1.5"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset to Defaults
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={onClose}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={loading || saving || !hasChanges}
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
-              </div>
-            </footer>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body
+        <div className="flex items-center justify-between border-t border-border/60 px-6 py-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleResetToDefaults}
+            disabled={isLoading || saving}
+            className="gap-1.5"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to Defaults
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSave}
+              disabled={isLoading || saving || !hasChanges}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

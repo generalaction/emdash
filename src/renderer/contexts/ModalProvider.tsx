@@ -4,7 +4,6 @@ import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
-import { AddRemoteProjectModal } from '@renderer/components/ssh/AddRemoteProjectModal';
 import { TaskModalOverlay } from '@renderer/components/TaskModal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 
@@ -15,7 +14,6 @@ const modalRegistry = {
   taskModal: TaskModalOverlay,
   addProjectModal: AddProjectModal,
   addSshConnModal: AddSshConnModal,
-  addRemoteProjectModal: AddRemoteProjectModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

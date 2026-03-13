@@ -1,6 +1,7 @@
 import { Folder } from 'lucide-react';
 import { useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
+import { cn } from '@renderer/lib/utils';
 import { Button } from '../ui/button';
 
 interface LocalDirectorySelectorProps {
@@ -33,14 +34,23 @@ export function LocalDirectorySelector({
   };
 
   return (
-    <div className="flex gap-1">
-      <div className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2">
-        <Folder className="size-4 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground"> {path || placeholder}</p>
-      </div>
-      <Button onClick={handleOpenFileDialog} variant="outline" size="sm" className="h-9">
+    <button
+      className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-muted/30 transition-colors"
+      onClick={handleOpenFileDialog}
+    >
+      <Folder className="size-4 text-muted-foreground" />
+      <p
+        className={cn(
+          'text-sm text-muted-foreground truncate min-w-0 flex-1 w-full text-left',
+          path ? 'text-foreground' : ''
+        )}
+      >
+        {' '}
+        {path || placeholder}
+      </p>
+      <Button variant="outline" size="xs">
         Choose
       </Button>
-    </div>
+    </button>
   );
 }

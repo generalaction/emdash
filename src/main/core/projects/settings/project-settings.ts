@@ -35,7 +35,7 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     if (settings.worktreeDirectory) {
       return settings.worktreeDirectory;
     }
-    return (await appSettingsService.getAppSettingsKey('localProject')).defaultWorktreeDirectory;
+    return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
   }
 }
 

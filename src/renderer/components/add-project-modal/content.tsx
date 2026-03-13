@@ -2,7 +2,7 @@ import { Tabs } from '@base-ui/react';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
 import { ComboboxPopover } from '../ui/combobox-popover';
-import { Field, FieldLabel } from '../ui/field';
+import { Field, FieldGroup, FieldLabel } from '../ui/field';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -22,31 +22,33 @@ export function PickExistingPanel({
 }) {
   return (
     <Tabs.Panel value="pick">
-      <Field>
-        <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
-        {strategy === 'local' ? (
-          <LocalDirectorySelector
-            path={state.path}
-            onPathChange={state.handlePathChange}
-            title="Select a local project"
-            message="Select a project directory to open"
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
+          {strategy === 'local' ? (
+            <LocalDirectorySelector
+              path={state.path}
+              onPathChange={state.handlePathChange}
+              title="Select a local project"
+              message="Select a project directory to open"
+            />
+          ) : (
+            <RemoteDirectorySelector
+              connectionId={connectionId}
+              value={state.path}
+              onChange={state.handlePathChange}
+            />
+          )}
+        </Field>
+        <Field>
+          <FieldLabel>Project Name</FieldLabel>
+          <Input
+            placeholder="Enter a project name"
+            value={state.name}
+            onChange={(e) => state.handleNameChange(e.target.value)}
           />
-        ) : (
-          <RemoteDirectorySelector
-            connectionId={connectionId}
-            value={state.path}
-            onChange={state.handlePathChange}
-          />
-        )}
-      </Field>
-      <Field>
-        <FieldLabel>Project Name</FieldLabel>
-        <Input
-          placeholder="Enter a project name"
-          value={state.name}
-          onChange={(e) => state.handleNameChange(e.target.value)}
-        />
-      </Field>
+        </Field>
+      </FieldGroup>
     </Tabs.Panel>
   );
 }
@@ -62,74 +64,77 @@ export function CreateNewPanel({
 }) {
   return (
     <Tabs.Panel value="new">
-      <Field>
-        <FieldLabel>Project Name</FieldLabel>
-        <Input
-          placeholder="Enter a project name"
-          value={state.name}
-          onChange={(e) => state.handleNameChange(e.target.value)}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Repository Name</FieldLabel>
-        <Input
-          placeholder="Enter a repository name"
-          value={state.repositoryName}
-          onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Repository Owner</FieldLabel>
-        <ComboboxPopover
-          trigger={
-            <ComboboxTrigger
-              render={
-                <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-                  <ComboboxValue />
-                  <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
-                </button>
-              }
+      <FieldGroup>
+        <Field>
+          <FieldLabel>Project Name</FieldLabel>
+          <Input
+            placeholder="Enter a project name"
+            value={state.name}
+            autoFocus
+            onChange={(e) => state.handleNameChange(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Repository Name</FieldLabel>
+          <Input
+            placeholder="Enter a repository name"
+            value={state.repositoryName}
+            onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Repository Owner</FieldLabel>
+          <ComboboxPopover
+            trigger={
+              <ComboboxTrigger
+                render={
+                  <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+                    <ComboboxValue />
+                    <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
+                  </button>
+                }
+              />
+            }
+            items={state.owners}
+            defaultValue={state.repositoryOwner}
+            value={state.repositoryOwner ?? null}
+            onValueChange={state.handleOwnerChange}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Repository Privacy</FieldLabel>
+          <RadioGroup
+            value={state.repositoryVisibility}
+            onValueChange={(value) => state.setRepositoryVisibility(value as 'public' | 'private')}
+          >
+            <div className="flex items-center gap-3">
+              <RadioGroupItem value="private" />
+              <Label className="cursor-pointer font-normal">Private</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <RadioGroupItem value="public" />
+              <Label className="cursor-pointer font-normal">Public</Label>
+            </div>
+          </RadioGroup>
+        </Field>
+        <Field>
+          <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
+          {strategy === 'local' ? (
+            <LocalDirectorySelector
+              path={state.path}
+              onPathChange={state.setPath}
+              title="Select a local project"
+              message="Select a project directory to open"
             />
-          }
-          items={state.owners}
-          defaultValue={state.repositoryOwner}
-          value={state.repositoryOwner ?? null}
-          onValueChange={state.handleOwnerChange}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Repository Privacy</FieldLabel>
-        <RadioGroup
-          value={state.repositoryVisibility}
-          onValueChange={(value) => state.setRepositoryVisibility(value as 'public' | 'private')}
-        >
-          <div className="flex items-center gap-3">
-            <RadioGroupItem value="private" />
-            <Label className="cursor-pointer font-normal">Private</Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <RadioGroupItem value="public" />
-            <Label className="cursor-pointer font-normal">Public</Label>
-          </div>
-        </RadioGroup>
-      </Field>
-      <Field>
-        <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
-        {strategy === 'local' ? (
-          <LocalDirectorySelector
-            path={state.path}
-            onPathChange={state.setPath}
-            title="Select a local project"
-            message="Select a project directory to open"
-          />
-        ) : (
-          <RemoteDirectorySelector
-            connectionId={connectionId}
-            value={state.path}
-            onChange={state.setPath}
-          />
-        )}
-      </Field>
+          ) : (
+            <RemoteDirectorySelector
+              connectionId={connectionId}
+              value={state.path}
+              onChange={state.setPath}
+            />
+          )}
+        </Field>
+      </FieldGroup>
     </Tabs.Panel>
   );
 }
@@ -145,39 +150,42 @@ export function ClonePanel({
 }) {
   return (
     <Tabs.Panel value="clone">
-      <Field>
-        <FieldLabel>Repository URL</FieldLabel>
-        <Input
-          placeholder="Enter a repository URL"
-          value={state.repositoryUrl}
-          onChange={(e) => state.handleRepositoryUrlChange(e.target.value)}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Project Name</FieldLabel>
-        <Input
-          placeholder="Enter a project name"
-          value={state.name}
-          onChange={(e) => state.handleNameChange(e.target.value)}
-        />
-      </Field>
-      <Field>
-        <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
-        {strategy === 'local' ? (
-          <LocalDirectorySelector
-            path={state.path}
-            onPathChange={state.setPath}
-            title="Select a local project"
-            message="Select a project directory to open"
+      <FieldGroup>
+        <Field>
+          <FieldLabel>Repository URL</FieldLabel>
+          <Input
+            autoFocus
+            placeholder="Enter a repository URL"
+            value={state.repositoryUrl}
+            onChange={(e) => state.handleRepositoryUrlChange(e.target.value)}
           />
-        ) : (
-          <RemoteDirectorySelector
-            connectionId={connectionId}
-            value={state.path}
-            onChange={state.setPath}
+        </Field>
+        <Field>
+          <FieldLabel>Project Name</FieldLabel>
+          <Input
+            placeholder="Enter a project name"
+            value={state.name}
+            onChange={(e) => state.handleNameChange(e.target.value)}
           />
-        )}
-      </Field>
+        </Field>
+        <Field>
+          <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
+          {strategy === 'local' ? (
+            <LocalDirectorySelector
+              path={state.path}
+              onPathChange={state.setPath}
+              title="Select a local project"
+              message="Select a project directory to open"
+            />
+          ) : (
+            <RemoteDirectorySelector
+              connectionId={connectionId}
+              value={state.path}
+              onChange={state.setPath}
+            />
+          )}
+        </Field>
+      </FieldGroup>
     </Tabs.Panel>
   );
 }

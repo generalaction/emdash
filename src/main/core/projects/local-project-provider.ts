@@ -17,8 +17,7 @@ import { WorktreeService } from './worktrees/worktree-service';
 
 export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
   return new LocalProjectProvider(project, {
-    worktreePoolPath: (await appSettingsService.getAppSettingsKey('localProject'))
-      .defaultWorktreeDirectory,
+    worktreePoolPath: (await appSettingsService.get('localProject')).defaultWorktreeDirectory,
     defaultBranch: project.baseRef,
   });
 }
