@@ -28,7 +28,6 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
-  'vscode-insiders': 'vscode-insiders.svg',
   vscodium: 'vscodium.png',
   terminal: 'terminal.png',
   xcode: 'xcode.png',
@@ -117,7 +116,7 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
   {
     id: 'vscode-insiders',
     label: 'VS Code Insiders',
-    iconPath: ICON_PATHS['vscode-insiders'],
+    iconPath: ICON_PATHS.vscode,
     autoInstall: true,
     supportsRemote: true,
     hideIfUnavailable: true,
