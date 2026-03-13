@@ -23,8 +23,8 @@ const KanbanBoard: React.FC<{
   onCreateTask?: () => void;
 }> = ({ project, tasks, onOpenTask, onCreateTask }) => {
   const [statusMap, setStatusMap] = React.useState<Record<string, KanbanStatus>>({});
-  const wsList = React.useMemo(() => tasks ?? [], [tasks]);
-  const taskSignature = React.useMemo(() => wsList.map((task) => task.id).join(','), [wsList]);
+  const wsList = React.useMemo(() => tasks, [tasks]);
+  const taskSignature = React.useMemo(() => wsList.map((task) => task.id).join('|'), [wsList]);
 
   React.useEffect(() => {
     setStatusMap(getAll());
