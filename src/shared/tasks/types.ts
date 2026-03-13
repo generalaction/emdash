@@ -12,10 +12,10 @@ export type Issue = {
 export type Task = {
   id: string;
   projectId: string;
+  name: string;
   status: TaskLifecycleStatus;
   sourceBranch: string;
   taskBranch?: string;
-  name: string;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;

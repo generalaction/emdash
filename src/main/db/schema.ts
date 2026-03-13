@@ -76,15 +76,14 @@ export const tasks = sqliteTable(
   'tasks',
   {
     id: text('id').primaryKey(),
-    status: text('status').notNull(),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
-    branch: text('branch'),
-    worktreePath: text('worktree_path'),
     name: text('name').notNull(),
+    status: text('status').notNull(),
+    sourceBranch: text('source_branch').notNull(),
+    taskBranch: text('task_branch'),
     linkedIssue: text('linked_issue'),
-    metadata: text('metadata'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
       .notNull()
@@ -138,18 +137,14 @@ export const conversations = sqliteTable(
   'conversations',
   {
     id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
     taskId: text('task_id')
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
-    provider: text('provider'), // AI provider for this chat (claude, codex, qwen, etc.)
-    // @deprecated Active conversation is tracked in localStorage on the renderer side. This column is retained for schema compatibility only.
-    isActive: integer('is_active').notNull().default(0),
-    isMain: integer('is_main').notNull().default(0), // 1 if this is the main/primary chat (gets full persistence)
-    displayOrder: integer('display_order').notNull().default(0), // Order in the tab bar
-    metadata: text('metadata'), // JSON for additional chat-specific data
-    agentSessionId: text('agent_session_id'), // Provider session UUID (e.g. Claude --session-id); replaces pty-session-map.json
-    type: text('type').notNull().default('agent'), // 'agent' | 'shell'
+    provider: text('provider'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -167,6 +162,9 @@ export const terminals = sqliteTable(
   'terminals',
   {
     id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
     taskId: text('task_id')
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),

@@ -270,21 +270,3 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
 
   return env;
 }
-
-/**
- * Build a PTY environment appropriate for the given session type.
- *
- * - 'agent'     → full env including all agent API keys
- * - 'general'   → minimal env without agent API keys (plain interactive shell)
- * - 'lifecycle' → minimal env without agent API keys (setup/run/teardown scripts)
- *
- * Additional vars can be merged by the caller after this function returns.
- */
-export function buildSessionEnv(
-  sessionType: 'agent' | 'general' | 'lifecycle'
-): Record<string, string> {
-  return buildAgentEnv({
-    agentApiVars: sessionType === 'agent',
-    includeShellVar: true,
-  });
-}

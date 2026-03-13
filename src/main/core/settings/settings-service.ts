@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import z from 'zod';
 import { openInAppIdSchema } from '@shared/openInApps';
-import { DEFAULT_PROVIDER_ID, PROVIDER_IDS } from '@shared/providers/registry';
+import { DEFAULT_PROVIDER_ID, PROVIDER_IDS, PROVIDERS } from '@shared/providers/registry';
 import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 
@@ -62,21 +62,49 @@ const keyboardSettingsSchema = z.record(z.string(), z.string()).default({
 const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
   resumeFlag: z.string().optional(),
-  defaultArgs: z.string().optional(),
+  defaultArgs: z.array(z.string()).optional(),
   autoApproveFlag: z.string().optional(),
   initialPromptFlag: z.string().optional(),
+  sessionIdFlag: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
 
+const providerConfigDefaults = Object.fromEntries(
+  PROVIDERS.filter(
+    (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
+  ).map((p) => [
+    p.id,
+    {
+      ...(p.cli ? { cli: p.cli } : {}),
+      ...(p.resumeFlag ? { resumeFlag: p.resumeFlag } : {}),
+      ...(p.autoApproveFlag ? { autoApproveFlag: p.autoApproveFlag } : {}),
+      ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),
+      ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
+      ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
+    },
+  ])
+);
+
 const providerCustomConfigsSchema = z
   .record(z.string(), providerCustomConfigEntrySchema)
-  .default({});
+  .default(providerConfigDefaults);
 
 const openInSettingsSchema = z.object({
   default: openInAppIdSchema.default('terminal'),
   hidden: z.array(openInAppIdSchema).default([]),
 });
+
+const APP_SETTINGS_SCHEMA_MAP = {
+  localProject: localProjectSettingsSchema,
+  tasks: taskSettingsSchema,
+  defaultAgent: defaultAgentSchema,
+  keyboard: keyboardSettingsSchema,
+  providerConfigs: providerCustomConfigsSchema,
+  notifications: notificationSettingsSchema,
+  theme: themeSchema,
+  openIn: openInSettingsSchema,
+} as const;
 
 const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
@@ -102,27 +130,40 @@ class AppSettingsService {
 
   async getAllSettings(): Promise<AppSettings> {
     if (this.cache) return this.cache;
-    const settings = await db.select().from(appSettings).execute();
-    if (settings.length === 0) {
-      return appSettingsSchema.parse(JSON.parse('{}'));
-    }
-    this.cache = appSettingsSchema.parse(
-      settings.reduce(
+    const persistedSettings = await db.select().from(appSettings).execute();
+    const keyedSettings = Object.fromEntries(
+      persistedSettings.map((s) => [s.key, JSON.parse(s.value)])
+    );
+
+    const missingSettings = Object.keys(appSettingsSchema.shape).filter(
+      (key) => !keyedSettings[key]
+    );
+
+    const settings = {
+      ...persistedSettings.reduce(
         (acc, curr) => {
           acc[curr.key] = JSON.parse(curr.value);
           return acc;
         },
         {} as Record<string, unknown>
-      )
-    );
-    return this.cache;
+      ),
+      ...Object.fromEntries(
+        missingSettings.map((key) => [
+          key,
+          APP_SETTINGS_SCHEMA_MAP[key as keyof AppSettings].parse(undefined),
+        ])
+      ),
+    };
+    const parsedSettings = appSettingsSchema.parse(settings);
+    this.cache = parsedSettings;
+    return parsedSettings;
   }
 
   async updateSettingsKey<T extends AppSettingsKey>(key: T, value: AppSettings[T]): Promise<void> {
     await db
       .update(appSettings)
       .set({
-        value: JSON.stringify(value),
+        value: JSON.stringify(APP_SETTINGS_SCHEMA_MAP[key].parse(value)),
       })
       .where(eq(appSettings.key, key))
       .execute();

@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { type LocalProject, type SshProject } from '@shared/projects/types';
+import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
+import { LocalGitService } from '@main/core/git/impl/local-git-provider';
+import { SshGitService } from '@main/core/git/impl/ssh-git-provider';
 import { projectManager } from '@main/core/projects/project-manager';
+import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
-import { checkIsValidDirectory } from '../../git/impl/detectGitInfo';
-import { LocalGitService } from '../../git/impl/local-git-provider';
-import { SshGitService } from '../../git/impl/ssh-git-provider';
-import { sshConnectionManager } from '../../ssh/ssh-connection-manager';
 
 export type CreateLocalProjectParams = {
   id?: string;

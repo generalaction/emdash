@@ -5,7 +5,6 @@ import { Terminal } from '@shared/terminal/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { LocalGitService } from '@main/core/git/impl/local-git-provider';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { buildSessionEnv } from '@main/core/pty/pty-env';
 import { log } from '@main/lib/logger';
 import { LocalConversationProvider } from '../conversations/impl/local-conversation';
 import { appSettingsService } from '../settings/settings-service';
@@ -43,21 +42,22 @@ export class LocalProjectProvider implements ProjectProvider {
       worktreePoolPath: options.worktreePoolPath,
       defaultBranch: options.defaultBranch,
       repoPath: project.path,
+      projectSettings: this.settings,
       exec: getLocalExec(),
     });
   }
 
-  async provisionTask(args: Task, conversations: Conversation[], terminals: Terminal[]) {
-    const existing = this.tasks.get(args.id);
+  async provisionTask(task: Task, conversations: Conversation[], terminals: Terminal[]) {
+    const existing = this.tasks.get(task.id);
     if (existing) return existing;
 
     let workDir: string;
 
-    if (args.taskBranch) {
-      if (await this.worktreeService.getWorktree(args.taskBranch)) {
-        workDir = (await this.worktreeService.getWorktree(args.taskBranch))!;
+    if (task.taskBranch) {
+      if (await this.worktreeService.getWorktree(task.taskBranch)) {
+        workDir = (await this.worktreeService.getWorktree(task.taskBranch))!;
       } else {
-        workDir = await this.worktreeService.claimReserve(args.sourceBranch, args.taskBranch, {
+        workDir = await this.worktreeService.claimReserve(task.sourceBranch, task.taskBranch, {
           syncWithRemote: true,
         });
       }
@@ -67,10 +67,13 @@ export class LocalProjectProvider implements ProjectProvider {
 
     const fs = new LocalFileSystem(workDir);
     const git = new LocalGitService(workDir);
-    const conversationProvider = new LocalConversationProvider(this.project.id, args.id);
-    const terminalProvider = new LocalTerminalProvider(this.project.id, args.id);
+    const conversationProvider = new LocalConversationProvider({
+      projectId: this.project.id,
+      taskPath: workDir,
+      taskId: task.id,
+    });
 
-    const env = buildSessionEnv('lifecycle');
+    const terminalProvider = new LocalTerminalProvider(this.project.id, task.id);
 
     const getPty = async () => {
       const result = spawnLocalPty({
@@ -78,7 +81,7 @@ export class LocalProjectProvider implements ProjectProvider {
         command: process.env.SHELL ?? '/bin/sh',
         args: [],
         cwd: workDir,
-        env,
+        env: {},
         cols: 80,
         rows: 24,
       });
@@ -89,7 +92,7 @@ export class LocalProjectProvider implements ProjectProvider {
     };
 
     const taskEnv: TaskProvider = {
-      taskId: args.id,
+      taskId: task.id,
       taskPath: workDir,
       fs,
       git,
@@ -98,7 +101,7 @@ export class LocalProjectProvider implements ProjectProvider {
       getPty,
     };
 
-    this.tasks.set(args.id, taskEnv);
+    this.tasks.set(task.id, taskEnv);
 
     // run the setup script
 
@@ -108,7 +111,7 @@ export class LocalProjectProvider implements ProjectProvider {
           .spawnTerminal({
             projectId: this.project.id,
             terminalId: term.id,
-            taskId: args.id,
+            taskId: task.id,
             cwd: workDir,
           })
           .catch((e) => {
@@ -145,6 +148,7 @@ export class LocalProjectProvider implements ProjectProvider {
     // run teardown script
 
     await task.conversationProvider.destroyAll();
+    await task.terminalProvider.destroyAll();
     this.tasks.delete(taskId);
   }
 

@@ -1,80 +1,71 @@
 import { makePtySessionId } from '@shared/ptySessionId';
+import { Terminal } from '@shared/terminal/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
-import { buildSessionEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { log } from '@main/lib/logger';
-import { ITerminalProvider, TerminalSpawnOptions } from '../terminal-provider';
-import type { GeneralSessionConfig } from './general-session';
+import { ITerminalProvider } from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
 export class LocalTerminalProvider implements ITerminalProvider {
   private sessions = new Map<string, Pty>();
-  /** Terminals explicitly killed by the user — suppresses auto-respawn. */
-  private deletedTerminals = new Set<string>();
+  private readonly projectId: string;
+  private readonly taskId: string;
+  private readonly taskPath: string;
 
-  constructor(
-    private readonly projectId: string,
-    private readonly taskId: string
-  ) {}
+  constructor({
+    projectId,
+    taskId,
+    taskPath,
+  }: {
+    projectId: string;
+    taskId: string;
+    taskPath: string;
+  }) {
+    this.projectId = projectId;
+    this.taskId = taskId;
+    this.taskPath = taskPath;
+  }
 
-  async spawnTerminal(opts: TerminalSpawnOptions): Promise<void> {
-    const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
+  async spawnTerminal(
+    terminal: Terminal,
+    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    command?: { command: string; args: string[] }
+  ): Promise<void> {
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
 
-    const cfg: GeneralSessionConfig = {
-      taskId: opts.taskId,
-      cwd: opts.cwd,
-      projectPath: opts.projectPath,
-      shellSetup: opts.shellSetup,
-    };
-
-    const env = buildSessionEnv('general');
-    const { command, args, cwd } = resolveSpawnParams('general', cfg);
-
-    const result = spawnLocalPty({
+    const pty = spawnLocalPty({
       id: sessionId,
-      command,
-      args,
-      cwd,
-      env,
-      cols: DEFAULT_COLS,
-      rows: DEFAULT_ROWS,
+      command: command?.command ?? '/bin/sh',
+      args: command?.args ?? [],
+      cwd: this.taskPath,
+      env: {},
+      cols: initialSize.cols,
+      rows: initialSize.rows,
     });
-    if (!result.success) {
-      log.error('LocalTerminalProvider: failed to spawn PTY', {
-        terminalId: opts.terminalId,
-        error: result.error,
-      });
-      return result;
-    }
-
-    const pty = result.data;
 
     pty.onExit(() => {
-      this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
-      if (!this.deletedTerminals.has(opts.terminalId)) {
+      if (this.sessions.has(sessionId)) {
         setTimeout(() => {
-          this.spawnTerminal(opts).catch((e) => {
+          this.spawnTerminal(terminal).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
-              terminalId: opts.terminalId,
+              terminalId: terminal.id,
               error: String(e),
             });
           });
         }, 500);
+        ptySessionRegistry.register(sessionId, pty);
       }
     });
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    return ok();
   }
 
   async killTerminal(terminalId: string): Promise<void> {
-    this.deletedTerminals.add(terminalId);
     const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
@@ -84,8 +75,6 @@ export class LocalTerminalProvider implements ITerminalProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
-    // Prevent unbounded growth of the tombstone set
-    setTimeout(() => this.deletedTerminals.delete(terminalId), 10_000);
   }
 
   async destroyAll(): Promise<void> {

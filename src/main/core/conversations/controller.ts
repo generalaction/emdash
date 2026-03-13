@@ -42,11 +42,7 @@ export type CreateConversationParams = {
 
 export const conversationController = createRPCController({
   getConversations: async (projectId: string, taskId: string) => {
-    const rows = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.taskId, taskId))
-      .orderBy(asc(conversations.displayOrder));
+    const rows = await db.select().from(conversations).where(eq(conversations.taskId, taskId));
     return rows.map(mapConversationRow);
   },
 

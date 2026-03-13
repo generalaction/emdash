@@ -1,35 +1,76 @@
 import { agentEventChannel } from '@shared/events/agentEvents';
+import { ProviderId } from '@shared/providers/registry';
 import { Pty } from '@main/core/pty/pty';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { createClassifier } from './agent-event-classifiers';
-import type { AgentSessionConfig } from './agent-session';
 
-export function wireAgentClassifier(pty: Pty, sessionId: string, cfg: AgentSessionConfig): void {
-  const classifier = createClassifier(cfg.providerId);
-
+export function wireAgentClassifier({
+  pty,
+  providerId,
+  projectId,
+  taskId,
+  conversationId,
+}: {
+  pty: Pty;
+  providerId: ProviderId;
+  projectId: string;
+  taskId: string;
+  conversationId: string;
+}): void {
+  const classifier = createClassifier(providerId);
   pty.onData((chunk) => {
     const result = classifier.classify(chunk);
     if (result) {
-      events.emit(
-        agentEventChannel,
-        {
-          event: {
-            type: result.type,
-            ptyId: sessionId,
-            conversationId: cfg.conversationId,
-            taskId: cfg.taskId,
-            providerId: cfg.providerId,
-            timestamp: Date.now(),
-            payload: {
-              message: result.message,
-              notificationType:
-                result.type === 'notification' ? result.notificationType : undefined,
-            },
-          },
-          appFocused: false,
+      events.emit(agentEventChannel, {
+        type: result.type,
+        conversationId: conversationId,
+        taskId: taskId,
+        projectId: projectId,
+        timestamp: Date.now(),
+        payload: {
+          message: result.message,
+          notificationType: result.type === 'notification' ? result.notificationType : undefined,
         },
-        sessionId
-      );
+      });
     }
   });
+}
+
+export async function buildAgentCommand({
+  providerId,
+  autoApprove,
+  initialPrompt,
+  sessionId,
+  isResuming,
+}: {
+  providerId: ProviderId;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  sessionId: string;
+  isResuming?: boolean;
+}) {
+  const providerConfig = (await appSettingsService.getAppSettingsKey('providerConfigs'))[
+    providerId
+  ];
+
+  const cli = providerConfig?.cli;
+  const args: string[] = [];
+
+  if (isResuming && providerConfig?.sessionIdFlag) {
+    args.push(providerConfig?.sessionIdFlag, sessionId);
+  }
+
+  if (autoApprove && providerConfig?.autoApproveFlag) {
+    args.push(providerConfig?.autoApproveFlag);
+  }
+
+  if (!isResuming && initialPrompt && providerConfig?.initialPromptFlag) {
+    args.push(providerConfig?.initialPromptFlag, initialPrompt);
+    args.push(initialPrompt);
+  }
+
+  args.push(...(providerConfig?.defaultArgs ?? []));
+
+  return { command: cli!, args };
 }

@@ -5,6 +5,7 @@ export type Conversation = {
   projectId: string;
   taskId: string;
   providerId: ProviderId;
-  resumeSessionId?: string;
-  tmuxSessionId?: string;
+  title: string;
+  resume?: boolean;
+  autoApprove?: boolean;
 };

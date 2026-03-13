@@ -1,33 +1,24 @@
-import { isNull } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 import { LocalProject, SshProject } from '@shared/projects/types';
 import { db } from '@main/db/client';
-import {
-  conversations,
-  tasks,
-  terminals,
-  type ConversationRow,
-  type TaskRow,
-  type TerminalRow,
-} from '@main/db/schema';
+import { conversations, tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { mapConversationRowToConversation } from '../conversations/utils';
 import { getProjects } from '../projects/operations/getProjects';
-import { createProvider } from './create-project-provider';
+import { mapTaskRowToTask } from '../tasks/core';
+import { mapTerminalRowToTerminal } from '../terminals/core';
 import { createLocalProvider } from './local-project-provider';
 import type { ProjectProvider } from './project-provider';
-import { createSshProvider } from './ssh-project-provider';
 
 class ProjectManager {
   private providers = new Map<string, ProjectProvider>();
 
   async initialize(): Promise<void> {
     const allProjects = await getProjects();
-    const allTasks = await db.select().from(tasks).where(isNull(tasks.archivedAt));
-    const allConversations = await db.select().from(conversations);
-    const allTerminals = await db.select().from(terminals);
 
     await Promise.all(
       allProjects.map((project) =>
-        this.bootstrapProject(project, allTasks, allConversations, allTerminals).catch((e) => {
+        this.bootstrapProject(project).catch((e) => {
           log.error('EnvironmentProviderManager: failed to bootstrap project', {
             projectId: project.id,
             error: String(e),
@@ -37,34 +28,29 @@ class ProjectManager {
     );
   }
 
-  private async bootstrapProject(
-    project: LocalProject | SshProject,
-    allTasks: TaskRow[],
-    allConversations: ConversationRow[],
-    allTerminals: TerminalRow[]
-  ): Promise<void> {
+  private async bootstrapProject(project: LocalProject | SshProject): Promise<void> {
     const provider = await createProvider(project);
     this.providers.set(project.id, provider);
 
-    const projectTasks = allTasks.filter((t) => t.projectId === project.id);
+    const projectTasks = (await db.select().from(tasks).where(isNull(tasks.archivedAt))).map(
+      (row) => mapTaskRowToTask(row)
+    );
 
     await Promise.all(
-      projectTasks.map((task) => {
-        const taskConversations = allConversations.filter((c) => c.taskId === task.id);
-        const taskTerminals = allTerminals.filter((t) => t.taskId === task.id);
-        return provider
-          .provisionTask({
+      projectTasks.map(async (task) => {
+        const taskConversations = (
+          await db.select().from(conversations).where(eq(conversations.taskId, task.id))
+        ).map((row) => mapConversationRowToConversation(row));
+        const taskTerminals = (
+          await db.select().from(terminals).where(eq(terminals.taskId, task.id))
+        ).map((row) => mapTerminalRowToTerminal(row));
+        return provider.provisionTask(task, taskConversations, taskTerminals).catch((e) => {
+          log.error('EnvironmentProviderManager: failed to provision task', {
+            projectId: project.id,
             taskId: task.id,
-            conversations: taskConversations,
-            terminals: taskTerminals,
-          })
-          .catch((e) => {
-            log.error('EnvironmentProviderManager: failed to provision task', {
-              projectId: project.id,
-              taskId: task.id,
-              error: String(e),
-            });
+            error: String(e),
           });
+        });
       })
     );
   }
@@ -103,7 +89,7 @@ class ProjectManager {
 
 export async function createProvider(project: LocalProject | SshProject): Promise<ProjectProvider> {
   if (project.type === 'ssh') {
-    return await createSshProvider(project);
+    throw new Error('SSH projects are not yet supported');
   }
   return await createLocalProvider(project);
 }

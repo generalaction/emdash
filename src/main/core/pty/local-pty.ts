@@ -2,7 +2,6 @@ import path from 'node:path';
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@main/lib/result';
 import { normalizeSignal } from './exit-signals';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
@@ -14,16 +13,10 @@ export interface LocalSpawnOptions extends PtyDimensions {
   env: Record<string, string>;
 }
 
-export type LocalSpawnError =
-  | { readonly kind: 'pty-disabled' }
-  | { readonly kind: 'spawn-failed'; readonly message: string; readonly command: string };
-
 const MIN_COLS = 2;
 const MIN_ROWS = 1;
 
-export function spawnLocalPty(
-  options: LocalSpawnOptions
-): Result<LocalPtySession, LocalSpawnError> {
+export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
   const { id, command, args, cwd, env, cols, rows } = options;
   const spawnSpec = resolveWindowsPtySpawn(command, args);
 
@@ -44,15 +37,10 @@ export function spawnLocalPty(
       cwd,
       env,
     });
-    return ok(new LocalPtySession(id, proc));
+    return new LocalPtySession(id, proc);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    log.error('LocalPtySession:spawn failed', {
-      command: spawnSpec.command,
-      cwd,
-      error: message,
-    });
-    return err({ kind: 'spawn-failed', message, command: spawnSpec.command });
+    throw new Error(`Failed to spawn PTY: ${message}`);
   }
 }
 
