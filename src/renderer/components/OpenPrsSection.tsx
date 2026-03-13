@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
+import { rpc } from '../lib/rpc';
 import { ArrowUpRight, ChevronDown, ChevronRight, Github, Loader2, Search } from 'lucide-react';
 import type { Task } from '../types/app';
 
@@ -50,6 +51,8 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
   const handleReviewPr = async (pr: PullRequestSummary) => {
     setCreatingForPr(pr.number);
     try {
+      const settings = await rpc.appSettings.get();
+      const defaultProvider = settings?.defaultProvider || 'claude';
       const result = await window.electronAPI.githubCreatePullRequestWorktree({
         projectPath,
         projectId,
@@ -58,6 +61,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
       });
 
       if (result.success && result.task) {
+        const taskAgentId = (result.task as { agentId?: string | null }).agentId || defaultProvider;
         const task: Task = {
           id: result.task.id,
           projectId: result.task.projectId,
@@ -65,9 +69,13 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           branch: result.task.branch,
           path: result.task.path,
           status: result.task.status as Task['status'],
+          agentId: taskAgentId,
           useWorktree: true,
           metadata: result.task.metadata,
         };
+        if (!(result.task as { agentId?: string | null }).agentId) {
+          void rpc.db.saveTask(task).catch(() => {});
+        }
         onReviewPr(task);
       } else if (result.success && result.worktree) {
         // Fallback: worktree was created but task came from an existing match
@@ -78,9 +86,11 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           branch: result.branchName || '',
           path: result.worktree.path || '',
           status: 'active',
+          agentId: defaultProvider,
           useWorktree: true,
           metadata: { prNumber: pr.number, prTitle: pr.title },
         };
+        void rpc.db.saveTask(task).catch(() => {});
         onReviewPr(task);
       } else {
         toast({
