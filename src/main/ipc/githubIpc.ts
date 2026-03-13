@@ -310,10 +310,11 @@ export function registerGithubIpc() {
           const persistedTask = await databaseService.getTaskByPath(existing.path);
           let existingTask = persistedTask ?? buildTaskInfo(existing.path, existing.name);
 
+          if (persistedTask && !persistedTask.agentId) {
+            existingTask = { ...persistedTask, agentId: reviewProvider };
+          }
+
           if (!persistedTask || !persistedTask.agentId) {
-            if (persistedTask && !persistedTask.agentId) {
-              existingTask = { ...persistedTask, agentId: reviewProvider };
-            }
             try {
               await databaseService.saveTask(existingTask);
             } catch (dbError) {
