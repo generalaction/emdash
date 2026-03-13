@@ -1,60 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  getResolvedIconPath,
-  getResolvedLabel,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformKey,
-} from '@shared/openInApps';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../lib/ipc';
-import IntegrationRow from './IntegrationRow';
-import { Switch } from './ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useMemo } from 'react';
+import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useOpenInApps } from '@renderer/hooks/useOpenInApps';
+import IntegrationRow from '../IntegrationRow';
+import { Switch } from '../ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 export default function HiddenToolsSettingsCard() {
-  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
-  const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [availability, setAvailability] = useState<Record<string, boolean>>({});
+  const { value: openIn, update, isLoading, isSaving } = useAppSettingsKey('openIn');
+  const { icons, labels, availability } = useOpenInApps();
 
-  const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
-
-  useEffect(() => {
-    const init = async () => {
-      let platform: PlatformKey = 'darwin';
-      try {
-        const platformRes = await rpc.app.getPlatform();
-        platform = (platformRes as unknown as PlatformKey) || 'darwin';
-      } catch {}
-
-      const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
-      const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of Object.values(OPEN_IN_APPS)) {
-        const iconPath = getResolvedIconPath(app, platform);
-        loadedLabels[app.id] = getResolvedLabel(app, platform);
-        try {
-          loadedIcons[app.id] = new URL(`../../assets/images/${iconPath}`, import.meta.url).href;
-        } catch {}
-      }
-      setIcons(loadedIcons);
-      setLabels(loadedLabels);
-
-      try {
-        const appsResult = await rpc.app.checkInstalledApps();
-        if (appsResult) setAvailability(appsResult as Record<string, boolean>);
-      } catch {}
-    };
-    void init();
-  }, []);
+  const hiddenApps: OpenInAppId[] = openIn?.hidden ?? [];
 
   const toggle = (appId: OpenInAppId, visible: boolean) => {
     const next = visible ? hiddenApps.filter((id) => id !== appId) : [...hiddenApps, appId];
-    updateSettings({ hiddenOpenInApps: next });
+    update({ hidden: next });
     window.dispatchEvent(new Event('hiddenOpenInAppsChanged'));
   };
 
-  // Sort: detected first, then alphabetically by label
   const sortedApps = useMemo(() => {
     return Object.values(OPEN_IN_APPS).sort((a, b) => {
       const aDetected = availability[a.id] ?? a.alwaysAvailable ?? false;

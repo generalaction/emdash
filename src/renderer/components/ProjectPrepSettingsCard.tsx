@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import React, { useState } from 'react';
 import { Switch } from './ui/switch';
 
 type PrepSettings = {
@@ -12,56 +11,15 @@ const DEFAULTS: PrepSettings = {
 
 const ProjectPrepSettingsCard: React.FC = () => {
   const [settings, setSettings] = useState<PrepSettings>(DEFAULTS);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
 
-  const load = useCallback(async () => {
-    try {
-      const settings = await rpc.appSettings.get();
-      if (settings?.projectPrep) {
-        setSettings({
-          autoInstallOnOpenInEditor:
-            typeof settings.projectPrep.autoInstallOnOpenInEditor === 'boolean'
-              ? settings.projectPrep.autoInstallOnOpenInEditor
-              : DEFAULTS.autoInstallOnOpenInEditor,
-        });
-      } else {
-        setSettings(DEFAULTS);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const save = useCallback(
-    async (partial: Partial<PrepSettings>) => {
-      setSaving(true);
-      try {
-        const next = { ...settings, ...partial };
-        const res = await rpc.appSettings.update({ projectPrep: next as any });
-        if (res.projectPrep) {
-          setSettings({
-            autoInstallOnOpenInEditor:
-              typeof res.projectPrep.autoInstallOnOpenInEditor === 'boolean'
-                ? res.projectPrep.autoInstallOnOpenInEditor
-                : DEFAULTS.autoInstallOnOpenInEditor,
-          });
-        }
-      } finally {
-        setSaving(false);
-      }
-    },
-    [settings]
-  );
+  const handleChange = (checked: boolean) => {
+    setSettings((prev) => ({ ...prev, autoInstallOnOpenInEditor: checked }));
+  };
 
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="space-y-1 text-xs text-muted-foreground">
-        <div className="text-sm text-foreground">Auto-install on “Open in …”</div>
+        <div className="text-sm text-foreground">Auto-install on "Open in …"</div>
         <div>
           For Node projects only: when opening a worktree in Cursor, VS Code, or Zed, install
           dependencies in the background (uses pnpm/yarn/bun/npm based on lockfile) if
@@ -70,8 +28,7 @@ const ProjectPrepSettingsCard: React.FC = () => {
       </div>
       <Switch
         checked={settings.autoInstallOnOpenInEditor}
-        onCheckedChange={(checked) => save({ autoInstallOnOpenInEditor: Boolean(checked) })}
-        disabled={loading || saving}
+        onCheckedChange={(checked) => handleChange(Boolean(checked))}
         aria-label="Enable auto-install on Open in …"
       />
     </div>

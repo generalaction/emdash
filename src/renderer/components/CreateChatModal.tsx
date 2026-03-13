@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
+import type { AppSettings } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 import { agentConfig } from '../lib/agentConfig';
 import type { Agent } from '../types';
@@ -43,30 +44,31 @@ export function CreateChatModal({
       setError(null);
 
       let cancel = false;
-      rpc.appSettings.get().then((settings) => {
-        if (cancel) return;
+      (rpc.appSettings.get('defaultAgent') as Promise<AppSettings['defaultAgent']>).then(
+        (settingsAgent) => {
+          if (cancel) return;
 
-        const settingsAgent = settings?.defaultProvider;
-        const defaultFromSettings: Agent = isValidProviderId(settingsAgent)
-          ? (settingsAgent as Agent)
-          : DEFAULT_AGENT;
+          const defaultFromSettings: Agent = isValidProviderId(settingsAgent)
+            ? (settingsAgent as Agent)
+            : DEFAULT_AGENT;
 
-        // Priority: settings default (if installed) > first installed in agentConfig order
-        if (installedSet.has(defaultFromSettings)) {
-          setSelectedAgent(defaultFromSettings);
-          setError(null);
-        } else {
-          const firstInstalled = Object.keys(agentConfig).find((key) => installedSet.has(key)) as
-            | Agent
-            | undefined;
-          if (firstInstalled) {
-            setSelectedAgent(firstInstalled);
+          // Priority: settings default (if installed) > first installed in agentConfig order
+          if (installedSet.has(defaultFromSettings)) {
+            setSelectedAgent(defaultFromSettings);
             setError(null);
           } else {
-            setError('No agents installed');
+            const firstInstalled = Object.keys(agentConfig).find((key) => installedSet.has(key)) as
+              | Agent
+              | undefined;
+            if (firstInstalled) {
+              setSelectedAgent(firstInstalled);
+              setError(null);
+            } else {
+              setError('No agents installed');
+            }
           }
         }
-      });
+      );
 
       return () => {
         cancel = true;

@@ -112,38 +112,26 @@ export function TaskMainPanel() {
   }
 
   const initialAgent = getAgentForTask(task) || undefined;
-  const isMultiAgent = Boolean(task.metadata?.multiAgent?.enabled);
 
   switch (view) {
     case 'agents':
       return (
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {isMultiAgent ? (
-            <MultiAgentTask
+          <ConversationsProvider taskId={task.id} initialAgent={initialAgent}>
+            <ChatInterface
               task={task}
+              project={project}
+              projectName={project.name}
               projectPath={project.path}
               projectRemoteConnectionId={projectRemoteConnectionId}
               projectRemotePath={projectRemotePath}
               defaultBranch={projectDefaultBranch}
+              className="min-h-0 flex-1"
+              initialAgent={initialAgent}
               onTaskInterfaceReady={handleTaskInterfaceReady}
+              onRenameTask={handleRenameTask}
             />
-          ) : (
-            <ConversationsProvider taskId={task.id} initialAgent={initialAgent}>
-              <ChatInterface
-                task={task}
-                project={project}
-                projectName={project.name}
-                projectPath={project.path}
-                projectRemoteConnectionId={projectRemoteConnectionId}
-                projectRemotePath={projectRemotePath}
-                defaultBranch={projectDefaultBranch}
-                className="min-h-0 flex-1"
-                initialAgent={initialAgent}
-                onTaskInterfaceReady={handleTaskInterfaceReady}
-                onRenameTask={handleRenameTask}
-              />
-            </ConversationsProvider>
-          )}
+          </ConversationsProvider>
           {isCreatingTask && (
             <div className="absolute inset-0 z-10 bg-background">
               <TaskCreationLoading />

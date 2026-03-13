@@ -1,10 +1,15 @@
 import { createRPCController } from '@/shared/ipc/rpc';
-import { AppSettings, AppSettingsKey, appSettingsService } from './settings-service';
+import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
+
+type ProviderCustomConfig = NonNullable<AppSettings['providerConfigs']>[string];
+type UpdatableKey = Exclude<AppSettingsKey, 'providerConfigs'>;
 
 export const appSettingsController = createRPCController({
-  getAll: () => appSettingsService.getAllSettings(),
   get: <T extends AppSettingsKey>(key: T): Promise<AppSettings[T]> =>
     appSettingsService.getAppSettingsKey(key),
-  update: <T extends AppSettingsKey>(key: T, value: AppSettings[T]) =>
+  getAll: (): Promise<AppSettings> => appSettingsService.getAllSettings(),
+  update: <T extends UpdatableKey>(key: T, value: AppSettings[T]) =>
     appSettingsService.updateSettingsKey(key, value),
+  updateProviderConfig: (providerId: string, config: ProviderCustomConfig | undefined) =>
+    appSettingsService.updateProviderConfig(providerId, config),
 });

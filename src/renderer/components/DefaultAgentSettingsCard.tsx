@@ -9,15 +9,12 @@ const DEFAULT_AGENT: Agent = 'claude';
 const DefaultAgentSettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
 
-  const defaultAgent: Agent = isValidProviderId(settings?.defaultProvider)
-    ? (settings!.defaultProvider as Agent)
+  const defaultAgent: Agent = isValidProviderId(settings?.defaultAgent)
+    ? (settings!.defaultAgent as Agent)
     : DEFAULT_AGENT;
 
   const handleChange = (agent: Agent) => {
-    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('default_agent_changed', { agent });
-    });
-    updateSettings({ defaultProvider: agent });
+    updateSettings({ key: 'defaultAgent', value: agent });
   };
 
   return (
@@ -28,7 +25,7 @@ const DefaultAgentSettingsCard: React.FC = () => {
           The agent that will be selected by default when creating a new task.
         </p>
       </div>
-      <div className="w-[183px] flex-shrink-0">
+      <div className="w-[183px] shrink-0">
         <AgentSelector
           value={defaultAgent}
           onChange={handleChange}

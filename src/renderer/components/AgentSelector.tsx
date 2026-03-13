@@ -1,14 +1,25 @@
-import { Workflow } from 'lucide-react';
 import React, { useState } from 'react';
-import type { UiAgent } from '@renderer/providers/meta';
+import { useDependencies } from '@renderer/contexts/DependenciesProvider';
+import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
 import { type Agent } from '../types';
-import { AgentInfoCard } from './AgentInfoCard';
 import AgentLogo from './AgentLogo';
-import RoutingInfoCard from './RoutingInfoCard';
-import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from './ui/combobox';
+
+interface AgentOption {
+  value: string;
+  label: string;
+  agentId: Agent;
+}
 
 interface AgentSelectorProps {
   value: Agent;
@@ -23,135 +34,93 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   disabled = false,
   className = '',
 }) => {
+  const { installedAgents } = useDependencies();
+  const [open, setOpen] = useState(false);
+
+  const options: AgentOption[] = installedAgents
+    .filter((id): id is Agent => id in agentConfig)
+    .map((id) => ({
+      value: id,
+      label: agentConfig[id as Agent].name,
+      agentId: id as Agent,
+    }));
+
+  const selectedConfig = agentConfig[value];
+  const selectedOption = options.find((o) => o.value === value);
+
+  function handleValueChange(item: AgentOption | null) {
+    if (!item || disabled) return;
+    onChange(item.agentId);
+    setOpen(false);
+  }
+
   return (
-    <div className={`relative block w-[12rem] min-w-0 ${className}`}>
-      <Select
-        value={value}
-        onValueChange={(v) => {
-          if (!disabled) {
-            onChange(v as Agent);
-          }
-        }}
-        disabled={disabled}
+    <div className={cn('relative block min-w-0', className)}>
+      <Combobox
+        items={[{ value: 'options', items: options }]}
+        value={selectedOption ?? null}
+        onValueChange={handleValueChange}
+        open={open}
+        onOpenChange={disabled ? undefined : setOpen}
+        isItemEqualToValue={(a: AgentOption, b: AgentOption) => a.value === b.value}
+        filter={(item: AgentOption, query) =>
+          item.label.toLowerCase().includes(query.toLowerCase())
+        }
+        autoHighlight
       >
-        {disabled ? (
-          <TooltipProvider delay={250}>
-            <Tooltip>
-              <TooltipTrigger>
-                <SelectTrigger
-                  aria-disabled
-                  className={`w-full ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <SelectValue placeholder="Select agent" />
-                </SelectTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Agent is locked for this conversation.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select agent" />
-          </SelectTrigger>
-        )}
-        <SelectContent side="top" className="z-[120]">
-          <TooltipProvider delay={150}>
-            {Object.entries(agentConfig).map(([key, config]) => (
-              <TooltipRow key={key} id={key as UiAgent}>
-                <SelectItem value={key}>
-                  <div className="flex items-center gap-2">
-                    <AgentLogo
-                      logo={config.logo}
-                      alt={config.alt}
-                      isSvg={config.isSvg}
-                      invertInDark={config.invertInDark}
-                      className="h-4 w-4 rounded-sm"
-                    />
-                    <span>{config.name}</span>
-                  </div>
-                </SelectItem>
-              </TooltipRow>
-            ))}
-            {false && (
-              <RoutingTooltipRow>
-                <SelectItem
-                  value="__routing__"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+        <ComboboxTrigger
+          disabled={disabled}
+          className={cn(
+            'flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
+            disabled && 'cursor-not-allowed opacity-60'
+          )}
+        >
+          {selectedConfig ? (
+            <>
+              <AgentLogo
+                logo={selectedConfig.logo}
+                alt={selectedConfig.alt}
+                isSvg={selectedConfig.isSvg}
+                invertInDark={selectedConfig.invertInDark}
+                className="h-4 w-4 shrink-0 rounded-sm"
+              />
+              <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
+            </>
+          ) : (
+            <span className="flex-1 truncate text-muted-foreground">Select agent</span>
+          )}
+        </ComboboxTrigger>
+        <ComboboxContent className="min-w-(--anchor-width)">
+          <ComboboxInput showTrigger={false} placeholder="Search agents..." />
+          <ComboboxList className="pb-0">
+            {(group: { value: string; items: AgentOption[] }) => (
+              <ComboboxGroup key={group.value} items={group.items} className="py-1">
+                <ComboboxCollection>
+                  {(item: AgentOption) => {
+                    const config = agentConfig[item.agentId];
+                    return (
+                      <ComboboxItem key={item.value} value={item}>
+                        {config && (
+                          <AgentLogo
+                            logo={config.logo}
+                            alt={config.alt}
+                            isSvg={config.isSvg}
+                            invertInDark={config.invertInDark}
+                            className="h-4 w-4 shrink-0 rounded-sm"
+                          />
+                        )}
+                        {item.label}
+                      </ComboboxItem>
+                    );
                   }}
-                >
-                  <div
-                    className="flex cursor-not-allowed items-center gap-2 opacity-70"
-                    aria-disabled
-                  >
-                    <Workflow className="h-4 w-4 text-foreground/70" aria-hidden="true" />
-                    <span className="mr-2">Routing</span>
-                    <Badge className="ml-1 text-micro">Soon</Badge>
-                  </div>
-                </SelectItem>
-              </RoutingTooltipRow>
+                </ComboboxCollection>
+              </ComboboxGroup>
             )}
-          </TooltipProvider>
-        </SelectContent>
-      </Select>
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
     </div>
   );
 };
 
-const TooltipRow: React.FC<{ id: UiAgent; children: React.ReactElement }> = ({ id, children }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <Tooltip open={open}>
-      <TooltipTrigger>
-        {React.cloneElement(children, {
-          onMouseEnter: () => setOpen(true),
-          onMouseLeave: () => setOpen(false),
-          onPointerEnter: () => setOpen(true),
-          onPointerLeave: () => setOpen(false),
-        })}
-      </TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="start"
-        className="border-foreground/20 bg-background p-0 text-foreground"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onPointerEnter={() => setOpen(true)}
-        onPointerLeave={() => setOpen(false)}
-      >
-        <AgentInfoCard id={id} />
-      </TooltipContent>
-    </Tooltip>
-  );
-};
-
 export default AgentSelector;
-
-export const RoutingTooltipRow: React.FC<{ children: React.ReactElement }> = ({ children }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <Tooltip open={open}>
-      <TooltipTrigger>
-        {React.cloneElement(children, {
-          onMouseEnter: () => setOpen(true),
-          onMouseLeave: () => setOpen(false),
-          onPointerEnter: () => setOpen(true),
-          onPointerLeave: () => setOpen(false),
-        })}
-      </TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="start"
-        className="border-foreground/20 bg-background p-0 text-foreground"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onPointerEnter={() => setOpen(true)}
-        onPointerLeave={() => setOpen(false)}
-      >
-        <RoutingInfoCard />
-      </TooltipContent>
-    </Tooltip>
-  );
-};

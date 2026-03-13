@@ -35,8 +35,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const { settings, updateSettings } = useAppSettings();
 
   const defaultApp: OpenInAppId | null =
-    settings?.defaultOpenInApp && isValidOpenInAppId(settings.defaultOpenInApp)
-      ? settings.defaultOpenInApp
+    settings?.openIn?.default && isValidOpenInAppId(settings.openIn.default)
+      ? settings.openIn.default
       : null;
 
   React.useEffect(() => {
@@ -50,10 +50,16 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
   const persistPreferredApp = React.useCallback(
     (appId: OpenInAppId) => {
-      updateSettings({ defaultOpenInApp: appId });
+      updateSettings({
+        key: 'openIn',
+        value: {
+          default: appId,
+          hidden: settings?.openIn?.hidden ?? [],
+        },
+      });
       window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: appId }));
     },
-    [updateSettings]
+    [settings?.openIn?.hidden, updateSettings]
   );
 
   const callOpen = React.useCallback(

@@ -1,15 +1,13 @@
+import { formatForDisplay } from '@tanstack/react-hotkeys';
 import { Command } from 'cmdk';
 import {
-  ArrowBigUp,
   ArrowDown,
   ArrowUp,
-  Command as CommandIcon,
   CornerDownLeft,
   FolderOpen,
   GitBranch,
   Home,
   Keyboard,
-  Option,
   Palette,
   PanelLeft,
   PanelRight,
@@ -19,13 +17,12 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useKeyboardSettings } from '../contexts/KeyboardSettingsContext';
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import {
   APP_SHORTCUTS,
-  normalizeShortcutKey,
+  getEffectiveHotkey,
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
-import type { ShortcutModifier } from '../types/shortcuts';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -58,10 +55,7 @@ type CommandItem = {
   icon: React.ReactNode;
   group: string;
   keywords?: string[];
-  shortcut?: {
-    key: string;
-    modifier?: ShortcutModifier;
-  };
+  shortcut?: string;
   onSelect: () => void;
 };
 
@@ -80,21 +74,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenProject,
 }) => {
   const [search, setSearch] = useState('');
-  const { getShortcut } = useKeyboardSettings();
+  const { value: keyboard } = useAppSettingsKey('keyboard');
   const shouldReduceMotion = useReducedMotion();
 
-  const getEffectiveShortcut = useCallback(
-    (
-      settingsKey: ShortcutSettingsKey,
-      fallback: { key: string; modifier?: ShortcutModifier }
-    ): { key: string; modifier?: ShortcutModifier } => {
-      const binding = getShortcut(settingsKey);
-      if (binding.key && binding.modifier) {
-        return { key: normalizeShortcutKey(binding.key), modifier: binding.modifier };
-      }
-      return { key: normalizeShortcutKey(fallback.key), modifier: fallback.modifier };
-    },
-    [getShortcut]
+  const shortcutDisplay = useCallback(
+    (key: ShortcutSettingsKey) => formatForDisplay(getEffectiveHotkey(key, keyboard)),
+    [keyboard]
   );
 
   const handleClose = useCallback(() => {
@@ -161,11 +146,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       items.push({
         id: 'nav-settings',
         label: 'Open Settings',
-        description: APP_SHORTCUTS.SETTINGS.description,
+        description: APP_SHORTCUTS.settings.description,
         icon: <Settings className="h-4 w-4" />,
         group: 'Navigation',
         keywords: ['settings', 'preferences', 'config'],
-        shortcut: getEffectiveShortcut('settings', APP_SHORTCUTS.SETTINGS),
+        shortcut: shortcutDisplay('settings'),
         onSelect: () => runCommand(onOpenSettings),
       });
     }
@@ -187,11 +172,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       items.push({
         id: 'toggle-left',
         label: 'Toggle Left Sidebar',
-        description: APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR.description,
+        description: APP_SHORTCUTS.toggleLeftSidebar.description,
         icon: <PanelLeft className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['sidebar', 'panel', 'left', 'toggle'],
-        shortcut: getEffectiveShortcut('toggleLeftSidebar', APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR),
+        shortcut: shortcutDisplay('toggleLeftSidebar'),
         onSelect: () => runCommand(onToggleLeftSidebar),
       });
     }
@@ -200,11 +185,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       items.push({
         id: 'toggle-right',
         label: 'Toggle Right Sidebar',
-        description: APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR.description,
+        description: APP_SHORTCUTS.toggleRightSidebar.description,
         icon: <PanelRight className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['sidebar', 'panel', 'right', 'toggle'],
-        shortcut: getEffectiveShortcut('toggleRightSidebar', APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR),
+        shortcut: shortcutDisplay('toggleRightSidebar'),
         onSelect: () => runCommand(onToggleRightSidebar),
       });
     }
@@ -213,11 +198,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       items.push({
         id: 'toggle-theme',
         label: 'Toggle Theme',
-        description: APP_SHORTCUTS.TOGGLE_THEME.description,
+        description: APP_SHORTCUTS.toggleTheme.description,
         icon: <Palette className="h-4 w-4" />,
         group: 'Toggles',
         keywords: ['theme', 'dark', 'light', 'mode', 'toggle'],
-        shortcut: getEffectiveShortcut('toggleTheme', APP_SHORTCUTS.TOGGLE_THEME),
+        shortcut: shortcutDisplay('toggleTheme'),
         onSelect: () => runCommand(onToggleTheme),
       });
     }
@@ -259,7 +244,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     return items;
   }, [
-    getEffectiveShortcut,
+    shortcutDisplay,
     projects,
     onGoHome,
     onOpenProject,
@@ -285,17 +270,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   }, [commands]);
 
   const groupOrder = ['Navigation', 'Toggles', 'Projects', 'Tasks'];
-
-  const formatShortcutKey = useCallback((value: string) => {
-    const key = normalizeShortcutKey(value);
-    if (key === 'ArrowLeft') return '←';
-    if (key === 'ArrowRight') return '→';
-    if (key === 'ArrowUp') return '↑';
-    if (key === 'ArrowDown') return '↓';
-    if (key === 'Escape') return 'Esc';
-    if (key === 'Tab') return 'Tab';
-    return key.toUpperCase();
-  }, []);
 
   return createPortal(
     <AnimatePresence>
@@ -371,33 +345,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                             )}
                           </div>
                           {item.shortcut && (
-                            <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                              {item.shortcut.modifier === 'cmd' && (
-                                <CommandIcon className="h-3 w-3" />
-                              )}
-                              {item.shortcut.modifier === 'ctrl' && (
-                                <span className="font-medium">Ctrl</span>
-                              )}
-                              {item.shortcut.modifier === 'cmd+shift' && (
-                                <>
-                                  <CommandIcon className="h-3 w-3" />
-                                  <ArrowBigUp className="h-3 w-3" />
-                                </>
-                              )}
-                              {item.shortcut.modifier === 'shift' && (
-                                <ArrowBigUp className="h-3 w-3" />
-                              )}
-                              {item.shortcut.modifier === 'ctrl+shift' && (
-                                <>
-                                  <span className="font-medium">Ctrl</span>
-                                  <ArrowBigUp className="h-3 w-3" />
-                                </>
-                              )}
-                              {(item.shortcut.modifier === 'option' ||
-                                item.shortcut.modifier === 'alt') && <Option className="h-3 w-3" />}
-                              <span className="font-medium">
-                                {formatShortcutKey(item.shortcut.key)}
-                              </span>
+                            <div className="ml-auto text-xs font-medium text-muted-foreground">
+                              {item.shortcut}
                             </div>
                           )}
                         </Command.Item>

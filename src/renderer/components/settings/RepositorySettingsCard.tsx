@@ -1,34 +1,27 @@
 import React, { useMemo } from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { Input } from './ui/input';
-import { Switch } from './ui/switch';
-
-type RepoSettings = {
-  branchPrefix: string;
-  pushOnCreate: boolean;
-};
-
-const DEFAULTS: RepoSettings = {
-  branchPrefix: 'emdash',
-  pushOnCreate: true,
-};
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { Input } from '../ui/input';
+import { Switch } from '../ui/switch';
 
 const RepositorySettingsCard: React.FC = () => {
-  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
-
-  const { repository } = settings ?? {};
+  const {
+    value: localProject,
+    update,
+    isLoading: loading,
+    isSaving: saving,
+  } = useAppSettingsKey('localProject');
 
   const example = useMemo(() => {
-    const prefix = repository?.branchPrefix || DEFAULTS.branchPrefix;
+    const prefix = localProject?.branchPrefix ?? '';
     return `${prefix}/my-feature-a3f`;
-  }, [repository?.branchPrefix]);
+  }, [localProject?.branchPrefix]);
 
   return (
     <div className="grid gap-8">
       <div className="grid gap-2">
         <Input
-          defaultValue={repository?.branchPrefix ?? DEFAULTS.branchPrefix}
-          onBlur={(e) => updateSettings({ repository: { branchPrefix: e.target.value.trim() } })}
+          defaultValue={localProject?.branchPrefix ?? ''}
+          onBlur={(e) => update({ branchPrefix: e.target.value.trim() })}
           placeholder="Branch prefix"
           aria-label="Branch prefix"
           disabled={loading}
@@ -45,8 +38,8 @@ const RepositorySettingsCard: React.FC = () => {
           </div>
         </div>
         <Switch
-          defaultChecked={repository?.pushOnCreate ?? DEFAULTS.pushOnCreate}
-          onCheckedChange={(checked) => updateSettings({ repository: { pushOnCreate: checked } })}
+          defaultChecked={localProject?.pushOnCreate ?? true}
+          onCheckedChange={(checked) => update({ pushOnCreate: checked })}
           disabled={loading || saving}
           aria-label="Enable automatic push on create"
         />

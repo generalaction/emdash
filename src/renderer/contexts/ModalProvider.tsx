@@ -1,7 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
-import { CloneFromUrlModal } from '@renderer/components/CloneFromUrlModal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
@@ -13,7 +12,6 @@ import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 const modalRegistry = {
   updateModal: UpdateModalOverlay,
   newProjectModal: NewProjectModal,
-  cloneFromUrlModal: CloneFromUrlModal,
   taskModal: TaskModalOverlay,
   addProjectModal: AddProjectModal,
   addSshConnModal: AddSshConnModal,

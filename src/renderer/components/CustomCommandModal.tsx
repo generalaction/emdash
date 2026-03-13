@@ -3,8 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PROVIDERS, type ProviderDefinition } from '@shared/agent-provider-registry';
+import type { AppSettings, ProviderCustomConfig } from '@shared/app-settings';
 import { rpc } from '../lib/ipc';
-import type { ProviderCustomConfig } from '../types/electron-api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -73,20 +73,25 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     const loadConfig = async () => {
       setLoading(true);
       try {
-        const result = await rpc.connections.getCustomConfig(providerId);
-        if (result?.success && result.config) {
-          const env = result.config.env;
+        const allConfigs = await (rpc.appSettings.get('providerConfigs') as Promise<
+          AppSettings['providerConfigs']
+        >);
+        const config = allConfigs?.[providerId];
+        if (config && Object.keys(config).length > 0) {
+          const env = config.env;
           const envEntries: EnvEntry[] =
             env && typeof env === 'object'
               ? Object.entries(env).map(([key, value]) => ({ key, value: String(value) }))
               : [];
           setForm({
-            cli: result.config.cli ?? defaults.cli,
-            resumeFlag: result.config.resumeFlag ?? defaults.resumeFlag,
-            defaultArgs: result.config.defaultArgs ?? defaults.defaultArgs,
-            extraArgs: result.config.extraArgs ?? '',
-            autoApproveFlag: result.config.autoApproveFlag ?? defaults.autoApproveFlag,
-            initialPromptFlag: result.config.initialPromptFlag ?? defaults.initialPromptFlag,
+            cli: config.cli ?? defaults.cli,
+            resumeFlag: config.resumeFlag ?? defaults.resumeFlag,
+            defaultArgs: Array.isArray(config.defaultArgs)
+              ? config.defaultArgs.join(' ')
+              : (config.defaultArgs ?? defaults.defaultArgs),
+            extraArgs: config.extraArgs ?? '',
+            autoApproveFlag: config.autoApproveFlag ?? defaults.autoApproveFlag,
+            initialPromptFlag: config.initialPromptFlag ?? defaults.initialPromptFlag,
             envEntries,
           });
           setHasCustomConfig(true);
@@ -154,19 +159,19 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         form.envEntries.every((e) => !e.key.trim());
 
       if (isDefault) {
-        await rpc.connections.updateCustomConfig(providerId, undefined);
+        await rpc.appSettings.updateProviderConfig(providerId, undefined);
         setHasCustomConfig(false);
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
           resumeFlag: form.resumeFlag,
-          defaultArgs: form.defaultArgs,
+          defaultArgs: form.defaultArgs.trim() ? form.defaultArgs.trim().split(/\s+/) : undefined,
           extraArgs: form.extraArgs.trim() || undefined,
           autoApproveFlag: form.autoApproveFlag,
           initialPromptFlag: form.initialPromptFlag,
           env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         };
-        await rpc.connections.updateCustomConfig(providerId, config);
+        await rpc.appSettings.updateProviderConfig(providerId, config);
         setHasCustomConfig(true);
       }
       onClose();
@@ -212,7 +217,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
           role="dialog"
           aria-modal="true"
           aria-labelledby="custom-command-title"
-          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-130"
           initial={shouldReduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0 }}
@@ -231,7 +236,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
             }
-            className="mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl"
+            className="mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl z-130"
           >
             {/* Header */}
             <header className="flex items-center justify-between border-b border-border/60 px-6 py-4">
@@ -357,7 +362,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                             variant="ghost"
                             size="icon"
                             onClick={() => removeEnvEntry(i)}
-                            className="h-8 w-8 flex-shrink-0"
+                            className="h-8 w-8 shrink-0"
                             aria-label="Remove"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

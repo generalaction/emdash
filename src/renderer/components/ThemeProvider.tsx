@@ -39,7 +39,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => getSystemTheme());
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', 'system');
 
-  const theme: Theme = settings?.interface?.theme ?? 'system';
+  const theme: Theme = settings?.theme ?? 'system';
   const effectiveTheme: EffectiveTheme = theme === 'system' ? systemTheme : theme;
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
-    updateSettings({ interface: { theme: newTheme } });
+    updateSettings({ key: 'theme', value: newTheme });
   };
 
   const toggleTheme = () => {

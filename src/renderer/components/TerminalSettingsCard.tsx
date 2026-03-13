@@ -113,7 +113,7 @@ const TerminalSettingsCard: React.FC = () => {
   const applyFont = useCallback(
     (next: string) => {
       const normalized = next.trim();
-      updateSettings({ terminal: { fontFamily: normalized } });
+      updateSettings({ key: 'terminal', value: { fontFamily: normalized } });
       window.dispatchEvent(
         new CustomEvent('terminal-font-changed', { detail: { fontFamily: normalized } })
       );
@@ -123,7 +123,7 @@ const TerminalSettingsCard: React.FC = () => {
 
   const toggleAutoCopy = useCallback(
     (next: boolean) => {
-      updateSettings({ terminal: { autoCopyOnSelection: next } });
+      updateSettings({ key: 'terminal', value: { autoCopyOnSelection: next } });
       window.dispatchEvent(
         new CustomEvent('terminal-auto-copy-changed', { detail: { autoCopyOnSelection: next } })
       );

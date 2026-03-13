@@ -1,14 +1,14 @@
 import React from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const TaskHoverActionCard: React.FC = () => {
-  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
+  const { value: iface, update, isLoading, isSaving } = useAppSettingsKey('interface');
 
-  const value = settings?.interface?.taskHoverAction ?? 'delete';
+  const value = iface?.taskHoverAction ?? 'delete';
 
   const handleChange = (next: 'delete' | 'archive') => {
-    updateSettings({ interface: { taskHoverAction: next } });
+    update({ taskHoverAction: next });
     window.dispatchEvent(new CustomEvent('taskHoverActionChanged', { detail: { value: next } }));
   };
 

@@ -4,6 +4,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { useCallback, useEffect, useRef } from 'react';
+import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { cssVar } from '../lib/cssVars';
@@ -269,13 +270,15 @@ export function useTerminal(
 
     // ── Load settings ────────────────────────────────────────────────────────
     let customFontFamily = '';
-    void rpc.appSettings.get().then((settings) => {
-      if (settings?.terminal?.fontFamily) {
-        customFontFamily = settings.terminal.fontFamily.trim();
-        if (customFontFamily) terminal.options.fontFamily = customFontFamily;
+    void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
+      (terminalSettings) => {
+        if (terminalSettings?.fontFamily) {
+          customFontFamily = terminalSettings.fontFamily.trim();
+          if (customFontFamily) terminal.options.fontFamily = customFontFamily;
+        }
+        autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
       }
-      autoCopyOnSelectionRef.current = settings?.terminal?.autoCopyOnSelection ?? false;
-    });
+    );
 
     // ── DECRQM xterm.js 6.0 bug workaround ──────────────────────────────────
     const cleanups: (() => void)[] = [];

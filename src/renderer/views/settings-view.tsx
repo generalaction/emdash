@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { SettingsPage, type SettingsPageTab } from '@renderer/components/SettingsPage';
+import { SettingsPage, type SettingsPageTab } from '@renderer/components/settings/SettingsPage';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 
 const SettingsTabContext = createContext<SettingsPageTab>('general');

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { providerStatusUpdatedChannel } from '@shared/events/appEvents';
-import { BASE_CLI_AGENTS } from '../components/CliAgentsList';
+import { BASE_CLI_AGENTS } from '../components/settings/CliAgentsList';
 import { events, rpc } from '../lib/ipc';
 import { CliAgentStatus } from '../types/connections';
 

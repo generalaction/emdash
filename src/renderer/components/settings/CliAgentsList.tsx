@@ -2,17 +2,12 @@ import { Settings2, Sparkles } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { PROVIDERS } from '@shared/agent-provider-registry';
 import { agentAssets } from '@renderer/providers/assets';
-import { rpc } from '../lib/ipc';
-import { CliAgentStatus } from '../types/connections';
-import CustomCommandModal from './CustomCommandModal';
-import IntegrationRow from './IntegrationRow';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-
-interface CliAgentsListProps {
-  agents: CliAgentStatus[];
-  isLoading: boolean;
-  error?: string | null;
-}
+import { useDependencies, type DependencyState } from '../../contexts/DependenciesProvider';
+import { rpc } from '../../lib/ipc';
+import { CliAgentStatus } from '../../types/connections';
+import CustomCommandModal from '../CustomCommandModal';
+import IntegrationRow from '../IntegrationRow';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 export const BASE_CLI_AGENTS: CliAgentStatus[] = PROVIDERS.filter(
   (provider) => provider.detectable !== false
@@ -23,6 +18,27 @@ export const BASE_CLI_AGENTS: CliAgentStatus[] = PROVIDERS.filter(
   docUrl: provider.docUrl ?? null,
   installCommand: provider.installCommand ?? null,
 }));
+
+function mapDependencyStatesToCli(
+  agentStatuses: Record<string, DependencyState>
+): CliAgentStatus[] {
+  const mergedMap = new Map<string, CliAgentStatus>();
+  BASE_CLI_AGENTS.forEach((agent) => {
+    mergedMap.set(agent.id, { ...agent });
+  });
+  Object.entries(agentStatuses).forEach(([agentId, state]) => {
+    const base = mergedMap.get(agentId);
+    mergedMap.set(agentId, {
+      ...(base ?? { id: agentId, name: agentId, docUrl: null, installCommand: null }),
+      id: agentId,
+      name: base?.name ?? agentId,
+      status: state.status === 'available' ? 'connected' : state.status,
+      version: state.version ?? null,
+      command: state.path ?? null,
+    });
+  });
+  return Array.from(mergedMap.values());
+}
 
 const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
@@ -90,26 +106,20 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
   );
 };
 
-export const CliAgentsList: React.FC<CliAgentsListProps> = (props) => {
+export const CliAgentsList: React.FC = () => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
+  const { agentStatuses } = useDependencies();
 
   const sortedAgents = useMemo(() => {
-    const source = props.agents.length ? props.agents : BASE_CLI_AGENTS;
-    return [...source].sort((a, b) => {
+    return mapDependencyStatesToCli(agentStatuses).sort((a, b) => {
       if (a.status === 'connected' && b.status !== 'connected') return -1;
       if (b.status === 'connected' && a.status !== 'connected') return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [props.agents]);
+  }, [agentStatuses]);
 
   return (
     <div className="space-y-3">
-      {props.error ? (
-        <div className="rounded-md border border-red-200/70 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:border-red-500/40 dark:text-red-400">
-          {props.error}
-        </div>
-      ) : null}
-
       <div className="space-y-2">
         {sortedAgents.map((agent) => renderAgentRow(agent, setCustomModalAgentId))}
       </div>

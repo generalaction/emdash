@@ -48,12 +48,3 @@ export interface Task {
 }
 
 export type Agent = ProviderId;
-
-// Keyboard shortcuts types
-export type {
-  ShortcutConfig,
-  ShortcutModifier,
-  KeyboardShortcut,
-  ShortcutMapping,
-  GlobalShortcutHandlers,
-} from './shortcuts';

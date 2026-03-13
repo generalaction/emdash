@@ -10,7 +10,6 @@ import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { DependenciesProvider } from './contexts/DependenciesProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { IntegrationsProvider } from './contexts/IntegrationsProvider';
-import { KeyboardSettingsProvider } from './contexts/KeyboardSettingsContext';
 import { ModalProvider } from './contexts/ModalProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
@@ -58,15 +57,13 @@ export function App() {
                             <TaskManagementProvider>
                               <AppSettingsProvider>
                                 <AgentProvider>
-                                  <KeyboardSettingsProvider>
-                                    <BrowserProvider>
-                                      <RightSidebarProvider>
-                                        <ThemeProvider>
-                                          <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                        </ThemeProvider>
-                                      </RightSidebarProvider>
-                                    </BrowserProvider>
-                                  </KeyboardSettingsProvider>
+                                  <BrowserProvider>
+                                    <RightSidebarProvider>
+                                      <ThemeProvider>
+                                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                      </ThemeProvider>
+                                    </RightSidebarProvider>
+                                  </BrowserProvider>
                                 </AgentProvider>
                               </AppSettingsProvider>
                             </TaskManagementProvider>

@@ -1,11 +1,4 @@
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-
-export type TaskSettingsErrorScope =
-  | 'autoGenerateName'
-  | 'autoApproveByDefault'
-  | 'autoTrustWorktrees'
-  | 'load'
-  | null;
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;
@@ -13,26 +6,23 @@ export interface TaskSettingsModel {
   autoTrustWorktrees: boolean;
   loading: boolean;
   saving: boolean;
-  error: string | null;
-  errorScope: TaskSettingsErrorScope;
   updateAutoGenerateName: (next: boolean) => void;
   updateAutoApproveByDefault: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
 }
 
 export function useTaskSettings(): TaskSettingsModel {
-  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
-  const tasks = settings?.tasks;
+  const { value: tasks, isLoading: loading, isSaving: saving, update } = useAppSettingsKey('tasks');
+
   return {
-    autoGenerateName: tasks?.autoGenerateName ?? true,
+    // Zod schema always provides these values; ?? false is only a loading-state TypeScript guard.
+    autoGenerateName: tasks?.autoGenerateName ?? false,
     autoApproveByDefault: tasks?.autoApproveByDefault ?? false,
-    autoTrustWorktrees: tasks?.autoTrustWorktrees ?? true,
+    autoTrustWorktrees: tasks?.autoTrustWorktrees ?? false,
     loading,
     saving,
-    error: null,
-    errorScope: null,
-    updateAutoGenerateName: (next) => updateSettings({ tasks: { autoGenerateName: next } }),
-    updateAutoApproveByDefault: (next) => updateSettings({ tasks: { autoApproveByDefault: next } }),
-    updateAutoTrustWorktrees: (next) => updateSettings({ tasks: { autoTrustWorktrees: next } }),
+    updateAutoGenerateName: (next) => update({ autoGenerateName: next }),
+    updateAutoApproveByDefault: (next) => update({ autoApproveByDefault: next }),
+    updateAutoTrustWorktrees: (next) => update({ autoTrustWorktrees: next }),
   };
 }

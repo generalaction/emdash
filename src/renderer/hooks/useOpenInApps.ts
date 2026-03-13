@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -10,6 +11,16 @@ import {
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
 import { rpc } from '../lib/ipc';
 
+const iconModules = import.meta.glob('../../assets/images/*', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+function getIconUrl(iconPath: string): string | undefined {
+  return iconModules[`../../assets/images/${iconPath}`];
+}
+
 export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;
   labels: Partial<Record<OpenInAppId, string>>;
@@ -20,61 +31,49 @@ export interface UseOpenInAppsResult {
 
 export function useOpenInApps(): UseOpenInAppsResult {
   const { settings, isLoading: settingsLoading } = useAppSettings();
-  const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [availability, setAvailability] = useState<Record<string, boolean>>({});
-  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+
+  const { data: platform = 'darwin' } = useQuery({
+    queryKey: ['app', 'platform'],
+    queryFn: () => rpc.app.getPlatform() as Promise<PlatformKey>,
+    staleTime: Infinity,
+  });
+
+  const { data: availability = {}, isLoading: availabilityLoading } = useQuery({
+    queryKey: ['app', 'installedApps'],
+    queryFn: async () => {
+      const apps = await rpc.app.checkInstalledApps();
+      return (apps ?? {}) as Record<string, boolean>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const loading = settingsLoading || availabilityLoading;
 
-  // Load platform-resolved icons and labels
-  useEffect(() => {
-    const load = async () => {
-      let platform: PlatformKey = 'darwin';
-      try {
-        platform = ((await rpc.app.getPlatform()) as unknown as PlatformKey) || 'darwin';
-      } catch {}
+  const labels = useMemo(() => {
+    const result: Partial<Record<OpenInAppId, string>> = {};
+    for (const app of Object.values(OPEN_IN_APPS)) {
+      result[app.id] = getResolvedLabel(app, platform);
+    }
+    return result;
+  }, [platform]);
 
-      const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
-      const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of Object.values(OPEN_IN_APPS)) {
-        const iconPath = getResolvedIconPath(app, platform);
-        loadedLabels[app.id] = getResolvedLabel(app, platform);
-        try {
-          loadedIcons[app.id] = new URL(`../../assets/images/${iconPath}`, import.meta.url).href;
-        } catch (e) {
-          console.error(`Failed to load icon for ${app.id}:`, e);
-        }
-      }
-      setIcons(loadedIcons);
-      setLabels(loadedLabels);
-    };
-    void load();
-  }, []);
+  const icons = useMemo(() => {
+    const result: Partial<Record<OpenInAppId, string>> = {};
+    for (const app of Object.values(OPEN_IN_APPS)) {
+      const iconPath = getResolvedIconPath(app, platform);
+      const url = getIconUrl(iconPath);
+      if (url) result[app.id] = url;
+    }
+    return result;
+  }, [platform]);
 
-  // Fetch app availability
-  useEffect(() => {
-    const fetchAvailability = async () => {
-      try {
-        const apps = await rpc.app.checkInstalledApps();
-        if (apps) setAvailability(apps as Record<string, boolean>);
-      } catch (e) {
-        console.error('Failed to check installed apps:', e);
-      } finally {
-        setAvailabilityLoading(false);
-      }
-    };
-    void fetchAvailability();
-  }, []);
-
-  // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
-    const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
+    const hiddenApps: OpenInAppId[] = settings?.openIn?.hidden ?? [];
     if (loading) return Object.values(OPEN_IN_APPS);
     return Object.values(OPEN_IN_APPS).filter(
       (app) => availability[app.id] && !hiddenApps.includes(app.id)
     );
-  }, [availability, loading, settings?.hiddenOpenInApps]);
+  }, [availability, loading, settings?.openIn?.hidden]);
 
   return { icons, labels, availability, installedApps, loading };
 }

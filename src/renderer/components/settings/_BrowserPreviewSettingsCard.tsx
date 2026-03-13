@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { Switch } from './ui/switch';
+import { Switch } from '../ui/switch';
 
 export default function BrowserPreviewSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
@@ -16,7 +16,9 @@ export default function BrowserPreviewSettingsCard() {
       <Switch
         checked={settings?.browserPreview?.enabled ?? true}
         disabled={isLoading || isSaving}
-        onCheckedChange={(next) => updateSettings({ browserPreview: { enabled: next } })}
+        onCheckedChange={(next) =>
+          updateSettings({ key: 'browserPreview', value: { enabled: next } })
+        }
       />
     </div>
   );

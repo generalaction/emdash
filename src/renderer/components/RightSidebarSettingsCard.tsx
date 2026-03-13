@@ -24,7 +24,7 @@ const RightSidebarSettingsCard: React.FC = () => {
         defaultChecked={autoRightSidebarBehavior}
         disabled={loading}
         onCheckedChange={(checked) =>
-          updateSettings({ interface: { autoRightSidebarBehavior: checked } })
+          updateSettings({ key: 'interface', value: { autoRightSidebarBehavior: checked } })
         }
       />
     </div>

@@ -1,22 +1,25 @@
 import { Info } from 'lucide-react';
 import React from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import context7Logo from '../../assets/images/context7.png';
-import { rpc } from '../lib/ipc';
-import { CONTEXT7_INTEGRATION } from '../mcp/context7';
-import FeedbackModal from './FeedbackModal';
-import { Button } from './ui/button';
-import { Switch } from './ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import context7Logo from '@/assets/images/context7.png';
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { rpc } from '../../lib/ipc';
+import { CONTEXT7_INTEGRATION } from '../../mcp/context7';
+import FeedbackModal from '../FeedbackModal';
+import { Button } from '../ui/button';
+import { Switch } from '../ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const Context7SettingsCard: React.FC = () => {
-  const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
+  const { value: mcp, update, isLoading, isSaving } = useAppSettingsKey('mcp');
   const [showMcpFeedback, setShowMcpFeedback] = React.useState(false);
 
-  const enabled = Boolean(settings?.mcp?.context7?.enabled);
+  const enabled = Boolean(mcp?.context7?.enabled);
 
   const onToggle = (next: boolean) => {
-    updateSettings({ mcp: { context7: { enabled: next } } });
+    const installHintsDismissed = mcp?.context7?.installHintsDismissed;
+    update({
+      context7: { enabled: next, ...(installHintsDismissed ? { installHintsDismissed } : {}) },
+    });
   };
 
   return (
@@ -25,7 +28,7 @@ const Context7SettingsCard: React.FC = () => {
         <img
           src={context7Logo}
           alt="Context7"
-          className="h-5 w-5 flex-shrink-0 rounded object-contain"
+          className="h-5 w-5 shrink-0 rounded object-contain"
         />
         <div className="flex flex-1 items-center gap-1.5">
           <p className="text-sm font-medium text-foreground">Context7</p>
@@ -37,7 +40,7 @@ const Context7SettingsCard: React.FC = () => {
               <TooltipTrigger>
                 <button
                   type="button"
-                  className="flex-shrink-0 text-foreground/50 transition-colors hover:text-foreground"
+                  className="shrink-0 text-foreground/50 transition-colors hover:text-foreground"
                   aria-label="More information"
                 >
                   <Info className="h-4 w-4" />

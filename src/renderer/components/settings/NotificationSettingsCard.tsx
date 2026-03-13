@@ -1,13 +1,11 @@
 import React from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import { cn } from '@renderer/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Switch } from '../ui/switch';
 
 const NotificationSettingsCard: React.FC = () => {
-  const { settings, updateSettings, isLoading: loading } = useAppSettings();
-
-  const { notifications } = settings ?? {};
+  const { value: notifications, update, isLoading: loading } = useAppSettingsKey('notifications');
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,7 +20,7 @@ const NotificationSettingsCard: React.FC = () => {
         <Switch
           checked={notifications?.enabled ?? true}
           disabled={loading}
-          onCheckedChange={(next) => updateSettings({ notifications: { enabled: next } })}
+          onCheckedChange={(next) => update({ enabled: next })}
         />
       </div>
 
@@ -42,7 +40,7 @@ const NotificationSettingsCard: React.FC = () => {
           <Switch
             checked={notifications?.sound ?? true}
             disabled={loading}
-            onCheckedChange={(next) => updateSettings({ notifications: { sound: next } })}
+            onCheckedChange={(next) => update({ sound: next })}
           />
         </div>
 
@@ -54,9 +52,7 @@ const NotificationSettingsCard: React.FC = () => {
           </div>
           <Select
             value={notifications?.soundFocusMode ?? 'always'}
-            onValueChange={(next) =>
-              updateSettings({ notifications: { soundFocusMode: next as 'always' | 'unfocused' } })
-            }
+            onValueChange={(next) => update({ soundFocusMode: next as 'always' | 'unfocused' })}
           >
             <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
               <SelectValue />
@@ -79,7 +75,7 @@ const NotificationSettingsCard: React.FC = () => {
           <Switch
             checked={notifications?.osNotifications ?? true}
             disabled={loading}
-            onCheckedChange={(next) => updateSettings({ notifications: { osNotifications: next } })}
+            onCheckedChange={(next) => update({ osNotifications: next })}
           />
         </div>
       </div>
