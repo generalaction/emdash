@@ -1,10 +1,25 @@
 import React, { useMemo, useState } from 'react';
-import { usePullRequests, type PullRequestSummary } from '../hooks/usePullRequests';
+import {
+  usePullRequests,
+  type PullRequestSummary,
+  type PullRequestReviewer,
+} from '../hooks/usePullRequests';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
-import { ArrowUpRight, ChevronDown, ChevronRight, Github, Loader2, Search } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  Github,
+  Loader2,
+  MessageSquare,
+  Search,
+  X,
+} from 'lucide-react';
 import type { Task } from '../types/app';
 
 interface OpenPrsSectionProps {
@@ -16,6 +31,109 @@ interface OpenPrsSectionProps {
 const DEFAULT_VISIBLE = 10;
 const prBadgeClass =
   'inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground';
+
+const MAX_VISIBLE_REVIEWERS = 3;
+
+function getReviewStateIcon(state?: PullRequestReviewer['state']) {
+  switch (state) {
+    case 'APPROVED':
+      return <Check className="h-2.5 w-2.5" />;
+    case 'CHANGES_REQUESTED':
+      return <X className="h-2.5 w-2.5" />;
+    case 'COMMENTED':
+      return <MessageSquare className="h-2.5 w-2.5" />;
+    case 'PENDING':
+      return <Circle className="h-2.5 w-2.5" />;
+    default:
+      return null;
+  }
+}
+
+function getReviewStateColor(state?: PullRequestReviewer['state']) {
+  switch (state) {
+    case 'APPROVED':
+      return 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30';
+    case 'CHANGES_REQUESTED':
+      return 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30';
+    case 'COMMENTED':
+      return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30';
+    case 'PENDING':
+      return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30';
+    default:
+      return 'bg-muted text-muted-foreground border-border';
+  }
+}
+
+function getReviewStateLabel(state?: PullRequestReviewer['state']) {
+  switch (state) {
+    case 'APPROVED':
+      return 'Approved';
+    case 'CHANGES_REQUESTED':
+      return 'Changes requested';
+    case 'COMMENTED':
+      return 'Commented';
+    case 'DISMISSED':
+      return 'Dismissed';
+    case 'PENDING':
+      return 'Pending review';
+    default:
+      return 'Reviewer';
+  }
+}
+
+const ReviewerBadge: React.FC<{ reviewer: PullRequestReviewer }> = ({ reviewer }) => {
+  const colorClass = getReviewStateColor(reviewer.state);
+  const icon = getReviewStateIcon(reviewer.state);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium ${colorClass}`}
+        >
+          {icon}
+          {reviewer.login}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {reviewer.login}: {getReviewStateLabel(reviewer.state)}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewers }) => {
+  if (reviewers.length === 0) return null;
+
+  const visible = reviewers.slice(0, MAX_VISIBLE_REVIEWERS);
+  const overflow = reviewers.slice(MAX_VISIBLE_REVIEWERS);
+
+  return (
+    <div className="flex items-center gap-1">
+      {visible.map((reviewer) => (
+        <ReviewerBadge key={reviewer.login} reviewer={reviewer} />
+      ))}
+      {overflow.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+              +{overflow.length}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <div className="flex flex-col gap-1">
+              {overflow.map((reviewer) => (
+                <span key={reviewer.login}>
+                  {reviewer.login}: {getReviewStateLabel(reviewer.state)}
+                </span>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
+};
 
 const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
   const { prs, totalCount, loading, loadingMore, error, loadMore, hasMore } =
@@ -165,6 +283,11 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                           </>
                         )}
                       </div>
+                      {pr.reviewers && pr.reviewers.length > 0 && (
+                        <div className="mt-1">
+                          <ReviewersList reviewers={pr.reviewers} />
+                        </div>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <Tooltip>
