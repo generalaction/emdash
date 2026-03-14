@@ -6,6 +6,7 @@ import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
 import { sortByUpdatedAtDesc } from '../utils/issueSorting';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
 
@@ -66,6 +67,11 @@ export interface GitHubPullRequest {
 export interface GitHubPullRequestListResult {
   prs: GitHubPullRequest[];
   totalCount: number;
+}
+
+export interface GitHubPullRequestListOptions {
+  limit?: number;
+  searchQuery?: string;
 }
 
 export interface AuthResult {
@@ -775,9 +781,10 @@ export class GitHubService {
    */
   async getPullRequests(
     projectPath: string,
-    limit: number = 30
+    options: GitHubPullRequestListOptions = {}
   ): Promise<GitHubPullRequestListResult> {
-    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const safeLimit = Math.min(Math.max(Number(options.limit) || 30, 1), 200);
+    const searchQuery = options.searchQuery?.trim() || '';
 
     try {
       const fields = [
@@ -796,8 +803,9 @@ export class GitHubService {
         'latestReviews',
         'reviewDecision',
       ];
+      const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
-        `gh pr list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        `gh pr list --state open --limit ${safeLimit}${searchFlag} --json ${fields.join(',')}`,
         { cwd: projectPath }
       );
       const list = JSON.parse(stdout || '[]');
@@ -824,7 +832,8 @@ export class GitHubService {
         }))
       );
 
-      const totalCount = (await this.getOpenPullRequestCount(projectPath)) ?? prs.length;
+      const totalCount =
+        (await this.getOpenPullRequestCount(projectPath, searchQuery)) ?? prs.length;
 
       return { prs, totalCount };
     } catch (error) {
@@ -863,7 +872,10 @@ export class GitHubService {
     return Array.from(reviewerMap.values());
   }
 
-  private async getOpenPullRequestCount(projectPath: string): Promise<number | null> {
+  private async getOpenPullRequestCount(
+    projectPath: string,
+    searchQuery?: string
+  ): Promise<number | null> {
     try {
       const { stdout: repoStdout } = await this.execGH(
         'gh repo view --json nameWithOwner --jq .nameWithOwner',
@@ -872,9 +884,14 @@ export class GitHubService {
       const repoNameWithOwner = repoStdout.trim();
       if (!repoNameWithOwner) return null;
 
-      const query = `repo:${repoNameWithOwner} is:pr is:open`;
+      const queryParts = [`repo:${repoNameWithOwner}`, 'is:pr', 'is:open'];
+      const normalizedSearchQuery = searchQuery?.trim();
+      if (normalizedSearchQuery) {
+        queryParts.push(normalizedSearchQuery);
+      }
+      const query = queryParts.join(' ');
       const { stdout } = await this.execGH(
-        `gh api search/issues --method GET -f q=${JSON.stringify(query)} --jq .total_count`,
+        `gh api search/issues --method GET -f q=${quoteShellArg(query)} --jq .total_count`,
         { cwd: projectPath }
       );
 
@@ -939,7 +956,7 @@ export class GitHubService {
         { cwd: projectPath }
       );
     } catch (fetchError) {
-      // Fallback: try gh pr checkout with detach to avoid working tree conflicts
+      // Fallback: use gh pr checkout to create/sync the local PR branch.
       console.warn(
         'Fetch-based PR branch creation failed, falling back to gh pr checkout:',
         fetchError
@@ -957,11 +974,23 @@ export class GitHubService {
 
       try {
         await this.execGH(
-          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force --detach`,
+          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force`,
           { cwd: projectPath }
         );
+        // Some gh/fork combinations can leave HEAD detached without a local branch ref.
+        // Ensure the requested local branch exists for downstream worktree creation.
+        try {
+          await execAsync(
+            `git show-ref --verify --quiet ${JSON.stringify(`refs/heads/${safeBranch}`)}`,
+            { cwd: projectPath }
+          );
+        } catch {
+          await execAsync(`git branch --force ${JSON.stringify(safeBranch)} HEAD`, {
+            cwd: projectPath,
+          });
+        }
       } catch (error) {
-        console.error('Failed to checkout pull request branch via gh:', error);
+        console.error('Failed during PR branch checkout or local-ref creation:', error);
         throw error;
       } finally {
         if (previousRef && previousRef !== safeBranch) {

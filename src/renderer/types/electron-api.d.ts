@@ -864,6 +864,7 @@ declare global {
       githubListPullRequests: (args: {
         projectPath: string;
         limit?: number;
+        searchQuery?: string;
       }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
@@ -884,6 +885,7 @@ declare global {
           branch: string;
           projectId: string;
           status: string;
+          agentId: string;
           metadata?: { prNumber?: number; prTitle?: string | null };
         };
         error?: string;
@@ -1676,6 +1678,7 @@ export interface ElectronAPI {
   githubListPullRequests: (args: {
     projectPath: string;
     limit?: number;
+    searchQuery?: string;
   }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
@@ -1696,6 +1699,7 @@ export interface ElectronAPI {
       branch: string;
       projectId: string;
       status: string;
+      agentId: string;
       metadata?: { prNumber?: number; prTitle?: string | null };
     };
     error?: string;

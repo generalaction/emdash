@@ -511,7 +511,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPrivate: boolean;
     gitignoreTemplate?: string;
   }) => ipcRenderer.invoke('github:createNewProject', params),
-  githubListPullRequests: (args: { projectPath: string; limit?: number }) =>
+  githubListPullRequests: (args: { projectPath: string; limit?: number; searchQuery?: string }) =>
     ipcRenderer.invoke('github:listPullRequests', args),
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
@@ -1175,6 +1175,7 @@ export interface ElectronAPI {
       branch: string;
       projectId: string;
       status: string;
+      agentId: string;
       metadata?: { prNumber?: number; prTitle?: string | null };
     };
     error?: string;
