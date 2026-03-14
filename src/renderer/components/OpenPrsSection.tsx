@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  Ban,
   Github,
   Loader2,
   MessageSquare,
@@ -73,6 +74,8 @@ function getReviewStateIcon(state?: PullRequestReviewer['state']) {
       return <MessageSquare className="h-2.5 w-2.5" />;
     case 'PENDING':
       return <Circle className="h-2.5 w-2.5" />;
+    case 'DISMISSED':
+      return <Ban className="h-2.5 w-2.5" />;
     default:
       return null;
   }
@@ -88,6 +91,8 @@ function getReviewStateColor(state?: PullRequestReviewer['state']) {
       return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30';
     case 'PENDING':
       return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30';
+    case 'DISMISSED':
+      return 'bg-muted text-muted-foreground border-border';
     default:
       return 'bg-muted text-muted-foreground border-border';
   }
