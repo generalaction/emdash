@@ -110,6 +110,46 @@ export class GitHubService {
   }
 
   /**
+   * Store a GitHub token obtained via OAuth (Emdash Accounts flow).
+   * Also authenticates the gh CLI with the token.
+   */
+  async storeTokenFromOAuth(token: string): Promise<void> {
+    await this.storeToken(token);
+    await this.authenticateGHCLI(token);
+  }
+
+  /**
+   * Start OAuth authentication via Emdash Account.
+   * Opens browser to auth server, waits for loopback callback, exchanges code for token.
+   */
+  async startOAuthAuth(): Promise<AuthResult> {
+    const { emdashAccountService } = await import('./EmdashAccountService');
+    try {
+      const result = await emdashAccountService.signIn();
+
+      await this.storeToken(result.githubToken);
+      await this.authenticateGHCLI(result.githubToken);
+
+      const user = await this.getUserInfo(result.githubToken);
+
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send('github:auth:success', {
+          token: result.githubToken,
+          user,
+        });
+      }
+
+      return { success: true, token: result.githubToken, user: user || undefined };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'OAuth authentication failed',
+      };
+    }
+  }
+
+  /**
    * Start Device Flow authentication with automatic background polling
    * Emits events to renderer for UI updates
    * Returns immediately with device code info
