@@ -47,6 +47,18 @@ class SessionRegistry {
     this.sessions.delete(taskId);
   }
 
+  /**
+   * Re-attach an existing session to a new container without creating a new one.
+   * Used by the expanded terminal modal to move a session from the sidebar
+   * into a full-screen overlay while preserving the PTY and scrollback.
+   */
+  reattach(taskId: string, container: HTMLElement): TerminalSessionManager | null {
+    const session = this.sessions.get(taskId);
+    if (!session) return null;
+    session.attach(container);
+    return session;
+  }
+
   getSession(taskId: string): TerminalSessionManager | undefined {
     return this.sessions.get(taskId);
   }

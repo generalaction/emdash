@@ -507,17 +507,35 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const renderPath = (p: string) => {
+  const renderPath = (p: string, status?: FileChange['status']) => {
     const last = p.lastIndexOf('/');
     const dir = last >= 0 ? p.slice(0, last + 1) : '';
     const base = last >= 0 ? p.slice(last + 1) : p;
+    const isDeleted = status === 'deleted';
     return (
       <span className="flex min-w-0" title={p}>
-        <span className="shrink-0 font-medium text-foreground">{base}</span>
-        {dir && <span className="ml-1 truncate text-muted-foreground">{dir}</span>}
+        <span
+          className={['shrink-0 font-medium text-foreground', isDeleted ? 'line-through' : '']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {base}
+        </span>
+        {dir && (
+          <span
+            className={['ml-1 truncate text-muted-foreground', isDeleted ? 'line-through' : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {dir}
+          </span>
+        )}
       </span>
     );
   };
+
+  const shouldShowDiffPill = (value: number | null | undefined) =>
+    typeof value === 'number' && value !== 0;
 
   // Use PR diff changes when in PR review mode, otherwise use local file changes
   const displayChanges = isPrReview ? prDiffChanges : fileChanges;
@@ -867,16 +885,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     <FileIcon filename={change.path} isDirectory={false} size={16} />
                   </span>
                   <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="min-w-0 truncate text-sm">{renderPath(change.path)}</div>
+                    <div className="min-w-0 truncate text-sm">
+                      {renderPath(change.path, change.status)}
+                    </div>
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
-                  <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                    +{formatDiffCount(change.additions)}
-                  </span>
-                  <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                    -{formatDiffCount(change.deletions)}
-                  </span>
+                  {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                      +{formatDiffCount(change.additions)}
+                    </span>
+                  )}
+                  {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                      -{formatDiffCount(change.deletions)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))
@@ -895,16 +919,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       <FileIcon filename={change.path} isDirectory={false} size={16} />
                     </span>
                     <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="min-w-0 truncate text-sm">{renderPath(change.path)}</div>
+                      <div className="min-w-0 truncate text-sm">
+                        {renderPath(change.path, change.status)}
+                      </div>
                     </div>
                   </div>
                   <div className="ml-3 flex shrink-0 items-center gap-2">
-                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                      +{formatDiffCount(change.additions)}
-                    </span>
-                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                      -{formatDiffCount(change.deletions)}
-                    </span>
+                    {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                      <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                        +{formatDiffCount(change.additions)}
+                      </span>
+                    )}
+                    {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                      <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                        -{formatDiffCount(change.deletions)}
+                      </span>
+                    )}
                     <div className="flex items-center gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>
