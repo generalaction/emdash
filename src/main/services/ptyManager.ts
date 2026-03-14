@@ -1349,10 +1349,9 @@ export async function startPty(options: {
   }
 
   // Lazy load native module at call time to prevent startup crashes
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   let pty: typeof import('node-pty');
   try {
-    pty = require('node-pty');
+    pty = await import('node-pty');
   } catch (e: any) {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
