@@ -34,6 +34,10 @@ import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
 import { useTerminalSearch } from '../hooks/useTerminalSearch';
 import { TerminalSearchOverlay } from './TerminalSearchOverlay';
+import {
+  getConversationTabLabel,
+  planConversationTitleUpdates,
+} from '../lib/conversationTabTitles';
 
 declare const window: Window & {
   electronAPI: {
@@ -61,8 +65,6 @@ function ConversationTabButton({
   onSwitchChat,
   onCloseChat,
   totalConversationCount,
-  sameAgentCount,
-  showNumber,
   fallbackBusy,
   taskId,
 }: {
@@ -71,15 +73,13 @@ function ConversationTabButton({
   onSwitchChat: (conversationId: string) => void;
   onCloseChat: (conversationId: string) => void;
   totalConversationCount: number;
-  sameAgentCount: number;
-  showNumber: boolean;
   fallbackBusy: boolean;
   taskId: string;
 }) {
   const isActive = conversation.id === activeConversationId;
   const convAgent = conversation.provider ?? 'claude';
   const config = agentConfig[convAgent as Agent];
-  const agentName = config?.name || convAgent;
+  const tabLabel = getConversationTabLabel(conversation);
   const semanticStatus = useConversationStatus({
     statusId: conversation.isMain ? taskId : conversation.id,
     ptySuffix: conversation.isMain ? taskId : conversation.id,
@@ -99,7 +99,7 @@ function ConversationTabButton({
           ? 'bg-background text-foreground shadow-sm'
           : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
       )}
-      title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+      title={tabLabel}
     >
       {config?.logo && (
         <AgentLogo
@@ -110,10 +110,7 @@ function ConversationTabButton({
           className="h-3.5 w-3.5 flex-shrink-0"
         />
       )}
-      <span className="max-w-[10rem] truncate">
-        {agentName}
-        {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
-      </span>
+      <span className="max-w-[10rem] truncate">{tabLabel}</span>
       {totalConversationCount > 1 ? (
         <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
       ) : null}
@@ -174,6 +171,27 @@ const ChatInterface: React.FC<Props> = ({
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
+
+  const applyStableConversationTitles = useCallback(async (loadedConversations: Conversation[]) => {
+    const updates = planConversationTitleUpdates(loadedConversations);
+    if (updates.length === 0) return loadedConversations;
+
+    await Promise.all(
+      updates.map((update) =>
+        rpc.db.updateConversationTitle({
+          conversationId: update.id,
+          title: update.title,
+        })
+      )
+    );
+
+    const titleById = new Map(updates.map((update) => [update.id, update.title]));
+    return loadedConversations.map((conversation) =>
+      titleById.has(conversation.id)
+        ? { ...conversation, title: titleById.get(conversation.id)! }
+        : conversation
+    );
+  }, []);
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
@@ -265,13 +283,14 @@ const ChatInterface: React.FC<Props> = ({
     const loadConversations = async () => {
       setConversationsLoaded(false);
       const loadedConversations = await rpc.db.getConversations(task.id);
+      const normalizedConversations = await applyStableConversationTitles(loadedConversations);
       if (cancelled) return;
 
-      if (loadedConversations.length > 0) {
-        setConversations(loadedConversations);
+      if (normalizedConversations.length > 0) {
+        setConversations(normalizedConversations);
 
         // Set active conversation
-        const active = loadedConversations.find((c: Conversation) => c.isActive);
+        const active = normalizedConversations.find((c: Conversation) => c.isActive);
         if (active) {
           setActiveConversationId(active.id);
           // Update agent to match the active conversation
@@ -280,7 +299,7 @@ const ChatInterface: React.FC<Props> = ({
           }
         } else {
           // Fallback to first conversation
-          const firstConv = loadedConversations[0];
+          const firstConv = normalizedConversations[0];
           setActiveConversationId(firstConv.id);
           // Update agent to match the first conversation
           if (firstConv.provider) {
@@ -303,14 +322,16 @@ const ChatInterface: React.FC<Props> = ({
         });
         if (cancelled) return;
         if (defaultConversation) {
-          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
-          setConversations([
+          const normalizedConversations = await applyStableConversationTitles([
             {
               ...defaultConversation,
               isMain: true,
               isActive: true,
             },
           ]);
+          if (cancelled) return;
+          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
+          setConversations(normalizedConversations);
           setActiveConversationId(defaultConversation.id);
           setAgent((defaultConversation.provider || taskAgent) as Agent);
           if (!cancelled) setConversationsLoaded(true);
@@ -322,7 +343,7 @@ const ChatInterface: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [task.id, task.agentId]); // agent is intentionally not included as a dependency
+  }, [task.id, task.agentId, applyStableConversationTitles]); // agent is intentionally not included as a dependency
 
   // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
   useEffect(() => {
@@ -620,9 +641,9 @@ const ChatInterface: React.FC<Props> = ({
             await rpc.db.saveConversation({ ...missing, isActive: false });
           }
           const retryConversations = await rpc.db.getConversations(task.id);
-          setConversations(retryConversations);
+          setConversations(await applyStableConversationTitles(retryConversations));
         } else {
-          setConversations(dbConversations);
+          setConversations(await applyStableConversationTitles(dbConversations));
         }
         setActiveConversationId(newConversation.id);
         setAgent(newAgent as Agent);
@@ -640,7 +661,7 @@ const ChatInterface: React.FC<Props> = ({
         });
       }
     },
-    [task.id, toast, conversations]
+    [task.id, toast, conversations, applyStableConversationTitles]
   );
 
   const handleCreateNewChat = useCallback(() => {
@@ -687,7 +708,9 @@ const ChatInterface: React.FC<Props> = ({
       await rpc.db.deleteConversation(conversationId);
 
       // Reload conversations
-      const updatedConversations = await rpc.db.getConversations(task.id);
+      const updatedConversations = await applyStableConversationTitles(
+        await rpc.db.getConversations(task.id)
+      );
       setConversations(updatedConversations);
       // Switch to another chat if we deleted the active one
       if (conversationId === activeConversationId && updatedConversations.length > 0) {
@@ -709,7 +732,7 @@ const ChatInterface: React.FC<Props> = ({
         );
       } catch {}
     },
-    [conversations, agent, task.id, activeConversationId, toast]
+    [conversations, task.id, activeConversationId, toast, applyStableConversationTitles]
   );
 
   // Persist last-selected agent per task (including Droid)
@@ -1065,17 +1088,8 @@ const ChatInterface: React.FC<Props> = ({
                       '[mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
                   )}
                 >
-                  {sortedConversations.map((conv, index) => {
-                    const convAgent = conv.provider ?? 'claude';
+                  {sortedConversations.map((conv) => {
                     const isBusy = busyByConversationId[conv.id] === true;
-
-                    // Count how many chats use the same agent up to this point
-                    const sameAgentCount = sortedConversations
-                      .slice(0, index + 1)
-                      .filter((c) => (c.provider ?? 'claude') === convAgent).length;
-                    const showNumber =
-                      sortedConversations.filter((c) => (c.provider ?? 'claude') === convAgent)
-                        .length > 1;
 
                     return (
                       <ConversationTabButton
@@ -1085,8 +1099,6 @@ const ChatInterface: React.FC<Props> = ({
                         onSwitchChat={handleSwitchChat}
                         onCloseChat={handleCloseChat}
                         totalConversationCount={conversations.length}
-                        sameAgentCount={sameAgentCount}
-                        showNumber={showNumber}
                         fallbackBusy={isBusy}
                         taskId={task.id}
                       />
