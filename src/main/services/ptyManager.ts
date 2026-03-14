@@ -1463,19 +1463,24 @@ export async function startPty(options: {
   let spawnArgs = args;
 
   if (tmux && process.platform !== 'win32') {
+    const tmuxPath = resolveCommandPathCached('tmux');
     let tmuxAvailable = false;
-    try {
-      const { execFileSync } = require('child_process');
-      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
-      tmuxAvailable = true;
-    } catch {
+    if (tmuxPath) {
+      try {
+        const { execFileSync } = require('child_process');
+        execFileSync(tmuxPath, ['-V'], { timeout: 3000, stdio: 'ignore' });
+        tmuxAvailable = true;
+      } catch {
+        log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
+      }
+    } else {
       log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
     }
 
     if (tmuxAvailable) {
       tmuxSessionName = getTmuxSessionName(id);
       // Build: tmux new-session -As <name> -- <shell> <args...>
-      spawnCommand = 'tmux';
+      spawnCommand = tmuxPath!;
       spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
       log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
     }
