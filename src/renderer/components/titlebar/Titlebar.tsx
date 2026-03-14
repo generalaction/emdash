@@ -2,7 +2,7 @@ import { PanelLeft, PanelRight } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Toggle } from '@renderer/components/ui/toggle';
 import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
-import { useWorkspaceSlots } from '@renderer/contexts/WorkspaceViewProvider';
+import { useWorkspaceSlots } from '@renderer/contexts/WorkspaceNavigationContext';
 import { cn } from '@renderer/lib/utils';
 
 export function Titlebar({
@@ -20,7 +20,7 @@ export function Titlebar({
     <header
       className={cn(
         'flex h-9 shrink-0 items-center bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background',
-        !isLeftOpen && 'pl-20'
+        !isLeftOpen && 'pl-17'
       )}
     >
       <div className="pointer-events-auto flex w-full items-center gap-1 [-webkit-app-region:no-drag]">

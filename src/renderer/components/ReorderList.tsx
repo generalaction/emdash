@@ -1,5 +1,5 @@
 import { Reorder } from 'motion/react';
-import React from 'react';
+import React, { JSX } from 'react';
 
 type Axis = 'x' | 'y';
 

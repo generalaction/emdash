@@ -13,11 +13,13 @@ import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { ModalProvider } from './contexts/ModalProvider';
 import { ProjectsProvider } from './contexts/ProjectsProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
+import { TaskViewStateProvider } from './contexts/task-view-state-provider';
 import { TasksProvider } from './contexts/TasksProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import BrowserProvider from './providers/BrowserProvider';
+import { PendingTasksProvider } from './views/projects/pending-tasks-provider';
 import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
 
@@ -48,32 +50,35 @@ export function App() {
           <ModalProvider>
             <WorkspaceLayoutContextProvider>
               <AppContextProvider>
-                <SshConnectionProvider>
-                  <GithubContextProvider>
-                    <IntegrationsProvider>
-                      <WorkspaceViewProvider>
-                        <ProjectsProvider>
-                          <PendingProjectsProvider>
-                            <TasksProvider>
-                              {/* Add pending tasks provider here*/}
-                              <AppSettingsProvider>
-                                <AgentProvider>
-                                  <BrowserProvider>
-                                    <RightSidebarProvider>
-                                      <ThemeProvider>
-                                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                      </ThemeProvider>
-                                    </RightSidebarProvider>
-                                  </BrowserProvider>
-                                </AgentProvider>
-                              </AppSettingsProvider>
-                            </TasksProvider>
-                          </PendingProjectsProvider>
-                        </ProjectsProvider>
-                      </WorkspaceViewProvider>
-                    </IntegrationsProvider>
-                  </GithubContextProvider>
-                </SshConnectionProvider>
+                <AppSettingsProvider>
+                  <SshConnectionProvider>
+                    <GithubContextProvider>
+                      <IntegrationsProvider>
+                        <WorkspaceViewProvider>
+                          <ProjectsProvider>
+                            <PendingProjectsProvider>
+                              <TasksProvider>
+                                <PendingTasksProvider>
+                                  <TaskViewStateProvider>
+                                    <AgentProvider>
+                                      <BrowserProvider>
+                                        <RightSidebarProvider>
+                                          <ThemeProvider>
+                                            <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                          </ThemeProvider>
+                                        </RightSidebarProvider>
+                                      </BrowserProvider>
+                                    </AgentProvider>
+                                  </TaskViewStateProvider>
+                                </PendingTasksProvider>
+                              </TasksProvider>
+                            </PendingProjectsProvider>
+                          </ProjectsProvider>
+                        </WorkspaceViewProvider>
+                      </IntegrationsProvider>
+                    </GithubContextProvider>
+                  </SshConnectionProvider>
+                </AppSettingsProvider>
               </AppContextProvider>
             </WorkspaceLayoutContextProvider>
           </ModalProvider>

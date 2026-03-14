@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
-import { rpc } from '../lib/ipc';
+import { useLinearIssues } from '../hooks/use-linear-issues';
 import { type LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
@@ -32,46 +32,25 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   onAutoOpenHandled,
   placeholder: customPlaceholder,
 }) => {
-  const [availableIssues, setAvailableIssues] = useState<LinearIssueSummary[]>([]);
-  const [isLoadingIssues, setIsLoadingIssues] = useState(false);
-  const [issueListError, setIssueListError] = useState<string | null>(null);
-  const [hasRequestedIssues, setHasRequestedIssues] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<LinearIssueSummary[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const isMountedRef = useRef(true);
-  const [visibleCount, setVisibleCount] = useState(10);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const canListLinear = typeof window !== 'undefined';
-  const issuesLoaded = availableIssues.length > 0;
-  const isDisabled = disabled || isLoadingIssues || !!issueListError || !issuesLoaded;
-
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setAvailableIssues([]);
-      setHasRequestedIssues(false);
-      setIssueListError(null);
-      setIsLoadingIssues(false);
-      setSearchTerm('');
-      setSearchResults([]);
-      setIsSearching(false);
-      onIssueChange(null);
-      setVisibleCount(10);
-    }
-  }, [isOpen, onIssueChange]);
+  const {
+    issues,
+    isLoading,
+    error,
+    searchTerm,
+    setSearchTerm,
+    isSearching,
+    showIssues,
+    handleScroll,
+  } = useLinearIssues({ enabled: isOpen });
 
   useEffect(() => {
     if (!isOpen) {
       setDropdownOpen(false);
+      onIssueChange(null);
     }
-  }, [isOpen]);
+  }, [isOpen, onIssueChange]);
 
   useEffect(() => {
     if (autoOpen) {
@@ -80,111 +59,15 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
     }
   }, [autoOpen, onAutoOpenHandled]);
 
-  const loadLinearIssues = useCallback(async () => {
-    if (!canListLinear) {
-      return;
-    }
-
-    setIsLoadingIssues(true);
-    try {
-      // Fetch a generous set from Linear; UI renders 10 initially
-      const result = await rpc.linear.initialFetch(50);
-      if (!isMountedRef.current) return;
-      if (!result?.success) {
-        throw new Error(result?.error || 'Failed to load Linear issues.');
-      }
-      setAvailableIssues(result.issues ?? []);
-      setIssueListError(null);
-    } catch (error) {
-      if (!isMountedRef.current) return;
-      setAvailableIssues([]);
-      setIssueListError(error instanceof Error ? error.message : 'Failed to load Linear issues.');
-    } finally {
-      if (!isMountedRef.current) return;
-      setIsLoadingIssues(false);
-      setHasRequestedIssues(true);
-    }
-  }, [canListLinear]);
-
-  useEffect(() => {
-    if (!isOpen || !canListLinear || isLoadingIssues || hasRequestedIssues) return;
-    loadLinearIssues();
-  }, [isOpen, canListLinear, isLoadingIssues, hasRequestedIssues, loadLinearIssues]);
-
-  const searchIssues = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const result = await rpc.linear.searchIssues(term.trim(), 20);
-      if (!isMountedRef.current) return;
-      if (result?.success) {
-        setSearchResults(result.issues ?? []);
-        // Track search
-        void (async () => {
-          const { captureTelemetry } = await import('../lib/telemetryClient');
-          captureTelemetry('linear_issues_searched');
-        })();
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      if (!isMountedRef.current) return;
-      setSearchResults([]);
-    } finally {
-      if (!isMountedRef.current) return;
-      setIsSearching(false);
-    }
-  }, []);
-
-  // Debounced search effect
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchIssues(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, searchIssues]);
-
-  // Combine search results and available issues
-  const displayIssues = useMemo(() => {
-    if (searchTerm.trim()) {
-      return searchResults;
-    }
-    return availableIssues;
-  }, [searchTerm, searchResults, availableIssues]);
-
-  // Reset how many are visible when the search term changes
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [searchTerm]);
-
-  const showIssues = useMemo(
-    () => displayIssues.slice(0, Math.max(10, visibleCount)),
-    [displayIssues, visibleCount]
-  );
-
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const el = e.currentTarget;
-      const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 16;
-      if (nearBottom && showIssues.length < displayIssues.length) {
-        setVisibleCount((prev) => Math.min(prev + 10, displayIssues.length));
-      }
-    },
-    [displayIssues.length, showIssues.length]
-  );
+  const issuesLoaded = issues.length > 0;
+  const isDisabled = disabled || isLoading || !!error || !issuesLoaded;
 
   const handleIssueSelect = (identifier: string) => {
     if (identifier === '__clear__') {
       onIssueChange(null);
       return;
     }
-    const issue = displayIssues.find((issue) => issue.identifier === identifier) ?? null;
+    const issue = issues.find((i) => i.identifier === identifier) ?? null;
     if (issue) {
       void (async () => {
         const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -195,10 +78,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
   };
 
   const issueHelperText = (() => {
-    if (!canListLinear) {
-      return 'Connect Linear in Settings to browse issues.';
-    }
-    if (hasRequestedIssues && !isLoadingIssues && !issuesLoaded && !issueListError) {
+    if (isOpen && !isLoading && !issuesLoaded && !error) {
       return 'No Linear issues available.';
     }
     return null;
@@ -206,22 +86,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
 
   const issuePlaceholder =
     customPlaceholder ??
-    (isLoadingIssues
-      ? 'Loading…'
-      : issueListError
-        ? 'Connect your Linear'
-        : 'Select a Linear issue');
-
-  if (!canListLinear) {
-    return (
-      <div className={className}>
-        <Input value="" placeholder="Linear integration unavailable" disabled />
-        <p className="mt-2 text-xs text-muted-foreground">
-          Connect Linear in Settings to browse issues.
-        </p>
-      </div>
-    );
-  }
+    (isLoading ? 'Loading…' : error ? 'Connect your Linear' : 'Select a Linear issue');
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${className}`} style={{ maxWidth: '100%' }}>
@@ -268,7 +133,7 @@ export const LinearIssueSelector: React.FC<LinearIssueSelectorProps> = ({
                   alt="Linear"
                   className="h-3.5 w-3.5 text-foreground"
                 />
-                {isLoadingIssues ? (
+                {isLoading ? (
                   <>
                     <span className="truncate text-muted-foreground">Loading Linear issues</span>
                     <Spinner size="sm" />

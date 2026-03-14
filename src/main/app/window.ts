@@ -27,7 +27,9 @@ export function createMainWindow(): BrowserWindow {
       // __dirname resolves to out/main/ at runtime; preload is at out/preload/index.mjs
       preload: join(__dirname, '../preload/index.mjs'),
     },
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 10, y: 10 } }
+      : {}),
     show: false,
   });
 

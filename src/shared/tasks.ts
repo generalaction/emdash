@@ -8,7 +8,11 @@ export type Issue = {
   title: string;
   identifier: string;
   description?: string;
+  status?: string;
+  assignees?: string[];
+  project?: string;
   updatedAt?: string;
+  fetchedAt?: string;
 };
 
 export type Task = {

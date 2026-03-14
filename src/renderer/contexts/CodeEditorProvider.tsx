@@ -4,7 +4,7 @@ import { useFileChanges, type FileChange } from '@renderer/hooks/useFileChanges'
 import { useFileManager, type ManagedFile } from '@renderer/hooks/useFileManager';
 import { useProjectRemoteInfo } from '@renderer/hooks/useProjectRemoteInfo';
 import { useCurrentProject } from '../views/projects/project-view-wrapper';
-import { useCurrentTask } from './CurrentTaskProvider';
+import { useCurrentTask } from '../views/tasks/task-view-wrapper';
 
 interface CodeEditorContextValue {
   // Task/project info

@@ -3,10 +3,6 @@ import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 
-// ---------------------------------------------------------------------------
-// Per-key hook — the primary API for settings components.
-// ---------------------------------------------------------------------------
-
 type SettingsMeta<K extends AppSettingsKey> = {
   value: AppSettings[K];
   defaults: AppSettings[K];

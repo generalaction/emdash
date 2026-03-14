@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
+import { Issue } from '@shared/tasks';
 import AgentSelector from '@renderer/components/AgentSelector';
+import { useIntegrationStatus } from '@renderer/components/hooks/useIntegrationStatus';
+import { IssueSelector } from '@renderer/components/issue-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
   DialogContent,
@@ -14,17 +17,83 @@ import { Input } from '@renderer/components/ui/input';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
+import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useGitHubIssues } from '@renderer/hooks/use-github-issues';
+import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
+import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
+import { useRepository } from '@renderer/hooks/use-repository';
+import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
 import { BranchSelector } from './branch-selector';
-import { useRepositoryContext } from './repository-provider';
+import { usePendingTasksContext } from './pending-tasks-provider';
 
-export function CreateTaskModal({ onClose, onSuccess }: BaseModalProps) {
-  const { branches, defaultBranch } = useRepositoryContext();
+function liveTransformTaskName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .slice(0, 64);
+  // No trim(), no stripping leading/trailing dashes
+}
+
+export function CreateTaskModal({ projectId, onClose }: BaseModalProps & { projectId: string }) {
+  const { branches, defaultBranch } = useRepository(projectId);
+  const { createTask } = usePendingTasksContext();
+  const { navigate } = useWorkspaceNavigation();
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
     defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined
   );
   const [providerId, setProviderId] = useState<ProviderId>('claude');
   const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [taskName, setTaskName] = useState(generateFriendlyTaskName());
+  const [showSlugHint, setShowSlugHint] = useState(false);
+  const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
+
+  const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
+
+  const { projects } = useProjectsContext();
+  const projectPath = projects.find((p) => p.id === projectId)?.path ?? '';
+
+  const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
+  const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
+  const githubIssues = useGitHubIssues({
+    projectPath,
+    enabled: isGithubConnected && !!projectPath,
+  });
+
+  const hasAnyIntegration = isLinearConnected || isJiraConnected || isGithubConnected;
+
+  const handleTaskNameChange = useCallback((value: string) => {
+    const transformed = liveTransformTaskName(value);
+    setTaskName(transformed);
+    const hasDroppedChars = /[^a-z0-9\s-]/i.test(value);
+    setShowSlugHint(hasDroppedChars);
+  }, []);
+
+  const handleCreateTask = useCallback(() => {
+    const id = crypto.randomUUID();
+    createTask({
+      id,
+      projectId,
+      name: taskName,
+      sourceBranch: selectedBranch?.branch ?? '',
+      taskBranch: createBranchAndWorktree ? taskName : undefined,
+      linkedIssue: linkedIssue ?? undefined,
+    });
+    onClose();
+    navigate('task', { projectId, taskId: id });
+  }, [
+    createTask,
+    projectId,
+    selectedBranch,
+    taskName,
+    createBranchAndWorktree,
+    linkedIssue,
+    onClose,
+    navigate,
+  ]);
 
   return (
     <DialogContent>
@@ -43,7 +112,12 @@ export function CreateTaskModal({ onClose, onSuccess }: BaseModalProps) {
           </Field>
           <Field>
             <FieldLabel>Task name</FieldLabel>
-            <Input />
+            <Input value={taskName} onChange={(e) => handleTaskNameChange(e.target.value)} />
+            {showSlugHint && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Task names only allow lowercase letters, numbers, and hyphens.
+              </p>
+            )}
           </Field>
           <Field>
             <FieldLabel>Agent</FieldLabel>
@@ -56,10 +130,40 @@ export function CreateTaskModal({ onClose, onSuccess }: BaseModalProps) {
             />
             <FieldLabel>Create task branch and worktree</FieldLabel>
           </Field>
-          <Field>
-            <FieldLabel>Attach an issue</FieldLabel>
-            <Input />
-          </Field>
+          {hasAnyIntegration && (
+            <Field>
+              <FieldLabel>Attach an issue</FieldLabel>
+              <div className="flex flex-col gap-2">
+                {isLinearConnected && (
+                  <IssueSelector
+                    {...linearIssues}
+                    provider="linear"
+                    value={linkedIssue?.provider === 'linear' ? linkedIssue : null}
+                    onValueChange={setLinkedIssue}
+                    disabled={!!linkedIssue && linkedIssue.provider !== 'linear'}
+                  />
+                )}
+                {isJiraConnected && (
+                  <IssueSelector
+                    {...jiraIssues}
+                    provider="jira"
+                    value={linkedIssue?.provider === 'jira' ? linkedIssue : null}
+                    onValueChange={setLinkedIssue}
+                    disabled={!!linkedIssue && linkedIssue.provider !== 'jira'}
+                  />
+                )}
+                {isGithubConnected && !!projectPath && (
+                  <IssueSelector
+                    {...githubIssues}
+                    provider="github"
+                    value={linkedIssue?.provider === 'github' ? linkedIssue : null}
+                    onValueChange={setLinkedIssue}
+                    disabled={!!linkedIssue && linkedIssue.provider !== 'github'}
+                  />
+                )}
+              </div>
+            </Field>
+          )}
           <Field>
             <FieldLabel>Initial prompt</FieldLabel>
             <Textarea />
@@ -71,7 +175,7 @@ export function CreateTaskModal({ onClose, onSuccess }: BaseModalProps) {
         </FieldGroup>
       </div>
       <DialogFooter>
-        <Button>Create</Button>
+        <Button onClick={handleCreateTask}>Create</Button>
       </DialogFooter>
     </DialogContent>
   );

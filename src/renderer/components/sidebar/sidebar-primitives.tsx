@@ -74,42 +74,53 @@ SidebarGroupContent.displayName = 'SidebarGroupContent';
 
 export const SidebarMenu = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('grid gap-1', className)} {...props} />
+    <div ref={ref} className={cn('grid gap-0.5', className)} {...props} />
   )
 );
 SidebarMenu.displayName = 'SidebarMenu';
 
-export const SidebarMenuItem = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { isActive?: boolean }
->(({ className, isActive, ...props }, ref) => (
-  <div
+export const SidebarItemMiniButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ className, ...props }, ref) => (
+  <button
     ref={ref}
     className={cn(
-      'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground',
+      'w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-black/5',
       className
     )}
-    data-active={isActive ? 'true' : undefined}
     {...props}
   />
 ));
-SidebarMenuItem.displayName = 'SidebarMenuItem';
+SidebarItemMiniButton.displayName = 'SidebarItemMiniButton';
+
+const sidebarMenuItemClass =
+  'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground';
 
 interface SidebarMenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isActive?: boolean;
 }
-
 export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
   ({ className, isActive, ...props }, ref) => (
     <button
       ref={ref}
-      data-active={isActive ? 'true' : undefined}
-      className={cn(
-        'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground',
-        className
-      )}
+      data-active={isActive || undefined}
+      className={cn(sidebarMenuItemClass, className)}
       {...props}
     />
   )
 );
-SidebarMenuButton.displayName = 'SidebarMenuButton';
+
+interface SidebarMenuRowProps extends React.HTMLAttributes<HTMLDivElement> {
+  isActive?: boolean;
+}
+export const SidebarMenuRow = React.forwardRef<HTMLDivElement, SidebarMenuRowProps>(
+  ({ className, isActive, ...props }, ref) => (
+    <div
+      ref={ref}
+      data-active={isActive || undefined}
+      className={cn(sidebarMenuItemClass, className)}
+      {...props}
+    />
+  )
+);

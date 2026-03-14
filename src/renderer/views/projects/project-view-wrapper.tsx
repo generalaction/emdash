@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { usePendingProjectsContext } from '@renderer/components/add-project-modal/pending-projects-provider';
-import { useProjectManagementContext } from '@renderer/contexts/ProjectsProvider';
+import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
 import type { Project } from '@renderer/types/app';
 import { RepositoryProvider } from './repository-provider';
 
@@ -31,7 +31,7 @@ interface ProjectViewWrapperProps {
 }
 
 export function ProjectViewWrapper({ children, projectId }: ProjectViewWrapperProps) {
-  const { projects } = useProjectManagementContext();
+  const { projects } = useProjectsContext();
   const { pendingProjects } = usePendingProjectsContext();
   const project = (projects.find((p) => p.id === projectId) ?? null) as Project | null;
   const status: ProjectStatus = pendingProjects.some((p) => p.id === projectId)

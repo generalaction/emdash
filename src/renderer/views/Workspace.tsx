@@ -1,12 +1,11 @@
 import { ModalRenderer } from '@renderer/components/ModalRenderer';
-import { LeftSidebar } from '@renderer/components/sidebar/LeftSidebar';
+import { LeftSidebar } from '@renderer/components/sidebar/left-sidebar';
 import { Toaster } from '@renderer/components/ui/toaster';
-import { WorkspaceEffects } from '@renderer/components/WorkspaceEffects';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/components/WorkspaceLayout';
 import {
   useWorkspaceSlots,
   useWorkspaceWrapParams,
-} from '@renderer/contexts/WorkspaceViewProvider';
+} from '@renderer/contexts/WorkspaceNavigationContext';
 import { useTheme } from '@renderer/hooks/useTheme';
 
 export function Workspace() {
@@ -15,7 +14,6 @@ export function Workspace() {
   const { wrapParams } = useWorkspaceWrapParams();
   return (
     <>
-      <WorkspaceEffects />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={

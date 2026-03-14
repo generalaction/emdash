@@ -1,12 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext } from 'react';
-import { CreateTaskParams, Task } from '@shared/tasks';
+import { useQuery } from '@tanstack/react-query';
+import React, { createContext, useContext, useMemo } from 'react';
+import { Task } from '@shared/tasks';
 import { rpc } from '@renderer/lib/ipc';
-import { useWorkspaceNavigation } from './WorkspaceNavigationContext';
 
 interface TasksContextValue {
   tasks: Task[];
-  createTask: (params: CreateTaskParams) => Promise<void>;
+  tasksByProjectId: Record<string, Task[]>;
 }
 
 export const TasksContext = createContext<TasksContextValue | null>(null);
@@ -20,31 +19,24 @@ export function useTasksContext(): TasksContextValue {
 }
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
-  const { navigate } = useWorkspaceNavigation();
-
   const { data: tasks } = useQuery({
     queryKey: ['tasks'],
     queryFn: () => rpc.tasks.getTasks(),
+    staleTime: Infinity,
   });
 
-  const createTaskMutation = useMutation({
-    mutationFn: rpc.tasks.createTask,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['tasks'], data);
-    },
-  });
-
-  const createTask = useCallback(
-    async (params: CreateTaskParams) => {
-      const task = await createTaskMutation.mutateAsync(params);
-      navigate('task', { projectId: task.projectId, taskId: task.id });
-    },
-    [createTaskMutation, navigate]
-  );
+  const tasksByProjectId = useMemo(() => {
+    return (tasks ?? []).reduce(
+      (acc, task) => {
+        acc[task.projectId] = [...(acc[task.projectId] || []), task];
+        return acc;
+      },
+      {} as Record<string, Task[]>
+    );
+  }, [tasks]);
 
   return (
-    <TasksContext.Provider value={{ tasks: tasks ?? [], createTask }}>
+    <TasksContext.Provider value={{ tasks: tasks ?? [], tasksByProjectId }}>
       {children}
     </TasksContext.Provider>
   );

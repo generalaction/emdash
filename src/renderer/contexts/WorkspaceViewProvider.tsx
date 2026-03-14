@@ -1,10 +1,17 @@
-import { ComponentType, Fragment, useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  ComponentType,
+  Fragment,
+  useCallback,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from 'react';
 import { projectView } from '@renderer/views/projects/view';
+import { taskView } from '@renderer/views/tasks/view';
 import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
 import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
 import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
-import { TaskMainPanel, TaskRightSidebar, TaskTitlebar } from '../views/task-view';
-import { TaskViewWrapper } from './CurrentTaskProvider';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
@@ -14,15 +21,7 @@ import {
   type WrapParamsContextValue,
 } from './WorkspaceNavigationContext';
 
-// Re-export hooks and types that consumers need
-export {
-  useWorkspaceNavigation,
-  useWorkspaceSlots,
-  useWorkspaceWrapParams,
-  isCurrentView,
-} from './WorkspaceNavigationContext';
-
-type ViewDefinition<TParams extends object = Record<never, never>> = {
+export type ViewDefinition<TParams extends object = Record<never, never>> = {
   WrapView?: ComponentType<{ children: ReactNode } & TParams>;
   TitlebarSlot?: ComponentType;
   MainPanel: ComponentType;
@@ -39,12 +38,7 @@ const views = {
     MainPanel: SkillsMainPanel,
   },
   project: projectView,
-  task: {
-    WrapView: TaskViewWrapper,
-    TitlebarSlot: TaskTitlebar,
-    MainPanel: TaskMainPanel,
-    RightPanel: TaskRightSidebar,
-  },
+  task: taskView,
   settings: {
     WrapView: SettingsViewWrapper,
     TitlebarSlot: SettingsTitlebar,
@@ -74,14 +68,14 @@ const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as View
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE);
+  const [_, startTransition] = useTransition();
 
-  const navigate = useCallback(
-    (...args: unknown[]) => {
-      const [viewId, params] = args as [ViewId, Record<string, unknown>?];
+  const navigate = useCallback((...args: unknown[]) => {
+    const [viewId, params] = args as [ViewId, Record<string, unknown>?];
+    startTransition(() => {
       setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
-    },
-    [setViewState]
-  ) as NavigateFnTyped;
+    });
+  }, []) as NavigateFnTyped;
 
   const slotsValue = useMemo((): SlotsContextValue => {
     const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[

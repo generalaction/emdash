@@ -4,15 +4,15 @@ import { LocalProject, SshProject } from '@shared/projects';
 import { useToast } from '@renderer/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 
-type ProjectManagementContextValue = {
+type ProjectsContextValue = {
   projects: Array<LocalProject | SshProject>;
   deleteProject: (projectId: string) => void;
 };
 
-export const ProjectManagementContext = createContext<ProjectManagementContextValue | null>(null);
+const ProjectsContext = createContext<ProjectsContextValue | null>(null);
 
-export function useProjectManagementContext(): ProjectManagementContextValue {
-  const ctx = useContext(ProjectManagementContext);
+export function useProjectsContext(): ProjectsContextValue {
+  const ctx = useContext(ProjectsContext);
   if (!ctx) {
     throw new Error(
       'useProjectManagementContext must be used within a ProjectManagementContext.Provider'
@@ -63,8 +63,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ProjectManagementContext.Provider value={{ projects, deleteProject }}>
+    <ProjectsContext.Provider value={{ projects, deleteProject }}>
       {children}
-    </ProjectManagementContext.Provider>
+    </ProjectsContext.Provider>
   );
 }

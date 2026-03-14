@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
@@ -18,7 +19,10 @@ import { WorktreeService } from './worktrees/worktree-service';
 
 export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
   return new LocalProjectProvider(project, {
-    worktreePoolPath: (await appSettingsService.get('localProject')).defaultWorktreeDirectory,
+    worktreePoolPath: path.join(
+      (await appSettingsService.get('localProject')).defaultWorktreeDirectory,
+      project.name
+    ),
     defaultBranch: project.baseRef,
   });
 }

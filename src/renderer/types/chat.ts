@@ -45,18 +45,3 @@ export interface TaskMetadata {
     selectedAgent?: ProviderId | null;
   } | null;
 }
-
-export interface Task {
-  id: string;
-  projectId: string;
-  name: string;
-  branch: string;
-  path: string;
-  status: 'active' | 'idle' | 'running';
-  metadata?: TaskMetadata | null;
-  useWorktree?: boolean;
-  archivedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  agentId?: string;
-}

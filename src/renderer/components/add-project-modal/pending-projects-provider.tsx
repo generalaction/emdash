@@ -12,6 +12,7 @@ export type PendingProjectStage =
 
 export interface PendingProject {
   id: string;
+  pending: true;
   name: string;
   mode: 'new' | 'clone' | 'pick';
   data: ModeData;
@@ -47,6 +48,7 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
         id,
         name: data.name,
         mode: 'pick',
+        pending: true,
         stage: 'registering',
         data: data,
       },
@@ -71,6 +73,7 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
         id,
         name: data.name,
         mode: 'clone',
+        pending: true,
         stage: 'cloning',
         data: data,
       },
@@ -98,6 +101,7 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
         id,
         name: data.name,
         mode: 'new',
+        pending: true,
         stage: 'creating-repo',
         data: data,
       },

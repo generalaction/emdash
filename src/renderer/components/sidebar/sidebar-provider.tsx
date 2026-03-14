@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Task } from '@shared/tasks';
-import { useProjectManagementContext } from '@renderer/contexts/ProjectsProvider';
+import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
 import { useTasksContext } from '@renderer/contexts/TasksProvider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
@@ -11,6 +11,7 @@ interface SidebarContextValue {
   setForceOpenIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   pinnedTaskIds: Set<string>;
   handlePinTask: (task: Task) => void;
+  tasksByProjectId: Record<string, Task[]>;
 }
 
 const SidebarContext = createContext<SidebarContextValue | undefined>(undefined);
@@ -20,18 +21,18 @@ interface SidebarProviderProps {
 }
 
 export function SidebarProvider({ children }: SidebarProviderProps) {
-  const { projects } = useProjectManagementContext();
+  const { projects } = useProjectsContext();
   const { tasks } = useTasksContext();
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = React.useRef<Map<string, number>>(new Map());
 
   const tasksByProjectId = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    const map: Record<string, Task[]> = {};
     for (const task of tasks) {
-      const list = map.get(task.projectId) ?? [];
+      const list = map[task.projectId] ?? [];
       list.push(task);
-      map.set(task.projectId, list);
+      map[task.projectId] = list;
     }
     return map;
   }, [tasks]);
@@ -40,7 +41,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     const prev = prevTaskCountsRef.current;
     const toAdd: string[] = [];
     for (const project of projects) {
-      const taskCount = tasksByProjectId.get(project.id)?.length ?? 0;
+      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
       const prevCount = prev.get(project.id) ?? 0;
       if (prevCount === 0 && taskCount > 0) {
         toAdd.push(project.id);
@@ -81,12 +82,19 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     }
   }, [tasks, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
-  const value = useMemo(
-    () => ({ forceOpenIds, setForceOpenIds, pinnedTaskIds, handlePinTask }),
-    [forceOpenIds, pinnedTaskIds, handlePinTask]
+  return (
+    <SidebarContext.Provider
+      value={{
+        forceOpenIds,
+        setForceOpenIds,
+        pinnedTaskIds,
+        handlePinTask,
+        tasksByProjectId,
+      }}
+    >
+      {children}
+    </SidebarContext.Provider>
   );
-
-  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 }
 
 export function useSidebarContext() {

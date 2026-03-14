@@ -9,7 +9,6 @@ import {
 import { useAgent } from '../contexts/AgentProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useModalContext } from '../contexts/ModalProvider';
-import { useTaskManagementContext } from '../contexts/TasksProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import { useWorkspaceSlots, useWorkspaceWrapParams } from '../contexts/WorkspaceViewProvider';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';
@@ -28,7 +27,6 @@ import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 export function WorkspaceEffects() {
   const { showModal } = useModalContext();
   const { navigate } = useWorkspaceNavigation();
-  const { allTasks } = useTaskManagementContext();
   const { settings } = useAppSettings();
   const { dismissNotifications } = useAgent();
   const { currentView } = useWorkspaceSlots();

@@ -3,7 +3,6 @@ import React from 'react';
 import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useModalContext } from '../contexts/ModalProvider';
-import { useTaskManagementContext } from '../contexts/TasksProvider';
 import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
 import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
@@ -14,7 +13,6 @@ const AppKeyboardShortcuts: React.FC = () => {
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const { handleNextTask, handlePrevTask, handleNewTask } = useTaskManagementContext();
   const { showModal, activeModalId, closeModal } = useModalContext();
   const { navigate } = useWorkspaceNavigation();
   const { currentView } = useWorkspaceSlots();
@@ -75,18 +73,6 @@ const AppKeyboardShortcuts: React.FC = () => {
       conflictBehavior: 'allow',
     }
   );
-
-  useHotkey(ek('nextProject'), withCommandPaletteClose(handleNextTask), {
-    conflictBehavior: 'allow',
-  });
-
-  useHotkey(ek('prevProject'), withCommandPaletteClose(handlePrevTask), {
-    conflictBehavior: 'allow',
-  });
-
-  useHotkey(ek('newTask'), withCommandPaletteClose(handleNewTask), {
-    conflictBehavior: 'allow',
-  });
 
   useHotkey(
     ek('nextAgent'),
