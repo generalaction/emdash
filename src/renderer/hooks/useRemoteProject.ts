@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ConnectionState } from '../components/ssh';
 import type { Project } from '../types/app';
+import { dispatchSshConnectionRestored } from '../lib/sshEvents';
 
 export interface UseRemoteProjectResult {
   isRemote: boolean;
@@ -39,6 +40,7 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   const [host, setHost] = useState<string | null>(null);
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
+  const connectionStateRef = useRef<ConnectionState>(connectionState);
 
   // Determine if this is a remote project
   const isRemote = Boolean(
@@ -50,12 +52,21 @@ export function useRemoteProject(project: Project | null): UseRemoteProjectResul
   // Update connection state and cache
   const updateConnectionState = useCallback(
     (state: ConnectionState) => {
+      const previousState = connectionStateRef.current;
+      connectionStateRef.current = state;
       if (project) {
         connectionStateCache.set(project.id, state);
       }
       setConnectionState(state);
+
+      if (connectionId && state === 'connected' && previousState !== 'connected') {
+        dispatchSshConnectionRestored({
+          connectionId,
+          projectId: project?.id,
+        });
+      }
     },
-    [project]
+    [connectionId, project]
   );
 
   // Connect to the remote project
