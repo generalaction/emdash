@@ -170,8 +170,8 @@ export function UpdateCard(): JSX.Element {
             variant="outline"
             className="border-border/60 bg-transparent text-muted-foreground"
           >
-            <AlertCircle className="h-3 w-3" />
-            A new release is being prepared right now. Check again in a few minutes.
+            <AlertCircle className="h-3 w-3" />A new release is being prepared right now. Check
+            again in a few minutes.
           </Badge>
         );
 

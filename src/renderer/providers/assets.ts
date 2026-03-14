@@ -7,6 +7,7 @@ import cursorLogoSvg from '../../assets/images/cursor.svg?raw';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
 import ampLogo from '../../assets/images/ampcode.png';
 import opencodeLogo from '../../assets/images/opencode.png';
+import hermesLogo from '../../assets/images/hermesagent.jpg';
 import charmLogo from '../../assets/images/charm.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import augmentLogoSvg from '../../assets/images/Auggie.svg?raw';
@@ -28,6 +29,7 @@ export type AgentAsset = {
   invertInDark?: boolean;
   name: string;
   isSvg?: boolean;
+  rounded?: boolean;
 };
 
 export const agentAssets: Record<UiAgent, AgentAsset> = {
@@ -40,6 +42,7 @@ export const agentAssets: Record<UiAgent, AgentAsset> = {
   copilot: { name: 'GitHub', logo: copilotLogoSvg, alt: 'GitHub Copilot CLI', isSvg: true },
   amp: { name: 'Sourcegraph', logo: ampLogo, alt: 'Amp CLI' },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode CLI', invertInDark: true },
+  hermes: { name: 'Nous Research', logo: hermesLogo, alt: 'Hermes Agent CLI', rounded: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm CLI', invertInDark: true },
   auggie: { name: 'Augment Code', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },

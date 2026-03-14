@@ -8,6 +8,7 @@ export const TERMINAL_PROVIDER_IDS = [
   'copilot',
   'amp',
   'opencode',
+  'hermes',
   'charm',
   'auggie',
   'kimi',

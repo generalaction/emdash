@@ -157,6 +157,20 @@ describe('ptyManager provider command resolution', () => {
     ]);
   });
 
+  it('skips CLI prompt injection for Hermes-style TUI providers', async () => {
+    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+
+    const args = buildProviderCliArgs({
+      resume: true,
+      resumeFlag: '--continue',
+      initialPrompt: 'scan the repo',
+      initialPromptFlag: '',
+      useKeystrokeInjection: true,
+    });
+
+    expect(args).toEqual(['--continue']);
+  });
+
   it('covers all configured provider auto-approve flags', async () => {
     const { PROVIDERS } = await import('../../shared/providers/registry');
     const { resolveProviderCommandConfig, buildProviderCliArgs, parseShellArgs } = await import(

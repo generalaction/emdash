@@ -27,7 +27,8 @@ const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => void) => {
-  const logo = agentAssets[agent.id as keyof typeof agentAssets]?.logo;
+  const asset = agentAssets[agent.id as keyof typeof agentAssets];
+  const logo = asset?.logo;
 
   const handleNameClick =
     agent.docUrl && window?.electronAPI?.openExternal
@@ -48,6 +49,7 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
     <IntegrationRow
       key={agent.id}
       logoSrc={logo}
+      logoClassName={asset?.rounded ? 'rounded-sm' : undefined}
       icon={
         logo ? undefined : (
           <Sparkles className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
