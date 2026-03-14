@@ -14,8 +14,9 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { useUpdater, EMDASH_RELEASES_URL } from '@/hooks/useUpdater';
+import { useUpdater } from '@/hooks/useUpdater';
 import { BaseModalProps } from '@/contexts/ModalProvider';
+import { EMDASH_CHANGELOG_URL } from '@shared/changelog';
 
 interface UpdateModalProps {
   onClose: () => void;
@@ -65,7 +66,7 @@ function UpdateModal({ onClose }: UpdateModalProps): JSX.Element {
           Current version: v{appVersion || '...'} &middot;{' '}
           <button
             type="button"
-            onClick={() => window.electronAPI.openExternal(EMDASH_RELEASES_URL)}
+            onClick={() => window.electronAPI.openExternal(EMDASH_CHANGELOG_URL)}
             className="inline-flex items-center gap-1 outline-none hover:text-foreground"
           >
             Changelog <ExternalLink className="h-3 w-3" />

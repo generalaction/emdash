@@ -37,6 +37,9 @@ import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
+import { useChangelogNotification } from '@/hooks/useChangelogNotification';
+import { useModalContext } from '@/contexts/ModalProvider';
+import { ChangelogNotificationCard } from './ChangelogNotificationCard';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 
@@ -91,6 +94,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onCloseSettingsPage,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
+  const { showModal } = useModalContext();
   const {
     projects,
     selectedProject,
@@ -141,6 +145,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const { settings } = useAppSettings();
   const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
+  const changelogNotification = useChangelogNotification();
+  const changelogEntry = changelogNotification.entry;
+  const changelogCardRef = useRef<HTMLDivElement | null>(null);
+  const [changelogCardHeight, setChangelogCardHeight] = useState(0);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
@@ -168,6 +176,27 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     },
     [onCloseSettingsPage]
   );
+
+  useEffect(() => {
+    const card = changelogCardRef.current;
+    if (!card || !changelogNotification.isVisible || !changelogEntry) {
+      setChangelogCardHeight(0);
+      return;
+    }
+
+    const updateHeight = () => {
+      setChangelogCardHeight(card.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(card);
+
+    return () => observer.disconnect();
+  }, [changelogNotification.isVisible, changelogEntry]);
 
   return (
     <div className="relative h-full">
@@ -228,183 +257,209 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             )}
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent className="flex flex-col">
-          <SidebarGroup>
-            <ProjectsGroupLabel />
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <ReorderList
-                  as="div"
-                  axis="y"
-                  items={sortedProjects}
-                  onReorder={(newOrder) => handleReorderProjects(newOrder as Project[])}
-                  className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
-                  itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
-                  getKey={(p) => (p as Project).id}
-                >
-                  {(project) => {
-                    const typedProject = project as Project;
-                    const isProjectActive = selectedProject?.id === typedProject.id && !activeTask;
-                    return (
-                      <SidebarMenuItem>
-                        <Collapsible
-                          defaultOpen
-                          open={forceOpenIds.has(typedProject.id) ? true : undefined}
-                          onOpenChange={() => {
-                            if (forceOpenIds.has(typedProject.id)) {
-                              setForceOpenIds((s) => {
-                                const n = new Set(s);
-                                n.delete(typedProject.id);
-                                return n;
-                              });
-                            }
-                          }}
-                          className="group/collapsible"
-                        >
-                          <div
-                            className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-                          >
-                            <CollapsibleTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 dark:hover:bg-white/5"
-                              >
-                                <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
-                                <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
-                              </button>
-                            </CollapsibleTrigger>
-                            <motion.button
-                              type="button"
-                              className="min-w-0 flex-1 truncate bg-transparent text-left text-foreground/60"
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() =>
-                                handleNavigationWithCloseSettings(() =>
-                                  onSelectProject(typedProject)
-                                )
+        <SidebarContent className="relative flex min-h-0 flex-col overflow-hidden">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+            style={{
+              paddingBottom:
+                changelogNotification.isVisible && changelogEntry
+                  ? changelogCardHeight + 28
+                  : undefined,
+            }}
+          >
+            <SidebarGroup>
+              <ProjectsGroupLabel />
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <ReorderList
+                    as="div"
+                    axis="y"
+                    items={sortedProjects}
+                    onReorder={(newOrder) => handleReorderProjects(newOrder as Project[])}
+                    className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
+                    itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
+                    getKey={(p) => (p as Project).id}
+                  >
+                    {(project) => {
+                      const typedProject = project as Project;
+                      const isProjectActive =
+                        selectedProject?.id === typedProject.id && !activeTask;
+                      return (
+                        <SidebarMenuItem>
+                          <Collapsible
+                            defaultOpen
+                            open={forceOpenIds.has(typedProject.id) ? true : undefined}
+                            onOpenChange={() => {
+                              if (forceOpenIds.has(typedProject.id)) {
+                                setForceOpenIds((s) => {
+                                  const n = new Set(s);
+                                  n.delete(typedProject.id);
+                                  return n;
+                                });
                               }
+                            }}
+                            className="group/collapsible"
+                          >
+                            <div
+                              className={`group/project relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-1 pr-1 text-sm font-medium hover:bg-accent ${isProjectActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
                             >
-                              <ProjectItem project={typedProject} />
-                            </motion.button>
-                            {onCreateTaskForProject && (
-                              <button
+                              <CollapsibleTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex-shrink-0 rounded p-0.5 outline-none hover:bg-black/5 dark:hover:bg-white/5"
+                                >
+                                  <FolderOpen className="hidden h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:block" />
+                                  <FolderClosed className="block h-4 w-4 text-foreground/60 group-data-[state=open]/collapsible:hidden" />
+                                </button>
+                              </CollapsibleTrigger>
+                              <motion.button
                                 type="button"
-                                className="p-0.5 text-muted-foreground hover:bg-black/5"
+                                className="min-w-0 flex-1 truncate bg-transparent text-left text-foreground/60"
+                                whileTap={{ scale: 0.97 }}
                                 onClick={() =>
                                   handleNavigationWithCloseSettings(() =>
-                                    onCreateTaskForProject(typedProject)
+                                    onSelectProject(typedProject)
                                   )
                                 }
                               >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-
-                          <CollapsibleContent
-                            forceMount
-                            className="mt-1 min-w-0 data-[state=closed]:hidden"
-                          >
-                            <div className="flex min-w-0 flex-col gap-1">
-                              {(tasksByProjectId[typedProject.id] ?? [])
-                                .slice()
-                                .sort(
-                                  (a, b) =>
-                                    (b.metadata?.isPinned ? 1 : 0) - (a.metadata?.isPinned ? 1 : 0)
-                                )
-                                .map((task) => {
-                                  const isActive = activeTask?.id === task.id;
-                                  return (
-                                    <motion.div
-                                      key={task.id}
-                                      whileTap={{ scale: 0.97 }}
-                                      onClick={() =>
-                                        handleNavigationWithCloseSettings(() =>
-                                          onSelectTask?.(task)
-                                        )
-                                      }
-                                      className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
-                                    >
-                                      <TaskItem
-                                        task={task}
-                                        showDelete={true}
-                                        showDirectBadge={false}
-                                        isPinned={!!task.metadata?.isPinned}
-                                        onPin={() => handlePinTask(task)}
-                                        onRename={(n) => onRenameTask?.(typedProject, task, n)}
-                                        onDelete={() => handleDeleteTask(typedProject, task)}
-                                        onArchive={() => onArchiveTask?.(typedProject, task)}
-                                        primaryAction={taskHoverAction}
-                                      />
-                                    </motion.div>
-                                  );
-                                })}
-                              {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
-                                <Collapsible className="mt-1">
-                                  <CollapsibleTrigger asChild>
-                                    <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
-                                      <Archive className="h-3 w-3 opacity-50" />
-                                      <span>
-                                        Archived ({archivedTasksByProjectId[typedProject.id].length}
-                                        )
-                                      </span>
-                                      <ChevronRight className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent>
-                                    <div className="ml-1.5 space-y-0.5 border-l pl-2">
-                                      {archivedTasksByProjectId[typedProject.id].map(
-                                        (archivedTask) => (
-                                          <div
-                                            key={archivedTask.id}
-                                            className="flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-muted-foreground"
-                                          >
-                                            <span className="truncate text-xs font-medium">
-                                              {archivedTask.name}
-                                            </span>
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                                              <Button
-                                                variant="ghost"
-                                                size="icon-sm"
-                                                onClick={() =>
-                                                  onRestoreTask?.(typedProject, archivedTask)
-                                                }
-                                              >
-                                                <RotateCcw className="h-3 w-3" />
-                                              </Button>
-                                              <TaskDeleteButton
-                                                taskName={archivedTask.name}
-                                                taskId={archivedTask.id}
-                                                taskPath={archivedTask.path}
-                                                useWorktree={archivedTask.useWorktree !== false}
-                                                onConfirm={() =>
-                                                  handleDeleteTask(typedProject, archivedTask)
-                                                }
-                                              />
-                                            </div>
-                                          </div>
-                                        )
-                                      )}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
+                                <ProjectItem project={typedProject} />
+                              </motion.button>
+                              {onCreateTaskForProject && (
+                                <button
+                                  type="button"
+                                  className="p-0.5 text-muted-foreground hover:bg-black/5"
+                                  onClick={() =>
+                                    handleNavigationWithCloseSettings(() =>
+                                      onCreateTaskForProject(typedProject)
+                                    )
+                                  }
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
                               )}
                             </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </SidebarMenuItem>
-                    );
-                  }}
-                </ReorderList>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-          {projects.length === 0 && (
-            <div className="mt-auto">
-              <SidebarEmptyState
-                title="Put your agents to work"
-                description="Create a task and run one or more agents on it in parallel."
-                actionLabel="Open Folder"
-                onAction={onOpenProject}
+
+                            <CollapsibleContent
+                              forceMount
+                              className="mt-1 min-w-0 data-[state=closed]:hidden"
+                            >
+                              <div className="flex min-w-0 flex-col gap-1">
+                                {(tasksByProjectId[typedProject.id] ?? [])
+                                  .slice()
+                                  .sort(
+                                    (a, b) =>
+                                      (b.metadata?.isPinned ? 1 : 0) -
+                                      (a.metadata?.isPinned ? 1 : 0)
+                                  )
+                                  .map((task) => {
+                                    const isActive = activeTask?.id === task.id;
+                                    return (
+                                      <motion.div
+                                        key={task.id}
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={() =>
+                                          handleNavigationWithCloseSettings(() =>
+                                            onSelectTask?.(task)
+                                          )
+                                        }
+                                        className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                                      >
+                                        <TaskItem
+                                          task={task}
+                                          showDelete={true}
+                                          showDirectBadge={false}
+                                          isPinned={!!task.metadata?.isPinned}
+                                          onPin={() => handlePinTask(task)}
+                                          onRename={(n) => onRenameTask?.(typedProject, task, n)}
+                                          onDelete={() => handleDeleteTask(typedProject, task)}
+                                          onArchive={() => onArchiveTask?.(typedProject, task)}
+                                          primaryAction={taskHoverAction}
+                                        />
+                                      </motion.div>
+                                    );
+                                  })}
+                                {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
+                                  <Collapsible className="mt-1">
+                                    <CollapsibleTrigger asChild>
+                                      <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5">
+                                        <Archive className="h-3 w-3 opacity-50" />
+                                        <span>
+                                          Archived (
+                                          {archivedTasksByProjectId[typedProject.id].length})
+                                        </span>
+                                        <ChevronRight className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/archived:rotate-90" />
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <div className="ml-1.5 space-y-0.5 border-l pl-2">
+                                        {archivedTasksByProjectId[typedProject.id].map(
+                                          (archivedTask) => (
+                                            <div
+                                              key={archivedTask.id}
+                                              className="flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-muted-foreground"
+                                            >
+                                              <span className="truncate text-xs font-medium">
+                                                {archivedTask.name}
+                                              </span>
+                                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon-sm"
+                                                  onClick={() =>
+                                                    onRestoreTask?.(typedProject, archivedTask)
+                                                  }
+                                                >
+                                                  <RotateCcw className="h-3 w-3" />
+                                                </Button>
+                                                <TaskDeleteButton
+                                                  taskName={archivedTask.name}
+                                                  taskId={archivedTask.id}
+                                                  taskPath={archivedTask.path}
+                                                  useWorktree={archivedTask.useWorktree !== false}
+                                                  onConfirm={() =>
+                                                    handleDeleteTask(typedProject, archivedTask)
+                                                  }
+                                                />
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                )}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </SidebarMenuItem>
+                      );
+                    }}
+                  </ReorderList>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            {projects.length === 0 && (
+              <div className="mt-auto">
+                <SidebarEmptyState
+                  title="Put your agents to work"
+                  description="Create a task and run one or more agents on it in parallel."
+                  actionLabel="Open Folder"
+                  onAction={onOpenProject}
+                />
+              </div>
+            )}
+          </div>
+
+          {changelogNotification.isVisible && changelogEntry && (
+            <div ref={changelogCardRef} className="absolute inset-x-3 bottom-4 z-10">
+              <ChangelogNotificationCard
+                entry={changelogEntry}
+                onOpen={() =>
+                  showModal('changelogModal', {
+                    entry: changelogEntry,
+                  })
+                }
+                onDismiss={changelogNotification.dismiss}
               />
             </div>
           )}

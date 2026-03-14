@@ -914,7 +914,7 @@ export class GitHubService {
         { cwd: projectPath }
       );
     } catch (fetchError) {
-      // Fallback: try gh pr checkout with detach to avoid working tree conflicts
+      // Fallback: use gh pr checkout to create/sync the local PR branch.
       console.warn(
         'Fetch-based PR branch creation failed, falling back to gh pr checkout:',
         fetchError
@@ -932,11 +932,23 @@ export class GitHubService {
 
       try {
         await this.execGH(
-          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force --detach`,
+          `gh pr checkout ${JSON.stringify(String(prNumber))} --branch ${JSON.stringify(safeBranch)} --force`,
           { cwd: projectPath }
         );
+        // Some gh/fork combinations can leave HEAD detached without a local branch ref.
+        // Ensure the requested local branch exists for downstream worktree creation.
+        try {
+          await execAsync(
+            `git show-ref --verify --quiet ${JSON.stringify(`refs/heads/${safeBranch}`)}`,
+            { cwd: projectPath }
+          );
+        } catch {
+          await execAsync(`git branch --force ${JSON.stringify(safeBranch)} HEAD`, {
+            cwd: projectPath,
+          });
+        }
       } catch (error) {
-        console.error('Failed to checkout pull request branch via gh:', error);
+        console.error('Failed during PR branch checkout or local-ref creation:', error);
         throw error;
       } finally {
         if (previousRef && previousRef !== safeBranch) {

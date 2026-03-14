@@ -91,6 +91,7 @@ export interface AppSettings {
   defaultProvider?: ProviderId;
   tasks?: {
     autoGenerateName: boolean;
+    autoInferTaskNames: boolean;
     autoApproveByDefault: boolean;
     createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
@@ -108,6 +109,9 @@ export interface AppSettings {
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  changelog?: {
+    dismissedVersions: string[];
+  };
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -147,6 +151,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
     autoGenerateName: true,
+    autoInferTaskNames: true,
     autoApproveByDefault: false,
     createWorktreeByDefault: true,
     autoTrustWorktrees: true,
@@ -181,6 +186,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
+  changelog: {
+    dismissedVersions: [],
+  },
 };
 
 function getSettingsPath(): string {
@@ -393,6 +401,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const tasks = (input as any)?.tasks || {};
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
+    autoInferTaskNames: Boolean(
+      tasks?.autoInferTaskNames ?? DEFAULT_SETTINGS.tasks!.autoInferTaskNames
+    ),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
@@ -537,6 +548,20 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   } else {
     out.hiddenOpenInApps = [];
   }
+
+  const rawDismissedVersions = (input as any)?.changelog?.dismissedVersions;
+  out.changelog = {
+    dismissedVersions: Array.isArray(rawDismissedVersions)
+      ? [
+          ...new Set(
+            rawDismissedVersions
+              .filter((value: unknown): value is string => typeof value === 'string')
+              .map((value) => value.trim().replace(/^v/i, ''))
+              .filter(Boolean)
+          ),
+        ]
+      : [],
+  };
 
   return out;
 }

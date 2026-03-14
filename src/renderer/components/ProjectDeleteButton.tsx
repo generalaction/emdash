@@ -84,7 +84,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                 variant="outline"
                 size="icon-sm"
                 className={cn('h-8 w-8', className, isDeleting && 'opacity-100')}
-                title="Delete project"
+                title="Remove the project from Emdash"
                 aria-label={ariaLabel}
                 aria-busy={isDeleting}
                 disabled={isDeleting}
@@ -99,7 +99,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
             </AlertDialogTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            Delete project
+            Remove the project from Emdash
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

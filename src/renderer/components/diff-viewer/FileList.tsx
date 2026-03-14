@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import type { FileChange } from '../../hooks/useFileChanges';
+import { getChangeStatusDotClass } from '../../lib/gitChangePresentation';
 
 interface FileListProps {
   fileChanges: FileChange[];
@@ -47,13 +48,17 @@ export const FileList: React.FC<FileListProps> = ({
     if (!taskPath) return;
     try {
       if (checked) {
-        await window.electronAPI.stageAllFiles({ taskPath });
+        await window.electronAPI.updateIndex({ taskPath, action: 'stage', scope: 'all' });
       } else {
-        await Promise.all(
-          fileChanges
-            .filter((f) => f.isStaged)
-            .map((f) => window.electronAPI.unstageFile({ taskPath, filePath: f.path }))
-        );
+        const filePaths = fileChanges.filter((file) => file.isStaged).map((file) => file.path);
+        if (filePaths.length > 0) {
+          await window.electronAPI.updateIndex({
+            taskPath,
+            action: 'unstage',
+            scope: 'paths',
+            filePaths,
+          });
+        }
       }
     } catch (err) {
       console.error('Staging failed:', err);
@@ -64,16 +69,27 @@ export const FileList: React.FC<FileListProps> = ({
   const handleGroupStage = async (files: FileChange[], checked: boolean) => {
     if (!taskPath) return;
     try {
-      await Promise.all(
-        files.map((file) => {
-          if (checked && !file.isStaged) {
-            return window.electronAPI.stageFile({ taskPath, filePath: file.path });
-          } else if (!checked && file.isStaged) {
-            return window.electronAPI.unstageFile({ taskPath, filePath: file.path });
-          }
-          return Promise.resolve();
-        })
-      );
+      if (checked) {
+        const filePaths = files.filter((file) => !file.isStaged).map((file) => file.path);
+        if (filePaths.length > 0) {
+          await window.electronAPI.updateIndex({
+            taskPath,
+            action: 'stage',
+            scope: 'paths',
+            filePaths,
+          });
+        }
+      } else {
+        const filePaths = files.filter((file) => file.isStaged).map((file) => file.path);
+        if (filePaths.length > 0) {
+          await window.electronAPI.updateIndex({
+            taskPath,
+            action: 'unstage',
+            scope: 'paths',
+            filePaths,
+          });
+        }
+      }
     } catch (err) {
       console.error('Staging failed:', err);
     }
@@ -83,11 +99,12 @@ export const FileList: React.FC<FileListProps> = ({
   const handleFileStage = async (filePath: string, checked: boolean) => {
     if (!taskPath) return;
     try {
-      if (checked) {
-        await window.electronAPI.stageFile({ taskPath, filePath });
-      } else {
-        await window.electronAPI.unstageFile({ taskPath, filePath });
-      }
+      await window.electronAPI.updateIndex({
+        taskPath,
+        action: checked ? 'stage' : 'unstage',
+        scope: 'paths',
+        filePaths: [filePath],
+      });
     } catch (err) {
       console.error('Staging failed:', err);
     }
@@ -106,10 +123,11 @@ export const FileList: React.FC<FileListProps> = ({
     }
   };
 
-  const renderFileRow = (file: FileChange, dotColor: string) => {
+  const renderFileRow = (file: FileChange) => {
     const parts = file.path.split('/');
     const filename = parts.pop() || file.path;
     const directory = parts.length > 0 ? parts.join('/') + '/' : '';
+    const dotColor = getChangeStatusDotClass(file.status);
 
     return (
       <div
@@ -171,7 +189,7 @@ export const FileList: React.FC<FileListProps> = ({
             {fileChanges
               .slice()
               .sort((a, b) => a.path.localeCompare(b.path))
-              .map((file) => renderFileRow(file, 'bg-blue-500'))}
+              .map((file) => renderFileRow(file))}
           </>
         ) : (
           <>
@@ -197,7 +215,7 @@ export const FileList: React.FC<FileListProps> = ({
                   </span>
                   <span className="text-xs text-muted-foreground">({tracked.length})</span>
                 </div>
-                {tracked.map((file) => renderFileRow(file, 'bg-blue-500'))}
+                {tracked.map((file) => renderFileRow(file))}
               </div>
             )}
 
@@ -216,7 +234,7 @@ export const FileList: React.FC<FileListProps> = ({
                   </span>
                   <span className="text-xs text-muted-foreground">({untracked.length})</span>
                 </div>
-                {untracked.map((file) => renderFileRow(file, 'bg-green-500'))}
+                {untracked.map((file) => renderFileRow(file))}
               </div>
             )}
           </>

@@ -13,6 +13,7 @@ import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
+  AutoInferTaskNamesRow,
   CreateWorktreeByDefaultRow,
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
@@ -196,6 +197,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
         },
         {
           component: <AutoGenerateTaskNamesRow taskSettings={taskSettings} />,
+        },
+        {
+          component: <AutoInferTaskNamesRow taskSettings={taskSettings} />,
         },
         {
           component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,

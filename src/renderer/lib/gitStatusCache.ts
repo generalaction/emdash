@@ -1,8 +1,8 @@
 export type GitStatusChange = {
   path: string;
   status: string;
-  additions: number;
-  deletions: number;
+  additions: number | null;
+  deletions: number | null;
   isStaged: boolean;
   diff?: string;
 };

@@ -85,6 +85,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           branch: result.task.branch,
           path: result.task.path,
           status: result.task.status as Task['status'],
+          agentId: result.task.agentId,
           useWorktree: true,
           metadata: result.task.metadata,
         };

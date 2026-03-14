@@ -46,3 +46,54 @@ describe('normalizeSettings – taskHoverAction', () => {
     expect(result.interface?.taskHoverAction).toBe('delete');
   });
 });
+
+describe('normalizeSettings – autoInferTaskNames', () => {
+  it('defaults to true when tasks section is missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
+  });
+
+  it('defaults to true when tasks section is empty', () => {
+    const result = normalizeSettings(makeSettings({ tasks: {} as any }));
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
+  });
+
+  it('preserves true when explicitly set', () => {
+    const result = normalizeSettings(makeSettings({ tasks: { autoInferTaskNames: true } as any }));
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
+  });
+
+  it('preserves false when explicitly set', () => {
+    const result = normalizeSettings(makeSettings({ tasks: { autoInferTaskNames: false } as any }));
+    expect(result.tasks?.autoInferTaskNames).toBe(false);
+  });
+
+  it('coerces truthy non-boolean to true', () => {
+    const result = normalizeSettings(makeSettings({ tasks: { autoInferTaskNames: 1 } as any }));
+    expect(result.tasks?.autoInferTaskNames).toBe(true);
+  });
+
+  it('coerces falsy non-boolean to false', () => {
+    const result = normalizeSettings(makeSettings({ tasks: { autoInferTaskNames: 0 } as any }));
+    expect(result.tasks?.autoInferTaskNames).toBe(false);
+  });
+});
+
+describe('normalizeSettings - changelog dismissed versions', () => {
+  it('normalizes, trims, and deduplicates versions', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        changelog: {
+          dismissedVersions: [' v0.4.31 ', '0.4.31', 'v0.4.30'],
+        },
+      })
+    );
+
+    expect(result.changelog?.dismissedVersions).toEqual(['0.4.31', '0.4.30']);
+  });
+
+  it('defaults to an empty list when missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.changelog?.dismissedVersions).toEqual([]);
+  });
+});

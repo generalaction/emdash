@@ -3,6 +3,8 @@ import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
 import type { McpServer } from '../shared/mcp/types';
+import type { DiffPayload } from '../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../shared/git/types';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -365,13 +367,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) =>
-    ipcRenderer.invoke('git:get-file-diff', args),
-  stageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:stage-file', args),
-  stageAllFiles: (args: { taskPath: string }) => ipcRenderer.invoke('git:stage-all-files', args),
-  unstageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:unstage-file', args),
+  getFileDiff: (args: {
+    taskPath: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-file-diff', args),
+  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) =>
+    ipcRenderer.invoke('git:update-index', args),
   revertFile: (args: { taskPath: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommit: (args: { taskPath: string; message: string }) =>
@@ -384,8 +387,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-latest-commit', args),
   gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
     ipcRenderer.invoke('git:get-commit-files', args),
-  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
-    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitGetCommitFileDiff: (args: {
+    taskPath: string;
+    commitHash: string;
+    filePath: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-commit-file-diff', args),
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
@@ -989,8 +996,9 @@ export interface ElectronAPI {
     changes?: Array<{
       path: string;
       status: string;
-      additions: number;
-      deletions: number;
+      additions: number | null;
+      deletions: number | null;
+      isStaged: boolean;
       diff?: string;
     }>;
     error?: string;
@@ -1036,9 +1044,23 @@ export interface ElectronAPI {
   onGitStatusChanged: (
     listener: (data: { taskPath: string; error?: string }) => void
   ) => () => void;
-  getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+  getFileDiff: (args: {
+    taskPath: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => Promise<{
     success: boolean;
-    diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };
+    diff?: DiffPayload;
+    error?: string;
+  }>;
+  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+    success: boolean;
+    action?: 'reverted';
     error?: string;
   }>;
   gitCommitAndPush: (args: {
@@ -1153,6 +1175,7 @@ export interface ElectronAPI {
       branch: string;
       projectId: string;
       status: string;
+      agentId: string;
       metadata?: { prNumber?: number; prTitle?: string | null };
     };
     error?: string;
