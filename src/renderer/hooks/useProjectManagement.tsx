@@ -7,6 +7,7 @@ import {
   computeBaseRef,
   getProjectRepoKey,
   normalizePathForComparison,
+  resolveOwnerRepo,
   resolveProjectGithubInfo,
   withRepoKey,
 } from '../lib/projectUtils';
@@ -576,6 +577,34 @@ export const useProjectManagement = () => {
       }
     }
   }, [selectedProject]);
+
+  // Re-sync GitHub owner/repo from the current git remote on project select (#1402).
+  useEffect(() => {
+    if (!selectedProject || selectedProject.isRemote || !isAuthenticated) return;
+
+    void (async () => {
+      try {
+        const gitInfo = await window.electronAPI.getGitInfo(selectedProject.path);
+        const ownerRepo = await resolveOwnerRepo(
+          gitInfo.remote || '',
+          selectedProject.path,
+          window.electronAPI.connectToGitHub
+        );
+        if (!ownerRepo || ownerRepo === selectedProject.githubInfo?.repository) return;
+
+        const updatedProject: Project = {
+          ...selectedProject,
+          githubInfo: { repository: ownerRepo, connected: true },
+        };
+        await rpc.db.saveProject(updatedProject);
+        setSelectedProject(updatedProject);
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+      } catch {
+        // best effort
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject?.id, isAuthenticated]);
 
   // Initial load when project changes
   useEffect(() => {
