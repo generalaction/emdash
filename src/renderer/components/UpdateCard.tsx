@@ -168,10 +168,10 @@ export function UpdateCard(): JSX.Element {
         return (
           <Badge
             variant="outline"
-            className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+            className="border-border/60 bg-transparent text-muted-foreground"
           >
             <AlertCircle className="h-3 w-3" />
-            Update temporarily unavailable — please try again later
+            A new release is being prepared right now. Check again in a few minutes.
           </Badge>
         );
 
