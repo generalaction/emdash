@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { normalizePullRequestSearchQuery } from '../lib/pullRequestFilters';
 
+export interface PullRequestReviewer {
+  login: string;
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
+
 export interface PullRequestSummary {
   number: number;
   title: string;
@@ -10,6 +15,8 @@ export interface PullRequestSummary {
   isDraft?: boolean;
   updatedAt?: string | null;
   authorLogin?: string | null;
+  reviewDecision?: string | null;
+  reviewers?: PullRequestReviewer[];
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -71,6 +78,8 @@ export function usePullRequests(
                 typeof item?.author === 'object' && item?.author
                   ? String(item.author.login || item.author.name || '')
                   : null,
+              reviewDecision: item?.reviewDecision || null,
+              reviewers: Array.isArray(item?.reviewers) ? item.reviewers : [],
             }))
             .filter((item) => item.number > 0);
           setPrs(mapped);

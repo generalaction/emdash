@@ -34,6 +34,11 @@ export interface GitHubRepo {
   forks_count: number;
 }
 
+export interface GitHubReviewer {
+  login: string;
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
+
 export interface GitHubPullRequest {
   number: number;
   title: string;
@@ -55,6 +60,8 @@ export interface GitHubPullRequest {
     nameWithOwner?: string;
     url?: string;
   } | null;
+  reviewDecision?: string | null;
+  reviewers?: GitHubReviewer[];
 }
 
 export interface GitHubPullRequestListResult {
@@ -792,6 +799,9 @@ export class GitHubService {
         'author',
         'headRepositoryOwner',
         'headRepository',
+        'reviewRequests',
+        'latestReviews',
+        'reviewDecision',
       ];
       const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
@@ -817,6 +827,8 @@ export class GitHubService {
           author: item?.author || null,
           headRepositoryOwner: item?.headRepositoryOwner || null,
           headRepository: item?.headRepository || null,
+          reviewDecision: item?.reviewDecision || null,
+          reviewers: this.buildReviewerList(item?.reviewRequests, item?.latestReviews),
         }))
       );
 
@@ -828,6 +840,36 @@ export class GitHubService {
       console.error('Failed to list pull requests:', error);
       throw error;
     }
+  }
+
+  private buildReviewerList(reviewRequests?: any[], latestReviews?: any[]): GitHubReviewer[] {
+    const reviewerMap = new Map<string, GitHubReviewer>();
+
+    // Add requested reviewers (pending review)
+    if (Array.isArray(reviewRequests)) {
+      for (const req of reviewRequests) {
+        const login = req?.login || req?.name;
+        if (login && typeof login === 'string') {
+          reviewerMap.set(login, { login, state: 'PENDING' });
+        }
+      }
+    }
+
+    // Add/overwrite with latest review states
+    if (Array.isArray(latestReviews)) {
+      for (const review of latestReviews) {
+        const login = review?.author?.login;
+        const state = review?.state;
+        if (login && typeof login === 'string') {
+          reviewerMap.set(login, {
+            login,
+            state: state || undefined,
+          });
+        }
+      }
+    }
+
+    return Array.from(reviewerMap.values());
   }
 
   private async getOpenPullRequestCount(
