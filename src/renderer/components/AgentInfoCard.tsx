@@ -60,6 +60,11 @@ export const agentInfo: Record<UiAgent, AgentInfo> = {
     description:
       'OpenCode CLI that interfaces with models for code generation and edits from the shell.',
   },
+  hermes: {
+    title: 'Hermes Agent',
+    description:
+      "Nous Research's autonomous coding agent with persistent memory, skills, and interactive CLI workflows.",
+  },
   charm: {
     title: 'Charm',
     description: 'Charm Crush agent CLI providing terminal-first AI assistance for coding tasks.',

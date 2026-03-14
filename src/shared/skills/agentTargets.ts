@@ -48,6 +48,12 @@ export const agentTargets: AgentSyncTarget[] = [
     getSkillDir: (skillId: string) => path.join(home, '.gemini', 'skills', skillId),
   },
   {
+    id: 'hermes',
+    name: 'Hermes Agent',
+    configDir: path.join(home, '.hermes'),
+    getSkillDir: (skillId: string) => path.join(home, '.hermes', 'skills', skillId),
+  },
+  {
     id: 'roo-code',
     name: 'Roo Code',
     configDir: path.join(home, '.roo'),
