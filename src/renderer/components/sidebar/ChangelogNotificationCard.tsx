@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import type { ChangelogEntry } from '@shared/changelog';
 import { ArrowRight, X } from 'lucide-react';
+import { useEmdashAccount } from '@/contexts/EmdashAccountProvider';
 
 interface ChangelogNotificationCardProps {
   entry: ChangelogEntry;
@@ -19,6 +20,7 @@ export function ChangelogNotificationCard({
   className,
 }: ChangelogNotificationCardProps) {
   const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
+  const { hasAccount } = useEmdashAccount();
 
   return (
     <motion.div
@@ -49,6 +51,22 @@ export function ChangelogNotificationCard({
           <ArrowRight className="h-3.5 w-3.5" />
         </div>
       </button>
+
+      {!hasAccount && (
+        <div className="border-t border-border/60 px-3 pb-3 pt-2">
+          <p className="text-xs text-muted-foreground">Emdash now offers accounts.</p>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+            className="mt-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            Create account
+          </button>
+        </div>
+      )}
 
       <button
         type="button"
