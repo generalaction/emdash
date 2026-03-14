@@ -2,7 +2,6 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { makePtyId } from '@shared/ptyId';
-import type { ProviderId } from '@shared/providers/registry';
 import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
@@ -10,6 +9,8 @@ import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink, AgentRun } from '../types/chat';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
+import type { ProviderId } from '@shared/providers/registry';
 import type { LinearIssueSummary } from '../types/linear';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
@@ -83,13 +84,16 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
   return linked;
 };
 
+const getVariantMainSessionId = (providerId: ProviderId, worktreeId: string): string =>
+  makePtyId(providerId, 'main', worktreeId);
+
 const cleanupPtyResources = async (task: Task): Promise<void> => {
   try {
     const variants = task.metadata?.multiAgent?.variants || [];
     const mainSessionIds: string[] = [];
     if (variants.length > 0) {
       for (const v of variants) {
-        const id = `${v.worktreeId}-main`;
+        const id = getVariantMainSessionId(v.agent as ProviderId, v.worktreeId);
         mainSessionIds.push(id);
       }
     } else {
@@ -425,7 +429,7 @@ export function useTaskManagement() {
       const mainSessionIds: string[] = [];
       if (variants.length > 0) {
         for (const v of variants) {
-          const id = `${v.worktreeId}-main`;
+          const id = getVariantMainSessionId(v.agent as ProviderId, v.worktreeId);
           mainSessionIds.push(id);
         }
       } else {
@@ -859,6 +863,9 @@ export function useTaskManagement() {
         agentId: primaryAgent,
         metadata: isMultiAgent
           ? {
+              ...(params.agentPresets && Object.keys(params.agentPresets).length > 0
+                ? { agentPresets: params.agentPresets }
+                : {}),
               multiAgent: {
                 enabled: true,
                 maxAgents: 4,
@@ -867,7 +874,9 @@ export function useTaskManagement() {
                 selectedAgent: null,
               },
             }
-          : null,
+          : params.agentPresets && Object.keys(params.agentPresets).length > 0
+            ? { agentPresets: params.agentPresets }
+            : null,
         useWorktree: params.useWorktree,
       };
 
@@ -923,6 +932,7 @@ export function useTaskManagement() {
       useWorktree: boolean = true,
       baseRef?: string,
       nameGenerated?: boolean,
+      agentPresets?: Partial<Record<ProviderId, ProviderCustomConfig>>,
       overrideProject?: Project
     ) => {
       const targetProject = overrideProject ?? pendingTaskProjectRef.current ?? selectedProject;
@@ -946,6 +956,7 @@ export function useTaskManagement() {
         nameGenerated,
         useWorktree,
         baseRef,
+        agentPresets,
         preflightPromise: preflight,
       });
     },

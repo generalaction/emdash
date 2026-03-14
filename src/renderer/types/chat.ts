@@ -1,4 +1,5 @@
 import type { ProviderId } from '@shared/providers/registry';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
 import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
@@ -37,6 +38,8 @@ export interface TaskMetadata {
   prNumber?: number | null;
   /** PR title when this task is a PR review task */
   prTitle?: string | null;
+  /** Per-task CLI overrides keyed by provider id. */
+  agentPresets?: Partial<Record<ProviderId, ProviderCustomConfig>> | null;
   // When present, this task is a multi-agent task orchestrating multiple worktrees
   multiAgent?: {
     enabled: boolean;

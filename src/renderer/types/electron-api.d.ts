@@ -1,6 +1,10 @@
 // Updated for Codex integration
 
 import type { AgentEvent } from '../../shared/agentEvents';
+import type {
+  ProviderCustomConfig,
+  ProviderCustomConfigs,
+} from '../../shared/providers/customConfig';
 import type { AutoMergeRequest } from '../lib/prStatus';
 
 type ProjectSettingsPayload = {
@@ -24,17 +28,7 @@ export type LineComment = {
   sentAt?: string | null;
 };
 
-export type ProviderCustomConfig = {
-  cli?: string;
-  resumeFlag?: string;
-  defaultArgs?: string;
-  autoApproveFlag?: string;
-  initialPromptFlag?: string;
-  extraArgs?: string;
-  env?: Record<string, string>;
-};
-
-export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
+export type { ProviderCustomConfig, ProviderCustomConfigs };
 
 export {};
 

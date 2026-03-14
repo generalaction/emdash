@@ -99,6 +99,47 @@ describe('ptyManager provider command resolution', () => {
     expect(config?.initialPromptFlag).toBe('');
   });
 
+  it('prefers task-scoped provider overrides over global settings', async () => {
+    getProviderCustomConfigMock.mockReturnValue({
+      cli: 'codex-global',
+      defaultArgs: '--model gpt-5',
+      extraArgs: '--approval-mode full',
+    });
+
+    const { resolveProviderCommandConfig } = await import('../../main/services/ptyManager');
+    const config = resolveProviderCommandConfig('codex', {
+      defaultArgs: '--model gpt-5-mini',
+      extraArgs: '--sandbox workspace-write',
+    });
+
+    expect(config?.cli).toBe('codex-global');
+    expect(config?.defaultArgs).toEqual(['--model', 'gpt-5-mini']);
+    expect(config?.extraArgs).toEqual(['--sandbox', 'workspace-write']);
+  });
+
+  it('merges task-scoped env overrides with global provider env', async () => {
+    getProviderCustomConfigMock.mockReturnValue({
+      env: {
+        OPENAI_API_KEY: 'global-key',
+        SHARED_FLAG: 'global',
+      },
+    });
+
+    const { resolveProviderCommandConfig } = await import('../../main/services/ptyManager');
+    const config = resolveProviderCommandConfig('codex', {
+      env: {
+        SHARED_FLAG: 'task',
+        TASK_ONLY_FLAG: 'enabled',
+      },
+    });
+
+    expect(config?.env).toEqual({
+      OPENAI_API_KEY: 'global-key',
+      SHARED_FLAG: 'task',
+      TASK_ONLY_FLAG: 'enabled',
+    });
+  });
+
   it('builds provider CLI args consistently from resolved flags', async () => {
     const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
 

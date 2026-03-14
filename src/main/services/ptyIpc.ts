@@ -26,6 +26,7 @@ import { terminalSnapshotService } from './TerminalSnapshotService';
 import { errorTracking } from '../errorTracking';
 import type { TerminalSnapshotPayload } from '../types/terminalSnapshot';
 import * as telemetry from '../telemetry';
+import type { ProviderCustomConfig } from '../../shared/providers/customConfig';
 import { PROVIDER_IDS, getProvider, type ProviderId } from '../../shared/providers/registry';
 import { parsePtyId, isChatPty } from '../../shared/ptyId';
 import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
@@ -479,10 +480,11 @@ function buildRemoteProviderInvocation(args: {
   autoApprove?: boolean;
   initialPrompt?: string;
   resume?: boolean;
+  providerConfigOverride?: ProviderCustomConfig;
 }): { cli: string; cmd: string; installCommand?: string } {
-  const { providerId, autoApprove, initialPrompt, resume } = args;
+  const { providerId, autoApprove, initialPrompt, resume, providerConfigOverride } = args;
   const fallbackProvider = getProvider(providerId as ProviderId);
-  const resolvedConfig = resolveProviderCommandConfig(providerId);
+  const resolvedConfig = resolveProviderCommandConfig(providerId, providerConfigOverride);
   const provider = resolvedConfig?.provider ?? fallbackProvider;
 
   const cliCommand = (
@@ -511,6 +513,26 @@ function buildRemoteProviderInvocation(args: {
   const cmd = cmdParts.map(quoteShellArg).join(' ');
 
   return { cli: cliCheckCommand, cmd, installCommand: provider?.installCommand };
+}
+
+async function getTaskPresetForPty(
+  ptyId: string,
+  providerId: string
+): Promise<ProviderCustomConfig | undefined> {
+  const parsed = parsePtyId(ptyId);
+  if (!parsed || parsed.providerId !== providerId) return undefined;
+
+  const taskId =
+    parsed.kind === 'main'
+      ? parsed.suffix
+      : (await databaseService.getConversationById(parsed.suffix))?.taskId;
+
+  if (!taskId) return undefined;
+
+  const task = await databaseService.getTaskById(taskId);
+  const preset = task?.metadata?.agentPresets?.[providerId];
+  if (!preset || typeof preset !== 'object') return undefined;
+  return preset as ProviderCustomConfig;
 }
 
 /** Convert SSH args to SCP-compatible args (e.g. `-p` port → `-P` port). */
@@ -1120,6 +1142,7 @@ export function registerPtyIpc(): void {
       try {
         const { id, providerId, cwd, remote, cols, rows, autoApprove, initialPrompt, env, resume } =
           args;
+        const providerConfigOverride = await getTaskPresetForPty(id, providerId);
         const existing = getPty(id);
 
         if (remote?.connectionId) {
@@ -1143,9 +1166,10 @@ export function registerPtyIpc(): void {
             autoApprove,
             initialPrompt,
             resume,
+            providerConfigOverride,
           });
 
-          const resolvedConfig = resolveProviderCommandConfig(providerId);
+          const resolvedConfig = resolveProviderCommandConfig(providerId, providerConfigOverride);
           const mergedEnv = resolvedConfig?.env ? { ...resolvedConfig.env, ...env } : env;
 
           const preProviderCommands: string[] = [];
@@ -1301,6 +1325,7 @@ export function registerPtyIpc(): void {
                 env,
                 resume: effectiveResume,
                 tmux,
+                providerConfigOverride,
               });
 
         // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup/tmux is set
@@ -1327,6 +1352,7 @@ export function registerPtyIpc(): void {
             skipResume: !resume,
             shellSetup,
             tmux,
+            providerConfigOverride,
           });
           usedFallback = true;
         }

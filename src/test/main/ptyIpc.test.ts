@@ -121,6 +121,8 @@ const getProviderRuntimeCliArgsMock = vi.fn((opts: any) => {
   return ['-c', 'notify=["sh","-lc","mock-codex-notify","sh"]'];
 });
 const resolveProviderCommandConfigMock = vi.fn();
+const getTaskByIdMock = vi.fn<(taskId: string) => Promise<any>>(async () => null);
+const getConversationByIdMock = vi.fn<(conversationId: string) => Promise<any>>(async () => null);
 const getPtyMock = vi.fn((id: string) => ptys.get(id));
 const writePtyMock = vi.fn((id: string, data: string) => {
   ptys.get(id)?.write(data);
@@ -244,7 +246,10 @@ vi.mock('../../main/services/TerminalConfigParser', () => ({
 }));
 
 vi.mock('../../main/services/DatabaseService', () => ({
-  databaseService: {},
+  databaseService: {
+    getTaskById: getTaskByIdMock,
+    getConversationById: getConversationByIdMock,
+  },
 }));
 
 vi.mock('../../main/services/ClaudeConfigService', () => ({
@@ -315,6 +320,8 @@ describe('ptyIpc notification lifecycle', () => {
     codexThreadExistsForCwdMock.mockResolvedValue(true);
     codexFindLatestRecentThreadForCwdMock.mockResolvedValue(null);
     codexFindLatestThreadForCwdMock.mockResolvedValue(null);
+    getTaskByIdMock.mockResolvedValue(null);
+    getConversationByIdMock.mockResolvedValue(null);
   });
 
   function createSender() {
@@ -618,6 +625,90 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).toContain('gpt-5');
     expect(written).toContain('--dangerously-bypass-approvals-and-sandbox');
     expect(written).toContain('hello world');
+  });
+
+  it('passes task-scoped agent preset overrides into provider resolution', async () => {
+    getTaskByIdMock.mockResolvedValue({
+      id: 'task-preset',
+      metadata: {
+        agentPresets: {
+          codex: {
+            defaultArgs: '--model gpt-5-mini',
+            extraArgs: '--sandbox workspace-write',
+          },
+        },
+      },
+    });
+    resolveProviderCommandConfigMock.mockReturnValue({
+      provider: {
+        id: 'codex',
+        name: 'Codex',
+        useKeystrokeInjection: false,
+      },
+      cli: 'codex',
+      defaultArgs: ['--model', 'gpt-5-mini'],
+      extraArgs: ['--sandbox', 'workspace-write'],
+      autoApproveFlag: '--full-auto',
+      initialPromptFlag: '',
+    });
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-preset');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(getTaskByIdMock).toHaveBeenCalledWith('task-preset');
+    expect(startDirectPtyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerConfigOverride: {
+          defaultArgs: '--model gpt-5-mini',
+          extraArgs: '--sandbox workspace-write',
+        },
+      })
+    );
+  });
+
+  it('applies task-scoped presets for multi-agent variant PTY ids', async () => {
+    getTaskByIdMock.mockResolvedValue({
+      id: 'variant-worktree',
+      metadata: {
+        agentPresets: {
+          codex: {
+            defaultArgs: '--model gpt-5-mini',
+          },
+        },
+      },
+    });
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'variant-worktree');
+    const result = await startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'codex', cwd: '/tmp/task-variant', cols: 120, rows: 32 }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(getTaskByIdMock).toHaveBeenCalledWith('variant-worktree');
+    expect(startDirectPtyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerConfigOverride: {
+          defaultArgs: '--model gpt-5-mini',
+        },
+      })
+    );
   });
 
   it('quotes remote custom CLI tokens to prevent shell metachar expansion', async () => {

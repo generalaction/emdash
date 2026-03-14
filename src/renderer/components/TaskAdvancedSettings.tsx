@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ExternalLink, Settings } from 'lucide-react';
+import type { ProviderId } from '@shared/providers/registry';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
@@ -43,6 +44,9 @@ interface TaskAdvancedSettingsProps {
   initialPrompt: string;
   onInitialPromptChange: (value: string) => void;
   hasInitialPromptSupport: boolean;
+  activeAgents: ProviderId[];
+  configuredAgentPresetCount: number;
+  onConfigureAgentPresets: () => void;
 
   // Linear
   selectedLinearIssue: LinearIssueSummary | null;
@@ -95,6 +99,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   initialPrompt,
   onInitialPromptChange,
   hasInitialPromptSupport,
+  activeAgents,
+  configuredAgentPresetCount,
+  onConfigureAgentPresets,
   selectedLinearIssue,
   onLinearIssueChange,
   isLinearConnected,
@@ -481,6 +488,30 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                   </div>
                 </div>
               ) : null}
+
+              <div className="flex items-center gap-4">
+                <Label className="w-32 shrink-0">Agent presets</Label>
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">
+                      Override model and CLI flags for this task only.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {configuredAgentPresetCount > 0
+                        ? `${configuredAgentPresetCount} custom preset${configuredAgentPresetCount === 1 ? '' : 's'} across ${activeAgents.length} agent${activeAgents.length === 1 ? '' : 's'}`
+                        : `Using inherited defaults for ${activeAgents.length} agent${activeAgents.length === 1 ? '' : 's'}`}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onConfigureAgentPresets}
+                  >
+                    Configure
+                  </Button>
+                </div>
+              </div>
 
               <div className="grid grid-cols-[128px_1fr] items-start gap-4">
                 <Label htmlFor="linear-issue" className="pt-2">

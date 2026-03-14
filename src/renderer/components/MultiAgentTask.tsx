@@ -17,6 +17,7 @@ import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import { makePtyId } from '@shared/ptyId';
 import { rpc } from '@/lib/rpc';
 
 interface Props {
@@ -38,6 +39,9 @@ type Variant = {
   path: string;
   worktreeId: string;
 };
+
+const getVariantMainPtyId = (variant: Variant): string =>
+  makePtyId(variant.agent, 'main', variant.worktreeId);
 
 const MultiAgentTask: React.FC<Props> = ({
   task,
@@ -265,7 +269,7 @@ const MultiAgentTask: React.FC<Props> = ({
     // Send concurrently via PTY injection for all agents (Codex/Claude included)
     const tasks: Promise<any>[] = [];
     variants.forEach((v) => {
-      const termId = `${v.worktreeId}-main`;
+      const termId = getVariantMainPtyId(v);
       tasks.push(injectPrompt(termId, v.agent, msg));
     });
     await Promise.all(tasks);
@@ -346,7 +350,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
     variants.forEach((variant) => {
       const variantId = variant.worktreeId;
-      const ptyId = `${variant.worktreeId}-main`;
+      const ptyId = getVariantMainPtyId(variant);
       busyState.set(variantId, variantBusy[variantId] ?? false);
 
       const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
@@ -566,7 +570,7 @@ const MultiAgentTask: React.FC<Props> = ({
                 >
                   <TerminalPane
                     ref={isActive ? activeTerminalRef : undefined}
-                    id={`${v.worktreeId}-main`}
+                    id={getVariantMainPtyId(v)}
                     cwd={v.path}
                     remote={
                       projectRemoteConnectionId
@@ -618,7 +622,7 @@ const MultiAgentTask: React.FC<Props> = ({
                         (agentMeta[v.agent]?.initialPromptFlag === undefined ||
                           agentMeta[v.agent]?.useKeystrokeInjection)
                       ) {
-                        void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
+                        void injectPrompt(getVariantMainPtyId(v), v.agent, initialInjection);
                       }
                       // Mark initial injection as sent so it won't re-run on restart
                       if (initialInjection && !task.metadata?.initialInjectionSent) {

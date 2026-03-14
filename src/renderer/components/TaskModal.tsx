@@ -13,11 +13,13 @@ import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
+import TaskAgentPresetsModal from './TaskAgentPresetsModal';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
 import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
 import { agentMeta } from '../providers/meta';
-import { isValidProviderId } from '@shared/providers/registry';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
+import { isValidProviderId, type ProviderId } from '@shared/providers/registry';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
@@ -52,6 +54,7 @@ export interface CreateTaskResult {
   useWorktree?: boolean;
   baseRef?: string;
   nameGenerated?: boolean;
+  agentPresets?: Partial<Record<ProviderId, ProviderCustomConfig>>;
 }
 
 interface TaskModalProps {
@@ -70,7 +73,8 @@ interface TaskModalProps {
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
-    nameGenerated?: boolean
+    nameGenerated?: boolean,
+    agentPresets?: Partial<Record<ProviderId, ProviderCustomConfig>>
   ) => Promise<void>;
 }
 
@@ -98,7 +102,8 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
         autoApprove,
         useWorktree,
         baseRef,
-        nameGenerated
+        nameGenerated,
+        agentPresets
       ) => {
         await handleCreateTask(
           name,
@@ -114,6 +119,7 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
           useWorktree,
           baseRef,
           nameGenerated,
+          agentPresets,
           initialProject ?? undefined
         );
       }}
@@ -155,6 +161,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [agentPresets, setAgentPresets] = useState<
+    Partial<Record<ProviderId, ProviderCustomConfig>>
+  >({});
+  const [agentPresetModalOpen, setAgentPresetModalOpen] = useState(false);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -186,6 +196,14 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
 
   // Computed values
   const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);
+  const presetAgents = useMemo(() => [...new Set(activeAgents)] as ProviderId[], [activeAgents]);
+  const activeAgentSet = useMemo(() => new Set(presetAgents), [presetAgents]);
+  const configuredAgentPresetCount = useMemo(
+    () =>
+      Object.keys(agentPresets).filter((agentId) => activeAgentSet.has(agentId as ProviderId))
+        .length,
+    [activeAgentSet, agentPresets]
+  );
   const hasAutoApproveSupport = activeAgents.every((id) => !!agentMeta[id]?.autoApproveFlag);
   const hasInitialPromptSupport = activeAgents.every(
     (id) => agentMeta[id]?.initialPromptFlag !== undefined
@@ -227,6 +245,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     if (!hasAutoApproveSupport && autoApprove) setAutoApprove(false);
   }, [hasAutoApproveSupport, autoApprove]);
 
+  useEffect(() => {
+    setAgentPresets((current) => {
+      const nextEntries = Object.entries(current).filter(([providerId]) =>
+        activeAgentSet.has(providerId as ProviderId)
+      );
+      if (nextEntries.length === Object.keys(current).length) return current;
+      return Object.fromEntries(nextEntries) as Partial<Record<ProviderId, ProviderCustomConfig>>;
+    });
+  }, [activeAgentSet]);
+
   // Reset form and load settings on mount
   useEffect(() => {
     void refreshBranches();
@@ -245,6 +273,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setAgentPresets({});
+    setAgentPresetModalOpen(false);
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
@@ -401,7 +431,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         hasAutoApproveSupport ? autoApprove : false,
         useWorktree,
         selectedBranch,
-        isNameGenerated
+        isNameGenerated,
+        agentPresets
       );
       onClose();
     } catch (error) {
@@ -491,6 +522,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
             initialPrompt={initialPrompt}
             onInitialPromptChange={setInitialPrompt}
             hasInitialPromptSupport={hasInitialPromptSupport}
+            activeAgents={presetAgents}
+            configuredAgentPresetCount={configuredAgentPresetCount}
+            onConfigureAgentPresets={() => setAgentPresetModalOpen(true)}
             selectedLinearIssue={selectedLinearIssue}
             onLinearIssueChange={setSelectedLinearIssue}
             isLinearConnected={integrations.isLinearConnected}
@@ -534,6 +568,14 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
           </Button>
         </DialogFooter>
       </form>
+
+      <TaskAgentPresetsModal
+        isOpen={agentPresetModalOpen}
+        onClose={() => setAgentPresetModalOpen(false)}
+        agentIds={presetAgents}
+        value={agentPresets}
+        onSave={setAgentPresets}
+      />
     </DialogContent>
   );
 };

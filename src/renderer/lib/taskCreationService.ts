@@ -1,6 +1,8 @@
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { AgentRun, TaskMetadata } from '../types/chat';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
+import type { ProviderId } from '@shared/providers/registry';
 import { type GitHubIssueSummary } from '../types/github';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
@@ -24,6 +26,7 @@ export interface CreateTaskParams {
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  agentPresets?: Partial<Record<ProviderId, ProviderCustomConfig>>;
   preflightPromise?: Promise<unknown>;
 }
 
@@ -304,6 +307,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     nameGenerated,
     useWorktree,
     baseRef,
+    agentPresets,
     preflightPromise,
   } = params;
 
@@ -367,7 +371,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedForgejoIssue ||
     preparedPrompt ||
     autoApprove ||
-    nameGenerated
+    nameGenerated ||
+    (agentPresets && Object.keys(agentPresets).length > 0)
       ? {
           linearIssue: linkedLinearIssue ?? null,
           jiraIssue: linkedJiraIssue ?? null,
@@ -378,6 +383,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           initialPrompt: preparedPrompt ?? null,
           autoApprove: autoApprove ?? null,
           nameGenerated: nameGenerated ?? null,
+          agentPresets: agentPresets && Object.keys(agentPresets).length > 0 ? agentPresets : null,
         }
       : null;
 

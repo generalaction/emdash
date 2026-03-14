@@ -3,8 +3,11 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
+import type { ProviderCustomConfig, ProviderCustomConfigs } from '@shared/providers/customConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+
+export type { ProviderCustomConfig, ProviderCustomConfigs };
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
@@ -55,23 +58,6 @@ export interface InterfaceSettings {
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
   taskHoverAction?: 'delete' | 'archive';
 }
-
-/**
- * Custom configuration for a CLI provider.
- * All fields are optional - if undefined, the default from registry.ts is used.
- * If set to empty string, the flag is disabled.
- */
-export interface ProviderCustomConfig {
-  cli?: string;
-  resumeFlag?: string;
-  defaultArgs?: string;
-  autoApproveFlag?: string;
-  initialPromptFlag?: string;
-  extraArgs?: string;
-  env?: Record<string, string>;
-}
-
-export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
 
 export interface AppSettings {
   repository: RepositorySettings;

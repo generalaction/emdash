@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
-import type { ProviderCustomConfig } from '../types/electron-api';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

@@ -6,6 +6,7 @@ import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
+import type { ProviderCustomConfig } from '@shared/providers/customConfig';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
@@ -681,13 +682,36 @@ type ProviderRuntimeCliArgsOptions = {
   platform?: NodeJS.Platform;
 };
 
+function mergeProviderCustomConfig(
+  base: ProviderCustomConfig | undefined,
+  override: ProviderCustomConfig | undefined
+): ProviderCustomConfig | undefined {
+  if (!base && !override) return undefined;
+  const mergedEnv =
+    base?.env || override?.env
+      ? {
+          ...(base?.env ?? {}),
+          ...(override?.env ?? {}),
+        }
+      : undefined;
+  return {
+    ...base,
+    ...override,
+    env: mergedEnv,
+  };
+}
+
 export function resolveProviderCommandConfig(
-  providerId: string
+  providerId: string,
+  overrideConfig?: ProviderCustomConfig
 ): ResolvedProviderCommandConfig | null {
   const provider = PROVIDERS.find((p) => p.id === providerId);
   if (!provider) return null;
 
-  const customConfig = getProviderCustomConfig(provider.id);
+  const customConfig = mergeProviderCustomConfig(
+    getProviderCustomConfig(provider.id),
+    overrideConfig
+  );
 
   const extraArgs =
     customConfig?.extraArgs !== undefined && customConfig.extraArgs.trim() !== ''
@@ -1050,6 +1074,7 @@ export function startDirectPty(options: {
   env?: Record<string, string>;
   resume?: boolean;
   tmux?: boolean;
+  providerConfigOverride?: ProviderCustomConfig;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -1073,9 +1098,10 @@ export function startDirectPty(options: {
     initialPrompt,
     env,
     resume,
+    providerConfigOverride,
   } = options;
 
-  const resolvedConfig = resolveProviderCommandConfig(providerId);
+  const resolvedConfig = resolveProviderCommandConfig(providerId, providerConfigOverride);
   const provider = resolvedConfig?.provider;
 
   // Get the CLI path from cache
@@ -1240,6 +1266,7 @@ export async function startPty(options: {
   skipResume?: boolean;
   shellSetup?: string;
   tmux?: boolean;
+  providerConfigOverride?: ProviderCustomConfig;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -1256,6 +1283,7 @@ export async function startPty(options: {
     skipResume,
     shellSetup,
     tmux,
+    providerConfigOverride,
   } = options;
 
   const defaultShell = getDefaultShell();
@@ -1360,7 +1388,7 @@ export async function startPty(options: {
       const provider = PROVIDERS.find((p) => p.cli === baseLower);
 
       if (provider) {
-        const resolvedConfig = resolveProviderCommandConfig(provider.id);
+        const resolvedConfig = resolveProviderCommandConfig(provider.id, providerConfigOverride);
         const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
         applyProviderSpecificRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
 

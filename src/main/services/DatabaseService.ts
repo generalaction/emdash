@@ -462,6 +462,19 @@ export class DatabaseService {
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
 
+  async getConversationById(conversationId: string): Promise<Conversation | null> {
+    if (this.disabled) return null;
+    if (!conversationId) return null;
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+    if (rows.length === 0) return null;
+    return this.mapDrizzleConversationRow(rows[0]);
+  }
+
   async getOrCreateDefaultConversation(taskId: string, provider?: string): Promise<Conversation> {
     if (this.disabled) {
       return {
