@@ -98,24 +98,13 @@ describe('shouldAllowTerminalAutoFocus', () => {
     expect(shouldAllowTerminalAutoFocus()).toBe(false);
   });
 
-  it('returns true when focus is on an xterm element', () => {
-    // Matches '.xterm' selector
+  it('returns true when focus is on xterm helper textarea (real-world terminal focus)', () => {
+    // In production, when a terminal has focus, document.activeElement IS
+    // the .xterm-helper-textarea — a <textarea>. The terminal-selector check
+    // must run before isEditableElement so this returns true.
     setActiveElement(
       makeElement({
         tagName: 'TEXTAREA',
-        closestResults: {
-          // The joined selector string
-          '[data-terminal-container],.xterm,.xterm-helper-textarea,[data-expanded-terminal="true"]': true,
-        },
-        // Even though tagName is TEXTAREA, the `.closest()` for terminal
-        // selectors matches — but isEditableElement returns true first.
-        // Let's use a DIV inside xterm instead.
-      })
-    );
-    // A TEXTAREA triggers isEditableElement → false. Use a non-editable element.
-    setActiveElement(
-      makeElement({
-        tagName: 'DIV',
         closestResults: {
           '[data-terminal-container],.xterm,.xterm-helper-textarea,[data-expanded-terminal="true"]': true,
         },
