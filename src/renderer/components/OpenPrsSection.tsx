@@ -34,6 +34,35 @@ const prBadgeClass =
 
 const MAX_VISIBLE_REVIEWERS = 3;
 
+function getReviewDecisionConfig(decision: string): {
+  label: string;
+  className: string;
+  icon: React.ReactNode;
+} | null {
+  switch (decision) {
+    case 'APPROVED':
+      return {
+        label: 'Approved',
+        className: 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30',
+        icon: <Check className="h-3 w-3" />,
+      };
+    case 'CHANGES_REQUESTED':
+      return {
+        label: 'Changes requested',
+        className: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
+        icon: <X className="h-3 w-3" />,
+      };
+    case 'REVIEW_REQUIRED':
+      return {
+        label: 'Review required',
+        className: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30',
+        icon: <Circle className="h-3 w-3" />,
+      };
+    default:
+      return null;
+  }
+}
+
 function getReviewStateIcon(state?: PullRequestReviewer['state']) {
   switch (state) {
     case 'APPROVED':
@@ -273,6 +302,26 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                         <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
                         <span className="truncate text-sm font-medium">{pr.title}</span>
                         {pr.isDraft && <span className={`${prBadgeClass} shrink-0`}>Draft</span>}
+                        {pr.reviewDecision &&
+                          (() => {
+                            const config = getReviewDecisionConfig(pr.reviewDecision);
+                            if (!config) return null;
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium ${config.className}`}
+                                  >
+                                    {config.icon}
+                                    {config.label}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  Review status: {config.label}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="truncate font-mono">{pr.headRefName}</span>
