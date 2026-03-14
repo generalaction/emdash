@@ -222,6 +222,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     worktreePath?: string;
     branch?: string;
     taskName?: string;
+    deleteRemoteBranch?: boolean;
   }) => ipcRenderer.invoke('worktree:remove', args),
   worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
@@ -394,6 +395,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     forceLarge?: boolean;
   }) => ipcRenderer.invoke('git:get-commit-file-diff', args),
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
+  deleteRemoteBranch: (args: { projectPath: string; branch: string; remote?: string }) =>
+    ipcRenderer.invoke('git:delete-remote-branch', args),
+  evaluateBranchCleanup: (args: {
+    projectPath: string;
+    branch: string;
+    mode: string;
+    daysThreshold: number;
+  }) => ipcRenderer.invoke('git:evaluate-branch-cleanup', args),
   gitCommitAndPush: (args: {
     taskPath: string;
     commitMessage?: string;
@@ -862,6 +871,7 @@ export interface ElectronAPI {
     worktreePath?: string;
     branch?: string;
     taskName?: string;
+    deleteRemoteBranch?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;

@@ -19,6 +19,7 @@ import {
 } from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import RemoteBranchCleanupCard from './RemoteBranchCleanupCard';
 import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
@@ -241,7 +242,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
-      sections: [{ title: 'Branch name', component: <RepositorySettingsCard /> }],
+      sections: [
+        { title: 'Branch name', component: <RepositorySettingsCard /> },
+        { title: 'Remote branch cleanup', component: <RemoteBranchCleanupCard /> },
+      ],
     },
     interface: {
       title: 'Interface',
