@@ -31,6 +31,7 @@ import {
 } from './terminalSearch';
 import { rpc } from '@/lib/rpc';
 import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
+import { shouldAllowTerminalAutoFocus } from '@/lib/terminalFocusPolicy';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -605,12 +606,7 @@ export class TerminalSessionManager {
   }
 
   focus() {
-    // Don't steal focus from open dialogs (e.g. New Task modal).
-    // On Linux/Wayland the terminal's hidden textarea can retain focus
-    // after a dialog opens, causing keystrokes to go to the PTY instead
-    // of dialog inputs.
-    if (document.activeElement?.closest('[role="dialog"]')) return;
-
+    if (!shouldAllowTerminalAutoFocus()) return;
     this.terminal.focus();
   }
 
