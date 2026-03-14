@@ -169,15 +169,23 @@ export function getTmuxSessionName(ptyId: string): string {
   return `emdash-${sanitized}`;
 }
 
+function resolveTmuxPath(): string | null {
+  return resolveCommandPathCached('tmux');
+}
+
 /**
  * Kill a tmux session by PTY ID. Fire-and-forget — ignores errors
  * for non-existent sessions (e.g., tmux not installed or session already dead).
  */
 export function killTmuxSession(ptyId: string): void {
   const sessionName = getTmuxSessionName(ptyId);
+  const tmuxPath = resolveTmuxPath();
+  if (!tmuxPath) {
+    return;
+  }
   try {
     const { execFile } = require('child_process');
-    execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+    execFile(tmuxPath, ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
       if (!err) {
         log.info('ptyManager:tmux - killed session', { sessionName });
       }
@@ -1463,21 +1471,15 @@ export async function startPty(options: {
   let spawnArgs = args;
 
   if (tmux && process.platform !== 'win32') {
-    let tmuxAvailable = false;
-    try {
-      const { execFileSync } = require('child_process');
-      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
-      tmuxAvailable = true;
-    } catch {
+    const tmuxPath = resolveTmuxPath();
+    if (!tmuxPath) {
       log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
-    }
-
-    if (tmuxAvailable) {
+    } else {
       tmuxSessionName = getTmuxSessionName(id);
       // Build: tmux new-session -As <name> -- <shell> <args...>
-      spawnCommand = 'tmux';
+      spawnCommand = tmuxPath;
       spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
-      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
+      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName, tmuxPath });
     }
   }
 
