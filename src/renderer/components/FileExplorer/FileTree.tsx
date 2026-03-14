@@ -6,6 +6,8 @@ import { useContentSearch } from '@/hooks/useContentSearch';
 import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
 import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
+import { useBrowser } from '@/providers/BrowserProvider';
+import { isHtmlFile, buildFileUrl } from '@/lib/browserPaneUtils';
 import type { FileChange } from '@/hooks/useFileChanges';
 import {
   ContextMenu,
@@ -14,6 +16,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
+
 import {
   AlertDialog,
   AlertDialogContent,
@@ -102,6 +105,7 @@ const TreeNode: React.FC<{
   onContextMenuCopyRelPath?: (node: FileNode) => void;
   onContextMenuOpenTerminal?: (node: FileNode) => void;
   onContextMenuReveal?: (node: FileNode) => void;
+  onContextMenuOpenInBrowser?: (node: FileNode) => void;
 }> = ({
   node,
   level,
@@ -120,6 +124,7 @@ const TreeNode: React.FC<{
   onContextMenuCopyRelPath,
   onContextMenuOpenTerminal,
   onContextMenuReveal,
+  onContextMenuOpenInBrowser,
 }) => {
   // Guard: if node is null or missing type, don't render
   if (!node || !node.type) {
@@ -220,6 +225,7 @@ const TreeNode: React.FC<{
                     onContextMenuCopyRelPath={onContextMenuCopyRelPath}
                     onContextMenuOpenTerminal={onContextMenuOpenTerminal}
                     onContextMenuReveal={onContextMenuReveal}
+                    onContextMenuOpenInBrowser={onContextMenuOpenInBrowser}
                   />
                 ))}
             </div>
@@ -254,6 +260,11 @@ const TreeNode: React.FC<{
             <ContextMenuItem onSelect={() => onContextMenuReveal?.(node)}>
               Reveal in Finder
             </ContextMenuItem>
+            {isHtmlFile(node.name) && (
+              <ContextMenuItem onSelect={() => onContextMenuOpenInBrowser?.(node)}>
+                Open in Browser Pane
+              </ContextMenuItem>
+            )}
           </>
         )}
       </ContextMenuContent>
@@ -274,6 +285,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   connectionId,
   remotePath,
 }) => {
+  const browser = useBrowser();
   const [tree, setTree] = useState<FileNode[]>([]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
     const state = getEditorState(taskId);
@@ -592,6 +604,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
     await window.electronAPI.openIn({ app: 'finder', path: filePath });
   };
 
+  const handleOpenInBrowser = useCallback(
+    (node: FileNode) => {
+      browser.open(buildFileUrl(rootPath, node.path));
+    },
+    [rootPath, browser]
+  );
+
   const handleRenameClick = (node: FileNode) => {
     setRenamingNode(node);
     setRenameValue(node.name);
@@ -872,6 +891,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                   onContextMenuCopyRelPath={handleCopyRelativePath}
                   onContextMenuOpenTerminal={handleOpenTerminal}
                   onContextMenuReveal={handleRevealInFinder}
+                  onContextMenuOpenInBrowser={handleOpenInBrowser}
                 />
               ))}
           </div>
