@@ -465,8 +465,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setOnboardingSeen: (flag: boolean) => ipcRenderer.invoke('telemetry:set-onboarding-seen', flag),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
 
+  // Emdash Account
+  accountGetSession: () => ipcRenderer.invoke('account:getSession'),
+  accountSignIn: () => ipcRenderer.invoke('account:signIn'),
+  accountSignOut: () => ipcRenderer.invoke('account:signOut'),
+  accountCheckServerHealth: () => ipcRenderer.invoke('account:checkServerHealth'),
+  accountValidateSession: () => ipcRenderer.invoke('account:validateSession'),
+
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
+  githubAuthOAuth: () => ipcRenderer.invoke('github:auth:oauth'),
   githubCancelAuth: () => ipcRenderer.invoke('github:auth:cancel'),
 
   // GitHub auth event listeners

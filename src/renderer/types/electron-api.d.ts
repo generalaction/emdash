@@ -798,6 +798,32 @@ declare global {
         error?: string;
       }>;
 
+      // Emdash Account
+      accountGetSession: () => Promise<{
+        success: boolean;
+        data?: {
+          user: { userId: string; username: string; avatarUrl: string; email: string } | null;
+          isSignedIn: boolean;
+          hasAccount: boolean;
+        };
+        error?: string;
+      }>;
+      accountSignIn: () => Promise<{
+        success: boolean;
+        data?: { user: { userId: string; username: string; avatarUrl: string; email: string } };
+        error?: string;
+      }>;
+      accountSignOut: () => Promise<{ success: boolean; error?: string }>;
+      accountCheckServerHealth: () => Promise<{
+        success: boolean;
+        data?: { available: boolean };
+      }>;
+      accountValidateSession: () => Promise<{
+        success: boolean;
+        data?: { valid: boolean };
+        error?: string;
+      }>;
+
       // GitHub integration
       githubAuth: () => Promise<{
         success: boolean;
@@ -808,6 +834,12 @@ declare global {
         verification_uri?: string;
         expires_in?: number;
         interval?: number;
+        error?: string;
+      }>;
+      githubAuthOAuth: () => Promise<{
+        success: boolean;
+        token?: string;
+        user?: any;
         error?: string;
       }>;
       githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;

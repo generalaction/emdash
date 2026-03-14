@@ -117,6 +117,7 @@ import { setupApplicationMenu } from './app/menu';
 import { registerAllIpc } from './ipc';
 import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
+import { emdashAccountService } from './services/EmdashAccountService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
 import { sshService } from './services/ssh/SshService';
@@ -308,6 +309,12 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerAllIpc();
+
+  try {
+    await emdashAccountService.loadSessionToken();
+  } catch (error) {
+    console.warn('Failed to load account session:', error);
+  }
 
   // Clean up any orphaned reserve worktrees from previous sessions
   worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
