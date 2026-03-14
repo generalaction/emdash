@@ -195,22 +195,26 @@ host3.example.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdH
     it('should add host key with standard port', async () => {
       (access as Mock).mockRejectedValue(new Error('File not found'));
 
-      await service.addHostKey('new.host.com', 22, 'ssh-ed25519', 'SHA256:abc123def456');
+      const keyBuffer = Buffer.from('new-host-key-data');
+      await service.addHostKey('new.host.com', 22, 'ssh-ed25519', keyBuffer);
 
+      const expectedKeyBase64 = keyBuffer.toString('base64');
       expect(writeFile).toHaveBeenCalledWith(
         '/home/testuser/.ssh/known_hosts',
-        'new.host.com ssh-ed25519 SHA256:abc123def456\n'
+        `new.host.com ssh-ed25519 ${expectedKeyBase64}\n`
       );
     });
 
     it('should add host key with non-standard port', async () => {
       (access as Mock).mockRejectedValue(new Error('File not found'));
 
-      await service.addHostKey('new.host.com', 2222, 'ssh-ed25519', 'SHA256:abc123def456');
+      const keyBuffer = Buffer.from('new-host-key-data');
+      await service.addHostKey('new.host.com', 2222, 'ssh-ed25519', keyBuffer);
 
+      const expectedKeyBase64 = keyBuffer.toString('base64');
       expect(writeFile).toHaveBeenCalledWith(
         '/home/testuser/.ssh/known_hosts',
-        '[new.host.com]:2222 ssh-ed25519 SHA256:abc123def456\n'
+        `[new.host.com]:2222 ssh-ed25519 ${expectedKeyBase64}\n`
       );
     });
 
@@ -218,11 +222,13 @@ host3.example.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdH
       (access as Mock).mockResolvedValue(undefined);
       (readFile as Mock).mockResolvedValue('old.host.com ssh-ed25519 oldkey\n');
 
-      await service.addHostKey('old.host.com', 22, 'ssh-ed25519', 'new-fingerprint');
+      const keyBuffer = Buffer.from('updated-key-data');
+      await service.addHostKey('old.host.com', 22, 'ssh-ed25519', keyBuffer);
 
+      const expectedKeyBase64 = keyBuffer.toString('base64');
       expect(writeFile).toHaveBeenCalledWith(
         '/home/testuser/.ssh/known_hosts',
-        'old.host.com ssh-ed25519 new-fingerprint\n'
+        `old.host.com ssh-ed25519 ${expectedKeyBase64}\n`
       );
     });
   });
