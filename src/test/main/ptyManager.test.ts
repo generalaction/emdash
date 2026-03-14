@@ -330,6 +330,9 @@ describe('ptyManager provider command resolution', () => {
   });
 
   it('spawns tmux using its absolute path when tmux wrapping is enabled', async () => {
+    const origPath = process.env.PATH;
+    process.env.PATH = `/opt/homebrew/bin${origPath ? ':' + origPath : ''}`;
+
     fsStatSyncMock.mockImplementation((candidate: string) => {
       if (candidate === '/opt/homebrew/bin/tmux') {
         return { isFile: () => true };
@@ -352,6 +355,8 @@ describe('ptyManager provider command resolution', () => {
       shell: '/bin/zsh',
       tmux: true,
     });
+
+    process.env.PATH = origPath;
 
     expect(nodePtySpawnMock).toHaveBeenCalledWith(
       '/opt/homebrew/bin/tmux',
