@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { usePullRequests, type PullRequestSummary } from '../hooks/usePullRequests';
+import {
+  normalizePullRequestSearchQuery,
+  PULL_REQUEST_FILTER_PRESETS,
+  resolvePullRequestFilterId,
+} from '../lib/pullRequestFilters';
+import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -14,38 +20,52 @@ interface OpenPrsSectionProps {
 }
 
 const DEFAULT_VISIBLE = 10;
+const PR_RESULT_ROW_HEIGHT_PX = 72;
+const PR_RESULTS_MIN_HEIGHT_PX = DEFAULT_VISIBLE * PR_RESULT_ROW_HEIGHT_PX;
 const prBadgeClass =
   'inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground';
+const filterTabBadgeClass =
+  'inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-medium leading-none shadow-sm transition-colors';
+const activeFilterTabBadgeClass =
+  'border-foreground/10 bg-foreground text-background hover:bg-foreground/90';
+const inactiveFilterTabBadgeClass =
+  'border-border/70 bg-muted/35 text-foreground/80 hover:border-border hover:bg-muted/60 hover:text-foreground';
+const customFilterBadgeClass =
+  'inline-flex h-8 items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 text-xs font-medium text-primary';
 
 const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
-  const { prs, totalCount, loading, loadingMore, error, loadMore, hasMore } =
-    usePullRequests(projectPath);
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
-  const [searchFilter, setSearchFilter] = useState('');
   const [creatingForPr, setCreatingForPr] = useState<number | null>(null);
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [draftQuery, setDraftQuery] = useState('');
+  const { prs, totalCount, loading, loadingMore, error, hasFetched, loadMore, hasMore } =
+    usePullRequests(projectPath, true, DEFAULT_VISIBLE, appliedQuery);
 
-  const filteredPrs = useMemo(() => {
-    if (!searchFilter.trim()) return prs;
-    const q = searchFilter.trim().toLowerCase();
-    return prs.filter(
-      (pr) =>
-        pr.title.toLowerCase().includes(q) ||
-        String(pr.number).includes(q) ||
-        (pr.authorLogin && pr.authorLogin.toLowerCase().includes(q)) ||
-        pr.headRefName.toLowerCase().includes(q)
-    );
-  }, [prs, searchFilter]);
+  const activeFilterId = resolvePullRequestFilterId(appliedQuery);
+  const normalizedDraftQuery = normalizePullRequestSearchQuery(draftQuery);
+  const isQueryDirty = normalizedDraftQuery !== appliedQuery;
+  const isCustomQueryActive = activeFilterId === 'custom' && !!appliedQuery;
 
-  // Sort by updatedAt descending
   const sortedPrs = useMemo(() => {
-    return [...filteredPrs].sort((a, b) => {
+    return [...prs].sort((a, b) => {
       if (a.updatedAt && b.updatedAt) {
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }
       return b.number - a.number;
     });
-  }, [filteredPrs]);
+  }, [prs]);
+
+  const applySearchQuery = (nextQuery: string) => {
+    const normalizedQuery = normalizePullRequestSearchQuery(nextQuery);
+    setAppliedQuery(normalizedQuery);
+    setDraftQuery(normalizedQuery);
+  };
+
+  const handleQuerySubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    applySearchQuery(draftQuery);
+  };
 
   const handleReviewPr = async (pr: PullRequestSummary) => {
     setCreatingForPr(pr.number);
@@ -70,6 +90,18 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           metadata: result.task.metadata,
         };
         onReviewPr(task);
+      } else if (result.success && result.worktree) {
+        const task: Task = {
+          id: result.worktree.id || crypto.randomUUID(),
+          projectId,
+          name: result.taskName || `PR #${pr.number}`,
+          branch: result.branchName || '',
+          path: result.worktree.path || '',
+          status: 'active',
+          useWorktree: true,
+          metadata: { prNumber: pr.number, prTitle: pr.title },
+        };
+        onReviewPr(task);
       } else {
         toast({
           title: 'Failed to create review task',
@@ -88,16 +120,16 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
     }
   };
 
-  if (loading && prs.length === 0) {
-    return null; // Don't show section until PRs are loaded
+  if (!hasFetched && loading && prs.length === 0 && !appliedQuery) {
+    return null;
   }
 
-  if (error && prs.length === 0) {
-    return null; // Don't show section if we can't load PRs
+  if (!hasFetched && error && prs.length === 0 && !appliedQuery) {
+    return null;
   }
 
-  if (totalCount === 0 && prs.length === 0) {
-    return null; // No open PRs to show
+  if (hasFetched && !loading && !error && totalCount === 0 && prs.length === 0 && !appliedQuery) {
+    return null;
   }
 
   return (
@@ -113,90 +145,160 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
         <h2 className="text-xl font-semibold">Open PRs</h2>
-        <span className={prBadgeClass}>{totalCount}</span>
+        <span className={prBadgeClass}>
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : totalCount}
+        </span>
       </button>
 
       {!collapsed && (
         <TooltipProvider delayDuration={100}>
           <div className="mt-4 flex flex-col gap-3">
-            {totalCount > 5 && (
-              <div className="relative">
+            <div className="flex flex-wrap gap-2">
+              {PULL_REQUEST_FILTER_PRESETS.map((preset) => {
+                const isActive = activeFilterId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={cn(
+                      filterTabBadgeClass,
+                      isActive ? activeFilterTabBadgeClass : inactiveFilterTabBadgeClass
+                    )}
+                    onClick={() => applySearchQuery(preset.query)}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+              {isCustomQueryActive ? (
+                <span className={customFilterBadgeClass}>Custom query</span>
+              ) : null}
+            </div>
+
+            <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleQuerySubmit}>
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search PRs..."
-                  value={searchFilter}
-                  onChange={(e) => setSearchFilter(e.target.value)}
+                  placeholder="GitHub query, e.g. author:@me review-requested:@me"
+                  value={draftQuery}
+                  onChange={(e) => setDraftQuery(e.target.value)}
                   className="h-9 w-full pl-10"
                 />
               </div>
-            )}
-
-            {sortedPrs.length > 0 ? (
-              <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-                {sortedPrs.map((pr) => (
-                  <div
-                    key={pr.number}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
-                        <span className="truncate text-sm font-medium">{pr.title}</span>
-                        {pr.isDraft && <span className={`${prBadgeClass} shrink-0`}>Draft</span>}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="truncate font-mono">{pr.headRefName}</span>
-                        {pr.authorLogin && (
-                          <>
-                            <span>&middot;</span>
-                            <span>{pr.authorLogin}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            disabled={creatingForPr === pr.number}
-                            onClick={() => handleReviewPr(pr)}
-                          >
-                            {creatingForPr === pr.number ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : null}
-                            Review
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Review PR in Emdash</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 gap-0.5 px-1.5 text-muted-foreground"
-                            onClick={() => window.electronAPI.openExternal(pr.url)}
-                          >
-                            <Github className="h-3.5 w-3.5" />
-                            <ArrowUpRight className="h-3 w-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Open this pull request on GitHub</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-9"
+                  disabled={!isQueryDirty || loading}
+                  variant={isQueryDirty ? 'default' : 'outline'}
+                >
+                  Apply
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9"
+                  disabled={!appliedQuery && !draftQuery}
+                  onClick={() => applySearchQuery('')}
+                >
+                  Clear
+                </Button>
               </div>
-            ) : (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No PRs match your search.
-              </p>
-            )}
+            </form>
 
-            {hasMore && (
+            <p className="text-xs text-muted-foreground">
+              Use GitHub PR search syntax like <code>review-requested:@me</code>,{' '}
+              <code>author:@me</code>, <code>draft:true</code>, or free-text terms.
+            </p>
+
+            <div className="flex flex-col" style={{ minHeight: `${PR_RESULTS_MIN_HEIGHT_PX}px` }}>
+              {loading && prs.length === 0 ? (
+                <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
+                  <p className="text-center text-sm text-muted-foreground">
+                    Loading pull requests...
+                  </p>
+                </div>
+              ) : error && prs.length === 0 ? (
+                <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
+                  <p className="text-center text-sm text-muted-foreground">
+                    Unable to load pull requests for this filter.
+                  </p>
+                </div>
+              ) : sortedPrs.length > 0 ? (
+                <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                  {sortedPrs.map((pr) => (
+                    <div
+                      key={pr.number}
+                      className="flex min-h-[72px] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
+                          <span className="truncate text-sm font-medium">{pr.title}</span>
+                          {pr.isDraft ? (
+                            <span className={`${prBadgeClass} shrink-0`}>Draft</span>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="truncate font-mono">{pr.headRefName}</span>
+                          {pr.authorLogin ? (
+                            <>
+                              <span>&middot;</span>
+                              <span>{pr.authorLogin}</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={creatingForPr === pr.number}
+                              onClick={() => handleReviewPr(pr)}
+                            >
+                              {creatingForPr === pr.number ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : null}
+                              Review
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Review PR in Emdash</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-0.5 px-1.5 text-muted-foreground"
+                              onClick={() => window.electronAPI.openExternal(pr.url)}
+                            >
+                              <Github className="h-3.5 w-3.5" />
+                              <ArrowUpRight className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Open this pull request on GitHub
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
+                  <p className="text-center text-sm text-muted-foreground">
+                    No open PRs match this filter.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {hasMore ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -208,7 +310,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                 {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 {loadingMore ? 'Loading PRs...' : `Load more PRs (${prs.length}/${totalCount})`}
               </Button>
-            )}
+            ) : null}
           </div>
         </TooltipProvider>
       )}

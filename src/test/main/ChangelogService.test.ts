@@ -62,4 +62,40 @@ describe('parseChangelogHtml', () => {
     expect(entry?.content).toContain('## Sidebar card');
     expect(entry?.content).toContain('- Dismiss per version');
   });
+
+  it('infers the published date from rendered content when no time tag exists', () => {
+    const htmlWithoutTime = `
+      <main>
+        <article data-version="0.4.32">
+          <h2>March 13, 2026 v0.4.32</h2>
+          <p>Added a changelog card in the sidebar.</p>
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithoutTime, '0.4.32');
+
+    expect(entry?.version).toBe('0.4.32');
+    expect(entry?.publishedAt).toBe('March 13, 2026');
+  });
+
+  it('does not assign another release date when the requested version has no matching date text', () => {
+    const htmlWithOtherDate = `
+      <main>
+        <article data-version="0.4.31">
+          <h2>March 12, 2026 v0.4.31</h2>
+          <p>Previous release.</p>
+        </article>
+        <article data-version="0.4.32">
+          <h2>What&apos;s new in Emdash v0.4.32</h2>
+          <p>Current release.</p>
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithOtherDate, '0.4.32');
+
+    expect(entry?.version).toBe('0.4.32');
+    expect(entry?.publishedAt).toBeUndefined();
+  });
 });
