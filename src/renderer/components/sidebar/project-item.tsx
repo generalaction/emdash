@@ -1,5 +1,6 @@
 import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import React, { useEffect, useMemo } from 'react';
+import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/contexts/ModalProvider';
 import { useTasksContext } from '@renderer/contexts/TasksProvider';
@@ -135,7 +136,12 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
           type="button"
           className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
           onPointerEnter={() => prefetchRepository()}
-          onClick={() => showCreateTaskModal({ projectId: project.data.id })}
+          onClick={() =>
+            showCreateTaskModal({
+              projectId: project.data.id,
+              projectPath: (project.data as LocalProject | SshProject).path,
+            })
+          }
           disabled={project.status === 'creating'}
         >
           <Plus className="h-4 w-4" />

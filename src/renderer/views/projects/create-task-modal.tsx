@@ -3,7 +3,6 @@ import { ProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import AgentSelector from '@renderer/components/AgentSelector';
-import { useIntegrationStatus } from '@renderer/components/hooks/useIntegrationStatus';
 import { IssueSelector } from '@renderer/components/issue-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -17,11 +16,7 @@ import { Input } from '@renderer/components/ui/input';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { BaseModalProps } from '@renderer/contexts/ModalProvider';
-import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
 import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
-import { useGitHubIssues } from '@renderer/hooks/use-github-issues';
-import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
-import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
 import { useRepository } from '@renderer/hooks/use-repository';
 import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
 import { BranchSelector } from './branch-selector';
@@ -34,10 +29,13 @@ function liveTransformTaskName(name: string) {
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-')
     .slice(0, 64);
-  // No trim(), no stripping leading/trailing dashes
 }
 
-export function CreateTaskModal({ projectId, onClose }: BaseModalProps & { projectId: string }) {
+export function CreateTaskModal({
+  projectId,
+  projectPath,
+  onClose,
+}: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
   const { createTask } = usePendingTasksContext();
   const { navigate } = useWorkspaceNavigation();
@@ -50,20 +48,6 @@ export function CreateTaskModal({ projectId, onClose }: BaseModalProps & { proje
   const [taskName, setTaskName] = useState(generateFriendlyTaskName());
   const [showSlugHint, setShowSlugHint] = useState(false);
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
-
-  const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
-
-  const { projects } = useProjectsContext();
-  const projectPath = projects.find((p) => p.id === projectId)?.path ?? '';
-
-  const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
-  const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
-  const githubIssues = useGitHubIssues({
-    projectPath,
-    enabled: isGithubConnected && !!projectPath,
-  });
-
-  const hasAnyIntegration = isLinearConnected || isJiraConnected || isGithubConnected;
 
   const handleTaskNameChange = useCallback((value: string) => {
     const transformed = liveTransformTaskName(value);
@@ -130,40 +114,16 @@ export function CreateTaskModal({ projectId, onClose }: BaseModalProps & { proje
             />
             <FieldLabel>Create task branch and worktree</FieldLabel>
           </Field>
-          {hasAnyIntegration && (
-            <Field>
-              <FieldLabel>Attach an issue</FieldLabel>
-              <div className="flex flex-col gap-2">
-                {isLinearConnected && (
-                  <IssueSelector
-                    {...linearIssues}
-                    provider="linear"
-                    value={linkedIssue?.provider === 'linear' ? linkedIssue : null}
-                    onValueChange={setLinkedIssue}
-                    disabled={!!linkedIssue && linkedIssue.provider !== 'linear'}
-                  />
-                )}
-                {isJiraConnected && (
-                  <IssueSelector
-                    {...jiraIssues}
-                    provider="jira"
-                    value={linkedIssue?.provider === 'jira' ? linkedIssue : null}
-                    onValueChange={setLinkedIssue}
-                    disabled={!!linkedIssue && linkedIssue.provider !== 'jira'}
-                  />
-                )}
-                {isGithubConnected && !!projectPath && (
-                  <IssueSelector
-                    {...githubIssues}
-                    provider="github"
-                    value={linkedIssue?.provider === 'github' ? linkedIssue : null}
-                    onValueChange={setLinkedIssue}
-                    disabled={!!linkedIssue && linkedIssue.provider !== 'github'}
-                  />
-                )}
-              </div>
-            </Field>
-          )}
+
+          <Field>
+            <FieldLabel>Attach an issue</FieldLabel>
+            <IssueSelector
+              projectPath={projectPath}
+              value={linkedIssue}
+              onValueChange={setLinkedIssue}
+            />
+          </Field>
+
           <Field>
             <FieldLabel>Initial prompt</FieldLabel>
             <Textarea />

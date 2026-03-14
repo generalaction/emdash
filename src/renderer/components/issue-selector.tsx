@@ -1,10 +1,14 @@
-import { Combobox as ComboboxPrimitive } from '@base-ui/react';
+import { useCallback, useMemo, useState } from 'react';
+import githubLogo from '@/assets/images/github.png';
+import jiraLogo from '@/assets/images/jira.png';
+import linearLogo from '@/assets/images/Linear.svg';
 import type { Issue } from '@shared/tasks';
-import githubLogo from '../../assets/images/github.png';
-import jiraLogo from '../../assets/images/jira.png';
-import linearLogoSvg from '../../assets/images/Linear.svg?raw';
-import type { UseIssuesResult } from '../hooks/use-linear-issues';
-import AgentLogo from './AgentLogo';
+import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useGitHubIssues } from '@renderer/hooks/use-github-issues';
+import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
+import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
+import { cn } from '@renderer/lib/utils';
+import { useIntegrationStatus } from './hooks/useIntegrationStatus';
 import {
   Combobox,
   ComboboxContent,
@@ -12,8 +16,10 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
 } from './ui/combobox';
-import { Spinner } from './ui/spinner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 function getStatusColor(status?: string): string | undefined {
   if (!status) return undefined;
@@ -37,13 +43,9 @@ function ProviderLogo({
   provider: Issue['provider'];
   className?: string;
 }) {
-  if (provider === 'linear') {
-    return <AgentLogo logo={linearLogoSvg} alt="Linear" className={className ?? 'h-3.5 w-3.5'} />;
-  }
-  if (provider === 'github') {
-    return <img src={githubLogo} alt="GitHub" className={className ?? 'h-3.5 w-3.5'} />;
-  }
-  return <img src={jiraLogo} alt="Jira" className={className ?? 'h-3.5 w-3.5'} />;
+  const src = provider === 'linear' ? linearLogo : provider === 'github' ? githubLogo : jiraLogo;
+  const alt = provider === 'linear' ? 'Linear' : provider === 'github' ? 'GitHub' : 'Jira';
+  return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
 function StatusPill({ status }: { status?: string }) {
@@ -87,91 +89,188 @@ function IssueRow({ issue }: { issue: Issue }) {
   );
 }
 
-export interface IssueSelectorProps extends UseIssuesResult {
+const ISSUE_PROVIDERS = ['linear', 'github', 'jira'] as const;
+
+export interface IssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
-  provider: Issue['provider'];
-  disabled?: boolean;
-  placeholder?: string;
-  className?: string;
+  projectPath: string;
 }
 
-export function IssueSelector({
-  issues,
-  isLoading,
-  error,
-  searchTerm,
-  setSearchTerm,
-  isSearching,
-  value,
-  onValueChange,
-  provider,
-  disabled = false,
-  placeholder,
-  className,
-}: IssueSelectorProps) {
-  const defaultPlaceholder = isLoading
-    ? 'Loading…'
-    : error
-      ? `Connect your ${provider === 'linear' ? 'Linear' : provider === 'github' ? 'GitHub' : 'Jira'}`
-      : `Select a ${provider === 'linear' ? 'Linear' : provider === 'github' ? 'GitHub' : 'Jira'} issue`;
+export function IssueSelector({ projectPath, value, onValueChange }: IssueSelectorProps) {
+  const { navigate } = useWorkspaceNavigation();
+  const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
+  const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
+    null
+  );
 
-  const resolvedPlaceholder = placeholder ?? defaultPlaceholder;
+  const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
+  const githubIssues = useGitHubIssues({
+    projectPath,
+    enabled: isGithubConnected && !!projectPath,
+  });
+  const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
+
+  const hasAnyIntegration = isLinearConnected || isGithubConnected || isJiraConnected;
+
+  const issueProvider = useMemo(() => {
+    if (!selectedIssueProvider) {
+      if (isLinearConnected) return 'linear';
+      if (isGithubConnected) return 'github';
+      if (isJiraConnected) return 'jira';
+    }
+    return selectedIssueProvider;
+  }, [isLinearConnected, isGithubConnected, isJiraConnected, selectedIssueProvider]);
+
+  const handleSetSearchTerm = useCallback(
+    (term: string) => {
+      switch (issueProvider) {
+        case 'linear':
+          return linearIssues.setSearchTerm(term);
+        case 'github':
+          return githubIssues.setSearchTerm(term);
+        case 'jira':
+          return jiraIssues.setSearchTerm(term);
+        default:
+          return null;
+      }
+    },
+    [issueProvider, linearIssues, githubIssues, jiraIssues]
+  );
+
+  const isProviderDisabled = useCallback(
+    (provider: Issue['provider']) => {
+      if (!hasAnyIntegration) return true;
+      if (provider === 'linear') return !isLinearConnected;
+      if (provider === 'github') return !isGithubConnected;
+      if (provider === 'jira') return !isJiraConnected;
+      return false;
+    },
+    [hasAnyIntegration, isLinearConnected, isGithubConnected, isJiraConnected]
+  );
+
+  const issues = useMemo(() => {
+    if (!issueProvider) return [];
+    if (issueProvider === 'linear') return linearIssues.issues;
+    if (issueProvider === 'github') return githubIssues.issues;
+    if (issueProvider === 'jira') return jiraIssues.issues;
+    return [];
+  }, [issueProvider, linearIssues.issues, githubIssues.issues, jiraIssues.issues]);
 
   return (
-    <div className={`min-w-0 max-w-full overflow-hidden ${className ?? ''}`}>
-      <Combobox
-        items={issues}
-        filter={null}
-        itemToStringLabel={(issue: Issue | null) =>
-          issue ? `${issue.identifier} ${issue.title}` : ''
-        }
-        value={value}
-        onValueChange={(next: Issue | null) => onValueChange(next)}
-        onInputValueChange={(val: string, { reason }: { reason: string }) => {
-          if (reason !== 'item-press') setSearchTerm(val);
-        }}
-        onOpenChangeComplete={(open: boolean) => {
-          if (!open) setSearchTerm('');
-        }}
-        disabled={disabled}
-      >
-        <ComboboxInput
-          showClear={!!value}
-          showTrigger={!value}
-          placeholder={resolvedPlaceholder}
-          disabled={disabled}
-          className="h-9 w-full border-none bg-muted"
-        />
-        <ComboboxContent side="top">
-          <ComboboxPrimitive.Status className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-            {isLoading || isSearching ? (
-              <span className="flex items-center gap-2">
-                <Spinner size="sm" />
-                <span>{isLoading ? 'Loading issues…' : 'Searching…'}</span>
-              </span>
-            ) : error ? (
-              <span className="text-destructive">{error}</span>
-            ) : null}
-          </ComboboxPrimitive.Status>
-          <ComboboxEmpty>
-            {isLoading || isSearching
-              ? null
-              : searchTerm.trim()
-                ? `No issues found for "${searchTerm}"`
-                : 'No issues available'}
-          </ComboboxEmpty>
-          <ComboboxList>
-            {(issue: Issue) => (
-              <ComboboxItem key={issue.identifier} value={issue}>
-                <IssueRow issue={issue} />
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+    <div className="min-w-0 max-w-full overflow-hidden">
+      {hasAnyIntegration ? (
+        <>
+          <Select
+            value={issueProvider}
+            onValueChange={(v) => setSelectedIssueProvider(v as Issue['provider'])}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select an issue provider" />
+            </SelectTrigger>
+            <SelectContent>
+              {ISSUE_PROVIDERS.map((provider) => (
+                <SelectItem key={provider} value={provider} disabled={isProviderDisabled(provider)}>
+                  <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
+                  <span className="text-[11px] font-medium text-foreground">{provider}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Combobox
+            autoHighlight
+            items={issues}
+            filter={null}
+            itemToStringLabel={(issue: Issue | null) =>
+              issue ? `${issue.identifier} ${issue.title}` : ''
+            }
+            value={value}
+            onValueChange={(next: Issue | null) => onValueChange(next)}
+            onInputValueChange={(val: string, { reason }: { reason: string }) => {
+              if (reason !== 'item-press') handleSetSearchTerm(val);
+            }}
+            disabled={!hasAnyIntegration}
+          >
+            <ComboboxTrigger
+              render={
+                <button
+                  className={cn(
+                    'border w-full flex border-border h-18 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-center',
+                    !value && 'border-dashed'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <ComboboxValue
+                      placeholder={
+                        <div className="text-muted-foreground text-md text-center flex items-center gap-1">
+                          Select a{' '}
+                          <span className="flex items-center gap-1">
+                            <ProviderLogo provider={issueProvider!} className="h-3.5 w-3.5" />
+                            <span className="capitalize">{issueProvider}</span>
+                          </span>{' '}
+                          issue
+                        </div>
+                      }
+                    >
+                      {value ? <SelectedIssueValue issue={value!} /> : null}
+                    </ComboboxValue>
+                  </div>
+                </button>
+              }
+            />
+            <ComboboxContent className="min-w-(--anchor-width) pb-1">
+              <ComboboxInput
+                showClear={!!value}
+                showTrigger={false}
+                placeholder={`Search by ${issueProvider} issue key`}
+                disabled={!hasAnyIntegration}
+              />
+              <ComboboxEmpty>
+                <span className="text-muted-foreground">No issues found</span>
+              </ComboboxEmpty>
+              <ComboboxList>
+                {(issue: Issue) => (
+                  <ComboboxItem key={issue.identifier} value={issue}>
+                    <IssueRow issue={issue} />
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </>
+      ) : (
+        <div>
+          <p>Connect with one of the following integrations to search for issues:</p>
+          <div>
+            {ISSUE_PROVIDERS.map((provider) => (
+              <button
+                key={provider}
+                onClick={() => setSelectedIssueProvider(provider)}
+                className="flex items-center gap-2"
+              >
+                <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium text-foreground">{provider}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => navigate('settings')}>Configure integrations</button>
+        </div>
+      )}
     </div>
   );
 }
 
-export default IssueSelector;
+function SelectedIssueValue({ issue }: { issue: Issue }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
+        <span className="capitalize">{issue.provider + ' issue'}</span>
+        <span className="text-muted-foreground">{issue.identifier}</span>
+      </div>
+      <StatusPill status={issue.status} />
+      {issue.title ? <span className="truncate text-muted-foreground">{issue.title}</span> : null}
+    </div>
+  );
+}
