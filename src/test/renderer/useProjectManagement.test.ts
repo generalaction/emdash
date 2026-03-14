@@ -1,5 +1,69 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveProjectGithubInfo } from '../../renderer/lib/projectUtils';
+import {
+  parseGithubOwnerRepo,
+  resolveOwnerRepo,
+  resolveProjectGithubInfo,
+} from '../../renderer/lib/projectUtils';
+
+describe('parseGithubOwnerRepo', () => {
+  it('parses HTTPS remote', () => {
+    expect(parseGithubOwnerRepo('https://github.com/myuser/myrepo.git')).toBe('myuser/myrepo');
+  });
+
+  it('parses SSH remote', () => {
+    expect(parseGithubOwnerRepo('git@github.com:myuser/myrepo.git')).toBe('myuser/myrepo');
+  });
+
+  it('parses remote without .git suffix', () => {
+    expect(parseGithubOwnerRepo('https://github.com/owner/repo')).toBe('owner/repo');
+  });
+
+  it('returns null for non-GitHub remotes', () => {
+    expect(parseGithubOwnerRepo('https://gitlab.com/owner/repo.git')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(parseGithubOwnerRepo('')).toBeNull();
+  });
+});
+
+describe('resolveOwnerRepo', () => {
+  const projectPath = '/path/to/project';
+
+  it('returns parsed owner/repo when remote is a valid GitHub URL', async () => {
+    const connectToGitHub = vi.fn();
+    const result = await resolveOwnerRepo(
+      'https://github.com/owner/repo.git',
+      projectPath,
+      connectToGitHub
+    );
+    expect(result).toBe('owner/repo');
+    expect(connectToGitHub).not.toHaveBeenCalled();
+  });
+
+  it('falls back to connectToGitHub when URL parsing fails', async () => {
+    const connectToGitHub = vi
+      .fn()
+      .mockResolvedValue({ success: true, repository: 'generalaction/emdash' });
+    const result = await resolveOwnerRepo(
+      'https://gitlab.com/owner/repo.git',
+      projectPath,
+      connectToGitHub
+    );
+    expect(connectToGitHub).toHaveBeenCalledWith(projectPath);
+    expect(result).toBe('generalaction/emdash');
+  });
+
+  it('returns null when both URL parsing and connectToGitHub fail', async () => {
+    const connectToGitHub = vi.fn().mockResolvedValue({ success: false });
+    const result = await resolveOwnerRepo(
+      'https://gitlab.com/owner/repo.git',
+      projectPath,
+      connectToGitHub
+    );
+    expect(result).toBeNull();
+  });
+});
 
 describe('resolveProjectGithubInfo', () => {
   const projectPath = '/path/to/project';
