@@ -1,64 +1,51 @@
-export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
+import {
+  Branch,
+  Commit,
+  CommitFile,
+  DefaultBranch,
+  DiffBase,
+  DiffResult,
+  GitChange,
+  GitInfo,
+  PullError,
+  PushError,
+} from '@shared/git';
+import type { Result } from '@main/lib/result';
 
-export type GitChange = {
-  path: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  isStaged: boolean;
-};
-
-export interface DiffResult {
-  lines: DiffLine[];
-  isBinary?: boolean;
-  originalContent?: string;
-  modifiedContent?: string;
-}
-
-export interface GitInfo {
-  isGitRepo: boolean;
-  remote?: string;
-  branch?: string;
-  baseRef: string;
-  rootPath: string;
-}
-
-export interface IGitProvider {
+export interface GitProvider {
   getStatus(): Promise<GitChange[]>;
-  getFileDiff(filePath: string): Promise<DiffResult>;
+
+  getFileDiff(filePath: string, base?: DiffBase): Promise<DiffResult>;
+  getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
+
   stageFile(filePath: string): Promise<void>;
   stageAllFiles(): Promise<void>;
   unstageFile(filePath: string): Promise<void>;
-  revertFile(filePath: string): Promise<{ action: string }>;
+  revertFile(filePath: string): Promise<{ action: 'unstaged' | 'reverted' }>;
+
+  getLog(options?: {
+    maxCount?: number;
+    skip?: number;
+    knownAheadCount?: number;
+  }): Promise<{ commits: Commit[]; aheadCount: number }>;
+  getLatestCommit(): Promise<Commit | null>;
+  getCommitFiles(commitHash: string): Promise<CommitFile[]>;
+
   commit(message: string): Promise<{ hash: string }>;
-  push(): Promise<{ output: string }>;
-  pull(): Promise<{ output: string }>;
+  push(): Promise<Result<{ output: string }, PushError>>;
+  pull(): Promise<Result<{ output: string }, PullError>>;
   softReset(): Promise<{ subject: string; body: string }>;
-  getLog(
-    maxCount?: number,
-    skip?: number,
-    aheadCount?: number
-  ): Promise<{ commits: unknown[]; aheadCount: number }>;
-  getLatestCommit(): Promise<{
-    hash: string;
-    subject: string;
-    body: string;
-    isPushed: boolean;
-  } | null>;
-  getCommitFiles(
-    commitHash: string
-  ): Promise<Array<{ path: string; status: string; additions: number; deletions: number }>>;
-  getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
+
   getBranchStatus(): Promise<{
     branch: string;
-    defaultBranch: string;
+    upstream?: string;
     ahead: number;
     behind: number;
   }>;
-  renameBranch(
-    repoPath: string,
-    oldBranch: string,
-    newBranch: string
-  ): Promise<{ remotePushed: boolean }>;
+
+  getBranches(): Promise<Branch[]>;
+  getDefaultBranch(): Promise<DefaultBranch>;
+  renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }>;
+
   detectInfo(): Promise<GitInfo>;
 }

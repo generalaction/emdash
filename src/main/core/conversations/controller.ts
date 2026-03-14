@@ -10,19 +10,6 @@ import { createRPCController } from '../../../shared/ipc/rpc';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { mapConversationRowToConversation } from './utils';
 
-export type CreateConversationParams = {
-  taskId: string;
-  provider: string;
-  title?: string;
-  type?: 'agent' | 'shell';
-  /** Pass the provider's auto-approve flag when spawning. */
-  autoApprove?: boolean;
-  /** Append the provider's resume flag (continue existing session). */
-  resume?: boolean;
-  /** Initial prompt text passed via CLI flag or positional argument. */
-  initialPrompt?: string;
-};
-
 export const conversationController = createRPCController({
   getConversations: async (taskId: string) => {
     const rows = await db.select().from(conversations).where(eq(conversations.taskId, taskId));

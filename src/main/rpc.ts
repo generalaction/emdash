@@ -10,6 +10,7 @@ import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
 import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
+import { repositoryController } from './core/repository/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
@@ -22,6 +23,7 @@ export const rpcRouter = createRPCRouter({
   app: appController,
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
+  repository: repositoryController,
   fs: filesController,
   update: updateController,
   pty: ptyController,

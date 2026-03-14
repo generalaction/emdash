@@ -6,7 +6,6 @@ import { DiffViewer } from '@renderer/components/diff-viewer/DiffViewer';
 import { EditorContent } from '@renderer/components/FileExplorer/CodeEditor';
 import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
 import { FileTree } from '@renderer/components/FileExplorer/FileTree';
-import MultiAgentTask from '@renderer/components/MultiAgentTask';
 import RightSidebar from '@renderer/components/RightSidebar';
 import TaskCreationLoading from '@renderer/components/TaskCreationLoading';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
@@ -15,9 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-gro
 import { DEFAULT_EXCLUDE_PATTERNS, isMarkdownFile } from '@renderer/constants/file-explorer';
 import { useCodeEditorContext } from '@renderer/contexts/CodeEditorProvider';
 import { ConversationsProvider } from '@renderer/contexts/ConversationsProvider';
-import { useCurrentProject } from '@renderer/contexts/CurrentProjectProvider';
 import { useCurrentTask } from '@renderer/contexts/CurrentTaskProvider';
-import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
 import { useTaskViewContext } from '@renderer/contexts/TaskViewProvider';
 import { useAutoPrRefresh } from '@renderer/hooks/useAutoPrRefresh';
 import { useEditorDiffDecorations } from '@renderer/hooks/useEditorDiffDecorations';
@@ -32,6 +29,7 @@ import {
   configureMonacoTypeScript,
 } from '@renderer/lib/monaco-config';
 import { applyMonacoTheme, defineMonacoThemes } from '@renderer/lib/monaco-themes';
+import { useCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 
 export function TaskTitlebar() {
   const project = useCurrentProject();

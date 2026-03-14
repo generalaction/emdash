@@ -1,7 +1,7 @@
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import type { IConversationProvider } from '@main/core/conversations/types';
+import type { ConversationProvider } from '@main/core/conversations/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
@@ -12,7 +12,7 @@ import { buildAgentCommand, wireAgentClassifier } from './shared';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-export class LocalConversationProvider implements IConversationProvider {
+export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
   private readonly projectId: string;
   private readonly taskPath: string;

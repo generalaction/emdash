@@ -52,7 +52,7 @@ export const terminalsController = createRPCController({
             terminals: [],
           })
           .then((env) =>
-            env.terminalProvider.spawnTerminal({
+            env.terminals.spawnTerminal({
               projectId: project.id,
               terminalId,
               taskId,
@@ -103,7 +103,7 @@ export const terminalsController = createRPCController({
         const provider = projectManager.getProject(project.id);
         const env = provider?.getTask(task.id);
         if (env) {
-          env.terminalProvider.killTerminal(terminalId);
+          env.terminals.killTerminal(terminalId);
         }
       }
     }

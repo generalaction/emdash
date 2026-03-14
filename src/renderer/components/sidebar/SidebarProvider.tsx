@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useProjectManagementContext } from '@renderer/contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
+import { Task } from '@shared/tasks';
+import { useProjectManagementContext } from '@renderer/contexts/ProjectsProvider';
+import { useTasksContext } from '@renderer/contexts/TasksProvider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
-import type { Task } from '@renderer/types/chat';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 
@@ -21,20 +21,39 @@ interface SidebarProviderProps {
 
 export function SidebarProvider({ children }: SidebarProviderProps) {
   const { projects } = useProjectManagementContext();
-  const { tasksByProjectId } = useTaskManagementContext();
+  const { tasks } = useTasksContext();
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = React.useRef<Map<string, number>>(new Map());
 
+  const tasksByProjectId = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      const list = map.get(task.projectId) ?? [];
+      list.push(task);
+      map.set(task.projectId, list);
+    }
+    return map;
+  }, [tasks]);
+
   useEffect(() => {
     const prev = prevTaskCountsRef.current;
+    const toAdd: string[] = [];
     for (const project of projects) {
-      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
+      const taskCount = tasksByProjectId.get(project.id)?.length ?? 0;
       const prevCount = prev.get(project.id) ?? 0;
       if (prevCount === 0 && taskCount > 0) {
-        setForceOpenIds((s) => new Set(s).add(project.id));
+        toAdd.push(project.id);
       }
       prev.set(project.id, taskCount);
+    }
+    if (toAdd.length > 0) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      setForceOpenIds((s) => {
+        const next = new Set(s);
+        for (const id of toAdd) next.add(id);
+        return next;
+      });
     }
   }, [projects, tasksByProjectId]);
 
@@ -55,16 +74,12 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   useEffect(() => {
     if (!pinnedTaskIdsArray.length) return;
-    const allActiveIds = new Set(
-      Object.values(tasksByProjectId)
-        .flat()
-        .map((t) => t.id)
-    );
+    const allActiveIds = new Set(tasks.map((t) => t.id));
     const cleaned = pinnedTaskIdsArray.filter((id) => allActiveIds.has(id));
     if (cleaned.length !== pinnedTaskIdsArray.length) {
       setPinnedTaskIdsArray(cleaned);
     }
-  }, [tasksByProjectId, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
+  }, [tasks, pinnedTaskIdsArray, setPinnedTaskIdsArray]);
 
   const value = useMemo(
     () => ({ forceOpenIds, setForceOpenIds, pinnedTaskIds, handlePinTask }),

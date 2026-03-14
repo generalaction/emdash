@@ -9,7 +9,7 @@ import {
 import { useAgent } from '../contexts/AgentProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useModalContext } from '../contexts/ModalProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
+import { useTaskManagementContext } from '../contexts/TasksProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import { useWorkspaceSlots, useWorkspaceWrapParams } from '../contexts/WorkspaceViewProvider';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';

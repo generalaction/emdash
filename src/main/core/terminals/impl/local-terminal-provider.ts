@@ -4,12 +4,12 @@ import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { log } from '@main/lib/logger';
-import { ITerminalProvider } from '../terminal-provider';
+import { TerminalProvider } from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-export class LocalTerminalProvider implements ITerminalProvider {
+export class LocalTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
   private readonly projectId: string;
   private readonly taskId: string;

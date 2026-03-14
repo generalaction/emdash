@@ -1,0 +1,41 @@
+import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
+import { resolveTask } from '../projects/utils';
+import { getConversationTitle, mapConversationRowToConversation } from './utils';
+
+export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
+  const id = params.id ?? randomUUID();
+  const title = params.title ?? (await getConversationTitle(params.taskId, params.provider));
+
+  const [row] = await db
+    .insert(conversations)
+    .values({
+      id,
+      projectId: params.projectId,
+      taskId: params.taskId,
+      title,
+      provider: params.provider,
+      createdAt: sql`CURRENT_TIMESTAMP`,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .returning();
+
+  const task = resolveTask(params.projectId, params.taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+
+  const conversation = mapConversationRowToConversation(row);
+
+  await task.conversations.startSession(
+    conversation,
+    params.initialSize,
+    false,
+    params.initialPrompt
+  );
+
+  return mapConversationRowToConversation(row);
+}

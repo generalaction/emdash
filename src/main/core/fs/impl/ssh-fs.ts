@@ -12,7 +12,7 @@ import {
   FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
-  IFileSystem,
+  FileSystemProvider,
   ListOptions,
   ReadResult,
   SearchOptions,
@@ -39,7 +39,7 @@ const DEFAULT_MAX_BYTES = 200 * 1024;
  * SshFileSystem implements IFileSystem using SFTP over SSH.
  * Provides path traversal protection and proper error handling.
  */
-export class SshFileSystem implements IFileSystem {
+export class SshFileSystem implements FileSystemProvider {
   private cachedSftp: SFTPWrapper | undefined;
 
   constructor(

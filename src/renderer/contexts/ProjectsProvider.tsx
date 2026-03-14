@@ -21,7 +21,7 @@ export function useProjectManagementContext(): ProjectManagementContextValue {
   return ctx;
 }
 
-export function ProjectManagementProvider({ children }: { children: React.ReactNode }) {
+export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

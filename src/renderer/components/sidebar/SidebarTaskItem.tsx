@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import React from 'react';
 import { TaskItem } from '@renderer/components/TaskItem';
-import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
+import { useTaskManagementContext } from '@renderer/contexts/TasksProvider';
 import type { Project } from '@renderer/types/app';
 import type { Task } from '@renderer/types/chat';
 import { useSidebarContext } from './SidebarProvider';

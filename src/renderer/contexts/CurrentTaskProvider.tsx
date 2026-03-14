@@ -1,8 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { Task } from '../types/app';
+import { Task } from '@shared/tasks';
+import { ProjectViewWrapper } from '../views/projects/project-view-wrapper';
 import { CodeEditorProvider } from './CodeEditorProvider';
-import { ProjectViewWrapper } from './CurrentProjectProvider';
-import { useTaskManagementContext } from './TaskManagementProvider';
+import { useTasksContext } from './TasksProvider';
 import { TaskViewProvider } from './TaskViewProvider';
 
 const CurrentTaskContext = createContext<Task | null>(null);
@@ -26,7 +26,7 @@ interface CurrentTaskProviderProps {
 }
 
 function CurrentTaskProvider({ children, projectId, taskId }: CurrentTaskProviderProps) {
-  const { tasksByProjectId } = useTaskManagementContext();
+  const { tasks } = useTasksContext();
   const task = tasksByProjectId[projectId]?.find((t) => t.id === taskId) ?? null;
   return <CurrentTaskContext.Provider value={task}>{children}</CurrentTaskContext.Provider>;
 }

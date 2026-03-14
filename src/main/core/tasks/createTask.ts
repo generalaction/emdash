@@ -1,27 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
-
-export type CreateTaskParams = {
-  id?: string;
-  projectId: string;
-  name: string;
-  /** The branch to fork the new worktree from */
-  sourceBranch: string;
-  /** If available, create a new git branch before the worktree */
-  taskBranch?: string;
-  /** The issue to link to the task */
-  linkedIssue?: Issue;
-};
+import { appSettingsService } from '../settings/settings-service';
 
 export async function createTask(params: CreateTaskParams): Promise<Task> {
   const id = params.id ?? randomUUID();
   const suffix = Math.random().toString(36).slice(2, 7);
+  const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
 
-  const taskBranch = params.taskBranch ? ` ${params.taskBranch}-${suffix}` : undefined;
+  const taskBranch = params.taskBranch
+    ? branchPrefix
+      ? `${branchPrefix}/${params.taskBranch}-${suffix}`
+      : `${params.taskBranch}-${suffix}`
+    : undefined;
 
   const [taskRow] = await db
     .insert(tasks)
@@ -49,12 +43,12 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     updatedAt: taskRow.updatedAt,
   };
 
-  const workspace = projectManager.getProject(params.projectId);
-  if (!workspace) {
-    throw new Error('Workspace not found');
+  const project = projectManager.getProject(params.projectId);
+  if (!project) {
+    throw new Error('Project not found');
   }
 
-  await workspace.provisionTask(task, [], []);
+  await project.provisionTask(task, [], []);
 
   return task;
 }

@@ -1,4 +1,4 @@
-import { createRPCController } from '../../../shared/ipc/rpc';
+import { createRPCController } from '@shared/ipc/rpc';
 import { archiveTask } from './archiveTask';
 import { createTask } from './createTask';
 import { deleteTask } from './deleteTask';

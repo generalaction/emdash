@@ -11,9 +11,9 @@ import { DependenciesProvider } from './contexts/DependenciesProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { ModalProvider } from './contexts/ModalProvider';
-import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
+import { ProjectsProvider } from './contexts/ProjectsProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
-import { TaskManagementProvider } from './contexts/TaskManagementProvider';
+import { TasksProvider } from './contexts/TasksProvider';
 import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
 import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -52,9 +52,10 @@ export function App() {
                   <GithubContextProvider>
                     <IntegrationsProvider>
                       <WorkspaceViewProvider>
-                        <ProjectManagementProvider>
+                        <ProjectsProvider>
                           <PendingProjectsProvider>
-                            <TaskManagementProvider>
+                            <TasksProvider>
+                              {/* Add pending tasks provider here*/}
                               <AppSettingsProvider>
                                 <AgentProvider>
                                   <BrowserProvider>
@@ -66,9 +67,9 @@ export function App() {
                                   </BrowserProvider>
                                 </AgentProvider>
                               </AppSettingsProvider>
-                            </TaskManagementProvider>
+                            </TasksProvider>
                           </PendingProjectsProvider>
-                        </ProjectManagementProvider>
+                        </ProjectsProvider>
                       </WorkspaceViewProvider>
                     </IntegrationsProvider>
                   </GithubContextProvider>

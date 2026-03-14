@@ -8,7 +8,7 @@ import {
   FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
-  IFileSystem,
+  FileSystemProvider,
   ListOptions,
   ReadResult,
   SearchMatch,
@@ -103,7 +103,7 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
-export class LocalFileSystem implements IFileSystem {
+export class LocalFileSystem implements FileSystemProvider {
   private listAbort: AbortController | null = null;
 
   constructor(private projectPath: string) {

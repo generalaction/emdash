@@ -20,11 +20,11 @@ export function Workspace() {
         leftSidebar={<LeftSidebar />}
         mainContent={
           <WrapView {...wrapParams}>
+            <ModalRenderer />
             <WorkspaceViewContent />
           </WrapView>
         }
       />
-      <ModalRenderer />
       <Toaster />
     </>
   );

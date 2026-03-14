@@ -1,7 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { usePendingProjectsContext } from '../components/add-project-modal/pending-projects-provider';
-import type { Project } from '../types/app';
-import { useProjectManagementContext } from './ProjectManagementProvider';
+import { usePendingProjectsContext } from '@renderer/components/add-project-modal/pending-projects-provider';
+import { useProjectManagementContext } from '@renderer/contexts/ProjectsProvider';
+import type { Project } from '@renderer/types/app';
+import { RepositoryProvider } from './repository-provider';
 
 export type ProjectStatus = 'creating' | 'ready';
 
@@ -38,7 +39,9 @@ export function ProjectViewWrapper({ children, projectId }: ProjectViewWrapperPr
     : 'ready';
   return (
     <CurrentProjectStatusContext.Provider value={status}>
-      <CurrentProjectContext.Provider value={project}>{children}</CurrentProjectContext.Provider>
+      <RepositoryProvider projectId={projectId}>
+        <CurrentProjectContext.Provider value={project}>{children}</CurrentProjectContext.Provider>
+      </RepositoryProvider>
     </CurrentProjectStatusContext.Provider>
   );
 }

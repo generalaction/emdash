@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Task } from 'vitest';
-import { Conversation } from '@shared/conversations/types';
-import { SshProject } from '@shared/projects/types';
-import { Terminal } from '@shared/terminal/types';
+import { Conversation } from '@shared/conversations';
+import { SshProject } from '@shared/projects';
+import { Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { SshGitService } from '@main/core/git/impl/ssh-git-provider';
+import { GitService } from '@main/core/git/impl/git-service';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
@@ -15,6 +15,7 @@ import {
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
+import { getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from './project-provider';
@@ -89,7 +90,7 @@ export class SshProjectProvider implements ProjectProvider {
     if (existing) return existing;
 
     const fs = new SshFileSystem(this.proxy, workingDirectory);
-    const git = new SshGitService(this.proxy, workingDirectory);
+    const git = new GitService(workingDirectory, getSshExec(this.proxy), fs);
 
     const agentProvider = new SshConversationProvider(this.projectId, taskId, this.proxy);
     const terminalProvider = new SshTerminalProvider(this.projectId, taskId, this.proxy);
@@ -117,7 +118,7 @@ export class SshProjectProvider implements ProjectProvider {
       fs,
       git,
       agentProvider,
-      terminalProvider,
+      terminals: terminalProvider,
       getPty,
     };
 

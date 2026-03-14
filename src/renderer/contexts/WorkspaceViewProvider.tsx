@@ -1,10 +1,9 @@
 import { ComponentType, Fragment, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { projectView } from '@renderer/views/projects/view';
 import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
-import { ProjectMainPanel, ProjectTitlebar } from '../views/project-view';
 import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
 import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
 import { TaskMainPanel, TaskRightSidebar, TaskTitlebar } from '../views/task-view';
-import { ProjectViewWrapper } from './CurrentProjectProvider';
 import { TaskViewWrapper } from './CurrentTaskProvider';
 import {
   WorkspaceNavigateContext,
@@ -30,7 +29,6 @@ type ViewDefinition<TParams extends object = Record<never, never>> = {
   RightPanel?: ComponentType;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const views = {
   home: {
     TitlebarSlot: HomeTitlebar,
@@ -40,11 +38,7 @@ const views = {
     TitlebarSlot: SkillsTitlebar,
     MainPanel: SkillsMainPanel,
   },
-  project: {
-    WrapView: ProjectViewWrapper,
-    TitlebarSlot: ProjectTitlebar,
-    MainPanel: ProjectMainPanel,
-  },
+  project: projectView,
   task: {
     WrapView: TaskViewWrapper,
     TitlebarSlot: TaskTitlebar,

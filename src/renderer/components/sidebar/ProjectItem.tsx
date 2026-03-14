@@ -5,7 +5,7 @@ import { RemoteProjectIndicator } from '@renderer/components/ssh/RemoteProjectIn
 import { TaskDeleteButton } from '@renderer/components/TaskDeleteButton';
 import { Button } from '@renderer/components/ui/button';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { useTaskManagementContext } from '@renderer/contexts/TaskManagementProvider';
+import { useTaskManagementContext } from '@renderer/contexts/TasksProvider';
 import {
   useWorkspaceNavigation,
   useWorkspaceWrapParams,

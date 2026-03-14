@@ -1,4 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
+import { Task } from '@shared/tasks';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { mapTaskRowToTask } from './core';

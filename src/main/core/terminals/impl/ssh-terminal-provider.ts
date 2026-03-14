@@ -6,14 +6,14 @@ import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
   CreateSessionError,
-  ITerminalProvider,
+  TerminalProvider,
   TerminalSpawnOptions,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
 import type { GeneralSessionConfig } from './general-session';
 
-export class SshTerminalProvider implements ITerminalProvider {
+export class SshTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
   /** Terminals explicitly killed by the user — suppresses auto-respawn. */
   private deletedTerminals = new Set<string>();

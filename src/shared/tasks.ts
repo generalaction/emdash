@@ -1,3 +1,5 @@
+import { CreateConversationParams } from '@shared/conversations';
+
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
 
 export type Issue = {
@@ -20,4 +22,18 @@ export type Task = {
   updatedAt: string;
   archivedAt?: string;
   linkedIssue?: Issue;
+};
+
+export type CreateTaskParams = {
+  id?: string;
+  projectId: string;
+  name: string;
+  /** The branch to fork the new worktree from */
+  sourceBranch: string;
+  /** If available, create a new git branch before the worktree */
+  taskBranch?: string;
+  /** The issue to link to the task */
+  linkedIssue?: Issue;
+  /**  */
+  initialConversation?: CreateConversationParams;
 };

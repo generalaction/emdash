@@ -129,7 +129,7 @@ export interface SearchMatch {
  * Filesystem interface abstraction
  * Implementations: LocalFileSystem (local disk), RemoteFileSystem (SFTP over SSH)
  */
-export interface IFileSystem {
+export interface FileSystemProvider {
   /**
    * List directory contents
    * @param path - Directory path relative to project root
@@ -181,7 +181,7 @@ export interface IFileSystem {
    * @param path - File path relative to project root
    * @returns Promise resolving to success status
    */
-  remove?(path: string): Promise<{ success: boolean; error?: string }>;
+  remove(path: string): Promise<{ success: boolean; error?: string }>;
 
   /**
    * Read image file as base64 data URL

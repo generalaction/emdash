@@ -1,23 +1,16 @@
 import { Conversation } from '@shared/conversations';
 
-export interface IConversationProvider {
-  startSession(conversation: Conversation): Promise<void>;
+export interface ConversationProvider {
+  startSession(
+    conversation: Conversation,
+    initialSize?: { cols: number; rows: number },
+    isResuming?: boolean,
+    initialPrompt?: string
+  ): Promise<void>;
   stopSession(conversationId: string): Promise<void>;
   destroyAll(): Promise<void>;
 }
 
-export type ConversationStartOptions = {
-  projectId: string;
-  conversationId: string;
-  taskId: string;
-  providerId: string;
-  command: string;
-  args: string[];
-  cwd: string;
-  projectPath: string;
-  agentSessionId?: string;
-  shellSetup?: string;
-  tmuxSessionName?: string;
+export type ConversationConfig = {
   autoApprove?: boolean;
-  resume?: boolean;
 };

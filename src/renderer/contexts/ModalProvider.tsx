@@ -4,14 +4,14 @@ import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
-import { TaskModalOverlay } from '@renderer/components/TaskModal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
+import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
 
 // Define overlays here so we can use them in the showOverlay function
 const modalRegistry = {
   updateModal: UpdateModalOverlay,
   newProjectModal: NewProjectModal,
-  taskModal: TaskModalOverlay,
+  taskModal: CreateTaskModal,
   addProjectModal: AddProjectModal,
   addSshConnModal: AddSshConnModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,

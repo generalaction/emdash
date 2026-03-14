@@ -1,6 +1,6 @@
 import React from 'react';
 import type { BaseModalProps } from '../contexts/ModalProvider';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useProjectManagementContext } from '../contexts/ProjectsProvider';
 import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
 import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
 import { useTheme } from '../hooks/useTheme';

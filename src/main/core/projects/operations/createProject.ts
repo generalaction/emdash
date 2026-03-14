@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { type LocalProject, type SshProject } from '@shared/projects';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
-import { LocalGitService } from '@main/core/git/impl/local-git-provider';
-import { SshGitService } from '@main/core/git/impl/ssh-git-provider';
+import { GitService } from '@main/core/git/impl/git-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { getLocalExec, getSshExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 
@@ -21,7 +23,8 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     throw new Error('Invalid directory');
   }
 
-  const git = new LocalGitService(params.path);
+  const fs = new LocalFileSystem(params.path);
+  const git = new GitService(params.path, getLocalExec(), fs);
 
   const gitInfo = await git.detectInfo();
   if (!gitInfo.isGitRepo) {
@@ -67,7 +70,8 @@ export type CreateSshProjectParams = {
 export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
   const sshProxy = await sshConnectionManager.connect(params.connectionId);
 
-  const git = new SshGitService(sshProxy, params.path);
+  const sshFs = new SshFileSystem(sshProxy, params.path);
+  const git = new GitService(params.path, getSshExec(sshProxy), sshFs);
 
   const gitInfo = await git.detectInfo();
 

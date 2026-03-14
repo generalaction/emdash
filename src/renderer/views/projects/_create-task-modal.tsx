@@ -3,37 +3,37 @@ import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings } from '@shared/app-settings';
 import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
 import { rpc } from '@renderer/lib/ipc';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementProvider';
-import { useWorkspaceWrapParams } from '../contexts/WorkspaceNavigationContext';
-import { useProjectBranchOptions } from '../hooks/useProjectBranchOptions';
-import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
-import {
-  generateFriendlyTaskName,
-  MAX_TASK_NAME_LENGTH,
-  normalizeTaskName,
-} from '../lib/taskNames';
-import { agentMeta } from '../providers/meta';
-import { type Agent } from '../types';
-import { type AgentRun } from '../types/chat';
-import { type GitHubIssueSummary } from '../types/github';
-import { type JiraIssueSummary } from '../types/jira';
-import { type LinearIssueSummary } from '../types/linear';
-import BranchSelect from './BranchSelect';
-import { useIntegrationStatus } from './hooks/useIntegrationStatus';
-import { MultiAgentDropdown } from './MultiAgentDropdown';
-import { TaskAdvancedSettings } from './TaskAdvancedSettings';
-import { Button } from './ui/button';
+import BranchSelect from '../../components/BranchSelect';
+import { useIntegrationStatus } from '../../components/hooks/useIntegrationStatus';
+import { MultiAgentDropdown } from '../../components/MultiAgentDropdown';
+import { TaskAdvancedSettings } from '../../components/TaskAdvancedSettings';
+import { Button } from '../../components/ui/button';
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from './ui/dialog';
-import { Label } from './ui/label';
-import { Separator } from './ui/separator';
-import { SlugInput } from './ui/slug-input';
+} from '../../components/ui/dialog';
+import { Label } from '../../components/ui/label';
+import { Separator } from '../../components/ui/separator';
+import { SlugInput } from '../../components/ui/slug-input';
+import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
+import { useTaskManagementContext } from '../../contexts/TaskManagementProvider';
+import { useWorkspaceWrapParams } from '../../contexts/WorkspaceNavigationContext';
+import { useProjectBranchOptions } from '../../hooks/useProjectBranchOptions';
+import { generateTaskNameFromContext } from '../../lib/branchNameGenerator';
+import {
+  generateFriendlyTaskName,
+  MAX_TASK_NAME_LENGTH,
+  normalizeTaskName,
+} from '../../lib/taskNames';
+import { agentMeta } from '../../providers/meta';
+import { type Agent } from '../../types';
+import { type AgentRun } from '../../types/chat';
+import { type GitHubIssueSummary } from '../../types/github';
+import { type JiraIssueSummary } from '../../types/jira';
+import { type LinearIssueSummary } from '../../types/linear';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -304,7 +304,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     ) {
       customNameTrackedRef.current = true;
       void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
+        const { captureTelemetry } = await import('../../lib/telemetryClient');
         captureTelemetry('task_custom_named', { custom_name: 'true' });
       })();
     }

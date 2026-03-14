@@ -1,9 +1,4 @@
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 import { projectManager } from './project-manager';
-import { ExecFn } from './worktrees/worktree-service';
-
-const execAsync = promisify(exec);
 
 export function parseGitHubRepo(remoteUrl: string): { host: string; nameWithOwner: string } | null {
   // https://github.mycompany.com/owner/repo.git
@@ -17,16 +12,6 @@ export function parseGitHubRepo(remoteUrl: string): { host: string; nameWithOwne
     return { host: sshMatch[1], nameWithOwner: sshMatch[2] };
   }
   return null;
-}
-
-export function getLocalExec(): ExecFn {
-  return (
-    command: string,
-    args: string[] = [],
-    options: { cwd?: string; timeout?: number } = {}
-  ) => {
-    return execAsync(`command ${command} ${args.join(' ')}`, options);
-  };
 }
 
 export function resolveTask(projectId: string, taskId: string) {

@@ -3,8 +3,10 @@ import { LocalProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { LocalGitService } from '@main/core/git/impl/local-git-provider';
-import { spawnLocalPty } from '@main/core/pty/local-pty';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { GitService } from '@main/core/git/impl/git-service';
+import type { GitProvider } from '@main/core/git/types';
+import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { LocalConversationProvider } from '../conversations/impl/local-conversation';
 import { appSettingsService } from '../settings/settings-service';
@@ -12,7 +14,6 @@ import { LocalTerminalProvider } from '../terminals/impl/local-terminal-provider
 import type { ProjectProvider, TaskProvider } from './project-provider';
 import { LocalProjectSettingsProvider } from './settings/project-settings';
 import type { ProjectSettingsProvider } from './settings/schema';
-import { getLocalExec } from './utils';
 import { WorktreeService } from './worktrees/worktree-service';
 
 export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
@@ -25,6 +26,8 @@ export async function createLocalProvider(project: LocalProject): Promise<LocalP
 export class LocalProjectProvider implements ProjectProvider {
   readonly type = 'local';
   readonly settings: ProjectSettingsProvider;
+  readonly git: GitProvider;
+  readonly fs: FileSystemProvider;
 
   private tasks = new Map<string, TaskProvider>();
   private worktreeService: WorktreeService;
@@ -37,6 +40,8 @@ export class LocalProjectProvider implements ProjectProvider {
     }
   ) {
     this.settings = new LocalProjectSettingsProvider(project.path);
+    this.fs = new LocalFileSystem(project.path);
+    this.git = new GitService(project.path, getLocalExec(), this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       defaultBranch: options.defaultBranch,
@@ -65,7 +70,7 @@ export class LocalProjectProvider implements ProjectProvider {
     }
 
     const fs = new LocalFileSystem(workDir);
-    const git = new LocalGitService(workDir);
+    const git = new GitService(workDir, getLocalExec(), fs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
@@ -83,8 +88,8 @@ export class LocalProjectProvider implements ProjectProvider {
       taskPath: workDir,
       fs,
       git,
-      conversationProvider,
-      terminalProvider,
+      conversations: conversationProvider,
+      terminals: terminalProvider,
     };
 
     this.tasks.set(task.id, taskEnv);
@@ -126,8 +131,8 @@ export class LocalProjectProvider implements ProjectProvider {
 
     // run teardown script
 
-    await task.conversationProvider.destroyAll();
-    await task.terminalProvider.destroyAll();
+    await task.conversations.destroyAll();
+    await task.terminals.destroyAll();
     this.tasks.delete(taskId);
   }
 

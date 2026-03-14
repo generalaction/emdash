@@ -145,6 +145,7 @@ export const conversations = sqliteTable(
       .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     provider: text('provider'),
+    config: text('config'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

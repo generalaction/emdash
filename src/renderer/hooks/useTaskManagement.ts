@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { useModalContext } from '../contexts/ModalProvider';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { useProjectManagementContext } from '../contexts/ProjectsProvider';
 import {
   useWorkspaceNavigation,
   useWorkspaceWrapParams,

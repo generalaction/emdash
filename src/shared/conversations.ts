@@ -9,3 +9,14 @@ export type Conversation = {
   resume?: boolean;
   autoApprove?: boolean;
 };
+
+export type CreateConversationParams = {
+  id?: string;
+  projectId: string;
+  taskId: string;
+  provider: ProviderId;
+  title?: string;
+  autoApprove?: boolean;
+  initialSize?: { cols: number; rows: number };
+  initialPrompt?: string;
+};

@@ -3,9 +3,9 @@ import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type {
+  ConversationProvider,
   ConversationStartOptions,
   CreateSessionError,
-  IConversationProvider,
 } from '@main/core/conversations/types';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
@@ -18,7 +18,7 @@ import { ok, Result } from '@main/lib/result';
 import type { AgentSessionConfig } from './agent-session';
 import { wireAgentClassifier } from './shared';
 
-export class SshConversationProvider implements IConversationProvider {
+export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
 
   constructor(
