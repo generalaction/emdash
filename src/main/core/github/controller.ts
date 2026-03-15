@@ -1,10 +1,8 @@
 import { exec } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import { app } from 'electron';
 import type { GitHubUser } from '@shared/github';
 import { createRPCController } from '@shared/ipc/rpc';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
@@ -130,49 +128,14 @@ export const githubController = createRPCController({
   cloneRepository: async (repoUrl: string, localPath: string) => {
     const q = (s: string) => JSON.stringify(s);
     try {
-      // Opt-out flag for safety or debugging
-      if (process.env.EMDASH_DISABLE_CLONE_CACHE === '1') {
-        await execAsync(`git clone ${q(repoUrl)} ${q(localPath)}`);
-        return { success: true };
-      }
-
-      // Ensure parent directory exists
       const dir = path.dirname(localPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-      // If already a git repo, short‑circuit
-      try {
-        if (fs.existsSync(path.join(localPath, '.git'))) return { success: true };
-      } catch {}
-
-      // Use a local bare mirror cache keyed by normalized URL
-      const cacheRoot = path.join(app.getPath('userData'), 'repo-cache');
-      if (!fs.existsSync(cacheRoot)) fs.mkdirSync(cacheRoot, { recursive: true });
-      const norm = (u: string) => u.replace(/\.git$/i, '').trim();
-      const cacheKey = createHash('sha1').update(norm(repoUrl)).digest('hex');
-      const mirrorPath = path.join(cacheRoot, `${cacheKey}.mirror`);
-
-      if (!fs.existsSync(mirrorPath)) {
-        await execAsync(`git clone --mirror --filter=blob:none ${q(repoUrl)} ${q(mirrorPath)}`);
-      } else {
-        try {
-          await execAsync(`git -C ${q(mirrorPath)} remote set-url origin ${q(repoUrl)}`);
-        } catch {}
-        await execAsync(`git -C ${q(mirrorPath)} remote update --prune`);
-      }
-
-      await execAsync(
-        `git clone --reference-if-able ${q(mirrorPath)} --dissociate ${q(repoUrl)} ${q(localPath)}`
-      );
+      if (fs.existsSync(path.join(localPath, '.git'))) return { success: true };
+      await execAsync(`git clone ${q(repoUrl)} ${q(localPath)}`);
       return { success: true };
     } catch (error) {
-      log.error('Failed to clone repository via cache:', error);
-      try {
-        await execAsync(`git clone ${q(repoUrl)} ${q(localPath)}`);
-        return { success: true };
-      } catch (e2) {
-        return { success: false, error: e2 instanceof Error ? e2.message : 'Clone failed' };
-      }
+      log.error('Failed to clone repository:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Clone failed' };
     }
   },
 

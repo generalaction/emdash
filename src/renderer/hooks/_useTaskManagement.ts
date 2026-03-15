@@ -4,8 +4,9 @@ import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { useModalContext } from '../contexts/ModalProvider';
 import { useProjectsContext } from '../contexts/ProjectsProvider';
 import {
+  useViewParams,
   useWorkspaceNavigation,
-  useWorkspaceWrapParams,
+  useWorkspaceSlots,
 } from '../contexts/WorkspaceNavigationContext';
 import { rpc } from '../lib/ipc';
 import { createTask } from '../lib/taskCreationService';
@@ -99,9 +100,17 @@ const cleanupRendererResources = (task: Task): void => {
 export function useTaskManagement() {
   const { projects, autoOpenTaskModalTrigger } = useProjectsContext();
   const { navigate } = useWorkspaceNavigation();
-  const { wrapParams } = useWorkspaceWrapParams();
-  const currentProjectId = wrapParams.projectId as string | null;
-  const currentTaskId = wrapParams.taskId as string | null;
+  const { currentView } = useWorkspaceSlots();
+  const { params: projectParams } = useViewParams('project');
+  const { params: taskParams } = useViewParams('task');
+
+  const currentProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : null;
+  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
 
   const { toast } = useToast();
   const { showModal } = useModalContext();

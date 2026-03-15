@@ -80,10 +80,17 @@ export function PendingProjectsProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      const result = await rpc.github.cloneRepository(data.repositoryUrl, data.path);
+      const result = await rpc.github.cloneRepository(
+        data.repositoryUrl,
+        data.path + '/' + data.name
+      );
       if (!result.success) throw new Error(result.error);
       updatePending(id, { stage: 'registering' });
-      await rpc.projects.createLocalProject({ id, path: data.path, name: data.name });
+      await rpc.projects.createLocalProject({
+        id,
+        path: data.path + '/' + data.name,
+        name: data.name,
+      });
       removePending(id);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {

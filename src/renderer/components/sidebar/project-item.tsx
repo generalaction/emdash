@@ -5,8 +5,9 @@ import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/contexts/ModalProvider';
 import { useTasksContext } from '@renderer/contexts/TasksProvider';
 import {
+  useViewParams,
   useWorkspaceNavigation,
-  useWorkspaceWrapParams,
+  useWorkspaceSlots,
 } from '@renderer/contexts/WorkspaceNavigationContext';
 import { usePrefetchRepository } from '@renderer/hooks/use-repository';
 import { cn } from '@renderer/lib/utils';
@@ -45,10 +46,17 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { tasksByProjectId } = useTasksContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
   const { navigate } = useWorkspaceNavigation();
-  const { wrapParams } = useWorkspaceWrapParams();
+  const { currentView } = useWorkspaceSlots();
+  const { params: projectParams } = useViewParams('project');
+  const { params: taskParams } = useViewParams('task');
 
-  const currentProjectId = wrapParams.projectId as string | null;
-  const currentTaskId = wrapParams.taskId as string | null;
+  const currentProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : null;
+  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
 
   const isProjectActive = useMemo(
     () => currentProjectId === project.data.id && !currentTaskId,

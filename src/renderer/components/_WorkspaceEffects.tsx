@@ -9,8 +9,11 @@ import {
 import { useAgent } from '../contexts/AgentProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useModalContext } from '../contexts/ModalProvider';
-import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
-import { useWorkspaceSlots, useWorkspaceWrapParams } from '../contexts/WorkspaceViewProvider';
+import {
+  useViewParams,
+  useWorkspaceNavigation,
+  useWorkspaceSlots,
+} from '../contexts/WorkspaceNavigationContext';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';
 import { events } from '../lib/ipc';
 import { handleMenuRedo, handleMenuUndo } from '../lib/menuUndoRedo';
@@ -30,7 +33,7 @@ export function WorkspaceEffects() {
   const { settings } = useAppSettings();
   const { dismissNotifications } = useAgent();
   const { currentView } = useWorkspaceSlots();
-  const { wrapParams } = useWorkspaceWrapParams();
+  const { params: taskParams } = useViewParams('task');
 
   // Sync sound player enabled state from settings
   useEffect(() => {
@@ -42,10 +45,10 @@ export function WorkspaceEffects() {
 
   // Dismiss notifications when the user navigates to a task
   useEffect(() => {
-    if (currentView === 'task' && typeof wrapParams.taskId === 'string') {
-      dismissNotifications(wrapParams.taskId);
+    if (currentView === 'task' && typeof taskParams.taskId === 'string') {
+      dismissNotifications(taskParams.taskId);
     }
-  }, [currentView, wrapParams.taskId, dismissNotifications]);
+  }, [currentView, taskParams.taskId, dismissNotifications]);
 
   // Show toast on update availability
   useUpdateNotifier({

@@ -1,5 +1,5 @@
-import { Loader2, XIcon } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { ExternalLink, Loader2, XIcon } from 'lucide-react';
+import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 import githubLogo from '@/assets/images/github.png';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
@@ -8,6 +8,7 @@ import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationCo
 import { useGitHubIssues } from '@renderer/hooks/use-github-issues';
 import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
 import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
+import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/lib/utils';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
 import { Badge } from './ui/badge';
@@ -49,11 +50,17 @@ function IssueIdentifier({ identifier }: { identifier: string }) {
   );
 }
 
-function StatusDot({ status }: { status?: string }) {
+const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(({ status, ...props }, ref) => {
   if (!status) return null;
   const color = getStatusColorClass(status);
-  return <span className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)} />;
-}
+  return (
+    <span
+      ref={ref}
+      {...props}
+      className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
+    />
+  );
+});
 
 function ProviderLogo({
   provider,
@@ -234,7 +241,7 @@ export function IssueSelector({ projectPath, value, onValueChange }: IssueSelect
             render={
               <button
                 className={cn(
-                  'flex min-w-0 w-full items-start border border-border hover:bg-muted/30 hover:shadow-xs rounded-md p-2 text-left text-sm outline-none',
+                  'flex min-w-0 w-full items-start border border-border hover:bg-muted/30 hover:shadow-xs rounded-md p-3 text-left text-sm outline-none',
                   !value && 'border-dashed'
                 )}
               >
@@ -286,24 +293,35 @@ export function IssueSelector({ projectPath, value, onValueChange }: IssueSelect
 
 function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () => void }) {
   return (
-    <div className="flex flex-col gap-2 w-full h-[76px]">
-      <div className="flex items-center justify-between w-full">
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex items-center justify-between w-full ">
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span className="capitalize">{issue.provider + ' issue'}</span>
           <IssueIdentifier identifier={issue.identifier} />
         </div>
-        <Button variant="ghost" size="icon-xs" onClick={onRemove}>
+        <Button variant="ghost" size="icon-xs" className="-mt-1 -mr-1" onClick={onRemove}>
           <XIcon className="size-3" />
         </Button>
       </div>
       {issue.title ? (
         <div className="min-w-0 truncate text-muted-foreground">{issue.title}</div>
       ) : null}
-      <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
-        <StatusDot status={issue.status} />
-        {issue.status}
-      </Badge>
+      <div className="flex items-center justify-between gap-2 relative">
+        <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
+          <StatusDot status={issue.status} />
+          {issue.status}
+        </Badge>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="-mr-1 -mb-1"
+          disabled={!issue.url}
+          onClick={() => issue.url && rpc.app.openExternal(issue.url)}
+        >
+          <ExternalLink className="size-3" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
+import { useViewParams } from '@renderer/contexts/WorkspaceNavigationContext';
 import { rpc } from '@renderer/lib/ipc';
 import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
 import TerminalSettingsCard from '../TerminalSettingsCard';
@@ -34,8 +35,9 @@ interface SectionConfig {
   component: React.ReactNode;
 }
 
-export function SettingsPage({ initialTab = 'general' }: { initialTab?: SettingsPageTab }) {
-  const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab);
+export function SettingsPage({ tab = 'general' }: { tab?: SettingsPageTab }) {
+  const { setParams } = useViewParams('settings');
+  const activeTab = tab;
 
   const handleDocsClick = useCallback(() => {
     rpc.app.openExternal('https://docs.emdash.sh');
@@ -151,7 +153,7 @@ export function SettingsPage({ initialTab = 'general' }: { initialTab?: Settings
                       if (tab.isExternal) {
                         handleDocsClick();
                       } else {
-                        setActiveTab(tab.id as SettingsPageTab);
+                        setParams({ tab: tab.id as SettingsPageTab });
                       }
                     }}
                     className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-normal transition-colors ${

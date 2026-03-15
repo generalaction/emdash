@@ -7,85 +7,74 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
-import { projectView } from '@renderer/views/projects/view';
-import { taskView } from '@renderer/views/tasks/view';
-import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
-import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
-import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
 import { useModalContext } from './ModalProvider';
+import {
+  views,
+  type ViewDefinition,
+  type ViewId,
+  type WrapParams,
+} from './workspace-views-registry';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
+  WorkspaceUpdateViewParamsContext,
+  WorkspaceViewParamsStoreContext,
   WorkspaceWrapParamsContext,
   type NavigateFn,
   type SlotsContextValue,
+  type UpdateViewParamsFn,
   type WrapParamsContextValue,
 } from './WorkspaceNavigationContext';
 
-export type ViewDefinition<TParams extends object = Record<never, never>> = {
-  WrapView?: ComponentType<{ children: ReactNode } & TParams>;
-  TitlebarSlot?: ComponentType;
-  MainPanel: ComponentType;
-  RightPanel?: ComponentType;
-};
-
-const views = {
-  home: {
-    TitlebarSlot: HomeTitlebar,
-    MainPanel: HomeMainPanel,
-  },
-  skills: {
-    TitlebarSlot: SkillsTitlebar,
-    MainPanel: SkillsMainPanel,
-  },
-  project: projectView,
-  task: taskView,
-  settings: {
-    WrapView: SettingsViewWrapper,
-    TitlebarSlot: SettingsTitlebar,
-    MainPanel: SettingsMainPanel,
-  },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} satisfies Record<string, ViewDefinition<any>>;
-
-type Views = typeof views;
-type ViewId = keyof Views;
-
-type WrapParams<TId extends ViewId> = Views[TId] extends { WrapView: ComponentType<infer P> }
-  ? Omit<P, 'children'>
-  : Record<never, never>;
-
+/**
+ * NavArgs makes the params argument optional when all fields are optional,
+ * and omits it entirely for views with no params (home, skills).
+ */
 type NavArgs<TId extends ViewId> = keyof WrapParams<TId> extends never
   ? [viewId: TId]
-  : [viewId: TId, params: WrapParams<TId>];
+  : Partial<WrapParams<TId>> extends WrapParams<TId>
+    ? [viewId: TId, params?: WrapParams<TId>]
+    : [viewId: TId, params: WrapParams<TId>];
 
 export type NavigateFnTyped = <TId extends ViewId>(...args: NavArgs<TId>) => void;
 
-type ViewState = {
-  [K in ViewId]: { viewId: K; wrapParams: WrapParams<K> };
-}[ViewId];
-
-const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as ViewState;
+type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const { closeModal } = useModalContext();
-  const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE);
+  const [currentViewId, setCurrentViewId] = useState<ViewId>('home');
+  const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>({});
   const [_, startTransition] = useTransition();
 
   const navigate = useCallback(
     (...args: unknown[]) => {
       const [viewId, params] = args as [ViewId, Record<string, unknown>?];
       startTransition(() => {
-        setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
+        setCurrentViewId(viewId);
+        setViewParamsStore((prev) => ({ ...prev, [viewId]: params ?? {} }));
         closeModal();
       });
     },
     [closeModal]
   ) as NavigateFnTyped;
 
+  const updateViewParams = useCallback(
+    <TId extends ViewId>(
+      viewId: TId,
+      update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)
+    ) => {
+      setViewParamsStore((prev) => {
+        const current = (prev[viewId] ?? {}) as WrapParams<TId>;
+        const next = typeof update === 'function' ? update(current) : { ...current, ...update };
+        return { ...prev, [viewId]: next };
+      });
+    },
+    []
+  ) as UpdateViewParamsFn;
+
   const slotsValue = useMemo((): SlotsContextValue => {
     const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
-      viewState.viewId
+      currentViewId
     ];
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
@@ -94,26 +83,30 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
       RightPanel: def.RightPanel ?? null,
-      currentView: viewState.viewId,
+      currentView: currentViewId,
     };
-  }, [viewState.viewId]);
+  }, [currentViewId]);
 
   const wrapParamsValue = useMemo(
     (): WrapParamsContextValue => ({
-      wrapParams: viewState.wrapParams as Record<string, unknown>,
+      wrapParams: (viewParamsStore[currentViewId] ?? {}) as Record<string, unknown>,
     }),
-    [viewState.wrapParams]
+    [viewParamsStore, currentViewId]
   );
+
+  const viewParamsStoreValue = useMemo(() => ({ viewParamsStore }), [viewParamsStore]);
 
   return (
     <WorkspaceNavigateContext.Provider value={navigate as unknown as NavigateFn}>
       <WorkspaceSlotsContext.Provider value={slotsValue}>
         <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
-          {children}
+          <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>
+            <WorkspaceUpdateViewParamsContext.Provider value={updateViewParams}>
+              {children}
+            </WorkspaceUpdateViewParamsContext.Provider>
+          </WorkspaceViewParamsStoreContext.Provider>
         </WorkspaceWrapParamsContext.Provider>
       </WorkspaceSlotsContext.Provider>
     </WorkspaceNavigateContext.Provider>
   );
 }
-
-export type { ViewId, ViewState };
