@@ -36,13 +36,13 @@ export function App() {
         <AppContextProvider>
           <GithubContextProvider>
             <ProjectManagementProvider>
-              <TaskManagementProvider>
-                <AppSettingsProvider>
+              <AppSettingsProvider>
+                <TaskManagementProvider>
                   <ThemeProvider>
                     <ErrorBoundary>{renderContent()}</ErrorBoundary>
                   </ThemeProvider>
-                </AppSettingsProvider>
-              </TaskManagementProvider>
+                </TaskManagementProvider>
+              </AppSettingsProvider>
             </ProjectManagementProvider>
           </GithubContextProvider>
         </AppContextProvider>

@@ -5,6 +5,13 @@ import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import type { RemoteBranchCleanupMode } from '@shared/remoteBranchCleanup';
+import {
+  isValidRemoteBranchCleanupMode,
+  clampCleanupDays,
+  DEFAULT_REMOTE_BRANCH_CLEANUP_MODE,
+  DEFAULT_REMOTE_BRANCH_CLEANUP_DAYS,
+} from '@shared/remoteBranchCleanup';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
@@ -18,6 +25,10 @@ const IS_MAC = process.platform === 'darwin';
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
+  /** How to handle remote branches when a task is archived or deleted. */
+  remoteBranchCleanup: RemoteBranchCleanupMode;
+  /** Number of days after which remote branches are auto-deleted (only for 'auto' mode). */
+  remoteBranchCleanupDaysThreshold: number;
 }
 
 export type ShortcutModifier =
@@ -134,6 +145,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    remoteBranchCleanup: DEFAULT_REMOTE_BRANCH_CLEANUP_MODE,
+    remoteBranchCleanupDaysThreshold: DEFAULT_REMOTE_BRANCH_CLEANUP_DAYS,
   },
   projectPrep: {
     autoInstallOnOpenInEditor: true,
@@ -339,6 +352,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      remoteBranchCleanup: DEFAULT_SETTINGS.repository.remoteBranchCleanup,
+      remoteBranchCleanupDaysThreshold:
+        DEFAULT_SETTINGS.repository.remoteBranchCleanupDaysThreshold,
     },
     projectPrep: {
       autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
@@ -365,6 +381,16 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
+
+  // Remote branch cleanup
+  const rawCleanupMode = repo?.remoteBranchCleanup;
+  out.repository.remoteBranchCleanup = isValidRemoteBranchCleanupMode(rawCleanupMode)
+    ? rawCleanupMode
+    : DEFAULT_REMOTE_BRANCH_CLEANUP_MODE;
+  out.repository.remoteBranchCleanupDaysThreshold = clampCleanupDays(
+    repo?.remoteBranchCleanupDaysThreshold
+  );
+
   // Project prep
   const prep = (input as any)?.projectPrep || {};
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(

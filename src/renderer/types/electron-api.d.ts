@@ -175,6 +175,7 @@ declare global {
         worktreePath?: string;
         branch?: string;
         taskName?: string;
+        deleteRemoteBranch?: boolean;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeStatus: (args: {
         worktreePath: string;
@@ -485,6 +486,27 @@ declare global {
         success: boolean;
         subject?: string;
         body?: string;
+        error?: string;
+      }>;
+      deleteRemoteBranch: (args: {
+        projectPath: string;
+        branch: string;
+        remote?: string;
+      }) => Promise<{
+        success: boolean;
+        alreadyAbsent?: boolean;
+        noRemote?: boolean;
+        message?: string;
+        error?: string;
+      }>;
+      evaluateBranchCleanup: (args: {
+        projectPath: string;
+        branch: string;
+        mode: string;
+        daysThreshold: number;
+      }) => Promise<{
+        success: boolean;
+        action?: 'delete' | 'skip' | 'ask';
         error?: string;
       }>;
       gitCommitAndPush: (args: {
@@ -1342,6 +1364,7 @@ export interface ElectronAPI {
     worktreePath?: string;
     branch?: string;
     taskName?: string;
+    deleteRemoteBranch?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
   worktreeStatus: (args: {
     worktreePath: string;

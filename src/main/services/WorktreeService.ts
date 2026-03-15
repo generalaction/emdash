@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
+import { remoteBranchService } from './RemoteBranchService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../errorTracking';
 
@@ -405,7 +406,8 @@ export class WorktreeService {
     projectPath: string,
     worktreeId: string,
     worktreePath?: string,
-    branch?: string
+    branch?: string,
+    options?: { deleteRemoteBranch?: boolean }
   ): Promise<void> {
     try {
       const worktree = this.worktrees.get(worktreeId);
@@ -516,36 +518,15 @@ export class WorktreeService {
           }
         }
 
-        // Only try to delete remote branch if a remote exists
-        const remoteAlias = 'origin';
-        const hasRemote = await this.hasRemote(projectPath, remoteAlias);
-        if (hasRemote) {
-          let remoteBranchName = branchToDelete;
-          if (branchToDelete.startsWith('origin/')) {
-            remoteBranchName = branchToDelete.replace(/^origin\//, '');
-          }
-          try {
-            await execFileAsync('git', ['push', remoteAlias, '--delete', remoteBranchName], {
-              cwd: projectPath,
-            });
-            log.info(`Deleted remote branch ${remoteAlias}/${remoteBranchName}`);
-          } catch (remoteError: any) {
-            const msg = String(remoteError?.stderr || remoteError?.message || remoteError);
-            if (
-              /remote ref does not exist/i.test(msg) ||
-              /unknown revision/i.test(msg) ||
-              /not found/i.test(msg)
-            ) {
-              log.info(`Remote branch ${remoteAlias}/${remoteBranchName} already absent`);
-            } else {
-              log.warn(
-                `Failed to delete remote branch ${remoteAlias}/${remoteBranchName}:`,
-                remoteError
-              );
-            }
-          }
+        // Delete remote branch only when explicitly requested via the cleanup setting.
+        // The caller (worktreeIpc / task management) evaluates the user's preference
+        // and passes `deleteRemoteBranch: true` when appropriate.
+        if (options?.deleteRemoteBranch) {
+          await remoteBranchService.deleteRemoteBranch(projectPath, branchToDelete);
         } else {
-          log.info(`Skipping remote branch deletion - no remote configured (local-only repo)`);
+          log.info(
+            `Skipping remote branch deletion for ${branchToDelete} (deleteRemoteBranch not requested)`
+          );
         }
       }
 

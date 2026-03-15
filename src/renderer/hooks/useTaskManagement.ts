@@ -21,6 +21,8 @@ import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useToast } from './use-toast';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useAppSettings } from '../contexts/AppSettingsProvider';
+import type { RemoteBranchCleanupMode } from '../../shared/remoteBranchCleanup';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -158,6 +160,7 @@ export function useTaskManagement() {
 
   const { toast } = useToast();
   const { showModal } = useModalContext();
+  const { settings } = useAppSettings();
   const queryClient = useQueryClient();
 
   // ---------------------------------------------------------------------------
@@ -319,6 +322,62 @@ export function useTaskManagement() {
   };
 
   // ---------------------------------------------------------------------------
+  // Remote branch cleanup helper
+  // ---------------------------------------------------------------------------
+  /**
+   * Determine whether the remote branch should be deleted based on the user's
+   * configured cleanup mode. For 'ask' mode, shows a confirmation dialog.
+   * Returns `true` if the remote branch should be deleted.
+   */
+  const shouldDeleteRemoteBranch = async (project: Project, task: Task): Promise<boolean> => {
+    const mode: RemoteBranchCleanupMode = settings?.repository?.remoteBranchCleanup ?? 'never';
+
+    // Fast exit for the default/no-op mode
+    if (mode === 'never') return false;
+
+    // No branch to clean up
+    if (!task.branch) return false;
+
+    // If the task doesn't use a worktree and has no branch, skip
+    if (task.useWorktree === false) return false;
+
+    try {
+      const result = await window.electronAPI.evaluateBranchCleanup({
+        projectPath: project.path,
+        branch: task.branch,
+        mode,
+        daysThreshold: settings?.repository?.remoteBranchCleanupDaysThreshold ?? 7,
+      });
+
+      if (!result.success) return false;
+
+      switch (result.action) {
+        case 'delete':
+          return true;
+        case 'ask': {
+          const confirmed = await new Promise<boolean>((resolve) => {
+            showModal('confirmModal', {
+              title: 'Delete remote branch?',
+              description: `Also delete remote branch "${task.branch}" on origin?`,
+              confirmLabel: 'Delete',
+              cancelLabel: 'Keep',
+              onSuccess: () => resolve(true),
+              onClose: () => resolve(false),
+            });
+          });
+          return confirmed;
+        }
+        case 'skip':
+        default:
+          return false;
+      }
+    } catch {
+      // Never block task deletion over a remote branch failure
+      return false;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Navigation helpers
   // ---------------------------------------------------------------------------
   const handleSelectTask = (task: Task) => {
@@ -402,10 +461,12 @@ export function useTaskManagement() {
       project,
       task,
       options,
+      deleteRemoteBranch,
     }: {
       project: Project;
       task: Task;
       options?: { silent?: boolean };
+      deleteRemoteBranch?: boolean;
     }) => {
       await runLifecycleTeardownBestEffort(project, task, 'delete', options);
 
@@ -488,6 +549,7 @@ export function useTaskManagement() {
               worktreePath: task.path,
               branch: task.branch,
               taskName: task.name,
+              deleteRemoteBranch,
             })
           );
         }
@@ -570,14 +632,21 @@ export function useTaskManagement() {
         });
         return false;
       }
+      // Resolve remote branch cleanup intent BEFORE the optimistic mutation
+      const deleteRemote = await shouldDeleteRemoteBranch(targetProject, task);
       try {
-        await deleteTaskMutation.mutateAsync({ project: targetProject, task, options });
+        await deleteTaskMutation.mutateAsync({
+          project: targetProject,
+          task,
+          options,
+          deleteRemoteBranch: deleteRemote,
+        });
         return true;
       } catch {
         return false;
       }
     },
-    [deleteTaskMutation, toast]
+    [deleteTaskMutation, toast, settings, showModal]
   );
 
   // ---------------------------------------------------------------------------
@@ -588,16 +657,33 @@ export function useTaskManagement() {
       project,
       task,
       options,
+      deleteRemoteBranch,
     }: {
       project: Project;
       task: Task;
       options?: { silent?: boolean };
+      deleteRemoteBranch?: boolean;
     }) => {
       // PTY cleanup in background — don't block the UI
       void cleanupPtyResources(task);
 
       await runLifecycleTeardownBestEffort(project, task, 'archive', options);
       await rpc.db.archiveTask(task.id);
+
+      // Delete the remote branch if the user/setting requests it.
+      // This runs after the DB archive so task state is persisted
+      // even if the network call fails.
+      if (deleteRemoteBranch && task.branch) {
+        try {
+          await window.electronAPI.deleteRemoteBranch({
+            projectPath: project.path,
+            branch: task.branch,
+          });
+        } catch (err) {
+          const { log } = await import('../lib/logger');
+          log.warn('Remote branch deletion failed during archive (non-fatal):', err as Error);
+        }
+      }
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
         try {
@@ -648,14 +734,21 @@ export function useTaskManagement() {
       options?: { silent?: boolean }
     ): Promise<boolean> => {
       if (archivingTaskIdsRef.current.has(task.id)) return false;
+      // Resolve remote branch cleanup intent BEFORE the optimistic mutation
+      const deleteRemote = await shouldDeleteRemoteBranch(targetProject, task);
       try {
-        await archiveTaskMutation.mutateAsync({ project: targetProject, task, options });
+        await archiveTaskMutation.mutateAsync({
+          project: targetProject,
+          task,
+          options,
+          deleteRemoteBranch: deleteRemote,
+        });
         return true;
       } catch {
         return false;
       }
     },
-    [archiveTaskMutation]
+    [archiveTaskMutation, settings, showModal]
   );
 
   // ---------------------------------------------------------------------------
