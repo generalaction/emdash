@@ -73,6 +73,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => handlers.forEach((off) => off());
   },
 
+  // Shell detection
+  detectShells: () =>
+    ipcRenderer.invoke('app:detectShells') as Promise<{
+      success: boolean;
+      data?: Array<{ name: string; path: string }>;
+    }>,
+
   // Open a path in a specific app
   openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 

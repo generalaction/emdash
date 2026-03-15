@@ -13,6 +13,11 @@ type FontOption = {
   fontValue: string;
 };
 
+type ShellInfo = {
+  name: string;
+  path: string;
+};
+
 const POPULAR_FONTS = [
   'Menlo',
   'SF Mono',
@@ -41,10 +46,33 @@ const TerminalSettingsCard: React.FC = () => {
   const [search, setSearch] = useState<string>('');
   const [installedFonts, setInstalledFonts] = useState<string[] | null>(null);
   const [loadingFonts, setLoadingFonts] = useState<boolean>(false);
+  const [availableShells, setAvailableShells] = useState<ShellInfo[]>([]);
+  const [loadingShells, setLoadingShells] = useState(false);
 
   const fontFamily = settings?.terminal?.fontFamily ?? '';
   const fontSize = settings?.terminal?.fontSize ?? 0;
   const autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+  const shellPath = settings?.terminal?.shell ?? '';
+
+  // Detect available shells on mount
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingShells(true);
+    window.electronAPI
+      .detectShells()
+      .then((result) => {
+        if (!cancelled && result?.success && result.data) {
+          setAvailableShells(result.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingShells(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const popularOptions = useMemo<FontOption[]>(() => {
     return [
@@ -142,6 +170,13 @@ const TerminalSettingsCard: React.FC = () => {
     [updateSettings]
   );
 
+  const applyShell = useCallback(
+    (next: string) => {
+      updateSettings({ terminal: { shell: next } });
+    },
+    [updateSettings]
+  );
+
   const selectedPreset = findPreset(fontFamily);
   const pickerLabel = fontFamily.trim()
     ? (selectedPreset?.label ?? `Custom: ${fontFamily.trim()}`)
@@ -161,8 +196,45 @@ const TerminalSettingsCard: React.FC = () => {
 
   const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
 
+  const shellLabel = useMemo(() => {
+    if (!shellPath) return 'Auto-detect';
+    const match = availableShells.find((s) => s.path === shellPath);
+    return match?.name ?? shellPath;
+  }, [shellPath, availableShells]);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Shell selector */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <p className="text-sm font-medium text-foreground">Default shell</p>
+          <p className="text-sm text-muted-foreground">
+            Shell used for terminals. New terminals will use the selected shell.
+          </p>
+        </div>
+        <div className="w-[183px] flex-shrink-0">
+          <Select
+            value={shellPath || '__auto__'}
+            onValueChange={(v) => applyShell(v === '__auto__' ? '' : v)}
+            disabled={loading || saving || loadingShells}
+          >
+            <SelectTrigger className="h-9 bg-background hover:bg-accent hover:text-accent-foreground">
+              <SelectValue placeholder={loadingShells ? 'Detecting...' : 'Auto-detect'}>
+                {shellLabel}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__auto__">Auto-detect</SelectItem>
+              {availableShells.map((shell) => (
+                <SelectItem key={shell.path} value={shell.path}>
+                  {shell.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {/* Font family */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Terminal font</p>
@@ -268,6 +340,7 @@ const TerminalSettingsCard: React.FC = () => {
           </Popover>
         </div>
       </div>
+      {/* Font size */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Terminal font size</p>
@@ -298,6 +371,7 @@ const TerminalSettingsCard: React.FC = () => {
           </Select>
         </div>
       </div>
+      {/* Auto-copy */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Auto-copy selected text</p>

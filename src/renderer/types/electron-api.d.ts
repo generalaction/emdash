@@ -53,6 +53,12 @@ declare global {
       getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
       checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
+      // Shell detection
+      detectShells: () => Promise<{
+        success: boolean;
+        data?: Array<{ name: string; path: string }>;
+      }>;
+
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
       onMenuCheckForUpdates: (listener: () => void) => () => void;

@@ -8,7 +8,7 @@ import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
-import { getProviderCustomConfig } from '../settings';
+import { getAppSettings, getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
 import { OpenCodeHookService } from './OpenCodeHookService';
 
@@ -1246,6 +1246,12 @@ export function startDirectPty(options: {
 }
 
 function getDefaultShell(): string {
+  // Check user setting first
+  const shellSetting = getAppSettings()?.terminal?.shell;
+  if (shellSetting) {
+    return shellSetting;
+  }
+
   if (process.platform === 'win32') {
     // Prefer ComSpec (usually cmd.exe) or fallback to PowerShell
     return process.env.ComSpec || 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
