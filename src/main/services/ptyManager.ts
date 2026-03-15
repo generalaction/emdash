@@ -1540,7 +1540,7 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc, kind: 'local', cols, rows, tmuxSessionName });
+  ptys.set(id, { id, proc, cwd: useCwd, kind: 'local', cols, rows, tmuxSessionName });
   return proc;
 }
 
@@ -1613,6 +1613,10 @@ export function getPty(id: string): IPty | undefined {
 
 export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
   return ptys.get(id)?.kind;
+}
+
+export function getPtyCwd(id: string): string | undefined {
+  return ptys.get(id)?.cwd;
 }
 
 export function getPtyTmuxSessionName(id: string): string | undefined {

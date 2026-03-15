@@ -125,6 +125,9 @@ declare global {
       onAgentEvent: (
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
+      onPtyPrUrlDetected: (
+        listener: (event: { id: string; url: string; cwd?: string }) => void
+      ) => () => void;
       onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
@@ -1323,6 +1326,9 @@ export interface ElectronAPI {
   onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
   onAgentEvent: (
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
+  ) => () => void;
+  onPtyPrUrlDetected: (
+    listener: (event: { id: string; url: string; cwd?: string }) => void
   ) => () => void;
   onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
 
