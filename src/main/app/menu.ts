@@ -1,4 +1,4 @@
-import { Menu, shell, app, BrowserWindow } from 'electron';
+import { Menu, shell, app, BrowserWindow, ipcMain } from 'electron';
 import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
 
 function getFocusedWindow(): BrowserWindow | null {
@@ -8,6 +8,74 @@ function getFocusedWindow(): BrowserWindow | null {
 function sendToRenderer(channel: string) {
   const win = getFocusedWindow();
   if (win) win.webContents.send(channel);
+}
+
+/** Menu labels exposed to the renderer for the custom title-bar menu. */
+export type TitlebarMenuLabel = 'File' | 'Edit' | 'View' | 'Window' | 'Help';
+
+function getWindowsMenuTemplate(): Record<TitlebarMenuLabel, Electron.MenuItemConstructorOptions[]> {
+  return {
+    File: [
+      {
+        label: 'Settings\u2026',
+        accelerator: 'CmdOrCtrl+,',
+        click: () => sendToRenderer('menu:open-settings'),
+      },
+      { type: 'separator' },
+      {
+        label: 'Close Tab',
+        accelerator: 'CmdOrCtrl+W',
+        click: () => sendToRenderer('menu:close-tab'),
+      },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+    Edit: [
+      {
+        label: 'Undo',
+        accelerator: 'CmdOrCtrl+Z',
+        click: () => sendToRenderer('menu:undo'),
+      },
+      {
+        label: 'Redo',
+        accelerator: 'CmdOrCtrl+Y',
+        click: () => sendToRenderer('menu:redo'),
+      },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'delete' },
+      { role: 'selectAll' },
+    ],
+    View: [
+      { role: 'reload' },
+      { role: 'forceReload' },
+      { role: 'toggleDevTools' },
+      { type: 'separator' },
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ],
+    Window: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }],
+    Help: [
+      {
+        label: 'Docs',
+        click: () => shell.openExternal(EMDASH_DOCS_URL),
+      },
+      {
+        label: 'Changelog',
+        click: () => shell.openExternal(EMDASH_RELEASES_URL),
+      },
+      { type: 'separator' },
+      {
+        label: 'Check for Updates\u2026',
+        click: () => sendToRenderer('menu:check-for-updates'),
+      },
+    ],
+  };
 }
 
 export function setupApplicationMenu(): void {
@@ -140,4 +208,21 @@ export function setupApplicationMenu(): void {
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
+
+  // Register IPC handler for popup menus (custom title bar on Windows/Linux)
+  if (!isMac) {
+    const windowsMenus = getWindowsMenuTemplate();
+
+    ipcMain.handle(
+      'app:popupMenu',
+      (_event, args: { label: string; x: number; y: number }) => {
+        const win = getFocusedWindow();
+        if (!win) return;
+        const items = windowsMenus[args.label as TitlebarMenuLabel];
+        if (!items) return;
+        const contextMenu = Menu.buildFromTemplate(items);
+        contextMenu.popup({ window: win, x: Math.round(args.x), y: Math.round(args.y) });
+      }
+    );
+  }
 }

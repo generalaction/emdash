@@ -53,6 +53,14 @@ declare global {
       getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
       checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
+      // Window controls (custom title bar on Windows/Linux)
+      windowMinimize: () => Promise<void>;
+      windowMaximize: () => Promise<void>;
+      windowClose: () => Promise<void>;
+      windowIsMaximized: () => Promise<boolean>;
+      popupMenu: (args: { label: string; x: number; y: number }) => Promise<void>;
+      onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => () => void;
+
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
       onMenuCheckForUpdates: (listener: () => void) => () => void;

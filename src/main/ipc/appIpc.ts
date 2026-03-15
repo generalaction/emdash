@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { exec, execFile } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -627,4 +627,26 @@ export function registerAppIpc() {
   ipcMain.handle('app:getAppVersion', () => getCachedAppVersion());
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
+
+  // Window controls (used by custom title bar on Windows/Linux)
+  ipcMain.handle('app:windowMinimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+  });
+  ipcMain.handle('app:windowMaximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win?.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win?.maximize();
+    }
+  });
+  ipcMain.handle('app:windowClose', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+  });
+  ipcMain.handle('app:windowIsMaximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win?.isMaximized() ?? false;
+  });
 }

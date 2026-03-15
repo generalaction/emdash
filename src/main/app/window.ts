@@ -30,7 +30,9 @@ export function createMainWindow(): BrowserWindow {
       // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' }
+      : { frame: false }),
     show: false,
   });
 
@@ -70,6 +72,16 @@ export function createMainWindow(): BrowserWindow {
       checkAndReportDailyActiveUser();
     });
   });
+
+  // Notify renderer of maximize/unmaximize for custom title bar
+  if (process.platform !== 'darwin') {
+    mainWindow.on('maximize', () => {
+      mainWindow?.webContents.send('window:maximized');
+    });
+    mainWindow.on('unmaximize', () => {
+      mainWindow?.webContents.send('window:unmaximized');
+    });
+  }
 
   // Cleanup reference on close
   mainWindow.on('closed', () => {
