@@ -34,6 +34,7 @@ import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
 import { useTerminalSearch } from '../hooks/useTerminalSearch';
 import { TerminalSearchOverlay } from './TerminalSearchOverlay';
+import { getReviewConversationMetadata, parseConversationMetadata } from '@shared/reviewPreset';
 
 declare const window: Window & {
   electronAPI: {
@@ -174,17 +175,24 @@ const ChatInterface: React.FC<Props> = ({
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
+  const fallbackAgentRef = useRef<Agent>(initialAgent || 'claude');
+  fallbackAgentRef.current = agent;
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
     [conversations]
   );
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId) ?? null,
+    [activeConversationId, conversations]
+  );
+  const activeReviewMetadata = useMemo(
+    () => getReviewConversationMetadata(activeConversation?.metadata),
+    [activeConversation?.metadata]
+  );
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
-    // Find the active conversation to check if it's the main one
-    const activeConversation = conversations.find((c) => c.id === activeConversationId);
-
     if (activeConversation?.isMain) {
       // Main conversations use task-based ID for backward compatibility
       // This ensures terminal sessions persist correctly
@@ -195,7 +203,7 @@ const ChatInterface: React.FC<Props> = ({
     }
     // Fallback to main format if no active conversation
     return makePtyId(agent, 'main', task.id);
-  }, [activeConversationId, agent, task.id, conversations]);
+  }, [activeConversation, activeConversationId, agent, task.id]);
 
   // Claude needs consistent working directory to maintain session state
   const terminalCwd = useMemo(() => {
@@ -258,71 +266,74 @@ const ChatInterface: React.FC<Props> = ({
     onTaskInterfaceReady();
   }, [task.id, onTaskInterfaceReady]);
 
+  const syncConversations = useCallback(async () => {
+    setConversationsLoaded(false);
+    const loadedConversations = await rpc.db.getConversations(task.id);
+
+    if (loadedConversations.length > 0) {
+      setConversations(loadedConversations);
+
+      const active =
+        loadedConversations.find((c: Conversation) => c.isActive) ?? loadedConversations[0];
+      setActiveConversationId(active.id);
+      if (active.provider) {
+        setAgent(active.provider as Agent);
+      }
+
+      if (!loadedConversations.some((c: Conversation) => c.isActive)) {
+        await rpc.db.setActiveConversation({
+          taskId: task.id,
+          conversationId: active.id,
+        });
+      }
+
+      setConversationsLoaded(true);
+      return;
+    }
+
+    // No conversations exist - create default for backward compatibility
+    // (preserves pre-multi-chat behavior for existing tasks)
+    const taskAgent = (task.agentId || fallbackAgentRef.current) as string;
+    const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
+      taskId: task.id,
+      provider: taskAgent,
+    });
+
+    setConversations([
+      {
+        ...defaultConversation,
+        isMain: true,
+        isActive: true,
+      },
+    ]);
+    setActiveConversationId(defaultConversation.id);
+    setAgent((defaultConversation.provider || taskAgent) as Agent);
+    setConversationsLoaded(true);
+  }, [task.id, task.agentId]);
+
   // Load conversations when task changes
   useEffect(() => {
-    let cancelled = false;
+    void syncConversations();
+  }, [syncConversations]);
 
-    const loadConversations = async () => {
-      setConversationsLoaded(false);
-      const loadedConversations = await rpc.db.getConversations(task.id);
-      if (cancelled) return;
-
-      if (loadedConversations.length > 0) {
-        setConversations(loadedConversations);
-
-        // Set active conversation
-        const active = loadedConversations.find((c: Conversation) => c.isActive);
-        if (active) {
-          setActiveConversationId(active.id);
-          // Update agent to match the active conversation
-          if (active.provider) {
-            setAgent(active.provider as Agent);
-          }
-        } else {
-          // Fallback to first conversation
-          const firstConv = loadedConversations[0];
-          setActiveConversationId(firstConv.id);
-          // Update agent to match the first conversation
-          if (firstConv.provider) {
-            setAgent(firstConv.provider as Agent);
-          }
-          await rpc.db.setActiveConversation({
-            taskId: task.id,
-            conversationId: firstConv.id,
-          });
-        }
-        if (!cancelled) setConversationsLoaded(true);
-      } else {
-        // No conversations exist - create default for backward compatibility
-        // This ensures existing tasks always have at least one conversation
-        // (preserves pre-multi-chat behavior)
-        const taskAgent = (task.agentId || agent) as string;
-        const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
-          taskId: task.id,
-          provider: taskAgent,
-        });
-        if (cancelled) return;
-        if (defaultConversation) {
-          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
-          setConversations([
-            {
-              ...defaultConversation,
-              isMain: true,
-              isActive: true,
-            },
-          ]);
-          setActiveConversationId(defaultConversation.id);
-          setAgent((defaultConversation.provider || taskAgent) as Agent);
-          if (!cancelled) setConversationsLoaded(true);
-        }
-      }
+  useEffect(() => {
+    const handleConversationsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ taskId?: string }>).detail;
+      if (detail?.taskId !== task.id) return;
+      void syncConversations();
     };
 
-    loadConversations();
+    window.addEventListener(
+      'emdash:conversations-changed',
+      handleConversationsChanged as EventListener
+    );
     return () => {
-      cancelled = true;
+      window.removeEventListener(
+        'emdash:conversations-changed',
+        handleConversationsChanged as EventListener
+      );
     };
-  }, [task.id, task.agentId]); // agent is intentionally not included as a dependency
+  }, [task.id, syncConversations]);
 
   // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
   useEffect(() => {
@@ -599,7 +610,15 @@ const ChatInterface: React.FC<Props> = ({
 
   // Chat management handlers
   const handleCreateChat = useCallback(
-    async (title: string, newAgent: string) => {
+    async ({
+      title,
+      agent: newAgent,
+      metadata,
+    }: {
+      title: string;
+      agent: string;
+      metadata?: string | null;
+    }) => {
       try {
         // Don't dispose the current terminal - each chat has its own independent session
 
@@ -608,29 +627,15 @@ const ChatInterface: React.FC<Props> = ({
           title,
           provider: newAgent,
           isMain: false, // Additional chats are never main
+          metadata,
         });
 
-        // Reload conversations from DB
-        const dbConversations = await rpc.db.getConversations(task.id);
-        const dbIds = new Set(dbConversations.map((c: Conversation) => c.id));
-        const missingFromDb = conversations.filter((c) => !dbIds.has(c.id));
-        if (missingFromDb.length > 0) {
-          // Re-persist conversations that only existed in React state
-          for (const missing of missingFromDb) {
-            await rpc.db.saveConversation({ ...missing, isActive: false });
-          }
-          const retryConversations = await rpc.db.getConversations(task.id);
-          setConversations(retryConversations);
-        } else {
-          setConversations(dbConversations);
-        }
         setActiveConversationId(newConversation.id);
         setAgent(newAgent as Agent);
-        try {
-          window.dispatchEvent(
-            new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-          );
-        } catch {}
+        await syncConversations();
+        window.dispatchEvent(
+          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        );
       } catch (error) {
         console.error('Exception creating conversation:', error);
         toast({
@@ -640,7 +645,7 @@ const ChatInterface: React.FC<Props> = ({
         });
       }
     },
-    [task.id, toast, conversations]
+    [syncConversations, task.id, toast]
   );
 
   const handleCreateNewChat = useCallback(() => {
@@ -982,16 +987,35 @@ const ChatInterface: React.FC<Props> = ({
 
     return null;
   }, [isTerminal, isMainConversation, task.metadata]);
+  const reviewPrompt = !activeConversation?.isMain
+    ? (activeReviewMetadata?.initialPrompt ?? null)
+    : null;
+  const reviewPromptSent =
+    !activeConversation?.isMain && activeReviewMetadata?.initialPromptSent === true;
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
   // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead.
   useInitialPromptInjection({
-    taskId: task.id,
+    scopeId: task.id,
     providerId: agent,
     prompt: initialInjection,
     enabled:
+      isMainConversation &&
       isTerminal &&
+      (agentMeta[agent]?.initialPromptFlag === undefined ||
+        agentMeta[agent]?.useKeystrokeInjection === true),
+  });
+  useInitialPromptInjection({
+    scopeId: activeConversation?.id ?? '',
+    ptyKind: 'chat',
+    providerId: agent,
+    prompt: reviewPrompt,
+    enabled:
+      !isMainConversation &&
+      isTerminal &&
+      !!activeConversation?.id &&
+      !reviewPromptSent &&
       (agentMeta[agent]?.initialPromptFlag === undefined ||
         agentMeta[agent]?.useKeystrokeInjection === true),
   });
@@ -1036,6 +1060,31 @@ const ChatInterface: React.FC<Props> = ({
     project &&
     onRenameTask
   );
+
+  const markActiveReviewPromptSent = useCallback(() => {
+    if (!activeConversation || activeConversation.isMain || !activeReviewMetadata) return;
+    if (activeReviewMetadata.initialPromptSent) return;
+
+    const nextMetadata = JSON.stringify({
+      ...(parseConversationMetadata(activeConversation.metadata) ?? {}),
+      mode: 'review',
+      initialPrompt: activeReviewMetadata.initialPrompt,
+      initialPromptSent: true,
+    });
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === activeConversation.id
+          ? { ...conversation, metadata: nextMetadata }
+          : conversation
+      )
+    );
+
+    void rpc.db.saveConversation({
+      ...activeConversation,
+      metadata: nextMetadata,
+    });
+  }, [activeConversation, activeReviewMetadata]);
 
   if (!isTerminal) {
     return null;
@@ -1200,8 +1249,11 @@ const ChatInterface: React.FC<Props> = ({
                   }}
                   onStartSuccess={() => {
                     setCliStartError(null);
-                    // Mark initial injection as sent so it won't re-run on restart
-                    if (initialInjection && !task.metadata?.initialInjectionSent) {
+                    if (
+                      isMainConversation &&
+                      initialInjection &&
+                      !task.metadata?.initialInjectionSent
+                    ) {
                       void rpc.db.saveTask({
                         ...task,
                         metadata: {
@@ -1209,6 +1261,9 @@ const ChatInterface: React.FC<Props> = ({
                           initialInjectionSent: true,
                         },
                       });
+                    }
+                    if (!isMainConversation && reviewPrompt && !reviewPromptSent) {
+                      markActiveReviewPromptSent();
                     }
                   }}
                   variant={
@@ -1255,8 +1310,11 @@ const ChatInterface: React.FC<Props> = ({
                   initialPrompt={
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
                     !agentMeta[agent]?.useKeystrokeInjection &&
-                    !task.metadata?.initialInjectionSent
-                      ? (initialInjection ?? undefined)
+                    ((isMainConversation && !task.metadata?.initialInjectionSent) ||
+                      (!isMainConversation && !reviewPromptSent))
+                      ? isMainConversation
+                        ? (initialInjection ?? undefined)
+                        : (reviewPrompt ?? undefined)
                       : undefined
                   }
                   onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
