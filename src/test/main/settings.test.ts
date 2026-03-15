@@ -8,6 +8,7 @@ vi.mock('electron', () => ({
 
 import { normalizeSettings } from '../../main/settings';
 import type { AppSettings } from '../../main/settings';
+import { DEFAULT_REVIEW_AGENT, DEFAULT_REVIEW_PROMPT } from '../../shared/reviewPreset';
 
 /** Minimal valid AppSettings skeleton for normalizeSettings. */
 function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
@@ -95,5 +96,53 @@ describe('normalizeSettings - changelog dismissed versions', () => {
   it('defaults to an empty list when missing', () => {
     const result = normalizeSettings(makeSettings());
     expect(result.changelog?.dismissedVersions).toEqual([]);
+  });
+});
+
+describe('normalizeSettings - review preset', () => {
+  it('defaults to the shared review preset when missing', () => {
+    const result = normalizeSettings(makeSettings());
+
+    expect(result.review).toEqual({
+      enabled: false,
+      agent: DEFAULT_REVIEW_AGENT,
+      prompt: DEFAULT_REVIEW_PROMPT,
+    });
+  });
+
+  it('preserves valid configured values', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        review: {
+          enabled: true,
+          agent: 'codex',
+          prompt: 'Review the diff for correctness only.',
+        },
+      })
+    );
+
+    expect(result.review).toEqual({
+      enabled: true,
+      agent: 'codex',
+      prompt: 'Review the diff for correctness only.',
+    });
+  });
+
+  it('falls back when the configured agent or prompt is invalid', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        review: {
+          enabled: true,
+          agent: 'not-real' as any,
+          prompt: '   ',
+        },
+      })
+    );
+
+    expect(result.review).toEqual({
+      enabled: true,
+      agent: DEFAULT_REVIEW_AGENT,
+      prompt: DEFAULT_REVIEW_PROMPT,
+    });
   });
 });
