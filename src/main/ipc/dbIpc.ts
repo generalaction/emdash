@@ -44,8 +44,15 @@ export const databaseController = createRPCController({
     title: string;
     provider?: string;
     isMain?: boolean;
+    metadata?: string | null;
   }): Promise<Conversation> =>
-    databaseService.createConversation(args.taskId, args.title, args.provider, args.isMain),
+    databaseService.createConversation(
+      args.taskId,
+      args.title,
+      args.provider,
+      args.isMain,
+      args.metadata
+    ),
 
   deleteConversation: (conversationId: string): Promise<void> =>
     databaseService.deleteConversation(conversationId),

@@ -5,6 +5,11 @@ import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import {
+  DEFAULT_REVIEW_AGENT,
+  DEFAULT_REVIEW_PROMPT,
+  type ReviewSettings,
+} from '@shared/reviewPreset';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
@@ -89,6 +94,7 @@ export interface AppSettings {
     soundFocusMode: 'always' | 'unfocused';
   };
   defaultProvider?: ProviderId;
+  review?: ReviewSettings;
   tasks?: {
     autoGenerateName: boolean;
     autoInferTaskNames: boolean;
@@ -149,6 +155,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     soundFocusMode: 'always',
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
+  review: {
+    enabled: false,
+    agent: DEFAULT_REVIEW_AGENT,
+    prompt: DEFAULT_REVIEW_PROMPT,
+  },
   tasks: {
     autoGenerateName: true,
     autoInferTaskNames: true,
@@ -396,6 +407,20 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   out.defaultProvider = isValidProviderId(defaultProvider)
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
+
+  const review = (input as any)?.review || {};
+  const reviewAgent = isValidProviderId(review?.agent)
+    ? review.agent
+    : DEFAULT_SETTINGS.review!.agent;
+  const reviewPrompt =
+    typeof review?.prompt === 'string' && review.prompt.trim()
+      ? review.prompt.trim()
+      : DEFAULT_SETTINGS.review!.prompt;
+  out.review = {
+    enabled: Boolean(review?.enabled ?? DEFAULT_SETTINGS.review!.enabled),
+    agent: reviewAgent,
+    prompt: reviewPrompt,
+  };
 
   // Tasks
   const tasks = (input as any)?.tasks || {};
