@@ -13,7 +13,10 @@ function sendToRenderer(channel: string) {
 /** Menu labels exposed to the renderer for the custom title-bar menu. */
 export type TitlebarMenuLabel = 'File' | 'Edit' | 'View' | 'Window' | 'Help';
 
-function getWindowsMenuTemplate(): Record<TitlebarMenuLabel, Electron.MenuItemConstructorOptions[]> {
+function getWindowsMenuTemplate(): Record<
+  TitlebarMenuLabel,
+  Electron.MenuItemConstructorOptions[]
+> {
   return {
     File: [
       {
@@ -213,16 +216,13 @@ export function setupApplicationMenu(): void {
   if (!isMac) {
     const windowsMenus = getWindowsMenuTemplate();
 
-    ipcMain.handle(
-      'app:popupMenu',
-      (_event, args: { label: string; x: number; y: number }) => {
-        const win = getFocusedWindow();
-        if (!win) return;
-        const items = windowsMenus[args.label as TitlebarMenuLabel];
-        if (!items) return;
-        const contextMenu = Menu.buildFromTemplate(items);
-        contextMenu.popup({ window: win, x: Math.round(args.x), y: Math.round(args.y) });
-      }
-    );
+    ipcMain.handle('app:popupMenu', (_event, args: { label: string; x: number; y: number }) => {
+      const win = getFocusedWindow();
+      if (!win) return;
+      const items = windowsMenus[args.label as TitlebarMenuLabel];
+      if (!items) return;
+      const contextMenu = Menu.buildFromTemplate(items);
+      contextMenu.popup({ window: win, x: Math.round(args.x), y: Math.round(args.y) });
+    });
   }
 }

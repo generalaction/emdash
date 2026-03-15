@@ -30,9 +30,7 @@ export function createMainWindow(): BrowserWindow {
       // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
-    ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hiddenInset' }
-      : { frame: false }),
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : { frame: false }),
     show: false,
   });
 

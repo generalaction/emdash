@@ -23,8 +23,7 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
 
-const isMacOS =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const isMacOS = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 interface GithubUser {
   login?: string;
