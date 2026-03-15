@@ -105,17 +105,10 @@ export function registerWorktreeIpc(): void {
       buffered.stderr = '';
     }
 
-    if (!buffered.stdout && !buffered.stderr) {
-      if (buffered.timer) {
-        clearTimeout(buffered.timer);
-      }
-      outputBuffers.delete(taskId);
-      return;
+    if (buffered.timer) {
+      clearTimeout(buffered.timer);
     }
-
-    buffered.timer = setTimeout(() => {
-      flushBufferedOutput(taskId);
-    }, 100);
+    outputBuffers.delete(taskId);
   };
 
   const bufferProgressEvent = (event: WorktreeCreationEvent): void => {

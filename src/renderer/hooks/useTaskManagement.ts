@@ -562,14 +562,18 @@ export function useTaskManagement() {
       task: Task;
       options?: { silent?: boolean };
     }) => {
-      if (task.status === 'creating') {
-        await window.electronAPI.worktreeCancelTaskCreation({
+      const isCreatingTask = task.status === 'creating';
+      let shouldRunTeardown = !isCreatingTask;
+
+      if (isCreatingTask) {
+        const cancelResult = await window.electronAPI.worktreeCancelTaskCreation({
           taskId: task.id,
           reason: 'Task deleted while worktree creation was in progress',
         });
+        shouldRunTeardown = !cancelResult?.cancelled;
       }
 
-      if (task.status !== 'creating') {
+      if (shouldRunTeardown) {
         await runLifecycleTeardownBestEffort(project, task, 'delete', options);
       }
 
