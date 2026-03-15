@@ -11,8 +11,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { AgentDropdown } from './AgentDropdown';
-import { Switch } from './ui/switch';
-import { Textarea } from './ui/textarea';
+import { CreateChatReviewSection } from './CreateChatReviewSection';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
@@ -177,51 +176,18 @@ export function CreateChatModal({
           ) : null}
 
           {reviewSettings.enabled ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <Label className="text-sm font-medium">Review</Label>
-                <Switch
-                  checked={reviewEnabled}
-                  onCheckedChange={(checked) => {
-                    setReviewEnabled(checked);
-                    setError(null);
-                  }}
-                  aria-label="Enable review mode"
-                />
-              </div>
-
-              {reviewEnabled ? (
-                <div className="space-y-3 rounded-lg border border-border px-3 py-3">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Review mode</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Start a review chat instead of a regular blank chat.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <Label className="shrink-0">Review agent</Label>
-                    <AgentDropdown
-                      value={reviewAgent}
-                      onChange={setReviewAgent}
-                      installedAgents={installedAgents}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="review-prompt" className="text-sm font-medium">
-                      Prompt
-                    </Label>
-                    <Textarea
-                      id="review-prompt"
-                      value={reviewPrompt}
-                      onChange={(event) => setReviewPrompt(event.target.value)}
-                      rows={5}
-                      className="min-h-[120px] resize-y"
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <CreateChatReviewSection
+              reviewEnabled={reviewEnabled}
+              onReviewEnabledChange={(checked) => {
+                setReviewEnabled(checked);
+                setError(null);
+              }}
+              reviewAgent={reviewAgent}
+              onReviewAgentChange={setReviewAgent}
+              reviewPrompt={reviewPrompt}
+              onReviewPromptChange={setReviewPrompt}
+              installedAgents={installedAgents}
+            />
           ) : null}
           {error && <p className="text-xs text-destructive">{error}</p>}
           {reviewEnabled && !error && !reviewAvailable ? (
