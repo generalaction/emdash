@@ -375,6 +375,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;
