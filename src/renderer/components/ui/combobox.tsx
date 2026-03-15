@@ -48,14 +48,27 @@ function ComboboxInput({
   disabled = false,
   showTrigger = true,
   showClear = false,
+  leftAddon,
+  inputRef,
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean;
   showClear?: boolean;
+  leftAddon?: React.ReactNode;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <InputGroup className={cn('w-auto', className)}>
-      <ComboboxPrimitive.Input render={<InputGroupInput disabled={disabled} />} {...props} />
+    <InputGroup
+      className={cn(
+        'w-auto has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-input',
+        className
+      )}
+    >
+      {leftAddon && <InputGroupAddon align="inline-start">{leftAddon}</InputGroupAddon>}
+      <ComboboxPrimitive.Input
+        render={<InputGroupInput ref={inputRef} disabled={disabled} />}
+        {...props}
+      />
       <InputGroupAddon align="inline-end">
         {showTrigger && (
           <InputGroupButton
@@ -81,11 +94,12 @@ function ComboboxContent({
   align = 'start',
   alignOffset = 0,
   anchor,
+  collisionAvoidance,
   ...props
 }: ComboboxPrimitive.Popup.Props &
   Pick<
     ComboboxPrimitive.Positioner.Props,
-    'side' | 'align' | 'sideOffset' | 'alignOffset' | 'anchor'
+    'side' | 'align' | 'sideOffset' | 'alignOffset' | 'anchor' | 'collisionAvoidance'
   >) {
   return (
     <ComboboxPrimitive.Portal>
@@ -95,6 +109,7 @@ function ComboboxContent({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
+        collisionAvoidance={collisionAvoidance}
         className="isolate z-50"
       >
         <ComboboxPrimitive.Popup

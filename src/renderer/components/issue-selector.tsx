@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { Loader2, XIcon } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import githubLogo from '@/assets/images/github.png';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
@@ -9,6 +10,8 @@ import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
 import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
 import { cn } from '@renderer/lib/utils';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import {
   Combobox,
   ComboboxContent,
@@ -19,10 +22,11 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from './ui/combobox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-function getStatusColor(status?: string): string | undefined {
-  if (!status) return undefined;
+function getStatusColorClass(status?: string) {
+  if (!status) return '';
   const s = status.toLowerCase();
   if (
     s.includes('done') ||
@@ -30,10 +34,25 @@ function getStatusColor(status?: string): string | undefined {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return '#22c55e';
-  if (s.includes('progress') || s.includes('review') || s.includes('open')) return '#3b82f6';
-  if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled')) return '#ef4444';
-  return '#6b7280';
+    return 'bg-emerald-500 ';
+  if (s.includes('progress') || s.includes('review') || s.includes('open')) return 'bg-yellow-500';
+  if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
+    return 'bg-red-500';
+  return 'bg-gray-300';
+}
+
+function IssueIdentifier({ identifier }: { identifier: string }) {
+  return (
+    <span className="shrink-0 whitespace-nowrap font-medium text-muted-foreground group-hover:text-muted-foreground text-xs font-mono">
+      {identifier}
+    </span>
+  );
+}
+
+function StatusDot({ status }: { status?: string }) {
+  if (!status) return null;
+  const color = getStatusColorClass(status);
+  return <span className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)} />;
 }
 
 function ProviderLogo({
@@ -48,43 +67,15 @@ function ProviderLogo({
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
-function StatusPill({ status }: { status?: string }) {
-  if (!status) return null;
-  const color = getStatusColor(status);
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-      {color && (
-        <span
-          className="inline-block h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-        />
-      )}
-      {status}
-    </span>
-  );
-}
-
-function IdentifierBadge({
-  provider,
-  identifier,
-}: {
-  provider: Issue['provider'];
-  identifier: string;
-}) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-0.5 dark:border-border dark:bg-card">
-      <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
-      <span className="text-[11px] font-medium text-foreground">{identifier}</span>
-    </span>
-  );
-}
-
 function IssueRow({ issue }: { issue: Issue }) {
   return (
-    <span className="flex min-w-0 items-center gap-2">
-      <IdentifierBadge provider={issue.provider} identifier={issue.identifier} />
-      <StatusPill status={issue.status} />
-      {issue.title ? <span className="truncate text-muted-foreground">{issue.title}</span> : null}
+    <span className="flex min-w-0 items-center gap-2 w-full">
+      <Tooltip>
+        <TooltipTrigger render={<StatusDot status={issue.status} />} />
+        <TooltipContent>{issue.status}</TooltipContent>
+      </Tooltip>
+      <IssueIdentifier identifier={issue.identifier} />
+      {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
     </span>
   );
 }
@@ -98,11 +89,20 @@ export interface IssueSelectorProps {
 }
 
 export function IssueSelector({ projectPath, value, onValueChange }: IssueSelectorProps) {
-  const { navigate } = useWorkspaceNavigation();
   const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
   );
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const providerSelectOpenRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelectIssueProvider = (provider: Issue['provider']) => {
+    setSelectedIssueProvider(provider);
+    if (value?.provider !== provider) {
+      onValueChange(null);
+    }
+  };
 
   const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
   const githubIssues = useGitHubIssues({
@@ -115,9 +115,9 @@ export function IssueSelector({ projectPath, value, onValueChange }: IssueSelect
 
   const issueProvider = useMemo(() => {
     if (!selectedIssueProvider) {
-      if (isLinearConnected) return 'linear';
-      if (isGithubConnected) return 'github';
-      if (isJiraConnected) return 'jira';
+      if (isLinearConnected) return 'linear' as const;
+      if (isGithubConnected) return 'github' as const;
+      if (isJiraConnected) return 'jira' as const;
     }
     return selectedIssueProvider;
   }, [isLinearConnected, isGithubConnected, isJiraConnected, selectedIssueProvider]);
@@ -157,120 +157,178 @@ export function IssueSelector({ projectPath, value, onValueChange }: IssueSelect
     return [];
   }, [issueProvider, linearIssues.issues, githubIssues.issues, jiraIssues.issues]);
 
+  const activeHook =
+    issueProvider === 'linear'
+      ? linearIssues
+      : issueProvider === 'github'
+        ? githubIssues
+        : jiraIssues;
+
+  const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
+
+  const connectedProviderCount = [isLinearConnected, isGithubConnected, isJiraConnected].filter(
+    Boolean
+  ).length;
+
+  const leftAddon = issueProvider ? (
+    isProviderLoading ? (
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground/60" />
+    ) : connectedProviderCount > 1 ? (
+      <Select
+        value={issueProvider}
+        onValueChange={(v) => v && handleSelectIssueProvider(v as Issue['provider'])}
+        onOpenChange={(open) => {
+          providerSelectOpenRef.current = open;
+          if (open) {
+            setComboboxOpen(true);
+          } else {
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }
+        }}
+      >
+        <SelectTrigger
+          showChevron={false}
+          className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
+        >
+          <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+        </SelectTrigger>
+        <SelectContent>
+          {ISSUE_PROVIDERS.map((p) => (
+            <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
+              <ProviderLogo provider={p} className="h-3.5 w-3.5" />
+              <span className="capitalize">{p}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : (
+      <span className="mx-1.5 flex items-center">
+        <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+      </span>
+    )
+  ) : null;
+
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {hasAnyIntegration ? (
-        <>
-          <Select
-            value={issueProvider}
-            onValueChange={(v) => setSelectedIssueProvider(v as Issue['provider'])}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select an issue provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {ISSUE_PROVIDERS.map((provider) => (
-                <SelectItem key={provider} value={provider} disabled={isProviderDisabled(provider)}>
-                  <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
-                  <span className="text-[11px] font-medium text-foreground">{provider}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Combobox
-            autoHighlight
-            items={issues}
-            filter={null}
-            itemToStringLabel={(issue: Issue | null) =>
-              issue ? `${issue.identifier} ${issue.title}` : ''
-            }
-            value={value}
-            onValueChange={(next: Issue | null) => onValueChange(next)}
-            onInputValueChange={(val: string, { reason }: { reason: string }) => {
-              if (reason !== 'item-press') handleSetSearchTerm(val);
-            }}
-            disabled={!hasAnyIntegration}
-          >
-            <ComboboxTrigger
-              render={
-                <button
-                  className={cn(
-                    'border w-full flex border-border h-18 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-center',
-                    !value && 'border-dashed'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <ComboboxValue
-                      placeholder={
-                        <div className="text-muted-foreground text-md text-center flex items-center gap-1">
-                          Select a{' '}
-                          <span className="flex items-center gap-1">
-                            <ProviderLogo provider={issueProvider!} className="h-3.5 w-3.5" />
-                            <span className="capitalize">{issueProvider}</span>
-                          </span>{' '}
-                          issue
-                        </div>
-                      }
-                    >
-                      {value ? <SelectedIssueValue issue={value!} /> : null}
-                    </ComboboxValue>
-                  </div>
-                </button>
-              }
-            />
-            <ComboboxContent className="min-w-(--anchor-width) pb-1">
-              <ComboboxInput
-                showClear={!!value}
-                showTrigger={false}
-                placeholder={`Search by ${issueProvider} issue key`}
-                disabled={!hasAnyIntegration}
-              />
-              <ComboboxEmpty>
-                <span className="text-muted-foreground">No issues found</span>
-              </ComboboxEmpty>
-              <ComboboxList>
-                {(issue: Issue) => (
-                  <ComboboxItem key={issue.identifier} value={issue}>
-                    <IssueRow issue={issue} />
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-        </>
-      ) : (
-        <div>
-          <p>Connect with one of the following integrations to search for issues:</p>
-          <div>
-            {ISSUE_PROVIDERS.map((provider) => (
+        <Combobox
+          autoHighlight
+          items={issues}
+          filter={null}
+          itemToStringLabel={(issue: Issue | null) =>
+            issue ? `${issue.identifier} ${issue.title}` : ''
+          }
+          value={value}
+          onValueChange={(next: Issue | null) => onValueChange(next)}
+          onInputValueChange={(val: string, { reason }: { reason: string }) => {
+            if (reason !== 'item-press') handleSetSearchTerm(val);
+          }}
+          disabled={!hasAnyIntegration}
+          open={comboboxOpen}
+          onOpenChange={(open) => {
+            if (!open && providerSelectOpenRef.current) return;
+            setComboboxOpen(open);
+          }}
+        >
+          <ComboboxTrigger
+            render={
               <button
-                key={provider}
-                onClick={() => setSelectedIssueProvider(provider)}
-                className="flex items-center gap-2"
+                className={cn(
+                  'flex min-w-0 w-full items-start border border-border hover:bg-muted/30 hover:shadow-xs rounded-md p-2 text-left text-sm outline-none',
+                  !value && 'border-dashed'
+                )}
               >
-                <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-medium text-foreground">{provider}</span>
+                <ComboboxValue
+                  placeholder={
+                    <div className="text-muted-foreground justify-center w-full text-md text-center flex items-center gap-1 h-[76px]">
+                      Click to select an issue
+                    </div>
+                  }
+                >
+                  {value ? (
+                    <SelectedIssueValue issue={value} onRemove={() => onValueChange(null)} />
+                  ) : null}
+                </ComboboxValue>
               </button>
-            ))}
-          </div>
-          <button onClick={() => navigate('settings')}>Configure integrations</button>
-        </div>
+            }
+          />
+          <ComboboxContent
+            side="bottom"
+            className="min-w-(--anchor-width) pb-1"
+            collisionAvoidance={{ side: 'shift' }}
+          >
+            <ComboboxInput
+              leftAddon={leftAddon}
+              inputRef={inputRef}
+              showClear={!!value}
+              showTrigger={false}
+              placeholder={`Search ${issueProvider ?? 'issues'}…`}
+              disabled={!hasAnyIntegration}
+            />
+            <ComboboxEmpty>
+              <span className="text-muted-foreground">No issues found</span>
+            </ComboboxEmpty>
+            <ComboboxList>
+              {(issue: Issue) => (
+                <ComboboxItem key={issue.identifier} value={issue} className="pr-2">
+                  <IssueRow issue={issue} />
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+      ) : (
+        <ConnectIssueIntegrationPlaceholder />
       )}
     </div>
   );
 }
 
-function SelectedIssueValue({ issue }: { issue: Issue }) {
+function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () => void }) {
   return (
-    <div>
-      <div className="flex items-center gap-1">
-        <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
-        <span className="capitalize">{issue.provider + ' issue'}</span>
-        <span className="text-muted-foreground">{issue.identifier}</span>
+    <div className="flex flex-col gap-2 w-full h-[76px]">
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-2">
+          <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
+          <span className="capitalize">{issue.provider + ' issue'}</span>
+          <IssueIdentifier identifier={issue.identifier} />
+        </div>
+        <Button variant="ghost" size="icon-xs" onClick={onRemove}>
+          <XIcon className="size-3" />
+        </Button>
       </div>
-      <StatusPill status={issue.status} />
-      {issue.title ? <span className="truncate text-muted-foreground">{issue.title}</span> : null}
+      {issue.title ? (
+        <div className="min-w-0 truncate text-muted-foreground">{issue.title}</div>
+      ) : null}
+      <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
+        <StatusDot status={issue.status} />
+        {issue.status}
+      </Badge>
+    </div>
+  );
+}
+
+function ConnectIssueIntegrationPlaceholder() {
+  const { navigate } = useWorkspaceNavigation();
+
+  return (
+    <div className="flex flex-col gap-4 w-full border border-border border-dashed items-center justify-center rounded-md p-4">
+      <div className="flex items-center gap-2 w-full justify-center">
+        {ISSUE_PROVIDERS.map((provider) => (
+          <ProviderLogo key={provider} provider={provider} className="size-4 opacity-50" />
+        ))}
+      </div>
+      <p className="text-muted-foreground font-nomral text-sm text-center">
+        Connect with one of our issue integrations to link your issues to your tasks.
+      </p>
+      <Button
+        variant="link"
+        size="xs"
+        className="w-fit"
+        onClick={() => navigate('settings', { tab: 'integrations' })}
+      >
+        Configure integrations
+      </Button>
     </div>
   );
 }

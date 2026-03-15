@@ -12,6 +12,7 @@ import { taskView } from '@renderer/views/tasks/view';
 import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
 import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
 import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
+import { useModalContext } from './ModalProvider';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
@@ -67,15 +68,20 @@ type ViewState = {
 const DEFAULT_VIEW_STATE: ViewState = { viewId: 'home', wrapParams: {} } as ViewState;
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
+  const { closeModal } = useModalContext();
   const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const [_, startTransition] = useTransition();
 
-  const navigate = useCallback((...args: unknown[]) => {
-    const [viewId, params] = args as [ViewId, Record<string, unknown>?];
-    startTransition(() => {
-      setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
-    });
-  }, []) as NavigateFnTyped;
+  const navigate = useCallback(
+    (...args: unknown[]) => {
+      const [viewId, params] = args as [ViewId, Record<string, unknown>?];
+      startTransition(() => {
+        setViewState({ viewId, wrapParams: params ?? {} } as ViewState);
+        closeModal();
+      });
+    },
+    [closeModal]
+  ) as NavigateFnTyped;
 
   const slotsValue = useMemo((): SlotsContextValue => {
     const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[

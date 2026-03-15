@@ -6,6 +6,7 @@ type IntegrationsContextValue = {
   // Linear
   isLinearConnected: boolean | null;
   isLinearLoading: boolean;
+  linearWorkspaceName: string | null | undefined;
   connectLinear: (apiKey: string) => Promise<void>;
   disconnectLinear: () => Promise<void>;
 
@@ -91,6 +92,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   }, [disconnectJiraMutation]);
 
   const isLinearConnected = linearData === undefined ? null : !!linearData?.connected;
+  const linearWorkspaceName = linearData?.workspaceName ?? null;
   const isLinearLoading =
     linearFetching || connectLinearMutation.isPending || disconnectLinearMutation.isPending;
 
@@ -103,6 +105,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
       value={{
         isLinearConnected,
         isLinearLoading,
+        linearWorkspaceName,
         connectLinear,
         disconnectLinear,
         isJiraConnected,

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import { rpc } from '../lib/ipc';
@@ -94,7 +94,7 @@ export function useJiraIssues({ enabled = true }: UseJiraIssuesOptions = {}): Us
     },
     staleTime: 30_000,
     enabled: enabled && isActiveSearch,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
   });
 
   const issues = useMemo<Issue[]>(() => {

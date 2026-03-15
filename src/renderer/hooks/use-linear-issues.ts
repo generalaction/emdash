@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
+import type { LinearIssue } from '@main/core/linear/LinearService';
 import { rpc } from '../lib/ipc';
-import type { LinearIssueSummary } from '../types/linear';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
@@ -13,7 +13,7 @@ export const linearQueryKeys = {
   search: (term: string) => ['linear:issues:search', term] as const,
 };
 
-const toIssue = (raw: LinearIssueSummary): Issue => ({
+const toIssue = (raw: LinearIssue): Issue => ({
   provider: 'linear',
   identifier: raw.identifier,
   title: raw.title,
@@ -92,17 +92,13 @@ export function useLinearIssues({ enabled = true }: UseLinearIssuesOptions = {})
     queryFn: async () => {
       const result = await rpc.linear.searchIssues(debouncedTerm.trim(), SEARCH_LIMIT);
       if (result?.success) {
-        void (async () => {
-          const { captureTelemetry } = await import('../lib/telemetryClient');
-          captureTelemetry('linear_issues_searched');
-        })();
         return (result.issues ?? []).map(toIssue);
       }
       return [] as Issue[];
     },
     staleTime: 30_000,
     enabled: enabled && isActiveSearch,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
   });
 
   const issues = useMemo<Issue[]>(() => {

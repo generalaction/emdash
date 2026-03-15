@@ -44,6 +44,7 @@ const IntegrationsCard: React.FC = () => {
   const {
     isLinearConnected,
     isLinearLoading,
+    linearWorkspaceName,
     connectLinear,
     disconnectLinear,
     isJiraConnected,
@@ -117,7 +118,8 @@ const IntegrationsCard: React.FC = () => {
     {
       id: 'linear',
       name: 'Linear',
-      description: 'Work on Linear tickets',
+      description:
+        isLinearConnected && linearWorkspaceName ? linearWorkspaceName : 'Work on Linear tickets',
       logoSvg: linearSvg,
       connected: !!isLinearConnected,
       loading: isLinearLoading,

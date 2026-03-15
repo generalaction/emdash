@@ -1,29 +1,7 @@
-import { request } from 'node:https';
-import { URL } from 'node:url';
+import { LinearClient } from '@linear/sdk';
+import keytar from 'keytar';
 import type { Issue } from '@shared/tasks';
 import { capture } from '@main/lib/telemetry';
-
-const LINEAR_API_URL = 'https://api.linear.app/graphql';
-
-export interface LinearIssueState {
-  name: string;
-  type: string;
-  color: string;
-}
-
-export interface LinearTeam {
-  name: string;
-  key: string;
-}
-
-export interface LinearProject {
-  name: string;
-}
-
-export interface LinearAssignee {
-  displayName: string;
-  name: string;
-}
 
 export interface LinearIssue {
   id: string;
@@ -31,25 +9,16 @@ export interface LinearIssue {
   title: string;
   description: string | null;
   url: string;
-  state: LinearIssueState;
-  team: LinearTeam;
-  project: LinearProject | null;
-  assignee: LinearAssignee | null;
+  state: { name: string; type: string; color: string } | null;
+  team: { name: string; key: string } | null;
+  project: { name: string } | null;
+  assignee: { displayName: string; name: string } | null;
   updatedAt: string;
-}
-
-export interface LinearViewer {
-  name?: string | null;
-  displayName?: string | null;
-  organization?: {
-    name?: string | null;
-  } | null;
 }
 
 export interface LinearConnectionStatus {
   connected: boolean;
   workspaceName?: string;
-  viewer?: LinearViewer;
   error?: string;
 }
 
@@ -64,25 +33,78 @@ export function toGeneralIssue(issue: LinearIssue): Issue {
   };
 }
 
-interface GraphQLResponse<T> {
-  data?: T;
-  errors?: Array<{ message: string }>;
-}
+const ISSUES_QUERY = `
+  query ListIssues($limit: Int!) {
+    issues(
+      first: $limit,
+      orderBy: updatedAt,
+      filter: { state: { type: { nin: ["completed", "cancelled"] } } }
+    ) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        url
+        state { name type color }
+        team { name key }
+        project { name }
+        assignee { displayName name }
+        updatedAt
+      }
+    }
+  }
+`;
+
+const SEARCH_QUERY = `
+  query SearchIssues($term: String!, $limit: Int!) {
+    searchIssues(term: $term, first: $limit) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        url
+        state { name type color }
+        team { name key }
+        project { name }
+        assignee { displayName name }
+        updatedAt
+      }
+    }
+  }
+`;
 
 export class LinearService {
   private readonly SERVICE_NAME = 'emdash-linear';
   private readonly ACCOUNT_NAME = 'api-token';
 
+  // In-memory token cache: undefined = not yet loaded, null = no token, string = valid token
+  private _cachedToken: string | null | undefined = undefined;
+
+  private _client: LinearClient | null = null;
+  private _clientToken: string | null = null;
+
+  private getClient(token: string): LinearClient {
+    if (!this._client || this._clientToken !== token) {
+      this._client = new LinearClient({ apiKey: token });
+      this._clientToken = token;
+    }
+    return this._client;
+  }
+
   async saveToken(
     token: string
   ): Promise<{ success: boolean; workspaceName?: string; error?: string }> {
     try {
-      const viewer = await this.fetchViewer(token);
+      const client = this.getClient(token);
+      const viewer = await client.viewer;
+      const org = await viewer.organization;
       await this.storeToken(token);
       capture('linear_connected');
       return {
         success: true,
-        workspaceName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
+        workspaceName: org?.name ?? viewer.displayName ?? undefined,
       };
     } catch (error) {
       const message =
@@ -95,8 +117,10 @@ export class LinearService {
 
   async clearToken(): Promise<{ success: boolean; error?: string }> {
     try {
-      const keytar = await import('keytar');
       await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      this._cachedToken = null;
+      this._client = null;
+      this._clientToken = null;
       capture('linear_disconnected');
       return { success: true };
     } catch (error) {
@@ -114,11 +138,12 @@ export class LinearService {
       if (!token) {
         return { connected: false };
       }
-      const viewer = await this.fetchViewer(token);
+      const client = this.getClient(token);
+      const viewer = await client.viewer;
+      const org = await viewer.organization;
       return {
         connected: true,
-        workspaceName: viewer?.organization?.name ?? viewer?.displayName ?? undefined,
-        viewer,
+        workspaceName: org?.name ?? viewer.displayName ?? undefined,
       };
     } catch (error) {
       const message =
@@ -134,37 +159,14 @@ export class LinearService {
     }
 
     const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
+    const client = this.getClient(token);
 
-    // Use server-side filter to exclude completed/canceled issues so we get a full
-    // page of open issues instead of fetching N and discarding closed ones.
-    const query = `
-      query ListIssues($limit: Int!) {
-        issues(
-          first: $limit,
-          orderBy: updatedAt,
-          filter: { state: { type: { nin: ["completed", "cancelled"] } } }
-        ) {
-          nodes {
-            id
-            identifier
-            title
-            description
-            url
-            state { name type color }
-            team { name key }
-            project { name }
-            assignee { displayName name }
-            updatedAt
-          }
-        }
-      }
-    `;
+    const { data } = await client.client.rawRequest<
+      { issues: { nodes: LinearIssue[] } },
+      { limit: number }
+    >(ISSUES_QUERY, { limit: sanitizedLimit });
 
-    const response = await this.graphql<{ issues: { nodes: LinearIssue[] } }>(token, query, {
-      limit: sanitizedLimit,
-    });
-
-    return response?.issues?.nodes ?? [];
+    return data?.issues?.nodes ?? [];
   }
 
   async searchIssues(searchTerm: string, limit = 20): Promise<LinearIssue[]> {
@@ -178,122 +180,22 @@ export class LinearService {
     }
 
     const sanitizedLimit = Math.min(Math.max(limit, 1), 200);
-
-    // Use Linear's server-side searchIssues query for full-text search across all issues
-    const searchQuery = `
-      query SearchIssues($term: String!, $limit: Int!) {
-        searchIssues(term: $term, first: $limit) {
-          nodes {
-            id
-            identifier
-            title
-            description
-            url
-            state { name type color }
-            team { name key }
-            project { name }
-            assignee { displayName name }
-            updatedAt
-          }
-        }
-      }
-    `;
+    const client = this.getClient(token);
 
     try {
-      const searchResponse = await this.graphql<{ searchIssues: { nodes: LinearIssue[] } }>(
-        token,
-        searchQuery,
-        {
-          term: searchTerm.trim(),
-          limit: sanitizedLimit,
-        }
-      );
+      const { data } = await client.client.rawRequest<
+        { searchIssues: { nodes: LinearIssue[] } },
+        { term: string; limit: number }
+      >(SEARCH_QUERY, {
+        term: searchTerm.trim(),
+        limit: sanitizedLimit,
+      });
 
-      return searchResponse?.searchIssues?.nodes ?? [];
+      return data?.searchIssues?.nodes ?? [];
     } catch (error) {
       console.error('[Linear] searchIssues error:', error);
       return [];
     }
-  }
-
-  private async fetchViewer(token: string): Promise<LinearViewer> {
-    const query = `
-      query ViewerInfo {
-        viewer {
-          name
-          displayName
-          organization {
-            name
-          }
-        }
-      }
-    `;
-
-    const data = await this.graphql<{ viewer: LinearViewer }>(token, query);
-    if (!data?.viewer) {
-      throw new Error('Unable to retrieve Linear account information.');
-    }
-    return data.viewer;
-  }
-
-  private async graphql<T>(
-    token: string,
-    query: string,
-    variables?: Record<string, unknown>
-  ): Promise<T> {
-    const body = JSON.stringify({ query, variables });
-
-    const requestPromise = new Promise<GraphQLResponse<T>>((resolve, reject) => {
-      const url = new URL(LINEAR_API_URL);
-
-      const req = request(
-        {
-          hostname: url.hostname,
-          path: url.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token,
-            'Content-Length': Buffer.byteLength(body).toString(),
-          },
-        },
-        (res) => {
-          let data = '';
-
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data) as GraphQLResponse<T>;
-              resolve(parsed);
-            } catch (error) {
-              reject(error);
-            }
-          });
-        }
-      );
-
-      req.on('error', (error) => {
-        reject(error);
-      });
-
-      req.write(body);
-      req.end();
-    });
-
-    const result = await requestPromise;
-
-    if (result.errors?.length) {
-      throw new Error(result.errors.map((err) => err.message).join('\n'));
-    }
-
-    if (!result.data) {
-      throw new Error('Linear API returned no data.');
-    }
-
-    return result.data;
   }
 
   private async storeToken(token: string): Promise<void> {
@@ -303,8 +205,8 @@ export class LinearService {
     }
 
     try {
-      const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, clean);
+      this._cachedToken = clean;
     } catch (error) {
       console.error('Failed to store Linear token:', error);
       throw new Error('Unable to store Linear token securely.');
@@ -312,9 +214,10 @@ export class LinearService {
   }
 
   private async getStoredToken(): Promise<string | null> {
+    if (this._cachedToken !== undefined) return this._cachedToken;
     try {
-      const keytar = await import('keytar');
-      return await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      this._cachedToken = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      return this._cachedToken;
     } catch (error) {
       console.error('Failed to read Linear token from keychain:', error);
       return null;

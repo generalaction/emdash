@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import { rpc } from '../lib/ipc';
@@ -108,7 +108,7 @@ export function useGitHubIssues({
     },
     staleTime: 30_000,
     enabled: isReady && isActiveSearch,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
   });
 
   const issues = useMemo<Issue[]>(() => {
