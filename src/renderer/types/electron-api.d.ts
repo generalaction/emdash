@@ -166,6 +166,32 @@ declare global {
         projectId: string;
         baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
+      worktreeStartTaskCreation: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        task: {
+          projectId: string;
+          name: string;
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
+          agentId?: string | null;
+          metadata?: any;
+          useWorktree?: boolean;
+        };
+      }) => Promise<{
+        success: boolean;
+        task?: any;
+        completed?: boolean;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
+      worktreeCancelTaskCreation: (args: { taskId: string; reason?: string }) => Promise<{
+        success: boolean;
+        cancelled?: boolean;
+        error?: string;
+      }>;
+      onWorktreeCreationEvent: (listener: (data: any) => void) => () => void;
       worktreeList: (args: {
         projectPath: string;
       }) => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
@@ -224,7 +250,7 @@ declare global {
         task: {
           projectId: string;
           name: string;
-          status: 'active' | 'idle' | 'running';
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
           agentId?: string | null;
           metadata?: any;
           useWorktree?: boolean;
@@ -1333,6 +1359,32 @@ export interface ElectronAPI {
     projectId: string;
     baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
+  worktreeStartTaskCreation: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    task: {
+      projectId: string;
+      name: string;
+      status: 'active' | 'idle' | 'running' | 'creating' | 'error';
+      agentId?: string | null;
+      metadata?: any;
+      useWorktree?: boolean;
+    };
+  }) => Promise<{
+    success: boolean;
+    task?: any;
+    completed?: boolean;
+    needsBaseRefSwitch?: boolean;
+    error?: string;
+  }>;
+  worktreeCancelTaskCreation: (args: { taskId: string; reason?: string }) => Promise<{
+    success: boolean;
+    cancelled?: boolean;
+    error?: string;
+  }>;
+  onWorktreeCreationEvent: (listener: (data: any) => void) => () => void;
   worktreeList: (args: {
     projectPath: string;
   }) => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
@@ -1387,7 +1439,7 @@ export interface ElectronAPI {
     task: {
       projectId: string;
       name: string;
-      status: 'active' | 'idle' | 'running';
+      status: 'active' | 'idle' | 'running' | 'creating' | 'error';
       agentId?: string | null;
       metadata?: any;
       useWorktree?: boolean;

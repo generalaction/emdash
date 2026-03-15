@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { worktreeService } from './WorktreeService';
 import { worktreePoolService } from './WorktreePoolService';
 import { databaseService, type Project } from './DatabaseService';
@@ -14,8 +14,13 @@ import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
+import {
+  WORKTREE_CREATION_EVENT_CHANNEL,
+  type WorktreeCreationEvent,
+} from '@shared/worktreeCreation';
 
 const remoteGitService = new RemoteGitService(sshService);
+let worktreeQuitCleanupRegistered = false;
 
 function stableIdFromRemotePath(worktreePath: string): string {
   const h = crypto.createHash('sha1').update(worktreePath).digest('hex').slice(0, 12);
@@ -46,6 +51,102 @@ async function resolveProjectByIdOrPath(args: {
 // isRemoteProject and resolveRemoteProjectForWorktreePath imported from ../utils/remoteProjectResolver
 
 export function registerWorktreeIpc(): void {
+  if (!worktreeQuitCleanupRegistered) {
+    worktreeQuitCleanupRegistered = true;
+    app.on('before-quit', () => {
+      void worktreeService.cancelAllCreateWorktreeJobs('Application is closing');
+    });
+  }
+
+  const sendToAllWindows = (event: WorktreeCreationEvent): void => {
+    const all = BrowserWindow.getAllWindows();
+    for (const win of all) {
+      try {
+        win.webContents.send(WORKTREE_CREATION_EVENT_CHANNEL, event);
+      } catch {}
+    }
+  };
+
+  const outputBuffers = new Map<
+    string,
+    {
+      projectId: string;
+      stdout: string;
+      stderr: string;
+      timer: NodeJS.Timeout | null;
+    }
+  >();
+
+  const flushBufferedOutput = (taskId: string): void => {
+    const buffered = outputBuffers.get(taskId);
+    if (!buffered) return;
+
+    if (buffered.stdout) {
+      sendToAllWindows({
+        taskId,
+        projectId: buffered.projectId,
+        status: 'progress',
+        timestamp: new Date().toISOString(),
+        stream: 'stdout',
+        chunk: buffered.stdout,
+      });
+      buffered.stdout = '';
+    }
+
+    if (buffered.stderr) {
+      sendToAllWindows({
+        taskId,
+        projectId: buffered.projectId,
+        status: 'progress',
+        timestamp: new Date().toISOString(),
+        stream: 'stderr',
+        chunk: buffered.stderr,
+      });
+      buffered.stderr = '';
+    }
+
+    if (!buffered.stdout && !buffered.stderr) {
+      if (buffered.timer) {
+        clearTimeout(buffered.timer);
+      }
+      outputBuffers.delete(taskId);
+      return;
+    }
+
+    buffered.timer = setTimeout(() => {
+      flushBufferedOutput(taskId);
+    }, 100);
+  };
+
+  const bufferProgressEvent = (event: WorktreeCreationEvent): void => {
+    if (event.status !== 'progress' || !event.stream || !event.chunk) {
+      flushBufferedOutput(event.taskId);
+      sendToAllWindows(event);
+      return;
+    }
+
+    const existing = outputBuffers.get(event.taskId) ?? {
+      projectId: event.projectId,
+      stdout: '',
+      stderr: '',
+      timer: null,
+    };
+
+    if (event.stream === 'stdout') {
+      existing.stdout = `${existing.stdout}${event.chunk}`.slice(-16_384);
+    } else {
+      existing.stderr = `${existing.stderr}${event.chunk}`.slice(-16_384);
+    }
+
+    outputBuffers.set(event.taskId, existing);
+
+    if (!existing.timer) {
+      existing.timer = setTimeout(() => {
+        flushBufferedOutput(event.taskId);
+      }, 100);
+    }
+  };
+
   // Create a new worktree
   ipcMain.handle(
     'worktree:create',
@@ -97,6 +198,163 @@ export function registerWorktreeIpc(): void {
         return { success: true, worktree };
       } catch (error) {
         console.error('Failed to create worktree:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'worktree:startTaskCreation',
+    async (
+      _event,
+      args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        task: {
+          projectId: string;
+          name: string;
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
+          agentId?: string | null;
+          metadata?: any;
+          useWorktree?: boolean;
+        };
+      }
+    ) => {
+      try {
+        const project = await resolveProjectByIdOrPath({
+          projectId: args.projectId,
+          projectPath: args.projectPath,
+        });
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+
+        if (isRemoteProject(project)) {
+          const baseRef = args.baseRef ?? project.gitInfo.baseRef;
+          const remote = await remoteGitService.createWorktree(
+            project.sshConnectionId,
+            project.remotePath,
+            args.taskName,
+            baseRef
+          );
+          const remoteTaskId = stableIdFromRemotePath(remote.path);
+          const persistedTask = {
+            id: remoteTaskId,
+            projectId: args.projectId,
+            name: args.taskName,
+            branch: remote.branch,
+            path: remote.path,
+            status: 'idle' as const,
+            agentId: args.task.agentId ?? null,
+            metadata: args.task.metadata ?? null,
+            useWorktree: args.task.useWorktree !== false,
+          };
+          await databaseService.saveTask(persistedTask);
+          return { success: true, task: persistedTask, completed: true };
+        }
+
+        const claim = await worktreePoolService.claimReserve(
+          args.projectId,
+          args.projectPath,
+          args.taskName,
+          args.baseRef
+        );
+
+        if (claim) {
+          const persistedTask = {
+            id: claim.worktree.id,
+            projectId: args.projectId,
+            name: args.taskName,
+            branch: claim.worktree.branch,
+            path: claim.worktree.path,
+            status: 'idle' as const,
+            agentId: args.task.agentId ?? null,
+            metadata: args.task.metadata ?? null,
+            useWorktree: args.task.useWorktree !== false,
+          };
+          await databaseService.saveTask(persistedTask);
+          return {
+            success: true,
+            task: persistedTask,
+            completed: true,
+            needsBaseRefSwitch: claim.needsBaseRefSwitch,
+          };
+        }
+
+        const { worktree, completion } = await worktreeService.startCreateWorktreeJob({
+          projectPath: args.projectPath,
+          taskName: args.taskName,
+          projectId: args.projectId,
+          baseRef: args.baseRef,
+          onEvent: (event) => {
+            bufferProgressEvent(event);
+          },
+        });
+
+        const persistedTask = {
+          id: worktree.id,
+          projectId: args.projectId,
+          name: args.taskName,
+          branch: worktree.branch,
+          path: worktree.path,
+          status: 'creating' as const,
+          agentId: args.task.agentId ?? null,
+          metadata: args.task.metadata ?? null,
+          useWorktree: args.task.useWorktree !== false,
+        };
+
+        await databaseService.saveTask(persistedTask);
+
+        void completion.then(
+          async (createdWorktree) => {
+            const latest = await databaseService.getTaskById(createdWorktree.id);
+            if (!latest) {
+              return;
+            }
+            await databaseService.saveTask({
+              ...latest,
+              branch: createdWorktree.branch,
+              path: createdWorktree.path,
+              status: 'idle',
+            });
+          },
+          async (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            if (/cancel/i.test(message)) {
+              return;
+            }
+            const latest = await databaseService.getTaskById(worktree.id);
+            if (!latest) {
+              return;
+            }
+            await databaseService.saveTask({
+              ...latest,
+              status: 'error',
+            });
+          }
+        );
+
+        return {
+          success: true,
+          task: persistedTask,
+          completed: false,
+        };
+      } catch (error) {
+        log.error('Failed to start async task worktree creation:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'worktree:cancelTaskCreation',
+    async (_event, args: { taskId: string; reason?: string }) => {
+      try {
+        const cancelled = await worktreeService.cancelCreateWorktreeJob(args.taskId, args.reason);
+        return { success: true, cancelled };
+      } catch (error) {
         return { success: false, error: (error as Error).message };
       }
     }
@@ -390,7 +648,7 @@ export function registerWorktreeIpc(): void {
         task: {
           projectId: string;
           name: string;
-          status: 'active' | 'idle' | 'running';
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
           agentId?: string | null;
           metadata?: any;
           useWorktree?: boolean;

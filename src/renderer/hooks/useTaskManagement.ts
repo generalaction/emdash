@@ -21,6 +21,10 @@ import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useToast } from './use-toast';
 import { useModalContext } from '../contexts/ModalProvider';
+import {
+  MAX_WORKTREE_CREATION_LOG_LINES,
+  type WorktreeCreationEvent,
+} from '@shared/worktreeCreation';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -214,9 +218,13 @@ export function useTaskManagement() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeTaskAgent, setActiveTaskAgent] = useState<Agent | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [taskCreationLogs, setTaskCreationLogs] = useState<Record<string, string[]>>({});
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
+  const setupTriggeredForTaskRef = useRef<Set<string>>(new Set());
+  const creationLogQueueRef = useRef<Record<string, string[]>>({});
+  const creationLogFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openTaskModalImplRef = useRef<(project?: Project) => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
   const preflightPromiseRef = useRef<Promise<unknown> | undefined>(undefined);
@@ -246,6 +254,12 @@ export function useTaskManagement() {
   const removeTaskFromCache = useCallback(
     (projectId: string, taskId: string, wasActive: boolean) => {
       updateTaskCache(projectId, (old) => old.filter((t) => t.id !== taskId));
+      setTaskCreationLogs((prev) => {
+        if (!prev[taskId]) return prev;
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
       const stored = getStoredActiveIds();
       if (stored.taskId === taskId) {
         saveActiveIds(stored.projectId, null);
@@ -257,6 +271,147 @@ export function useTaskManagement() {
     },
     [updateTaskCache]
   );
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (typeof api?.onWorktreeCreationEvent !== 'function') return;
+
+    const flushQueuedCreationLogs = () => {
+      creationLogFlushTimerRef.current = null;
+      const queued = creationLogQueueRef.current;
+      creationLogQueueRef.current = {};
+      const taskIds = Object.keys(queued);
+      if (taskIds.length === 0) return;
+
+      setTaskCreationLogs((prev) => {
+        let changed = false;
+        const next: Record<string, string[]> = { ...prev };
+        for (const taskId of taskIds) {
+          const chunks = queued[taskId];
+          if (!chunks || chunks.length === 0) continue;
+          const previous = next[taskId] || [];
+          const lines = chunks.join('').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+          const normalized = lines
+            .map((line, idx) => (idx < lines.length - 1 ? `${line}\n` : line))
+            .filter((line) => line.length > 0);
+          next[taskId] = [...previous, ...normalized].slice(-MAX_WORKTREE_CREATION_LOG_LINES);
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    };
+
+    const queueCreationLogChunk = (taskId: string, chunk: string) => {
+      if (!chunk) return;
+      const queue = creationLogQueueRef.current;
+      queue[taskId] = queue[taskId] ? [...queue[taskId], chunk] : [chunk];
+      if (!creationLogFlushTimerRef.current) {
+        creationLogFlushTimerRef.current = setTimeout(flushQueuedCreationLogs, 80);
+      }
+    };
+
+    const off = api.onWorktreeCreationEvent((evt: WorktreeCreationEvent) => {
+      const projectId = String(evt.projectId || '');
+      const taskId = String(evt.taskId || '');
+      if (!projectId || !taskId) return;
+
+      if (evt.status === 'progress' && typeof evt.chunk === 'string') {
+        queueCreationLogChunk(taskId, evt.chunk);
+        return;
+      }
+
+      const messageLine = evt.message?.trim();
+      if (messageLine) {
+        queueCreationLogChunk(taskId, `${messageLine}\n`);
+      }
+
+      if (evt.status === 'completed') {
+        updateTaskCache(projectId, (old) =>
+          old.map((task) => (task.id === taskId ? { ...task, status: 'idle' } : task))
+        );
+        setActiveTask((current) =>
+          current?.id === taskId ? { ...current, status: 'idle' as Task['status'] } : current
+        );
+
+        if (!setupTriggeredForTaskRef.current.has(taskId)) {
+          setupTriggeredForTaskRef.current.add(taskId);
+          const project = projects.find((p) => p.id === projectId);
+          if (project) {
+            const cachedTasks = queryClient.getQueryData<Task[]>(['tasks', projectId]) || [];
+            const createdTask = cachedTasks.find((task) => task.id === taskId);
+            if (createdTask) {
+              void runSetupForTask(createdTask, project.path);
+            }
+          }
+        }
+
+        // Check if this variant belongs to a multi-agent group task.
+        // Refresh the group task from the DB so optimistic cache picks up
+        // the metadata updates written by the background process.
+        const cachedTasks = queryClient.getQueryData<Task[]>(['tasks', projectId]) || [];
+        const parentGroup = cachedTasks.find(
+          (t) =>
+            t.status === 'creating' &&
+            t.metadata?.multiAgent?.enabled &&
+            t.metadata.multiAgent.variants?.some(
+              (v: { worktreeId?: string }) => v.worktreeId === taskId
+            )
+        );
+        if (parentGroup) {
+          queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+        }
+        return;
+      }
+
+      if (evt.status === 'failed') {
+        updateTaskCache(projectId, (old) =>
+          old.map((task) => (task.id === taskId ? { ...task, status: 'error' } : task))
+        );
+        setActiveTask((current) =>
+          current?.id === taskId ? { ...current, status: 'error' as Task['status'] } : current
+        );
+
+        // Check if this variant belongs to a multi-agent group task
+        const failedCachedTasks = queryClient.getQueryData<Task[]>(['tasks', projectId]) || [];
+        const failedParentGroup = failedCachedTasks.find(
+          (t) =>
+            t.status === 'creating' &&
+            t.metadata?.multiAgent?.enabled &&
+            t.metadata.multiAgent.variants?.some(
+              (v: { worktreeId?: string }) => v.worktreeId === taskId
+            )
+        );
+        if (failedParentGroup) {
+          // Transition the group task to error and refresh from DB
+          updateTaskCache(projectId, (old) =>
+            old.map((task) =>
+              task.id === failedParentGroup.id ? { ...task, status: 'error' } : task
+            )
+          );
+          setActiveTask((current) =>
+            current?.id === failedParentGroup.id
+              ? { ...current, status: 'error' as Task['status'] }
+              : current
+          );
+          queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+        }
+
+        toast({
+          title: 'Worktree creation failed',
+          description: evt.message || 'Task setup failed. You can delete and retry.',
+          variant: 'destructive',
+        });
+      }
+    });
+
+    return () => {
+      off?.();
+      if (creationLogFlushTimerRef.current) {
+        clearTimeout(creationLogFlushTimerRef.current);
+      }
+      creationLogQueueRef.current = {};
+    };
+  }, [projects, queryClient, toast, updateTaskCache]);
 
   // ---------------------------------------------------------------------------
   // Lifecycle helpers
@@ -407,7 +562,16 @@ export function useTaskManagement() {
       task: Task;
       options?: { silent?: boolean };
     }) => {
-      await runLifecycleTeardownBestEffort(project, task, 'delete', options);
+      if (task.status === 'creating') {
+        await window.electronAPI.worktreeCancelTaskCreation({
+          taskId: task.id,
+          reason: 'Task deleted while worktree creation was in progress',
+        });
+      }
+
+      if (task.status !== 'creating') {
+        await runLifecycleTeardownBestEffort(project, task, 'delete', options);
+      }
 
       try {
         const { initialPromptSentKey } = await import('../lib/keys');
@@ -855,7 +1019,7 @@ export function useTaskManagement() {
         name: params.taskName,
         branch: params.project.gitInfo.branch || 'main',
         path: params.project.path,
-        status: 'idle',
+        status: params.useWorktree ? 'creating' : 'idle',
         agentId: primaryAgent,
         metadata: isMultiAgent
           ? {
@@ -948,6 +1112,7 @@ export function useTaskManagement() {
         baseRef,
         preflightPromise: preflight,
       });
+      setIsCreatingTask(false);
     },
     [selectedProject, createTaskMutation]
   );
@@ -1033,6 +1198,7 @@ export function useTaskManagement() {
     isCreatingTask,
     handleCreateTask,
     handleTaskInterfaceReady,
+    taskCreationLogs,
     openTaskModal,
     handleSelectTask,
     handleNextTask,

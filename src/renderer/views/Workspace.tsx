@@ -275,14 +275,11 @@ export function Workspace() {
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
-  const { activeTask, isCreatingTask } = taskMgmt;
+  const { activeTask } = taskMgmt;
 
-  // Hide the sidebar while the task is being created OR while it's still the
-  // optimistic placeholder (id starts with "optimistic-"). The latter guards
-  // against handleTaskInterfaceReady clearing isCreatingTask too early (it fires
-  // when ChatInterface first mounts with the placeholder, before onSuccess).
+  // Hide side panes while the optimistic placeholder is active.
   const isOptimisticTask = activeTask?.id?.startsWith('optimistic-') ?? false;
-  const effectiveTask = isCreatingTask || isOptimisticTask ? null : activeTask;
+  const effectiveTask = isOptimisticTask ? null : activeTask;
   const activeTaskProjectPath = useMemo(
     () =>
       activeTask?.projectId

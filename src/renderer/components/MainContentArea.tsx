@@ -46,7 +46,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     activeTask,
     activeTaskAgent,
     tasksByProjectId,
-    isCreatingTask,
+    taskCreationLogs,
     handleTaskInterfaceReady: onTaskInterfaceReady,
     openTaskModal,
     handleSelectTask,
@@ -105,7 +105,12 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     return (
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {activeTask ? (
-          (activeTask.metadata as any)?.multiAgent?.enabled ? (
+          activeTask.status === 'creating' || activeTask.status === 'error' ? (
+            <TaskCreationLoading
+              logs={taskCreationLogs[activeTask.id] || []}
+              status={activeTask.status === 'error' ? 'error' : 'creating'}
+            />
+          ) : (activeTask.metadata as any)?.multiAgent?.enabled ? (
             <MultiAgentTask
               task={activeTask}
               projectName={selectedProject.name}
@@ -145,12 +150,6 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
             isLoadingBranches={isLoadingBranches}
             onBaseBranchChange={setProjectDefaultBranch}
           />
-        )}
-
-        {isCreatingTask && (
-          <div className="absolute inset-0 z-10 bg-background">
-            <TaskCreationLoading />
-          </div>
         )}
       </div>
     );

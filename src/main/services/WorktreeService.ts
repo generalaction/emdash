@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { log } from '../lib/logger';
 import { promisify } from 'util';
 import path from 'path';
@@ -11,6 +11,50 @@ import { errorTracking } from '../errorTracking';
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
 const execFileAsync = promisify(execFile);
+
+class WorktreeCreationCancelledError extends Error {
+  readonly code = 'WORKTREE_CREATION_CANCELLED';
+
+  constructor(message = 'Worktree creation cancelled') {
+    super(message);
+    this.name = 'WorktreeCreationCancelledError';
+  }
+}
+
+type WorktreeCreationJobEvent = {
+  taskId: string;
+  projectId: string;
+  status: 'starting' | 'progress' | 'completed' | 'failed' | 'cancelled';
+  timestamp: string;
+  message?: string;
+  stream?: 'stdout' | 'stderr';
+  chunk?: string;
+};
+
+type WorktreeCreationStartArgs = {
+  projectPath: string;
+  taskName: string;
+  projectId: string;
+  taskId?: string;
+  baseRef?: string;
+  onEvent?: (event: WorktreeCreationJobEvent) => void;
+};
+
+type WorktreeCreationJob = {
+  taskId: string;
+  projectPath: string;
+  taskName: string;
+  projectId: string;
+  branchName: string;
+  worktreePath: string;
+  baseRef?: string;
+  cancelled: boolean;
+  cancelReason?: string;
+  child: ChildProcessWithoutNullStreams | null;
+  onEvent?: (event: WorktreeCreationJobEvent) => void;
+  resolve: (value: WorktreeInfo) => void;
+  reject: (reason?: unknown) => void;
+};
 
 export interface WorktreeInfo {
   id: string;
@@ -60,6 +104,335 @@ interface EmdashConfig {
 
 export class WorktreeService {
   private worktrees = new Map<string, WorktreeInfo>();
+  private creationJobs = new Map<string, WorktreeCreationJob>();
+
+  private nowIso(): string {
+    return new Date().toISOString();
+  }
+
+  private emitCreationEvent(
+    job: WorktreeCreationJob,
+    status: WorktreeCreationJobEvent['status'],
+    extras?: Pick<WorktreeCreationJobEvent, 'message' | 'stream' | 'chunk'>
+  ): void {
+    try {
+      job.onEvent?.({
+        taskId: job.taskId,
+        projectId: job.projectId,
+        status,
+        timestamp: this.nowIso(),
+        ...(extras || {}),
+      });
+    } catch (error) {
+      log.warn('Failed to emit worktree creation event', error);
+    }
+  }
+
+  private assertNotCancelled(job: WorktreeCreationJob): void {
+    if (job.cancelled) {
+      throw new WorktreeCreationCancelledError(job.cancelReason || 'Worktree creation cancelled');
+    }
+  }
+
+  private async prepareWorktreeCreation(
+    projectPath: string,
+    taskName: string,
+    projectId: string,
+    explicitTaskId?: string
+  ): Promise<{ taskId: string; branchName: string; worktreePath: string }> {
+    const sluggedName = this.slugify(taskName);
+    const hash = this.generateShortHash();
+    const { getAppSettings } = await import('../settings');
+    const settings = getAppSettings();
+    const prefix = settings?.repository?.branchPrefix || 'emdash';
+    const branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
+    const worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+
+    if (fs.existsSync(worktreePath)) {
+      throw new Error(`Worktree directory already exists: ${worktreePath}`);
+    }
+
+    const worktreesDir = path.dirname(worktreePath);
+    if (!fs.existsSync(worktreesDir)) {
+      fs.mkdirSync(worktreesDir, { recursive: true });
+    }
+
+    return {
+      taskId: explicitTaskId || this.stableIdFromPath(worktreePath),
+      branchName,
+      worktreePath,
+    };
+  }
+
+  private async runWorktreeAddStreaming(
+    job: WorktreeCreationJob,
+    fetchedBaseRef: BaseRefInfo
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.assertNotCancelled(job);
+
+      const args = [
+        'worktree',
+        'add',
+        '--no-track',
+        '-b',
+        job.branchName,
+        job.worktreePath,
+        fetchedBaseRef.fullRef,
+      ];
+
+      const child: ChildProcessWithoutNullStreams = spawn('git', args, {
+        cwd: job.projectPath,
+      });
+
+      job.child = child;
+      let stderrTail = '';
+
+      child.stdout.on('data', (chunk: Buffer | string) => {
+        const text = chunk.toString();
+        if (!text) return;
+        this.emitCreationEvent(job, 'progress', {
+          stream: 'stdout',
+          chunk: text,
+        });
+      });
+
+      child.stderr.on('data', (chunk: Buffer | string) => {
+        const text = chunk.toString();
+        if (!text) return;
+        stderrTail = `${stderrTail}${text}`.slice(-4096);
+        this.emitCreationEvent(job, 'progress', {
+          stream: 'stderr',
+          chunk: text,
+        });
+      });
+
+      child.once('error', (error) => {
+        job.child = null;
+        reject(error);
+      });
+
+      child.once('close', (code, signal) => {
+        job.child = null;
+        if (job.cancelled) {
+          reject(
+            new WorktreeCreationCancelledError(job.cancelReason || 'Worktree creation cancelled')
+          );
+          return;
+        }
+
+        if (code === 0) {
+          resolve();
+          return;
+        }
+
+        const signalText = signal ? ` (signal: ${signal})` : '';
+        const detail = stderrTail.trim();
+        reject(
+          new Error(detail || `git worktree add exited with code ${String(code)}${signalText}`)
+        );
+      });
+    });
+  }
+
+  private async cleanupFailedWorktreeArtifacts(job: WorktreeCreationJob): Promise<void> {
+    await this.cleanupWorktreeDirectory(job.worktreePath, job.projectPath);
+
+    try {
+      await execFileAsync('git', ['branch', '-D', job.branchName], {
+        cwd: job.projectPath,
+      });
+    } catch (error) {
+      log.debug('Failed to delete branch during failed worktree cleanup', {
+        branch: job.branchName,
+        error,
+      });
+    }
+  }
+
+  async startCreateWorktreeJob(args: WorktreeCreationStartArgs): Promise<{
+    worktree: WorktreeInfo;
+    completion: Promise<WorktreeInfo>;
+  }> {
+    const prepared = await this.prepareWorktreeCreation(
+      args.projectPath,
+      args.taskName,
+      args.projectId,
+      args.taskId
+    );
+
+    if (this.creationJobs.has(prepared.taskId)) {
+      throw new Error(`Worktree creation already in progress for task ${prepared.taskId}`);
+    }
+
+    const worktreeInfo: WorktreeInfo = {
+      id: prepared.taskId,
+      name: args.taskName,
+      branch: prepared.branchName,
+      path: prepared.worktreePath,
+      projectId: args.projectId,
+      status: 'active',
+      createdAt: this.nowIso(),
+    };
+
+    const completion = new Promise<WorktreeInfo>((resolve, reject) => {
+      const job: WorktreeCreationJob = {
+        taskId: prepared.taskId,
+        projectPath: args.projectPath,
+        taskName: args.taskName,
+        projectId: args.projectId,
+        branchName: prepared.branchName,
+        worktreePath: prepared.worktreePath,
+        baseRef: args.baseRef,
+        cancelled: false,
+        child: null,
+        onEvent: args.onEvent,
+        resolve,
+        reject,
+      };
+
+      this.creationJobs.set(prepared.taskId, job);
+
+      void (async () => {
+        try {
+          this.emitCreationEvent(job, 'starting', {
+            message: `Creating worktree ${job.branchName}`,
+          });
+
+          const { getAppSettings } = await import('../settings');
+          const settings = getAppSettings();
+
+          this.assertNotCancelled(job);
+          let baseRefInfo: BaseRefInfo;
+          if (job.baseRef) {
+            const parsed = await this.parseBaseRef(job.baseRef, job.projectPath);
+            if (parsed) {
+              baseRefInfo = parsed;
+            } else {
+              log.warn(
+                `Failed to parse provided baseRef '${job.baseRef}', falling back to project settings`
+              );
+              baseRefInfo = await this.resolveProjectBaseRef(job.projectPath, job.projectId);
+            }
+          } else {
+            baseRefInfo = await this.resolveProjectBaseRef(job.projectPath, job.projectId);
+          }
+
+          this.assertNotCancelled(job);
+          const fetchedBaseRef = await this.fetchBaseRefWithFallback(
+            job.projectPath,
+            job.projectId,
+            baseRefInfo
+          );
+
+          this.assertNotCancelled(job);
+          await this.runWorktreeAddStreaming(job, fetchedBaseRef);
+
+          this.assertNotCancelled(job);
+          if (!fs.existsSync(job.worktreePath)) {
+            throw new Error(`Worktree directory was not created: ${job.worktreePath}`);
+          }
+
+          try {
+            await this.preserveProjectFilesToWorktree(job.projectPath, job.worktreePath);
+          } catch (preserveErr) {
+            log.warn('Failed to preserve files to worktree (continuing):', preserveErr);
+          }
+
+          await this.logWorktreeSyncStatus(job.projectPath, job.worktreePath, fetchedBaseRef);
+
+          this.worktrees.set(worktreeInfo.id, worktreeInfo);
+          this.emitCreationEvent(job, 'completed', {
+            message: `Worktree ready at ${job.worktreePath}`,
+          });
+          resolve(worktreeInfo);
+
+          if (settings?.repository?.pushOnCreate !== false && fetchedBaseRef.remote) {
+            void execFileAsync(
+              'git',
+              ['push', '--set-upstream', fetchedBaseRef.remote, job.branchName],
+              {
+                cwd: job.worktreePath,
+              }
+            ).then(
+              () => {
+                log.info(
+                  `Pushed branch ${job.branchName} to ${fetchedBaseRef.remote} with upstream tracking`
+                );
+              },
+              (pushErr) => {
+                log.warn('Initial push of worktree branch failed:', pushErr as any);
+              }
+            );
+          }
+        } catch (error) {
+          const isCancelled = error instanceof WorktreeCreationCancelledError;
+          await this.cleanupFailedWorktreeArtifacts(job);
+
+          if (isCancelled) {
+            this.emitCreationEvent(job, 'cancelled', {
+              message: job.cancelReason || 'Worktree creation cancelled',
+            });
+            reject(error);
+          } else {
+            this.emitCreationEvent(job, 'failed', {
+              message: error instanceof Error ? error.message : String(error),
+            });
+            reject(error);
+          }
+        } finally {
+          this.creationJobs.delete(job.taskId);
+        }
+      })();
+    });
+
+    return { worktree: worktreeInfo, completion };
+  }
+
+  hasCreateWorktreeJob(taskId: string): boolean {
+    return this.creationJobs.has(taskId);
+  }
+
+  async cancelCreateWorktreeJob(taskId: string, reason?: string): Promise<boolean> {
+    const job = this.creationJobs.get(taskId);
+    if (!job) return false;
+
+    job.cancelled = true;
+    if (reason) {
+      job.cancelReason = reason;
+    }
+
+    if (job.child && !job.child.killed) {
+      try {
+        job.child.kill('SIGTERM');
+      } catch (error) {
+        log.debug('Failed to terminate worktree creation process with SIGTERM', error);
+      }
+
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          try {
+            if (job.child && !job.child.killed) {
+              job.child.kill('SIGKILL');
+            }
+          } catch {}
+          resolve();
+        }, 1200);
+
+        job.child?.once('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    }
+
+    return true;
+  }
+
+  async cancelAllCreateWorktreeJobs(reason = 'Application is closing'): Promise<void> {
+    const taskIds = Array.from(this.creationJobs.keys());
+    await Promise.all(taskIds.map((taskId) => this.cancelCreateWorktreeJob(taskId, reason)));
+  }
 
   private async cleanupWorktreeDirectory(pathToRemove: string, projectPath: string): Promise<void> {
     if (!fs.existsSync(pathToRemove)) {
