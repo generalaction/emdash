@@ -335,7 +335,6 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     void syncConversations();
   }, [syncConversations]);
-
   useEffect(() => {
     const handleConversationsChanged = (event: Event) => {
       const detail = (event as CustomEvent<{ taskId?: string }>).detail;
@@ -649,7 +648,6 @@ const ChatInterface: React.FC<Props> = ({
           isMain: false, // Additional chats are never main
           metadata,
         });
-
         setActiveConversationId(newConversation.id);
         setAgent(newAgent as Agent);
         await syncConversations();
