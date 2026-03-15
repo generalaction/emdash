@@ -65,6 +65,10 @@ export function CreateChatReviewSection({
               className="min-h-[120px] resize-y"
             />
           </div>
+
+          <p className="text-[11px] text-muted-foreground/80">
+            You can also edit these defaults in Settings.
+          </p>
         </div>
       ) : null}
     </div>
