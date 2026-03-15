@@ -10,22 +10,19 @@ import {
   resolvePullRequestFilterId,
 } from '../lib/pullRequestFilters';
 import { cn } from '../lib/utils';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
 import {
   ArrowUpRight,
-  Check,
   ChevronDown,
   ChevronRight,
-  Circle,
-  Ban,
   Github,
   Loader2,
   MessageSquare,
   Search,
-  X,
 } from 'lucide-react';
 import type { Task } from '../types/app';
 
@@ -48,105 +45,100 @@ const inactiveFilterTabBadgeClass =
   'border-border/70 bg-muted/35 text-foreground/80 hover:border-border hover:bg-muted/60 hover:text-foreground';
 const customFilterBadgeClass =
   'inline-flex h-8 items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 text-xs font-medium text-primary';
+const subtleReviewBadgeClass =
+  'h-5 rounded-md border px-2 text-[11px] font-medium tracking-tight shadow-none';
+const reviewerBadgeClass =
+  'h-5 max-w-[11rem] rounded-md border border-border/60 bg-background/80 px-2 text-[11px] font-medium tracking-tight text-foreground/80 shadow-none backdrop-blur-[1px]';
 
 const MAX_VISIBLE_REVIEWERS = 3;
 
 function getReviewDecisionConfig(decision: string): {
   label: string;
   className: string;
-  icon: React.ReactNode;
+  dotClassName: string;
 } | null {
   switch (decision) {
     case 'APPROVED':
       return {
         label: 'Approved',
-        className: 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30',
-        icon: <Check className="h-3 w-3" />,
+        className:
+          'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-700 dark:text-emerald-300',
+        dotClassName: 'bg-emerald-500',
       };
     case 'CHANGES_REQUESTED':
       return {
         label: 'Changes requested',
-        className: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
-        icon: <X className="h-3 w-3" />,
+        className: 'border-rose-500/20 bg-rose-500/[0.07] text-rose-700 dark:text-rose-300',
+        dotClassName: 'bg-rose-500',
       };
     case 'REVIEW_REQUIRED':
       return {
         label: 'Review required',
-        className: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30',
-        icon: <Circle className="h-3 w-3" />,
+        className: 'border-amber-500/20 bg-amber-500/[0.07] text-amber-700 dark:text-amber-300',
+        dotClassName: 'bg-amber-500',
       };
     default:
       return null;
   }
 }
 
-function getReviewStateIcon(state?: PullRequestReviewer['state']) {
+function getReviewStateMeta(state?: PullRequestReviewer['state']): {
+  label: string;
+  dotClassName: string;
+  showCommentIcon?: boolean;
+} {
   switch (state) {
     case 'APPROVED':
-      return <Check className="h-2.5 w-2.5" />;
+      return {
+        label: 'Approved',
+        dotClassName: 'bg-emerald-500',
+      };
     case 'CHANGES_REQUESTED':
-      return <X className="h-2.5 w-2.5" />;
+      return {
+        label: 'Changes requested',
+        dotClassName: 'bg-rose-500',
+      };
     case 'COMMENTED':
-      return <MessageSquare className="h-2.5 w-2.5" />;
+      return {
+        label: 'Commented',
+        dotClassName: 'bg-sky-500',
+        showCommentIcon: true,
+      };
     case 'PENDING':
-      return <Circle className="h-2.5 w-2.5" />;
+      return {
+        label: 'Pending review',
+        dotClassName: 'bg-amber-500',
+      };
     case 'DISMISSED':
-      return <Ban className="h-2.5 w-2.5" />;
+      return {
+        label: 'Dismissed',
+        dotClassName: 'bg-slate-400 dark:bg-slate-500',
+      };
     default:
-      return null;
-  }
-}
-
-function getReviewStateColor(state?: PullRequestReviewer['state']) {
-  switch (state) {
-    case 'APPROVED':
-      return 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30';
-    case 'CHANGES_REQUESTED':
-      return 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30';
-    case 'COMMENTED':
-      return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30';
-    case 'PENDING':
-      return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30';
-    case 'DISMISSED':
-      return 'bg-muted text-muted-foreground border-border';
-    default:
-      return 'bg-muted text-muted-foreground border-border';
-  }
-}
-
-function getReviewStateLabel(state?: PullRequestReviewer['state']) {
-  switch (state) {
-    case 'APPROVED':
-      return 'Approved';
-    case 'CHANGES_REQUESTED':
-      return 'Changes requested';
-    case 'COMMENTED':
-      return 'Commented';
-    case 'DISMISSED':
-      return 'Dismissed';
-    case 'PENDING':
-      return 'Pending review';
-    default:
-      return 'Reviewer';
+      return {
+        label: 'Reviewer',
+        dotClassName: 'bg-slate-300 dark:bg-slate-600',
+      };
   }
 }
 
 const ReviewerBadge: React.FC<{ reviewer: PullRequestReviewer }> = ({ reviewer }) => {
-  const colorClass = getReviewStateColor(reviewer.state);
-  const icon = getReviewStateIcon(reviewer.state);
+  const meta = getReviewStateMeta(reviewer.state);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium ${colorClass}`}
-        >
-          {icon}
-          {reviewer.login}
-        </span>
+        <Badge variant="outline" className={cn(reviewerBadgeClass, 'justify-start gap-1.5')}>
+          {meta.showCommentIcon ? (
+            <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+          ) : (
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', meta.dotClassName)} />
+          )}
+          <span className="truncate">{reviewer.login}</span>
+        </Badge>
       </TooltipTrigger>
       <TooltipContent side="top">
-        {reviewer.login}: {getReviewStateLabel(reviewer.state)}
+        {reviewer.login}: {meta.label}
       </TooltipContent>
     </Tooltip>
   );
@@ -166,15 +158,21 @@ const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewe
       {overflow.length > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            <Badge
+              variant="outline"
+              className={cn(
+                reviewerBadgeClass,
+                'max-w-none border-border/60 bg-muted/35 text-muted-foreground'
+              )}
+            >
               +{overflow.length}
-            </span>
+            </Badge>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs">
             <div className="flex flex-col gap-1">
               {overflow.map((reviewer) => (
                 <span key={reviewer.login}>
-                  {reviewer.login}: {getReviewStateLabel(reviewer.state)}
+                  {reviewer.login}: {getReviewStateMeta(reviewer.state).label}
                 </span>
               ))}
             </div>
@@ -399,12 +397,22 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                               return (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span
-                                      className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium ${config.className}`}
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        subtleReviewBadgeClass,
+                                        'shrink-0 gap-1.5',
+                                        config.className
+                                      )}
                                     >
-                                      {config.icon}
+                                      <span
+                                        className={cn(
+                                          'h-1.5 w-1.5 shrink-0 rounded-full',
+                                          config.dotClassName
+                                        )}
+                                      />
                                       {config.label}
-                                    </span>
+                                    </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
                                     Review status: {config.label}
