@@ -27,6 +27,7 @@ export interface KeyboardSettings {
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
   openInEditor?: ShortcutBinding;
+  fileSearch?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
