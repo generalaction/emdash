@@ -507,14 +507,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNavigateBack?.(),
         priority: 'global',
         requiresClosed: true,
-        allowInInput: true,
       },
       {
         config: effectiveShortcuts.navigateForward,
         handler: () => handlers.onNavigateForward?.(),
         priority: 'global',
         requiresClosed: true,
-        allowInInput: true,
       },
     ];
 
