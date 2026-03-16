@@ -59,6 +59,14 @@ declare global {
         data?: Array<{ name: string; path: string }>;
       }>;
 
+      // Window controls (custom title bar on Windows/Linux)
+      windowMinimize: () => Promise<void>;
+      windowMaximize: () => Promise<void>;
+      windowClose: () => Promise<void>;
+      windowIsMaximized: () => Promise<boolean>;
+      popupMenu: (args: { label: string; x: number; y: number }) => Promise<void>;
+      onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => () => void;
+
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
       onMenuCheckForUpdates: (listener: () => void) => () => void;
@@ -373,6 +381,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;

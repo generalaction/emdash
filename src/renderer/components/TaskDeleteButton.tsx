@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { DELETE_RISK_SCAN_FRESH_MS, useDeleteRisks } from '../hooks/useDeleteRisks';
 import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
+import DeleteRiskFileList from './DeleteRiskFileList';
 import { isActivePr } from '../lib/prStatus';
 
 type Props = {
@@ -83,6 +84,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
     staged: 0,
     unstaged: 0,
     untracked: 0,
+    files: [],
     ahead: 0,
     behind: 0,
     error: undefined,
@@ -176,33 +178,37 @@ export const TaskDeleteButton: React.FC<Props> = ({
                 className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50"
               >
                 <p className="font-medium">Unmerged or unpushed work detected</p>
-                <div className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
-                  <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                  <span className="font-medium">{taskName}</span>
-                  <span className="text-muted-foreground">—</span>
-                  <span>
-                    {[
-                      status.staged > 0
-                        ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`
-                        : null,
-                      status.unstaged > 0
-                        ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`
-                        : null,
-                      status.untracked > 0
-                        ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`
-                        : null,
-                      status.ahead > 0
-                        ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`
-                        : null,
-                      status.behind > 0
-                        ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ') ||
-                      status.error ||
-                      'Status unavailable'}
-                  </span>
+                <div className="rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50">
+                  <div className="flex items-start gap-2">
+                    <Folder className="mt-0.5 h-4 w-4 flex-shrink-0 fill-amber-700 text-amber-700" />
+                    <div className="min-w-0">
+                      <div className="font-medium">{taskName}</div>
+                      <div className="text-sm">
+                        {[
+                          status.staged > 0
+                            ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`
+                            : null,
+                          status.unstaged > 0
+                            ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged:`
+                            : null,
+                          status.untracked > 0
+                            ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked:`
+                            : null,
+                          status.ahead > 0
+                            ? `ahead by ${status.ahead} ${status.ahead === 1 ? 'commit' : 'commits'}`
+                            : null,
+                          status.behind > 0
+                            ? `behind by ${status.behind} ${status.behind === 1 ? 'commit' : 'commits'}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(', ') ||
+                          status.error ||
+                          'Status unavailable'}
+                      </div>
+                    </div>
+                  </div>
+                  <DeleteRiskFileList files={status.files} limit={6} />
                 </div>
                 {status.pr && isActivePr(status.pr) ? (
                   <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />

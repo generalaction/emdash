@@ -80,6 +80,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
       data?: Array<{ name: string; path: string }>;
     }>,
 
+  // Window controls (custom title bar on Windows/Linux)
+  windowMinimize: () => ipcRenderer.invoke('app:windowMinimize'),
+  windowMaximize: () => ipcRenderer.invoke('app:windowMaximize'),
+  windowClose: () => ipcRenderer.invoke('app:windowClose'),
+  windowIsMaximized: () => ipcRenderer.invoke('app:windowIsMaximized') as Promise<boolean>,
+  popupMenu: (args: { label: string; x: number; y: number }) =>
+    ipcRenderer.invoke('app:popupMenu', args),
+  onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => {
+    const onMaximize = () => listener(true);
+    const onUnmaximize = () => listener(false);
+    ipcRenderer.on('window:maximized', onMaximize);
+    ipcRenderer.on('window:unmaximized', onUnmaximize);
+    return () => {
+      ipcRenderer.removeListener('window:maximized', onMaximize);
+      ipcRenderer.removeListener('window:unmaximized', onUnmaximize);
+    };
+  },
+
   // Open a path in a specific app
   openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 
@@ -1021,6 +1039,7 @@ export interface ElectronAPI {
         staged: number;
         unstaged: number;
         untracked: number;
+        files: string[];
         ahead: number;
         behind: number;
         error?: string;

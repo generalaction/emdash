@@ -5,19 +5,19 @@ import { getCachedGitStatus } from '../lib/gitStatusCache';
 
 type TaskRef = { id: string; name: string; path: string };
 
-type RiskState = Record<
-  string,
-  {
-    staged: number;
-    unstaged: number;
-    untracked: number;
-    ahead: number;
-    behind: number;
-    error?: string;
-    pr?: PrInfo | null;
-    prKnown: boolean;
-  }
->;
+export type DeleteRiskStatus = {
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  files: string[];
+  ahead: number;
+  behind: number;
+  error?: string;
+  pr?: PrInfo | null;
+  prKnown: boolean;
+};
+
+type RiskState = Record<string, DeleteRiskStatus>;
 
 export const DELETE_RISK_SCAN_FRESH_MS = 10_000;
 
@@ -58,6 +58,18 @@ export function useDeleteRisks(
   const inFlightCountRef = useRef(0);
   const eagerPrRefresh = options?.eagerPrRefresh ?? true;
 
+  const collectRiskFiles = useCallback((files: unknown): string[] => {
+    if (!Array.isArray(files)) return [];
+    return Array.from(
+      new Set(
+        files
+          .filter((file): file is string => typeof file === 'string')
+          .map((file) => file.trim())
+          .filter(Boolean)
+      )
+    );
+  }, []);
+
   const scanRisks = useCallback(
     async (options?: { force?: boolean }): Promise<RiskState> => {
       if (!enabled || tasks.length === 0) {
@@ -92,6 +104,7 @@ export function useDeleteRisks(
                   staged: typeof item.staged === 'number' ? item.staged : 0,
                   unstaged: typeof item.unstaged === 'number' ? item.unstaged : 0,
                   untracked: typeof item.untracked === 'number' ? item.untracked : 0,
+                  files: collectRiskFiles(item.files),
                   ahead: typeof item.ahead === 'number' ? item.ahead : 0,
                   behind: typeof item.behind === 'number' ? item.behind : 0,
                   error: typeof item.error === 'string' ? item.error : undefined,
@@ -131,11 +144,13 @@ export function useDeleteRisks(
               let staged = 0;
               let unstaged = 0;
               let untracked = 0;
+              let files: string[] = [];
               if (
                 statusRes.status === 'fulfilled' &&
                 statusRes.value?.success &&
                 statusRes.value.changes
               ) {
+                files = collectRiskFiles(statusRes.value.changes.map((change) => change.path));
                 for (const change of statusRes.value.changes) {
                   if (change.status === 'untracked') {
                     untracked += 1;
@@ -165,6 +180,7 @@ export function useDeleteRisks(
                   staged,
                   unstaged,
                   untracked,
+                  files,
                   ahead,
                   behind,
                   error:
@@ -182,6 +198,7 @@ export function useDeleteRisks(
                   staged: 0,
                   unstaged: 0,
                   untracked: 0,
+                  files: [],
                   ahead: 0,
                   behind: 0,
                   error: error?.message || String(error),
@@ -209,7 +226,7 @@ export function useDeleteRisks(
         setLoading(inFlightCountRef.current > 0);
       }
     },
-    [eagerPrRefresh, enabled, tasks]
+    [collectRiskFiles, eagerPrRefresh, enabled, tasks]
   );
 
   useEffect(() => {
@@ -242,7 +259,7 @@ export function useDeleteRisks(
             ? `${status.staged} ${status.staged === 1 ? 'file' : 'files'} staged`
             : null,
           status.unstaged > 0
-            ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged`
+            ? `${status.unstaged} ${status.unstaged === 1 ? 'file' : 'files'} unstaged:`
             : null,
           status.untracked > 0
             ? `${status.untracked} ${status.untracked === 1 ? 'file' : 'files'} untracked`

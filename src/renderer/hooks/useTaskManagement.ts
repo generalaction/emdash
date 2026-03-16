@@ -16,6 +16,7 @@ import type { JiraIssueSummary } from '../types/jira';
 import type { PlainThreadSummary } from '../types/plain';
 import type { GitLabIssueSummary } from '../types/gitlab';
 import type { ForgejoIssueSummary } from '../types/forgejo';
+import { upsertTaskInList } from '../lib/taskListCache';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -321,23 +322,44 @@ export function useTaskManagement() {
   // ---------------------------------------------------------------------------
   // Navigation helpers
   // ---------------------------------------------------------------------------
-  const handleSelectTask = (task: Task) => {
-    const taskProject = projects.find((project) => project.id === task.projectId);
-    const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
-    if (isProjectSwitch) {
-      setShowEditorMode(false);
-    }
-    if (taskProject && selectedProject?.id !== taskProject.id) {
-      setSelectedProject(taskProject);
-    }
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setShowMcpView(false);
-    setShowKanban(false);
-    setActiveTask(task);
-    setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(task.projectId, task.id);
-  };
+  const handleSelectTask = useCallback(
+    (task: Task) => {
+      const taskProject = projects.find((project) => project.id === task.projectId);
+      const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
+      if (isProjectSwitch) {
+        setShowEditorMode(false);
+      }
+      if (taskProject && selectedProject?.id !== taskProject.id) {
+        setSelectedProject(taskProject);
+      }
+      setShowHomeView(false);
+      setShowSkillsView(false);
+      setShowMcpView(false);
+      setShowKanban(false);
+      setActiveTask(task);
+      setActiveTaskAgent(getAgentForTask(task));
+      saveActiveIds(task.projectId, task.id);
+    },
+    [
+      projects,
+      selectedProject,
+      setSelectedProject,
+      setShowEditorMode,
+      setShowHomeView,
+      setShowSkillsView,
+      setShowMcpView,
+      setShowKanban,
+    ]
+  );
+
+  const handleOpenExternalTask = useCallback(
+    (task: Task) => {
+      updateTaskCache(task.projectId, (old) => upsertTaskInList(old, task));
+      handleSelectTask(task);
+      void queryClient.invalidateQueries({ queryKey: ['tasks', task.projectId] });
+    },
+    [handleSelectTask, queryClient, updateTaskCache]
+  );
 
   const handleNextTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -1035,6 +1057,7 @@ export function useTaskManagement() {
     handleTaskInterfaceReady,
     openTaskModal,
     handleSelectTask,
+    handleOpenExternalTask,
     handleNextTask,
     handlePrevTask,
     handleNewTask,

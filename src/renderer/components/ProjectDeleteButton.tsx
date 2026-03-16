@@ -19,6 +19,7 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import DeletePrNotice from './DeletePrNotice';
+import DeleteRiskFileList from './DeleteRiskFileList';
 import { isActivePr } from '../lib/prStatus';
 import type { Task } from '../types/chat';
 
@@ -172,12 +173,16 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                     return (
                       <li
                         key={ws.id}
-                        className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
+                        className="rounded-md bg-amber-50/80 px-2 py-1 text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
                       >
-                        <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                        <span className="font-medium">{ws.name}</span>
-                        <span className="text-muted-foreground">—</span>
-                        <span className="text-sm">{summary}</span>
+                        <div className="flex items-start gap-2">
+                          <Folder className="mt-0.5 h-4 w-4 flex-shrink-0 fill-amber-700 text-amber-700" />
+                          <div className="min-w-0">
+                            <div className="font-medium">{ws.name}</div>
+                            <div className="text-sm">{summary}</div>
+                          </div>
+                        </div>
+                        <DeleteRiskFileList files={status.files} />
                       </li>
                     );
                   })}

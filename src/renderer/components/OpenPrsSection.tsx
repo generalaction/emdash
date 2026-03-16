@@ -1,22 +1,35 @@
 import React, { useMemo, useState } from 'react';
-import { usePullRequests, type PullRequestSummary } from '../hooks/usePullRequests';
+import {
+  usePullRequests,
+  type PullRequestSummary,
+  type PullRequestReviewer,
+} from '../hooks/usePullRequests';
 import {
   normalizePullRequestSearchQuery,
   PULL_REQUEST_FILTER_PRESETS,
   resolvePullRequestFilterId,
 } from '../lib/pullRequestFilters';
 import { cn } from '../lib/utils';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
-import { ArrowUpRight, ChevronDown, ChevronRight, Github, Loader2, Search } from 'lucide-react';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import {
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  Github,
+  Loader2,
+  MessageSquare,
+  Search,
+} from 'lucide-react';
 import type { Task } from '../types/app';
 
 interface OpenPrsSectionProps {
   projectPath: string;
   projectId: string;
-  onReviewPr: (task: Task) => void;
 }
 
 const DEFAULT_VISIBLE = 10;
@@ -32,9 +45,147 @@ const inactiveFilterTabBadgeClass =
   'border-border/70 bg-muted/35 text-foreground/80 hover:border-border hover:bg-muted/60 hover:text-foreground';
 const customFilterBadgeClass =
   'inline-flex h-8 items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 text-xs font-medium text-primary';
+const subtleReviewBadgeClass =
+  'h-5 rounded-md border px-2 text-[11px] font-medium tracking-tight shadow-none';
+const reviewerBadgeClass =
+  'h-5 max-w-[11rem] rounded-md border border-border/60 bg-background/80 px-2 text-[11px] font-medium tracking-tight text-foreground/80 shadow-none backdrop-blur-[1px]';
 
-const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
+const MAX_VISIBLE_REVIEWERS = 3;
+
+function getReviewDecisionConfig(decision: string): {
+  label: string;
+  className: string;
+  dotClassName: string;
+} | null {
+  switch (decision) {
+    case 'APPROVED':
+      return {
+        label: 'Approved',
+        className:
+          'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-700 dark:text-emerald-300',
+        dotClassName: 'bg-emerald-500',
+      };
+    case 'CHANGES_REQUESTED':
+      return {
+        label: 'Changes requested',
+        className: 'border-rose-500/20 bg-rose-500/[0.07] text-rose-700 dark:text-rose-300',
+        dotClassName: 'bg-rose-500',
+      };
+    case 'REVIEW_REQUIRED':
+      return {
+        label: 'Review required',
+        className: 'border-amber-500/20 bg-amber-500/[0.07] text-amber-700 dark:text-amber-300',
+        dotClassName: 'bg-amber-500',
+      };
+    default:
+      return null;
+  }
+}
+
+function getReviewStateMeta(state?: PullRequestReviewer['state']): {
+  label: string;
+  dotClassName: string;
+  showCommentIcon?: boolean;
+} {
+  switch (state) {
+    case 'APPROVED':
+      return {
+        label: 'Approved',
+        dotClassName: 'bg-emerald-500',
+      };
+    case 'CHANGES_REQUESTED':
+      return {
+        label: 'Changes requested',
+        dotClassName: 'bg-rose-500',
+      };
+    case 'COMMENTED':
+      return {
+        label: 'Commented',
+        dotClassName: 'bg-sky-500',
+        showCommentIcon: true,
+      };
+    case 'PENDING':
+      return {
+        label: 'Pending review',
+        dotClassName: 'bg-amber-500',
+      };
+    case 'DISMISSED':
+      return {
+        label: 'Dismissed',
+        dotClassName: 'bg-slate-400 dark:bg-slate-500',
+      };
+    default:
+      return {
+        label: 'Reviewer',
+        dotClassName: 'bg-slate-300 dark:bg-slate-600',
+      };
+  }
+}
+
+const ReviewerBadge: React.FC<{ reviewer: PullRequestReviewer }> = ({ reviewer }) => {
+  const meta = getReviewStateMeta(reviewer.state);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={cn(reviewerBadgeClass, 'justify-start gap-1.5')}>
+          {meta.showCommentIcon ? (
+            <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+          ) : (
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', meta.dotClassName)} />
+          )}
+          <span className="truncate">{reviewer.login}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {reviewer.login}: {meta.label}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewers }) => {
+  if (reviewers.length === 0) return null;
+
+  const visible = reviewers.slice(0, MAX_VISIBLE_REVIEWERS);
+  const overflow = reviewers.slice(MAX_VISIBLE_REVIEWERS);
+
+  return (
+    <div className="flex items-center gap-1">
+      {visible.map((reviewer) => (
+        <ReviewerBadge key={reviewer.login} reviewer={reviewer} />
+      ))}
+      {overflow.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn(
+                reviewerBadgeClass,
+                'max-w-none border-border/60 bg-muted/35 text-muted-foreground'
+              )}
+            >
+              +{overflow.length}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <div className="flex flex-col gap-1">
+              {overflow.map((reviewer) => (
+                <span key={reviewer.login}>
+                  {reviewer.login}: {getReviewStateMeta(reviewer.state).label}
+                </span>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
+};
+
+const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId }) => {
   const { toast } = useToast();
+  const { handleOpenExternalTask } = useTaskManagementContext();
   const [collapsed, setCollapsed] = useState(false);
   const [creatingForPr, setCreatingForPr] = useState<number | null>(null);
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -89,7 +240,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: result.task.metadata,
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else if (result.success && result.worktree) {
         const task: Task = {
           id: result.worktree.id || crypto.randomUUID(),
@@ -101,7 +252,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: { prNumber: pr.number, prTitle: pr.title },
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else {
         toast({
           title: 'Failed to create review task',
@@ -240,6 +391,36 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                           {pr.isDraft ? (
                             <span className={`${prBadgeClass} shrink-0`}>Draft</span>
                           ) : null}
+                          {pr.reviewDecision &&
+                            (() => {
+                              const config = getReviewDecisionConfig(pr.reviewDecision);
+                              if (!config) return null;
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        subtleReviewBadgeClass,
+                                        'shrink-0 gap-1.5',
+                                        config.className
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          'h-1.5 w-1.5 shrink-0 rounded-full',
+                                          config.dotClassName
+                                        )}
+                                      />
+                                      {config.label}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Review status: {config.label}
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="truncate font-mono">{pr.headRefName}</span>
@@ -250,6 +431,11 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                             </>
                           ) : null}
                         </div>
+                        {pr.reviewers && pr.reviewers.length > 0 && (
+                          <div className="mt-1">
+                            <ReviewersList reviewers={pr.reviewers} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <Tooltip>
