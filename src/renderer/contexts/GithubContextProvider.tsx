@@ -39,7 +39,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const { showModal } = useModalContext();
   const { toast } = useToast();
   const { platform } = useAppContext();
-  const { isSignedIn: hasActiveAccount, checkServerHealth } = useEmdashAccount();
+  const { isSignedIn: hasActiveAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const queryClient = useQueryClient();
 
   const [githubLoading, setGithubLoading] = useState(false);
@@ -178,6 +178,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
           if (result.success) {
             setGithubLoading(false);
             setGithubStatusMessage(undefined);
+            await refreshSession();
             await checkStatus();
             return;
           }
@@ -218,6 +219,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   }, [
     hasActiveAccount,
     checkServerHealth,
+    refreshSession,
     platform,
     toast,
     checkStatus,
