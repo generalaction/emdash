@@ -77,9 +77,7 @@ describe('EmdashAccountService', () => {
       })
     );
 
-    // Force re-initialization by getting a fresh instance
-    const { emdashAccountService: fresh } = await freshImport();
-    const session = fresh.getSession();
+    const session = emdashAccountService.getSession();
     expect(session.hasAccount).toBe(true);
     expect(session.isSignedIn).toBe(false); // no session token loaded
     expect(session.user).toBeNull();
@@ -105,19 +103,16 @@ describe('EmdashAccountService', () => {
       json: async () => ({ session: { token: 'session_token_123' }, user: { id: 'user_123' } }),
     });
 
-    // Need fresh instance after setting up mocks
-    const { emdashAccountService: fresh } = await freshImport();
-    await fresh.loadSessionToken();
-    const valid = await fresh.validateSession();
+    await emdashAccountService.loadSessionToken();
+    const valid = await emdashAccountService.validateSession();
     expect(valid).toBe(true);
   });
 
   it('should handle auth server being unreachable gracefully', async () => {
-    const { keytar } = await freshImport();
+    const { emdashAccountService, keytar } = await freshImport();
     vi.mocked(keytar.getPassword).mockResolvedValue('session_token_123');
     mockNetFetch.mockRejectedValueOnce(new Error('fetch failed'));
 
-    const { emdashAccountService } = await freshImport();
     await emdashAccountService.loadSessionToken();
     const valid = await emdashAccountService.validateSession();
     // Should not invalidate — server unreachable, trust cached state
@@ -125,7 +120,7 @@ describe('EmdashAccountService', () => {
   });
 
   it('should clear session on sign out but keep hasAccount', async () => {
-    const { fs, keytar } = await freshImport();
+    const { emdashAccountService, fs, keytar } = await freshImport();
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(
       JSON.stringify({
@@ -139,12 +134,10 @@ describe('EmdashAccountService', () => {
     );
     vi.mocked(keytar.getPassword).mockResolvedValue('session_token_123');
 
-    const { emdashAccountService } = await freshImport();
     await emdashAccountService.loadSessionToken();
     await emdashAccountService.signOut();
 
-    const keytarFresh = await import('keytar');
-    expect(keytarFresh.deletePassword).toHaveBeenCalledWith('emdash-account', 'session-token');
+    expect(keytar.deletePassword).toHaveBeenCalledWith('emdash-account', 'session-token');
     const session = emdashAccountService.getSession();
     expect(session.isSignedIn).toBe(false);
     expect(session.hasAccount).toBe(true); // hasAccount stays true after sign-out

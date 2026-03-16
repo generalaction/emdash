@@ -39,7 +39,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const { showModal } = useModalContext();
   const { toast } = useToast();
   const { platform } = useAppContext();
-  const { isSignedIn: hasActiveAccount, checkServerHealth, refreshSession } = useEmdashAccount();
+  const { hasAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const queryClient = useQueryClient();
 
   const [githubLoading, setGithubLoading] = useState(false);
@@ -171,7 +171,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         void checkStatus();
       }
 
-      if (hasActiveAccount && (await checkServerHealth())) {
+      if (hasAccount && (await checkServerHealth())) {
         setGithubStatusMessage('Authenticating via Emdash account...');
         try {
           const result = await window.electronAPI.githubAuthOAuth();
@@ -217,7 +217,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       });
     }
   }, [
-    hasActiveAccount,
+    hasAccount,
     checkServerHealth,
     refreshSession,
     platform,

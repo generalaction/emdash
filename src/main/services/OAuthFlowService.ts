@@ -151,6 +151,7 @@ export class OAuthFlowService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ state, code, code_verifier: codeVerifier }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
