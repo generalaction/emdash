@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makePtyId } from '../../shared/ptyId';
 
 type ExitPayload = {
@@ -315,6 +315,12 @@ describe('ptyIpc notification lifecycle', () => {
     codexThreadExistsForCwdMock.mockResolvedValue(true);
     codexFindLatestRecentThreadForCwdMock.mockResolvedValue(null);
     codexFindLatestThreadForCwdMock.mockResolvedValue(null);
+    vi.useFakeTimers();
+  });
+
+  afterEach(async () => {
+    await vi.runAllTimersAsync();
+    vi.useRealTimers();
   });
 
   function createSender() {
@@ -522,7 +528,7 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.runAllTimersAsync();
 
     expect(codexFindLatestRecentThreadForCwdMock).toHaveBeenCalled();
     expect(markCodexSessionBoundMock).toHaveBeenCalledWith(id, 'thread-123', '/tmp/task');
@@ -550,7 +556,7 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.runAllTimersAsync();
 
     expect(codexFindLatestThreadForCwdMock).toHaveBeenCalledWith('/tmp/task');
     expect(codexFindLatestRecentThreadForCwdMock).not.toHaveBeenCalled();
