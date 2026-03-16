@@ -69,6 +69,10 @@ declare global {
       onMenuRedo: (listener: () => void) => () => void;
       onMenuCloseTab: (listener: () => void) => () => void;
 
+      // Navigation events (trackpad swipe / mouse back-forward)
+      onNavigateBack: (listener: () => void) => () => void;
+      onNavigateForward: (listener: () => void) => () => void;
+
       // PTY
       ptyStart: (opts: {
         id: string;
@@ -1360,6 +1364,10 @@ export interface ElectronAPI {
   onMenuUndo: (listener: () => void) => () => void;
   onMenuRedo: (listener: () => void) => () => void;
   onMenuCloseTab: (listener: () => void) => () => void;
+
+  // Navigation events (trackpad swipe / mouse back-forward)
+  onNavigateBack: (listener: () => void) => () => void;
+  onNavigateForward: (listener: () => void) => () => void;
 
   // App info
   getVersion: () => Promise<string>;

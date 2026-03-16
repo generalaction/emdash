@@ -2,12 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Command,
   MessageSquare,
   Settings as SettingsIcon,
   KanbanSquare,
   Code2,
 } from 'lucide-react';
+import { useNavigationHistoryContext } from '../../contexts/NavigationHistoryProvider';
 import { ShortcutHint } from '../ui/shortcut-hint';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
@@ -115,6 +118,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   const { user: githubUser } = useGithubContext();
   const { settings } = useAppSettings();
   const showResourceMonitor = settings?.interface?.showResourceMonitor ?? false;
+  const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistoryContext();
 
   const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
   const currentPath = isTaskMultiAgent
@@ -218,12 +222,59 @@ const Titlebar: React.FC<TitlebarProps> = ({
             <TitlebarMenu />
           </div>
         )}
+        {/* Left: navigation + performance chip */}
         <div
           className="pointer-events-auto flex flex-shrink-0 items-center [-webkit-app-region:no-drag]"
           style={{
             paddingLeft: isMacOS ? 'env(titlebar-area-x, 80px)' : '0.5rem',
           }}
         >
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Navigate back"
+                  disabled={!canGoBack}
+                  onClick={goBack}
+                  className="h-7 w-7 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs font-medium">
+                <div className="flex flex-col gap-1">
+                  <span>Back</span>
+                  <ShortcutHint settingsKey="navigateBack" />
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Navigate forward"
+                  disabled={!canGoForward}
+                  onClick={goForward}
+                  className="h-7 w-7 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs font-medium">
+                <div className="flex flex-col gap-1">
+                  <span>Forward</span>
+                  <ShortcutHint settingsKey="navigateForward" />
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {showResourceMonitor ? <PerformanceChip /> : null}
         </div>
         {/* Center: project/task context (grows to fill) */}

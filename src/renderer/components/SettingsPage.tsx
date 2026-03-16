@@ -23,6 +23,7 @@ import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
+import TrackpadNavigationSettingsCard from './TrackpadNavigationSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
@@ -267,6 +268,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
               <ResourceMonitorSettingsCard />
               <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
+              <TrackpadNavigationSettingsCard />
               <TaskHoverActionCard />
             </div>
           ),
