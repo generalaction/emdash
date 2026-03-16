@@ -27,6 +27,8 @@ export interface KeyboardSettings {
   nextAgent?: ShortcutBinding;
   prevAgent?: ShortcutBinding;
   openInEditor?: ShortcutBinding;
+  navigateBack?: ShortcutBinding;
+  navigateForward?: ShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -94,6 +96,10 @@ export interface GlobalShortcutHandlers {
 
   // Open in editor
   onOpenInEditor?: () => void;
+
+  // Navigation history
+  onNavigateBack?: () => void;
+  onNavigateForward?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;
