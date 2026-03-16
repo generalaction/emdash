@@ -36,7 +36,8 @@ export type SettingsPageTab =
   | 'integrations'
   | 'repository'
   | 'interface'
-  | 'docs';
+  | 'docs'
+  | 'account';
 
 // Helper functions from SettingsModal
 const createDefaultCliAgents = (): CliAgentStatus[] =>

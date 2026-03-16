@@ -128,8 +128,7 @@ export function AccountTab() {
         <div>
           <p className="text-sm font-medium text-foreground">Emdash Account</p>
           <p className="text-xs text-muted-foreground">
-            Create an Emdash account to get a faster GitHub connection experience and unlock future
-            features. Uses GitHub for authentication.
+            Create an Emdash account to automatically connect GitHub using OAuth2.
           </p>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
