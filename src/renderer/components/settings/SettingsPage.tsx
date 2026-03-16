@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { useViewParams } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useViewParams } from '@renderer/core/view/navigation-provider';
 import { rpc } from '@renderer/lib/ipc';
 import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
 import TerminalSettingsCard from '../TerminalSettingsCard';
@@ -35,16 +35,19 @@ interface SectionConfig {
   component: React.ReactNode;
 }
 
-export function SettingsPage({ tab = 'general' }: { tab?: SettingsPageTab }) {
-  const { setParams } = useViewParams('settings');
-  const activeTab = tab;
-
+export function SettingsPage({
+  tab: activeTab,
+  onTabChange,
+}: {
+  tab: SettingsPageTab;
+  onTabChange: (tab: SettingsPageTab) => void;
+}) {
   const handleDocsClick = useCallback(() => {
     rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
   const tabs: Array<{
-    id: string;
+    id: SettingsPageTab;
     label: string;
     isExternal?: boolean;
   }> = [
@@ -144,7 +147,7 @@ export function SettingsPage({ tab = 'general' }: { tab?: SettingsPageTab }) {
             </div>
             <nav className="flex min-h-0 w-52 flex-col gap-1 overflow-y-auto pt-8">
               {tabs.map((tab) => {
-                const isActive = activeTab === tab.id && !tab.isExternal;
+                const isActive = tab.id === activeTab && !tab.isExternal;
                 return (
                   <button
                     key={tab.id}
@@ -153,7 +156,7 @@ export function SettingsPage({ tab = 'general' }: { tab?: SettingsPageTab }) {
                       if (tab.isExternal) {
                         handleDocsClick();
                       } else {
-                        setParams({ tab: tab.id as SettingsPageTab });
+                        onTabChange(tab.id);
                       }
                     }}
                     className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-normal transition-colors ${

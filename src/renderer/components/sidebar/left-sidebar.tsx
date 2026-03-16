@@ -10,9 +10,9 @@ import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
 import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
 import {
   isCurrentView,
-  useWorkspaceNavigation,
+  useNavigate,
   useWorkspaceSlots,
-} from '@renderer/contexts/WorkspaceNavigationContext';
+} from '@renderer/core/view/navigation-provider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 import { SidebarProjectItem } from './project-item';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -37,7 +37,7 @@ export type ProjectItem =
 export const LeftSidebar: React.FC = () => {
   const { projects } = useProjectsContext();
   const { pendingProjects } = usePendingProjectsContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);

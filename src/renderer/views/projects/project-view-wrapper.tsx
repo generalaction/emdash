@@ -1,13 +1,16 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { usePendingProjectsContext } from '@renderer/components/add-project-modal/pending-projects-provider';
+import {
+  usePendingProjectsContext,
+  type PendingProject,
+} from '@renderer/components/add-project-modal/pending-projects-provider';
 import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
 import type { Project } from '@renderer/types/app';
 import { RepositoryProvider } from './repository-provider';
 
-export type ProjectStatus = 'creating' | 'ready';
+export type ProjectStatus = { status: 'creating'; pending: PendingProject } | { status: 'ready' };
 
 const CurrentProjectContext = createContext<Project | null>(null);
-const CurrentProjectStatusContext = createContext<ProjectStatus>('ready');
+const CurrentProjectStatusContext = createContext<ProjectStatus>({ status: 'ready' });
 
 export function useCurrentProject(): Project | null {
   return useContext(CurrentProjectContext);
@@ -34,9 +37,10 @@ export function ProjectViewWrapper({ children, projectId }: ProjectViewWrapperPr
   const { projects } = useProjectsContext();
   const { pendingProjects } = usePendingProjectsContext();
   const project = (projects.find((p) => p.id === projectId) ?? null) as Project | null;
-  const status: ProjectStatus = pendingProjects.some((p) => p.id === projectId)
-    ? 'creating'
-    : 'ready';
+  const pendingProject = pendingProjects.find((p) => p.id === projectId);
+  const status: ProjectStatus = pendingProject
+    ? { status: 'creating', pending: pendingProject }
+    : { status: 'ready' };
   return (
     <CurrentProjectStatusContext.Provider value={status}>
       <RepositoryProvider projectId={projectId}>

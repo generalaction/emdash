@@ -1,7 +1,5 @@
-import { usePendingProjectsContext } from '@renderer/components/add-project-modal/pending-projects-provider';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
-import { useViewParams } from '@renderer/contexts/WorkspaceNavigationContext';
 import {
   useCurrentProject,
   useCurrentProjectStatus,
@@ -10,15 +8,8 @@ import {
 export function ProjectTitlebar() {
   const project = useCurrentProject();
   const status = useCurrentProjectStatus();
-  const { params } = useViewParams('project');
-  const { pendingProjects } = usePendingProjectsContext();
 
-  const pendingName =
-    status === 'creating'
-      ? (pendingProjects.find((p) => p.id === params.projectId)?.name ?? null)
-      : null;
-
-  const displayName = project?.name ?? pendingName;
+  const displayName = project?.name ?? (status.status === 'creating' ? status.pending.name : null);
   const currentPath = project?.isRemote ? project?.remotePath : project?.path || null;
 
   return (

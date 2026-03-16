@@ -7,36 +7,19 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
-import { useModalContext } from './ModalProvider';
-import {
-  views,
-  type ViewDefinition,
-  type ViewId,
-  type WrapParams,
-} from './workspace-views-registry';
+import { useModalContext } from '../modal-provider';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
   WorkspaceUpdateViewParamsContext,
   WorkspaceViewParamsStoreContext,
   WorkspaceWrapParamsContext,
-  type NavigateFn,
+  type NavigateFnTyped,
   type SlotsContextValue,
   type UpdateViewParamsFn,
   type WrapParamsContextValue,
-} from './WorkspaceNavigationContext';
-
-/**
- * NavArgs makes the params argument optional when all fields are optional,
- * and omits it entirely for views with no params (home, skills).
- */
-type NavArgs<TId extends ViewId> = keyof WrapParams<TId> extends never
-  ? [viewId: TId]
-  : Partial<WrapParams<TId>> extends WrapParams<TId>
-    ? [viewId: TId, params?: WrapParams<TId>]
-    : [viewId: TId, params: WrapParams<TId>];
-
-export type NavigateFnTyped = <TId extends ViewId>(...args: NavArgs<TId>) => void;
+} from './navigation-provider';
+import { views, type ViewDefinition, type ViewId, type WrapParams } from './registry';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
 
@@ -48,10 +31,14 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
 
   const navigate = useCallback(
     (...args: unknown[]) => {
-      const [viewId, params] = args as [ViewId, Record<string, unknown>?];
+      const [viewId, params] = args as [ViewId, Record<string, unknown> | undefined];
       startTransition(() => {
         setCurrentViewId(viewId);
-        setViewParamsStore((prev) => ({ ...prev, [viewId]: params ?? {} }));
+        // Only overwrite stored params when the caller explicitly passes them;
+        // navigating without params preserves whatever was stored for that view.
+        if (params !== undefined) {
+          setViewParamsStore((prev) => ({ ...prev, [viewId]: params }));
+        }
         closeModal();
       });
     },
@@ -97,7 +84,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const viewParamsStoreValue = useMemo(() => ({ viewParamsStore }), [viewParamsStore]);
 
   return (
-    <WorkspaceNavigateContext.Provider value={navigate as unknown as NavigateFn}>
+    <WorkspaceNavigateContext.Provider value={navigate}>
       <WorkspaceSlotsContext.Provider value={slotsValue}>
         <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
           <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>

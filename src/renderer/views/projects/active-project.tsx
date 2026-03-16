@@ -7,8 +7,13 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
+import { useShowModal } from '@renderer/core/modal-provider';
+import { useRequiredCurrentProject } from './project-view-wrapper';
 
 export function ActiveProject() {
+  const project = useRequiredCurrentProject();
+  const showProjectSettingsModal = useShowModal('projectSettingsModal');
+
   return (
     <div className="max-w-5xl mx-auto p-8 w-full">
       <Tabs className="flex flex-col">
@@ -16,9 +21,14 @@ export function ActiveProject() {
           <TabsList>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="prs">Pull requests</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => showProjectSettingsModal({ projectId: project.id })}
+            >
+              Project settings
+            </Button>
             <Button variant="outline">
               <Github className="size-4" />
               View on Github

@@ -15,8 +15,8 @@ import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
-import { BaseModalProps } from '@renderer/contexts/ModalProvider';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { BaseModalProps } from '@renderer/core/modal-provider';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useRepository } from '@renderer/hooks/use-repository';
 import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
 import { BranchSelector } from './branch-selector';
@@ -38,7 +38,7 @@ export function CreateTaskModal({
 }: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
   const { createTask } = usePendingTasksContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
     defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined
   );

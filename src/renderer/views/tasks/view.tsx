@@ -1,4 +1,4 @@
-import type { ViewDefinition } from '@renderer/contexts/workspace-views-registry';
+import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-wrapper';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';

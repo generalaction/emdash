@@ -4,7 +4,7 @@ import githubLogo from '@/assets/images/github.png';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
 import type { Issue } from '@shared/tasks';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useGitHubIssues } from '@renderer/hooks/use-github-issues';
 import { useJiraIssues } from '@renderer/hooks/use-jira-issues';
 import { useLinearIssues } from '@renderer/hooks/use-linear-issues';
@@ -327,7 +327,7 @@ function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () =>
 }
 
 function ConnectIssueIntegrationPlaceholder() {
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
 
   return (
     <div className="flex flex-col gap-4 w-full border border-border border-dashed items-center justify-center rounded-md p-4">

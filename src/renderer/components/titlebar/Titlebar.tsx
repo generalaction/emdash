@@ -1,8 +1,8 @@
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Toggle } from '@renderer/components/ui/toggle';
-import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
-import { useWorkspaceSlots } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
+import { useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 
 export function Titlebar({

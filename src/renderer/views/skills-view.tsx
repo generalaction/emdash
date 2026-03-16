@@ -8,3 +8,8 @@ export function SkillsTitlebar() {
 export function SkillsMainPanel() {
   return <SkillsView />;
 }
+
+export const skillsView = {
+  TitlebarSlot: SkillsTitlebar,
+  MainPanel: SkillsMainPanel,
+};

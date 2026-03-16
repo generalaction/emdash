@@ -2,9 +2,9 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import { useRightSidebar } from '../components/ui/right-sidebar';
-import { useModalContext } from '../contexts/ModalProvider';
-import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
-import { useWorkspaceNavigation, useWorkspaceSlots } from '../contexts/WorkspaceNavigationContext';
+import { useModalContext } from '../core/modal-provider';
+import { useWorkspaceLayoutContext } from '../core/view/layout-provider';
+import { useNavigate, useWorkspaceSlots } from '../core/view/navigation-provider';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';
 import { useTheme } from '../hooks/useTheme';
 
@@ -14,7 +14,7 @@ const AppKeyboardShortcuts: React.FC = () => {
   const { toggleTheme } = useTheme();
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const { showModal, activeModalId, closeModal } = useModalContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
   const isCommandPaletteOpen = activeModalId === 'commandPaletteModal';

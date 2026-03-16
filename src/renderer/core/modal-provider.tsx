@@ -4,6 +4,7 @@ import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
+import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/ProjectSettingsModal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
 
@@ -16,6 +17,7 @@ const modalRegistry = {
   addSshConnModal: AddSshConnModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,
+  projectSettingsModal: ProjectSettingsModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;
 

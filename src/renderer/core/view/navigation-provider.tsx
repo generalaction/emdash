@@ -1,7 +1,18 @@
 import { ComponentType, createContext, useCallback, useContext, type ReactNode } from 'react';
-import type { ViewId, WrapParams } from './workspace-views-registry';
+import type { ViewId, WrapParams } from './registry';
 
-export type NavigateFn = (viewId: string, params?: Record<string, unknown>) => void;
+/**
+ * NavArgs makes the params argument optional when all fields are optional,
+ * and omits it entirely for views with no params (home, skills).
+ */
+export type NavArgs<TId extends ViewId> = keyof WrapParams<TId> extends never
+  ? [viewId: TId]
+  : Partial<WrapParams<TId>> extends WrapParams<TId>
+    ? [viewId: TId, params?: WrapParams<TId>]
+    : [viewId: TId, params: WrapParams<TId>];
+
+/** Higher-rank navigate function — generic at the call site, not at the hook call site. */
+export type NavigateFnTyped = <TId extends ViewId>(...args: NavArgs<TId>) => void;
 
 export type UpdateViewParamsFn = <TId extends ViewId>(
   viewId: TId,
@@ -24,11 +35,12 @@ export type ViewParamsStoreContextValue = {
   viewParamsStore: Partial<{ [K in ViewId]: WrapParams<K> }>;
 };
 
-export const WorkspaceNavigateContext = createContext<NavigateFn | undefined>(undefined);
+export const WorkspaceNavigateContext = createContext<NavigateFnTyped | undefined>(undefined);
 export const WorkspaceSlotsContext = createContext<SlotsContextValue | undefined>(undefined);
 export const WorkspaceWrapParamsContext = createContext<WrapParamsContextValue | undefined>(
   undefined
 );
+
 export const WorkspaceViewParamsStoreContext = createContext<
   ViewParamsStoreContextValue | undefined
 >(undefined);
@@ -36,10 +48,10 @@ export const WorkspaceUpdateViewParamsContext = createContext<UpdateViewParamsFn
   undefined
 );
 
-export function useWorkspaceNavigation(): { navigate: NavigateFn } {
+export function useNavigate(): { navigate: NavigateFnTyped } {
   const navigate = useContext(WorkspaceNavigateContext);
   if (!navigate) {
-    throw new Error('useWorkspaceNavigation must be used within a WorkspaceViewProvider');
+    throw new Error('useNavigate must be used within a WorkspaceViewProvider');
   }
   return { navigate };
 }

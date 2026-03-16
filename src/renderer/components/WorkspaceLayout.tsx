@@ -4,7 +4,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
-import { useWorkspaceLayoutContext } from '@renderer/contexts/WorkspaceLayoutProvider';
+import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { cn } from '@renderer/lib/utils';
 
 const LEFT_PANEL_DEFAULT_SIZE = 20;

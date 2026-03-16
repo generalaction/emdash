@@ -1,4 +1,3 @@
-import { usePendingProjectsContext } from '@renderer/components/add-project-modal/pending-projects-provider';
 import {
   ProjectViewWrapper,
   useCurrentProject,
@@ -17,13 +16,9 @@ export const projectView = {
 export function ProjectMainPanel() {
   const project = useCurrentProject();
   const status = useCurrentProjectStatus();
-  const { pendingProjects } = usePendingProjectsContext();
 
-  if (status === 'creating') {
-    const pending = pendingProjects.find((p) => p.id === project?.id);
-    if (pending) {
-      return <PendingProjectStatus pending={pending} />;
-    }
+  if (status.status === 'creating') {
+    return <PendingProjectStatus pending={status.pending} />;
   }
 
   if (!project) {

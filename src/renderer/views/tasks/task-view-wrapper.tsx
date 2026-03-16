@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { Task } from '@shared/tasks';
 import { useTaskViewState } from '@renderer/contexts/task-view-state-provider';
-import { useTasksContext } from '@renderer/contexts/TasksProvider';
+import { useTasksContext } from '@renderer/contexts/tasks-provider';
 import {
   PendingTask,
   usePendingTasksContext,

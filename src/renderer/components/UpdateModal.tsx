@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/components/ui/dialog';
-import { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import { BaseModalProps } from '@renderer/core/modal-provider';
 import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../lib/ipc';
 

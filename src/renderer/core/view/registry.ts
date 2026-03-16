@@ -1,9 +1,9 @@
 import type { ComponentType, ReactNode } from 'react';
+import { homeView } from '@renderer/views/home-view';
 import { projectView } from '@renderer/views/projects/view';
+import { settingsView } from '@renderer/views/settings/settings-view';
+import { skillsView } from '@renderer/views/skills-view';
 import { taskView } from '@renderer/views/tasks/view';
-import { HomeMainPanel, HomeTitlebar } from '../views/home-view';
-import { SettingsMainPanel, SettingsTitlebar, SettingsViewWrapper } from '../views/settings-view';
-import { SkillsMainPanel, SkillsTitlebar } from '../views/skills-view';
 
 export type ViewDefinition<TParams extends object = Record<never, never>> = {
   WrapView?: ComponentType<{ children: ReactNode } & TParams>;
@@ -13,21 +13,11 @@ export type ViewDefinition<TParams extends object = Record<never, never>> = {
 };
 
 export const views = {
-  home: {
-    TitlebarSlot: HomeTitlebar,
-    MainPanel: HomeMainPanel,
-  },
-  skills: {
-    TitlebarSlot: SkillsTitlebar,
-    MainPanel: SkillsMainPanel,
-  },
+  home: homeView,
+  skills: skillsView,
   project: projectView,
   task: taskView,
-  settings: {
-    WrapView: SettingsViewWrapper,
-    TitlebarSlot: SettingsTitlebar,
-    MainPanel: SettingsMainPanel,
-  },
+  settings: settingsView,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;
 

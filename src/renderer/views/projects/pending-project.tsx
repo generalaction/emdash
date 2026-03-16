@@ -5,7 +5,7 @@ import {
   usePendingProjectsContext,
 } from '@renderer/components/add-project-modal/pending-projects-provider';
 import { Button } from '@renderer/components/ui/button';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 
 const STAGE_LABELS: Record<PendingProjectStage, string> = {
   'creating-repo': 'Creating repository',
@@ -23,7 +23,7 @@ const STAGES_BY_MODE: Record<PendingProject['mode'], PendingProjectStage[]> = {
 
 export function PendingProjectStatus({ pending }: { pending: PendingProject }) {
   const { removePending } = usePendingProjectsContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
   const stages = STAGES_BY_MODE[pending.mode];
   const currentStageIndex = stages.indexOf(pending.stage as PendingProjectStage);
   const isError = pending.stage === 'error';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { TaskItem } from './project-item';
 import { SidebarMenuButton } from './sidebar-primitives';
 
@@ -9,7 +9,7 @@ interface SidebarTaskItemProps {
 }
 
 export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActive }) => {
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
 
   return (
     <SidebarMenuButton

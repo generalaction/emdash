@@ -2,7 +2,9 @@ import { createRPCController } from '@shared/ipc/rpc';
 import { createLocalProject, createSshProject } from './operations/createProject';
 import { deleteProject } from './operations/deleteProject';
 import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
+import { getProjectSettings } from './operations/getProjectSettings';
 import { renameProject } from './operations/renameProject';
+import { updateProjectSettings } from './operations/updateProjectSettings';
 
 export const projectController = createRPCController({
   createLocalProject,
@@ -12,4 +14,6 @@ export const projectController = createRPCController({
   renameProject,
   getLocalProjectByPath,
   getSshProjectByPath,
+  getProjectSettings,
+  updateProjectSettings,
 });

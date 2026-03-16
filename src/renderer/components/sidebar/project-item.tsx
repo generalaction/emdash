@@ -2,13 +2,13 @@ import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import React, { useEffect, useMemo } from 'react';
 import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
-import { useShowModal } from '@renderer/contexts/ModalProvider';
-import { useTasksContext } from '@renderer/contexts/TasksProvider';
+import { useTasksContext } from '@renderer/contexts/tasks-provider';
+import { useShowModal } from '@renderer/core/modal-provider';
 import {
+  useNavigate,
   useViewParams,
-  useWorkspaceNavigation,
   useWorkspaceSlots,
-} from '@renderer/contexts/WorkspaceNavigationContext';
+} from '@renderer/core/view/navigation-provider';
 import { usePrefetchRepository } from '@renderer/hooks/use-repository';
 import { cn } from '@renderer/lib/utils';
 import {
@@ -45,7 +45,7 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { forceOpenIds, setForceOpenIds } = useSidebarContext();
   const { tasksByProjectId } = useTasksContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
   const { params: projectParams } = useViewParams('project');
   const { params: taskParams } = useViewParams('task');
@@ -98,7 +98,7 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
             <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
           </SidebarItemMiniButton>
         </TooltipTrigger>
-        <TooltipContent>{STAGE_LABEL[(project as unknown as PendingProject).stage]}</TooltipContent>
+        <TooltipContent>{STAGE_LABEL[(project.data as PendingProject).stage]}</TooltipContent>
       </Tooltip>
     );
   };

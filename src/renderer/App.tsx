@@ -10,13 +10,13 @@ import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { DependenciesProvider } from './contexts/DependenciesProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { IntegrationsProvider } from './contexts/IntegrationsProvider';
-import { ModalProvider } from './contexts/ModalProvider';
 import { ProjectsProvider } from './contexts/ProjectsProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
 import { TaskViewStateProvider } from './contexts/task-view-state-provider';
-import { TasksProvider } from './contexts/TasksProvider';
-import { WorkspaceLayoutContextProvider } from './contexts/WorkspaceLayoutProvider';
-import { WorkspaceViewProvider } from './contexts/WorkspaceViewProvider';
+import { TasksProvider } from './contexts/tasks-provider';
+import { ModalProvider } from './core/modal-provider';
+import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
+import { WorkspaceViewProvider } from './core/view/provider';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import BrowserProvider from './providers/BrowserProvider';
 import { PendingTasksProvider } from './views/projects/pending-tasks-provider';
@@ -28,16 +28,10 @@ export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 const queryClient = new QueryClient();
 
 export function App() {
-  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean | number>(
-    FIRST_LAUNCH_KEY,
-    true
-  );
+  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);
 
   const renderContent = () => {
-    // Handle legacy string value '1' from old implementation
-    const isFirstLaunchBool = isFirstLaunch === true || isFirstLaunch === 1;
-
-    if (isFirstLaunchBool) {
+    if (isFirstLaunch) {
       return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
     }
     return <Workspace />;

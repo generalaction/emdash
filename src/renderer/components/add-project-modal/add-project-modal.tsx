@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useShowModal, type BaseModalProps } from '@renderer/contexts/ModalProvider';
-import { useWorkspaceNavigation } from '@renderer/contexts/WorkspaceNavigationContext';
+import { useShowModal, type BaseModalProps } from '@renderer/core/modal-provider';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { rpc } from '@renderer/lib/ipc';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { Button } from '../ui/button';
@@ -50,7 +50,7 @@ export function AddProjectModal({
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
 
   const { startPickProject, startNewProject, startCloneProject } = usePendingProjectsContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
 
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');

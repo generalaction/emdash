@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTaskManagementContext } from '../../contexts/TasksProvider';
+import { useTaskManagementContext } from '../../contexts/tasks-provider';
 import { useToast } from '../../hooks/use-toast';
 import { rpc } from '../../lib/ipc';
 import { isActivePr, PrInfo } from '../../lib/prStatus';

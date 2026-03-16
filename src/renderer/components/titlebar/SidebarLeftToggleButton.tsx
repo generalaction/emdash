@@ -1,6 +1,6 @@
 import { PanelLeft } from 'lucide-react';
 import React from 'react';
-import { useWorkspaceLayoutContext } from '../../contexts/WorkspaceLayoutProvider';
+import { useWorkspaceLayoutContext } from '../../core/view/layout-provider';
 import { Button } from '../ui/button';
 import { ShortcutHint } from '../ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';

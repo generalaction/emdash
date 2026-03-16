@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useModalContext } from '@renderer/contexts/ModalProvider';
+import { useModalContext } from '@renderer/core/modal-provider';
 
 /**
  * Activates a close guard on the currently open modal while `isActive` is true,

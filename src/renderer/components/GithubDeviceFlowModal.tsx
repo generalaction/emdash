@@ -5,7 +5,7 @@ import {
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
-import type { BaseModalProps } from '@renderer/contexts/ModalProvider';
+import type { BaseModalProps } from '@renderer/core/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
 import { useToast } from '../hooks/use-toast';
 import { events, rpc } from '../lib/ipc';

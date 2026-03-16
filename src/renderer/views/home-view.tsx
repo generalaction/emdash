@@ -15,3 +15,8 @@ export function HomeMainPanel() {
     />
   );
 }
+
+export const homeView = {
+  TitlebarSlot: HomeTitlebar,
+  MainPanel: HomeMainPanel,
+};

@@ -1,8 +1,8 @@
 import React from 'react';
-import type { BaseModalProps } from '../contexts/ModalProvider';
 import { useProjectsContext } from '../contexts/ProjectsProvider';
-import { useWorkspaceLayoutContext } from '../contexts/WorkspaceLayoutProvider';
-import { useWorkspaceNavigation } from '../contexts/WorkspaceNavigationContext';
+import type { BaseModalProps } from '../core/modal-provider';
+import { useWorkspaceLayoutContext } from '../core/view/layout-provider';
+import { useNavigate } from '../core/view/navigation-provider';
 import { useTheme } from '../hooks/useTheme';
 import CommandPalette from './CommandPalette';
 import { useRightSidebar } from './ui/right-sidebar';
@@ -14,7 +14,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClos
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
   const { projects } = useProjectsContext();
-  const { navigate } = useWorkspaceNavigation();
+  const { navigate } = useNavigate();
 
   return (
     <CommandPalette
@@ -34,7 +34,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClos
         onClose();
       }}
       onOpenKeyboardShortcuts={() => {
-        navigate('settings', { tab: 'keyboard' });
+        navigate('settings', { tab: 'interface' });
         onClose();
       }}
       onToggleLeftSidebar={() => {
