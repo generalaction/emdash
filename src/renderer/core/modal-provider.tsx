@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useRef, useState } f
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
+import { ConfirmActionDialog } from '@renderer/components/ConfirmActionDialog';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
 import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/ProjectSettingsModal';
@@ -18,6 +19,7 @@ const modalRegistry = {
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,
   projectSettingsModal: ProjectSettingsModal,
+  confirmActionModal: ConfirmActionDialog,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;
 

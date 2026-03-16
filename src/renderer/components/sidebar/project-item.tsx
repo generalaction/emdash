@@ -43,7 +43,7 @@ export type TaskItem =
 
 export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { forceOpenIds, setForceOpenIds } = useSidebarContext();
-  const { tasksByProjectId } = useTasksContext();
+  const { activeTasksByProjectId: tasksByProjectId } = useTasksContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();

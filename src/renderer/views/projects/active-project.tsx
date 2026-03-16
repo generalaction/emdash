@@ -1,4 +1,5 @@
 import { Github, MoreHorizontal } from 'lucide-react';
+import { TaskList } from '@renderer/components/projects/TaskList';
 import { Button } from '@renderer/components/ui/button';
 import {
   DropdownMenu,
@@ -48,7 +49,9 @@ export function ActiveProject() {
             </DropdownMenu>
           </div>
         </div>
-        <TabsContent value="tasks">Tasks</TabsContent>
+        <TabsContent value="tasks">
+          <TaskList />
+        </TabsContent>
         <TabsContent value="prs">Pull request list</TabsContent>
         <TabsContent value="settings">Settings</TabsContent>
       </Tabs>

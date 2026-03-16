@@ -10,6 +10,7 @@ export function mapTaskRowToTask(row: TaskRow): Task {
     sourceBranch: row.sourceBranch,
     taskBranch: row.taskBranch ?? undefined,
     linkedIssue: row.linkedIssue ? (JSON.parse(row.linkedIssue) as Issue) : undefined,
+    archivedAt: row.archivedAt ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
