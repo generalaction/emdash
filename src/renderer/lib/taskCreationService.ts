@@ -390,6 +390,9 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   // ---------------------------------------------------------------------------
   if (isMultiAgent) {
     const groupId = `ws-${taskName}-${Date.now()}`;
+
+    // Build variant descriptors: worktree variants start as placeholders
+    // so we can return the task immediately without blocking.
     const variants: Array<{
       id: string;
       agent: Agent;
@@ -398,61 +401,48 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       path: string;
       worktreeId: string;
     }> = [];
+    const pendingWorktreeVariants: Array<{
+      index: number;
+      variantName: string;
+    }> = [];
 
-    try {
-      for (const { agent, runs } of agentRuns) {
-        for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
-          const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
-          const variantName = `${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
+    for (const { agent, runs } of agentRuns) {
+      for (let instanceIdx = 1; instanceIdx <= runs; instanceIdx++) {
+        const instanceSuffix = runs > 1 ? `-${instanceIdx}` : '';
+        const variantName = `${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
 
-          let branch: string;
-          let path: string;
-          let worktreeId: string;
-
-          if (useWorktree) {
-            const worktreeResult = await window.electronAPI.worktreeCreate({
-              projectPath: project.path,
-              taskName: variantName,
-              projectId: project.id,
-              baseRef,
-            });
-            if (!worktreeResult?.success || !worktreeResult.worktree) {
-              throw new Error(
-                worktreeResult?.error || `Failed to create worktree for ${agent}${instanceSuffix}`
-              );
-            }
-            const worktree = worktreeResult.worktree;
-            branch = worktree.branch;
-            path = worktree.path;
-            worktreeId = worktree.id;
-          } else {
-            branch = project.gitInfo.branch || 'main';
-            path = project.path;
-            worktreeId = `direct-${taskName}-${agent.toLowerCase()}${instanceSuffix}`;
-          }
-
+        if (useWorktree) {
+          const idx = variants.length;
           variants.push({
             id: `${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
             agent,
             name: variantName,
-            branch,
-            path,
-            worktreeId,
+            branch: project.gitInfo.branch || 'main',
+            path: project.path,
+            worktreeId: `pending-${variantName}-${Date.now()}`,
+          });
+          pendingWorktreeVariants.push({ index: idx, variantName });
+        } else {
+          variants.push({
+            id: `${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
+            agent,
+            name: variantName,
+            branch: project.gitInfo.branch || 'main',
+            path: project.path,
+            worktreeId: `direct-${taskName}-${agent.toLowerCase()}${instanceSuffix}`,
           });
         }
       }
-    } catch (error) {
-      // Clean up any worktrees created before the failure
-      for (const variant of variants) {
-        if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
-          window.electronAPI
-            .worktreeRemove({ projectPath: project.path, worktreeId: variant.worktreeId })
-            .catch(() => {});
-        }
-      }
-      const { log } = await import('./logger');
-      log.error('Failed to create multi-agent worktrees:', error as Error);
-      throw error;
+    }
+
+    const hasWorktreeVariants = pendingWorktreeVariants.length > 0;
+
+    // Wait for the preflight freshness check if we need worktrees
+    if (hasWorktreeVariants && preflightPromise) {
+      await Promise.race([
+        preflightPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+      ]);
     }
 
     const finalMeta: TaskMetadata = {
@@ -472,7 +462,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       name: taskName,
       branch: variants[0]?.branch || project.gitInfo.branch || 'main',
       path: variants[0]?.path || project.path,
-      status: 'idle',
+      status: hasWorktreeVariants ? 'creating' : 'idle',
       agentId: primaryAgent,
       metadata: finalMeta,
       useWorktree,
@@ -488,20 +478,124 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     } catch (saveErr) {
       const { log } = await import('./logger');
       log.error('Failed to save multi-agent task:', saveErr);
-      for (const variant of variants) {
-        if (variant.worktreeId && !variant.worktreeId.startsWith('direct-')) {
-          window.electronAPI
-            .worktreeRemove({ projectPath: project.path, worktreeId: variant.worktreeId })
-            .catch(() => {});
-        }
-      }
       throw saveErr;
     }
 
-    // Background: setup per variant + telemetry
-    for (const variant of variants) {
-      void runSetupOnCreate(variant.worktreeId, variant.path, project.path, variant.name);
+    // Fire-and-forget: launch all variant worktree creations in parallel.
+    // As each completes, update the group task metadata in the DB.
+    // The onWorktreeCreationEvent listener in useTaskManagement handles
+    // the frontend cache transitions.
+    if (hasWorktreeVariants) {
+      void (async () => {
+        const results = await Promise.allSettled(
+          pendingWorktreeVariants.map(async ({ index, variantName }) => {
+            const startResult = await window.electronAPI.worktreeStartTaskCreation({
+              projectId: project.id,
+              projectPath: project.path,
+              taskName: variantName,
+              baseRef,
+              task: {
+                projectId: project.id,
+                name: variantName,
+                status: 'creating',
+                agentId: primaryAgent,
+                metadata: null,
+                useWorktree: true,
+              },
+            });
+            if (!startResult.success || !startResult.task) {
+              throw new Error(
+                startResult.error || `Failed to start worktree creation for ${variantName}`
+              );
+            }
+            return { index, task: startResult.task, completed: startResult.completed };
+          })
+        );
+
+        // Update group task metadata with resolved variant info
+        const allTasks = await rpc.db.getTasks(project.id);
+        const latestTask = allTasks.find((t) => t.id === groupId);
+        if (!latestTask) return;
+
+        const updatedVariants = [...variants];
+        let anyFailed = false;
+        const failedNames: string[] = [];
+
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i];
+          const { index, variantName } = pendingWorktreeVariants[i];
+          if (result.status === 'fulfilled') {
+            const { task: variantTask } = result.value;
+            updatedVariants[index] = {
+              ...updatedVariants[index],
+              branch: variantTask.branch,
+              path: variantTask.path,
+              worktreeId: variantTask.id,
+            };
+          } else {
+            anyFailed = true;
+            failedNames.push(variantName);
+            const { log } = await import('./logger');
+            log.error(`Multi-agent variant worktree failed: ${variantName}`, result.reason);
+          }
+        }
+
+        const updatedMeta: TaskMetadata = {
+          ...((latestTask.metadata as TaskMetadata) || {}),
+          multiAgent: {
+            ...((latestTask.metadata as TaskMetadata)?.multiAgent || {
+              enabled: true,
+              maxAgents: 4,
+              agentRuns,
+              selectedAgent: null,
+            }),
+            variants: updatedVariants,
+          },
+        };
+
+        const allCompleted = results.every((r) => r.status === 'fulfilled' && r.value.completed);
+
+        await rpc.db.saveTask({
+          ...latestTask,
+          branch: updatedVariants[0]?.branch || latestTask.branch,
+          path: updatedVariants[0]?.path || latestTask.path,
+          status: anyFailed ? 'error' : allCompleted ? 'idle' : 'creating',
+          metadata: updatedMeta,
+        });
+
+        // Run setup for completed variants
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value.completed) {
+            const variant = updatedVariants[result.value.index];
+            void runSetupOnCreate(variant.worktreeId, variant.path, project.path, variant.name);
+          }
+        }
+
+        if (anyFailed) {
+          // Clean up worktrees for successfully created variants when some failed
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              const variant = updatedVariants[result.value.index];
+              if (
+                variant.worktreeId &&
+                !variant.worktreeId.startsWith('direct-') &&
+                !variant.worktreeId.startsWith('pending-')
+              ) {
+                window.electronAPI
+                  .worktreeRemove({ projectPath: project.path, worktreeId: variant.worktreeId })
+                  .catch(() => {});
+              }
+            }
+          }
+        }
+      })();
+    } else {
+      // No worktree variants — run setup immediately
+      for (const variant of variants) {
+        void runSetupOnCreate(variant.worktreeId, variant.path, project.path, variant.name);
+      }
     }
+
     void import('./telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('task_created', {
         provider: 'multi',
@@ -514,6 +608,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       if (linkedGitlabIssue) captureTelemetry('task_created_with_issue', { source: 'gitlab' });
       if (linkedForgejoIssue) captureTelemetry('task_created_with_issue', { source: 'forgejo' });
     });
+    seedIssueContext(finalTask.id, taskMetadata, finalTask.agentId || primaryAgent);
 
     return { task: finalTask };
   }
@@ -524,7 +619,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   let branch: string;
   let path: string;
   let taskId: string;
-  let taskPersistedInClaim = false;
+  let persistedByMain = false;
+  let taskStatus: Task['status'] = 'idle';
   let warning: string | undefined;
 
   if (useWorktree) {
@@ -538,7 +634,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       ]);
     }
 
-    const claimAndSaveResult = await window.electronAPI.worktreeClaimReserveAndSaveTask({
+    const startResult = await window.electronAPI.worktreeStartTaskCreation({
       projectId: project.id,
       projectPath: project.path,
       taskName,
@@ -546,41 +642,30 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       task: {
         projectId: project.id,
         name: taskName,
-        status: 'idle',
+        status: 'creating',
         agentId: primaryAgent,
         metadata: taskMetadata,
         useWorktree,
       },
     });
 
-    if (claimAndSaveResult.success && claimAndSaveResult.worktree) {
-      const worktree = claimAndSaveResult.worktree;
-      branch = worktree.branch;
-      path = worktree.path;
-      taskId = worktree.id;
-      taskPersistedInClaim = true;
-      if (claimAndSaveResult.needsBaseRefSwitch) {
+    if (startResult.success && startResult.task) {
+      branch = startResult.task.branch;
+      path = startResult.task.path;
+      taskId = startResult.task.id;
+      taskStatus = startResult.task.status ?? (startResult.completed ? 'idle' : 'creating');
+      persistedByMain = true;
+      if (startResult.needsBaseRefSwitch) {
         warning = `Could not switch to ${baseRef}. Task created on default branch.`;
       }
     } else {
-      const worktreeResult = await window.electronAPI.worktreeCreate({
-        projectPath: project.path,
-        taskName,
-        projectId: project.id,
-        baseRef,
-      });
-      if (!worktreeResult.success) {
-        throw new Error(worktreeResult.error || 'Failed to create worktree');
-      }
-      const worktree = worktreeResult.worktree;
-      branch = worktree.branch;
-      path = worktree.path;
-      taskId = worktree.id;
+      throw new Error(startResult.error || 'Failed to start worktree creation');
     }
   } else {
     branch = project.gitInfo.branch || 'main';
     path = project.path;
     taskId = `direct-${taskName}-${Date.now()}`;
+    taskStatus = 'idle';
   }
 
   const newTask: Task = {
@@ -589,13 +674,13 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     name: taskName,
     branch,
     path,
-    status: 'idle',
+    status: taskStatus,
     agentId: primaryAgent,
     metadata: taskMetadata,
     useWorktree,
   };
 
-  if (!taskPersistedInClaim) {
+  if (!persistedByMain) {
     try {
       await rpc.db.saveTask({
         ...newTask,
@@ -612,7 +697,9 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
   }
 
   // Background: setup, telemetry, issue seeding
-  void runSetupOnCreate(newTask.id, newTask.path, project.path, newTask.name);
+  if (newTask.status !== 'creating') {
+    void runSetupOnCreate(newTask.id, newTask.path, project.path, newTask.name);
+  }
   void import('./telemetryClient').then(({ captureTelemetry }) => {
     captureTelemetry('task_created', {
       provider: (newTask.agentId as string) || 'codex',

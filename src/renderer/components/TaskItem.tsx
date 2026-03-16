@@ -45,7 +45,7 @@ interface Task {
   name: string;
   branch: string;
   path: string;
-  status: 'active' | 'idle' | 'running';
+  status: 'active' | 'idle' | 'running' | 'creating' | 'error';
   agentId?: string;
   useWorktree?: boolean;
   updatedAt?: string;
@@ -79,7 +79,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isBusy = useTaskBusy(task.id);
   const taskStatus = useTaskStatus(task.id);
   const taskUnread = useTaskUnread(task.id);
-  const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
+  const displayStatus =
+    task.status === 'creating'
+      ? 'working'
+      : task.status === 'error'
+        ? 'error'
+        : taskStatus === 'unknown' && isBusy
+          ? 'working'
+          : taskStatus;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

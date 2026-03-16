@@ -101,6 +101,32 @@ declare global {
         worktreeId: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
       worktreeGetAll: () => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+      worktreeStartTaskCreation: (args: {
+        projectId: string;
+        projectPath: string;
+        taskName: string;
+        baseRef?: string;
+        task: {
+          projectId: string;
+          name: string;
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
+          agentId?: string | null;
+          metadata?: any;
+          useWorktree?: boolean;
+        };
+      }) => Promise<{
+        success: boolean;
+        task?: any;
+        completed?: boolean;
+        needsBaseRefSwitch?: boolean;
+        error?: string;
+      }>;
+      worktreeCancelTaskCreation: (args: { taskId: string; reason?: string }) => Promise<{
+        success: boolean;
+        cancelled?: boolean;
+        error?: string;
+      }>;
+      onWorktreeCreationEvent: (listener: (data: any) => void) => () => void;
 
       // Worktree pool (reserve) management for instant task creation
       worktreeEnsureReserve: (args: {
@@ -134,7 +160,7 @@ declare global {
         task: {
           projectId: string;
           name: string;
-          status: 'active' | 'idle' | 'running';
+          status: 'active' | 'idle' | 'running' | 'creating' | 'error';
           agentId?: string | null;
           metadata?: any;
           useWorktree?: boolean;

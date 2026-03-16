@@ -9,6 +9,7 @@ import type { GitIndexUpdateArgs } from '../shared/git/types';
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
 const GIT_STATUS_CHANGED_CHANNEL = 'git:status-changed';
+const WORKTREE_CREATION_EVENT_CHANNEL = 'worktree:creation:event';
 
 const gitStatusChangedListeners = new Set<(data: { taskPath: string; error?: string }) => void>();
 let gitStatusBridgeAttached = false;
@@ -233,6 +234,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectId: string;
     baseRef?: string;
   }) => ipcRenderer.invoke('worktree:create', args),
+  worktreeStartTaskCreation: (args: {
+    projectId: string;
+    projectPath: string;
+    taskName: string;
+    baseRef?: string;
+    task: {
+      projectId: string;
+      name: string;
+      status: 'active' | 'idle' | 'running' | 'creating' | 'error';
+      agentId?: string | null;
+      metadata?: any;
+      useWorktree?: boolean;
+    };
+  }) => ipcRenderer.invoke('worktree:startTaskCreation', args),
+  worktreeCancelTaskCreation: (args: { taskId: string; reason?: string }) =>
+    ipcRenderer.invoke('worktree:cancelTaskCreation', args),
+  onWorktreeCreationEvent: (listener: (data: any) => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(WORKTREE_CREATION_EVENT_CHANNEL, wrapped);
+    return () => ipcRenderer.removeListener(WORKTREE_CREATION_EVENT_CHANNEL, wrapped);
+  },
   worktreeList: (args: { projectPath: string }) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
     projectPath: string;
@@ -268,7 +290,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     task: {
       projectId: string;
       name: string;
-      status: 'active' | 'idle' | 'running';
+      status: 'active' | 'idle' | 'running' | 'creating' | 'error';
       agentId?: string | null;
       metadata?: any;
       useWorktree?: boolean;
@@ -924,7 +946,7 @@ export interface ElectronAPI {
     task: {
       projectId: string;
       name: string;
-      status: 'active' | 'idle' | 'running';
+      status: 'active' | 'idle' | 'running' | 'creating' | 'error';
       agentId?: string | null;
       metadata?: any;
       useWorktree?: boolean;

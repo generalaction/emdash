@@ -5,8 +5,17 @@ const ipcHandleHandlers = new Map<string, (...args: any[]) => any>();
 const claimReserveMock = vi.fn();
 const saveTaskMock = vi.fn();
 const getProjectByIdMock = vi.fn();
+const getTaskByIdMock = vi.fn();
+const startCreateWorktreeJobMock = vi.fn();
+const cancelCreateWorktreeJobMock = vi.fn();
 
 vi.mock('electron', () => ({
+  app: {
+    on: vi.fn(),
+  },
+  BrowserWindow: {
+    getAllWindows: vi.fn(() => []),
+  },
   ipcMain: {
     handle: vi.fn((channel: string, cb: (...args: any[]) => any) => {
       ipcHandleHandlers.set(channel, cb);
@@ -17,6 +26,9 @@ vi.mock('electron', () => ({
 vi.mock('../../main/services/WorktreeService', () => ({
   worktreeService: {
     createWorktree: vi.fn(),
+    startCreateWorktreeJob: (...args: any[]) => startCreateWorktreeJobMock(...args),
+    cancelCreateWorktreeJob: (...args: any[]) => cancelCreateWorktreeJobMock(...args),
+    cancelAllCreateWorktreeJobs: vi.fn(),
     listWorktrees: vi.fn(),
     removeWorktree: vi.fn(),
     getWorktreeStatus: vi.fn(),
@@ -38,6 +50,7 @@ vi.mock('../../main/services/WorktreePoolService', () => ({
 vi.mock('../../main/services/DatabaseService', () => ({
   databaseService: {
     getProjectById: (...args: any[]) => getProjectByIdMock(...args),
+    getTaskById: (...args: any[]) => getTaskByIdMock(...args),
     saveTask: (...args: any[]) => saveTaskMock(...args),
     getProjects: vi.fn(),
   },
@@ -80,6 +93,9 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
     vi.clearAllMocks();
     vi.resetModules();
     ipcHandleHandlers.clear();
+    getTaskByIdMock.mockReset();
+    startCreateWorktreeJobMock.mockReset();
+    cancelCreateWorktreeJobMock.mockReset();
   });
 
   async function getHandler() {
@@ -259,5 +275,95 @@ describe('worktreeIpc claimReserveAndSaveTask', () => {
     });
     expect(claimReserveMock).not.toHaveBeenCalled();
     expect(saveTaskMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('worktreeIpc async task creation handlers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    ipcHandleHandlers.clear();
+    getTaskByIdMock.mockReset();
+    startCreateWorktreeJobMock.mockReset();
+    cancelCreateWorktreeJobMock.mockReset();
+  });
+
+  async function getHandler(channel: string) {
+    const { registerWorktreeIpc } = await import('../../main/services/worktreeIpc');
+    registerWorktreeIpc();
+    const handler = ipcHandleHandlers.get(channel);
+    expect(handler).toBeTypeOf('function');
+    return handler!;
+  }
+
+  it('starts async task creation and persists creating task immediately', async () => {
+    const handler = await getHandler('worktree:startTaskCreation');
+
+    getProjectByIdMock.mockResolvedValue({
+      id: 'project-1',
+      isRemote: false,
+    });
+    claimReserveMock.mockResolvedValue(null);
+    startCreateWorktreeJobMock.mockResolvedValue({
+      worktree: {
+        id: 'wt-async-1',
+        name: 'task-async',
+        branch: 'emdash/task-async-abc',
+        path: '/tmp/worktrees/task-async',
+        projectId: 'project-1',
+        status: 'active',
+        createdAt: '2026-02-20T00:00:00.000Z',
+      },
+      completion: new Promise(() => {}),
+    });
+    saveTaskMock.mockResolvedValue(undefined);
+
+    const result = await handler(
+      {},
+      {
+        projectId: 'project-1',
+        projectPath: '/tmp/repo',
+        taskName: 'task-async',
+        baseRef: 'origin/main',
+        task: {
+          projectId: 'project-1',
+          name: 'task-async',
+          status: 'creating',
+          agentId: 'codex',
+          metadata: { initialPrompt: 'hello' },
+          useWorktree: true,
+        },
+      }
+    );
+
+    expect(startCreateWorktreeJobMock).toHaveBeenCalledTimes(1);
+    expect(saveTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'wt-async-1',
+        status: 'creating',
+        agentId: 'codex',
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        completed: false,
+        task: expect.objectContaining({
+          id: 'wt-async-1',
+          status: 'creating',
+        }),
+      })
+    );
+  });
+
+  it('cancels in-flight async task creation', async () => {
+    const handler = await getHandler('worktree:cancelTaskCreation');
+
+    cancelCreateWorktreeJobMock.mockResolvedValue(true);
+
+    const result = await handler({}, { taskId: 'wt-async-1', reason: 'user deleted task' });
+
+    expect(cancelCreateWorktreeJobMock).toHaveBeenCalledWith('wt-async-1', 'user deleted task');
+    expect(result).toEqual({ success: true, cancelled: true });
   });
 });
