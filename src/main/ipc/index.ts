@@ -21,6 +21,7 @@ import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { registerWorkspaceIpc } from './workspaceIpc';
 import { registerMcpIpc } from './mcpIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
@@ -66,6 +67,7 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerWorkspaceIpc();
   registerMcpIpc();
   registerGitlabIpc();
   registerPlainIpc();

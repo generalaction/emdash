@@ -3,11 +3,18 @@ import path from 'path';
 import { log } from '../lib/logger';
 import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
 
+export interface WorkspaceProviderConfig {
+  type: 'script';
+  provisionCommand: string;
+  terminateCommand: string;
+}
+
 export interface EmdashConfig {
   preservePatterns?: string[];
   scripts?: LifecycleScriptConfig;
   shellSetup?: string;
   tmux?: boolean;
+  workspaceProvider?: WorkspaceProviderConfig;
 }
 
 /**

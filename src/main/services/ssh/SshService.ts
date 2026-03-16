@@ -8,7 +8,11 @@ import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { spawn, ChildProcess } from 'child_process';
-import { resolveIdentityAgent, resolveProxyCommand } from '../../utils/sshConfigParser';
+import {
+  resolveIdentityAgent,
+  resolveSshConfigHost,
+  resolveProxyCommand,
+} from '../../utils/sshConfigParser';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;
@@ -169,16 +173,25 @@ export class SshService extends EventEmitter {
   }
 
   /**
-   * Builds the ssh2 ConnectConfig from our SshConfig
+   * Builds the ssh2 ConnectConfig from our SshConfig.
+   *
+   * ssh2 does not read ~/.ssh/config, so we resolve the host through
+   * sshConfigParser first. This enables SSH aliases (e.g.
+   * "my-remote-host") to resolve to their actual HostName, Port,
+   * User, and IdentityFile as defined in the user's SSH config.
    */
   private async buildConnectConfig(
     connectionId: string,
     config: SshConfig
   ): Promise<ConnectConfig> {
+    // Resolve SSH config overrides for this host/alias
+    const sshConfigEntry = await resolveSshConfigHost(config.host);
+
     const connectConfig: ConnectConfig = {
-      host: config.host,
-      port: config.port,
-      username: config.username,
+      // Use resolved HostName if available, otherwise the original host
+      host: sshConfigEntry?.hostname ?? config.host,
+      port: config.port ?? sshConfigEntry?.port ?? 22,
+      username: config.username ?? sshConfigEntry?.user,
       readyTimeout: 20000,
       keepaliveInterval: 60000,
       keepaliveCountMax: 3,
@@ -251,7 +264,9 @@ export class SshService extends EventEmitter {
       }
 
       case 'agent': {
-        const identityAgent = await resolveIdentityAgent(config.host);
+        // Prefer the already-resolved config entry to avoid re-parsing ~/.ssh/config
+        const identityAgent =
+          sshConfigEntry?.identityAgent ?? (await resolveIdentityAgent(config.host));
         const agentSocket = identityAgent || process.env.SSH_AUTH_SOCK;
         if (!agentSocket) {
           throw new Error(

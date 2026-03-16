@@ -119,6 +119,7 @@ import { databaseService, DatabaseSchemaMismatchError } from './services/Databas
 import { connectionsService } from './services/ConnectionsService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
@@ -312,6 +313,11 @@ app.whenReady().then(async () => {
   // Clean up any orphaned reserve worktrees from previous sessions
   worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
     console.warn('Failed to cleanup orphaned reserves:', error);
+  });
+
+  // Reconcile workspace instances from previous sessions (mark stale as error, check connectivity)
+  workspaceProviderService.reconcileOnStartup().catch((error) => {
+    console.warn('Failed to reconcile workspace instances:', error);
   });
 
   // Warm provider installation cache
