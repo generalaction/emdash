@@ -22,7 +22,9 @@ export type ShortcutSettingsKey =
   | 'newTask'
   | 'nextAgent'
   | 'prevAgent'
-  | 'openInEditor';
+  | 'openInEditor'
+  | 'navigateBack'
+  | 'navigateForward';
 
 export interface AppShortcut {
   key: string;
@@ -210,6 +212,24 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     category: 'Navigation',
     settingsKey: 'openInEditor',
   },
+
+  NAVIGATE_BACK: {
+    key: 'ArrowLeft',
+    modifier: 'option',
+    label: 'Back',
+    description: 'Navigate back to the previous view',
+    category: 'Navigation',
+    settingsKey: 'navigateBack',
+  },
+
+  NAVIGATE_FORWARD: {
+    key: 'ArrowRight',
+    modifier: 'option',
+    label: 'Forward',
+    description: 'Navigate forward to the next view',
+    category: 'Navigation',
+    settingsKey: 'navigateForward',
+  },
 };
 
 /**
@@ -387,6 +407,8 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       nextAgent: getEffectiveConfig(APP_SHORTCUTS.NEXT_AGENT, custom),
       prevAgent: getEffectiveConfig(APP_SHORTCUTS.PREV_AGENT, custom),
       openInEditor: getEffectiveConfig(APP_SHORTCUTS.OPEN_IN_EDITOR, custom),
+      navigateBack: getEffectiveConfig(APP_SHORTCUTS.NAVIGATE_BACK, custom),
+      navigateForward: getEffectiveConfig(APP_SHORTCUTS.NAVIGATE_FORWARD, custom),
     };
   }, [handlers.customKeyboardSettings]);
 
@@ -479,6 +501,20 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onOpenInEditor?.(),
         priority: 'global',
         requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.navigateBack,
+        handler: () => handlers.onNavigateBack?.(),
+        priority: 'global',
+        requiresClosed: true,
+        allowInInput: true,
+      },
+      {
+        config: effectiveShortcuts.navigateForward,
+        handler: () => handlers.onNavigateForward?.(),
+        priority: 'global',
+        requiresClosed: true,
+        allowInInput: true,
       },
     ];
 

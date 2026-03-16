@@ -10,6 +10,7 @@ import { AppContextProvider } from './contexts/AppContextProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementContext';
+import { NavigationHistoryProvider } from './contexts/NavigationHistoryProvider';
 import { ModalProvider } from './contexts/ModalProvider';
 
 const queryClient = new QueryClient();
@@ -37,11 +38,13 @@ export function App() {
           <GithubContextProvider>
             <ProjectManagementProvider>
               <TaskManagementProvider>
-                <AppSettingsProvider>
-                  <ThemeProvider>
-                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                  </ThemeProvider>
-                </AppSettingsProvider>
+                <NavigationHistoryProvider>
+                  <AppSettingsProvider>
+                    <ThemeProvider>
+                      <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                    </ThemeProvider>
+                  </AppSettingsProvider>
+                </NavigationHistoryProvider>
               </TaskManagementProvider>
             </ProjectManagementProvider>
           </GithubContextProvider>
