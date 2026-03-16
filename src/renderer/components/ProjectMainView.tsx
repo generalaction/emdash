@@ -1067,11 +1067,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             {/* Open PRs Section */}
             {project.githubInfo?.connected && !project.isRemote && (
-              <OpenPrsSection
-                projectPath={project.path}
-                projectId={project.id}
-                onReviewPr={onSelectTask}
-              />
+              <OpenPrsSection projectPath={project.path} projectId={project.id} />
             )}
           </div>
         </div>
