@@ -132,6 +132,10 @@ export class GitHubService {
 
       const user = await this.getUserInfo(result.githubToken);
 
+      if (user?.login) {
+        await errorTracking.updateGithubUsername(user.login);
+      }
+
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.webContents.send('github:auth:success', {
