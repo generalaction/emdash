@@ -3,7 +3,7 @@ export const GITHUB_CONFIG = {
   scopes: ['repo', 'read:user', 'read:org'],
 
   oauthServer: {
-    baseUrl: process.env.EMDASH_AUTH_SERVER_URL || 'auth.emdash.sh',
+    baseUrl: process.env.EMDASH_AUTH_SERVER_URL || 'https://auth.emdash.sh',
     authTimeoutMs: Number(process.env.EMDASH_AUTH_TIMEOUT_MS || 300000),
   },
 };
