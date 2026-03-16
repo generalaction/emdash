@@ -67,6 +67,16 @@ export function registerGithubIpc() {
     }
   });
 
+  ipcMain.handle('github:auth:oauth', async () => {
+    try {
+      const result = await githubService.startOAuthAuth();
+      return result;
+    } catch (error) {
+      log.error('OAuth auth failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   // Cancel ongoing authentication
   ipcMain.handle('github:auth:cancel', async () => {
     try {

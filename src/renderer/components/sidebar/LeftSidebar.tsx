@@ -50,6 +50,7 @@ interface LeftSidebarProps {
     setOpen: (next: boolean) => void;
   }) => void;
   onCloseSettingsPage?: () => void;
+  onOpenAccountSettings?: () => void;
 }
 
 const isRemoteProject = (project: Project): boolean => {
@@ -92,6 +93,7 @@ ProjectItem.displayName = 'ProjectItem';
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSidebarContextChange,
   onCloseSettingsPage,
+  onOpenAccountSettings,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
   const { showModal } = useModalContext();
@@ -459,6 +461,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     entry: changelogEntry,
                   })
                 }
+                onCreateAccount={() => onOpenAccountSettings?.()}
                 onDismiss={changelogNotification.dismiss}
               />
             </div>

@@ -28,6 +28,7 @@ import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
 import { registerPlainIpc } from './plainIpc';
 import { registerForgejoIpc } from './forgejoIpc';
+import { registerAccountIpc } from './accountIpc';
 import { changelogController } from './changelogIpc';
 
 export const rpcRouter = createRPCRouter({
@@ -52,6 +53,7 @@ export function registerAllIpc() {
   registerProjectIpc();
   registerProjectSettingsIpc();
   registerGithubIpc();
+  registerAccountIpc();
   registerGitIpc();
   registerHostPreviewIpc();
   registerBrowserIpc();
