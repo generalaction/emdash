@@ -1,9 +1,9 @@
 import { ArrowDown, ArrowUp, Undo2 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
+import { rpc } from '../../core/ipc';
 import { useToast } from '../../hooks/use-toast';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { subscribeToFileChanges } from '../../lib/fileChangeEvents';
-import { rpc } from '../../lib/ipc';
 
 interface CommitAreaProps {
   taskPath?: string;

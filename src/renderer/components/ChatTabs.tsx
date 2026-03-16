@@ -1,8 +1,8 @@
 import { Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@renderer/lib/utils';
+import { useConversations } from '../_deprecated/ConversationsProvider';
 import { useChatView } from '../contexts/ChatViewProvider';
-import { useConversations } from '../contexts/ConversationsProvider';
 import { useDependencies } from '../contexts/DependenciesProvider';
 import { agentConfig } from '../lib/agentConfig';
 import { type Agent } from '../types';

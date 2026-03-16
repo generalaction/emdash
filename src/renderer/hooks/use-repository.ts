@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 
 export function useRepository(projectId: string) {
   const { data: branches } = useQuery({

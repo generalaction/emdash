@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Task } from '@shared/tasks';
-import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
-import { useTasksContext } from '@renderer/contexts/tasks-provider';
+import { useProjectsContext } from '@renderer/core/projects/project-provider';
+import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';

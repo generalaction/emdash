@@ -1,7 +1,7 @@
 import { FolderPlus } from 'lucide-react';
 import React from 'react';
 import { Button } from '@renderer/components/ui/button';
-import { useShowModal } from '@renderer/core/modal-provider';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { SidebarGroupLabel } from './sidebar-primitives';
 
 export function ProjectsGroupLabel() {

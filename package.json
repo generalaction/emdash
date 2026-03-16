@@ -59,6 +59,9 @@
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/browser": "^4.1.0",
+    "@vitest/browser-playwright": "^4.1.0",
+    "@vitest/browser-preview": "^4.1.0",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.2",
     "electron": "^40.7.0",
@@ -74,8 +77,9 @@
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.10",
-    "vitest": "^3.2.4"
+    "vite": "^6.4.1",
+    "vitest": "^4.1.0",
+    "vitest-browser-react": "^2.1.0"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

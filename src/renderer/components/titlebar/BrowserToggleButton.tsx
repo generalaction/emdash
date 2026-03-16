@@ -1,7 +1,7 @@
 import { Globe } from 'lucide-react';
 import React, { useEffect } from 'react';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
-import { events, rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import {
   FALLBACK_DELAY_MS,
   isAppPort,

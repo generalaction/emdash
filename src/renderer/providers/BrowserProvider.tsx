@@ -1,5 +1,5 @@
 import React from 'react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 type BrowserController = {
   isOpen: boolean;

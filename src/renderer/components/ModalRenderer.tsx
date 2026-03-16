@@ -1,7 +1,7 @@
 import type { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useMemo } from 'react';
 import { Dialog } from '@renderer/components/ui/dialog';
-import { useModalContext } from '@renderer/core/modal-provider';
+import { useModalContext } from '@renderer/core/modal/modal-provider';
 
 export function ModalRenderer() {
   const { activeModalId, renderModal, closeModal, hasActiveCloseGuard } = useModalContext();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 export interface PullRequestSummary {
   number: number;

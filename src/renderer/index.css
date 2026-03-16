@@ -134,6 +134,14 @@
     --xterm-selection-bg: rgba(96, 165, 250, 0.3);
     --xterm-selection-fg: #0f172a;
     --xterm-bg-mistral: #ffffff;
+
+    /* Diff decorations */
+    --diff-added: #10b981;
+    --diff-modified: #3b82f6;
+    --diff-deleted: #ef4444;
+    --diff-added-bg: rgba(16, 185, 129, 0.04);
+    --diff-modified-bg: rgba(59, 130, 246, 0.04);
+    --diff-deleted-bg: rgba(239, 68, 68, 0.04);
   }
 
   .dark {
@@ -184,6 +192,14 @@
     --xterm-selection-bg: rgba(96, 165, 250, 0.35);
     --xterm-selection-fg: #f9fafb;
     --xterm-bg-mistral: #202938;
+
+    /* Diff decorations */
+    --diff-added: #10b981;
+    --diff-modified: #3b82f6;
+    --diff-deleted: #ef4444;
+    --diff-added-bg: rgba(16, 185, 129, 0.05);
+    --diff-modified-bg: rgba(59, 130, 246, 0.05);
+    --diff-deleted-bg: rgba(239, 68, 68, 0.05);
   }
 
   .dark-black {
@@ -234,6 +250,14 @@
     --xterm-selection-bg: rgba(96, 165, 250, 0.35);
     --xterm-selection-fg: #f9fafb;
     --xterm-bg-mistral: #141820;
+
+    /* Diff decorations */
+    --diff-added: #10b981;
+    --diff-modified: #3b82f6;
+    --diff-deleted: #ef4444;
+    --diff-added-bg: rgba(16, 185, 129, 0.05);
+    --diff-modified-bg: rgba(59, 130, 246, 0.05);
+    --diff-deleted-bg: rgba(239, 68, 68, 0.05);
   }
 }
 
@@ -388,5 +412,61 @@
       animation: none;
       opacity: 0;
     }
+  }
+
+  /* Diff decorations for Monaco editor gutter and line highlights */
+  .diff-glyph-added::before,
+  .diff-glyph-modified::before,
+  .diff-glyph-deleted::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    width: 3px;
+    height: 100%;
+    border-radius: 1px;
+  }
+
+  .diff-glyph-added::before {
+    background-color: var(--diff-added);
+  }
+
+  .diff-glyph-modified::before {
+    background-color: var(--diff-modified);
+  }
+
+  .diff-glyph-deleted::before {
+    background-color: var(--diff-deleted);
+  }
+
+  .diff-glyph-added:hover::before,
+  .diff-glyph-modified:hover::before,
+  .diff-glyph-deleted:hover::before {
+    width: 4px;
+    left: 2px;
+    transition:
+      width 0.1s ease-in-out,
+      left 0.1s ease-in-out;
+  }
+
+  .diff-line-added {
+    background-color: var(--diff-added-bg);
+  }
+
+  .diff-line-modified {
+    background-color: var(--diff-modified-bg);
+  }
+
+  .diff-line-deleted {
+    background-color: var(--diff-deleted-bg);
+  }
+
+  /* Override Monaco's default glyph margin styles for better visibility */
+  .monaco-editor .margin-view-overlays .glyph-margin {
+    width: 20px !important;
+  }
+
+  /* Ensure glyph margin is visible */
+  .monaco-editor .margin {
+    background-color: transparent !important;
   }
 }

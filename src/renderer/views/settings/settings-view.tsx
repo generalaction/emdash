@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { SettingsPage, type SettingsPageTab } from '@renderer/components/settings/SettingsPage';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
-import { useViewParams } from '@renderer/core/view/navigation-provider';
+import { useParams } from '@renderer/core/view/navigation-provider';
 
 const SettingsTabContext = createContext<{
   tab: SettingsPageTab;
@@ -16,7 +16,7 @@ export function SettingsViewWrapper({
   children: ReactNode;
   tab?: SettingsPageTab;
 }) {
-  const { setParams } = useViewParams('settings');
+  const { setParams } = useParams('settings');
   const handleTabChange = useCallback(
     (tab: SettingsPageTab) => {
       setParams({ tab });

@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { formatRelativeTime, type PrComment, type PrCommentsStatus } from '../lib/prCommentsStatus';
 
 function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {

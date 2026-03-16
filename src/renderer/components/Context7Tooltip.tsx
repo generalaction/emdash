@@ -1,5 +1,5 @@
 import React from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import context7Logo from '../../assets/images/context7.png';
 import { CONTEXT7_INTEGRATION } from '../mcp/context7';
 import { Badge } from './ui/badge';

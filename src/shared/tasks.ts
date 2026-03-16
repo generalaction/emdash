@@ -29,7 +29,7 @@ export type Task = {
 };
 
 export type CreateTaskParams = {
-  id?: string;
+  id: string;
   projectId: string;
   name: string;
   /** The branch to fork the new worktree from */

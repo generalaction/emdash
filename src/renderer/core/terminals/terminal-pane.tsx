@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { useTerminal, type SessionTheme } from '../hooks/useTerminal';
-import { rpc } from '../lib/ipc';
-import { log } from '../lib/logger';
+import { log } from '../../lib/logger';
+import { rpc } from '../ipc';
+import { useTerminal, type SessionTheme } from './use-terminals';
 
 type Props = {
   /**
@@ -18,33 +18,9 @@ type Props = {
   variant?: 'dark' | 'light';
   themeOverride?: any;
   contentFilter?: string;
-  cols?: number;
-  rows?: number;
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop only. */
   remoteConnectionId?: string;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  cwd?: string;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  remote?: { connectionId: string };
-  /** @deprecated PTY session starting is now handled by the main process. */
-  providerId?: string;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  shell?: string;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  env?: Record<string, string>;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  autoApprove?: boolean;
-  /** @deprecated PTY session starting is now handled by the main process. */
-  initialPrompt?: string;
-  /** @deprecated no-op in new architecture. */
-  keepAlive?: boolean;
-  /** @deprecated no-op in new architecture. */
-  disableSnapshots?: boolean;
-  /** @deprecated no-op in new architecture. */
-  onStartError?: (message: string) => void;
-  /** @deprecated no-op in new architecture. */
-  onStartSuccess?: () => void;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -56,28 +32,14 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       sessionId: sessionIdProp,
       id,
       className,
-      variant = 'dark',
+      variant: _variant = 'dark',
       themeOverride,
       contentFilter,
-      cols,
-      rows,
       mapShiftEnterToCtrlJ,
       remoteConnectionId,
-      remote,
       onActivity,
       onExit,
       onFirstMessage,
-      // Deprecated props — accepted but ignored (PTY lifecycle managed by main process)
-      cwd: _cwd,
-      providerId: _providerId,
-      shell: _shell,
-      env: _env,
-      autoApprove: _autoApprove,
-      initialPrompt: _initialPrompt,
-      keepAlive: _keepAlive,
-      disableSnapshots: _disableSnapshots,
-      onStartError: _onStartError,
-      onStartSuccess: _onStartSuccess,
     },
     ref
   ) => {
@@ -86,7 +48,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     // Resolve sessionId: prefer explicit sessionId, fall back to id for backward compat.
     const sessionId = sessionIdProp ?? id ?? '';
     // Resolve remoteConnectionId from either the new prop or the deprecated `remote` prop.
-    const resolvedRemoteConnectionId = remoteConnectionId ?? remote?.connectionId;
+    const resolvedRemoteConnectionId = remoteConnectionId ?? undefined;
 
     const theme: SessionTheme = { override: themeOverride };
 
@@ -94,8 +56,6 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       {
         sessionId,
         theme,
-        cols,
-        rows,
         mapShiftEnterToCtrlJ,
         onActivity,
         onExit,
@@ -108,7 +68,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     const handleFocus = () => {
       void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
+        const { captureTelemetry } = await import('../../lib/telemetryClient');
         captureTelemetry('terminal_entered');
       })();
       focus();
@@ -158,7 +118,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
           width: '100%',
           height: '100%',
           minHeight: 0,
-          backgroundColor: variant === 'light' ? '#ffffff' : themeOverride?.background || '#1f2937',
+          backgroundColor: themeOverride?.background ?? 'var(--xterm-bg)',
           boxSizing: 'border-box',
         }}
       >

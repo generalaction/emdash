@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { useViewParams } from '@renderer/core/view/navigation-provider';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
+import { useParams } from '@renderer/core/view/navigation-provider';
 import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
 import TerminalSettingsCard from '../TerminalSettingsCard';
 import ThemeCard from '../ThemeCard';

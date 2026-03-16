@@ -1,6 +1,6 @@
 import { Folder } from 'lucide-react';
 import { useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { cn } from '@renderer/lib/utils';
 import { Button } from '../ui/button';
 

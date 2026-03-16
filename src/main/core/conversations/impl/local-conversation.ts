@@ -4,6 +4,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
+import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -58,7 +59,7 @@ export class LocalConversationProvider implements ConversationProvider {
       command,
       args,
       cwd: this.taskPath,
-      env: {},
+      env: buildAgentEnv(),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
@@ -73,6 +74,8 @@ export class LocalConversationProvider implements ConversationProvider {
 
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
+      const shouldRespawn = this.sessions.has(sessionId);
+      this.sessions.delete(sessionId);
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -80,7 +83,7 @@ export class LocalConversationProvider implements ConversationProvider {
         taskId: conversation.taskId,
         exitCode,
       });
-      if (this.sessions.has(sessionId)) {
+      if (shouldRespawn) {
         setTimeout(() => {
           this.startSession(conversation, initialSize, isResuming, initialPrompt).catch((e) => {
             log.error('LocalConversationProvider: respawn failed', {
@@ -89,7 +92,6 @@ export class LocalConversationProvider implements ConversationProvider {
             });
           });
         }, 500);
-        ptySessionRegistry.register(sessionId, pty);
       }
     });
 

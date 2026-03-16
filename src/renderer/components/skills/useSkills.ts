@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
 import { useToast } from '@renderer/hooks/use-toast';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 import { captureTelemetry } from '../../lib/telemetryClient';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;

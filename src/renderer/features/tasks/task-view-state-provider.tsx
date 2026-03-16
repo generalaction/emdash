@@ -2,10 +2,14 @@ import { createContext, ReactNode, useCallback, useContext, useState } from 'rea
 
 interface TaskViewState {
   view: 'agents' | 'editor';
+  agentsView: {
+    activeConversationId?: string;
+  };
 }
 
 const DEFAULT_TASK_VIEW_STATE: TaskViewState = {
   view: 'agents',
+  agentsView: {},
 };
 
 interface TaskViewStateContextValue {
@@ -27,10 +31,17 @@ export function TaskViewStateProvider({ children }: { children: ReactNode }) {
   );
 
   const setTaskViewState = useCallback((taskId: string, update: Partial<TaskViewState>) => {
-    setStates((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], ...update },
-    }));
+    setStates((prev) => {
+      const current = prev[taskId] ?? DEFAULT_TASK_VIEW_STATE;
+      return {
+        ...prev,
+        [taskId]: {
+          ...current,
+          ...update,
+          agentsView: { ...current.agentsView, ...update.agentsView },
+        },
+      };
+    });
   }, []);
 
   const deleteTaskViewState = useCallback((taskId: string) => {

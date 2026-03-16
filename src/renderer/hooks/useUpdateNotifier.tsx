@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { useToast } from './use-toast';
 
 type Options = {

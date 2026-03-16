@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings } from '@shared/app-settings';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { agentConfig } from '../lib/agentConfig';
 import type { Agent } from '../types';
 import { AgentDropdown } from './AgentDropdown';

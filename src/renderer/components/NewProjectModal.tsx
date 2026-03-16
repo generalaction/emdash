@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { rpc } from '../core/ipc';
 import { useCloseGuard } from '../hooks/useCloseGuard';
-import { rpc } from '../lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';

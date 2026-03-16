@@ -8,7 +8,8 @@ import {
   useWorkspaceNavigation,
   useWorkspaceSlots,
 } from '../contexts/WorkspaceNavigationContext';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
+import { useToast } from '../hooks/use-toast';
 import { createTask } from '../lib/taskCreationService';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
@@ -17,7 +18,6 @@ import type { AgentRun, GitHubIssueLink } from '../types/chat';
 import type { GitHubIssueSummary } from '../types/github';
 import type { JiraIssueSummary } from '../types/jira';
 import type { LinearIssueSummary } from '../types/linear';
-import { useToast } from './use-toast';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };

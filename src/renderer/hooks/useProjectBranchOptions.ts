@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { pickDefaultBranch, type BranchOption } from '../components/BranchSelect';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { prewarmWorktreeReserve } from '../lib/worktreeUtils';
 import type { Project } from '../types/app';
 

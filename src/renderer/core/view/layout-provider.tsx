@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { ImperativePanelHandle } from 'react-resizable-panels';
+import { panelDragStore } from './panel-drag-store';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
@@ -40,9 +41,7 @@ export function useWorkspaceLayoutService() {
     draggingRef.current[side] = dragging;
     const isDragging = draggingRef.current.left || draggingRef.current.right;
     if (wasDragging !== isDragging) {
-      window.dispatchEvent(
-        new CustomEvent('emdash:panel-resize-dragging', { detail: { dragging: isDragging } })
-      );
+      panelDragStore.setDragging(isDragging);
     }
   }, []);
 
@@ -50,9 +49,7 @@ export function useWorkspaceLayoutService() {
     const dragging = draggingRef.current;
     return () => {
       if (dragging.left || dragging.right) {
-        window.dispatchEvent(
-          new CustomEvent('emdash:panel-resize-dragging', { detail: { dragging: false } })
-        );
+        panelDragStore.setDragging(false);
       }
     };
   }, []);

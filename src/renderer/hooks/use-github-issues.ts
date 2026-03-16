@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import type { GitHubIssueSummary } from '../types/github';
 import type { UseIssuesResult } from './use-linear-issues';
 

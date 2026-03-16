@@ -1,6 +1,7 @@
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../../core/ipc';
 import { useDiffEditorComments } from '../../hooks/useDiffEditorComments';
 import type { DiffLine } from '../../hooks/useFileDiff';
 import { useTheme } from '../../hooks/useTheme';
@@ -11,7 +12,6 @@ import {
   isBinaryFile,
 } from '../../lib/diffUtils';
 import { dispatchFileChangeEvent } from '../../lib/fileChangeEvents';
-import { rpc } from '../../lib/ipc';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
 import { getDiffThemeName, registerDiffThemes } from '../../lib/monacoDiffThemes';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';

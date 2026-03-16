@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConnectionState } from '../components/ssh';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import type { Project } from '../types/app';
 
 export interface UseRemoteProjectResult {

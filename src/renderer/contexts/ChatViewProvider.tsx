@@ -11,18 +11,18 @@ import { ptyStartedChannel } from '@shared/events/appEvents';
 import { makePtyId } from '@shared/ptyId';
 // SessionRegistry removed — session lifecycle is now managed in the main process.
 import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
+import { useConversations } from '../_deprecated/ConversationsProvider';
+import { events } from '../core/ipc';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useTaskComments } from '../hooks/useLineComments';
 import { useTaskInitialInjection } from '../hooks/useTaskInitialInjection';
 import { useTheme } from '../hooks/useTheme';
 import { generateTaskName } from '../lib/branchNameGenerator';
-import { events } from '../lib/ipc';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import { agentMeta } from '../providers/meta';
 import { type Agent } from '../types';
 import type { Project } from '../types/app';
 import { Task } from '../types/chat';
-import { useConversations } from './ConversationsProvider';
 
 interface ChatViewProviderProps {
   task: Task;

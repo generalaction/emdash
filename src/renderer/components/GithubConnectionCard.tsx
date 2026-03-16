@@ -1,7 +1,7 @@
 import { ExternalLink, LogOut, RefreshCcw } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useContext, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { BaseModeData, CloneModeData, ModeData, NewModeData } from './add-project-modal';
 
 export type PendingProjectStage =

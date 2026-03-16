@@ -1,9 +1,9 @@
 import { Archive, MoreHorizontal, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Task } from '@shared/tasks';
-import { useTasksContext } from '@renderer/contexts/tasks-provider';
-import { useShowModal } from '@renderer/core/modal-provider';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';

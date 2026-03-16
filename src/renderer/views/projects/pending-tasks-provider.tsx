@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 import { CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 
 interface PendingTasksContextValue {
   createTask: (params: CreateTaskParams) => Promise<void>;
@@ -24,8 +24,8 @@ export function PendingTasksProvider({ children }: { children: ReactNode }) {
 
   const createTaskMutation = useMutation({
     mutationFn: rpc.tasks.createTask,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['tasks'], data);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
@@ -43,13 +43,16 @@ export function PendingTasksProvider({ children }: { children: ReactNode }) {
 
   const createTask = useCallback(
     async (params: CreateTaskParams) => {
-      const id = crypto.randomUUID();
-      setPendingTasks((prev) => [
-        ...prev,
-        { id, ...params, status: 'todo', state: 'initializing' },
-      ]);
-      await createTaskMutation.mutateAsync(params);
-      setPendingTasks((prev) => prev.filter((t) => t.id !== id));
+      // params.id is the canonical task ID used by the main process; reuse it
+      // for the pending entry so the sidebar can deduplicate by ID once the real
+      // task lands in the cache.
+      const { id } = params;
+      setPendingTasks((prev) => [...prev, { ...params, status: 'todo', state: 'initializing' }]);
+      try {
+        await createTaskMutation.mutateAsync(params);
+      } finally {
+        setPendingTasks((prev) => prev.filter((t) => t.id !== id));
+      }
     },
     [createTaskMutation]
   );

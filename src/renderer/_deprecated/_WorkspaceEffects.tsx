@@ -6,6 +6,7 @@ import {
   menuUndoChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
+import AppKeyboardShortcuts from '../components/AppKeyboardShortcuts';
 import { useAgent } from '../contexts/AgentProvider';
 import { useAppSettings } from '../contexts/AppSettingsProvider';
 import { useModalContext } from '../contexts/ModalProvider';
@@ -14,11 +15,10 @@ import {
   useWorkspaceNavigation,
   useWorkspaceSlots,
 } from '../contexts/WorkspaceNavigationContext';
+import { events } from '../core/ipc';
 import useUpdateNotifier from '../hooks/useUpdateNotifier';
-import { events } from '../lib/ipc';
 import { handleMenuRedo, handleMenuUndo } from '../lib/menuUndoRedo';
 import { soundPlayer } from '../lib/soundPlayer';
-import AppKeyboardShortcuts from './AppKeyboardShortcuts';
 
 /**
  * WorkspaceEffects mounts all persistent global side effects:

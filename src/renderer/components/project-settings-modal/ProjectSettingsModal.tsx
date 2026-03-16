@@ -14,7 +14,7 @@ import { Separator } from '@renderer/components/ui/separator';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
-import type { BaseModalProps } from '@renderer/core/modal-provider';
+import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useProjectSettings } from './use-project-settings';
 
 export interface ProjectSettingsModalProps extends BaseModalProps<void> {

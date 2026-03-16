@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { ProviderId } from '@shared/agent-provider-registry';
 import { useDependencies } from '@renderer/contexts/DependenciesProvider';
 import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
-import { type Agent } from '../types';
 import AgentLogo from './AgentLogo';
 import {
   Combobox,
@@ -18,12 +18,12 @@ import {
 interface AgentOption {
   value: string;
   label: string;
-  agentId: Agent;
+  agentId: ProviderId;
 }
 
 interface AgentSelectorProps {
-  value: Agent;
-  onChange: (agent: Agent) => void;
+  value: ProviderId;
+  onChange: (agent: ProviderId) => void;
   disabled?: boolean;
   className?: string;
 }
@@ -38,11 +38,11 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   const [open, setOpen] = useState(false);
 
   const options: AgentOption[] = installedAgents
-    .filter((id): id is Agent => id in agentConfig)
+    .filter((id): id is ProviderId => id in agentConfig)
     .map((id) => ({
       value: id,
-      label: agentConfig[id as Agent].name,
-      agentId: id as Agent,
+      label: agentConfig[id as ProviderId].name,
+      agentId: id as ProviderId,
     }));
 
   const selectedConfig = agentConfig[value];
@@ -122,5 +122,3 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
     </div>
   );
 };
-
-export default AgentSelector;

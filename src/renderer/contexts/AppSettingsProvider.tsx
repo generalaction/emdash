@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 
 type SettingsMeta<K extends AppSettingsKey> = {
   value: AppSettings[K];

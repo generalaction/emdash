@@ -2,7 +2,7 @@ import { ExternalLink, Folder, Tag, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import React, { useEffect, useRef, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import type { LinearIssueSummary } from '../types/linear';
 import AgentLogo from './AgentLogo';
 import { LinearStatusPill } from './LinearStatusPill';

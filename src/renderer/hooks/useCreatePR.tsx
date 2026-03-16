@@ -1,7 +1,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
 import githubLogo from '../../assets/images/github.png';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { useToast } from './use-toast';
 
 type CreatePROptions = {

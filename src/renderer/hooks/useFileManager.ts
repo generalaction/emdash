@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AUTO_SAVE_DELAY } from '@renderer/constants/file-explorer';
 import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
 import { dispatchFileChangeEvent, subscribeToFileChanges } from '@renderer/lib/fileChangeEvents';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 export interface ManagedFile {
   path: string;

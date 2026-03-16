@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { PROVIDERS } from '@shared/agent-provider-registry';
 import { agentAssets } from '@renderer/providers/assets';
 import { useDependencies, type DependencyState } from '../../contexts/DependenciesProvider';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 import { CliAgentStatus } from '../../types/connections';
 import CustomCommandModal from '../CustomCommandModal';
 import IntegrationRow from '../IntegrationRow';

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 
 export function UpdateCard(): JSX.Element {
   const updater = useUpdater();

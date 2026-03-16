@@ -11,11 +11,11 @@ export type Conversation = {
 };
 
 export type CreateConversationParams = {
-  id?: string;
+  id: string;
   projectId: string;
   taskId: string;
   provider: ProviderId;
-  title?: string;
+  title: string;
   autoApprove?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;

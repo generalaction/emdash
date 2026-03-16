@@ -1,4 +1,4 @@
-import { rpc } from './ipc';
+import { rpc } from '../core/ipc';
 
 export async function isNodeProject(taskPath?: string): Promise<boolean> {
   if (!taskPath) return false;

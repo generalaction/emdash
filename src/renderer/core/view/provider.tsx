@@ -7,7 +7,7 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
-import { useModalContext } from '../modal-provider';
+import { useModalContext } from '../modal/modal-provider';
 import {
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,

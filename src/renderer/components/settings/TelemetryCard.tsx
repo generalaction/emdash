@@ -1,6 +1,6 @@
 import React from 'react';
+import { rpc } from '../../core/ipc';
 import { useTelemetryConsent } from '../../hooks/useTelemetryConsent';
-import { rpc } from '../../lib/ipc';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 

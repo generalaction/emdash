@@ -1,7 +1,7 @@
 import { Check, ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';

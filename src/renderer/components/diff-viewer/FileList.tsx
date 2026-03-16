@@ -1,7 +1,7 @@
 import { Undo2 } from 'lucide-react';
 import React, { useState } from 'react';
+import { rpc } from '../../core/ipc';
 import type { FileChange } from '../../hooks/useFileChanges';
-import { rpc } from '../../lib/ipc';
 import {
   AlertDialog,
   AlertDialogAction,

@@ -2,7 +2,7 @@ import { ExternalLink, Folder, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import React, { useEffect, useRef, useState } from 'react';
 import jiraLogo from '../../assets/images/jira.png';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import type { JiraIssueSummary } from '../types/jira';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 

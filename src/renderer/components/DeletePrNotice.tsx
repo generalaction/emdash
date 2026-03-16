@@ -1,7 +1,7 @@
 import { Folder, GitBranch } from 'lucide-react';
 import React from 'react';
 import githubLogo from '../../assets/images/github.png';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import type { PrInfo } from '../lib/prStatus';
 import PrPreviewTooltip from './PrPreviewTooltip';
 

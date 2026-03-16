@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -7,7 +6,7 @@ import { tasks } from '@main/db/schema';
 import { appSettingsService } from '../settings/settings-service';
 
 export async function createTask(params: CreateTaskParams): Promise<Task> {
-  const id = params.id ?? randomUUID();
+  const id = params.id;
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
 

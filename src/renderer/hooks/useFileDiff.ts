@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 

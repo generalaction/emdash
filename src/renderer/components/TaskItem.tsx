@@ -2,9 +2,9 @@ import { AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { NotificationType } from '@shared/events/agentEvents';
 import { useAgent } from '../contexts/AgentProvider';
+import { rpc } from '../core/ipc';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';
-import { rpc } from '../lib/ipc';
 import { MAX_TASK_NAME_LENGTH, normalizeTaskName } from '../lib/taskNames';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { ChangesBadge } from './TaskChanges';

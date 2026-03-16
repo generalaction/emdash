@@ -8,6 +8,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
 import { useAutoCheckRunsRefresh } from '../hooks/useAutoCheckRunsRefresh';
 import { useCheckRuns } from '../hooks/useCheckRuns';
@@ -15,7 +16,6 @@ import { useCreatePR } from '../hooks/useCreatePR';
 import { useFileChanges } from '../hooks/useFileChanges';
 import { usePrComments } from '../hooks/usePrComments';
 import { usePrStatus } from '../hooks/usePrStatus';
-import { rpc } from '../lib/ipc';
 import { ChecksPanel } from './CheckRunsList';
 import { FileIcon } from './FileExplorer/FileIcons';
 import MergePrSection from './MergePrSection';

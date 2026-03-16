@@ -1,5 +1,5 @@
-import { Github, MoreHorizontal } from 'lucide-react';
-import { TaskList } from '@renderer/components/projects/TaskList';
+import { Github, MoreHorizontal, Trash } from 'lucide-react';
+import { TaskList } from '@renderer/components/projects/task-list';
 import { Button } from '@renderer/components/ui/button';
 import {
   DropdownMenu,
@@ -8,12 +8,14 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
-import { useShowModal } from '@renderer/core/modal-provider';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useProjectsContext } from '@renderer/core/projects/project-provider';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
+  const { deleteProject } = useProjectsContext();
 
   return (
     <div className="max-w-5xl mx-auto p-8 w-full">
@@ -44,7 +46,9 @@ export function ActiveProject() {
               />
               <DropdownMenuContent>
                 <DropdownMenuItem>Rename project</DropdownMenuItem>
-                <DropdownMenuItem>Delete project</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => deleteProject(project.id)}>
+                  Delete project
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

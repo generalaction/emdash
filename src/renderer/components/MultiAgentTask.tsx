@@ -2,6 +2,7 @@ import { CornerDownLeft } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
 import { getTaskEnvVars } from '@shared/tasks/envVars';
+import { rpc } from '@renderer/core/ipc';
 import { useAutoScrollOnTaskSwitch } from '@renderer/hooks/useAutoScrollOnTaskSwitch';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { classifyActivity } from '@renderer/lib/activityClassifier';
@@ -11,14 +12,13 @@ import {
   INJECT_ENTER_DELAY_MS,
 } from '@renderer/lib/activityConstants';
 import { cssVar } from '@renderer/lib/cssVars';
-import { rpc } from '@renderer/lib/ipc';
 import { agentAssets } from '@renderer/providers/assets';
 import { agentMeta } from '@renderer/providers/meta';
-import { events } from '../lib/ipc';
+import { events } from '../core/ipc';
+import { TerminalPane } from '../core/terminals/terminal-pane';
 import { type Agent } from '../types';
 import { type Task } from '../types/chat';
 import AgentLogo from './AgentLogo';
-import { TerminalPane } from './TerminalPane';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

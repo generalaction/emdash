@@ -6,7 +6,6 @@ import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { applyMonacoTheme, defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { MarkdownPreview } from './MarkdownPreview';
-import '@renderer/styles/editor-diff.css';
 
 export interface EditorContentProps {
   activeFile: ManagedFile | null;

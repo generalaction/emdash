@@ -2,7 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
 import { useRightSidebar } from '../components/ui/right-sidebar';
-import { useModalContext } from '../core/modal-provider';
+import { useModalContext } from '../core/modal/modal-provider';
 import { useWorkspaceLayoutContext } from '../core/view/layout-provider';
 import { useNavigate, useWorkspaceSlots } from '../core/view/navigation-provider';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../hooks/useKeyboardShortcuts';

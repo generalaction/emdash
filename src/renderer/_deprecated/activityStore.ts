@@ -2,9 +2,9 @@ import type { AgentEvent } from '@shared/events/agentEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/appEvents';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 import { makePtyId } from '@shared/ptyId';
-import { classifyActivity } from '../activityClassifier';
-import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '../activityConstants';
-import { events } from '../ipc';
+import { classifyActivity } from '../lib/activityClassifier';
+import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '../lib/activityConstants';
+import { events } from '../lib/ipc';
 
 export type ActivityPayload = { busy: boolean; conversationId: string | null };
 type Listener = (payload: ActivityPayload) => void;

@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, X } from 'lucide-react';
 import React from 'react';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
-import { events, rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { isAppPort, PROBE_TIMEOUT_MS, SPINNER_MAX_MS } from '@renderer/lib/previewNetwork';
 import { setLastUrl, setRunning } from '@renderer/lib/previewStorage';
 import { cn } from '@renderer/lib/utils';

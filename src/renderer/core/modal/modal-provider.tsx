@@ -1,27 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
-import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
-import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
-import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
-import { ConfirmActionDialog } from '@renderer/components/ConfirmActionDialog';
-import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
-import { NewProjectModal } from '@renderer/components/NewProjectModal';
-import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/ProjectSettingsModal';
-import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
-import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
-
-// Define overlays here so we can use them in the showOverlay function
-const modalRegistry = {
-  updateModal: UpdateModalOverlay,
-  newProjectModal: NewProjectModal,
-  taskModal: CreateTaskModal,
-  addProjectModal: AddProjectModal,
-  addSshConnModal: AddSshConnModal,
-  githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
-  commandPaletteModal: CommandPaletteModal,
-  projectSettingsModal: ProjectSettingsModal,
-  confirmActionModal: ConfirmActionDialog,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} satisfies Record<string, ModalComponent<any, any>>;
+import { modalRegistry } from './registry';
 
 export interface BaseModalProps<TResult = unknown> {
   onSuccess: (result: TResult) => void;
@@ -35,7 +13,7 @@ type UserArgs<MId extends ModalId> = Omit<ModalArgs<MId>, 'onSuccess' | 'onClose
   onClose?: () => void;
 };
 
-type ModalComponent<TProps = unknown, TResult = unknown> = (
+export type ModalComponent<TProps = unknown, TResult = unknown> = (
   props: TProps & BaseModalProps<TResult>
 ) => ReactNode | Promise<ReactNode>;
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { activityStore } from '../../lib/_deprecated/activityStore';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../lib/ipc';
+import { activityStore } from './activityStore';
 
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
 

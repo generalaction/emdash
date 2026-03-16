@@ -1,6 +1,6 @@
 import { GitBranch } from 'lucide-react';
 import React from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import AgentLogo from '../AgentLogo';

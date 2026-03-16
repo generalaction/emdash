@@ -2,13 +2,9 @@ import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import React, { useEffect, useMemo } from 'react';
 import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
-import { useTasksContext } from '@renderer/contexts/tasks-provider';
-import { useShowModal } from '@renderer/core/modal-provider';
-import {
-  useNavigate,
-  useViewParams,
-  useWorkspaceSlots,
-} from '@renderer/core/view/navigation-provider';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
+import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import { usePrefetchRepository } from '@renderer/hooks/use-repository';
 import { cn } from '@renderer/lib/utils';
 import {
@@ -47,8 +43,8 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { pendingTasksByProjectId } = usePendingTasksContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
-  const { params: projectParams } = useViewParams('project');
-  const { params: taskParams } = useViewParams('task');
+  const { params: projectParams } = useParams('project');
+  const { params: taskParams } = useParams('task');
 
   const currentProjectId =
     currentView === 'task'
@@ -83,10 +79,10 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
       status: 'ready',
       data: t,
     }));
-    const pendingTasks: TaskItem[] = (pendingTasksByProjectId[project.data.id] ?? []).map((t) => ({
-      status: 'pending',
-      data: t,
-    }));
+    const readyIds = new Set(tasks.map((t) => t.id));
+    const pendingTasks: TaskItem[] = (pendingTasksByProjectId[project.data.id] ?? [])
+      .filter((t) => !readyIds.has(t.id))
+      .map((t) => ({ status: 'pending', data: t }));
     return [...pendingTasks, ...readyTasks];
   }, [tasks, pendingTasksByProjectId, project.data.id]);
 

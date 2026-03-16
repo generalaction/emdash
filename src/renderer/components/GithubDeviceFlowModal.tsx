@@ -5,10 +5,10 @@ import {
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
-import type { BaseModalProps } from '@renderer/core/modal-provider';
+import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
+import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
-import { events, rpc } from '../lib/ipc';
 import { Button } from './ui/button';
 import { DialogContent } from './ui/dialog';
 import { Spinner } from './ui/spinner';

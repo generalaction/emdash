@@ -1,14 +1,14 @@
 import React from 'react';
 import { getInstallCommandForProvider } from '@shared/agent-provider-registry';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { useConversations } from '../_deprecated/ConversationsProvider';
 import { useChatView } from '../contexts/ChatViewProvider';
-import { useConversations } from '../contexts/ConversationsProvider';
 import { useDependencies } from '../contexts/DependenciesProvider';
+import { rpc } from '../core/ipc';
+import { TerminalPane } from '../core/terminals/terminal-pane';
 import { cssVar } from '../lib/cssVars';
-import { rpc } from '../lib/ipc';
 import type { UiAgent } from '../providers/meta';
 import InstallBanner from './InstallBanner';
-import { TerminalPane } from './TerminalPane';
 
 export function ChatContent() {
   const { isLoaded: conversationsLoaded } = useConversations();

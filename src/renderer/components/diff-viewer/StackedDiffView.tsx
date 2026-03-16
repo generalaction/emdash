@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { rpc } from '../../core/ipc';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { isBinaryFile } from '../../lib/diffUtils';
-import { rpc } from '../../lib/ipc';
 import { Checkbox } from '../ui/checkbox';
 import { FileDiffView } from './FileDiffView';
 import { splitPath } from './pathUtils';

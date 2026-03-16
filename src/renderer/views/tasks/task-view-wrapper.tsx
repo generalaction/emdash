@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { Task } from '@shared/tasks';
-import { useTaskViewState } from '@renderer/contexts/task-view-state-provider';
-import { useTasksContext } from '@renderer/contexts/tasks-provider';
+import { useTaskViewState } from '@renderer/features/tasks/task-view-state-provider';
+import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import {
   PendingTask,
   usePendingTasksContext,
@@ -17,6 +17,8 @@ interface TaskViewWrapperProps {
 interface TaskViewContext {
   view: 'agents' | 'editor';
   setView: (view: 'agents' | 'editor') => void;
+  activeConversationId?: string;
+  setActiveConversationId: (conversationId: string) => void;
 }
 
 export type TaskStatus = 'ready' | 'pending';
@@ -30,13 +32,15 @@ function useTask({ projectId, taskId }: { projectId: string; taskId: string }) {
   const { tasksByProjectId } = useTasksContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
 
-  const status: TaskStatus = useMemo(
-    () =>
-      (pendingTasksByProjectId[projectId] ?? []).some((task) => task.id === taskId)
-        ? 'pending'
-        : 'ready',
-    [pendingTasksByProjectId, projectId, taskId]
-  );
+  const status: TaskStatus = useMemo(() => {
+    // If the real task already exists in the cache, treat it as ready immediately
+    // regardless of whether the pending entry has been cleaned up yet.
+    const isReady = (tasksByProjectId[projectId] ?? []).some((t) => t.id === taskId);
+    if (isReady) return 'ready';
+    return (pendingTasksByProjectId[projectId] ?? []).some((task) => task.id === taskId)
+      ? 'pending'
+      : 'ready';
+  }, [tasksByProjectId, pendingTasksByProjectId, projectId, taskId]);
 
   const task = useMemo(() => {
     if (status === 'ready') {
@@ -52,7 +56,7 @@ export function TaskViewWrapper({ children, projectId, taskId }: TaskViewWrapper
   const { getTaskViewState, setTaskViewState } = useTaskViewState();
   const { status, task } = useTask({ projectId, taskId });
 
-  const { view } = getTaskViewState(taskId);
+  const { view, agentsView } = getTaskViewState(taskId);
 
   const setView = useCallback(
     (v: 'agents' | 'editor') => {
@@ -61,11 +65,27 @@ export function TaskViewWrapper({ children, projectId, taskId }: TaskViewWrapper
     [setTaskViewState, taskId]
   );
 
+  const setActiveConversationId = useCallback(
+    (conversationId: string) => {
+      setTaskViewState(taskId, { agentsView: { activeConversationId: conversationId } });
+    },
+    [setTaskViewState, taskId]
+  );
+
   return (
     <ProjectViewWrapper projectId={projectId}>
       <CurrentTaskStatusContext.Provider value={{ status }}>
         <CurrentTaskContextProvider status={status} task={task ?? undefined}>
-          <TaskViewContext.Provider value={{ view, setView }}>{children}</TaskViewContext.Provider>
+          <TaskViewContext.Provider
+            value={{
+              view,
+              setView,
+              activeConversationId: agentsView.activeConversationId,
+              setActiveConversationId,
+            }}
+          >
+            {children}
+          </TaskViewContext.Provider>
         </CurrentTaskContextProvider>
       </CurrentTaskStatusContext.Provider>
     </ProjectViewWrapper>

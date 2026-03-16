@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useShowModal, type BaseModalProps } from '@renderer/core/modal-provider';
+import { rpc } from '@renderer/core/ipc';
+import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { rpc } from '@renderer/lib/ipc';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { Button } from '../ui/button';
 import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';

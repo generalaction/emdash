@@ -15,19 +15,12 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTaskManagementContext } from '../../contexts/tasks-provider';
-import { useToast } from '../../hooks/use-toast';
-import { rpc } from '../../lib/ipc';
-import { isActivePr, PrInfo } from '../../lib/prStatus';
-import { refreshPrStatus } from '../../lib/prStatusStore';
-import type { Project, Task } from '../../types/app';
-import BaseBranchControls from '../BaseBranchControls';
-import { pickDefaultBranch, type BranchOption } from '../BranchSelect';
-import { ConfigEditorModal } from '../ConfigEditorModal';
-import DeletePrNotice from '../DeletePrNotice';
-import KanbanBoard from '../kanban/KanbanBoard';
-import ProjectDeleteButton from '../ProjectDeleteButton';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import BaseBranchControls from '../components/BaseBranchControls';
+import { pickDefaultBranch, type BranchOption } from '../components/BranchSelect';
+import DeletePrNotice from '../components/DeletePrNotice';
+import KanbanBoard from '../components/kanban/KanbanBoard';
+import ProjectDeleteButton from '../components/ProjectDeleteButton';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,14 +30,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../ui/alert-dialog';
-import { Button } from '../ui/button';
-import { Checkbox } from '../ui/checkbox';
-import { Input } from '../ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Separator } from '../ui/separator';
-import { Spinner } from '../ui/spinner';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+} from '../components/ui/alert-dialog';
+import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
+import { Input } from '../components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Separator } from '../components/ui/separator';
+import { Spinner } from '../components/ui/spinner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { useTaskManagementContext } from '../contexts/tasks-provider';
+import { useToast } from '../hooks/use-toast';
+import { rpc } from '../lib/ipc';
+import { isActivePr, PrInfo } from '../lib/prStatus';
+import { refreshPrStatus } from '../lib/prStatusStore';
+import type { Project, Task } from '../types/app';
+import { ConfigEditorModal } from './_ConfigEditorModal';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;

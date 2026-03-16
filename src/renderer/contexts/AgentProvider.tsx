@@ -5,7 +5,7 @@ import {
   type NotificationType,
   type SoundEvent,
 } from '@shared/events/agentEvents';
-import { events } from '../lib/ipc';
+import { events } from '../core/ipc';
 import { soundPlayer } from '../lib/soundPlayer';
 
 export type AgentNotification = {

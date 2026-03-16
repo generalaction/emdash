@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useTheme } from '@renderer/hooks/useTheme';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 // Constants for timing and delays
 const DIFF_CONSTANTS = {
@@ -35,7 +34,6 @@ export function useEditorDiffDecorations({
   filePath,
   taskPath,
 }: UseEditorDiffDecorationsOptions) {
-  const { effectiveTheme } = useTheme();
   const decorationIdsRef = useRef<string[]>([]);
   const lastDiffRef = useRef<DiffLine[]>([]);
   const diffCacheRef = useRef<Map<string, DiffCacheEntry>>(new Map());
@@ -148,7 +146,6 @@ export function useEditorDiffDecorations({
         return;
       }
 
-      const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
       const newDecorations: any[] = [];
 
       for (const diff of diffLines) {
@@ -156,13 +153,13 @@ export function useEditorDiffDecorations({
         let glyphMarginClassName = '';
 
         if (diff.type === 'add') {
-          className = isDark ? 'diff-line-added-dark' : 'diff-line-added-light';
+          className = 'diff-line-added';
           glyphMarginClassName = 'diff-glyph-added';
         } else if (diff.type === 'modify') {
-          className = isDark ? 'diff-line-modified-dark' : 'diff-line-modified-light';
+          className = 'diff-line-modified';
           glyphMarginClassName = 'diff-glyph-modified';
         } else if (diff.type === 'delete') {
-          className = isDark ? 'diff-line-deleted-dark' : 'diff-line-deleted-light';
+          className = 'diff-line-deleted';
           glyphMarginClassName = 'diff-glyph-deleted';
         }
 
@@ -199,7 +196,7 @@ export function useEditorDiffDecorations({
         console.error('Failed to apply decorations:', error);
       }
     },
-    [editor, effectiveTheme]
+    [editor]
   );
 
   // Helper function to compare diff arrays efficiently
@@ -259,13 +256,6 @@ export function useEditorDiffDecorations({
       decorationIdsRef.current = [];
     };
   }, [editor, filePath, computeDiff, applyDecorations]);
-
-  // Clean up decorations when theme changes
-  useEffect(() => {
-    if (editor && lastDiffRef.current.length > 0) {
-      applyDecorations(lastDiffRef.current);
-    }
-  }, [effectiveTheme, applyDecorations]);
 
   // Clean up cache periodically to prevent memory leaks
   useEffect(() => {

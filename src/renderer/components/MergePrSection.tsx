@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, XCircle } from 'lucide-react';
 import React, { useState } from 'react';
+import { rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
-import { rpc } from '../lib/ipc';
 import type { PrStatus } from '../lib/prStatus';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';

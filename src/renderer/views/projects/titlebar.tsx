@@ -17,7 +17,7 @@ export function ProjectTitlebar() {
       leftSlot={
         displayName && (
           <div className="flex items-center px-2">
-            <span className="text-[13px] font-medium text-muted-foreground">{displayName}</span>
+            <span className="text-sm text-muted-foreground">{displayName}</span>
           </div>
         )
       }

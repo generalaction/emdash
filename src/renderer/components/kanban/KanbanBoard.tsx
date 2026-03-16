@@ -1,8 +1,8 @@
 import { Inbox, Plus } from 'lucide-react';
 import React from 'react';
 import { ptyExitChannel } from '@shared/events/appEvents';
-import { rpc } from '@renderer/lib/ipc';
-import { events } from '../../lib/ipc';
+import { rpc } from '@renderer/core/ipc';
+import { events } from '../../core/ipc';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
 import { refreshPrStatus } from '../../lib/prStatusStore';
 import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';

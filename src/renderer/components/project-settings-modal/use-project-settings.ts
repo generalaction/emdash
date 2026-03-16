@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 
 export function projectSettingsQueryKey(projectId: string) {
   return ['project', 'settings', projectId] as const;

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createContext, ReactNode, useContext } from 'react';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 type AppContextValue = {
   platform?: string;

@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { events, rpc } from '../core/ipc';
 import { classifyActivity } from '../lib/activityClassifier';
-import { events, rpc } from '../lib/ipc';
 import { initialPromptSentKey } from '../lib/keys';
 
 /**

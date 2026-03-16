@@ -17,7 +17,7 @@ export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActiv
       onClick={() => navigate('task', { projectId: task.data.projectId, taskId: task.data.id })}
       isActive={isActive}
     >
-      {task.data.name}
+      <span className="overflow-hidden whitespace-nowrap">{task.data.name}</span>
     </SidebarMenuButton>
   );
 });

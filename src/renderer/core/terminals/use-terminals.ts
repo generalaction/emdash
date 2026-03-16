@@ -1,16 +1,11 @@
-import { FitAddon } from '@xterm/addon-fit';
-import { SerializeAddon } from '@xterm/addon-serialize';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { useCallback, useEffect, useRef } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
-import { cssVar } from '../lib/cssVars';
-import { events, rpc } from '../lib/ipc';
-import { log } from '../lib/logger';
-import { pendingInjectionManager } from '../lib/PendingInjectionManager';
+import { log } from '../../lib/logger';
+import { pendingInjectionManager } from '../../lib/PendingInjectionManager';
+import { useTerminalPool } from '../../terminal/terminal-pool-provider';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -18,26 +13,37 @@ import {
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
-} from '../terminal/terminalKeybindings';
+} from '../../terminal/terminalKeybindings';
+import { events, rpc } from '../ipc';
+import { panelDragStore } from '../view/panel-drag-store';
+import { usePaneSizingContext } from './pane-sizing-context';
+import { measureDimensions } from './terminal-dimensions';
+import { buildTheme } from './terminal-pool';
 
-const SCROLLBACK_LINES = 100_000;
+// terminal.dimensions is a proposed API (requires allowProposedApi: true) and
+// is not in xterm's public TypeScript types, so we access it via a cast.
+type TerminalWithProposed = Terminal & {
+  dimensions?: { css: { cell: { width: number; height: number } } };
+};
+
+function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
+  const dims = (terminal as TerminalWithProposed).dimensions;
+  if (!dims || dims.css.cell.width === 0 || dims.css.cell.height === 0) return null;
+  return { width: dims.css.cell.width, height: dims.css.cell.height };
+}
+
+export type { SessionTheme } from './terminal-pool';
+
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
-const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
-export interface SessionTheme {
-  override?: ITerminalOptions['theme'];
-}
 
 export interface UseTerminalOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, taskId, conversationId|terminalId) */
   sessionId: string;
-  theme?: SessionTheme;
-  cols?: number;
-  rows?: number;
+  theme?: import('./terminal-pool').SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
@@ -47,31 +53,23 @@ export interface UseTerminalOptions {
 
 export interface UseTerminalReturn {
   focus: () => void;
-  setTheme: (theme: SessionTheme) => void;
-}
-
-function readXtermCssVars(): ITerminalOptions['theme'] {
-  return {
-    background: cssVar('--xterm-bg'),
-    foreground: cssVar('--xterm-fg'),
-    cursor: cssVar('--xterm-cursor'),
-    cursorAccent: cssVar('--xterm-cursor-accent'),
-    selectionBackground: cssVar('--xterm-selection-bg'),
-    selectionForeground: cssVar('--xterm-selection-fg'),
-  };
-}
-
-function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermCssVars(), ...theme.override };
-  return readXtermCssVars();
+  setTheme: (theme: import('./terminal-pool').SessionTheme) => void;
 }
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
  * `containerRef`, wired to a PTY session via the deterministic `sessionId`.
  *
+ * Terminal instances are leased from the global TerminalPool (max 16 WebGL
+ * contexts).  On unmount the terminal is returned to the pool's off-screen
+ * host rather than disposed, so scrollback is preserved across tab switches.
+ *
  * The hook subscribes to `ptyDataChannel.{sessionId}` for output and sends
  * input/resize via `rpc.pty.sendInput` / `rpc.pty.resize`.
+ *
+ * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
+ * current dimensions BEFORE being appended to the visible DOM, eliminating
+ * the flash caused by a post-mount resize.
  *
  * IMPORTANT: subscribe to ptyDataChannel (using makePtySessionId) BEFORE
  * calling the RPC that starts the session so the renderer never misses the
@@ -84,14 +82,14 @@ export function useTerminal(
   const {
     sessionId,
     theme,
-    cols = 120,
-    rows = 32,
     mapShiftEnterToCtrlJ,
     onActivity,
     onExit,
     onFirstMessage,
     onLinkClick,
   } = options;
+
+  const pool = useTerminalPool();
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
@@ -105,16 +103,31 @@ export function useTerminal(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // Core xterm.js references, kept alive across renders.
+  // When inside a PaneSizingProvider, PTY resizes are broadcast to ALL sessions
+  // in the pane (including background ones).  Falls back to per-session resize
+  // for standalone terminals (chat, task terminal panel, etc.).
+  const paneSizing = usePaneSizingContext();
+  // Ref so the main effect (which only re-runs on sessionId change) always
+  // accesses the latest context value without needing it as a dependency.
+  const paneSizingRef = useRef(paneSizing);
+  paneSizingRef.current = paneSizing;
+
+  // Subscribe to panel drag state so ResizeObserver skips fits while dragging.
+  const isPanelDragging = useSyncExternalStore(
+    panelDragStore.subscribe,
+    panelDragStore.getSnapshot
+  );
+  // Keep a ref in sync so the ResizeObserver callback (inside the main effect)
+  // always reads the latest value without re-running the effect.
+  const isPanelDraggingRef = useRef(isPanelDragging);
+  isPanelDraggingRef.current = isPanelDragging;
+
+  // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const webglAddonRef = useRef<WebglAddon | null>(null);
 
   // Resize debounce state.
   const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingResizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
-  const isPanelResizeDraggingRef = useRef(false);
 
   // First-message capture state.
   const firstMessageSentRef = useRef(false);
@@ -128,59 +141,88 @@ export function useTerminal(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const scheduleFit = useCallback(() => {
-    if (!fitAddonRef.current || !termRef.current) return;
-    requestAnimationFrame(() => {
-      try {
-        fitAddonRef.current?.fit();
-      } catch (e) {
-        log.warn('useTerminal: fit failed', { sessionId, error: e });
-      }
-    });
-  }, [sessionId]);
-
-  const clearQueuedResize = useCallback(() => {
-    if (pendingResizeTimerRef.current) {
-      clearTimeout(pendingResizeTimerRef.current);
-      pendingResizeTimerRef.current = null;
-    }
-    pendingResizeRef.current = null;
-  }, []);
-
-  const flushQueuedResize = useCallback(() => {
-    const pending = pendingResizeRef.current;
-    pendingResizeRef.current = null;
-    if (!pending) return;
-    const last = lastSentResizeRef.current;
-    if (last && last.cols === pending.cols && last.rows === pending.rows) return;
-    lastSentResizeRef.current = pending;
-    void rpc.pty.resize(sessionId, pending.cols, pending.rows);
-  }, [sessionId]);
-
   const queuePtyResize = useCallback(
     (newCols: number, newRows: number) => {
       const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
       const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      pendingResizeRef.current = { cols: c, rows: r };
-
-      if (isPanelResizeDraggingRef.current) return;
-
+      const last = lastSentResizeRef.current;
+      if (last?.cols === c && last?.rows === r) return;
       if (pendingResizeTimerRef.current) clearTimeout(pendingResizeTimerRef.current);
       pendingResizeTimerRef.current = setTimeout(() => {
         pendingResizeTimerRef.current = null;
-        flushQueuedResize();
+        lastSentResizeRef.current = { cols: c, rows: r };
+        rpc.pty.resize(sessionId, c, r);
       }, PTY_RESIZE_DEBOUNCE_MS);
     },
-    [flushQueuedResize]
+    [sessionId]
   );
 
-  const applyTheme = useCallback((t?: SessionTheme) => {
+  // Stable ref so measureAndResize can always call the latest queuePtyResize
+  // without needing it as a useCallback dependency.
+  const queuePtyResizeRef = useRef(queuePtyResize);
+  queuePtyResizeRef.current = queuePtyResize;
+
+  // measureAndResize is the single entry point for all DOM measurement + PTY
+  // resize work.  Mirrors xterm's FitAddon.proposeDimensions() by measuring
+  // terminal.element.parentElement (the pool's ownedContainer) — the exact
+  // space the terminal occupies — rather than a distant ancestor div.
+  // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
+  // or directly via queuePtyResize for standalone terminals.
+  const measureAndResize = useCallback(() => {
+    if (!termRef.current) return;
+    requestAnimationFrame(() => {
+      try {
+        const term = termRef.current;
+        if (!term) return;
+        const pane = paneSizingRef.current;
+
+        const cell = getCellMetrics(term);
+        if (!cell) {
+          // Cold-path: terminal was opened off-DOM so xterm's font measurement
+          // (getBoundingClientRect) returned 0.  Retry after xterm's internal
+          // ResizeObserver has had time to populate dimensions.
+          setTimeout(() => measureAndResizeRef.current(), 100);
+          return;
+        }
+
+        // Measure the terminal's immediate parent (the pool's ownedContainer),
+        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
+        // container for standalone terminals not using the pool.
+        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
+        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
+        if (!measureTarget) return;
+
+        const dims = measureDimensions(measureTarget, cell.width, cell.height);
+        if (!dims) return;
+        const { cols: targetCols, rows: targetRows } = dims;
+
+        if (term.cols !== targetCols || term.rows !== targetRows) {
+          term.resize(targetCols, targetRows);
+        }
+
+        if (pane) {
+          pane.reportDimensions(targetCols, targetRows);
+        } else {
+          queuePtyResizeRef.current(targetCols, targetRows);
+        }
+      } catch (e) {
+        log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
+      }
+    });
+  }, [sessionId, containerRef]);
+
+  // Stable ref so the retry setTimeout inside measureAndResize always calls
+  // the latest version without creating a circular useCallback dependency.
+  const measureAndResizeRef = useRef(measureAndResize);
+  measureAndResizeRef.current = measureAndResize;
+
+  const applyTheme = useCallback((t?: import('./terminal-pool').SessionTheme) => {
     if (!termRef.current) return;
     termRef.current.options.theme = buildTheme(t);
   }, []);
 
   const setTheme = useCallback(
-    (t: SessionTheme) => {
+    (t: import('./terminal-pool').SessionTheme) => {
       applyTheme(t);
     },
     [applyTheme]
@@ -202,71 +244,52 @@ export function useTerminal(
     navigator.clipboard
       .readText()
       .then((text) => {
-        if (text) void rpc.pty.sendInput(sessionId, text);
+        if (text) rpc.pty.sendInput(sessionId, text);
       })
       .catch(() => {});
   }, [sessionId]);
 
-  // ─── Main effect: create terminal once per sessionId ───────────────────────
+  // ─── Main effect: lease terminal once per sessionId ────────────────────────
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // ── Build xterm.js instance ──────────────────────────────────────────────
-    const openLink = (uri: string) => {
-      if (onLinkClickRef.current) {
-        onLinkClickRef.current(uri);
-      } else {
-        void rpc.app.openExternal(uri).catch((error) => {
-          log.warn('useTerminal: failed to open external link', { uri, error });
-        });
-      }
-    };
+    // ── Compute targetDims for flash-free mounting ────────────────────────────
+    // Preferred: direct DOM measurement of the pane container + prior
+    // terminal's cell metrics (available on all tab switches after first mount).
+    // Falls back to cached cols/rows when cell metrics are unavailable (very
+    // first mount in a fresh session).
+    const pane = paneSizingRef.current;
+    const prevCell = termRef.current ? getCellMetrics(termRef.current) : null;
+    let targetDims: { cols: number; rows: number } | undefined;
 
-    const terminal = new Terminal({
-      cols,
-      rows,
-      scrollback: SCROLLBACK_LINES,
-      convertEol: true,
-      fontSize: 13,
-      lineHeight: 1.2,
-      letterSpacing: 0,
-      allowProposedApi: true,
-      scrollOnUserInput: false,
-      linkHandler: { activate: (_event, text) => openLink(text) },
-      theme: buildTheme(themeRef.current),
-    });
-
-    const fitAddon = new FitAddon();
-    const serializeAddon = new SerializeAddon();
-    const webLinksAddon = new WebLinksAddon((event, uri) => {
-      event.preventDefault();
-      openLink(uri);
-    });
-
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(serializeAddon);
-    terminal.loadAddon(webLinksAddon);
-
-    let webglAddon: WebglAddon | null = null;
-    try {
-      webglAddon = new WebglAddon();
-      webglAddon.onContextLoss?.(() => {
-        try {
-          webglAddon?.dispose();
-        } catch {}
-        webglAddon = null;
-        webglAddonRef.current = null;
-      });
-      terminal.loadAddon(webglAddon);
-    } catch {
-      webglAddon = null;
+    if (pane?.containerRef.current && prevCell) {
+      const measured = measureDimensions(
+        pane.containerRef.current,
+        prevCell.width,
+        prevCell.height
+      );
+      if (measured) targetDims = measured;
     }
 
+    if (!targetDims && pane) {
+      targetDims = pane.getCurrentDimensions() ?? undefined;
+    }
+
+    // ── Lease terminal from pool (creates or reparents) ───────────────────────
+    // targetDims causes the pool to pre-resize the terminal BEFORE appendChild,
+    // so the canvas is never visible at the wrong size.
+    const { terminal } = pool.lease(sessionId, container as HTMLElement, {
+      theme: themeRef.current,
+      targetDims,
+    });
     termRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-    webglAddonRef.current = webglAddon;
+
+    // Always sync after mounting — targetDims may be stale if the pane was
+    // resized while this session was off-screen.  measureAndResize defers to
+    // rAF so it reads the live DOM and only calls term.resize() when needed.
+    measureAndResize();
 
     // ── Load settings ────────────────────────────────────────────────────────
     let customFontFamily = '';
@@ -282,14 +305,19 @@ export function useTerminal(
 
     // ── DECRQM xterm.js 6.0 bug workaround ──────────────────────────────────
     const cleanups: (() => void)[] = [];
+
     try {
-      const parser = (terminal as any).parser;
+      const parser = (
+        terminal as unknown as {
+          parser?: { registerCsiHandler?: (...args: unknown[]) => { dispose(): void } };
+        }
+      ).parser;
       if (parser?.registerCsiHandler) {
         const ansiDisp = parser.registerCsiHandler(
           { intermediates: '$', final: 'p' },
           (params: (number | number[])[]) => {
             const mode = (params[0] as number) ?? 0;
-            void rpc.pty.sendInput(sessionId, `\x1b[${mode};0$y`);
+            rpc.pty.sendInput(sessionId, `\x1b[${mode};0$y`);
             return true;
           }
         );
@@ -297,7 +325,7 @@ export function useTerminal(
           { prefix: '?', intermediates: '$', final: 'p' },
           (params: (number | number[])[]) => {
             const mode = (params[0] as number) ?? 0;
-            void rpc.pty.sendInput(sessionId, `\x1b[?${mode};0$y`);
+            rpc.pty.sendInput(sessionId, `\x1b[?${mode};0$y`);
             return true;
           }
         );
@@ -334,7 +362,7 @@ export function useTerminal(
         event.preventDefault();
         event.stopImmediatePropagation();
         event.stopPropagation();
-        void rpc.pty.sendInput(sessionId, CTRL_J_ASCII);
+        rpc.pty.sendInput(sessionId, CTRL_J_ASCII);
         return false;
       }
 
@@ -342,7 +370,7 @@ export function useTerminal(
         event.preventDefault();
         event.stopImmediatePropagation();
         event.stopPropagation();
-        void rpc.pty.sendInput(sessionId, CTRL_U_ASCII);
+        rpc.pty.sendInput(sessionId, CTRL_U_ASCII);
         return false;
       }
 
@@ -351,14 +379,14 @@ export function useTerminal(
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          void rpc.pty.sendInput(sessionId, '\x01');
+          rpc.pty.sendInput(sessionId, '\x01');
           return false;
         }
         if (event.key === 'ArrowRight') {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          void rpc.pty.sendInput(sessionId, '\x05');
+          rpc.pty.sendInput(sessionId, '\x05');
           return false;
         }
       }
@@ -393,22 +421,16 @@ export function useTerminal(
         const stripped = filtered.replace(/[\r\n]+$/g, '');
         const enterSequence = filtered.includes('\r') ? '\r' : '\n';
         const injectedData = stripped + pendingText + enterSequence + enterSequence;
-        void rpc.pty.sendInput(sessionId, injectedData);
+        rpc.pty.sendInput(sessionId, injectedData);
         pendingInjectionManager.markUsed();
         return;
       }
 
-      void rpc.pty.sendInput(sessionId, filtered);
+      rpc.pty.sendInput(sessionId, filtered);
     };
 
     const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
     cleanups.push(() => inputDisposable.dispose());
-
-    // ── PTY resize from terminal dimensions ───────────────────────────────────
-    const resizeDisposable = terminal.onResize(({ cols: c, rows: r }) => {
-      queuePtyResize(c, r);
-    });
-    cleanups.push(() => resizeDisposable.dispose());
 
     // ── Auto-copy on selection ────────────────────────────────────────────────
     let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -462,76 +484,45 @@ export function useTerminal(
       const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
       customFontFamily = detail?.fontFamily?.trim() ?? '';
       terminal.options.fontFamily = customFontFamily || undefined;
-      scheduleFit();
+      measureAndResize();
     };
     const handleAutoCopyChange = (e: Event) => {
       const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
       autoCopyOnSelectionRef.current = detail?.autoCopyOnSelection ?? false;
     };
-    const handlePanelResizeDragging = (e: Event) => {
-      const detail = (e as CustomEvent<{ dragging?: boolean }>).detail;
-      const dragging = Boolean(detail?.dragging);
-      if (isPanelResizeDraggingRef.current === dragging) return;
-      isPanelResizeDraggingRef.current = dragging;
+    window.addEventListener('terminal-font-changed', handleFontChange);
+    window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
+    cleanups.push(
+      () => window.removeEventListener('terminal-font-changed', handleFontChange),
+      () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+    );
+
+    // ── ResizeObserver (observes the mount-target, not the pool-owned div) ────
+    // Skips measuring while a panel drag is in progress; the drag-end effect
+    // below fires one measure once the drag completes.
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isPanelDraggingRef.current) measureAndResize();
+    });
+    resizeObserver.observe(container);
+    cleanups.push(() => resizeObserver.disconnect());
+
+    // ── Cleanup ───────────────────────────────────────────────────────────────
+    return () => {
       if (pendingResizeTimerRef.current) {
         clearTimeout(pendingResizeTimerRef.current);
         pendingResizeTimerRef.current = null;
       }
-      if (!dragging) flushQueuedResize();
-    };
-    window.addEventListener('terminal-font-changed', handleFontChange);
-    window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
-    window.addEventListener(
-      PANEL_RESIZE_DRAGGING_EVENT,
-      handlePanelResizeDragging as EventListener
-    );
-    cleanups.push(
-      () => window.removeEventListener('terminal-font-changed', handleFontChange),
-      () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange),
-      () =>
-        window.removeEventListener(
-          PANEL_RESIZE_DRAGGING_EVENT,
-          handlePanelResizeDragging as EventListener
-        )
-    );
-
-    // ── Open terminal in container ────────────────────────────────────────────
-    terminal.open(container);
-    const el = (terminal as any).element as HTMLElement | null;
-    if (el) {
-      el.style.width = '100%';
-      el.style.height = '100%';
-    }
-
-    // ── ResizeObserver ────────────────────────────────────────────────────────
-    const resizeObserver = new ResizeObserver(() => scheduleFit());
-    resizeObserver.observe(container);
-    cleanups.push(() => resizeObserver.disconnect());
-
-    // Initial fit
-    requestAnimationFrame(() => {
-      try {
-        fitAddon.fit();
-      } catch {}
-    });
-
-    // ── Cleanup ───────────────────────────────────────────────────────────────
-    return () => {
-      clearQueuedResize();
+      // Reset dedup so the next session always gets a resize on mount
+      // (guards the fallback path used by standalone terminals).
+      lastSentResizeRef.current = null;
       for (const fn of cleanups) {
         try {
           fn();
         } catch {}
       }
-      try {
-        webglAddon?.dispose();
-      } catch {}
-      try {
-        terminal.dispose();
-      } catch {}
+      // Return terminal to the pool's off-screen host (keeps it alive).
+      pool.release(sessionId);
       termRef.current = null;
-      fitAddonRef.current = null;
-      webglAddonRef.current = null;
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;
       inputBufferRef.current = '';
@@ -543,6 +534,18 @@ export function useTerminal(
   useEffect(() => {
     applyTheme(theme);
   }, [theme, applyTheme]);
+
+  // ── Measure once when a panel drag ends ─────────────────────────────────────
+  // The ResizeObserver skips measurements during the drag; this effect fires a
+  // single measurement (which resizes the terminal and notifies PTYs) when done.
+  const prevIsPanelDraggingRef = useRef(isPanelDragging);
+  useEffect(() => {
+    const wasDragging = prevIsPanelDraggingRef.current;
+    prevIsPanelDraggingRef.current = isPanelDragging;
+    if (wasDragging && !isPanelDragging) {
+      measureAndResize();
+    }
+  }, [isPanelDragging, measureAndResize]);
 
   return { focus, setTheme };
 }

@@ -2,7 +2,7 @@ import { Download, Eye, EyeOff, FolderOpen, Key, Lock, Server, Shield, User } fr
 import React, { useCallback, useEffect, useState } from 'react';
 import type { SshConfig, SshConfigHost } from '@shared/ssh';
 import { cn } from '@renderer/lib/utils';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';

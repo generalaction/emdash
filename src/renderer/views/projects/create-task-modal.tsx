@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { ProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
 import { Issue } from '@shared/tasks';
-import AgentSelector from '@renderer/components/AgentSelector';
+import { AgentSelector } from '@renderer/components/agent-selector';
 import { IssueSelector } from '@renderer/components/issue-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -15,7 +15,7 @@ import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
-import { BaseModalProps } from '@renderer/core/modal-provider';
+import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useRepository } from '@renderer/hooks/use-repository';
 import { generateFriendlyTaskName } from '@renderer/lib/taskNames';

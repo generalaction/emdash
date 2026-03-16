@@ -1,4 +1,4 @@
-import { rpc } from './ipc';
+import { rpc } from '../core/ipc';
 
 interface ErrorContext {
   // Component/UI context

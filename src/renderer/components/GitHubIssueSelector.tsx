@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/core/ipc';
 import githubLogo from '../../assets/images/github.png';
 import { type GitHubIssueLink } from '../types/chat';
 import { type GitHubIssueSummary } from '../types/github';

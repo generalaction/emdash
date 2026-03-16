@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import type { LinearIssue } from '@main/core/linear/LinearService';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;

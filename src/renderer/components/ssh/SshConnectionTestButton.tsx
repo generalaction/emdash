@@ -2,7 +2,7 @@ import { Check, CheckCircle2, ChevronDown, Copy, Play, XCircle, Zap } from 'luci
 import React, { useCallback, useState } from 'react';
 import type { ConnectionTestResult } from '@shared/ssh';
 import { cn } from '@renderer/lib/utils';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 import { Button } from '../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Spinner } from '../ui/spinner';

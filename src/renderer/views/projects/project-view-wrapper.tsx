@@ -3,7 +3,7 @@ import {
   usePendingProjectsContext,
   type PendingProject,
 } from '@renderer/components/add-project-modal/pending-projects-provider';
-import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
+import { useProjectsContext } from '@renderer/core/projects/project-provider';
 import type { Project } from '@renderer/types/app';
 import { RepositoryProvider } from './repository-provider';
 

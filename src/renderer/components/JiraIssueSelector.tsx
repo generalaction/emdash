@@ -2,7 +2,7 @@ import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import jiraLogo from '../../assets/images/jira.png';
 import { useIntegrationsContext } from '../contexts/IntegrationsProvider';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 import { type JiraIssueSummary } from '../types/jira';
 import { JiraIssuePreviewTooltip } from './JiraIssuePreviewTooltip';
 import { Input } from './ui/input';

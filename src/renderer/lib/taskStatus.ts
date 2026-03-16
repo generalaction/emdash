@@ -1,5 +1,5 @@
 import { ptyDataChannel, ptyExitChannel, ptyStartedChannel } from '@shared/events/appEvents';
-import { events } from './ipc';
+import { events } from '../core/ipc';
 
 // Lightweight derived status store for tasks based on agent activity
 // - Derives 'busy' when we receive stream output for a task

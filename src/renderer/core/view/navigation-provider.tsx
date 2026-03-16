@@ -72,7 +72,7 @@ export function useWorkspaceWrapParams(): WrapParamsContextValue {
   return context;
 }
 
-export function useViewParams<TId extends ViewId>(
+export function useParams<TId extends ViewId>(
   viewId: TId
 ): {
   params: WrapParams<TId>;

@@ -5,9 +5,9 @@ import {
   githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
-import { useModalContext } from '../core/modal-provider';
+import { events, rpc } from '../core/ipc';
+import { useModalContext } from '../core/modal/modal-provider';
 import { useToast } from '../hooks/use-toast';
-import { events, rpc } from '../lib/ipc';
 import { useAppContext } from './AppContextProvider';
 
 type GithubUser = any;

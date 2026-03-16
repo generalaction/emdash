@@ -2,7 +2,7 @@
  * Simple telemetry client for renderer process.
  * Captures events and sends them to the main process via IPC.
  */
-import { rpc } from './ipc';
+import { rpc } from '../core/ipc';
 
 export function captureTelemetry(event: string, properties?: Record<string, any>): void {
   try {

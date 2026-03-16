@@ -7,7 +7,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { cn } from '@renderer/lib/utils';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 
 type Variant = 'full' | 'compact';
 

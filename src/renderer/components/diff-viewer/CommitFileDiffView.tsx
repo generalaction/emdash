@@ -1,9 +1,9 @@
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '../../core/ipc';
 import { useTheme } from '../../hooks/useTheme';
 import { convertDiffLinesToMonacoFormat, getMonacoLanguageId } from '../../lib/diffUtils';
-import { rpc } from '../../lib/ipc';
 import { configureDiffEditorDiagnostics, resetDiagnosticOptions } from '../../lib/monacoDiffConfig';
 import { getDiffThemeName, registerDiffThemes } from '../../lib/monacoDiffThemes';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';

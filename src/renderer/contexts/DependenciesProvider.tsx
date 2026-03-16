@@ -4,7 +4,7 @@ import {
   dependencyStatusUpdatedChannel,
   type DependencyStatePayload,
 } from '@shared/events/appEvents';
-import { events, rpc } from '../lib/ipc';
+import { events, rpc } from '../core/ipc';
 
 export type DependencyState = DependencyStatePayload;
 

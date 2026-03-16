@@ -9,7 +9,7 @@ import {
   type PlatformKey,
 } from '@shared/openInApps';
 import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../lib/ipc';
+import { rpc } from '../core/ipc';
 
 const iconModules = import.meta.glob('../../assets/images/*', {
   eager: true,

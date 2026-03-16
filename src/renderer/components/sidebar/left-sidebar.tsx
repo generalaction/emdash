@@ -7,7 +7,7 @@ import {
 } from '@renderer/components/add-project-modal/pending-projects-provider';
 import ReorderList from '@renderer/components/ReorderList';
 import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
-import { useProjectsContext } from '@renderer/contexts/ProjectsProvider';
+import { useProjectsContext } from '@renderer/core/projects/project-provider';
 import {
   isCurrentView,
   useNavigate,

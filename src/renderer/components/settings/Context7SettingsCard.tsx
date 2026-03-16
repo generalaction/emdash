@@ -2,7 +2,7 @@ import { Info } from 'lucide-react';
 import React from 'react';
 import context7Logo from '@/assets/images/context7.png';
 import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
-import { rpc } from '../../lib/ipc';
+import { rpc } from '../../core/ipc';
 import { CONTEXT7_INTEGRATION } from '../../mcp/context7';
 import FeedbackModal from '../FeedbackModal';
 import { Button } from '../ui/button';

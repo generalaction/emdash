@@ -1,4 +1,4 @@
-import { rpc } from './ipc';
+import { rpc } from '../core/ipc';
 import { buildPrCommentsStatus, type PrCommentsStatus } from './prCommentsStatus';
 
 type Listener = (status: PrCommentsStatus | null) => void;

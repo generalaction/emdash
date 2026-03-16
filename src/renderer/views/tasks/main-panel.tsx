@@ -1,3 +1,4 @@
+import { ConversationsPanel } from './conversations/panel';
 import { useCurrentTaskStatus, useTaskViewContext } from './task-view-wrapper';
 
 export function TaskMainPanel() {
@@ -17,7 +18,7 @@ function ActiveTaskMainPanel() {
 
   switch (view) {
     case 'agents':
-      return <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">Agentss</div>;
+      return <ConversationsPanel />;
     case 'editor':
       return <div>Editor.... </div>;
   }

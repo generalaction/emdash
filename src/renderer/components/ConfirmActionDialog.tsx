@@ -1,4 +1,4 @@
-import type { BaseModalProps } from '@renderer/core/modal-provider';
+import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import {
   AlertDialog,
   AlertDialogAction,
