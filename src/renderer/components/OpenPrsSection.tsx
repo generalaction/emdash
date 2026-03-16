@@ -15,6 +15,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import {
   ArrowUpRight,
   ChevronDown,
@@ -29,7 +30,6 @@ import type { Task } from '../types/app';
 interface OpenPrsSectionProps {
   projectPath: string;
   projectId: string;
-  onReviewPr: (task: Task) => void;
 }
 
 const DEFAULT_VISIBLE = 10;
@@ -183,8 +183,9 @@ const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewe
   );
 };
 
-const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
+const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId }) => {
   const { toast } = useToast();
+  const { handleOpenExternalTask } = useTaskManagementContext();
   const [collapsed, setCollapsed] = useState(false);
   const [creatingForPr, setCreatingForPr] = useState<number | null>(null);
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -239,7 +240,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: result.task.metadata,
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else if (result.success && result.worktree) {
         const task: Task = {
           id: result.worktree.id || crypto.randomUUID(),
@@ -251,7 +252,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: { prNumber: pr.number, prTitle: pr.title },
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else {
         toast({
           title: 'Failed to create review task',
