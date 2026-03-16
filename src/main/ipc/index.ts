@@ -28,10 +28,12 @@ import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
 import { registerPlainIpc } from './plainIpc';
 import { registerForgejoIpc } from './forgejoIpc';
+import { changelogController } from './changelogIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
   appSettings: appSettingsController,
+  changelog: changelogController,
 });
 
 export type RpcRouter = typeof rpcRouter;

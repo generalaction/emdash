@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { homedir } from 'os';
 import { quoteShellArg } from '../utils/shellEscape';
+import { getAppSettings } from '../settings';
 
 const execAsync = promisify(exec);
 const githubService = new GitHubService();
@@ -242,14 +243,17 @@ export function registerGithubIpc() {
 
   ipcMain.handle(
     'github:listPullRequests',
-    async (_, args: { projectPath: string; limit?: number }) => {
+    async (_, args: { projectPath: string; limit?: number; searchQuery?: string }) => {
       const projectPath = args?.projectPath;
       if (!projectPath) {
         return { success: false, error: 'Project path is required' };
       }
 
       try {
-        const result = await githubService.getPullRequests(projectPath, args?.limit);
+        const result = await githubService.getPullRequests(projectPath, {
+          limit: args?.limit,
+          searchQuery: args?.searchQuery,
+        });
         return { success: true, prs: result.prs, totalCount: result.totalCount };
       } catch (error) {
         log.error('Failed to list pull requests:', error);
@@ -285,6 +289,7 @@ export function registerGithubIpc() {
           ? args.taskName.trim()
           : `pr-${prNumber}-${defaultSlug}`;
       const branchName = args.branchName || `pr/${prNumber}`;
+      const reviewProvider = getAppSettings().defaultProvider || 'claude';
       const buildTaskInfo = (taskPath: string, name: string) => ({
         id: crypto.randomUUID(),
         projectId,
@@ -292,6 +297,7 @@ export function registerGithubIpc() {
         branch: branchName,
         path: taskPath,
         status: 'active' as const,
+        agentId: reviewProvider,
         useWorktree: true,
         metadata: {
           prNumber,
@@ -305,9 +311,13 @@ export function registerGithubIpc() {
 
         if (existing) {
           const persistedTask = await databaseService.getTaskByPath(existing.path);
-          const existingTask = persistedTask ?? buildTaskInfo(existing.path, existing.name);
+          let existingTask = persistedTask ?? buildTaskInfo(existing.path, existing.name);
 
-          if (!persistedTask) {
+          if (persistedTask && !persistedTask.agentId) {
+            existingTask = { ...persistedTask, agentId: reviewProvider };
+          }
+
+          if (!persistedTask || !persistedTask.agentId) {
             try {
               await databaseService.saveTask(existingTask);
             } catch (dbError) {

@@ -29,6 +29,8 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
     horizontalSliderSize: 4,
   },
   hideUnchangedRegions: { enabled: true },
+  // Match git-style hunk accounting: indentation-only changes should render as add/del.
+  ignoreTrimWhitespace: false,
   diffWordWrap: 'on',
   enableSplitViewResizing: false,
   smoothScrolling: true,

@@ -23,6 +23,12 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
+import {
+  collectTerminalSearchMatches,
+  getNextTerminalSearchIndex,
+  type TerminalSearchBufferLike,
+  type TerminalSearchMatch,
+} from './terminalSearch';
 import { rpc } from '@/lib/rpc';
 import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
@@ -111,6 +117,14 @@ export class TerminalSessionManager {
   private readonly exitListeners = new Set<
     (info: { exitCode: number | undefined; signal?: number }) => void
   >();
+  private ptyListenerDisposables: CleanupFn[] = [];
+  private ptyConnectPromise: Promise<{
+    ok: boolean;
+    reused?: boolean;
+    tmux?: boolean;
+    error?: string;
+  }> | null = null;
+  private restartPromise: Promise<boolean> | null = null;
   private firstFrameRendered = false;
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
@@ -136,6 +150,8 @@ export class TerminalSessionManager {
   private lastSlowInputLogAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private activeSearchQuery = '';
+  private activeSearchMatch: TerminalSearchMatch | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -563,6 +579,7 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to kill PTY during dispose', { id: this.id, error });
     }
+    this.cleanupPtyListeners();
     for (const dispose of this.disposables.splice(0)) {
       try {
         dispose();
@@ -605,6 +622,73 @@ export class TerminalSessionManager {
     }
   }
 
+  search(
+    query: string,
+    options: { direction?: 'next' | 'prev'; reset?: boolean } = {}
+  ): {
+    found: boolean;
+    currentIndex: number;
+    total: number;
+  } {
+    const normalizedQuery = query;
+    if (!normalizedQuery) {
+      this.clearSearch();
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const buffer = this.terminal.buffer?.active as TerminalSearchBufferLike | undefined;
+    if (!buffer) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const matches = collectTerminalSearchMatches(buffer, normalizedQuery);
+    if (matches.length === 0) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      try {
+        this.terminal.clearSelection();
+      } catch {}
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const direction = options.direction ?? 'next';
+    const currentMatch =
+      !options.reset && this.activeSearchQuery === normalizedQuery ? this.activeSearchMatch : null;
+    const matchIndex = getNextTerminalSearchIndex(matches, currentMatch, direction);
+    const match = matches[matchIndex];
+
+    this.activeSearchQuery = normalizedQuery;
+    this.activeSearchMatch = match;
+
+    try {
+      this.terminal.select(match.col, match.row, match.length);
+      const contextRows = Math.max(0, Math.floor(this.terminal.rows / 2));
+      this.terminal.scrollToLine(Math.max(0, match.row - contextRows));
+    } catch (error) {
+      log.warn('Failed to apply terminal search match', {
+        id: this.id,
+        query: normalizedQuery,
+        error,
+      });
+    }
+
+    return {
+      found: true,
+      currentIndex: matchIndex + 1,
+      total: matches.length,
+    };
+  }
+
+  clearSearch() {
+    this.activeSearchQuery = '';
+    this.activeSearchMatch = null;
+    try {
+      this.terminal.clearSelection();
+    } catch {}
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {
@@ -633,6 +717,29 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
+  }
+
+  isPtyActive(): boolean {
+    return this.ptyStarted;
+  }
+
+  async restart(): Promise<boolean> {
+    if (this.disposed || this.ptyStarted) return false;
+    if (this.restartPromise) return this.restartPromise;
+
+    this.restartPromise = (async () => {
+      this.clearQueuedResize();
+      this.cleanupPtyListeners();
+
+      const result = await this.connectPty(true);
+      return Boolean(result?.ok);
+    })();
+
+    try {
+      return await this.restartPromise;
+    } finally {
+      this.restartPromise = null;
+    }
   }
 
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
@@ -1122,85 +1229,99 @@ export class TerminalSessionManager {
   private async connectPty(
     hasExistingSession: boolean = false
   ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
-    this.ptyConnectStartTime = performance.now();
-    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
-      this.options;
-    const id = taskId;
-
-    // Provider CLIs use direct spawn (bypasses shell config loading)
-    // Regular shell terminals use shell-based spawn
-    const ptyPromise =
-      providerId && cwd
-        ? window.electronAPI.ptyStartDirect({
-            id,
-            providerId,
-            cwd,
-            remote: this.options.remote,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-            env,
-            resume: hasExistingSession,
-          })
-        : window.electronAPI.ptyStart({
-            id,
-            cwd,
-            remote: this.options.remote,
-            shell,
-            env,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-          });
-
-    const result = await ptyPromise.catch((error: any) => {
-      const message = error?.message || String(error);
-      log.error('terminalSession:ptyStartError', { id, error });
-      this.emitError(message);
-      return { ok: false, error: message };
-    });
-
-    if (result?.ok) {
-      this.ptyStarted = true;
-      this.lastSentResize = null;
-      this.sendSizeIfStarted();
-      this.emitReady();
-      try {
-        let offStarted: (() => void) | undefined;
-        const removeOffStartedFromDisposables = () => {
-          if (!offStarted) return;
-          const idx = this.disposables.indexOf(offStarted);
-          if (idx >= 0) this.disposables.splice(idx, 1);
-        };
-        offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
-          if (payload?.id === id) {
-            this.ptyStarted = true;
-            this.lastSentResize = null;
-            this.sendSizeIfStarted();
-            try {
-              offStarted?.();
-            } catch {}
-            removeOffStartedFromDisposables();
-            offStarted = undefined;
-          }
-        });
-        if (offStarted) this.disposables.push(offStarted);
-      } catch {}
-    } else {
-      const message = result?.error || 'Failed to start PTY';
-      log.warn('terminalSession:ptyStartFailed', { id, error: message });
-      this.emitError(message);
+    if (this.ptyConnectPromise) {
+      return this.ptyConnectPromise;
     }
 
-    // Set up data listener (runs regardless of success for potential reuse)
-    this.setupPtyDataListener(id);
+    this.ptyConnectPromise = (async () => {
+      this.ptyConnectStartTime = performance.now();
+      const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
+        this.options;
+      const id = taskId;
 
-    return result || { ok: false, error: 'Unknown error' };
+      // Provider CLIs use direct spawn (bypasses shell config loading)
+      // Regular shell terminals use shell-based spawn
+      const ptyPromise =
+        providerId && cwd
+          ? window.electronAPI.ptyStartDirect({
+              id,
+              providerId,
+              cwd,
+              remote: this.options.remote,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+              env,
+              resume: hasExistingSession,
+            })
+          : window.electronAPI.ptyStart({
+              id,
+              cwd,
+              remote: this.options.remote,
+              shell,
+              env,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+            });
+
+      const result = await ptyPromise.catch((error: any) => {
+        const message = error?.message || String(error);
+        log.error('terminalSession:ptyStartError', { id, error });
+        this.emitError(message);
+        return { ok: false, error: message };
+      });
+
+      if (result?.ok) {
+        this.ptyStarted = true;
+        this.lastSentResize = null;
+        this.sendSizeIfStarted();
+        this.emitReady();
+        try {
+          let offStarted: (() => void) | undefined;
+          const removeOffStartedFromDisposables = () => {
+            if (!offStarted) return;
+            const idx = this.disposables.indexOf(offStarted);
+            if (idx >= 0) this.disposables.splice(idx, 1);
+          };
+          offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+            if (payload?.id === id) {
+              this.ptyStarted = true;
+              this.lastSentResize = null;
+              this.sendSizeIfStarted();
+              try {
+                offStarted?.();
+              } catch {}
+              removeOffStartedFromDisposables();
+              offStarted = undefined;
+            }
+          });
+          if (offStarted) this.disposables.push(offStarted);
+        } catch {}
+      } else {
+        const message = result?.error || 'Failed to start PTY';
+        log.warn('terminalSession:ptyStartFailed', { id, error: message });
+        this.emitError(message);
+      }
+
+      // Set up data listener (runs regardless of success for potential reuse)
+      this.setupPtyDataListener(id);
+
+      return result || { ok: false, error: 'Unknown error' };
+    })();
+
+    try {
+      return await this.ptyConnectPromise;
+    } finally {
+      this.ptyConnectPromise = null;
+    }
   }
 
   private setupPtyDataListener(id: string): void {
+    this.cleanupPtyListeners();
+
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
@@ -1229,7 +1350,17 @@ export class TerminalSessionManager {
       this.emitExit(info);
     });
 
-    this.disposables.push(offData, offExit);
+    this.ptyListenerDisposables = [offData, offExit];
+  }
+
+  private cleanupPtyListeners(): void {
+    for (const dispose of this.ptyListenerDisposables.splice(0)) {
+      try {
+        dispose();
+      } catch (error) {
+        log.warn('Terminal PTY listener cleanup failed', { id: this.id, error });
+      }
+    }
   }
 
   private enqueueTerminalWrite(chunk: string) {

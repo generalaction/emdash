@@ -1,4 +1,6 @@
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import type { DiffPayload } from '../../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../../shared/git/types';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -250,8 +252,9 @@ declare global {
         changes?: Array<{
           path: string;
           status: string;
-          additions: number;
-          deletions: number;
+          additions: number | null;
+          deletions: number | null;
+          isStaged: boolean;
           diff?: string;
         }>;
         error?: string;
@@ -267,6 +270,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;
@@ -297,6 +301,25 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
+      getFileDiff: (args: {
+        taskPath: string;
+        filePath: string;
+        baseRef?: string;
+        forceLarge?: boolean;
+      }) => Promise<{
+        success: boolean;
+        diff?: DiffPayload;
+        error?: string;
+      }>;
+      updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        action?: 'reverted';
+        error?: string;
+      }>;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
@@ -372,6 +395,7 @@ declare global {
       githubListPullRequests: (args: {
         projectPath: string;
         limit?: number;
+        searchQuery?: string;
       }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
@@ -385,6 +409,16 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          agentId: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
         error?: string;
       }>;
       githubLogout: () => Promise<void>;

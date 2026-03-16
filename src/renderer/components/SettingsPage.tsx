@@ -13,6 +13,7 @@ import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
+  AutoInferTaskNamesRow,
   CreateWorktreeByDefaultRow,
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
@@ -25,6 +26,7 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
 export type SettingsPageTab =
@@ -198,6 +200,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <AutoGenerateTaskNamesRow taskSettings={taskSettings} />,
         },
         {
+          component: <AutoInferTaskNamesRow taskSettings={taskSettings} />,
+        },
+        {
           component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,
         },
         {
@@ -219,6 +224,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
+        { component: <ReviewAgentSettingsCard /> },
         {
           title: 'CLI agents',
           component: (

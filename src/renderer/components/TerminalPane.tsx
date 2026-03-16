@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } fr
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { SessionTheme } from '../terminal/TerminalSessionManager';
 import { log } from '../lib/logger';
+import { SSH_CONNECTION_RESTORED_EVENT, type SshConnectionRestoredDetail } from '../lib/sshEvents';
 
 type Props = {
   id: string;
@@ -186,6 +187,28 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         sessionRef.current.setTheme(theme);
       }
     }, [theme]);
+
+    useEffect(() => {
+      if (!remote?.connectionId) return;
+
+      const handleConnectionRestored = (event: Event) => {
+        const detail = (event as CustomEvent<SshConnectionRestoredDetail>).detail;
+        if (!detail || detail.connectionId !== remote.connectionId) return;
+        void sessionRef.current?.restart();
+      };
+
+      window.addEventListener(
+        SSH_CONNECTION_RESTORED_EVENT,
+        handleConnectionRestored as EventListener
+      );
+
+      return () => {
+        window.removeEventListener(
+          SSH_CONNECTION_RESTORED_EVENT,
+          handleConnectionRestored as EventListener
+        );
+      };
+    }, [remote?.connectionId]);
 
     useEffect(() => {
       return () => {

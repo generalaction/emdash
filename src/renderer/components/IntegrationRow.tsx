@@ -12,6 +12,7 @@ type IntegrationStatus =
 
 interface IntegrationRowProps {
   logoSrc?: string;
+  logoClassName?: string;
   icon?: React.ReactNode;
   name: string;
   onNameClick?: () => void;
@@ -62,6 +63,7 @@ const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
 
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
+  logoClassName,
   icon,
   name,
   onNameClick,
@@ -112,7 +114,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
             dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
           />
         ) : (
-          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img src={logoSrc} alt="" className={`h-5 w-5 object-contain ${logoClassName ?? ''}`} />
         )
       ) : icon ? (
         icon

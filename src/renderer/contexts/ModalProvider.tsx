@@ -6,9 +6,11 @@ import { TaskModalOverlay } from '@/components/TaskModal';
 import { AddRemoteProjectModal } from '@/components/ssh/AddRemoteProjectModal';
 import { GithubDeviceFlowModalOverlay } from '@/components/GithubDeviceFlowModal';
 import { McpServerModal } from '@/components/mcp/McpServerModal';
+import { ChangelogModalOverlay } from '@/components/ChangelogModal';
 
 // Define overlays here so we can use them in the showOverlay function
 const modalRegistry = {
+  changelogModal: ChangelogModalOverlay,
   updateModal: UpdateModalOverlay,
   newProjectModal: NewProjectModal,
   cloneFromUrlModal: CloneFromUrlModal,

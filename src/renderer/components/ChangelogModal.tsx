@@ -1,0 +1,94 @@
+import { Badge } from '@/components/ui/badge';
+import { BaseModalProps } from '@/contexts/ModalProvider';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { DialogContent } from '@/components/ui/dialog';
+import { formatChangelogPublishedAt } from '@/lib/changelogDate';
+import { EMDASH_CHANGELOG_URL, type ChangelogEntry } from '@shared/changelog';
+import { ExternalLink } from 'lucide-react';
+
+interface ChangelogModalProps {
+  entry: ChangelogEntry;
+}
+
+export function ChangelogModalOverlay({ entry }: BaseModalProps<void> & ChangelogModalProps) {
+  return <ChangelogModal entry={entry} />;
+}
+
+function normalizeLeadLine(value: string): string {
+  return value
+    .replace(/^#+\s*/, '')
+    .replace(/[^a-zA-Z0-9.]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function stripLeadingReleaseHeadings(content: string, entry: ChangelogEntry): string {
+  const lines = content.split('\n');
+  const normalizedVersion = normalizeLeadLine(`v${entry.version}`);
+  const normalizedTitle = normalizeLeadLine(entry.title);
+  const redundantLeads = new Set([
+    normalizedVersion,
+    normalizeLeadLine(entry.version),
+    normalizeLeadLine("What's Changed"),
+    normalizeLeadLine(`v${entry.version} What's Changed`),
+    normalizeLeadLine(`${entry.version} What's Changed`),
+    normalizedTitle + normalizeLeadLine("What's Changed"),
+  ]);
+
+  while (lines.length > 0) {
+    const line = lines[0].trim();
+    if (!line) {
+      lines.shift();
+      continue;
+    }
+
+    const normalizedLine = normalizeLeadLine(line);
+    if (redundantLeads.has(normalizedLine) || normalizedLine === normalizedTitle) {
+      lines.shift();
+      continue;
+    }
+
+    break;
+  }
+
+  return lines.join('\n').trim();
+}
+
+function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
+  const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
+  const content = stripLeadingReleaseHeadings(entry.content, entry);
+
+  return (
+    <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 focus:outline-none">
+      <div className="border-b border-border px-6 py-4 pr-14">
+        <button
+          type="button"
+          onClick={() => window.electronAPI.openExternal(EMDASH_CHANGELOG_URL)}
+          className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View full changelog <ExternalLink className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="max-h-[min(75vh,44rem)] overflow-y-auto px-6 py-5">
+        {publishedAt && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Badge variant="outline" className="h-5 px-2 text-[11px] font-medium">
+              {publishedAt}
+            </Badge>
+          </div>
+        )}
+        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+          {entry.title}
+        </h2>
+        {entry.summary && (
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">{entry.summary}</p>
+        )}
+        <div className="mt-6">
+          <MarkdownRenderer content={content} />
+        </div>
+      </div>
+    </DialogContent>
+  );
+}

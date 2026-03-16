@@ -155,14 +155,6 @@ export function Workspace() {
     };
   }, []);
 
-  // Listen for native menu "Settings" click (main → renderer)
-  useEffect(() => {
-    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      openSettingsPage();
-    });
-    return () => cleanup?.();
-  }, [openSettingsPage]);
-
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
@@ -188,6 +180,14 @@ export function Workspace() {
   // --- Project management (provided by ProjectManagementProvider in App.tsx) ---
   const projectMgmt = useProjectManagementContext();
   const { showEditorMode, setShowEditorMode, setShowKanban } = projectMgmt;
+
+  // Listen for native menu "Settings" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
+      openSettingsPage();
+    });
+    return () => cleanup?.();
+  }, [openSettingsPage]);
 
   const handleToggleKanban = useCallback(() => {
     if (!projectMgmt.selectedProject) return;
@@ -257,7 +257,10 @@ export function Workspace() {
   });
 
   // Show toast on update availability
-  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
+  useUpdateNotifier({
+    checkOnMount: true,
+    onOpenSettings: () => openSettingsPage('general'),
+  });
 
   // Listen for native menu "Check for Updates" click (main → renderer)
   useEffect(() => {
@@ -485,6 +488,9 @@ export function Workspace() {
                   onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
+                  showSettingsPage={showSettingsPage}
+                  settingsPageInitialTab={settingsPageInitialTab}
+                  onCloseSettingsPage={handleCloseSettingsPage}
                 />
               )}
 
