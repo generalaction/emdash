@@ -122,6 +122,7 @@ import { worktreePoolService } from './services/WorktreePoolService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
+import { ciFailureOrchestratorService } from './services/ci/orchestrator';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -309,6 +310,13 @@ app.whenReady().then(async () => {
   // Register IPC handlers
   registerAllIpc();
 
+  // Start background CI failure monitor/orchestrator for active task branches
+  try {
+    ciFailureOrchestratorService.start();
+  } catch (error) {
+    console.warn('Failed to start CI failure orchestrator:', error);
+  }
+
   // Clean up any orphaned reserve worktrees from previous sessions
   worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
     console.warn('Failed to cleanup orphaned reserves:', error);
@@ -353,6 +361,8 @@ app.on('before-quit', () => {
   agentEventService.stop();
   // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
+  // Stop CI auto-fix monitor loop.
+  ciFailureOrchestratorService.stop();
 
   // Cleanup reserve worktrees (fire and forget - don't block quit)
   worktreePoolService.cleanup().catch(() => {});

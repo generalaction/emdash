@@ -19,6 +19,7 @@ import {
 } from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import CiAutoFixSettingsCard from './CiAutoFixSettingsCard';
 import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import RightSidebarSettingsCard from './RightSidebarSettingsCard';
@@ -243,7 +244,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
-      sections: [{ title: 'Branch name', component: <RepositorySettingsCard /> }],
+      sections: [
+        { title: 'Branch name', component: <RepositorySettingsCard /> },
+        { title: 'CI auto-fix', component: <CiAutoFixSettingsCard /> },
+      ],
     },
     interface: {
       title: 'Interface',

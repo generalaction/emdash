@@ -10,6 +10,7 @@ import {
   DEFAULT_REVIEW_PROMPT,
   type ReviewSettings,
 } from '@shared/reviewPreset';
+import type { CiAutoFixConfigOverride } from './services/ci/types';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
@@ -118,6 +119,7 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
+  ciAutoFix?: CiAutoFixConfigOverride;
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -199,6 +201,17 @@ const DEFAULT_SETTINGS: AppSettings = {
   hiddenOpenInApps: [],
   changelog: {
     dismissedVersions: [],
+  },
+  ciAutoFix: {
+    enabled: false,
+    mode: 'review',
+    maxRetries: 2,
+    triggerFilters: {
+      include: ['*test*', '*lint*'],
+      exclude: ['*deploy*', '*build*'],
+    },
+    maxLogChars: 4_000,
+    pollIntervalMs: 120_000,
   },
 };
 
@@ -586,6 +599,44 @@ export function normalizeSettings(input: AppSettings): AppSettings {
           ),
         ]
       : [],
+  };
+
+  const ciAutoFix = (input as any)?.ciAutoFix || {};
+  const mode =
+    ciAutoFix?.mode === 'auto' || ciAutoFix?.mode === 'review' ? ciAutoFix.mode : 'review';
+  const maxRetries = Number.isFinite(ciAutoFix?.maxRetries)
+    ? Math.max(0, Math.min(20, Math.trunc(ciAutoFix.maxRetries)))
+    : 2;
+  const maxLogChars = Number.isFinite(ciAutoFix?.maxLogChars)
+    ? Math.max(500, Math.min(40_000, Math.trunc(ciAutoFix.maxLogChars)))
+    : 4_000;
+  const pollIntervalMs = Number.isFinite(ciAutoFix?.pollIntervalMs)
+    ? Math.max(15_000, Math.min(30 * 60_000, Math.trunc(ciAutoFix.pollIntervalMs)))
+    : 120_000;
+  const includeFilters = Array.isArray(ciAutoFix?.triggerFilters?.include)
+    ? ciAutoFix.triggerFilters.include
+        .filter((pattern: unknown): pattern is string => typeof pattern === 'string')
+        .map((pattern: string) => pattern.trim())
+        .filter(Boolean)
+    : ['*test*', '*lint*'];
+  const excludeFilters = Array.isArray(ciAutoFix?.triggerFilters?.exclude)
+    ? ciAutoFix.triggerFilters.exclude
+        .filter((pattern: unknown): pattern is string => typeof pattern === 'string')
+        .map((pattern: string) => pattern.trim())
+        .filter(Boolean)
+    : ['*deploy*', '*build*'];
+
+  out.ciAutoFix = {
+    enabled: Boolean(ciAutoFix?.enabled ?? false),
+    mode,
+    maxRetries,
+    maxLogChars,
+    pollIntervalMs,
+    triggerFilters: {
+      include: includeFilters.length > 0 ? includeFilters : ['*test*', '*lint*'],
+      exclude: excludeFilters,
+    },
+    ...(isValidProviderId(ciAutoFix?.providerId) ? { providerId: ciAutoFix.providerId } : {}),
   };
 
   return out;
