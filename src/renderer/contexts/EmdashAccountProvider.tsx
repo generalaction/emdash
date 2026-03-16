@@ -43,7 +43,7 @@ export function EmdashAccountProvider({ children }: { children: ReactNode }) {
   const [hasAccount, setHasAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [serverAvailable, setServerAvailable] = useState<boolean | null>(null);
-  const validationDone = useRef(false);
+  const initialValidationDone = useRef(false);
   const queryClient = useQueryClient();
 
   const checkServerHealth = useCallback(async (): Promise<boolean> => {
@@ -80,23 +80,32 @@ export function EmdashAccountProvider({ children }: { children: ReactNode }) {
     void checkServerHealth();
   }, [isLoading, checkServerHealth]);
 
-  useEffect(() => {
-    if (isLoading || validationDone.current) return;
+  const validateSession = useCallback(async () => {
     if (!hasAccount) return;
-    validationDone.current = true;
+    try {
+      const result = await window.electronAPI.accountValidateSession();
+      if (result.success && result.data && !result.data.valid) {
+        setIsSignedIn(false);
+        setUser(null);
+      }
+    } catch {}
+  }, [hasAccount]);
 
-    (async () => {
-      try {
-        const result = await window.electronAPI.accountValidateSession();
-        if (result.success && result.data) {
-          if (!result.data.valid) {
-            setIsSignedIn(false);
-            setUser(null);
-          }
-        }
-      } catch {}
-    })();
-  }, [isLoading, hasAccount]);
+  // Validate once on mount
+  useEffect(() => {
+    if (isLoading || initialValidationDone.current) return;
+    if (!hasAccount) return;
+    initialValidationDone.current = true;
+    void validateSession();
+  }, [isLoading, hasAccount, validateSession]);
+
+  // Re-validate when window regains focus
+  useEffect(() => {
+    if (!hasAccount) return;
+    const onFocus = () => void validateSession();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [hasAccount, validateSession]);
 
   const signIn = useCallback(async () => {
     try {
