@@ -117,11 +117,7 @@ export function CreateTaskModal({
 
           <Field>
             <FieldLabel>Attach an issue</FieldLabel>
-            <IssueSelector
-              projectPath={projectPath}
-              value={linkedIssue}
-              onValueChange={setLinkedIssue}
-            />
+            <IssueSelector nameWithOwner="" value={linkedIssue} onValueChange={setLinkedIssue} />
           </Field>
 
           <Field>

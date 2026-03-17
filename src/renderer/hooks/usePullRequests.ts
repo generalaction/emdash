@@ -7,18 +7,18 @@ export interface PullRequestSummary {
   headRefName: string;
   baseRefName: string;
   url: string;
-  isDraft?: boolean;
-  updatedAt?: string | null;
-  authorLogin?: string | null;
+  isDraft: boolean;
+  updatedAt: string;
+  authorLogin: string | null;
 }
 
-export function usePullRequests(projectPath?: string, enabled: boolean = true) {
+export function usePullRequests(nameWithOwner?: string, enabled: boolean = true) {
   const [prs, setPrs] = useState<PullRequestSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPrs = useCallback(async () => {
-    if (!projectPath || !enabled) {
+    if (!nameWithOwner || !enabled) {
       setPrs([]);
       setError(null);
       return;
@@ -27,22 +27,19 @@ export function usePullRequests(projectPath?: string, enabled: boolean = true) {
     setLoading(true);
     setError(null);
     try {
-      const response = await rpc.github.listPullRequests({ projectPath });
+      const response = await rpc.github.listPullRequests(nameWithOwner);
       if (response?.success) {
         const items = Array.isArray(response.prs) ? response.prs : [];
-        const mapped = items
-          .map((item: any) => ({
-            number: Number(item?.number) || 0,
-            title: String(item?.title || `PR #${item?.number ?? 'unknown'}`),
-            headRefName: String(item?.headRefName || ''),
-            baseRefName: String(item?.baseRefName || ''),
-            url: String(item?.url || ''),
-            isDraft: !!item?.isDraft,
-            updatedAt: item?.updatedAt ? String(item.updatedAt) : null,
-            authorLogin:
-              typeof item?.author === 'object' && item?.author
-                ? String(item.author.login || item.author.name || '')
-                : null,
+        const mapped: PullRequestSummary[] = items
+          .map((item) => ({
+            number: Number(item.number) || 0,
+            title: String(item.title || `PR #${item.number ?? 'unknown'}`),
+            headRefName: String(item.headRefName || ''),
+            baseRefName: String(item.baseRefName || ''),
+            url: String(item.url || ''),
+            isDraft: !!item.isDraft,
+            updatedAt: String(item.updatedAt || ''),
+            authorLogin: item.author?.login ?? null,
           }))
           .filter((item) => item.number > 0);
         setPrs(mapped);
@@ -50,13 +47,13 @@ export function usePullRequests(projectPath?: string, enabled: boolean = true) {
         setError(response?.error || 'Failed to load pull requests');
         setPrs([]);
       }
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       setPrs([]);
     } finally {
       setLoading(false);
     }
-  }, [projectPath, enabled]);
+  }, [nameWithOwner, enabled]);
 
   useEffect(() => {
     if (!enabled) return;

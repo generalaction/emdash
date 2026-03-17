@@ -13,7 +13,7 @@ import { Spinner } from './ui/spinner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface GitHubIssueSelectorProps {
-  projectPath: string;
+  nameWithOwner: string;
   selectedIssue: GitHubIssueSummary | null;
   onIssueChange: (issue: GitHubIssueSummary | null) => void;
   linkedIssueMap?: ReadonlyMap<number, GitHubIssueLink>;
@@ -27,7 +27,7 @@ interface GitHubIssueSelectorProps {
 const EMPTY_LINKED_ISSUE_MAP = new Map<number, GitHubIssueLink>();
 
 export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
-  projectPath,
+  nameWithOwner,
   selectedIssue,
   onIssueChange,
   linkedIssueMap,
@@ -47,7 +47,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
   const [visibleCount, setVisibleCount] = useState(10);
   const isMountedRef = useRef(true);
 
-  const canListGithub = !!projectPath;
+  const canListGithub = !!nameWithOwner;
   const issuesLoaded = availableIssues.length > 0;
   const noIssuesAvailable =
     hasRequestedIssues && !isLoadingIssues && !issuesLoaded && !issueListError;
@@ -79,7 +79,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
     });
     setIsLoadingIssues(true);
     try {
-      const result = await rpc.github.issuesList(projectPath, 50);
+      const result = await rpc.github.issuesList(nameWithOwner, 50);
       if (!isMountedRef.current) return;
       if (!result?.success) throw new Error(result?.error || 'Failed to load GitHub issues.');
       setAvailableIssues(result.issues ?? []);
@@ -93,7 +93,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       setIsLoadingIssues(false);
       setHasRequestedIssues(true);
     }
-  }, [canListGithub, projectPath]);
+  }, [canListGithub, nameWithOwner]);
 
   useEffect(() => {
     if (!isOpen || !canListGithub || isLoadingIssues || hasRequestedIssues) return;
@@ -109,7 +109,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       }
       setIsSearching(true);
       try {
-        const result = await rpc.github.issuesSearch(projectPath, term.trim(), 20);
+        const result = await rpc.github.issuesSearch(nameWithOwner, term.trim(), 20);
         if (!isMountedRef.current) return;
         if (result?.success) setSearchResults(result.issues ?? []);
         else setSearchResults([]);
@@ -121,7 +121,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
         setIsSearching(false);
       }
     },
-    [projectPath]
+    [nameWithOwner]
   );
 
   useEffect(() => {

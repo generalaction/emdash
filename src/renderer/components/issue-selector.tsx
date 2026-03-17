@@ -92,10 +92,10 @@ const ISSUE_PROVIDERS = ['linear', 'github', 'jira'] as const;
 export interface IssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
-  projectPath: string;
+  nameWithOwner: string;
 }
 
-export function IssueSelector({ projectPath, value, onValueChange }: IssueSelectorProps) {
+export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSelectorProps) {
   const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
@@ -113,8 +113,8 @@ export function IssueSelector({ projectPath, value, onValueChange }: IssueSelect
 
   const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
   const githubIssues = useGitHubIssues({
-    projectPath,
-    enabled: isGithubConnected && !!projectPath,
+    nameWithOwner,
+    enabled: isGithubConnected && !!nameWithOwner,
   });
   const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
 

@@ -167,7 +167,7 @@ export const GitHubIssuePreviewTooltip: React.FC<Props> = ({ issue, children, si
                   <Users className="h-3 w-3" />
                   <span>
                     {issue.assignees
-                      .map((a) => a.login || a.name)
+                      .map((a) => a.login)
                       .filter(Boolean)
                       .slice(0, 2)
                       .join(', ')}

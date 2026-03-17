@@ -10,21 +10,19 @@ const SEARCH_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export const githubQueryKeys = {
-  initial: (projectPath: string) => ['github:issues:initial', projectPath] as const,
-  search: (projectPath: string, term: string) =>
-    ['github:issues:search', projectPath, term] as const,
+  initial: (nameWithOwner: string) => ['github:issues:initial', nameWithOwner] as const,
+  search: (nameWithOwner: string, term: string) =>
+    ['github:issues:search', nameWithOwner, term] as const,
 };
 
 const toIssue = (raw: GitHubIssueSummary): Issue => ({
   provider: 'github',
   identifier: `#${raw.number}`,
   title: raw.title,
-  url: raw.url ?? '',
+  url: raw.url,
   description: raw.body ?? undefined,
-  status: raw.state ?? undefined,
-  assignees: raw.assignees
-    ? raw.assignees.map((a) => a.login ?? a.name ?? '').filter(Boolean)
-    : undefined,
+  status: raw.state,
+  assignees: raw.assignees.map((a) => a.login).filter(Boolean),
   updatedAt: raw.updatedAt ?? undefined,
   fetchedAt: new Date().toISOString(),
 });
@@ -33,12 +31,12 @@ export function usePrefetchGitHubIssues() {
   const queryClient = useQueryClient();
 
   return useCallback(
-    (projectPath: string) => {
-      if (!projectPath) return;
+    (nameWithOwner: string) => {
+      if (!nameWithOwner) return;
       void queryClient.prefetchQuery({
-        queryKey: githubQueryKeys.initial(projectPath),
+        queryKey: githubQueryKeys.initial(nameWithOwner),
         queryFn: async () => {
-          const result = await rpc.github.issuesList(projectPath, INITIAL_FETCH_LIMIT);
+          const result = await rpc.github.issuesList(nameWithOwner, INITIAL_FETCH_LIMIT);
           if (!result?.success) {
             throw new Error(result?.error ?? 'Failed to load GitHub issues.');
           }
@@ -52,18 +50,18 @@ export function usePrefetchGitHubIssues() {
 }
 
 interface UseGitHubIssuesOptions {
-  projectPath: string;
+  nameWithOwner: string;
   enabled?: boolean;
 }
 
 export function useGitHubIssues({
-  projectPath,
+  nameWithOwner,
   enabled = true,
 }: UseGitHubIssuesOptions): UseIssuesResult {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
 
-  const isReady = enabled && !!projectPath;
+  const isReady = enabled && !!nameWithOwner;
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedTerm(searchTerm), SEARCH_DEBOUNCE_MS);
@@ -75,9 +73,9 @@ export function useGitHubIssues({
     isLoading: isLoadingInitial,
     error: initialError,
   } = useQuery({
-    queryKey: githubQueryKeys.initial(projectPath),
+    queryKey: githubQueryKeys.initial(nameWithOwner),
     queryFn: async () => {
-      const result = await rpc.github.issuesList(projectPath, INITIAL_FETCH_LIMIT);
+      const result = await rpc.github.issuesList(nameWithOwner, INITIAL_FETCH_LIMIT);
       if (!result?.success) {
         throw new Error(result?.error ?? 'Failed to load GitHub issues.');
       }
@@ -94,9 +92,13 @@ export function useGitHubIssues({
   const isActiveSearch = debouncedTerm.trim().length > 0;
 
   const { data: searchIssues, isFetching: isSearching } = useQuery({
-    queryKey: githubQueryKeys.search(projectPath, debouncedTerm.trim()),
+    queryKey: githubQueryKeys.search(nameWithOwner, debouncedTerm.trim()),
     queryFn: async () => {
-      const result = await rpc.github.issuesSearch(projectPath, debouncedTerm.trim(), SEARCH_LIMIT);
+      const result = await rpc.github.issuesSearch(
+        nameWithOwner,
+        debouncedTerm.trim(),
+        SEARCH_LIMIT
+      );
       if (result?.success) {
         void (async () => {
           const { captureTelemetry } = await import('../lib/telemetryClient');
