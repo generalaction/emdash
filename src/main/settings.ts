@@ -12,7 +12,9 @@ import {
 } from '@shared/reviewPreset';
 
 export type DeepPartial<T> = {
-  [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
+  [K in keyof T]?: NonNullable<T[K]> extends object
+    ? DeepPartial<NonNullable<T[K]>> | Extract<T[K], null>
+    : T[K];
 };
 
 export type AppSettingsUpdate = DeepPartial<AppSettings>;
@@ -39,20 +41,23 @@ export interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
+export type KeyboardShortcutBinding = ShortcutBinding | null;
+
 export interface KeyboardSettings {
-  commandPalette?: ShortcutBinding;
-  settings?: ShortcutBinding;
-  toggleLeftSidebar?: ShortcutBinding;
-  toggleRightSidebar?: ShortcutBinding;
-  toggleTheme?: ShortcutBinding;
-  toggleKanban?: ShortcutBinding;
-  toggleEditor?: ShortcutBinding;
-  closeModal?: ShortcutBinding;
-  nextProject?: ShortcutBinding;
-  prevProject?: ShortcutBinding;
-  newTask?: ShortcutBinding;
-  nextAgent?: ShortcutBinding;
-  prevAgent?: ShortcutBinding;
+  commandPalette?: KeyboardShortcutBinding;
+  settings?: KeyboardShortcutBinding;
+  toggleLeftSidebar?: KeyboardShortcutBinding;
+  toggleRightSidebar?: KeyboardShortcutBinding;
+  toggleTheme?: KeyboardShortcutBinding;
+  toggleKanban?: KeyboardShortcutBinding;
+  toggleEditor?: KeyboardShortcutBinding;
+  closeModal?: KeyboardShortcutBinding;
+  nextProject?: KeyboardShortcutBinding;
+  prevProject?: KeyboardShortcutBinding;
+  newTask?: KeyboardShortcutBinding;
+  nextAgent?: KeyboardShortcutBinding;
+  prevAgent?: KeyboardShortcutBinding;
+  openInEditor?: KeyboardShortcutBinding;
 }
 
 export interface InterfaceSettings {
@@ -183,6 +188,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
+    openInEditor: { key: 'o', modifier: 'cmd' },
   },
   interface: {
     autoRightSidebarBehavior: false,
@@ -272,8 +278,12 @@ function normalizeShortcutModifier(value: unknown, fallback: ShortcutModifier): 
   return aliases[normalized] ?? fallback;
 }
 
-function isBinding(binding: ShortcutBinding, modifier: ShortcutModifier, key: string): boolean {
-  return binding.modifier === modifier && binding.key === key;
+function isBinding(
+  binding: KeyboardShortcutBinding | undefined,
+  modifier: ShortcutModifier,
+  key: string
+): boolean {
+  return binding?.modifier === modifier && binding?.key === key;
 }
 
 function assertNoKeyboardShortcutConflicts(keyboard?: KeyboardSettings): void {
@@ -458,7 +468,11 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
+  const normalizeBinding = (
+    binding: any,
+    defaultBinding: ShortcutBinding
+  ): KeyboardShortcutBinding => {
+    if (binding === null) return null;
     if (!binding || typeof binding !== 'object') return defaultBinding;
     const key = normalizeShortcutKey(binding.key) ?? defaultBinding.key;
     const modifier = normalizeShortcutModifier(binding.modifier, defaultBinding.modifier);
@@ -486,6 +500,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
+    openInEditor: normalizeBinding(keyboard.openInEditor, DEFAULT_SETTINGS.keyboard!.openInEditor!),
   };
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();
   const isLegacyArrowPair =

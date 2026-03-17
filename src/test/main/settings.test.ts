@@ -99,6 +99,33 @@ describe('normalizeSettings - changelog dismissed versions', () => {
   });
 });
 
+describe('normalizeSettings - keyboard shortcuts', () => {
+  it('preserves explicitly removed shortcuts', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        keyboard: {
+          toggleLeftSidebar: null,
+        },
+      })
+    );
+
+    expect(result.keyboard?.toggleLeftSidebar).toBeNull();
+  });
+
+  it('keeps defaults for missing shortcuts while persisting openInEditor overrides', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        keyboard: {
+          openInEditor: { key: 'i', modifier: 'cmd' },
+        },
+      })
+    );
+
+    expect(result.keyboard?.commandPalette).toEqual({ key: 'k', modifier: 'cmd' });
+    expect(result.keyboard?.openInEditor).toEqual({ key: 'i', modifier: 'cmd' });
+  });
+});
+
 describe('normalizeSettings - review preset', () => {
   it('defaults to the shared review preset when missing', () => {
     const result = normalizeSettings(makeSettings());
