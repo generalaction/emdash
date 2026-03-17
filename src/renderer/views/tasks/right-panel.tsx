@@ -1,4 +1,4 @@
-import { useTaskViewContext } from './task-view-wrapper';
+import { useTaskViewContext } from './task-view-context';
 
 export function TaskRightSidebar() {
   const { view } = useTaskViewContext();

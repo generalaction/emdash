@@ -5,7 +5,7 @@ import { useConversations } from '../_deprecated/ConversationsProvider';
 import { useChatView } from '../contexts/ChatViewProvider';
 import { useDependencies } from '../contexts/DependenciesProvider';
 import { rpc } from '../core/ipc';
-import { TerminalPane } from '../core/terminals/terminal-pane';
+import { TerminalPane } from '../core/pty/pty-pane';
 import { cssVar } from '../lib/cssVars';
 import type { UiAgent } from '../providers/meta';
 import InstallBanner from './InstallBanner';

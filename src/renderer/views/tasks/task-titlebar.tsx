@@ -2,28 +2,36 @@ import { Brain, FileBracesCorner } from 'lucide-react';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { useCurrentTask, useCurrentTaskStatus, useTaskViewContext } from './task-view-wrapper';
+import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
 export function TaskTitlebar() {
-  const { status } = useCurrentTaskStatus();
-  if (status === 'pending') {
-    return <PendingTaskTitlebar />;
+  const { taskStatus } = useTaskViewContext();
+  if (taskStatus.status === 'pending') {
+    return <PendingTaskTitlebar name={taskStatus.pendingTask.name} />;
   }
   return <ActiveTaskTitlebar />;
 }
 
-function PendingTaskTitlebar() {
-  return <Titlebar leftSlot={<div className="flex items-center gap-1 px-2" />} />;
-}
-
-function ActiveTaskTitlebar() {
-  const { view, setView } = useTaskViewContext();
-  const { currentTask } = useCurrentTask();
+function PendingTaskTitlebar({ name }: { name: string }) {
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
-          <span className="text-sm text-muted-foreground">{currentTask?.name}</span>
+          <span className="text-sm text-muted-foreground">{name}</span>
+        </div>
+      }
+    />
+  );
+}
+
+function ActiveTaskTitlebar() {
+  const { view, setView, task } = useReadyTaskViewContext();
+
+  return (
+    <Titlebar
+      leftSlot={
+        <div className="flex items-center gap-1 px-2">
+          <span className="text-sm text-muted-foreground">{task.name}</span>
         </div>
       }
       rightSlot={

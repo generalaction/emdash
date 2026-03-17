@@ -2,7 +2,7 @@ import { Plus, X } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@renderer/lib/utils';
 import { rpc } from '../core/ipc';
-import { TerminalPane } from '../core/terminals/terminal-pane';
+import { TerminalPane } from '../core/pty/pty-pane';
 
 interface Terminal {
   id: string;

@@ -13,14 +13,15 @@ import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
 import { ModalProvider } from './core/modal/modal-provider';
 import { ProjectsProvider } from './core/projects/project-provider';
+import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
 import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
 import { WorkspaceViewProvider } from './core/view/provider';
 import { ConversationDataProvider } from './features/conversations/conversation-data-provider';
+import { ConversationSessionsProvider } from './features/conversations/conversation-sessions-provider';
 import { TaskViewStateProvider } from './features/tasks/task-view-state-provider';
 import { TasksProvider } from './features/tasks/tasks-provider';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import BrowserProvider from './providers/BrowserProvider';
-import { TerminalPoolProvider } from './terminal/terminal-pool-provider';
 import { PendingTasksProvider } from './views/projects/pending-tasks-provider';
 import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
@@ -48,35 +49,37 @@ export function App() {
               <AppContextProvider>
                 <AppSettingsProvider>
                   <TerminalPoolProvider>
-                    <SshConnectionProvider>
-                      <GithubContextProvider>
-                        <IntegrationsProvider>
-                          <WorkspaceViewProvider>
-                            <ProjectsProvider>
-                              <PendingProjectsProvider>
-                                <TasksProvider>
-                                  <PendingTasksProvider>
-                                    <ConversationDataProvider>
-                                      <TaskViewStateProvider>
-                                        <AgentProvider>
-                                          <BrowserProvider>
-                                            <RightSidebarProvider>
-                                              <ThemeProvider>
-                                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                              </ThemeProvider>
-                                            </RightSidebarProvider>
-                                          </BrowserProvider>
-                                        </AgentProvider>
-                                      </TaskViewStateProvider>
-                                    </ConversationDataProvider>
-                                  </PendingTasksProvider>
-                                </TasksProvider>
-                              </PendingProjectsProvider>
-                            </ProjectsProvider>
-                          </WorkspaceViewProvider>
-                        </IntegrationsProvider>
-                      </GithubContextProvider>
-                    </SshConnectionProvider>
+                    <ConversationSessionsProvider>
+                      <SshConnectionProvider>
+                        <GithubContextProvider>
+                          <IntegrationsProvider>
+                            <WorkspaceViewProvider>
+                              <ProjectsProvider>
+                                <PendingProjectsProvider>
+                                  <TasksProvider>
+                                    <PendingTasksProvider>
+                                      <ConversationDataProvider>
+                                        <TaskViewStateProvider>
+                                          <AgentProvider>
+                                            <BrowserProvider>
+                                              <RightSidebarProvider>
+                                                <ThemeProvider>
+                                                  <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                                </ThemeProvider>
+                                              </RightSidebarProvider>
+                                            </BrowserProvider>
+                                          </AgentProvider>
+                                        </TaskViewStateProvider>
+                                      </ConversationDataProvider>
+                                    </PendingTasksProvider>
+                                  </TasksProvider>
+                                </PendingProjectsProvider>
+                              </ProjectsProvider>
+                            </WorkspaceViewProvider>
+                          </IntegrationsProvider>
+                        </GithubContextProvider>
+                      </SshConnectionProvider>
+                    </ConversationSessionsProvider>
                   </TerminalPoolProvider>
                 </AppSettingsProvider>
               </AppContextProvider>

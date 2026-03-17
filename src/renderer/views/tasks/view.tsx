@@ -1,5 +1,5 @@
 import type { ViewDefinition } from '@renderer/core/view/registry';
-import { TaskViewWrapper } from '@renderer/views/tasks/task-view-wrapper';
+import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';

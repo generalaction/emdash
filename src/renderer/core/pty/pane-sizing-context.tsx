@@ -33,7 +33,7 @@ import {
   useRef,
 } from 'react';
 import { rpc } from '../ipc';
-import { measureDimensions, type TerminalDimensions } from './terminal-dimensions';
+import { measureDimensions, type TerminalDimensions } from './pty-dimensions';
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;

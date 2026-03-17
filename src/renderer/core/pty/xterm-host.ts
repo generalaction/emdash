@@ -1,6 +1,6 @@
 let hostElement: HTMLDivElement | null = null;
 
-export function ensureTerminalHost(): HTMLDivElement {
+export function ensureXtermHost(): HTMLDivElement {
   if (hostElement) return hostElement;
   const el = document.createElement('div');
   el.setAttribute('data-terminal-host', 'true');

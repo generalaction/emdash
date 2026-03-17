@@ -1,7 +1,9 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { log } from '../../lib/logger';
 import { rpc } from '../ipc';
-import { useTerminal, type SessionTheme } from './use-terminals';
+import type { SessionTheme } from './pty-pool';
+import { usePty } from './use-pty';
 
 type Props = {
   /**
@@ -15,8 +17,9 @@ type Props = {
   /** @deprecated Use `sessionId` instead. Kept for backward compatibility. */
   id?: string;
   className?: string;
+  /** @deprecated Accepted but has no effect; use `themeOverride` to customise colours. */
   variant?: 'dark' | 'light';
-  themeOverride?: any;
+  themeOverride?: SessionTheme['override'];
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop only. */
@@ -45,14 +48,12 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
-    // Resolve sessionId: prefer explicit sessionId, fall back to id for backward compat.
+    // Prefer explicit sessionId, fall back to id for backward compat.
     const sessionId = sessionIdProp ?? id ?? '';
-    // Resolve remoteConnectionId from either the new prop or the deprecated `remote` prop.
-    const resolvedRemoteConnectionId = remoteConnectionId ?? undefined;
 
     const theme: SessionTheme = { override: themeOverride };
 
-    const { focus } = useTerminal(
+    const { focus } = usePty(
       {
         sessionId,
         theme,
@@ -67,10 +68,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
     const handleFocus = () => {
-      void (async () => {
-        const { captureTelemetry } = await import('../../lib/telemetryClient');
-        captureTelemetry('terminal_entered');
-      })();
+      captureTelemetry('terminal_entered');
       focus();
     };
 
@@ -81,13 +79,13 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         if (!dt?.files?.length) return;
 
         const paths: string[] = [];
-        for (let i = 0; i < dt.files.length; i++) {
-          const p = (dt.files[i] as any)?.path as string | undefined;
+        for (const file of Array.from(dt.files)) {
+          const p = (file as unknown as { path?: string }).path;
           if (p) paths.push(p);
         }
         if (paths.length === 0) return;
 
-        if (resolvedRemoteConnectionId) {
+        if (remoteConnectionId) {
           try {
             const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
             if (result.success && result.data?.remotePaths) {
@@ -145,5 +143,4 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 TerminalPaneComponent.displayName = 'TerminalPane';
 
 export const TerminalPane = React.memo(TerminalPaneComponent);
-export type { SessionTheme };
 export default TerminalPane;

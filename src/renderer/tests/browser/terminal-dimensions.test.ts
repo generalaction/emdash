@@ -5,7 +5,7 @@
  * reflects genuine CSS layout — no stubs required for the DOM or CSSOM.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { measureDimensions } from '../../core/terminals/terminal-dimensions';
+import { measureDimensions } from '../../core/pty/pty-dimensions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

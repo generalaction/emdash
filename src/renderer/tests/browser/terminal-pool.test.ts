@@ -9,8 +9,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MAX_POOL_SIZE, terminalPool } from '../../core/terminals/terminal-pool';
-import { ensureTerminalHost } from '../../terminal/terminalHost';
+import { MAX_POOL_SIZE, terminalPool } from '../../core/pty/pty-pool';
+import { ensureXtermHost } from '../../core/pty/xterm-host';
 
 vi.mock('@renderer/core/ipc', () => ({
   rpc: {
@@ -196,7 +196,7 @@ describe('TerminalPool.release', () => {
     // Mount target is now empty.
     expect(hasTerminalChild(el)).toBe(false);
     // Terminal host has the container.
-    const host = ensureTerminalHost();
+    const host = ensureXtermHost();
     expect(host.children.length).toBeGreaterThan(0);
 
     el.remove();

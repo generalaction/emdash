@@ -5,7 +5,11 @@ import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { log } from '../../lib/logger';
 import { pendingInjectionManager } from '../../lib/PendingInjectionManager';
-import { useTerminalPool } from '../../terminal/terminal-pool-provider';
+import { events, rpc } from '../ipc';
+import { panelDragStore } from '../view/panel-drag-store';
+import { usePaneSizingContext } from './pane-sizing-context';
+import { frontendPtyRegistry } from './pty';
+import { measureDimensions } from './pty-dimensions';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -13,26 +17,39 @@ import {
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
-} from '../../terminal/terminalKeybindings';
-import { events, rpc } from '../ipc';
-import { panelDragStore } from '../view/panel-drag-store';
-import { usePaneSizingContext } from './pane-sizing-context';
-import { measureDimensions } from './terminal-dimensions';
-import { buildTheme } from './terminal-pool';
+} from './pty-keybindings';
+import { buildTheme, type SessionTheme } from './pty-pool';
+import { useTerminalPool } from './pty-pool-provider';
 
-// terminal.dimensions is a proposed API (requires allowProposedApi: true) and
-// is not in xterm's public TypeScript types, so we access it via a cast.
-type TerminalWithProposed = Terminal & {
-  dimensions?: { css: { cell: { width: number; height: number } } };
-};
-
-function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
-  const dims = (terminal as TerminalWithProposed).dimensions;
-  if (!dims || dims.css.cell.width === 0 || dims.css.cell.height === 0) return null;
-  return { width: dims.css.cell.width, height: dims.css.cell.height };
+// xterm's proposed API and internal fields are not in the public TypeScript
+// types. Both code paths are necessary: the proposed `dimensions` API works in
+// xterm 5.x, while xterm 6.x exposes cell metrics only via `_core`.
+interface XtermCellDimensions {
+  css: { cell: { width: number; height: number } };
+}
+interface XtermInternals {
+  dimensions?: XtermCellDimensions;
+  _core?: {
+    _renderService?: { dimensions?: XtermCellDimensions };
+    renderService?: { dimensions?: XtermCellDimensions };
+  };
 }
 
-export type { SessionTheme } from './terminal-pool';
+function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
+  const t = terminal as unknown as XtermInternals;
+  // Proposed API (xterm 5.x). Undefined on the public Terminal in xterm 6.x.
+  const dims = t.dimensions;
+  if (dims && dims.css.cell.width !== 0 && dims.css.cell.height !== 0) {
+    return { width: dims.css.cell.width, height: dims.css.cell.height };
+  }
+  // xterm 6.x: the public Terminal delegates to `_core` (the internal Terminal instance).
+  // FitAddon receives this same internal object via addon.activate(terminal).
+  const coreDims = t._core?._renderService?.dimensions ?? t._core?.renderService?.dimensions;
+  if (coreDims?.css?.cell?.width && coreDims.css.cell.height) {
+    return { width: coreDims.css.cell.width, height: coreDims.css.cell.height };
+  }
+  return null;
+}
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;
@@ -40,20 +57,19 @@ const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-export interface UseTerminalOptions {
+export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, taskId, conversationId|terminalId) */
   sessionId: string;
-  theme?: import('./terminal-pool').SessionTheme;
+  theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
-  onLinkClick?: (url: string) => void;
 }
 
 export interface UseTerminalReturn {
   focus: () => void;
-  setTheme: (theme: import('./terminal-pool').SessionTheme) => void;
+  setTheme: (theme: SessionTheme) => void;
 }
 
 /**
@@ -64,30 +80,22 @@ export interface UseTerminalReturn {
  * contexts).  On unmount the terminal is returned to the pool's off-screen
  * host rather than disposed, so scrollback is preserved across tab switches.
  *
- * The hook subscribes to `ptyDataChannel.{sessionId}` for output and sends
- * input/resize via `rpc.pty.sendInput` / `rpc.pty.resize`.
+ * Data routing depends on whether a FrontendPty is registered for the session:
+ *  - Conversation sessions: FrontendPty buffers output from the moment
+ *    startSession is called, and drains the buffer synchronously into the
+ *    xterm terminal on attach — no data is ever lost between tab switches.
+ *  - Standalone terminals (task panel, etc.): direct `events.on(ptyDataChannel)`
+ *    subscription, same as before.
  *
  * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
  * current dimensions BEFORE being appended to the visible DOM, eliminating
  * the flash caused by a post-mount resize.
- *
- * IMPORTANT: subscribe to ptyDataChannel (using makePtySessionId) BEFORE
- * calling the RPC that starts the session so the renderer never misses the
- * first data chunk.
  */
-export function useTerminal(
-  options: UseTerminalOptions,
+export function usePty(
+  options: UsePtyOptions,
   containerRef: React.RefObject<HTMLElement | null>
 ): UseTerminalReturn {
-  const {
-    sessionId,
-    theme,
-    mapShiftEnterToCtrlJ,
-    onActivity,
-    onExit,
-    onFirstMessage,
-    onLinkClick,
-  } = options;
+  const { sessionId, theme, mapShiftEnterToCtrlJ, onActivity, onExit, onFirstMessage } = options;
 
   const pool = useTerminalPool();
 
@@ -98,8 +106,6 @@ export function useTerminal(
   onExitRef.current = onExit;
   const onFirstMessageRef = useRef(onFirstMessage);
   onFirstMessageRef.current = onFirstMessage;
-  const onLinkClickRef = useRef(onLinkClick);
-  onLinkClickRef.current = onLinkClick;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -168,61 +174,65 @@ export function useTerminal(
   // space the terminal occupies — rather than a distant ancestor div.
   // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
   // or directly via queuePtyResize for standalone terminals.
-  const measureAndResize = useCallback(() => {
-    if (!termRef.current) return;
-    requestAnimationFrame(() => {
-      try {
-        const term = termRef.current;
-        if (!term) return;
-        const pane = paneSizingRef.current;
+  const measureAndResize = useCallback(
+    (retries = 0) => {
+      if (!termRef.current) return;
+      requestAnimationFrame(() => {
+        try {
+          const term = termRef.current;
+          if (!term) return;
+          const pane = paneSizingRef.current;
 
-        const cell = getCellMetrics(term);
-        if (!cell) {
-          // Cold-path: terminal was opened off-DOM so xterm's font measurement
-          // (getBoundingClientRect) returned 0.  Retry after xterm's internal
-          // ResizeObserver has had time to populate dimensions.
-          setTimeout(() => measureAndResizeRef.current(), 100);
-          return;
+          const cell = getCellMetrics(term);
+          if (!cell) {
+            // Cold-path: terminal was opened off-DOM so xterm's font measurement
+            // hasn't populated yet.  Retry up to 5 times to avoid an infinite loop.
+            if (retries < 5) {
+              setTimeout(() => measureAndResizeRef.current(retries + 1), 100);
+            }
+            return;
+          }
+
+          // Measure the terminal's immediate parent (the pool's ownedContainer),
+          // matching FitAddon.proposeDimensions().  Fall back to the mount-target
+          // container for standalone terminals not using the pool.
+          const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
+          const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
+          if (!measureTarget) return;
+
+          const dims = measureDimensions(measureTarget, cell.width, cell.height);
+          if (!dims) return;
+          const { cols: targetCols, rows: targetRows } = dims;
+
+          if (term.cols !== targetCols || term.rows !== targetRows) {
+            term.resize(targetCols, targetRows);
+          }
+
+          if (pane) {
+            pane.reportDimensions(targetCols, targetRows);
+          } else {
+            queuePtyResizeRef.current(targetCols, targetRows);
+          }
+        } catch (e) {
+          log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
         }
-
-        // Measure the terminal's immediate parent (the pool's ownedContainer),
-        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
-        // container for standalone terminals not using the pool.
-        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
-        if (!measureTarget) return;
-
-        const dims = measureDimensions(measureTarget, cell.width, cell.height);
-        if (!dims) return;
-        const { cols: targetCols, rows: targetRows } = dims;
-
-        if (term.cols !== targetCols || term.rows !== targetRows) {
-          term.resize(targetCols, targetRows);
-        }
-
-        if (pane) {
-          pane.reportDimensions(targetCols, targetRows);
-        } else {
-          queuePtyResizeRef.current(targetCols, targetRows);
-        }
-      } catch (e) {
-        log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
-      }
-    });
-  }, [sessionId, containerRef]);
+      });
+    },
+    [sessionId, containerRef]
+  );
 
   // Stable ref so the retry setTimeout inside measureAndResize always calls
   // the latest version without creating a circular useCallback dependency.
   const measureAndResizeRef = useRef(measureAndResize);
   measureAndResizeRef.current = measureAndResize;
 
-  const applyTheme = useCallback((t?: import('./terminal-pool').SessionTheme) => {
+  const applyTheme = useCallback((t?: SessionTheme) => {
     if (!termRef.current) return;
     termRef.current.options.theme = buildTheme(t);
   }, []);
 
   const setTheme = useCallback(
-    (t: import('./terminal-pool').SessionTheme) => {
+    (t: SessionTheme) => {
       applyTheme(t);
     },
     [applyTheme]
@@ -285,6 +295,18 @@ export function useTerminal(
       targetDims,
     });
     termRef.current = terminal;
+
+    // ── Attach FrontendPty (drains buffer before first WebGL paint) ───────────
+    // For conversation sessions the FrontendPty has been accumulating output
+    // since startSession was called, even while this tab was inactive.
+    // attach() drains that buffer synchronously — the pool's rAF repaint hasn't
+    // fired yet, so the buffered content is in xterm before the first frame.
+    const frontendPty = frontendPtyRegistry.get(sessionId);
+    if (frontendPty) {
+      frontendPty.attach(terminal, () => {
+        ptyStartedRef.current = true;
+      });
+    }
 
     // Always sync after mounting — targetDims may be stale if the pane was
     // resized while this session was off-screen.  measureAndResize defers to
@@ -454,20 +476,26 @@ export function useTerminal(
     cleanups.push(offPaste);
 
     // ── PTY data subscription ─────────────────────────────────────────────────
-    const offData = events.on(
-      ptyDataChannel,
-      (data) => {
-        if (typeof data !== 'string') return;
-        ptyStartedRef.current = true;
-        try {
-          terminal.write(data);
-        } catch (e) {
-          log.warn('useTerminal: terminal.write failed', { sessionId, error: e });
-        }
-      },
-      sessionId
-    );
-    cleanups.push(offData);
+    // Conversation sessions use FrontendPty (attached above) — it handles data
+    // routing, buffering, and the ptyStartedRef callback.
+    // Standalone terminals (task terminal panel etc.) fall back to a direct
+    // events.on subscription since they are not in the FrontendPtyRegistry.
+    if (!frontendPty) {
+      const offData = events.on(
+        ptyDataChannel,
+        (data) => {
+          if (typeof data !== 'string') return;
+          ptyStartedRef.current = true;
+          try {
+            terminal.write(data);
+          } catch (e) {
+            log.warn('useTerminal: terminal.write failed', { sessionId, error: e });
+          }
+        },
+        sessionId
+      );
+      cleanups.push(offData);
+    }
 
     // ── PTY exit subscription ─────────────────────────────────────────────────
     const offExit = events.on(
@@ -520,6 +548,10 @@ export function useTerminal(
           fn();
         } catch {}
       }
+      // Detach FrontendPty so future PTY output resumes buffering while the
+      // terminal is parked off-screen.  Must happen before pool.release() so
+      // data never goes to a reparented (off-screen) terminal.
+      frontendPty?.detach();
       // Return terminal to the pool's off-screen host (keeps it alive).
       pool.release(sessionId);
       termRef.current = null;

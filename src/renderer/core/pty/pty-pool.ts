@@ -4,8 +4,8 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { cssVar } from '../../lib/cssVars';
 import { log } from '../../lib/logger';
-import { ensureTerminalHost } from '../../terminal/terminalHost';
 import { rpc } from '../ipc';
+import { ensureXtermHost } from './xterm-host';
 
 export const MAX_POOL_SIZE = 16;
 const SCROLLBACK_LINES = 100_000;
@@ -110,7 +110,7 @@ class TerminalPool {
 
       try {
         const spare = this.buildCore({});
-        ensureTerminalHost().appendChild(spare.ownedContainer);
+        ensureXtermHost().appendChild(spare.ownedContainer);
         this.spares.push(spare);
       } catch (e) {
         log.warn('TerminalPool: failed to pre-warm spare terminal', { error: e });
@@ -324,7 +324,7 @@ class TerminalPool {
     const entry = this.entries.get(sessionId);
     if (!entry) return;
     entry.lastUsedAt = Date.now();
-    ensureTerminalHost().appendChild(entry.ownedContainer);
+    ensureXtermHost().appendChild(entry.ownedContainer);
   }
 
   /** Fully destroy a session's terminal (e.g. when a conversation is deleted). */

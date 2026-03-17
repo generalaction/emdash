@@ -15,7 +15,7 @@ import { cssVar } from '@renderer/lib/cssVars';
 import { agentAssets } from '@renderer/providers/assets';
 import { agentMeta } from '@renderer/providers/meta';
 import { events } from '../core/ipc';
-import { TerminalPane } from '../core/terminals/terminal-pane';
+import { TerminalPane } from '../core/pty/pty-pane';
 import { type Agent } from '../types';
 import { type Task } from '../types/chat';
 import AgentLogo from './AgentLogo';

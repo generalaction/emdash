@@ -1,9 +1,9 @@
 import { ConversationsPanel } from './conversations/panel';
-import { useCurrentTaskStatus, useTaskViewContext } from './task-view-wrapper';
+import { useTaskViewContext } from './task-view-context';
 
 export function TaskMainPanel() {
-  const { status } = useCurrentTaskStatus();
-  if (status === 'pending') {
+  const { taskStatus } = useTaskViewContext();
+  if (taskStatus.status === 'pending') {
     return <PendingTaskMainPanel />;
   }
   return <ActiveTaskMainPanel />;

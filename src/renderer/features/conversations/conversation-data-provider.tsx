@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { Conversation, CreateConversationParams } from '@shared/conversations';
 import { rpc } from '@renderer/core/ipc';
+import { useConversationSessions } from './conversation-sessions-provider';
 
 interface ConversationDataContextValue {
   conversations: Conversation[];
@@ -11,13 +12,14 @@ interface ConversationDataContextValue {
     taskId: string;
     conversationId: string;
   }) => void;
-  createConversation: (params: CreateConversationParams) => void;
+  createConversation: (params: CreateConversationParams) => Promise<Conversation>;
 }
 
 const ConversationDataContext = createContext<ConversationDataContextValue | null>(null);
 
 export function ConversationDataProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  const { removeSession } = useConversationSessions();
 
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
@@ -44,7 +46,8 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
       taskId: string;
       conversationId: string;
     }) => rpc.conversations.deleteConversation(projectId, taskId, conversationId),
-    onSuccess: () => {
+    onSuccess: (_, { projectId, taskId, conversationId }) => {
+      removeSession(projectId, taskId, conversationId);
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
   });
@@ -72,8 +75,8 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
   );
 
   const createConversation = useCallback(
-    (params: CreateConversationParams) => {
-      createConversationMutation.mutate(params);
+    (params: CreateConversationParams): Promise<Conversation> => {
+      return createConversationMutation.mutateAsync(params);
     },
     [createConversationMutation]
   );

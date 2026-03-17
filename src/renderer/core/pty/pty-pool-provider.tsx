@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { terminalPool } from '../core/terminals/terminal-pool';
-import { ensureTerminalHost } from './terminalHost';
-
-export type { SessionTheme, LeaseOptions, LeaseResult } from '../core/terminals/terminal-pool';
+import { terminalPool } from './pty-pool';
+import { ensureXtermHost } from './xterm-host';
 
 const TerminalPoolContext = createContext(terminalPool);
 
@@ -13,7 +11,7 @@ const TerminalPoolContext = createContext(terminalPool);
  */
 export function TerminalPoolProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
-    ensureTerminalHost();
+    ensureXtermHost();
     return () => {
       terminalPool.disposeAll();
     };
