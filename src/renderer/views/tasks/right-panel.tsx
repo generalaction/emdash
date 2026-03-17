@@ -1,4 +1,5 @@
 import { ChangesList } from './diff-viewer/changes-list';
+import { EditorFileTree } from './editor/editor-file-tree';
 import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/panel';
 
@@ -10,7 +11,7 @@ export function TaskRightSidebar() {
       case 'changes':
         return <ChangesList />;
       case 'files':
-        return <div>Files</div>;
+        return <EditorFileTree />;
       case 'terminals':
         return <TerminalsPanel />;
     }

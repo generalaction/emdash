@@ -14,7 +14,7 @@ import {
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import { rpc } from '@renderer/core/ipc';
 import { useToast } from '@renderer/hooks/use-toast';
-import { useDiffViewContext, type CommitInfo } from './diff-view-provider';
+import { useDiffViewContext } from './diff-view-provider';
 
 // ---------------------------------------------------------------------------
 // Helpers
