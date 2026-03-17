@@ -44,7 +44,8 @@ export interface AccountUser {
 
 export interface ExchangeResult {
   sessionToken: string;
-  githubToken: string;
+  accessToken: string;
+  providerId: string;
   user: AccountUser;
 }
 
@@ -127,7 +128,7 @@ export class OAuthFlowService {
         const port = (server.address() as any).port;
         const { baseUrl } = GITHUB_CONFIG.oauthServer;
         const redirectUri = `http://127.0.0.1:${port}/callback`;
-        const signInUrl = `${baseUrl}/sign-in?provider=github&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+        const signInUrl = `${baseUrl}/sign-in?provider_id=github&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
 
         shell.openExternal(signInUrl).catch((err) => {
           clearTimeout(timeout);
@@ -160,7 +161,7 @@ export class OAuthFlowService {
     }
 
     const data = (await response.json()) as ExchangeResult;
-    if (!data.sessionToken || !data.githubToken || !data.user) {
+    if (!data.sessionToken || !data.accessToken || !data.providerId || !data.user) {
       throw new Error('Invalid exchange response');
     }
 
