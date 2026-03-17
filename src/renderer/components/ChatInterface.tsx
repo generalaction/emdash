@@ -13,6 +13,7 @@ import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskContextBadges from './TaskContextBadges';
 import { useConversationStatus } from '../hooks/useConversationStatus';
 import { useStatusUnread } from '../hooks/useStatusUnread';
+import { useTaskNotificationType } from '../hooks/useTaskNotificationType';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useCommentInjection } from '../hooks/useCommentInjection';
 import { type Agent } from '../types';
@@ -88,6 +89,8 @@ function ConversationTabButton({
     ptyKind: conversation.isMain ? 'main' : 'chat',
   });
   const unread = useStatusUnread(conversation.isMain ? taskId : conversation.id);
+  const taskNotificationTypeAll = useTaskNotificationType(taskId);
+  const notificationType = conversation.isMain ? taskNotificationTypeAll : undefined;
   const displayStatus = semanticStatus === 'unknown' && fallbackBusy ? 'working' : semanticStatus;
 
   return (
@@ -114,7 +117,11 @@ function ConversationTabButton({
       )}
       <span className="max-w-[10rem] truncate">{tabLabel}</span>
       {totalConversationCount > 1 ? (
-        <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
+        <TaskStatusIndicator
+          status={displayStatus}
+          unread={unread && !isActive}
+          notificationType={notificationType}
+        />
       ) : null}
       {totalConversationCount > 1 && (
         <span

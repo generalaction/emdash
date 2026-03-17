@@ -50,6 +50,7 @@ import { rpc } from '../lib/rpc';
 import { useTaskAgentNames } from '../hooks/useTaskAgentNames';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import { useTaskNotificationType } from '../hooks/useTaskNotificationType';
 import { useTaskUnread } from '../hooks/useTaskUnread';
 import AgentLogo from './AgentLogo';
 import { agentAssets } from '../providers/assets';
@@ -112,6 +113,7 @@ function TaskRow({
   const isArchived = Boolean(ws.archivedAt);
   const isBusy = useTaskBusy(ws.id);
   const taskStatus = useTaskStatus(ws.id);
+  const taskNotificationType = useTaskNotificationType(ws.id);
   const taskUnread = useTaskUnread(ws.id);
   const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
   const [isDeleting, setIsDeleting] = useState(false);
@@ -197,7 +199,11 @@ function TaskRow({
       <div onClick={handleRowClick} role="button" tabIndex={0} className={contentClasses}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex w-5 flex-shrink-0 items-center justify-center">
-            <TaskStatusIndicator status={displayStatus} unread={taskUnread} />
+            <TaskStatusIndicator
+              status={displayStatus}
+              unread={taskUnread}
+              notificationType={taskNotificationType}
+            />
           </div>
           <span className={`text-sm font-medium ${isArchived ? 'text-muted-foreground' : ''}`}>
             {ws.name}

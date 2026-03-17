@@ -195,7 +195,12 @@ class AgentEventService {
         notification.show();
       } else if (event.type === 'notification') {
         const nt = event.payload.notificationType;
-        if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
+        if (
+          nt === 'permission_prompt' ||
+          nt === 'idle_prompt' ||
+          nt === 'elicitation_dialog' ||
+          nt === 'auth_success'
+        ) {
           const notification = new Notification({
             title: `${providerName}${titleSuffix}`,
             body: event.payload.message?.trim() || 'Your agent is waiting for input',
