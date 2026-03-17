@@ -35,6 +35,7 @@ import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -144,6 +145,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   } = useProjectManagementContext();
   const { linkedGithubIssueMap } = useTaskManagementContext();
 
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const project = initialProject ?? selectedProject;
   const projectName = project?.name || '';
   const existingNames = (project?.tasks || []).map((w) => w.name);
@@ -174,9 +176,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     terminateCommand: string;
   } | null>(null);
 
-  // Load workspace provider config from .emdash.json
+  // Load workspace provider config from .emdash.json (only when feature flag is on)
   useEffect(() => {
-    if (!projectPath) return;
+    if (!projectPath || !workspaceProviderEnabled) return;
     void (async () => {
       try {
         const result = await window.electronAPI.getProjectConfig(projectPath);
@@ -197,7 +199,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         // Config not found or invalid — no workspace provider available
       }
     })();
-  }, [projectPath]);
+  }, [projectPath, workspaceProviderEnabled]);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);

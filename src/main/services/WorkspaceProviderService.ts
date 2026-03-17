@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { log } from '../lib/logger';
+import { capture } from '../telemetry';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { workspaceInstances, sshConnections, type WorkspaceInstanceRow } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -82,6 +83,8 @@ export class WorkspaceProviderService extends EventEmitter {
       createdAt: Date.now(),
     });
 
+    capture('workspace_provisioning_started');
+
     // Fire and forget — the caller listens for events.
     this.runProvision(instanceId, config).catch((err) => {
       log.error('[WorkspaceProvider] Unhandled provision error', { instanceId, error: err });
@@ -154,6 +157,7 @@ export class WorkspaceProviderService extends EventEmitter {
         error: message,
       });
       await this.updateStatus(config.instanceId, 'error');
+      capture('workspace_provisioning_failed', { error_type: 'terminate' });
       throw err;
     }
   }
@@ -303,12 +307,14 @@ export class WorkspaceProviderService extends EventEmitter {
       // and macOS agent-stored keys.  If SSH is actually unreachable the
       // user will see it fail in the terminal and can retry.
       await this.updateStatus(instanceId, 'ready');
+      capture('workspace_provisioning_success');
       this.emit('provision-complete', { instanceId, status: 'ready' });
     } catch (err) {
       this.provisionProcesses.delete(instanceId);
       const message = err instanceof Error ? err.message : String(err);
       log.error('[WorkspaceProvider] Provision failed', { instanceId, error: message });
       await this.updateStatus(instanceId, 'error');
+      capture('workspace_provisioning_failed', { error_type: 'provision' });
       this.emit('provision-complete', { instanceId, status: 'error', error: message });
     }
   }

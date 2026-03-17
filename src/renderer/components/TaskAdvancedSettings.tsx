@@ -18,6 +18,7 @@ import JiraSetupForm from './integrations/JiraSetupForm';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
 import PlainSetupForm from './integrations/PlainSetupForm';
 import ForgejoSetupForm from './integrations/ForgejoSetupForm';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
@@ -132,6 +133,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onForgejoConnect,
 }) => {
   const shouldReduceMotion = useReducedMotion();
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Linear setup state
@@ -462,7 +464,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       )}
                     </div>
                   </label>
-                  {hasWorkspaceProvider && (
+                  {hasWorkspaceProvider && workspaceProviderEnabled && (
                     <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
                       <Checkbox
                         checked={useRemoteWorkspace}
