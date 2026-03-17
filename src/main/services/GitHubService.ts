@@ -127,10 +127,12 @@ export class GitHubService {
     try {
       const result = await emdashAccountService.signIn();
 
-      await this.storeToken(result.githubToken);
-      await this.authenticateGHCLI(result.githubToken);
+      if (result.providerId === 'github') {
+        await this.storeToken(result.accessToken);
+        await this.authenticateGHCLI(result.accessToken);
+      }
 
-      const user = await this.getUserInfo(result.githubToken);
+      const user = await this.getUserInfo(result.accessToken);
 
       if (user?.login) {
         await errorTracking.updateGithubUsername(user.login);
@@ -139,12 +141,12 @@ export class GitHubService {
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.webContents.send('github:auth:success', {
-          token: result.githubToken,
+          token: result.accessToken,
           user,
         });
       }
 
-      return { success: true, token: result.githubToken, user: user || undefined };
+      return { success: true, token: result.accessToken, user: user || undefined };
     } catch (error) {
       return {
         success: false,

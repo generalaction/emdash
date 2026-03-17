@@ -16,7 +16,9 @@ export function registerAccountIpc() {
   ipcMain.handle('account:signIn', async () => {
     try {
       const result = await emdashAccountService.signIn();
-      await githubService.storeTokenFromOAuth(result.githubToken);
+      if (result.providerId === 'github') {
+        await githubService.storeTokenFromOAuth(result.accessToken);
+      }
 
       const windows = BrowserWindow.getAllWindows();
       if (windows.length > 0) {

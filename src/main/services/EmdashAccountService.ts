@@ -10,7 +10,8 @@ import type { AccountUser, ExchangeResult } from './OAuthFlowService';
 export type { AccountUser, ExchangeResult };
 
 interface SignInResult {
-  githubToken: string;
+  accessToken: string;
+  providerId: string;
   user: AccountUser;
 }
 
@@ -132,7 +133,7 @@ export class EmdashAccountService {
     this.cachedProfile = profile;
     accountProfileCache.write(profile);
 
-    return { githubToken: result.githubToken, user: result.user };
+    return { accessToken: result.accessToken, providerId: result.providerId, user: result.user };
   }
 
   /**
