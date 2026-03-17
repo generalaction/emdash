@@ -1,6 +1,6 @@
 import type { Terminal } from '@xterm/xterm';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
-import { events } from '../ipc';
+import { events, rpc } from '../ipc';
 
 const MAX_BUFFER_BYTES = 1024 * 1024; // 1 MB rolling cap
 
@@ -29,6 +29,8 @@ class FrontendPty {
   private offData: () => void;
 
   constructor(sessionId: string) {
+    // Subscribe to live data FIRST so no future output is missed during the
+    // async buffer fetch below.
     this.offData = events.on(
       ptyDataChannel,
       (data) => {
@@ -46,6 +48,14 @@ class FrontendPty {
       },
       sessionId
     );
+  }
+
+  /**
+   * Prepend historical output (from the main-process ring buffer) so it
+   * appears before any live data that arrived during the async fetch.
+   */
+  prependBuffer(historical: string): void {
+    this.buffer = historical + this.buffer;
   }
 
   /**
@@ -98,12 +108,28 @@ class FrontendPty {
 class FrontendPtyRegistry {
   private ptys = new Map<string, FrontendPty>();
 
-  /** Create and register a new FrontendPty for the given session.  No-op if
-   *  one already exists (idempotent — safe to call on every ConversationsPanel
-   *  mount, not just the first). */
+  /**
+   * Create and register a new FrontendPty for the given session.  No-op if
+   * one already exists (idempotent — safe to call on every ConversationsPanel
+   * mount, not just the first).
+   *
+   * On first registration, fetches any historical output accumulated in the
+   * main-process ring buffer (for PTYs that started before the renderer
+   * subscribed, e.g. setup scripts at app startup) and prepends it to the
+   * FrontendPty's buffer.
+   */
   register(sessionId: string): void {
     if (!this.ptys.has(sessionId)) {
-      this.ptys.set(sessionId, new FrontendPty(sessionId));
+      const pty = new FrontendPty(sessionId);
+      this.ptys.set(sessionId, pty);
+      // Fetch historical output outside the constructor to satisfy the
+      // no-async-in-constructor lint rule. The FrontendPty has already
+      // subscribed to live data above, so no output is lost during this fetch.
+      rpc.pty.getBuffer(sessionId).then((result) => {
+        if (result.success && result.data.buffer) {
+          pty.prependBuffer(result.data.buffer);
+        }
+      });
     }
   }
 

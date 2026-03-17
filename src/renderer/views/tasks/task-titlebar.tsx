@@ -1,8 +1,8 @@
-import { BotIcon, FileDiff, Files } from 'lucide-react';
+import { BotIcon, FileDiff, Files, GitCommit, ListTree, Terminal } from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
-import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
+import { RightPanelView, useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
 export function TaskTitlebar() {
   const { taskStatus } = useTaskViewContext();
@@ -25,7 +25,7 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 }
 
 function ActiveTaskTitlebar() {
-  const { view, setView, task } = useReadyTaskViewContext();
+  const { view, task, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
   const { openAgentsView, openEditorView, openDiffView } = useTaskViewNavigation();
 
   return (
@@ -37,39 +37,72 @@ function ActiveTaskTitlebar() {
         </div>
       }
       rightSlot={
-        <ToggleGroup
-          variant="outline"
-          value={[view]}
-          size="sm"
-          className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-2"
-          onValueChange={([value]) => {
-            if (value === 'agents') openAgentsView();
-            if (value === 'editor') openEditorView();
-            if (value === 'diff') openDiffView();
-          }}
-        >
-          <ToggleGroupItem
-            value="agents"
+        <>
+          <ToggleGroup
+            variant="outline"
+            value={[view]}
             size="sm"
-            className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
+            onValueChange={([value]) => {
+              if (value === 'agents') openAgentsView();
+              if (value === 'editor') openEditorView();
+              if (value === 'diff') openDiffView();
+            }}
           >
-            <BotIcon className="size-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="editor"
+            <ToggleGroupItem
+              value="agents"
+              size="sm"
+              className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <BotIcon className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="editor"
+              size="sm"
+              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <Files className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="diff"
+              size="sm"
+              className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <FileDiff className="size-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
+            variant="outline"
+            value={[rightPanelView]}
             size="sm"
-            className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1 mr-2"
+            onValueChange={([value]) => {
+              setRightPanelView(value as RightPanelView);
+            }}
           >
-            <Files className="size-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="diff"
-            size="sm"
-            className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
-          >
-            <FileDiff className="size-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+            <ToggleGroupItem
+              value="changes"
+              size="sm"
+              className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <GitCommit className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="files"
+              size="sm"
+              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <ListTree className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="terminals"
+              size="sm"
+              className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <Terminal className="size-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </>
       }
     />
   );

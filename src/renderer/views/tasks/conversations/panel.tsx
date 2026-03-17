@@ -10,7 +10,7 @@ import { ConversationsTabs } from './tabs';
 
 export function ConversationsPanel() {
   const { params } = useParams('task');
-  const { conversations, activeConversationId } = useTaskViewContext();
+  const { conversations, activeConversationId, setActiveConversationId } = useTaskViewContext();
 
   const showCreateConversationModal = useShowModal('createConversationModal');
 
@@ -32,7 +32,11 @@ export function ConversationsPanel() {
         No conversations found{' '}
         <Button
           onClick={() =>
-            showCreateConversationModal({ projectId: params.projectId, taskId: params.taskId })
+            showCreateConversationModal({
+              projectId: params.projectId,
+              taskId: params.taskId,
+              onSuccess: ({ conversationId }) => setActiveConversationId(conversationId),
+            })
           }
         >
           Create Conversation

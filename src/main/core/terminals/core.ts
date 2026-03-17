@@ -5,6 +5,7 @@ export function mapTerminalRowToTerminal(row: TerminalRow): Terminal {
   return {
     id: row.id,
     taskId: row.taskId,
+    ssh: row.ssh === 1,
     projectId: row.projectId,
     name: row.name,
   };

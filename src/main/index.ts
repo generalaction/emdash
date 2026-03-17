@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
     log.error('Failed to initialize environment providers:', e);
   });
 
-  void localDependencyManager.probeAll().catch((e) => {
+  localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
 

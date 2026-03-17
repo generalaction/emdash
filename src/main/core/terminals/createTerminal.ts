@@ -15,6 +15,7 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
       projectId: params.projectId,
       taskId: params.taskId,
       name: params.name,
+      ssh: 0,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();

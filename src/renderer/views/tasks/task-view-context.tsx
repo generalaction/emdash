@@ -2,14 +2,16 @@ import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import { ProjectSettings } from '@main/core/projects/settings/schema';
+import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
 import { useTaskViewState } from '@renderer/features/tasks/task-view-state-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { useConversations } from './hooks/use-conversations';
 import { useTask, type TaskStatus } from './hooks/use-task';
 import { useTerminals } from './hooks/use-terminals';
 
-type RightPanelView = 'changes' | 'files' | 'terminals';
-type MainPanelView = 'agents' | 'editor' | 'diff';
+export type RightPanelView = 'changes' | 'files' | 'terminals';
+export type MainPanelView = 'agents' | 'editor' | 'diff';
 
 interface TaskViewContext {
   view: MainPanelView;
@@ -17,7 +19,7 @@ interface TaskViewContext {
   activeConversationId?: string;
   setActiveConversationId: (conversationId: string) => void;
   activeTerminalId?: string;
-  setActiveTerminalId: (terminalId: string) => void;
+  setActiveTerminalId: (terminalId: string | undefined) => void;
   rightPanelView: RightPanelView;
   setRightPanelView: (view: RightPanelView) => void;
   taskStatus: TaskStatus;
@@ -30,6 +32,8 @@ interface TaskViewContext {
   terminals: Terminal[];
   createTerminal: () => Promise<Terminal>;
   removeTerminal: (terminalId: string) => void;
+  projectSettings?: ProjectSettings;
+  setupTerminals: string[];
 }
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
@@ -49,7 +53,14 @@ export function TaskViewWrapper({
     projectId,
     taskId,
   });
-  const { terminals, createTerminal, removeTerminal } = useTerminals({ projectId, taskId });
+
+  const { settings: projectSettings } = useProjectSettings(projectId);
+
+  const { terminals, createTerminal, removeTerminal, setupTerminals } = useTerminals({
+    projectId,
+    taskId,
+    projectSettings,
+  });
 
   const { view, agentsView, terminalsView, rightPanelView } = getTaskViewState(taskId);
 
@@ -68,7 +79,7 @@ export function TaskViewWrapper({
   );
 
   const setActiveTerminalId = useCallback(
-    (terminalId: string) => {
+    (terminalId: string | undefined) => {
       setTaskViewState(taskId, { terminalsView: { activeTerminalId: terminalId } });
     },
     [setTaskViewState, taskId]
@@ -99,8 +110,10 @@ export function TaskViewWrapper({
           createConversation,
           removeConversation,
           terminals,
+          setupTerminals,
           createTerminal,
           removeTerminal,
+          projectSettings,
         }}
       >
         {children}

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
+import { createScriptTerminalId, type Terminal } from '@shared/terminals';
+import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { usePtySession } from '@renderer/core/pty/pty-session-context';
@@ -25,7 +26,15 @@ export function nextTerminalName(terminals: Terminal[]): string {
   return `Terminal ${n}`;
 }
 
-export function useTerminals({ taskId, projectId }: { projectId: string; taskId: string }) {
+export function useTerminals({
+  taskId,
+  projectId,
+  projectSettings,
+}: {
+  projectId: string;
+  taskId: string;
+  projectSettings?: ProjectSettings;
+}) {
   const {
     terminalsByTaskId,
     deleteTerminal: generalDeleteTerminal,
@@ -35,6 +44,23 @@ export function useTerminals({ taskId, projectId }: { projectId: string; taskId:
   const { registerSession, unregisterSession } = usePtySession();
 
   const terminals = useMemo(() => terminalsByTaskId[taskId] ?? [], [terminalsByTaskId, taskId]);
+
+  const [setupTerminals, setSetupTerminals] = useState<string[]>([]);
+
+  useEffect(() => {
+    const run = async () => {
+      const raw = projectSettings?.scripts?.setup;
+      const setupScripts = (Array.isArray(raw) ? raw : [raw]).filter(Boolean) as string[];
+      const ids = await Promise.all(
+        setupScripts.map((script) => createScriptTerminalId({ projectId, taskId, script }))
+      );
+      for (const id of ids) {
+        registerSession(makePtySessionId(projectId, taskId, id));
+        setSetupTerminals((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      }
+    };
+    void run();
+  }, [projectId, taskId, registerSession, projectSettings]);
 
   const createTerminal = useCallback(async () => {
     const id = crypto.randomUUID();
@@ -62,9 +88,6 @@ export function useTerminals({ taskId, projectId }: { projectId: string; taskId:
     [generalDeleteTerminal, projectId, taskId, unregisterSession]
   );
 
-  // Register FrontendPty listeners for all existing terminals on mount.
-  // registerSession() is idempotent — no RPC needed since the PTY is already
-  // running on the backend from the original createTerminal call.
   useEffect(() => {
     if (terminals.length === 0) return;
     for (const terminal of terminals) {
@@ -72,5 +95,5 @@ export function useTerminals({ taskId, projectId }: { projectId: string; taskId:
     }
   }, [terminals, projectId, registerSession, taskId]);
 
-  return { terminals, createTerminal, removeTerminal };
+  return { terminals, createTerminal, removeTerminal, setupTerminals };
 }

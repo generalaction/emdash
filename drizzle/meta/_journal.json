@@ -15,6 +15,13 @@
       "when": 1773677537823,
       "tag": "0001_big_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773766564252,
+      "tag": "0002_past_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

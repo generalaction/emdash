@@ -6,7 +6,7 @@ import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/panel';
 
 export function TaskRightSidebar() {
-  const { rightPanelView, setRightPanelView } = useTaskViewContext();
+  const { rightPanelView } = useTaskViewContext();
 
   const renderView = () => {
     switch (rightPanelView) {
@@ -19,28 +19,7 @@ export function TaskRightSidebar() {
     }
   };
 
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 gap-3  p-2">
-        <TextButton
-          onClick={() => setRightPanelView('changes')}
-          active={rightPanelView === 'changes'}
-        >
-          Changes
-        </TextButton>
-        <TextButton onClick={() => setRightPanelView('files')} active={rightPanelView === 'files'}>
-          Files
-        </TextButton>
-        <TextButton
-          onClick={() => setRightPanelView('terminals')}
-          active={rightPanelView === 'terminals'}
-        >
-          Terminals
-        </TextButton>
-      </div>
-      <div className="min-h-0 flex-1">{renderView()}</div>
-    </div>
-  );
+  return <div className="flex h-full flex-col">{renderView()}</div>;
 }
 
 interface TextButtonProps extends HTMLAttributes<HTMLButtonElement> {

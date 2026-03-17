@@ -37,7 +37,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
               key={conversation.id}
               onClick={() => setActiveConversationId(conversation.id)}
               className={cn(
-                'group px-2 text-sm border border-border rounded-md hover:bg-muted flex items-center gap-1.5 relative',
+                'group px-2 text-xs border border-border rounded-md hover:bg-muted flex items-center gap-1.5 relative',
                 activeId === conversation.id && 'bg-muted'
               )}
             >
@@ -47,7 +47,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
                   alt={config.alt}
                   isSvg={config.isSvg}
                   invertInDark={config.invertInDark}
-                  className="h-3.5 w-3.5"
+                  className="h-3 w-3"
                 />
               )}
               <span className="max-w-16 truncate">{conversation.title}</span>
@@ -68,7 +68,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
       </div>
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         onClick={() =>
           showCreateConversationModal({
             projectId,

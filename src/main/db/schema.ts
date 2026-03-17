@@ -168,6 +168,7 @@ export const terminals = sqliteTable(
     taskId: text('task_id')
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),
+    ssh: integer('ssh').notNull().default(0), // boolean, 0=false, 1=true
     name: text('name').notNull(),
     createdAt: text('created_at')
       .notNull()

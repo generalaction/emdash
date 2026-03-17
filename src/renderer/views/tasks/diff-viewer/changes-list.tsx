@@ -1,4 +1,14 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Copy, Tag, Undo2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  History,
+  Tag,
+  Undo2,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
 import {
@@ -12,8 +22,10 @@ import {
   AlertDialogTitle,
 } from '@renderer/components/ui/alert-dialog';
 import { Checkbox } from '@renderer/components/ui/checkbox';
+import { Toggle } from '@renderer/components/ui/toggle';
 import { rpc } from '@renderer/core/ipc';
 import { useToast } from '@renderer/hooks/use-toast';
+import { cn } from '@renderer/lib/utils';
 import { useDiffViewContext } from './diff-view-provider';
 
 // ---------------------------------------------------------------------------
@@ -842,26 +854,30 @@ export function ChangesList() {
   return (
     <div className="flex h-full flex-col">
       {/* Tab header */}
-      <div className="flex h-9 shrink-0 border-b border-border">
+      <div className="flex  border-b border-border  gap-2 p-2">
         <button
           onClick={() => setActiveTab('changes')}
-          className={`flex-1 text-center text-sm font-medium transition-colors ${
+          className={cn(
+            'flex-1 text-center text-xs  transition-colors rounded-lg border border-border h-6',
             activeTab === 'changes'
-              ? 'border-b-2 border-foreground text-foreground'
+              ? 'text-foreground bg-muted'
               : 'text-muted-foreground hover:text-foreground'
-          }`}
+          )}
         >
           Changes{fileCount > 0 ? ` (${fileCount})` : ''}
         </button>
         <button
+          variant={'outline'}
           onClick={() => setActiveTab('history')}
-          className={`flex-1 text-center text-sm font-medium transition-colors ${
+          size="sm"
+          className={cn(
+            'flex-1 text-center text-xs  transition-colors rounded-lg border border-border h-6',
             activeTab === 'history'
-              ? 'border-b-2 border-foreground text-foreground'
+              ? 'text-foreground bg-muted'
               : 'text-muted-foreground hover:text-foreground'
-          }`}
+          )}
         >
-          History
+          <History className="size-3.5" />
         </button>
       </div>
 

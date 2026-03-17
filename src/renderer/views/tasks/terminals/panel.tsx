@@ -9,19 +9,20 @@ import { TerminalsTabs } from './tabs';
 
 export function TerminalsPanel() {
   const { params } = useParams('task');
-  const { terminals, activeTerminalId, setActiveTerminalId, createTerminal } = useTaskViewContext();
+  const { terminals, activeTerminalId, setActiveTerminalId, createTerminal, setupTerminals } =
+    useTaskViewContext();
 
-  const activeId = activeTerminalId ?? terminals[0]?.id ?? null;
-  const activeTerminal = terminals.find((t) => t.id === activeId) ?? null;
+  const activeId = activeTerminalId ?? setupTerminals[0] ?? terminals[0]?.id ?? null;
 
   const allSessionIds = useMemo(
-    () => terminals.map((t) => makePtySessionId(params.projectId, params.taskId, t.id)),
-    [terminals, params.projectId, params.taskId]
+    () => [
+      ...setupTerminals.map((id) => makePtySessionId(params.projectId, params.taskId, id)),
+      ...terminals.map((t) => makePtySessionId(params.projectId, params.taskId, t.id)),
+    ],
+    [setupTerminals, terminals, params.projectId, params.taskId]
   );
 
-  const sessionId = activeTerminal
-    ? makePtySessionId(params.projectId, params.taskId, activeTerminal.id)
-    : null;
+  const sessionId = activeId ? makePtySessionId(params.projectId, params.taskId, activeId) : null;
 
   const handleCreate = useCallback(async () => {
     try {
@@ -32,7 +33,7 @@ export function TerminalsPanel() {
     }
   }, [createTerminal, setActiveTerminalId]);
 
-  if (terminals.length === 0) {
+  if (terminals.length === 0 && setupTerminals.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <Button onClick={handleCreate}>New Terminal</Button>
