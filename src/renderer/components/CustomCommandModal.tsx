@@ -48,15 +48,13 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Handle Escape key to close modal (capture phase + stopImmediatePropagation
-  // so the SettingsPage ESC handler doesn't also fire and close the whole page)
+  // Close on Escape in capture phase.
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        event.stopImmediatePropagation();
         onClose();
       }
     };
