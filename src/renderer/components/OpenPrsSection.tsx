@@ -436,12 +436,12 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                               <span className="inline-flex items-center gap-1 font-medium">
                                 {pr.additions != null && (
                                   <span className="text-green-600 dark:text-green-400">
-                                    +{pr.additions}
+                                    +{pr.additions.toLocaleString()}
                                   </span>
                                 )}
                                 {pr.deletions != null && (
                                   <span className="text-red-600 dark:text-red-400">
-                                    -{pr.deletions}
+                                    -{pr.deletions.toLocaleString()}
                                   </span>
                                 )}
                               </span>

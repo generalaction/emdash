@@ -19,7 +19,6 @@ export interface PullRequestSummary {
   reviewers?: PullRequestReviewer[];
   additions?: number;
   deletions?: number;
-  changedFiles?: number;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -85,7 +84,6 @@ export function usePullRequests(
               reviewers: Array.isArray(item?.reviewers) ? item.reviewers : [],
               additions: typeof item?.additions === 'number' ? item.additions : undefined,
               deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
-              changedFiles: typeof item?.changedFiles === 'number' ? item.changedFiles : undefined,
             }))
             .filter((item) => item.number > 0);
           setPrs(mapped);
