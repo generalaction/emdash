@@ -19,7 +19,7 @@ import { Textarea } from './ui/textarea';
 
 interface TaskAdvancedSettingsProps {
   isOpen: boolean;
-  projectPath?: string;
+  nameWithOwner?: string;
 
   // Worktree
   useWorktree: boolean;
@@ -59,7 +59,7 @@ interface TaskAdvancedSettingsProps {
 
 export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   isOpen,
-  projectPath,
+  nameWithOwner,
   useWorktree,
   onUseWorktreeChange,
   autoApprove,
@@ -316,7 +316,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <GitHubIssueSelector
-                      projectPath={projectPath || ''}
+                      nameWithOwner={nameWithOwner || ''}
                       selectedIssue={selectedGithubIssue}
                       onIssueChange={handleGithubIssueChange}
                       linkedIssueMap={linkedGithubIssueMap}

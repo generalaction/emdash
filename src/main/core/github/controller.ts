@@ -104,14 +104,14 @@ export const githubController = createRPCController({
     }
   },
 
-  // -- Issues (owner/repo instead of projectPath) -------------------------
+  // -- Issues ---------------------------------------------------------------
 
-  issuesList: async (owner: string, repo: string, limit?: number) => {
-    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
+  issuesList: async (nameWithOwner: string, limit?: number) => {
+    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
-      const issues = await service.listIssues(owner, repo, limit ?? 50);
+      const issues = await service.listIssues(nameWithOwner, limit ?? 50);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to list issues';
@@ -119,15 +119,15 @@ export const githubController = createRPCController({
     }
   },
 
-  issuesSearch: async (owner: string, repo: string, searchTerm: string, limit?: number) => {
-    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
+  issuesSearch: async (nameWithOwner: string, searchTerm: string, limit?: number) => {
+    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
     if (!searchTerm || typeof searchTerm !== 'string') {
       return { success: false, error: 'Search term is required' };
     }
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
-      const issues = await service.searchIssues(owner, repo, searchTerm, limit ?? 20);
+      const issues = await service.searchIssues(nameWithOwner, searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to search issues';
@@ -135,15 +135,15 @@ export const githubController = createRPCController({
     }
   },
 
-  issuesGet: async (owner: string, repo: string, number: number) => {
-    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
-    if (!number || !Number.isFinite(number)) {
+  issuesGet: async (nameWithOwner: string, issueNumber: number) => {
+    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
+    if (!issueNumber || !Number.isFinite(issueNumber)) {
       return { success: false, error: 'Issue number is required' };
     }
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
-      const issue = await service.getIssue(owner, repo, number);
+      const issue = await service.getIssue(nameWithOwner, issueNumber);
       return { success: !!issue, issue: issue ?? undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get issue';
@@ -151,20 +151,19 @@ export const githubController = createRPCController({
     }
   },
 
-  // -- Pull Requests (owner/repo instead of projectPath) -------------------
+  // -- Pull Requests -------------------------------------------------------
 
   listPullRequests: async (
-    owner: string,
-    repo: string,
+    nameWithOwner: string,
     options?: { limit?: number; searchQuery?: string }
   ) => {
-    if (!owner || !repo) {
-      return { success: false, error: 'Owner and repo are required' };
+    if (!nameWithOwner) {
+      return { success: false, error: 'Repository is required' };
     }
     try {
       const octokit = await getOctokit();
       const service = new GitHubPullRequestServiceImpl(octokit);
-      const result = await service.listPullRequests(owner, repo, options);
+      const result = await service.listPullRequests(nameWithOwner, options);
       return { success: true, prs: result.prs, totalCount: result.totalCount };
     } catch (error) {
       log.error('Failed to list pull requests:', error);
@@ -173,15 +172,15 @@ export const githubController = createRPCController({
     }
   },
 
-  getPullRequestDetails: async (owner: string, repo: string, prNumber: number) => {
-    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
+  getPullRequestDetails: async (nameWithOwner: string, prNumber: number) => {
+    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
     if (!prNumber || !Number.isFinite(prNumber)) {
       return { success: false, error: 'PR number is required' };
     }
     try {
       const octokit = await getOctokit();
       const service = new GitHubPullRequestServiceImpl(octokit);
-      const pr = await service.getPullRequestDetails(owner, repo, prNumber);
+      const pr = await service.getPullRequestDetails(nameWithOwner, prNumber);
       return { success: !!pr, pr: pr ?? undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get pull request';
@@ -237,7 +236,7 @@ export const githubController = createRPCController({
       return {
         success: true,
         repoUrl: repoInfo.url,
-        fullName: repoInfo.fullName,
+        nameWithOwner: repoInfo.nameWithOwner,
         defaultBranch: repoInfo.defaultBranch,
       };
     } catch (error) {
@@ -353,7 +352,7 @@ export const githubController = createRPCController({
     }
 
     let repoUrl: string | undefined;
-    let fullName: string | undefined;
+    let nameWithOwner: string | undefined;
     let defaultBranch: string | undefined;
     let githubRepoCreated = false;
 
@@ -362,11 +361,11 @@ export const githubController = createRPCController({
       const repoService = new GitHubRepositoryServiceImpl(octokit);
       const repoInfo = await repoService.createRepository({ name, owner, isPrivate, description });
       repoUrl = repoInfo.url;
-      fullName = repoInfo.fullName;
+      nameWithOwner = repoInfo.nameWithOwner;
       defaultBranch = repoInfo.defaultBranch;
       githubRepoCreated = true;
 
-      const cloneUrl = `https://github.com/${fullName}.git`;
+      const cloneUrl = `https://github.com/${nameWithOwner}.git`;
       const { app } = await import('electron');
       const defaultDir = app.getPath('home') + '/Developer';
       const localPath = `${defaultDir}/${name}`;
@@ -388,18 +387,18 @@ export const githubController = createRPCController({
         success: true,
         projectPath: localPath,
         repoUrl,
-        fullName,
+        nameWithOwner,
         defaultBranch,
         githubRepoCreated,
       };
     } catch (error) {
       log.error('Failed to create new project:', error);
 
-      if (githubRepoCreated && fullName) {
+      if (githubRepoCreated && nameWithOwner) {
         try {
           const octokit = await getOctokit();
           const repoService = new GitHubRepositoryServiceImpl(octokit);
-          const [repoOwner, repoName] = fullName.split('/');
+          const [repoOwner, repoName] = nameWithOwner.split('/');
           await repoService.deleteRepository(repoOwner, repoName);
         } catch (cleanupError) {
           log.error('Failed to clean up GitHub repo after project creation failure:', cleanupError);

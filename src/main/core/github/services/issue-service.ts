@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { splitRepo } from './utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,16 +23,9 @@ export interface GitHubIssueDetail extends GitHubIssue {
 }
 
 export interface GitHubIssueService {
-  listIssues(owner: string, repo: string, limit?: number): Promise<GitHubIssue[]>;
-
-  searchIssues(
-    owner: string,
-    repo: string,
-    searchTerm: string,
-    limit?: number
-  ): Promise<GitHubIssue[]>;
-
-  getIssue(owner: string, repo: string, issueNumber: number): Promise<GitHubIssueDetail | null>;
+  listIssues(nameWithOwner: string, limit?: number): Promise<GitHubIssue[]>;
+  searchIssues(nameWithOwner: string, searchTerm: string, limit?: number): Promise<GitHubIssue[]>;
+  getIssue(nameWithOwner: string, issueNumber: number): Promise<GitHubIssueDetail | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +54,8 @@ interface RestIssue {
 export class GitHubIssueServiceImpl implements GitHubIssueService {
   constructor(private readonly octokit: Octokit) {}
 
-  async listIssues(owner: string, repo: string, limit: number = 50): Promise<GitHubIssue[]> {
+  async listIssues(nameWithOwner: string, limit: number = 50): Promise<GitHubIssue[]> {
+    const { owner, repo } = splitRepo(nameWithOwner);
     try {
       const { data } = await this.octokit.rest.issues.listForRepo({
         owner,
@@ -79,13 +74,13 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   }
 
   async searchIssues(
-    owner: string,
-    repo: string,
+    nameWithOwner: string,
     searchTerm: string,
     limit: number = 20
   ): Promise<GitHubIssue[]> {
     const term = searchTerm.trim();
     if (!term) return [];
+    const { owner, repo } = splitRepo(nameWithOwner);
     try {
       const { data } = await this.octokit.rest.search.issuesAndPullRequests({
         q: `${term} repo:${owner}/${repo} is:issue is:open`,
@@ -99,11 +94,8 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     }
   }
 
-  async getIssue(
-    owner: string,
-    repo: string,
-    issueNumber: number
-  ): Promise<GitHubIssueDetail | null> {
+  async getIssue(nameWithOwner: string, issueNumber: number): Promise<GitHubIssueDetail | null> {
+    const { owner, repo } = splitRepo(nameWithOwner);
     try {
       const { data } = await this.octokit.rest.issues.get({
         owner,

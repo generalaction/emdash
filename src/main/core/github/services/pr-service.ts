@@ -1,5 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import { GET_PR_DETAIL_QUERY, LIST_PRS_QUERY, SEARCH_PRS_QUERY } from './pr-queries';
+import { splitRepo } from './utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,16 +55,11 @@ export interface GitHubPullRequestListOptions {
 
 export interface GitHubPullRequestService {
   listPullRequests(
-    owner: string,
-    repo: string,
+    nameWithOwner: string,
     options?: GitHubPullRequestListOptions
   ): Promise<GitHubPullRequestListResult>;
 
-  getPullRequestDetails(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<GitHubPullRequest | null>;
+  getPullRequestDetails(nameWithOwner: string, prNumber: number): Promise<GitHubPullRequest | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,10 +113,10 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   constructor(private readonly octokit: Octokit) {}
 
   async listPullRequests(
-    owner: string,
-    repo: string,
+    nameWithOwner: string,
     options: GitHubPullRequestListOptions = {}
   ): Promise<GitHubPullRequestListResult> {
+    const { owner, repo } = splitRepo(nameWithOwner);
     const limit = Math.min(Math.max(options.limit !== undefined ? options.limit : 30, 1), 100);
     const searchQuery = options.searchQuery?.trim();
 
@@ -151,10 +147,10 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   }
 
   async getPullRequestDetails(
-    owner: string,
-    repo: string,
+    nameWithOwner: string,
     prNumber: number
   ): Promise<GitHubPullRequest | null> {
+    const { owner, repo } = splitRepo(nameWithOwner);
     try {
       const response = await this.octokit.graphql<{
         repository: { pullRequest: GqlPrNode | null };

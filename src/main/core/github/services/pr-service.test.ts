@@ -12,8 +12,7 @@ function makeOctokit(graphqlMock?: ReturnType<typeof vi.fn>): Octokit {
   } as unknown as Octokit;
 }
 
-const OWNER = 'acme';
-const REPO = 'my-repo';
+const NAME_WITH_OWNER = 'acme/my-repo';
 
 // GraphQL-shaped node (camelCase, nested { nodes })
 const gqlPrNode = {
@@ -95,11 +94,11 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
     });
 
-    const result = await svc.listPullRequests(OWNER, REPO, { limit: 10 });
+    const result = await svc.listPullRequests(NAME_WITH_OWNER, { limit: 10 });
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('listPullRequests'), {
-      owner: OWNER,
-      repo: REPO,
+      owner: 'acme',
+      repo: 'my-repo',
       limit: 10,
     });
     expect(result.prs).toEqual([expectedSummary]);
@@ -111,10 +110,10 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       search: { issueCount: 99, nodes: [gqlPrNode] },
     });
 
-    const result = await svc.listPullRequests(OWNER, REPO, { searchQuery: 'widget', limit: 5 });
+    const result = await svc.listPullRequests(NAME_WITH_OWNER, { searchQuery: 'widget', limit: 5 });
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('searchPullRequests'), {
-      query: `widget repo:${OWNER}/${REPO} is:pr is:open`,
+      query: `widget repo:${NAME_WITH_OWNER} is:pr is:open`,
       limit: 5,
     });
     expect(result.totalCount).toBe(99);
@@ -124,7 +123,7 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
   it('returns empty on error', async () => {
     graphqlMock.mockRejectedValue(new Error('network error'));
 
-    const result = await svc.listPullRequests(OWNER, REPO);
+    const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
     expect(result).toEqual({ prs: [], totalCount: 0 });
   });
@@ -134,14 +133,14 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repository: { pullRequests: { totalCount: 0, nodes: [] } },
     });
 
-    await svc.listPullRequests(OWNER, REPO, { limit: 999 });
+    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 999 });
     expect(graphqlMock).toHaveBeenCalledWith(
       expect.stringContaining('listPullRequests'),
       expect.objectContaining({ limit: 100 })
     );
 
     graphqlMock.mockClear();
-    await svc.listPullRequests(OWNER, REPO, { limit: 0 });
+    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 0 });
     expect(graphqlMock).toHaveBeenCalledWith(
       expect.stringContaining('listPullRequests'),
       expect.objectContaining({ limit: 1 })
@@ -153,7 +152,7 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
     });
 
-    const result = await svc.listPullRequests(OWNER, REPO);
+    const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
     expect(result.prs[0].reviewers).toEqual([
       { login: 'pending-reviewer', state: 'PENDING' },
@@ -166,7 +165,7 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
     });
 
-    const result = await svc.listPullRequests(OWNER, REPO);
+    const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
     expect(result.prs[0].labels).toEqual([{ name: 'enhancement', color: '84b6eb' }]);
     expect(result.prs[0].assignees).toEqual([
@@ -189,11 +188,11 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
       repository: { pullRequest: gqlPrDetailNode },
     });
 
-    const result = await svc.getPullRequestDetails(OWNER, REPO, 42);
+    const result = await svc.getPullRequestDetails(NAME_WITH_OWNER, 42);
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('getPullRequest'), {
-      owner: OWNER,
-      repo: REPO,
+      owner: 'acme',
+      repo: 'my-repo',
       number: 42,
     });
     expect(result).toEqual({
@@ -210,12 +209,12 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
   it('returns null when PR not found', async () => {
     graphqlMock.mockResolvedValue({ repository: { pullRequest: null } });
 
-    expect(await svc.getPullRequestDetails(OWNER, REPO, 999)).toBeNull();
+    expect(await svc.getPullRequestDetails(NAME_WITH_OWNER, 999)).toBeNull();
   });
 
   it('returns null on error', async () => {
     graphqlMock.mockRejectedValue(new Error('not found'));
 
-    expect(await svc.getPullRequestDetails(OWNER, REPO, 999)).toBeNull();
+    expect(await svc.getPullRequestDetails(NAME_WITH_OWNER, 999)).toBeNull();
   });
 });

@@ -1,19 +1,13 @@
-export interface GitHubUserRef {
-  login?: string | null;
-  name?: string | null;
-}
-
-export interface GitHubLabelRef {
-  name?: string | null;
-}
-
 export interface GitHubIssueSummary {
   number: number;
   title: string;
-  url?: string | null;
-  state?: string | null;
-  updatedAt?: string | null;
-  assignees?: GitHubUserRef[] | null;
-  labels?: GitHubLabelRef[] | null;
+  url: string;
+  state: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  comments: number;
+  user: { login: string; avatarUrl: string } | null;
+  assignees: Array<{ login: string; avatarUrl: string }>;
+  labels: Array<{ name: string; color: string }>;
   body?: string | null;
 }

@@ -7,7 +7,7 @@ import type { Octokit } from '@octokit/rest';
 export interface GitHubRepo {
   id: number;
   name: string;
-  fullName: string;
+  nameWithOwner: string;
   description: string | null;
   url: string;
   cloneUrl: string;
@@ -33,7 +33,7 @@ export interface GitHubRepositoryService {
     description?: string;
     owner: string;
     isPrivate: boolean;
-  }): Promise<{ url: string; defaultBranch: string; fullName: string }>;
+  }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }>;
   deleteRepository(owner: string, name: string): Promise<void>;
   checkRepositoryExists(owner: string, name: string): Promise<boolean>;
   validateRepositoryName(name: string): { valid: boolean; error?: string };
@@ -119,7 +119,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     description?: string;
     owner: string;
     isPrivate: boolean;
-  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+  }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }> {
     const { data: user } = await this.octokit.rest.users.getAuthenticated();
     const isCurrentUser = params.owner === user.login;
 
@@ -136,7 +136,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     return {
       url: data.html_url,
       defaultBranch: data.default_branch || 'main',
-      fullName: data.full_name,
+      nameWithOwner: data.full_name,
     };
   }
 
@@ -194,7 +194,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     return {
       id: item.id,
       name: item.name,
-      fullName: item.full_name,
+      nameWithOwner: item.full_name,
       description: item.description,
       url: item.html_url,
       cloneUrl: item.clone_url,

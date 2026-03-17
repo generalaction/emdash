@@ -62,7 +62,7 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue] });
       const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
 
-      const result = await svc.listIssues('owner', 'repo', 30);
+      const result = await svc.listIssues('owner/repo', 30);
 
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
@@ -80,7 +80,7 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue, pr] });
       const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
 
-      const result = await svc.listIssues('owner', 'repo');
+      const result = await svc.listIssues('owner/repo');
 
       expect(result).toHaveLength(1);
       expect(result[0].number).toBe(1);
@@ -90,18 +90,18 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
       const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
 
-      expect(await svc.listIssues('owner', 'repo')).toEqual([]);
+      expect(await svc.listIssues('owner/repo')).toEqual([]);
     });
 
     it('clamps limit to 1-100', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [] });
       const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
 
-      await svc.listIssues('owner', 'repo', 0);
+      await svc.listIssues('owner/repo', 0);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 1 }));
 
       listForRepo.mockClear();
-      await svc.listIssues('owner', 'repo', 999);
+      await svc.listIssues('owner/repo', 999);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 100 }));
     });
   });
@@ -111,7 +111,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [restIssue] } });
       const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
 
-      const result = await svc.searchIssues('owner', 'repo', 'bug fix', 15);
+      const result = await svc.searchIssues('owner/repo', 'bug fix', 15);
 
       expect(issuesAndPullRequests).toHaveBeenCalledWith({
         q: 'bug fix repo:owner/repo is:issue is:open',
@@ -126,8 +126,8 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn();
       const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await svc.searchIssues('owner', 'repo', '   ')).toEqual([]);
-      expect(await svc.searchIssues('owner', 'repo', '')).toEqual([]);
+      expect(await svc.searchIssues('owner/repo', '   ')).toEqual([]);
+      expect(await svc.searchIssues('owner/repo', '')).toEqual([]);
       expect(issuesAndPullRequests).not.toHaveBeenCalled();
     });
 
@@ -135,7 +135,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn().mockRejectedValue(new Error('API error'));
       const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await svc.searchIssues('owner', 'repo', 'query')).toEqual([]);
+      expect(await svc.searchIssues('owner/repo', 'query')).toEqual([]);
     });
   });
 
@@ -144,7 +144,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesGet = vi.fn().mockResolvedValue({ data: { ...restIssue, body: 'Issue body' } });
       const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesGet }));
 
-      const result = await svc.getIssue('owner', 'repo', 42);
+      const result = await svc.getIssue('owner/repo', 42);
 
       expect(issuesGet).toHaveBeenCalledWith({
         owner: 'owner',
@@ -158,7 +158,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesGet = vi.fn().mockRejectedValue(new Error('Not found'));
       const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesGet }));
 
-      expect(await svc.getIssue('owner', 'repo', 99)).toBeNull();
+      expect(await svc.getIssue('owner/repo', 99)).toBeNull();
     });
   });
 });

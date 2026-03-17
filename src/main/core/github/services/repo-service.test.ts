@@ -61,7 +61,7 @@ const restRepo = {
 const expectedRepo = {
   id: 1,
   name: 'my-repo',
-  fullName: 'testuser/my-repo',
+  nameWithOwner: 'testuser/my-repo',
   description: 'A test repo',
   url: 'https://github.com/testuser/my-repo',
   cloneUrl: 'https://github.com/testuser/my-repo.git',
@@ -142,7 +142,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       expect(result).toEqual({
         url: 'https://github.com/testuser/new',
         defaultBranch: 'main',
-        fullName: 'testuser/new',
+        nameWithOwner: 'testuser/new',
       });
     });
 
