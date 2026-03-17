@@ -19,7 +19,7 @@ export function Titlebar({
   return (
     <header
       className={cn(
-        'flex h-9 shrink-0 items-center bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background',
+        'flex h-10 shrink-0 items-center pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background',
         !isLeftOpen && 'pl-17'
       )}
     >
@@ -42,9 +42,11 @@ export function Titlebar({
             <Toggle
               disabled={!RightPanel}
               pressed={isRightOpen}
+              size="sm"
+              className="rounded-lg data-pressed:bg-muted size-7 w-7 border border-border data-pressed:text-foreground text-muted-foreground"
               onPressedChange={() => setCollapsed('right', isRightOpen)}
             >
-              <PanelRight className="h-4 w-4" />
+              <PanelRight className="size-3.5" />
             </Toggle>
           </div>
         </div>

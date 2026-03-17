@@ -1,7 +1,7 @@
-import { Brain, FileBracesCorner, GitBranch } from 'lucide-react';
-import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
+import { BotIcon, FileDiff, Files } from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
 export function TaskTitlebar() {
@@ -26,35 +26,50 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 
 function ActiveTaskTitlebar() {
   const { view, setView, task } = useReadyTaskViewContext();
+  const { openAgentsView, openEditorView, openDiffView } = useTaskViewNavigation();
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
           <span className="text-sm text-muted-foreground">{task.name}</span>
+          {/* <OpenInMenu path={'/'} align="right" /> */}
         </div>
       }
       rightSlot={
-        <>
-          <ToggleGroup
-            variant="outline"
-            value={[view]}
-            onValueChange={(value) => {
-              if (value[0]) setView(value[0] as 'agents' | 'editor' | 'diff');
-            }}
+        <ToggleGroup
+          variant="outline"
+          value={[view]}
+          size="sm"
+          className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-2"
+          onValueChange={([value]) => {
+            if (value === 'agents') openAgentsView();
+            if (value === 'editor') openEditorView();
+            if (value === 'diff') openDiffView();
+          }}
+        >
+          <ToggleGroupItem
+            value="agents"
+            size="sm"
+            className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
           >
-            <ToggleGroupItem value="agents">
-              <Brain className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="editor">
-              <FileBracesCorner className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="diff">
-              <GitBranch className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <OpenInMenu path={'/'} align="right" />
-        </>
+            <BotIcon className="size-3.5" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="editor"
+            size="sm"
+            className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+          >
+            <Files className="size-3.5" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="diff"
+            size="sm"
+            className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
+          >
+            <FileDiff className="size-3.5" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       }
     />
   );

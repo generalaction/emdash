@@ -1,4 +1,5 @@
 import { loader } from '@monaco-editor/react';
+import { FileCode } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { EditorContent } from '@renderer/components/FileExplorer/CodeEditor';
 import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
@@ -362,6 +363,18 @@ export function EditorMainPanel() {
 
   // The model root path for Monaco — use taskId as a stable namespace
   const modelRootPath = `task:${taskId}`;
+
+  if (openFiles.size === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+        <FileCode className="h-10 w-10 opacity-20" />
+        <div className="text-center">
+          <p className="text-sm font-medium opacity-50">No file open</p>
+          <p className="mt-1 text-xs opacity-35">Select a file from the tree to open it here</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
