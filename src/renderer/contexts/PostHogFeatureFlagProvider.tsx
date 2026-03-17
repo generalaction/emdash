@@ -42,6 +42,16 @@ export function PostHogFeatureFlagProvider({ children }: { children: ReactNode }
     })();
   }, [telemetryEnabled, telemetryLoading, hasKeyAndHost, initialized]);
 
+  // Respect mid-session telemetry opt-out
+  useEffect(() => {
+    if (!initialized) return;
+    if (!telemetryEnabled) {
+      posthog.opt_out_capturing();
+    } else {
+      posthog.opt_in_capturing();
+    }
+  }, [initialized, telemetryEnabled]);
+
   // Identify / reset when account state changes
   useEffect(() => {
     if (!initialized) return;

@@ -345,7 +345,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalWpProvisionCommand(wpProvisionCommand);
       setOriginalWpTerminateCommand(wpTerminateCommand);
 
-      if (wpProvisionCommand.trim() || wpTerminateCommand.trim()) {
+      if (
+        wpProvisionCommand !== originalWpProvisionCommand ||
+        wpTerminateCommand !== originalWpTerminateCommand
+      ) {
         void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
           captureTelemetry('workspace_provider_config_saved');
         });
