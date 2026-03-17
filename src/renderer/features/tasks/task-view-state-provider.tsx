@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 
 interface TaskViewState {
-  view: 'agents' | 'editor';
+  view: 'agents' | 'editor' | 'diff';
   agentsView: {
     activeConversationId?: string;
   };

@@ -1,3 +1,4 @@
+import { ChangesList } from './diff-viewer/changes-list';
 import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/panel';
 
@@ -7,7 +8,7 @@ export function TaskRightSidebar() {
   const renderView = () => {
     switch (rightPanelView) {
       case 'changes':
-        return <div>Changes</div>;
+        return <ChangesList />;
       case 'files':
         return <div>Files</div>;
       case 'terminals':

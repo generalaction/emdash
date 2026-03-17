@@ -1,4 +1,4 @@
-import { Brain, FileBracesCorner } from 'lucide-react';
+import { Brain, FileBracesCorner, GitBranch } from 'lucide-react';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
@@ -39,13 +39,18 @@ function ActiveTaskTitlebar() {
           <ToggleGroup
             variant="outline"
             value={[view]}
-            onValueChange={(value) => setView(value[0] as 'agents' | 'editor')}
+            onValueChange={(value) => {
+              if (value[0]) setView(value[0] as 'agents' | 'editor' | 'diff');
+            }}
           >
             <ToggleGroupItem value="agents">
               <Brain className="h-4 w-4" />
             </ToggleGroupItem>
             <ToggleGroupItem value="editor">
               <FileBracesCorner className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="diff">
+              <GitBranch className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
           <OpenInMenu path={'/'} align="right" />

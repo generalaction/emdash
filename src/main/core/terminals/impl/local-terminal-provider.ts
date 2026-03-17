@@ -68,7 +68,6 @@ export class LocalTerminalProvider implements TerminalProvider {
           });
         }, 500);
       }
-      ptySessionRegistry.register(sessionId, pty);
     });
 
     ptySessionRegistry.register(sessionId, pty);

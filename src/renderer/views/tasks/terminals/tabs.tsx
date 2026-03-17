@@ -11,8 +11,12 @@ export function TerminalsTabs() {
   const activeId = activeTerminalId ?? terminals[0]?.id ?? '';
 
   const handleCreate = useCallback(async () => {
-    const terminal = await createTerminal();
-    setActiveTerminalId(terminal.id);
+    try {
+      const terminal = await createTerminal();
+      setActiveTerminalId(terminal.id);
+    } catch (error) {
+      console.error('Failed to create terminal:', error);
+    }
   }, [createTerminal, setActiveTerminalId]);
 
   const handleRemove = useCallback(

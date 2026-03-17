@@ -24,8 +24,12 @@ export function TerminalsPanel() {
     : null;
 
   const handleCreate = useCallback(async () => {
-    const terminal = await createTerminal();
-    setActiveTerminalId(terminal.id);
+    try {
+      const terminal = await createTerminal();
+      setActiveTerminalId(terminal.id);
+    } catch (error) {
+      console.error('Failed to create terminal:', error);
+    }
   }, [createTerminal, setActiveTerminalId]);
 
   if (terminals.length === 0) {

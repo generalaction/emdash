@@ -9,10 +9,11 @@ import { useTask, type TaskStatus } from './hooks/use-task';
 import { useTerminals } from './hooks/use-terminals';
 
 type RightPanelView = 'changes' | 'files' | 'terminals';
+type MainPanelView = 'agents' | 'editor' | 'diff';
 
 interface TaskViewContext {
-  view: 'agents' | 'editor';
-  setView: (view: 'agents' | 'editor') => void;
+  view: MainPanelView;
+  setView: (view: MainPanelView) => void;
   activeConversationId?: string;
   setActiveConversationId: (conversationId: string) => void;
   activeTerminalId?: string;
@@ -53,7 +54,7 @@ export function TaskViewWrapper({
   const { view, agentsView, terminalsView, rightPanelView } = getTaskViewState(taskId);
 
   const setView = useCallback(
-    (v: 'agents' | 'editor') => {
+    (v: MainPanelView) => {
       setTaskViewState(taskId, { view: v });
     },
     [setTaskViewState, taskId]

@@ -24,8 +24,6 @@ interface PtySessionContextValue {
 const PtySessionContext = createContext<PtySessionContextValue | null>(null);
 
 export function PtySessionProvider({ children }: { children: ReactNode }) {
-  // Tracks session IDs that have been registered. Kept outside React state
-  // because it only guards side-effects, not re-renders.
   const registeredRef = useRef<Set<string>>(new Set());
 
   const registerSession = useCallback((sessionId: string): boolean => {
