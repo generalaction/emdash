@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { TITLEBAR_HEIGHT } from '../constants/layout';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import { shouldCloseExpandedTerminal } from '../lib/expandedTerminal';
 
 interface Props {
   terminalId: string;
@@ -43,19 +44,13 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
     };
   }, [terminalId]);
 
-  // Handle Escape key to close
+  // Capture Escape at window level so the modal closes even when xterm has focus.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Only close on Escape when not inside the terminal textarea
-      // (xterm captures Escape for its own use only when not at a prompt)
-      if (
-        e.key === 'Escape' &&
-        !(e.target as HTMLElement)?.classList?.contains('xterm-helper-textarea')
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
+      if (!shouldCloseExpandedTerminal(e)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onClose();
     },
     [onClose]
   );
