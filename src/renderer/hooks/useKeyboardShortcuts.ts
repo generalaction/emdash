@@ -563,6 +563,11 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         // Execute modal shortcuts
         if (shortcut.priority === 'modal') {
+          // If a nested dialog/modal (e.g. agent execution settings) is open,
+          // let it handle Escape instead of closing the parent view (settings page).
+          const nestedDialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
+          if (nestedDialog) continue;
+
           event.preventDefault();
           shortcut.handler();
           return;

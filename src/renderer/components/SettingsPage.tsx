@@ -150,10 +150,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     };
   }, []);
 
-  // Handle Escape key to close
+  // Handle Escape key to close (skip when a nested modal already handled the event)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
         onClose();
       }
     };
