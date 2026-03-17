@@ -3,6 +3,7 @@ import { DocsPage, DocsBody, DocsDescription, DocsTitle } from 'fumadocs-ui/page
 import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
+import type { MDXComponents } from 'mdx/types';
 import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
 import { CopyEmailButton } from '@/components/CopyEmailButton';
 import { LastUpdated } from '@/components/LastUpdated';
@@ -43,6 +44,11 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
     lastModified = (await getLastModifiedFromGitHub(filePath)) ?? undefined;
   }
 
+  const components = {
+    ...defaultMdxComponents,
+    CopyEmailButton,
+  } as unknown as MDXComponents;
+
   return (
     <DocsPage
       toc={page.data.toc}
@@ -62,7 +68,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
         <CopyMarkdownButton markdownUrl={page.url === '/' ? '/index.md' : `${page.url}.md`} />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents, CopyEmailButton }} />
+        <MDX components={components} />
       </DocsBody>
       {lastModified && <LastUpdated date={lastModified} />}
     </DocsPage>
