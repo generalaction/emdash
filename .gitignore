@@ -60,8 +60,7 @@ Thumbs.db
 .notes
 .claude/
 
-# Local generated worktrees for perf experiments
-worktrees/
+
 
 # Checkouts directory
 .checkouts/
