@@ -67,7 +67,7 @@ export interface GitHubPullRequestService {
 }
 
 // ---------------------------------------------------------------------------
-// GraphQL response types (internal)
+// GraphQL response shape (internal)
 // ---------------------------------------------------------------------------
 
 interface GqlPrNode {
@@ -110,63 +110,6 @@ interface GqlPrNode {
 }
 
 // ---------------------------------------------------------------------------
-// Mapping
-// ---------------------------------------------------------------------------
-
-function buildReviewers(node: GqlPrNode): GitHubReviewer[] {
-  const reviewerMap = new Map<string, GitHubReviewer>();
-
-  for (const req of node.reviewRequests.nodes) {
-    const login = req.requestedReviewer?.login ?? req.requestedReviewer?.name;
-    if (login) {
-      reviewerMap.set(login, { login, state: 'PENDING' });
-    }
-  }
-
-  for (const review of node.latestReviews.nodes) {
-    const login = review.author?.login;
-    if (login) {
-      reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
-    }
-  }
-
-  return Array.from(reviewerMap.values());
-}
-
-function mapToSummary(node: GqlPrNode): GitHubPullRequestSummary {
-  return {
-    number: node.number,
-    title: node.title,
-    url: node.url,
-    state: node.state,
-    isDraft: node.isDraft,
-    createdAt: node.createdAt,
-    updatedAt: node.updatedAt,
-    headRefName: node.headRefName,
-    headRefOid: node.headRefOid,
-    baseRefName: node.baseRefName,
-    author: node.author,
-    headRepository: node.headRepository,
-    labels: node.labels.nodes,
-    assignees: node.assignees.nodes,
-    reviewDecision: node.reviewDecision,
-    reviewers: buildReviewers(node),
-  };
-}
-
-function mapToDetail(node: GqlPrNode): GitHubPullRequest {
-  return {
-    ...mapToSummary(node),
-    additions: node.additions ?? 0,
-    deletions: node.deletions ?? 0,
-    changedFiles: node.changedFiles ?? 0,
-    mergeable: node.mergeable ?? 'UNKNOWN',
-    mergeStateStatus: node.mergeStateStatus ?? 'UNKNOWN',
-    body: node.body ?? null,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
@@ -190,7 +133,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
           limit,
         });
         return {
-          prs: response.search.nodes.map(mapToSummary),
+          prs: response.search.nodes.map((n) => this.mapToSummary(n)),
           totalCount: response.search.issueCount,
         };
       }
@@ -199,7 +142,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
         repository: { pullRequests: { totalCount: number; nodes: GqlPrNode[] } };
       }>(LIST_PRS_QUERY, { owner, repo, limit });
       return {
-        prs: response.repository.pullRequests.nodes.map(mapToSummary),
+        prs: response.repository.pullRequests.nodes.map((n) => this.mapToSummary(n)),
         totalCount: response.repository.pullRequests.totalCount,
       };
     } catch {
@@ -218,9 +161,62 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
       }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
       const node = response.repository.pullRequest;
       if (!node) return null;
-      return mapToDetail(node);
+      return this.mapToDetail(node);
     } catch {
       return null;
     }
+  }
+
+  private buildReviewers(node: GqlPrNode): GitHubReviewer[] {
+    const reviewerMap = new Map<string, GitHubReviewer>();
+
+    for (const req of node.reviewRequests.nodes) {
+      const login = req.requestedReviewer?.login ?? req.requestedReviewer?.name;
+      if (login) {
+        reviewerMap.set(login, { login, state: 'PENDING' });
+      }
+    }
+
+    for (const review of node.latestReviews.nodes) {
+      const login = review.author?.login;
+      if (login) {
+        reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
+      }
+    }
+
+    return Array.from(reviewerMap.values());
+  }
+
+  private mapToSummary(node: GqlPrNode): GitHubPullRequestSummary {
+    return {
+      number: node.number,
+      title: node.title,
+      url: node.url,
+      state: node.state,
+      isDraft: node.isDraft,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+      headRefName: node.headRefName,
+      headRefOid: node.headRefOid,
+      baseRefName: node.baseRefName,
+      author: node.author,
+      headRepository: node.headRepository,
+      labels: node.labels.nodes,
+      assignees: node.assignees.nodes,
+      reviewDecision: node.reviewDecision,
+      reviewers: this.buildReviewers(node),
+    };
+  }
+
+  private mapToDetail(node: GqlPrNode): GitHubPullRequest {
+    return {
+      ...this.mapToSummary(node),
+      additions: node.additions ?? 0,
+      deletions: node.deletions ?? 0,
+      changedFiles: node.changedFiles ?? 0,
+      mergeable: node.mergeable ?? 'UNKNOWN',
+      mergeStateStatus: node.mergeStateStatus ?? 'UNKNOWN',
+      body: node.body ?? null,
+    };
   }
 }

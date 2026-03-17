@@ -40,7 +40,7 @@ export interface GitHubRepositoryService {
 }
 
 // ---------------------------------------------------------------------------
-// Mapping (REST snake_case → camelCase)
+// REST response shape (internal)
 // ---------------------------------------------------------------------------
 
 interface RestRepo {
@@ -57,24 +57,6 @@ interface RestRepo {
   language: string | null;
   stargazers_count: number;
   forks_count: number;
-}
-
-function mapRepo(item: RestRepo): GitHubRepo {
-  return {
-    id: item.id,
-    name: item.name,
-    fullName: item.full_name,
-    description: item.description,
-    url: item.html_url,
-    cloneUrl: item.clone_url,
-    sshUrl: item.ssh_url,
-    defaultBranch: item.default_branch,
-    isPrivate: item.private,
-    updatedAt: item.updated_at,
-    language: item.language,
-    stargazersCount: item.stargazers_count,
-    forksCount: item.forks_count,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +97,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
       sort: 'updated',
       direction: 'desc',
     });
-    return data.map((item) => mapRepo(item as unknown as RestRepo));
+    return data.map((item) => this.mapRepo(item as unknown as RestRepo));
   }
 
   async getOwners(): Promise<GitHubOwner[]> {
@@ -206,5 +188,23 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     }
 
     return { valid: true };
+  }
+
+  private mapRepo(item: RestRepo): GitHubRepo {
+    return {
+      id: item.id,
+      name: item.name,
+      fullName: item.full_name,
+      description: item.description,
+      url: item.html_url,
+      cloneUrl: item.clone_url,
+      sshUrl: item.ssh_url,
+      defaultBranch: item.default_branch,
+      isPrivate: item.private,
+      updatedAt: item.updated_at,
+      language: item.language,
+      stargazersCount: item.stargazers_count,
+      forksCount: item.forks_count,
+    };
   }
 }

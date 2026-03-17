@@ -1,15 +1,15 @@
+import * as path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import { createRPCController } from '@shared/ipc/rpc';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
 import { githubAuthService } from '@main/core/github/auth/github-auth-service';
 import { GitHubIssueServiceImpl } from '@main/core/github/services/issue-service';
 import { GitHubPullRequestServiceImpl } from '@main/core/github/services/pr-service';
 import { GitHubRepositoryServiceImpl } from '@main/core/github/services/repo-service';
+import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-
-// ---------------------------------------------------------------------------
-// Helper — get an authenticated Octokit instance
-// ---------------------------------------------------------------------------
 
 async function getOctokit(): Promise<Octokit> {
   const token = await githubAuthService.getToken();
@@ -270,7 +270,6 @@ export const githubController = createRPCController({
       const octokit = await getOctokit();
       const service = new GitHubRepositoryServiceImpl(octokit);
 
-      // First validate format
       const formatValidation = service.validateRepositoryName(name);
       if (!formatValidation.valid) {
         return {
@@ -281,7 +280,6 @@ export const githubController = createRPCController({
         };
       }
 
-      // If owner provided, check if repo already exists
       if (owner) {
         const exists = await service.checkRepositoryExists(owner, name);
         if (exists) {
@@ -320,6 +318,99 @@ export const githubController = createRPCController({
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to check repository',
+      };
+    }
+  },
+
+  // -- Project creation orchestration ---------------------------------------
+
+  cloneRepository: async (repoUrl: string, localPath: string) => {
+    if (!repoUrl || !localPath) {
+      return { success: false, error: 'Repository URL and local path are required' };
+    }
+    try {
+      const exec = getLocalExec();
+      const fs = new LocalFileSystem(path.dirname(localPath));
+      return await cloneRepository(repoUrl, localPath, exec, fs);
+    } catch (error) {
+      log.error('Failed to clone repository:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Clone failed',
+      };
+    }
+  },
+
+  createNewProject: async (params: {
+    name: string;
+    owner: string;
+    isPrivate: boolean;
+    description?: string;
+  }) => {
+    const { name, owner, isPrivate, description } = params;
+    if (!name || !owner) {
+      return { success: false, error: 'Name and owner are required' };
+    }
+
+    let repoUrl: string | undefined;
+    let fullName: string | undefined;
+    let defaultBranch: string | undefined;
+    let githubRepoCreated = false;
+
+    try {
+      const octokit = await getOctokit();
+      const repoService = new GitHubRepositoryServiceImpl(octokit);
+      const repoInfo = await repoService.createRepository({ name, owner, isPrivate, description });
+      repoUrl = repoInfo.url;
+      fullName = repoInfo.fullName;
+      defaultBranch = repoInfo.defaultBranch;
+      githubRepoCreated = true;
+
+      const cloneUrl = `https://github.com/${fullName}.git`;
+      const { app } = await import('electron');
+      const defaultDir = app.getPath('home') + '/Developer';
+      const localPath = `${defaultDir}/${name}`;
+      const exec = getLocalExec();
+      const fs = new LocalFileSystem(path.dirname(localPath));
+      const cloneResult = await cloneRepository(cloneUrl, localPath, exec, fs);
+      if (!cloneResult.success) {
+        throw new Error(cloneResult.error ?? 'Clone failed');
+      }
+
+      const projectFs = new LocalFileSystem(localPath);
+      await initializeNewProject(
+        { repoUrl: cloneUrl, localPath, name, description },
+        exec,
+        projectFs
+      );
+
+      return {
+        success: true,
+        projectPath: localPath,
+        repoUrl,
+        fullName,
+        defaultBranch,
+        githubRepoCreated,
+      };
+    } catch (error) {
+      log.error('Failed to create new project:', error);
+
+      if (githubRepoCreated && fullName) {
+        try {
+          const octokit = await getOctokit();
+          const repoService = new GitHubRepositoryServiceImpl(octokit);
+          const [repoOwner, repoName] = fullName.split('/');
+          await repoService.deleteRepository(repoOwner, repoName);
+        } catch (cleanupError) {
+          log.error('Failed to clean up GitHub repo after project creation failure:', cleanupError);
+        }
+      }
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create project',
+        repoUrl,
+        githubRepoCreated,
       };
     }
   },

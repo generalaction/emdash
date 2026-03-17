@@ -35,7 +35,7 @@ export interface GitHubIssueService {
 }
 
 // ---------------------------------------------------------------------------
-// Mapping (REST snake_case → camelCase)
+// REST response shape (internal)
 // ---------------------------------------------------------------------------
 
 interface RestIssue {
@@ -51,30 +51,6 @@ interface RestIssue {
   labels: Array<string | { name?: string; color?: string }>;
   body?: string | null;
   pull_request?: unknown;
-}
-
-function mapIssue(item: RestIssue): GitHubIssue {
-  return {
-    number: item.number,
-    title: item.title,
-    url: item.html_url,
-    state: item.state,
-    createdAt: item.created_at,
-    updatedAt: item.updated_at,
-    comments: item.comments,
-    user: item.user ? { login: item.user.login, avatarUrl: item.user.avatar_url } : null,
-    assignees: (item.assignees ?? []).map((a) => ({ login: a.login, avatarUrl: a.avatar_url })),
-    labels: (item.labels ?? []).map((l) =>
-      typeof l === 'string' ? { name: l, color: '' } : { name: l.name ?? '', color: l.color ?? '' }
-    ),
-  };
-}
-
-function mapIssueDetail(item: RestIssue): GitHubIssueDetail {
-  return {
-    ...mapIssue(item),
-    body: item.body ?? null,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +72,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       });
       return data
         .filter((issue) => !issue.pull_request)
-        .map((item) => mapIssue(item as unknown as RestIssue));
+        .map((item) => this.mapIssue(item as unknown as RestIssue));
     } catch {
       return [];
     }
@@ -117,7 +93,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         sort: 'updated',
         order: 'desc',
       });
-      return data.items.map((item) => mapIssue(item as unknown as RestIssue));
+      return data.items.map((item) => this.mapIssue(item as unknown as RestIssue));
     } catch {
       return [];
     }
@@ -134,9 +110,35 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         repo,
         issue_number: issueNumber,
       });
-      return mapIssueDetail(data as unknown as RestIssue);
+      return this.mapIssueDetail(data as unknown as RestIssue);
     } catch {
       return null;
     }
+  }
+
+  private mapIssue(item: RestIssue): GitHubIssue {
+    return {
+      number: item.number,
+      title: item.title,
+      url: item.html_url,
+      state: item.state,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+      comments: item.comments,
+      user: item.user ? { login: item.user.login, avatarUrl: item.user.avatar_url } : null,
+      assignees: (item.assignees ?? []).map((a) => ({ login: a.login, avatarUrl: a.avatar_url })),
+      labels: (item.labels ?? []).map((l) =>
+        typeof l === 'string'
+          ? { name: l, color: '' }
+          : { name: l.name ?? '', color: l.color ?? '' }
+      ),
+    };
+  }
+
+  private mapIssueDetail(item: RestIssue): GitHubIssueDetail {
+    return {
+      ...this.mapIssue(item),
+      body: item.body ?? null,
+    };
   }
 }
