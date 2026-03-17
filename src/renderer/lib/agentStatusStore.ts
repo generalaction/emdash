@@ -151,7 +151,8 @@ export class AgentStatusStore {
       current.kind === next.kind &&
       current.ptyId === next.ptyId &&
       current.providerId === next.providerId &&
-      current.message === next.message
+      current.message === next.message &&
+      current.notificationType === next.notificationType
     ) {
       return;
     }

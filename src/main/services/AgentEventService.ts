@@ -201,9 +201,13 @@ class AgentEventService {
           nt === 'elicitation_dialog' ||
           nt === 'auth_success'
         ) {
+          let fallbackMessage = 'Your agent is waiting for input';
+          if (nt === 'auth_success') {
+            fallbackMessage = 'Your agent has authenticated successfully';
+          }
           const notification = new Notification({
             title: `${providerName}${titleSuffix}`,
-            body: event.payload.message?.trim() || 'Your agent is waiting for input',
+            body: event.payload.message?.trim() || fallbackMessage,
             silent: true,
           });
           addClickHandler(notification);

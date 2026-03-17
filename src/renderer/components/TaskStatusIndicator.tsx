@@ -52,7 +52,7 @@ export function TaskStatusIndicator({
     }
   }
 
-  if (status === 'complete') {
+  if (unread && status === 'complete') {
     return (
       <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-green-500">
         <CheckCircle2 className="h-4 w-4" />
@@ -60,7 +60,7 @@ export function TaskStatusIndicator({
     );
   }
 
-  if (status === 'error') {
+  if (unread && status === 'error') {
     return (
       <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-red-500">
         <AlertTriangle className="h-4 w-4" />
