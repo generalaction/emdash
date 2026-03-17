@@ -660,6 +660,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;
@@ -671,6 +673,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;

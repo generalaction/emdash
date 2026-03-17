@@ -12,6 +12,7 @@ import WorkspaceProvisioningOverlay from './WorkspaceProvisioningOverlay';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 interface MainContentAreaProps {
   showSettingsPage: boolean;
@@ -24,6 +25,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   settingsPageInitialTab,
   handleCloseSettingsPage,
 }) => {
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo();
   const {
@@ -154,7 +156,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
           </div>
         )}
 
-        {activeTask?.metadata?.workspace && !isCreatingTask && (
+        {workspaceProviderEnabled && activeTask?.metadata?.workspace && !isCreatingTask && (
           <WorkspaceProvisioningOverlay task={activeTask} project={selectedProject} />
         )}
       </div>

@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 type LifecycleScripts = {
   setup: string;
@@ -140,6 +141,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isRemote,
   sshConnectionId,
 }) => {
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [config, setConfig] = useState<ConfigShape>({});
   const [scripts, setScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [originalScripts, setOriginalScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
@@ -342,6 +344,16 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalTmux(tmux);
       setOriginalWpProvisionCommand(wpProvisionCommand);
       setOriginalWpTerminateCommand(wpTerminateCommand);
+
+      if (
+        wpProvisionCommand !== originalWpProvisionCommand ||
+        wpTerminateCommand !== originalWpTerminateCommand
+      ) {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('workspace_provider_config_saved');
+        });
+      }
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -442,47 +454,49 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Workspace provider</Label>
-                <p className="text-xs text-muted-foreground">
-                  Shell commands to provision and tear down remote workspaces. When configured,
-                  tasks can choose between a local worktree and a remote workspace.
-                </p>
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="config-wp-provision" className="text-xs">
-                      Provision command
-                    </Label>
-                    <Input
-                      id="config-wp-provision"
-                      value={wpProvisionCommand}
-                      onChange={(event) => {
-                        setWpProvisionCommand(event.target.value);
-                        setError(null);
-                      }}
-                      placeholder="./scripts/create-workspace.sh"
-                      className="font-mono text-xs"
-                      disabled={isSaving}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="config-wp-terminate" className="text-xs">
-                      Terminate command
-                    </Label>
-                    <Input
-                      id="config-wp-terminate"
-                      value={wpTerminateCommand}
-                      onChange={(event) => {
-                        setWpTerminateCommand(event.target.value);
-                        setError(null);
-                      }}
-                      placeholder="./scripts/destroy-workspace.sh"
-                      className="font-mono text-xs"
-                      disabled={isSaving}
-                    />
+              {workspaceProviderEnabled && (
+                <div className="space-y-2">
+                  <Label>Workspace provider</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Shell commands to provision and tear down remote workspaces. When configured,
+                    tasks can choose between a local worktree and a remote workspace.
+                  </p>
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="config-wp-provision" className="text-xs">
+                        Provision command
+                      </Label>
+                      <Input
+                        id="config-wp-provision"
+                        value={wpProvisionCommand}
+                        onChange={(event) => {
+                          setWpProvisionCommand(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="./scripts/create-workspace.sh"
+                        className="font-mono text-xs"
+                        disabled={isSaving}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="config-wp-terminate" className="text-xs">
+                        Terminate command
+                      </Label>
+                      <Input
+                        id="config-wp-terminate"
+                        value={wpTerminateCommand}
+                        onChange={(event) => {
+                          setWpTerminateCommand(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="./scripts/destroy-workspace.sh"
+                        className="font-mono text-xs"
+                        disabled={isSaving}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="config-scripts-setup">Setup script</Label>

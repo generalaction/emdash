@@ -516,6 +516,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
         provider: 'multi',
         has_initial_prompt: !!taskMetadata?.initialPrompt,
       });
+      if (useRemoteWorkspace) captureTelemetry('workspace_provisioning_task_created');
       if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
       if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
       if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
@@ -657,6 +658,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       provider: (newTask.agentId as string) || 'codex',
       has_initial_prompt: !!taskMetadata?.initialPrompt,
     });
+    if (useRemoteWorkspace) captureTelemetry('workspace_provisioning_task_created');
     if (linkedGithubIssue) captureTelemetry('task_created_with_issue', { source: 'github' });
     if (linkedLinearIssue) captureTelemetry('task_created_with_issue', { source: 'linear' });
     if (linkedJiraIssue) captureTelemetry('task_created_with_issue', { source: 'jira' });
