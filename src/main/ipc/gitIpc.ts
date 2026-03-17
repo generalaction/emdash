@@ -645,6 +645,18 @@ export function registerGitIpc() {
     return { staged, unstaged, untracked };
   };
 
+  const collectChangedPaths = (changes: Array<{ path?: string }>): string[] => {
+    const seen = new Set<string>();
+    const files: string[] = [];
+    for (const change of changes) {
+      const file = typeof change.path === 'string' ? change.path.trim() : '';
+      if (!file || seen.has(file)) continue;
+      seen.add(file);
+      files.push(file);
+    }
+    return files;
+  };
+
   const getLocalAheadBehind = async (
     taskPath: string
   ): Promise<{ ahead: number; behind: number }> => {
@@ -737,6 +749,7 @@ export function registerGitIpc() {
           staged: number;
           unstaged: number;
           untracked: number;
+          files: string[];
           ahead: number;
           behind: number;
           error?: string;
@@ -759,6 +772,7 @@ export function registerGitIpc() {
               staged: number;
               unstaged: number;
               untracked: number;
+              files: string[];
               ahead: number;
               behind: number;
               error?: string;
@@ -768,6 +782,7 @@ export function registerGitIpc() {
               staged: 0,
               unstaged: 0,
               untracked: 0,
+              files: [],
               ahead: 0,
               behind: 0,
               pr: null,
@@ -823,6 +838,7 @@ export function registerGitIpc() {
               risk.staged = counts.staged;
               risk.unstaged = counts.unstaged;
               risk.untracked = counts.untracked;
+              risk.files = collectChangedPaths(changesRes as Array<{ path?: string }>);
               risk.ahead = aheadBehindRes.ahead || 0;
               risk.behind = aheadBehindRes.behind || 0;
               risk.pr = prRes.pr;

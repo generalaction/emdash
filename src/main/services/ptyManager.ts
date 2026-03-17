@@ -42,14 +42,31 @@ const AGENT_ENV_VARS = [
   'GOOGLE_APPLICATION_CREDENTIALS',
   'GOOGLE_CLOUD_LOCATION',
   'GOOGLE_CLOUD_PROJECT',
+  'GLM_API_KEY',
+  'GLM_BASE_URL',
+  'BROWSERBASE_API_KEY',
+  'BROWSERBASE_PROJECT_ID',
+  'ELEVENLABS_API_KEY',
+  'FAL_KEY',
+  'FIRECRAWL_API_KEY',
   'HTTP_PROXY',
   'HTTPS_PROXY',
+  'HONCHO_API_KEY',
   'KIMI_API_KEY',
+  'KIMI_BASE_URL',
   'MISTRAL_API_KEY',
+  'MINIMAX_API_KEY',
+  'MINIMAX_BASE_URL',
+  'MINIMAX_CN_API_KEY',
+  'MINIMAX_CN_BASE_URL',
   'MOONSHOT_API_KEY',
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
+  'OPENROUTER_API_KEY',
+  'TINKER_API_KEY',
+  'VOICE_TOOLS_OPENAI_KEY',
+  'WANDB_API_KEY',
 ];
 
 type PtyRecord = {
@@ -169,15 +186,23 @@ export function getTmuxSessionName(ptyId: string): string {
   return `emdash-${sanitized}`;
 }
 
+function resolveTmuxPath(): string | null {
+  return resolveCommandPathCached('tmux');
+}
+
 /**
  * Kill a tmux session by PTY ID. Fire-and-forget — ignores errors
  * for non-existent sessions (e.g., tmux not installed or session already dead).
  */
 export function killTmuxSession(ptyId: string): void {
   const sessionName = getTmuxSessionName(ptyId);
+  const tmuxPath = resolveTmuxPath();
+  if (!tmuxPath) {
+    return;
+  }
   try {
     const { execFile } = require('child_process');
-    execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+    execFile(tmuxPath, ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
       if (!err) {
         log.info('ptyManager:tmux - killed session', { sessionName });
       }
@@ -1341,10 +1366,9 @@ export async function startPty(options: {
   }
 
   // Lazy load native module at call time to prevent startup crashes
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   let pty: typeof import('node-pty');
   try {
-    pty = require('node-pty');
+    pty = await import('node-pty');
   } catch (e: any) {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
@@ -1463,21 +1487,15 @@ export async function startPty(options: {
   let spawnArgs = args;
 
   if (tmux && process.platform !== 'win32') {
-    let tmuxAvailable = false;
-    try {
-      const { execFileSync } = require('child_process');
-      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
-      tmuxAvailable = true;
-    } catch {
+    const tmuxPath = resolveTmuxPath();
+    if (!tmuxPath) {
       log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
-    }
-
-    if (tmuxAvailable) {
+    } else {
       tmuxSessionName = getTmuxSessionName(id);
       // Build: tmux new-session -As <name> -- <shell> <args...>
-      spawnCommand = 'tmux';
+      spawnCommand = tmuxPath;
       spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
-      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
+      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName, tmuxPath });
     }
   }
 

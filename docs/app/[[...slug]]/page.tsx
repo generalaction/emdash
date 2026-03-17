@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
 import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
+import { CopyEmailButton } from '@/components/CopyEmailButton';
 import { LastUpdated } from '@/components/LastUpdated';
 import { getGithubLastEdit } from 'fumadocs-core/content/github';
 
@@ -61,7 +62,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
         <CopyMarkdownButton markdownUrl={page.url === '/' ? '/index.md' : `${page.url}.md`} />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents }} />
+        <MDX components={{ ...defaultMdxComponents, CopyEmailButton }} />
       </DocsBody>
       {lastModified && <LastUpdated date={lastModified} />}
     </DocsPage>

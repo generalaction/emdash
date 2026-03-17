@@ -26,6 +26,8 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
+import { AccountTab } from './settings/AccountTab';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
 export type SettingsPageTab =
@@ -34,7 +36,8 @@ export type SettingsPageTab =
   | 'integrations'
   | 'repository'
   | 'interface'
-  | 'docs';
+  | 'docs'
+  | 'account';
 
 // Helper functions from SettingsModal
 const createDefaultCliAgents = (): CliAgentStatus[] =>
@@ -172,6 +175,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     { id: 'integrations', label: 'Integrations' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'account', label: 'Account' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -223,6 +227,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
+        { component: <ReviewAgentSettingsCard /> },
         {
           title: 'CLI agents',
           component: (
@@ -265,6 +270,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <HiddenToolsSettingsCard />,
         },
       ],
+    },
+    account: {
+      title: 'Account',
+      description: 'Manage your Emdash account.',
+      sections: [{ component: <AccountTab /> }],
     },
   };
 

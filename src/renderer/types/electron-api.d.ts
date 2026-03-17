@@ -53,6 +53,14 @@ declare global {
       getReleaseNotes: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
       checkForUpdatesNow: () => Promise<{ success: boolean; data?: any; error?: string }>;
 
+      // Window controls (custom title bar on Windows/Linux)
+      windowMinimize: () => Promise<void>;
+      windowMaximize: () => Promise<void>;
+      windowClose: () => Promise<void>;
+      windowIsMaximized: () => Promise<boolean>;
+      popupMenu: (args: { label: string; x: number; y: number }) => Promise<void>;
+      onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => () => void;
+
       // Menu events (main → renderer)
       onMenuOpenSettings: (listener: () => void) => () => void;
       onMenuCheckForUpdates: (listener: () => void) => () => void;
@@ -367,6 +375,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;
@@ -651,6 +660,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;
@@ -662,6 +673,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;
@@ -780,12 +793,42 @@ declare global {
         projectPath: string,
         content: string
       ) => Promise<{ success: boolean; path?: string; error?: string }>;
+      ensureGitignore: (
+        projectPath: string,
+        patterns: string[]
+      ) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
         absPath?: string;
         relPath?: string;
         fileName?: string;
+        error?: string;
+      }>;
+
+      // Emdash Account
+      accountGetSession: () => Promise<{
+        success: boolean;
+        data?: {
+          user: { userId: string; username: string; avatarUrl: string; email: string } | null;
+          isSignedIn: boolean;
+          hasAccount: boolean;
+        };
+        error?: string;
+      }>;
+      accountSignIn: () => Promise<{
+        success: boolean;
+        data?: { user: { userId: string; username: string; avatarUrl: string; email: string } };
+        error?: string;
+      }>;
+      accountSignOut: () => Promise<{ success: boolean; error?: string }>;
+      accountCheckServerHealth: () => Promise<{
+        success: boolean;
+        data?: { available: boolean };
+      }>;
+      accountValidateSession: () => Promise<{
+        success: boolean;
+        data?: { valid: boolean };
         error?: string;
       }>;
 
@@ -799,6 +842,12 @@ declare global {
         verification_uri?: string;
         expires_in?: number;
         interval?: number;
+        error?: string;
+      }>;
+      githubAuthOAuth: () => Promise<{
+        success: boolean;
+        token?: string;
+        user?: any;
         error?: string;
       }>;
       githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
@@ -864,6 +913,7 @@ declare global {
       githubListPullRequests: (args: {
         projectPath: string;
         limit?: number;
+        searchQuery?: string;
       }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
@@ -1201,6 +1251,48 @@ declare global {
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
       }>;
+
+      // Workspace provisioning
+      workspaceProvision: (args: {
+        taskId: string;
+        repoUrl: string;
+        branch: string;
+        baseRef: string;
+        provisionCommand: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+      workspaceCancel: (args: {
+        instanceId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceTerminate: (args: {
+        instanceId: string;
+        terminateCommand: string;
+        projectPath: string;
+        env?: Record<string, string>;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceStatus: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        data?: {
+          id: string;
+          taskId: string;
+          externalId: string | null;
+          host: string;
+          port: number;
+          username: string | null;
+          worktreePath: string | null;
+          status: string;
+          connectionId: string | null;
+          createdAt: number;
+          terminatedAt: number | null;
+        } | null;
+        error?: string;
+      }>;
+      onWorkspaceProvisionProgress: (
+        listener: (data: { instanceId: string; line: string }) => void
+      ) => () => void;
+      onWorkspaceProvisionComplete: (
+        listener: (data: { instanceId: string; status: string; error?: string }) => void
+      ) => () => void;
 
       // MCP
       mcpLoadAll: () => Promise<{
@@ -1677,6 +1769,7 @@ export interface ElectronAPI {
   githubListPullRequests: (args: {
     projectPath: string;
     limit?: number;
+    searchQuery?: string;
   }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
@@ -1829,6 +1922,46 @@ export interface ElectronAPI {
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
   }>;
+
+  // Workspace provisioning
+  workspaceProvision: (args: {
+    taskId: string;
+    repoUrl: string;
+    branch: string;
+    baseRef: string;
+    provisionCommand: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+  workspaceCancel: (args: { instanceId: string }) => Promise<{ success: boolean; error?: string }>;
+  workspaceTerminate: (args: {
+    instanceId: string;
+    terminateCommand: string;
+    projectPath: string;
+    env?: Record<string, string>;
+  }) => Promise<{ success: boolean; error?: string }>;
+  workspaceStatus: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    data?: {
+      id: string;
+      taskId: string;
+      externalId: string | null;
+      host: string;
+      port: number;
+      username: string | null;
+      worktreePath: string | null;
+      status: string;
+      connectionId: string | null;
+      createdAt: number;
+      terminatedAt: number | null;
+    } | null;
+    error?: string;
+  }>;
+  onWorkspaceProvisionProgress: (
+    listener: (data: { instanceId: string; line: string }) => void
+  ) => () => void;
+  onWorkspaceProvisionComplete: (
+    listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => () => void;
 
   // MCP
   mcpLoadAll: () => Promise<{

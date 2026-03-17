@@ -270,6 +270,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;
@@ -394,6 +395,7 @@ declare global {
       githubListPullRequests: (args: {
         projectPath: string;
         limit?: number;
+        searchQuery?: string;
       }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
@@ -446,6 +448,48 @@ declare global {
         issues?: any[];
         error?: string;
       }>;
+
+      // Workspace provisioning
+      workspaceProvision: (args: {
+        taskId: string;
+        repoUrl: string;
+        branch: string;
+        baseRef: string;
+        provisionCommand: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+      workspaceCancel: (args: {
+        instanceId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceTerminate: (args: {
+        instanceId: string;
+        terminateCommand: string;
+        projectPath: string;
+        env?: Record<string, string>;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceStatus: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        data?: {
+          id: string;
+          taskId: string;
+          externalId: string | null;
+          host: string;
+          port: number;
+          username: string | null;
+          worktreePath: string | null;
+          status: string;
+          connectionId: string | null;
+          createdAt: number;
+          terminatedAt: number | null;
+        } | null;
+        error?: string;
+      }>;
+      onWorkspaceProvisionProgress: (
+        listener: (data: { instanceId: string; line: string }) => void
+      ) => () => void;
+      onWorkspaceProvisionComplete: (
+        listener: (data: { instanceId: string; status: string; error?: string }) => void
+      ) => () => void;
     };
   }
 }

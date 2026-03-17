@@ -73,6 +73,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => handlers.forEach((off) => off());
   },
 
+  // Window controls (custom title bar on Windows/Linux)
+  windowMinimize: () => ipcRenderer.invoke('app:windowMinimize'),
+  windowMaximize: () => ipcRenderer.invoke('app:windowMaximize'),
+  windowClose: () => ipcRenderer.invoke('app:windowClose'),
+  windowIsMaximized: () => ipcRenderer.invoke('app:windowIsMaximized') as Promise<boolean>,
+  popupMenu: (args: { label: string; x: number; y: number }) =>
+    ipcRenderer.invoke('app:popupMenu', args),
+  onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => {
+    const onMaximize = () => listener(true);
+    const onUnmaximize = () => listener(false);
+    ipcRenderer.on('window:maximized', onMaximize);
+    ipcRenderer.on('window:unmaximized', onUnmaximize);
+    return () => {
+      ipcRenderer.removeListener('window:maximized', onMaximize);
+      ipcRenderer.removeListener('window:unmaximized', onUnmaximize);
+    };
+  },
+
   // Open a path in a specific app
   openIn: (args: { app: OpenInAppId; path: string }) => ipcRenderer.invoke('app:openIn', args),
 
@@ -337,6 +355,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
     ipcRenderer.invoke('fs:saveProjectConfig', { projectPath, content }),
+  ensureGitignore: (projectPath: string, patterns: string[]) =>
+    ipcRenderer.invoke('fs:ensureGitignore', { projectPath, patterns }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),
@@ -447,8 +467,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setOnboardingSeen: (flag: boolean) => ipcRenderer.invoke('telemetry:set-onboarding-seen', flag),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
 
+  // Emdash Account
+  accountGetSession: () => ipcRenderer.invoke('account:getSession'),
+  accountSignIn: () => ipcRenderer.invoke('account:signIn'),
+  accountSignOut: () => ipcRenderer.invoke('account:signOut'),
+  accountCheckServerHealth: () => ipcRenderer.invoke('account:checkServerHealth'),
+  accountValidateSession: () => ipcRenderer.invoke('account:validateSession'),
+
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
+  githubAuthOAuth: () => ipcRenderer.invoke('github:auth:oauth'),
   githubCancelAuth: () => ipcRenderer.invoke('github:auth:cancel'),
 
   // GitHub auth event listeners
@@ -511,7 +539,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPrivate: boolean;
     gitignoreTemplate?: string;
   }) => ipcRenderer.invoke('github:createNewProject', params),
-  githubListPullRequests: (args: { projectPath: string; limit?: number }) =>
+  githubListPullRequests: (args: { projectPath: string; limit?: number; searchQuery?: string }) =>
     ipcRenderer.invoke('github:listPullRequests', args),
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
@@ -762,6 +790,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
+
+  // Workspace provisioning
+  workspaceProvision: (args: {
+    taskId: string;
+    repoUrl: string;
+    branch: string;
+    baseRef: string;
+    provisionCommand: string;
+    projectPath: string;
+  }) => ipcRenderer.invoke('workspace:provision', args),
+  workspaceCancel: (args: { instanceId: string }) => ipcRenderer.invoke('workspace:cancel', args),
+  workspaceTerminate: (args: {
+    instanceId: string;
+    terminateCommand: string;
+    projectPath: string;
+    env?: Record<string, string>;
+  }) => ipcRenderer.invoke('workspace:terminate', args),
+  workspaceStatus: (args: { taskId: string }) => ipcRenderer.invoke('workspace:status', args),
+  onWorkspaceProvisionProgress: (
+    listener: (data: { instanceId: string; line: string }) => void
+  ) => {
+    const channel = 'workspace:provision-progress';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { instanceId: string; line: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onWorkspaceProvisionComplete: (
+    listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => {
+    const channel = 'workspace:provision-complete';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { instanceId: string; status: string; error?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // MCP
   mcpLoadAll: () => ipcRenderer.invoke('mcp:load-all'),
@@ -1014,6 +1080,7 @@ export interface ElectronAPI {
         staged: number;
         unstaged: number;
         untracked: number;
+        files: string[];
         ahead: number;
         behind: number;
         error?: string;

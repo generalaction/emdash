@@ -577,7 +577,8 @@ export class DatabaseService {
     taskId: string,
     title: string,
     provider?: string,
-    isMain?: boolean
+    isMain?: boolean,
+    metadata?: string | null
   ): Promise<Conversation> {
     if (this.disabled) {
       return {
@@ -632,6 +633,7 @@ export class DatabaseService {
       isActive: true,
       isMain: isMain ?? false,
       displayOrder: maxOrder + 1,
+      metadata: metadata ?? null,
     };
 
     await this.saveConversation(newConversation);

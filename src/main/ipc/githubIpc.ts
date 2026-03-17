@@ -67,6 +67,16 @@ export function registerGithubIpc() {
     }
   });
 
+  ipcMain.handle('github:auth:oauth', async () => {
+    try {
+      const result = await githubService.startOAuthAuth();
+      return result;
+    } catch (error) {
+      log.error('OAuth auth failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   // Cancel ongoing authentication
   ipcMain.handle('github:auth:cancel', async () => {
     try {
@@ -243,14 +253,17 @@ export function registerGithubIpc() {
 
   ipcMain.handle(
     'github:listPullRequests',
-    async (_, args: { projectPath: string; limit?: number }) => {
+    async (_, args: { projectPath: string; limit?: number; searchQuery?: string }) => {
       const projectPath = args?.projectPath;
       if (!projectPath) {
         return { success: false, error: 'Project path is required' };
       }
 
       try {
-        const result = await githubService.getPullRequests(projectPath, args?.limit);
+        const result = await githubService.getPullRequests(projectPath, {
+          limit: args?.limit,
+          searchQuery: args?.searchQuery,
+        });
         return { success: true, prs: result.prs, totalCount: result.totalCount };
       } catch (error) {
         log.error('Failed to list pull requests:', error);
