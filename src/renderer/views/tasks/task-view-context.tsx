@@ -8,7 +8,7 @@ import { useTaskViewState } from '@renderer/features/tasks/task-view-state-provi
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { useConversations } from './hooks/use-conversations';
 import { useTask, type TaskStatus } from './hooks/use-task';
-import { useTerminals } from './hooks/use-terminals';
+import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';
 
 export type RightPanelView = 'changes' | 'files' | 'terminals';
 export type MainPanelView = 'agents' | 'editor' | 'diff';
@@ -29,11 +29,11 @@ interface TaskViewContext {
     params: Omit<CreateConversationParams, 'projectId' | 'taskId'>
   ) => Promise<Conversation>;
   removeConversation: (conversationId: string) => void;
-  terminals: Terminal[];
+  terminalTabItems: TerminalTabItem[];
   createTerminal: () => Promise<Terminal>;
   removeTerminal: (terminalId: string) => void;
   projectSettings?: ProjectSettings;
-  setupTerminals: string[];
+  runLifecycleScript: (type: LifecycleScriptType) => Promise<void>;
 }
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
@@ -56,7 +56,7 @@ export function TaskViewWrapper({
 
   const { settings: projectSettings } = useProjectSettings(projectId);
 
-  const { terminals, createTerminal, removeTerminal, setupTerminals } = useTerminals({
+  const { terminalTabItems, createTerminal, removeTerminal, runLifecycleScript } = useTerminals({
     projectId,
     taskId,
     projectSettings,
@@ -109,10 +109,10 @@ export function TaskViewWrapper({
           conversations,
           createConversation,
           removeConversation,
-          terminals,
-          setupTerminals,
+          terminalTabItems,
           createTerminal,
           removeTerminal,
+          runLifecycleScript,
           projectSettings,
         }}
       >

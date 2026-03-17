@@ -33,6 +33,8 @@ interface DiffViewContextValue {
   fileChanges: GitChange[];
   isLoadingChanges: boolean;
   refreshChanges: () => void;
+  totalLinesAdded: number;
+  totalLinesDeleted: number;
 
   // Branch / latest commit
   branchStatus: BranchStatus | null;
@@ -262,14 +264,20 @@ export function DiffViewProvider({ children }: { children: ReactNode }) {
     return { success: false, error: extractErrorMessage(result.error) };
   }, [projectId, taskId, invalidateStatus, invalidateBranchAndCommit]);
 
+  const changes = statusQuery.data ?? [];
+  const totalLinesAdded = changes.reduce((sum, c) => sum + (c.additions ?? 0), 0);
+  const totalLinesDeleted = changes.reduce((sum, c) => sum + (c.deletions ?? 0), 0);
+
   return (
     <DiffViewContext.Provider
       value={{
         projectId,
         taskId,
-        fileChanges: statusQuery.data ?? [],
+        fileChanges: changes,
         isLoadingChanges: statusQuery.isLoading,
         refreshChanges: invalidateStatus,
+        totalLinesAdded,
+        totalLinesDeleted,
         branchStatus: branchQuery.data ?? null,
         latestCommit: latestCommitQuery.data ?? null,
         refreshBranchAndCommit: invalidateBranchAndCommit,

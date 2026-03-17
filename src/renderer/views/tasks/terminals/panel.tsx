@@ -9,17 +9,15 @@ import { TerminalsTabs } from './tabs';
 
 export function TerminalsPanel() {
   const { params } = useParams('task');
-  const { terminals, activeTerminalId, setActiveTerminalId, createTerminal, setupTerminals } =
+  const { terminalTabItems, activeTerminalId, setActiveTerminalId, createTerminal } =
     useTaskViewContext();
 
-  const activeId = activeTerminalId ?? setupTerminals[0] ?? terminals[0]?.id ?? null;
+  const activeId = activeTerminalId ?? terminalTabItems[0]?.id ?? null;
 
   const allSessionIds = useMemo(
-    () => [
-      ...setupTerminals.map((id) => makePtySessionId(params.projectId, params.taskId, id)),
-      ...terminals.map((t) => makePtySessionId(params.projectId, params.taskId, t.id)),
-    ],
-    [setupTerminals, terminals, params.projectId, params.taskId]
+    () =>
+      terminalTabItems.map((item) => makePtySessionId(params.projectId, params.taskId, item.id)),
+    [terminalTabItems, params.projectId, params.taskId]
   );
 
   const sessionId = activeId ? makePtySessionId(params.projectId, params.taskId, activeId) : null;
@@ -33,7 +31,7 @@ export function TerminalsPanel() {
     }
   }, [createTerminal, setActiveTerminalId]);
 
-  if (terminals.length === 0 && setupTerminals.length === 0) {
+  if (terminalTabItems.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <Button onClick={handleCreate}>New Terminal</Button>
@@ -44,7 +42,7 @@ export function TerminalsPanel() {
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0">
-        <TerminalsTabs />
+        <TerminalsTabs tabItems={terminalTabItems} activeId={activeId} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         <PaneSizingProvider paneId="terminals" sessionIds={allSessionIds}>

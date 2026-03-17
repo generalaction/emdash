@@ -1,5 +1,5 @@
 import { makePtySessionId } from '@shared/ptySessionId';
-import { Terminal } from '@shared/terminals';
+import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
@@ -72,6 +72,31 @@ export class LocalTerminalProvider implements TerminalProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
+  }
+
+  async runLifecycleScript(
+    script: { type: 'setup' | 'run' | 'teardown'; script: string },
+    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS }
+  ): Promise<void> {
+    const id = await createScriptTerminalId({
+      projectId: this.projectId,
+      taskId: this.taskId,
+      type: script.type,
+      script: script.script,
+    });
+    if (this.sessions.has(id)) return;
+    const userShell =
+      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    this.spawnTerminal(
+      {
+        id,
+        projectId: this.projectId,
+        taskId: this.taskId,
+        name: script.type,
+      },
+      initialSize,
+      { command: userShell, args: ['-c', script.script] }
+    );
   }
 
   async killTerminal(terminalId: string): Promise<void> {

@@ -37,7 +37,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
               key={conversation.id}
               onClick={() => setActiveConversationId(conversation.id)}
               className={cn(
-                'group px-2 text-xs border border-border rounded-md hover:bg-muted flex items-center gap-1.5 relative',
+                'group px-2.5 text-xs border border-border rounded-md hover:bg-muted flex items-center gap-1.5 relative',
                 activeId === conversation.id && 'bg-muted'
               )}
             >
@@ -69,6 +69,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
       <Button
         variant="outline"
         size="xs"
+        className="h-7 px-2.5"
         onClick={() =>
           showCreateConversationModal({
             projectId,

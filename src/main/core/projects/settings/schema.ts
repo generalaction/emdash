@@ -16,18 +16,9 @@ export const projectSettingsSchema = z.object({
   tmux: z.boolean().optional(),
   scripts: z
     .object({
-      setup: z
-        .union([z.array(z.string()), z.string()])
-        .optional()
-        .default(''), // array or string
-      run: z
-        .union([z.array(z.string()), z.string()])
-        .optional()
-        .default(''),
-      teardown: z
-        .union([z.array(z.string()), z.string()])
-        .optional()
-        .default(''),
+      setup: z.string().optional(),
+      run: z.string().optional(),
+      teardown: z.string().optional(),
     })
     .optional(),
   worktreeDirectory: z.string().optional(),

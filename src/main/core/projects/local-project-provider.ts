@@ -12,6 +12,7 @@ import { log } from '@main/lib/logger';
 import { LocalConversationProvider } from '../conversations/impl/local-conversation';
 import { appSettingsService } from '../settings/settings-service';
 import { LocalTerminalProvider } from '../terminals/impl/local-terminal-provider';
+import { TerminalProvider } from '../terminals/terminal-provider';
 import type { ProjectProvider, TaskProvider } from './project-provider';
 import { LocalProjectSettingsProvider } from './settings/project-settings';
 import type { ProjectSettingsProvider } from './settings/schema';
@@ -106,25 +107,20 @@ export class LocalProjectProvider implements ProjectProvider {
 
     const scripts = (await this.settings.get()).scripts;
 
-    const setupScripts = scripts
-      ? Array.isArray(scripts.setup)
-        ? scripts.setup
-        : [scripts.setup]
-      : [];
-
     const userShell =
       process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
-    for (const script of setupScripts) {
+    if (scripts?.setup) {
       const id = await createScriptTerminalId({
         projectId: this.project.id,
         taskId: task.id,
-        script,
+        type: 'setup',
+        script: scripts.setup,
       });
       terminalProvider.spawnTerminal(
         { id, projectId: this.project.id, taskId: task.id, name: '' },
         { cols: 80, rows: 24 },
-        { command: userShell, args: ['-c', script] }
+        { command: userShell, args: ['-c', scripts.setup] }
       );
     }
 

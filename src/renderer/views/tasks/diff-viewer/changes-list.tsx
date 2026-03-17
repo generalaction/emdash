@@ -5,7 +5,10 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  File,
   History,
+  Minus,
+  Plus,
   Tag,
   Undo2,
 } from 'lucide-react';
@@ -843,35 +846,45 @@ function HistoryTab() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// ChangesList — main export
-// ---------------------------------------------------------------------------
-
 export function ChangesList() {
-  const { activeTab, setActiveTab, fileChanges } = useDiffViewContext();
+  const { activeTab, setActiveTab, fileChanges, totalLinesAdded, totalLinesDeleted } =
+    useDiffViewContext();
   const fileCount = fileChanges.length;
 
   return (
     <div className="flex h-full flex-col">
       {/* Tab header */}
-      <div className="flex  border-b border-border  gap-2 p-2">
+      <div className="flex   gap-2 p-2">
         <button
           onClick={() => setActiveTab('changes')}
           className={cn(
-            'flex-1 text-center text-xs  transition-colors rounded-lg border border-border h-6',
+            'flex-1 text-center text-xs  transition-colors rounded-lg border border-border h-7 flex items-center justify-center gap-2',
             activeTab === 'changes'
               ? 'text-foreground bg-muted'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          Changes{fileCount > 0 ? ` (${fileCount})` : ''}
+          <span className="flex items-center justify-center gap-0.5 text-muted-foreground">
+            <File className="size-3" />
+            {fileCount}
+          </span>
+          {totalLinesAdded > 0 && (
+            <span className="flex items-center justify-center gap-0.5  text-green-600">
+              <Plus className="size-3" />
+              {totalLinesAdded}
+            </span>
+          )}
+          {totalLinesDeleted > 0 && (
+            <span className="flex items-center justify-center gap-0.5 text-red-600">
+              <Minus className="size-3" />
+              {totalLinesDeleted}
+            </span>
+          )}
         </button>
         <button
-          variant={'outline'}
           onClick={() => setActiveTab('history')}
-          size="sm"
           className={cn(
-            'flex-1 text-center text-xs  transition-colors rounded-lg border border-border h-6',
+            'text-center text-xs  transition-colors rounded-lg border border-border size-7 flex items-center justify-center',
             activeTab === 'history'
               ? 'text-foreground bg-muted'
               : 'text-muted-foreground hover:text-foreground'

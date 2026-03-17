@@ -43,7 +43,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+      <TooltipProvider delay={300}>
         <DependenciesProvider>
           <ModalProvider>
             <WorkspaceLayoutContextProvider>
