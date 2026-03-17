@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import { createRPCController } from '@shared/ipc/rpc';
@@ -366,9 +367,11 @@ export const githubController = createRPCController({
       githubRepoCreated = true;
 
       const cloneUrl = `https://github.com/${nameWithOwner}.git`;
-      const { app } = await import('electron');
-      const defaultDir = app.getPath('home') + '/Developer';
-      const localPath = `${defaultDir}/${name}`;
+      const settings = {};
+      const projectDir =
+        (settings as { projects?: { defaultDirectory?: string } }).projects?.defaultDirectory ??
+        path.join(homedir(), 'emdash-projects');
+      const localPath = path.join(projectDir, name);
       const exec = getLocalExec();
       const fs = new LocalFileSystem(path.dirname(localPath));
       const cloneResult = await cloneRepository(cloneUrl, localPath, exec, fs);
