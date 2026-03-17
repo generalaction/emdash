@@ -1,63 +1,64 @@
-import { exec } from 'node:child_process';
-import * as fs from 'node:fs';
-import { homedir } from 'node:os';
-import * as path from 'node:path';
-import { promisify } from 'node:util';
-import type { GitHubUser } from '@shared/github';
+import { Octokit } from '@octokit/rest';
 import { createRPCController } from '@shared/ipc/rpc';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
-import { githubService } from '@main/core/github/GitHubService';
+import { githubAuthService } from '@main/core/github/auth/github-auth-service';
+import { GitHubIssueServiceImpl } from '@main/core/github/services/issue-service';
+import { GitHubPullRequestServiceImpl } from '@main/core/github/services/pr-service';
+import { GitHubRepositoryServiceImpl } from '@main/core/github/services/repo-service';
 import { log } from '@main/lib/logger';
-import { quoteShellArg } from '@main/utils/shellEscape';
 
-const execAsync = promisify(exec);
+// ---------------------------------------------------------------------------
+// Helper — get an authenticated Octokit instance
+// ---------------------------------------------------------------------------
+
+async function getOctokit(): Promise<Octokit> {
+  const token = await githubAuthService.getToken();
+  if (!token) throw new Error('Not authenticated');
+  return new Octokit({ auth: token });
+}
+
+// ---------------------------------------------------------------------------
+// Controller
+// ---------------------------------------------------------------------------
 
 export const githubController = createRPCController({
-  connect: async (projectPath: string) => {
+  // -- Auth ----------------------------------------------------------------
+
+  getStatus: async () => {
     try {
-      // Check if GitHub CLI is authenticated
-      const isAuth = await githubService.isAuthenticated();
-      if (!isAuth) {
-        return { success: false, error: 'GitHub CLI not authenticated' };
+      const authenticated = await githubAuthService.isAuthenticated();
+      let user = null;
+      if (authenticated) {
+        user = await githubAuthService.getCurrentUser();
       }
-
-      // Get repository info from GitHub CLI
-      try {
-        const { stdout } = await execAsync(
-          'gh repo view --json name,nameWithOwner,defaultBranchRef',
-          { cwd: projectPath }
-        );
-        const repoInfo = JSON.parse(stdout);
-
-        return {
-          success: true,
-          repository: repoInfo.nameWithOwner,
-          branch: repoInfo.defaultBranchRef?.name || 'main',
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: 'Repository not found on GitHub or not connected to GitHub CLI',
-        };
-      }
+      return { installed: true, authenticated, user };
     } catch (error) {
-      log.error('Failed to connect to GitHub:', error);
-      return { success: false, error: 'Failed to connect to GitHub' };
+      log.error('GitHub status check failed:', error);
+      return { installed: true, authenticated: false, user: null };
     }
   },
 
   auth: async () => {
     try {
-      return await githubService.startDeviceFlowAuth();
+      return await githubAuthService.startDeviceFlowAuth();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
       return { success: false, error: 'Authentication failed' };
     }
   },
 
+  authOAuth: async () => {
+    try {
+      return await githubAuthService.startOAuthAuth();
+    } catch (error) {
+      log.error('GitHub OAuth authentication failed:', error);
+      return { success: false, error: 'OAuth authentication failed' };
+    }
+  },
+
   authCancel: async () => {
     try {
-      githubService.cancelAuth();
+      githubAuthService.cancelAuth();
       return { success: true };
     } catch (error) {
       log.error('Failed to cancel GitHub auth:', error);
@@ -67,86 +68,50 @@ export const githubController = createRPCController({
 
   isAuthenticated: async () => {
     try {
-      return await githubService.isAuthenticated();
+      return await githubAuthService.isAuthenticated();
     } catch (error) {
       log.error('GitHub authentication check failed:', error);
       return false;
     }
   },
 
-  getStatus: async () => {
+  logout: async () => {
     try {
-      let installed = true;
-      try {
-        await execAsync('gh --version');
-      } catch {
-        installed = false;
-      }
-
-      let authenticated = false;
-      let user: GitHubUser | null = null;
-      if (installed) {
-        try {
-          const { stdout } = await execAsync('gh api user');
-          user = JSON.parse(stdout);
-          authenticated = true;
-        } catch {
-          authenticated = false;
-          user = null;
-        }
-      }
-
-      return { installed, authenticated, user };
+      await githubAuthService.logout();
+      return { success: true };
     } catch (error) {
-      log.error('GitHub status check failed:', error);
-      return { installed: false, authenticated: false, user: null };
+      log.error('GitHub logout failed:', error);
+      return { success: false, error: 'Logout failed' };
     }
   },
 
   getUser: async () => {
     try {
-      const token = await (githubService as any)['getStoredToken']();
-      if (!token) return null;
-      return await githubService.getUserInfo(token);
+      return await githubAuthService.getCurrentUser();
     } catch (error) {
       log.error('Failed to get user info:', error);
       return null;
     }
   },
 
-  getRepositories: async () => {
+  storeToken: async (token: string) => {
     try {
-      const token = await (githubService as any)['getStoredToken']();
-      if (!token) throw new Error('Not authenticated');
-      return await githubService.getRepositories(token);
-    } catch (error) {
-      log.error('Failed to get repositories:', error);
-      return [];
-    }
-  },
-
-  cloneRepository: async (repoUrl: string, localPath: string) => {
-    const q = (s: string) => JSON.stringify(s);
-    try {
-      const dir = path.dirname(localPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      if (fs.existsSync(path.join(localPath, '.git'))) return { success: true };
-      await execAsync(`git clone ${q(repoUrl)} ${q(localPath)}`);
+      await githubAuthService.storeToken(token);
       return { success: true };
     } catch (error) {
-      log.error('Failed to clone repository:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Clone failed' };
+      log.error('Failed to store token:', error);
+      return { success: false, error: 'Failed to store token' };
     }
   },
 
-  logout: async () => {
-    await githubService.logout();
-  },
+  // -- Issues (owner/repo instead of projectPath) -------------------------
 
-  issuesList: async (projectPath: string, limit?: number) => {
-    if (!projectPath) return { success: false, error: 'Project path is required' };
+  issuesList: async (owner: string, repo: string, limit?: number) => {
+    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
     try {
-      const issues = await githubService.listIssues(projectPath, limit ?? 50);
+      const octokit = await getOctokit();
+      const service = new GitHubIssueServiceImpl(octokit);
+      const issues = await service.listIssues(owner, repo, limit ?? 50);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to list issues';
@@ -154,13 +119,15 @@ export const githubController = createRPCController({
     }
   },
 
-  issuesSearch: async (projectPath: string, searchTerm: string, limit?: number) => {
-    if (!projectPath) return { success: false, error: 'Project path is required' };
+  issuesSearch: async (owner: string, repo: string, searchTerm: string, limit?: number) => {
+    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
     if (!searchTerm || typeof searchTerm !== 'string') {
       return { success: false, error: 'Search term is required' };
     }
     try {
-      const issues = await githubService.searchIssues(projectPath, searchTerm, limit ?? 20);
+      const octokit = await getOctokit();
+      const service = new GitHubIssueServiceImpl(octokit);
+      const issues = await service.searchIssues(owner, repo, searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to search issues';
@@ -168,13 +135,15 @@ export const githubController = createRPCController({
     }
   },
 
-  issuesGet: async (projectPath: string, number: number) => {
-    if (!projectPath) return { success: false, error: 'Project path is required' };
+  issuesGet: async (owner: string, repo: string, number: number) => {
+    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
     if (!number || !Number.isFinite(number)) {
       return { success: false, error: 'Issue number is required' };
     }
     try {
-      const issue = await githubService.getIssue(projectPath, number);
+      const octokit = await getOctokit();
+      const service = new GitHubIssueServiceImpl(octokit);
+      const issue = await service.getIssue(owner, repo, number);
       return { success: !!issue, issue: issue ?? undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get issue';
@@ -182,43 +151,62 @@ export const githubController = createRPCController({
     }
   },
 
-  listPullRequests: async (args: { projectPath: string }) => {
-    const projectPath = args?.projectPath;
-    if (!projectPath) {
-      return { success: false, error: 'Project path is required' };
-    }
+  // -- Pull Requests (owner/repo instead of projectPath) -------------------
 
+  listPullRequests: async (
+    owner: string,
+    repo: string,
+    options?: { limit?: number; searchQuery?: string }
+  ) => {
+    if (!owner || !repo) {
+      return { success: false, error: 'Owner and repo are required' };
+    }
     try {
-      const prs = await githubService.getPullRequests(projectPath);
-      return { success: true, prs };
+      const octokit = await getOctokit();
+      const service = new GitHubPullRequestServiceImpl(octokit);
+      const result = await service.listPullRequests(owner, repo, options);
+      return { success: true, prs: result.prs, totalCount: result.totalCount };
     } catch (error) {
       log.error('Failed to list pull requests:', error);
-      const message =
-        error instanceof Error ? error.message : 'Unable to list pull requests via GitHub CLI';
+      const message = error instanceof Error ? error.message : 'Unable to list pull requests';
       return { success: false, error: message };
     }
   },
 
-  checkCLIInstalled: async () => {
+  getPullRequestDetails: async (owner: string, repo: string, prNumber: number) => {
+    if (!owner || !repo) return { success: false, error: 'Owner and repo are required' };
+    if (!prNumber || !Number.isFinite(prNumber)) {
+      return { success: false, error: 'PR number is required' };
+    }
     try {
-      const state = await localDependencyManager.probe('gh');
-      return state.status === 'available';
+      const octokit = await getOctokit();
+      const service = new GitHubPullRequestServiceImpl(octokit);
+      const pr = await service.getPullRequestDetails(owner, repo, prNumber);
+      return { success: !!pr, pr: pr ?? undefined };
     } catch (error) {
-      log.error('Failed to check gh CLI installation:', error);
-      return false;
+      const message = error instanceof Error ? error.message : 'Unable to get pull request';
+      return { success: false, error: message };
     }
   },
 
-  installCLI: async () => {
-    const state = await localDependencyManager.install('gh');
-    if (state.status !== 'available') {
-      throw new Error(state.error ?? 'Installation failed');
+  // -- Repositories --------------------------------------------------------
+
+  getRepositories: async () => {
+    try {
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+      return await service.listRepositories();
+    } catch (error) {
+      log.error('Failed to get repositories:', error);
+      return [];
     }
   },
 
   getOwners: async () => {
     try {
-      const owners = await githubService.getOwners();
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+      const owners = await service.getOwners();
       return { success: true, owners };
     } catch (error) {
       log.error('Failed to get owners:', error);
@@ -229,10 +217,61 @@ export const githubController = createRPCController({
     }
   },
 
-  validateRepoName: async (name: string, owner: string) => {
+  createRepository: async (params: {
+    name: string;
+    owner: string;
+    description?: string;
+    isPrivate?: boolean;
+    visibility?: 'public' | 'private';
+  }) => {
     try {
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+      const isPrivate = params.isPrivate ?? params.visibility === 'private';
+      const repoInfo = await service.createRepository({
+        name: params.name,
+        owner: params.owner,
+        description: params.description,
+        isPrivate,
+      });
+      return {
+        success: true,
+        repoUrl: repoInfo.url,
+        fullName: repoInfo.fullName,
+        defaultBranch: repoInfo.defaultBranch,
+      };
+    } catch (error) {
+      log.error('Failed to create repository:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create repository',
+      };
+    }
+  },
+
+  deleteRepository: async (owner: string, name: string) => {
+    if (!owner || !name) return { success: false, error: 'Owner and name are required' };
+    try {
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+      await service.deleteRepository(owner, name);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to delete repository:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete repository',
+      };
+    }
+  },
+
+  validateRepoName: async (name: string, owner?: string) => {
+    try {
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+
       // First validate format
-      const formatValidation = githubService.validateRepositoryName(name);
+      const formatValidation = service.validateRepositoryName(name);
       if (!formatValidation.valid) {
         return {
           success: true,
@@ -242,15 +281,17 @@ export const githubController = createRPCController({
         };
       }
 
-      // Then check if it exists
-      const exists = await githubService.checkRepositoryExists(owner, name);
-      if (exists) {
-        return {
-          success: true,
-          valid: true,
-          exists: true,
-          error: `Repository ${owner}/${name} already exists`,
-        };
+      // If owner provided, check if repo already exists
+      if (owner) {
+        const exists = await service.checkRepositoryExists(owner, name);
+        if (exists) {
+          return {
+            success: true,
+            valid: true,
+            exists: true,
+            error: `Repository ${owner}/${name} already exists`,
+          };
+        }
       }
 
       return {
@@ -267,139 +308,47 @@ export const githubController = createRPCController({
     }
   },
 
-  createNewProject: async (params: {
-    name: string;
-    description?: string;
-    owner: string;
-    isPrivate: boolean;
-    gitignoreTemplate?: string;
-  }) => {
-    let githubRepoCreated = false;
-    let localDirCreated = false;
-    let repoUrl: string | undefined;
-    let localPath: string | undefined;
-
+  checkRepositoryExists: async (owner: string, name: string) => {
+    if (!owner || !name) return { success: false, error: 'Owner and name are required' };
     try {
-      const { name, description, owner, isPrivate } = params;
-
-      // Validate inputs
-      const formatValidation = githubService.validateRepositoryName(name);
-      if (!formatValidation.valid) {
-        return {
-          success: false,
-          error: formatValidation.error || 'Invalid repository name',
-        };
-      }
-
-      // Check if repo already exists
-      const exists = await githubService.checkRepositoryExists(owner, name);
-      if (exists) {
-        return {
-          success: false,
-          error: `Repository ${owner}/${name} already exists`,
-        };
-      }
-
-      // Get project directory from settings
-      const settings = {};
-      const projectDir =
-        settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');
-
-      // Ensure project directory exists
-      if (!fs.existsSync(projectDir)) {
-        fs.mkdirSync(projectDir, { recursive: true });
-      }
-
-      localPath = path.join(projectDir, name);
-      if (fs.existsSync(localPath)) {
-        return {
-          success: false,
-          error: `Directory ${localPath} already exists`,
-        };
-      }
-
-      // Create GitHub repository
-      const repoInfo = await githubService.createRepository({
-        name,
-        description,
-        owner,
-        isPrivate,
-      });
-      githubRepoCreated = true;
-      repoUrl = repoInfo.url;
-
-      // Clone repository
-      const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
-      if (!cloneResult.success) {
-        // Cleanup: delete GitHub repo on clone failure
-        try {
-          // Security: Use quoteShellArg to prevent command injection
-          const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
-          await execAsync(`gh repo delete ${repoRef} --yes`, {
-            timeout: 10000,
-          });
-        } catch (cleanupError) {
-          log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
-        }
-        return {
-          success: false,
-          error: cloneResult.error || 'Failed to clone repository',
-        };
-      }
-      localDirCreated = true;
-
-      // Initialize project (create README, commit, push)
-      await githubService.initializeNewProject({
-        repoUrl,
-        localPath,
-        name,
-        description,
-      });
-
-      // TODO: Add .gitignore if template specified (for future enhancement)
-
-      return {
-        success: true,
-        projectPath: localPath,
-        repoUrl,
-        fullName: repoInfo.fullName,
-        defaultBranch: repoInfo.defaultBranch,
-      };
+      const octokit = await getOctokit();
+      const service = new GitHubRepositoryServiceImpl(octokit);
+      const exists = await service.checkRepositoryExists(owner, name);
+      return { success: true, exists };
     } catch (error) {
-      log.error('Failed to create new project:', error);
-
-      // Cleanup on failure
-      if (localDirCreated && localPath && fs.existsSync(localPath)) {
-        try {
-          fs.rmSync(localPath, { recursive: true, force: true });
-        } catch (cleanupError) {
-          log.warn('Failed to cleanup local directory:', cleanupError);
-        }
-      }
-
+      log.error('Failed to check repository existence:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create project',
-        githubRepoCreated, // Inform frontend about orphaned repo
-        repoUrl,
+        error: error instanceof Error ? error.message : 'Failed to check repository',
       };
     }
   },
 
-  createRepository: async ({
-    name,
-    owner,
-    visibility,
-  }: {
-    name: string;
-    owner: string;
-    visibility: 'public' | 'private';
-  }): Promise<{ repoUrl: string; fullName: string }> => {
-    const repoInfo = await githubService.createRepository({
-      name,
-      owner,
-      isPrivate: visibility === 'private',
-    });
-    return { repoUrl: repoInfo.url, fullName: repoInfo.fullName };
+  // -- CLI utilities (kept for gh CLI availability checks) -----------------
+
+  checkCLIInstalled: async () => {
+    try {
+      const state = await localDependencyManager.probe('gh');
+      return state.status === 'available';
+    } catch (error) {
+      log.error('Failed to check gh CLI installation:', error);
+      return false;
+    }
+  },
+
+  installCLI: async () => {
+    try {
+      const state = await localDependencyManager.install('gh');
+      if (state.status !== 'available') {
+        throw new Error(state.error ?? 'Installation failed');
+      }
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to install gh CLI:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Installation failed',
+      };
+    }
   },
 });
