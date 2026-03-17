@@ -4,7 +4,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
-import { githubAuthService } from '@main/core/github/auth/github-auth-service';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { GitHubIssueServiceImpl } from '@main/core/github/services/issue-service';
 import { GitHubPullRequestServiceImpl } from '@main/core/github/services/pr-service';
 import { GitHubRepositoryServiceImpl } from '@main/core/github/services/repo-service';
