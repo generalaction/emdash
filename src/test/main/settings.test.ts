@@ -123,6 +123,8 @@ describe('normalizeSettings - keyboard shortcuts', () => {
 
     expect(result.keyboard?.commandPalette).toEqual({ key: 'k', modifier: 'cmd' });
     expect(result.keyboard?.openInEditor).toEqual({ key: 'i', modifier: 'cmd' });
+  });
+});
 
 describe('normalizeSettings - review preset', () => {
   it('defaults to the shared review preset when missing', () => {
