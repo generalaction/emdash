@@ -17,12 +17,6 @@ function createMainAdapter(): EmitterAdapter {
       ipcMain.on(channel, handler);
       return () => ipcMain.removeListener(channel, handler);
     },
-    once: (eventName: string, cb: (data: unknown) => void, topic?: string) => {
-      const channel = topic ? `${eventName}.${topic}` : eventName;
-      const handler = (_e: Electron.IpcMainEvent, data: unknown) => cb(data);
-      ipcMain.once(channel, handler);
-      return () => ipcMain.removeListener(channel, handler);
-    },
   };
 }
 

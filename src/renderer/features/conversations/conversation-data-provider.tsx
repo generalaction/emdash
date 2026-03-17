@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import { rpc } from '@renderer/core/ipc';
-import { useConversationSessions } from './conversation-sessions-provider';
 
 interface ConversationDataContextValue {
   conversations: Conversation[];
@@ -19,7 +18,6 @@ const ConversationDataContext = createContext<ConversationDataContextValue | nul
 
 export function ConversationDataProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { removeSession } = useConversationSessions();
 
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
@@ -27,9 +25,9 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
   });
 
   const conversationsByTaskId = useMemo(() => {
-    return conversations?.reduce(
+    return (conversations ?? []).reduce(
       (acc, conversation) => {
-        acc[conversation.taskId] = [...(acc[conversation.taskId] || []), conversation];
+        acc[conversation.taskId] = [...(acc[conversation.taskId] ?? []), conversation];
         return acc;
       },
       {} as Record<string, Conversation[]>
@@ -46,8 +44,7 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
       taskId: string;
       conversationId: string;
     }) => rpc.conversations.deleteConversation(projectId, taskId, conversationId),
-    onSuccess: (_, { projectId, taskId, conversationId }) => {
-      removeSession(projectId, taskId, conversationId);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
   });
@@ -85,7 +82,7 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
     <ConversationDataContext.Provider
       value={{
         conversations: conversations ?? [],
-        conversationsByTaskId: conversationsByTaskId ?? {},
+        conversationsByTaskId,
         deleteConversation,
         createConversation,
       }}
@@ -98,7 +95,7 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
 export function useConversationsContext() {
   const context = useContext(ConversationDataContext);
   if (!context) {
-    throw new Error('useConversationData must be used within a ConversationDataProvider');
+    throw new Error('useConversationsContext must be used within a ConversationDataProvider');
   }
   return context;
 }

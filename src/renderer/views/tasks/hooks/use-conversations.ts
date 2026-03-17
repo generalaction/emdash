@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { CreateConversationParams } from '@shared/conversations';
+import type { CreateConversationParams } from '@shared/conversations';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { rpc } from '@renderer/core/ipc';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
+import { usePtySession } from '@renderer/core/pty/pty-session-context';
 import { useConversationsContext } from '@renderer/features/conversations/conversation-data-provider';
-import { useConversationSessions } from '@renderer/features/conversations/conversation-sessions-provider';
 
 /** Measure the conversations pane using a typical monospace cell size (13px font). */
 function getConversationsPaneSize() {
@@ -18,42 +20,51 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
     createConversation: generalCreateConversation,
   } = useConversationsContext();
 
-  const { startSession } = useConversationSessions();
+  const { registerSession, unregisterSession } = usePtySession();
 
   const conversations = useMemo(
     () => conversationsByTaskId[taskId] ?? [],
     [conversationsByTaskId, taskId]
   );
 
-  const removeConversation = useCallback(
-    (conversationId: string) => {
-      deleteConversation({ projectId, taskId, conversationId });
-    },
-    [deleteConversation, projectId, taskId]
-  );
-
   const createConversation = useCallback(
     async (params: Omit<CreateConversationParams, 'projectId' | 'taskId'>) => {
-      const conversation = await generalCreateConversation({ projectId, taskId, ...params });
-      startSession(conversation, projectId, taskId, getConversationsPaneSize());
+      const sessionId = makePtySessionId(projectId, taskId, params.id);
+      // Register frontend listener BEFORE the RPC to avoid losing PTY output.
+      registerSession(sessionId);
+      const conversation = await generalCreateConversation({
+        projectId,
+        taskId,
+        initialSize: getConversationsPaneSize(),
+        ...params,
+      });
       return conversation;
     },
-    [generalCreateConversation, projectId, taskId, startSession]
+    [generalCreateConversation, projectId, registerSession, taskId]
+  );
+
+  const removeConversation = useCallback(
+    (conversationId: string) => {
+      unregisterSession(makePtySessionId(projectId, taskId, conversationId));
+      deleteConversation({ projectId, taskId, conversationId });
+    },
+    [deleteConversation, projectId, taskId, unregisterSession]
   );
 
   // Start sessions for all existing conversations whenever the list changes.
-  // startSession is idempotent so re-running for already-started sessions is safe.
+  // registerSession() is idempotent — its boolean return value gates the RPC
+  // so startSession is only called once per conversation.
   useEffect(() => {
     if (conversations.length === 0) return;
     const initialSize = getConversationsPaneSize();
     for (const conv of conversations) {
-      startSession(conv, projectId, taskId, initialSize);
+      const sessionId = makePtySessionId(projectId, taskId, conv.id);
+      const isNew = registerSession(sessionId);
+      if (isNew) {
+        rpc.conversations.startSession(conv, initialSize).catch(() => {});
+      }
     }
-  }, [conversations, projectId, startSession, taskId]);
+  }, [conversations, projectId, registerSession, taskId]);
 
-  return {
-    removeConversation,
-    createConversation,
-    conversations,
-  };
+  return { conversations, createConversation, removeConversation };
 }

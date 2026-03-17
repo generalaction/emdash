@@ -14,6 +14,7 @@ interface Task {
   id: string;
   name: string;
   path: string;
+  projectId?: string;
 }
 
 interface Props {
@@ -62,16 +63,20 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
 
     void (async () => {
       try {
-        let list = await rpc.terminals.getTerminals(taskId);
+        const all = await rpc.terminals.getAllTerminals();
         if (taskIdRef.current !== taskId) return;
+        let list = all.filter((t) => t.taskId === taskId);
 
         if (list.length === 0) {
-          const result = await rpc.terminals.createTerminal(taskId);
+          const newId = crypto.randomUUID();
+          const created = await rpc.terminals.createTerminal({
+            id: newId,
+            projectId: task.projectId ?? '',
+            taskId,
+            name: 'Terminal 1',
+          });
           if (taskIdRef.current !== taskId) return;
-          if (result.success && result.data) {
-            list = await rpc.terminals.getTerminals(taskId);
-            if (taskIdRef.current !== taskId) return;
-          }
+          list = [created];
         }
 
         setTerminals(list);
@@ -89,14 +94,27 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
   const handleCreate = useCallback(async () => {
     if (!task) return;
     const taskId = task.id;
-    const result = await rpc.terminals.createTerminal(taskId);
-    if (!result.success || !result.data) return;
-    const { terminalId } = result.data;
-    const list = await rpc.terminals.getTerminals(taskId);
+    const all = terminals;
+    const taken = new Set(
+      all
+        .map((t) => /^Terminal (\d+)$/.exec(t.name)?.[1])
+        .filter(Boolean)
+        .map(Number)
+    );
+    let n = 1;
+    while (taken.has(n)) n++;
+    const name = `Terminal ${n}`;
+    const newId = crypto.randomUUID();
+    const created = await rpc.terminals.createTerminal({
+      id: newId,
+      projectId: task.projectId ?? '',
+      taskId,
+      name,
+    });
     if (taskIdRef.current !== taskId) return;
-    setTerminals(list);
-    setActiveTerminalId(terminalId);
-  }, [task]);
+    setTerminals((prev) => [...prev, created]);
+    setActiveTerminalId(newId);
+  }, [task, terminals]);
 
   const handleClose = useCallback(
     async (terminalId: string) => {
@@ -188,9 +206,8 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({ task, className, remote }
               <TerminalPane
                 ref={(r) => setTerminalRef(terminal.id, r)}
                 id={terminal.id}
-                remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
+                remoteConnectionId={remote?.connectionId}
                 className="h-full w-full"
-                keepAlive
               />
             </div>
           );

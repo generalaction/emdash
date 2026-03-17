@@ -216,6 +216,43 @@ export interface AgentEnvOptions {
 }
 
 /**
+ * Build an environment for a user-facing interactive terminal session.
+ *
+ * Unlike buildAgentEnv, this inherits process.env wholesale so the terminal
+ * feels identical to one opened in Ghostty or Terminal.app — the user's
+ * EDITOR, MANPATH, JAVA_HOME, custom vars, etc. are all present.
+ *
+ * TERM, COLORTERM, TERM_PROGRAM, and SHELL are always set or overridden so
+ * the shell and programs inside it report the correct terminal identity.
+ * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
+ * since GUI-launched apps often don't inherit it from the user's login shell.
+ */
+export function buildTerminalEnv(): Record<string, string> {
+  // Inherit the full process environment, stripping undefined values.
+  const env: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (val !== undefined) env[key] = val;
+  }
+
+  // Terminal identity — always override so xterm capabilities are correct.
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  env.TERM_PROGRAM = 'emdash';
+
+  // Ensure SHELL reflects the user's configured shell (may be absent in GUI).
+  env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+
+  // Inject SSH_AUTH_SOCK when the app was launched from a GUI launcher that
+  // didn't inherit it from the user's agent-forwarding shell session.
+  if (!env.SSH_AUTH_SOCK) {
+    const sshAuthSock = resolveSshAuthSock();
+    if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
+  }
+
+  return env;
+}
+
+/**
  * Build a clean, minimal PTY environment from scratch.
  *
  * Does NOT inherit process.env wholesale — only well-known variables are

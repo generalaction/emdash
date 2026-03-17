@@ -5,11 +5,17 @@ interface TaskViewState {
   agentsView: {
     activeConversationId?: string;
   };
+  terminalsView: {
+    activeTerminalId?: string;
+  };
+  rightPanelView: 'changes' | 'files' | 'terminals';
 }
 
 const DEFAULT_TASK_VIEW_STATE: TaskViewState = {
   view: 'agents',
   agentsView: {},
+  terminalsView: {},
+  rightPanelView: 'changes',
 };
 
 interface TaskViewStateContextValue {
@@ -39,6 +45,7 @@ export function TaskViewStateProvider({ children }: { children: ReactNode }) {
           ...current,
           ...update,
           agentsView: { ...current.agentsView, ...update.agentsView },
+          terminalsView: { ...current.terminalsView, ...update.terminalsView },
         },
       };
     });

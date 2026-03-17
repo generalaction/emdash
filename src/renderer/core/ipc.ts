@@ -20,13 +20,6 @@ function createRendererAdapter(): EmitterAdapter {
       const channel = topic ? `${eventName}.${topic}` : eventName;
       return window.electronAPI.eventOn(channel, cb);
     },
-    // once is intentionally omitted: createEventEmitter.once uses adapter.on (getOrAttach),
-    // so adapter.once is never called. The EmitterAdapter type requires the method, so
-    // we delegate to on() as a safe fallback.
-    once: (eventName: string, cb: (data: unknown) => void, topic?: string) => {
-      const channel = topic ? `${eventName}.${topic}` : eventName;
-      return window.electronAPI.eventOn(channel, cb);
-    },
   };
 }
 

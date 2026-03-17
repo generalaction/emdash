@@ -2,6 +2,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { Terminal } from '@shared/terminals';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
+import { buildTerminalEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { log } from '@main/lib/logger';
 import { TerminalProvider } from '../terminal-provider';
@@ -36,19 +37,28 @@ export class LocalTerminalProvider implements TerminalProvider {
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
 
+    const userShell =
+      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+
     const pty = spawnLocalPty({
       id: sessionId,
-      command: command?.command ?? '/bin/sh',
-      args: command?.args ?? [],
+      command: command?.command ?? userShell,
+      // -l: login shell — sources /etc/profile, ~/.zprofile, ~/.bash_profile,
+      // etc., giving the user the same environment as any other terminal app.
+      // Only applied when using the default shell; explicit commands control
+      // their own args.
+      args: command?.args ?? (process.platform !== 'win32' ? ['-l'] : []),
       cwd: this.taskPath,
-      env: {},
+      env: buildTerminalEnv(),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
 
     pty.onExit(() => {
       ptySessionRegistry.unregister(sessionId);
-      if (this.sessions.has(sessionId)) {
+      const shouldRespawn = this.sessions.has(sessionId);
+      this.sessions.delete(sessionId);
+      if (shouldRespawn) {
         setTimeout(() => {
           this.spawnTerminal(terminal).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
@@ -57,8 +67,8 @@ export class LocalTerminalProvider implements TerminalProvider {
             });
           });
         }, 500);
-        ptySessionRegistry.register(sessionId, pty);
       }
+      ptySessionRegistry.register(sessionId, pty);
     });
 
     ptySessionRegistry.register(sessionId, pty);

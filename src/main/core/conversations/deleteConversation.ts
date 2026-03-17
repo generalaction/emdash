@@ -19,6 +19,5 @@ export async function deleteConversation(
     );
 
   const task = resolveTask(projectId, taskId);
-
   await task?.conversations.stopSession(conversationId);
 }

@@ -7,12 +7,12 @@ import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context
 export function TaskTitlebar() {
   const { taskStatus } = useTaskViewContext();
   if (taskStatus.status === 'pending') {
-    return <PendingTaskTitlebar name={taskStatus.pendingTask.name} />;
+    return <PendingTaskTitlebar name={taskStatus.pendingTask?.name} />;
   }
   return <ActiveTaskTitlebar />;
 }
 
-function PendingTaskTitlebar({ name }: { name: string }) {
+function PendingTaskTitlebar({ name }: { name?: string }) {
   return (
     <Titlebar
       leftSlot={

@@ -12,7 +12,6 @@ export function defineEvent<TData>(name: string): EventDefinition<TData> {
 export type EmitterAdapter = {
   emit: (eventName: string, data: unknown, topic?: string) => void;
   on: (eventName: string, cb: (data: unknown) => void, topic?: string) => () => void;
-  once: (eventName: string, cb: (data: unknown) => void, topic?: string) => () => void;
 };
 
 export function createEventEmitter(adapter: EmitterAdapter) {

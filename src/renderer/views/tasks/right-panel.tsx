@@ -1,12 +1,28 @@
 import { useTaskViewContext } from './task-view-context';
+import { TerminalsPanel } from './terminals/panel';
 
 export function TaskRightSidebar() {
-  const { view } = useTaskViewContext();
+  const { rightPanelView, setRightPanelView } = useTaskViewContext();
 
-  switch (view) {
-    case 'agents':
-      return <div>Changes etc.</div>;
-    case 'editor':
-      return <div>FileTree</div>;
-  }
+  const renderView = () => {
+    switch (rightPanelView) {
+      case 'changes':
+        return <div>Changes</div>;
+      case 'files':
+        return <div>Files</div>;
+      case 'terminals':
+        return <TerminalsPanel />;
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 gap-2 border-b border-border p-2">
+        <button onClick={() => setRightPanelView('changes')}>Changes</button>
+        <button onClick={() => setRightPanelView('files')}>Files</button>
+        <button onClick={() => setRightPanelView('terminals')}>Terminals</button>
+      </div>
+      <div className="min-h-0 flex-1">{renderView()}</div>
+    </div>
+  );
 }

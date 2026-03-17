@@ -11,7 +11,7 @@ export type TaskStatus =
     }
   | {
       status: 'pending';
-      pendingTask: PendingTask;
+      pendingTask?: PendingTask;
     };
 
 export function useTask({ projectId, taskId }: { projectId: string; taskId: string }) {
@@ -24,7 +24,7 @@ export function useTask({ projectId, taskId }: { projectId: string; taskId: stri
     const pendingTask =
       pendingTasksByProjectId[projectId]?.find((task) => task.id === taskId) ?? null;
     if (pendingTask) return { status: 'pending', pendingTask };
-    return { status: 'ready' };
+    return { status: 'pending' };
   }, [tasksByProjectId, pendingTasksByProjectId, projectId, taskId]);
 
   const task = useMemo(() => {
