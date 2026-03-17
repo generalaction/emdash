@@ -459,7 +459,15 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                   <Label>Workspace provider</Label>
                   <p className="text-xs text-muted-foreground">
                     Shell commands to provision and tear down remote workspaces. When configured,
-                    tasks can choose between a local worktree and a remote workspace.
+                    tasks can choose between a local worktree and a remote workspace.{' '}
+                    <a
+                      href="https://docs.emdash.dev/docs/bring-your-own-infrastructure"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      View docs
+                    </a>
                   </p>
                   <div className="space-y-2 rounded-md border p-3">
                     <div className="space-y-1">
@@ -477,6 +485,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                         className="font-mono text-xs"
                         disabled={isSaving}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Script that creates a workspace and outputs SSH connection details as JSON
+                        to stdout. Receives EMDASH_TASK_ID, EMDASH_REPO_URL, EMDASH_BRANCH,
+                        EMDASH_BASE_REF as env vars.
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="config-wp-terminate" className="text-xs">
@@ -493,6 +506,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                         className="font-mono text-xs"
                         disabled={isSaving}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Script that destroys the workspace when the task is deleted. Receives
+                        EMDASH_INSTANCE_ID and EMDASH_TASK_ID as env vars.
+                      </p>
                     </div>
                   </div>
                 </div>
