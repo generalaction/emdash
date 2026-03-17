@@ -7,7 +7,7 @@ import {
   computeBaseRef,
   getProjectRepoKey,
   normalizePathForComparison,
-  resolveOwnerRepo,
+  parseGithubOwnerRepo,
   resolveProjectGithubInfo,
   withRepoKey,
 } from '../lib/projectUtils';
@@ -582,21 +582,32 @@ export const useProjectManagement = () => {
   useEffect(() => {
     if (!selectedProject || selectedProject.isRemote || !isAuthenticated) return;
 
+    const originProjectId = selectedProject.id;
+
     void (async () => {
       try {
         const gitInfo = await window.electronAPI.getGitInfo(selectedProject.path);
-        const ownerRepo = await resolveOwnerRepo(
-          gitInfo.remote || '',
-          selectedProject.path,
-          window.electronAPI.connectToGitHub
-        );
+        let ownerRepo = parseGithubOwnerRepo(gitInfo.remote || '');
+        let verifiedConnected = false;
+        if (!ownerRepo) {
+          const result = await window.electronAPI.connectToGitHub(selectedProject.path);
+          if (result.success && result.repository) {
+            ownerRepo = result.repository;
+            verifiedConnected = true;
+          }
+        }
+        if (activeProjectIdRef.current !== originProjectId) return;
         if (!ownerRepo || ownerRepo === selectedProject.githubInfo?.repository) return;
 
         const updatedProject: Project = {
           ...selectedProject,
-          githubInfo: { repository: ownerRepo, connected: true },
+          githubInfo: {
+            repository: ownerRepo,
+            connected: selectedProject.githubInfo?.connected ?? verifiedConnected,
+          },
         };
         await rpc.db.saveProject(updatedProject);
+        if (activeProjectIdRef.current !== originProjectId) return;
         setSelectedProject(updatedProject);
         queryClient.invalidateQueries({ queryKey: ['projects'] });
       } catch {

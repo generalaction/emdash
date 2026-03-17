@@ -109,24 +109,6 @@ export function parseGithubOwnerRepo(remoteUrl: string): string | null {
 }
 
 /**
- * Resolves the GitHub owner/repo for a project.
- * Primary: parses directly from the git remote URL.
- * Fallback: calls connectToGitHub (gh repo view) when URL parsing fails,
- * which resolves the official GitHub repo (e.g. non-standard remote format).
- */
-export async function resolveOwnerRepo(
-  remoteUrl: string,
-  projectPath: string,
-  connectToGitHub: (path: string) => Promise<{ success: boolean; repository?: string }>
-): Promise<string | null> {
-  const ownerRepo = parseGithubOwnerRepo(remoteUrl);
-  if (ownerRepo) return ownerRepo;
-
-  const result = await connectToGitHub(projectPath);
-  return result.success && result.repository ? result.repository : null;
-}
-
-/**
  * Determines the GitHub connection info for a project being added.
  * Returns connected: true only when the user is authenticated, the remote
  * is a GitHub URL, and connectToGitHub succeeds. Otherwise falls through
