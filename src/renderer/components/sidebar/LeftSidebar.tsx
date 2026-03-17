@@ -24,10 +24,10 @@ import {
   Archive,
   RotateCcw,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import SidebarEmptyState from '../SidebarEmptyState';
 import { TaskItem } from '../TaskItem';
-import { TaskDeleteButton } from '../TaskDeleteButton';
 import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
 import { useRemoteProject } from '../../hooks/useRemoteProject';
 import type { Project } from '../../types/app';
@@ -108,7 +108,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleGoToMcp: onGoToMcp,
   } = useProjectManagementContext();
 
-  // --- Project order (localStorage only — context holds raw DB order) ---
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
 
   const sortedProjects = useMemo(() => {
@@ -116,9 +115,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     return [...projects].sort((a, b) => {
       const ai = projectOrder.indexOf(a.id);
       const bi = projectOrder.indexOf(b.id);
-      if (ai === -1 && bi === -1) return 0; // both new → keep relative DB order
-      if (ai === -1) return -1; // a is new → float to top
-      if (bi === -1) return 1; // b is new → float to top
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return -1;
+      if (bi === -1) return 1;
       return ai - bi;
     });
   }, [projects, projectOrder]);
@@ -396,30 +395,32 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           (archivedTask) => (
                                             <div
                                               key={archivedTask.id}
-                                              className="flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-muted-foreground"
+                                              className="group flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-muted-foreground"
                                             >
                                               <span className="truncate text-xs font-medium">
                                                 {archivedTask.name}
                                               </span>
-                                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                                                 <Button
                                                   variant="ghost"
                                                   size="icon-sm"
                                                   onClick={() =>
                                                     onRestoreTask?.(typedProject, archivedTask)
                                                   }
+                                                  aria-label={`Unarchive task ${archivedTask.name}`}
                                                 >
                                                   <RotateCcw className="h-3 w-3" />
                                                 </Button>
-                                                <TaskDeleteButton
-                                                  taskName={archivedTask.name}
-                                                  taskId={archivedTask.id}
-                                                  taskPath={archivedTask.path}
-                                                  useWorktree={archivedTask.useWorktree !== false}
-                                                  onConfirm={() =>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon-sm"
+                                                  onClick={() =>
                                                     handleDeleteTask(typedProject, archivedTask)
                                                   }
-                                                />
+                                                  aria-label={`Delete archived task ${archivedTask.name}`}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </Button>
                                               </div>
                                             </div>
                                           )
