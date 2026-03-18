@@ -23,9 +23,10 @@ import { Textarea } from '@renderer/components/ui/textarea';
 import { cn } from '@renderer/lib/utils';
 import { useTaskViewContext } from '../../task-view-context';
 import { useGitChangesContext } from '../state/git-changes-provider';
-import { useGitViewContext } from '../state/git-view-provider';
-import { useBranchStatus } from '../use-branch-status.tsx';
-import { useSelection, type SelectionState } from '../use-selection';
+import { ActiveFile, useGitViewContext } from '../state/git-view-provider';
+import { useBranchStatus } from '../state/use-branch-status.tsx';
+import { useOptimisticFileDiff } from '../state/use-file-diff';
+import { useSelection, type SelectionState } from '../state/use-selection';
 import { PullRequestSection } from './pr-section';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
@@ -164,6 +165,8 @@ export function ChangesPanel() {
   } = useGitChangesContext();
   const { projectId, taskId } = useTaskViewContext();
   const { activeFile, setActiveFile } = useGitViewContext();
+  const { setView } = useTaskViewContext();
+  const prefetchDiff = useOptimisticFileDiff(projectId, taskId);
 
   const { data } = useBranchStatus({ projectId, taskId });
 
@@ -184,6 +187,13 @@ export function ChangesPanel() {
   const handleUnstageSelection = () => {
     unstageFilesChanges([...stagedSelection.selectedPaths]);
     stagedSelection.clear();
+  };
+
+  const handleSelectChange = (file: ActiveFile | null) => {
+    setActiveFile(file);
+    if (file) {
+      setView('diff');
+    }
   };
 
   return (
@@ -255,7 +265,10 @@ export function ChangesPanel() {
               isSelected={unstagedSelection.isSelected}
               onToggleSelect={unstagedSelection.toggleItem}
               activePath={activeFile?.isStaged === false ? activeFile.path : undefined}
-              onSelectChange={(change) => setActiveFile({ path: change.path, isStaged: false })}
+              onSelectChange={(change) =>
+                handleSelectChange({ path: change.path, isStaged: false })
+              }
+              onPrefetch={(change) => prefetchDiff(change.path, false)}
             />
           </div>
         </ResizablePanel>
@@ -304,7 +317,8 @@ export function ChangesPanel() {
               isSelected={stagedSelection.isSelected}
               onToggleSelect={stagedSelection.toggleItem}
               activePath={activeFile?.isStaged === true ? activeFile.path : undefined}
-              onSelectChange={(change) => setActiveFile({ path: change.path, isStaged: true })}
+              onSelectChange={(change) => handleSelectChange({ path: change.path, isStaged: true })}
+              onPrefetch={(change) => prefetchDiff(change.path, true)}
             />
           </div>
           {hasStaged && <CommitCard />}

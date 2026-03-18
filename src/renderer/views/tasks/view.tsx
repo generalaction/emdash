@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
-import { DiffViewProvider } from './diff-viewer/diff-view-provider';
+import { ActiveFileSync } from './diff-viewer/state/active-file-sync';
 import { GitChangesProvider } from './diff-viewer/state/git-changes-provider';
 import { GitViewProvider } from './diff-viewer/state/git-view-provider';
 import { EditorProvider } from './editor/editor-provider';
@@ -22,9 +22,8 @@ function TaskViewWrapperWithProviders({
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
       <GitViewProvider>
         <GitChangesProvider projectId={projectId} taskId={taskId}>
-          <DiffViewProvider>
-            <EditorProvider>{children}</EditorProvider>
-          </DiffViewProvider>
+          <ActiveFileSync />
+          <EditorProvider>{children}</EditorProvider>
         </GitChangesProvider>
       </GitViewProvider>
     </TaskViewWrapper>

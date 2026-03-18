@@ -3,6 +3,8 @@ import { createContext, ReactNode, useCallback, useContext, useState } from 'rea
 export interface ActiveFile {
   path: string;
   isStaged: boolean;
+  /** Controls virtualizer scroll animation when this file becomes active. Defaults to 'smooth'. */
+  scrollBehavior?: 'smooth' | 'auto';
 }
 
 interface GitViewContextValue {

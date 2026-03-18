@@ -12,7 +12,7 @@ import { rpc } from '@renderer/core/ipc';
 import { usePullRequests } from '@renderer/hooks/usePullRequests';
 import { useCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 import { useTaskViewContext } from '../../task-view-context';
-import { useBranchStatus } from '../use-branch-status.tsx';
+import { useBranchStatus } from '../state/use-branch-status.tsx';
 import { parseGithubNameWithOwner } from '../utils';
 
 export function PullRequestSection() {

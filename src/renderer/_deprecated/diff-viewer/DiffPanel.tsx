@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { FileChange } from '../../hooks/useFileChanges';
-import { DiffToolbar } from './DiffToolbar';
+import { DiffToolbar } from '../../views/tasks/diff-viewer/changes-main-panel/diff-toolbar';
 import { FileDiffView } from './FileDiffView';
 import { splitPath } from './pathUtils';
 import { StackedDiffView } from './StackedDiffView';

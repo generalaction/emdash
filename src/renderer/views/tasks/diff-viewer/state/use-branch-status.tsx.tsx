@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { rpc } from '@renderer/core/ipc';
-import { extractErrorMessage } from './utils';
+import { extractErrorMessage } from '../utils';
 
 export function useBranchStatus({ projectId, taskId }: { projectId: string; taskId: string }) {
   const queryClient = useQueryClient();

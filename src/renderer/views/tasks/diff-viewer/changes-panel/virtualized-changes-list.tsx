@@ -8,6 +8,7 @@ export interface VirtualizedChangesListProps {
   onSelectChange?: (change: GitChange) => void;
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
+  onPrefetch?: (change: GitChange) => void;
   activePath?: string;
 }
 
@@ -18,6 +19,7 @@ export function VirtualizedChangesList({
   onSelectChange,
   isSelected,
   onToggleSelect,
+  onPrefetch,
   activePath,
 }: VirtualizedChangesListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,7 @@ export function VirtualizedChangesList({
                 height: ITEM_HEIGHT,
               }}
               onClick={() => onSelectChange?.(change)}
+              onMouseEnter={() => onPrefetch?.(change)}
             />
           );
         })}

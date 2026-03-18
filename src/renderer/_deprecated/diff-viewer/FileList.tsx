@@ -1,6 +1,5 @@
 import { Undo2 } from 'lucide-react';
-import { useState } from 'react';
-import { GitChange } from '@shared/git';
+import React, { useState } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,22 +9,26 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@renderer/components/ui/alert-dialog';
-import { Checkbox } from '@renderer/components/ui/checkbox';
-import { useDiffViewContext } from './diff-view-provider';
-import { splitPath } from './utils';
+} from '../../components/ui/alert-dialog';
+import { Checkbox } from '../../components/ui/checkbox';
+import { rpc } from '../../core/ipc';
+import type { FileChange } from '../../hooks/useFileChanges';
 
-export function FileList() {
-  const {
-    fileChanges,
-    selectedFile,
-    setSelectedFile,
-    stageFile,
-    unstageFile,
-    stageAll,
-    revertFile,
-  } = useDiffViewContext();
+interface FileListProps {
+  fileChanges: FileChange[];
+  selectedFile: string | null;
+  onSelectFile: (filePath: string) => void;
+  taskPath?: string;
+  onRefreshChanges?: () => Promise<void> | void;
+}
 
+export const FileList: React.FC<FileListProps> = ({
+  fileChanges,
+  selectedFile,
+  onSelectFile,
+  taskPath,
+  onRefreshChanges,
+}) => {
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
   const tracked = fileChanges
@@ -40,63 +43,80 @@ export function FileList() {
   const untrackedAllStaged = untracked.length > 0 && untracked.every((f) => f.isStaged);
 
   const handleStageAll = async (checked: boolean) => {
+    if (!taskPath) return;
     try {
       if (checked) {
-        await stageAll();
+        await rpc.git.stageAllFiles({ taskPath });
       } else {
-        await Promise.all(fileChanges.filter((f) => f.isStaged).map((f) => unstageFile(f.path)));
+        await Promise.all(
+          fileChanges
+            .filter((f) => f.isStaged)
+            .map((f) => rpc.git.unstageFile({ taskPath, filePath: f.path }))
+        );
       }
     } catch (err) {
       console.error('Staging failed:', err);
     }
+    await onRefreshChanges?.();
   };
 
-  const handleGroupStage = async (files: GitChange[], checked: boolean) => {
+  const handleGroupStage = async (files: FileChange[], checked: boolean) => {
+    if (!taskPath) return;
     try {
       await Promise.all(
         files.map((file) => {
-          if (checked && !file.isStaged) return stageFile(file.path);
-          if (!checked && file.isStaged) return unstageFile(file.path);
+          if (checked && !file.isStaged) {
+            return rpc.git.stageFile({ taskPath, filePath: file.path });
+          } else if (!checked && file.isStaged) {
+            return rpc.git.unstageFile({ taskPath, filePath: file.path });
+          }
           return Promise.resolve();
         })
       );
     } catch (err) {
       console.error('Staging failed:', err);
     }
+    await onRefreshChanges?.();
   };
 
   const handleFileStage = async (filePath: string, checked: boolean) => {
+    if (!taskPath) return;
     try {
       if (checked) {
-        await stageFile(filePath);
+        await rpc.git.stageFile({ taskPath, filePath });
       } else {
-        await unstageFile(filePath);
+        await rpc.git.unstageFile({ taskPath, filePath });
       }
     } catch (err) {
       console.error('Staging failed:', err);
     }
+    await onRefreshChanges?.();
   };
 
   const executeRestore = async () => {
-    if (!restoreTarget) return;
+    if (!taskPath || !restoreTarget) return;
     try {
-      await revertFile(restoreTarget);
+      await rpc.git.revertFile({ taskPath, filePath: restoreTarget });
       setRestoreTarget(null);
+      await onRefreshChanges?.();
     } catch (err) {
       console.error('Restore failed:', err);
       setRestoreTarget(null);
     }
   };
 
-  const renderFileRow = (file: GitChange, dotColor: string) => {
-    const { filename, directory } = splitPath(file.path);
+  const renderFileRow = (file: FileChange, dotColor: string) => {
+    const parts = file.path.split('/');
+    const filename = parts.pop() || file.path;
+    const directory = parts.length > 0 ? parts.join('/') + '/' : '';
+
     return (
       <div
         key={file.path}
         className={`group/file flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-accent/50 ${
           selectedFile === file.path ? 'bg-accent' : ''
         }`}
-        onClick={() => setSelectedFile(file.path)}
+        onClick={() => onSelectFile(file.path)}
       >
         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor}`} />
         <div className="min-w-0 flex-1 truncate">
@@ -136,6 +156,7 @@ export function FileList() {
   return (
     <>
       <div className="flex flex-col">
+        {/* Stage All */}
         <div className="flex h-9 items-center gap-2 border-b border-border px-3">
           <Checkbox
             checked={allStaged}
@@ -144,6 +165,7 @@ export function FileList() {
           <span className="text-xs font-medium text-muted-foreground">Stage All</span>
         </div>
 
+        {/* Tracked files */}
         {tracked.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center gap-2 px-3 py-1.5">
@@ -160,6 +182,7 @@ export function FileList() {
           </div>
         )}
 
+        {/* Untracked files */}
         {untracked.length > 0 && (
           <div className={tracked.length > 0 ? 'mt-3 pt-1' : ''}>
             <div className="flex items-center gap-2 px-3 py-1.5">
@@ -203,4 +226,4 @@ export function FileList() {
       </AlertDialog>
     </>
   );
-}
+};

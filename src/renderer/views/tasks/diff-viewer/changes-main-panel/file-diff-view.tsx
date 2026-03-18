@@ -1,21 +1,15 @@
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { useTaskViewContext } from '../../task-view-context';
-import { DiffEditorStyles, useMonacoDiffTheme } from '../monaco-diff-view';
 import { useGitViewContext } from '../state/git-view-provider';
 import { useFileDiff } from '../state/use-file-diff';
 import { splitPath } from '../utils';
-import { MonacoDiff } from './monaco-diff';
+import { PooledDiffEditor } from './pooled-diff-editor';
 
 export function FileDiffView() {
   const { activeFile, diffStyle } = useGitViewContext();
   const { projectId, taskId } = useTaskViewContext();
-  const { isDark } = useMonacoDiffTheme();
 
-  const {
-    data: diff,
-    isLoading,
-    isError,
-  } = useFileDiff(
+  const { data: diff, isError } = useFileDiff(
     projectId,
     taskId,
     activeFile?.path ?? '',
@@ -36,8 +30,6 @@ export function FileDiffView() {
 
   return (
     <div className="flex h-full flex-col">
-      <DiffEditorStyles isDark={isDark} />
-
       {/* Breadcrumb header */}
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs">
         <span className="font-medium truncate">{filename}</span>
@@ -48,11 +40,7 @@ export function FileDiffView() {
       </div>
 
       <div className="min-h-0 flex-1">
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Loading diff…
-          </div>
-        ) : isError ? (
+        {isError ? (
           <div className="flex h-full items-center justify-center text-sm text-destructive">
             Failed to load diff
           </div>
@@ -61,7 +49,7 @@ export function FileDiffView() {
             Binary file — no diff available
           </div>
         ) : diff ? (
-          <MonacoDiff
+          <PooledDiffEditor
             original={diff.originalContent ?? ''}
             modified={diff.modifiedContent ?? ''}
             language={language}

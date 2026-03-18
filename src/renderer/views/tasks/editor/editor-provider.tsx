@@ -11,7 +11,6 @@ import { AUTO_SAVE_DELAY, isMarkdownFile } from '@renderer/constants/file-explor
 import { rpc } from '@renderer/core/ipc';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
-import { useDiffViewContext } from '../diff-viewer/diff-view-provider';
 import { useTaskViewContext } from '../task-view-context';
 
 interface EditorContextValue {
@@ -58,7 +57,6 @@ function isImageFile(filePath: string): boolean {
 
 export function EditorProvider({ children }: { children: ReactNode }) {
   const { task } = useTaskViewContext();
-  const { fileChanges: gitChanges } = useDiffViewContext();
 
   const projectId = task?.id ? task.projectId : '';
   const taskId = task?.id ?? '';
@@ -73,16 +71,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const activeFile = activeFilePath ? (openFiles.get(activeFilePath) ?? null) : null;
   const hasUnsavedChanges = Array.from(openFiles.values()).some((f) => f.isDirty);
-
-  // Map GitChange[] → simplified FileChange[] for tree coloring
-  const fileChanges = gitChanges.map((c) => ({
-    path: c.path,
-    status: (c.status === 'untracked' ? 'added' : c.status) as
-      | 'added'
-      | 'modified'
-      | 'deleted'
-      | 'renamed',
-  }));
 
   // Persist open files / active path to localStorage
   useEffect(() => {
@@ -315,7 +303,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         closeFile,
         updateFileContent,
         setActiveFile,
-        fileChanges,
+        fileChanges: [],
         previewMode,
         togglePreview,
         handleCloseFile,

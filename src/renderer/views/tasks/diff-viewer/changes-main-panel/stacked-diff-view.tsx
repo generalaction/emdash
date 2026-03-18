@@ -4,11 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { useTaskViewContext } from '../../task-view-context';
-import { DiffEditorStyles, useMonacoDiffTheme } from '../monaco-diff-view';
 import { useGitChangesContext } from '../state/git-changes-provider';
 import { useGitViewContext } from '../state/git-view-provider';
 import { useFileDiff } from '../state/use-file-diff';
-import { MonacoDiff } from './monaco-diff';
+import { PooledDiffEditor } from './pooled-diff-editor';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
 
@@ -17,16 +16,10 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
 // ---------------------------------------------------------------------------
 
 export function StackedDiffView() {
-  const { isDark } = useMonacoDiffTheme();
   const { activeFile } = useGitViewContext();
   const isStaged = activeFile?.isStaged ?? false;
 
-  return (
-    <>
-      <DiffEditorStyles isDark={isDark} />
-      <StackedDiffPanel isStaged={isStaged} />
-    </>
-  );
+  return <StackedDiffPanel isStaged={isStaged} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +40,6 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressObserver = useRef(false);
 
-  // Stable ref so onChange always reads current values without stale closures
   const scrollSyncRef = useRef({ files, isStaged, setActiveFile, suppress: suppressObserver });
   scrollSyncRef.current = { files, isStaged, setActiveFile, suppress: suppressObserver };
 
@@ -63,7 +55,8 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
       },
       [files]
     ),
-    overscan: 1,
+    gap: 4,
+    overscan: 8,
     onChange: (instance) => {
       const { files: f, isStaged: s, setActiveFile: setFile, suppress } = scrollSyncRef.current;
       if (suppress.current) return;
@@ -88,11 +81,17 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
     if (currentTopIndex === index) return;
 
     suppressObserver.current = true;
-    virtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
+    virtualizer.scrollToIndex(index, {
+      align: 'start',
+      behavior: activeFile.scrollBehavior ?? 'smooth',
+    });
     const timer = setTimeout(() => {
       suppressObserver.current = false;
     }, 700);
     return () => clearTimeout(timer);
+    // scrollBehavior is intentionally omitted — it's transient metadata that should not
+    // re-trigger the scroll effect, only influence the animation of the current scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile?.path, activeFile?.isStaged, viewMode, files, isStaged, virtualizer]);
 
   if (files.length === 0) {
@@ -104,7 +103,7 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
   }
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto p-2 bg-white shadow-xs">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const file = files[virtualItem.index]!;
@@ -176,7 +175,7 @@ function StackedFileSection({
     contentHeight != null ? Math.max(contentHeight, MIN_EDITOR_HEIGHT) : MIN_EDITOR_HEIGHT;
 
   return (
-    <div className="border-b border-border">
+    <div className="border-border border rounded-lg">
       <div className="flex w-full items-center gap-1.5 px-3 py-2 text-sm hover:bg-muted/50">
         <button
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
@@ -217,7 +216,7 @@ function StackedFileSection({
               </button>
             </div>
           ) : diff ? (
-            <MonacoDiff
+            <PooledDiffEditor
               original={diff.originalContent ?? ''}
               modified={diff.modifiedContent ?? ''}
               language={language}

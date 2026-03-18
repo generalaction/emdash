@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '../../components/ui/resizable';
 import type { FileChange } from '../../hooks/useFileChanges';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resizable';
 import { CommitArea } from './CommitArea';
 import { DiffPanel } from './DiffPanel';
 import { FileList } from './FileList';

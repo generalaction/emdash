@@ -35,4 +35,5 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   cursorSmoothCaretAnimation: 'on',
   padding: { top: 8, bottom: 8 },
   folding: false,
+  useInlineViewWhenSpaceIsLimited: false,
 };
