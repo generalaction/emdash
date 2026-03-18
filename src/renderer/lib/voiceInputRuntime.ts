@@ -109,7 +109,10 @@ export async function ensureVoiceModelLoaded(modelId: VoiceInputModelId) {
     throw new Error(`Voice input model is not registered: ${modelId}`);
   }
 
-  if (model.status === ModelStatus.Registered) {
+  // Also re-download when a previous attempt left the model in Error state —
+  // the SDK does not auto-reset to Registered, so we must trigger the download
+  // again to give the user a working retry path.
+  if (model.status === ModelStatus.Registered || model.status === ModelStatus.Error) {
     await ModelManager.downloadModel(modelId);
   }
 

@@ -63,7 +63,15 @@ function runAnywhereOnnxAssetsPlugin(): Plugin {
           res.setHeader(header, value);
         }
         res.setHeader('Content-Type', getContentType(filePath));
-        createReadStream(filePath).pipe(res);
+        const stream = createReadStream(filePath);
+        stream.on('error', (err) => {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.end();
+          }
+          console.error('[runanywhere-onnx-assets] stream error:', err);
+        });
+        stream.pipe(res);
       });
     },
     writeBundle(options) {

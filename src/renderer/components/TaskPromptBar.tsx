@@ -272,7 +272,7 @@ export function TaskPromptBar({
             <CornerDownLeft className="h-4 w-4" />
           </Button>
         </div>
-        {voiceInput.error && voiceInput.statusText ? (
+        {voiceInput.statusText ? (
           <div className="flex items-center justify-between gap-3 border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
             <span>{voiceInput.statusText}</span>
           </div>
