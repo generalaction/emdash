@@ -72,6 +72,11 @@ export function MonacoDiff({
       if (cancelled || !container) return;
 
       await registerDiffThemes();
+
+      // Check again after the async theme registration — the component may have
+      // unmounted while we were yielded, which would have set cancelled=true.
+      if (cancelled) return;
+
       m.editor.setTheme(getDiffThemeName(effectiveThemeRef.current));
 
       const editor = m.editor.createDiffEditor(container, {
@@ -87,7 +92,7 @@ export function MonacoDiff({
 
       const modifiedEditor = editor.getModifiedEditor();
       onHeightChangeRef.current?.(modifiedEditor.getContentHeight());
-      modifiedEditor.onDidContentSizeChange((e) => {
+      modifiedEditor.onDidContentSizeChange((e: monaco.editor.IContentSizeChangedEvent) => {
         if (e.contentHeightChanged) {
           onHeightChangeRef.current?.(e.contentHeight);
         }
@@ -99,10 +104,17 @@ export function MonacoDiff({
       const editor = editorRef.current;
       editorRef.current = null;
       if (editor) {
-        const model = editor.getModel();
-        editor.dispose();
-        model?.original.dispose();
-        model?.modified.dispose();
+        try {
+          const model = editor.getModel();
+          // Detach models before disposal so Monaco stops firing model events
+          // while the editor is being torn down, preventing "disposing of store" errors.
+          editor.setModel(null);
+          editor.dispose();
+          model?.original.dispose();
+          model?.modified.dispose();
+        } catch (err) {
+          console.warn('Monaco diff editor disposal error (suppressed):', err);
+        }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
