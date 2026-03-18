@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
 import { agentStatusStore } from '../lib/agentStatusStore';
@@ -22,6 +22,7 @@ import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
@@ -458,8 +459,9 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [activeConversationId, conversations, task.id]);
 
-  // Ref to control terminal focus imperatively if needed
-  const terminalRef = useRef<{ focus: () => void }>(null);
+  // Ref to control terminal focus and viewport scrolling imperatively.
+  const terminalRef = useRef<TerminalPaneHandle>(null);
+  const handleTerminalViewportWheelForwarding = useTerminalViewportWheelForwarding(terminalRef);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const {
     isSearchOpen,
@@ -1233,7 +1235,10 @@ const ChatInterface: React.FC<Props> = ({
               })()}
             </div>
           </div>
-          <div className="mt-4 min-h-0 flex-1 px-6">
+          <div
+            className="mt-4 min-h-0 flex-1 px-6"
+            onWheelCapture={handleTerminalViewportWheelForwarding}
+          >
             <div
               ref={terminalPanelRef}
               className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${

@@ -150,6 +150,7 @@ export class TerminalSessionManager {
   private lastSlowInputLogAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private wheelLineRemainder = 0;
   private activeSearchQuery = '';
   private activeSearchMatch: TerminalSearchMatch | null = null;
 
@@ -622,6 +623,34 @@ export class TerminalSessionManager {
     }
   }
 
+  forwardWheelInput(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    if (this.dispatchWheelEventToTerminal(input)) {
+      return true;
+    }
+
+    return this.scrollViewportFromWheelDelta(input.deltaY, input.deltaMode);
+  }
+
+  scrollViewportFromWheelDelta(deltaY: number, deltaMode: number): boolean {
+    const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
+    if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
+
+    const totalDelta = this.wheelLineRemainder + lineDelta;
+    const wholeLines = totalDelta > 0 ? Math.floor(totalDelta) : Math.ceil(totalDelta);
+    this.wheelLineRemainder = totalDelta - wholeLines;
+
+    if (wholeLines === 0) return false;
+    return this.scrollViewportByLineDelta(wholeLines);
+  }
+
   search(
     query: string,
     options: { direction?: 'next' | 'prev'; reset?: boolean } = {}
@@ -982,6 +1011,98 @@ export class TerminalSessionManager {
   private applyEffectiveFont() {
     const selected = this.customFontFamily || this.themeFontFamily;
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+  }
+
+  private scrollViewportByLineDelta(lines: number): boolean {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      if (
+        !buffer ||
+        typeof buffer.baseY !== 'number' ||
+        typeof buffer.viewportY !== 'number' ||
+        lines === 0
+      ) {
+        return false;
+      }
+
+      const targetLine = Math.max(0, Math.min(buffer.baseY, buffer.viewportY + lines));
+      if (targetLine === buffer.viewportY) return false;
+
+      this.terminal.scrollToLine(targetLine);
+      return true;
+    } catch (error) {
+      log.warn('Failed to scroll terminal viewport', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private normalizeWheelDeltaToLines(deltaY: number, deltaMode: number): number {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      return deltaY;
+    }
+
+    if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return deltaY * this.terminal.rows;
+    }
+
+    return deltaY / this.getApproximateRowHeightPx();
+  }
+
+  private dispatchWheelEventToTerminal(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    try {
+      const terminalElement = (this.terminal as any).element as HTMLElement | null;
+      if (!terminalElement) return false;
+
+      const rect = terminalElement.getBoundingClientRect();
+      const didPreventDefault = !terminalElement.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaX: input.deltaX,
+          deltaY: input.deltaY,
+          deltaMode: input.deltaMode,
+          altKey: input.altKey,
+          ctrlKey: input.ctrlKey,
+          metaKey: input.metaKey,
+          shiftKey: input.shiftKey,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
+      return didPreventDefault;
+    } catch (error) {
+      log.warn('Failed to forward wheel input to terminal', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private getApproximateRowHeightPx(): number {
+    const rowElement = this.container.querySelector('.xterm-rows > div');
+    if (rowElement instanceof HTMLElement) {
+      const { height } = rowElement.getBoundingClientRect();
+      if (height > 0) return height;
+    }
+
+    const fontSize =
+      typeof this.terminal.options.fontSize === 'number'
+        ? this.terminal.options.fontSize
+        : DEFAULT_FONT_SIZE;
+    const lineHeight =
+      typeof this.terminal.options.lineHeight === 'number' ? this.terminal.options.lineHeight : 1.2;
+
+    return Math.max(fontSize * lineHeight, 1);
   }
 
   private scheduleFit() {
