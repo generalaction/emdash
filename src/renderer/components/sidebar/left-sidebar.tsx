@@ -1,4 +1,4 @@
-import { Home, Puzzle, Settings } from 'lucide-react';
+import { Home, Plug, Puzzle, Settings } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
 import type { LocalProject, SshProject } from '@shared/projects';
 import {
@@ -103,6 +103,15 @@ export const LeftSidebar: React.FC = () => {
               >
                 <Puzzle className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
                 Skills
+              </SidebarMenuButton>
+              <SidebarMenuButton
+                isActive={isCurrentView(currentView, 'mcp')}
+                onClick={() => navigate('mcp')}
+                aria-label="MCP"
+                className="w-full justify-start"
+              >
+                <Plug className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                MCP
               </SidebarMenuButton>
               <SidebarMenuButton
                 isActive={isCurrentView(currentView, 'settings')}

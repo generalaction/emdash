@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { homeView } from '@renderer/views/home-view';
+import { mcpView } from '@renderer/views/mcp-view';
 import { projectView } from '@renderer/views/projects/view';
 import { settingsView } from '@renderer/views/settings/settings-view';
 import { skillsView } from '@renderer/views/skills-view';
@@ -9,6 +10,7 @@ import { taskView } from '@renderer/views/tasks/view';
 export const views = {
   home: homeView,
   skills: skillsView,
+  mcp: mcpView,
   project: projectView,
   task: taskView,
   settings: settingsView,
