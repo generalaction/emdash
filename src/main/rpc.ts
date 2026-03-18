@@ -1,4 +1,5 @@
 import { createRPCRouter } from '../shared/ipc/rpc';
+import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
@@ -20,6 +21,7 @@ import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 
 export const rpcRouter = createRPCRouter({
+  account: accountController,
   app: appController,
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,

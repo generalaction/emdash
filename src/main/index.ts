@@ -6,8 +6,11 @@ import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
+import { providerTokenRegistry } from './core/account/provider-token-registry';
+import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
+import { githubAuthService } from './core/github/services/github-auth-service';
 import { projectManager } from './core/projects/project-manager';
 import { appSettingsService } from './core/settings/settings-service';
 import { autoUpdateService } from './core/updates/AutoUpdateService';
@@ -87,6 +90,12 @@ app.whenReady().then(async () => {
 
   appService.initialize();
   appSettingsService.initialize();
+
+  emdashAccountService.loadSessionToken().catch((e) => {
+    log.warn('Failed to load account session token:', e);
+  });
+
+  providerTokenRegistry.register('github', (token) => githubAuthService.storeToken(token));
 
   registerRPCRouter(rpcRouter, ipcMain);
 
