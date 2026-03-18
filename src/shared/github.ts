@@ -9,7 +9,6 @@ export interface GitHubUser {
 export type GitHubTokenSource = 'keytar' | 'cli' | null;
 
 export interface GitHubStatusResponse {
-  installed: boolean;
   authenticated: boolean;
   user: GitHubUser | null;
   tokenSource: GitHubTokenSource;
