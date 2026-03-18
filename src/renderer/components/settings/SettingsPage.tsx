@@ -1,13 +1,11 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { rpc } from '@renderer/core/ipc';
-import { useParams } from '@renderer/core/view/navigation-provider';
 import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
 import TerminalSettingsCard from '../TerminalSettingsCard';
 import ThemeCard from '../ThemeCard';
 import { Separator } from '../ui/separator';
 import { CliAgentsList } from './CliAgentsList';
-import Context7SettingsCard from './Context7SettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
@@ -105,10 +103,7 @@ export function SettingsPage({
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [
-        { title: 'Integrations', component: <IntegrationsCard /> },
-        { title: 'MCP Server', component: <Context7SettingsCard /> },
-      ],
+      sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
     },
     repository: {
       title: 'Repository',

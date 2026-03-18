@@ -36,9 +36,6 @@ export const SETTINGS_DEFAULTS = {
     default: 'terminal' as const,
     hidden: [] as OpenInAppId[],
   },
-  mcp: {
-    context7: { enabled: false },
-  },
   interface: {
     taskHoverAction: 'delete' as const,
     autoRightSidebarBehavior: false,
