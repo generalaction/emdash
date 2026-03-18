@@ -62,6 +62,8 @@ export interface GitHubPullRequest {
   } | null;
   reviewDecision?: string | null;
   reviewers?: GitHubReviewer[];
+  additions?: number;
+  deletions?: number;
 }
 
 export interface GitHubPullRequestListResult {
@@ -848,6 +850,8 @@ export class GitHubService {
         'reviewRequests',
         'latestReviews',
         'reviewDecision',
+        'additions',
+        'deletions',
       ];
       const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
@@ -875,6 +879,8 @@ export class GitHubService {
           headRepository: item?.headRepository || null,
           reviewDecision: item?.reviewDecision || null,
           reviewers: this.buildReviewerList(item?.reviewRequests, item?.latestReviews),
+          additions: typeof item?.additions === 'number' ? item.additions : undefined,
+          deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
         }))
       );
 

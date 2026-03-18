@@ -430,6 +430,23 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                               <span>{pr.authorLogin}</span>
                             </>
                           ) : null}
+                          {(pr.additions != null || pr.deletions != null) && (
+                            <>
+                              <span>&middot;</span>
+                              <span className="inline-flex items-center gap-1 font-medium">
+                                {pr.additions != null && (
+                                  <span className="text-green-600 dark:text-green-400">
+                                    +{pr.additions.toLocaleString()}
+                                  </span>
+                                )}
+                                {pr.deletions != null && (
+                                  <span className="text-red-600 dark:text-red-400">
+                                    -{pr.deletions.toLocaleString()}
+                                  </span>
+                                )}
+                              </span>
+                            </>
+                          )}
                         </div>
                         {pr.reviewers && pr.reviewers.length > 0 && (
                           <div className="mt-1">
