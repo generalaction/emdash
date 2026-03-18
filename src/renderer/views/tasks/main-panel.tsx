@@ -1,5 +1,5 @@
 import { ConversationsPanel } from './conversations/panel';
-import { DiffViewMainPanel } from './diff-viewer/history-main-panel';
+import { DiffView } from './diff-viewer/changes-main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { useTaskViewContext } from './task-view-context';
 
@@ -24,6 +24,6 @@ function ActiveTaskMainPanel() {
     case 'editor':
       return <EditorMainPanel />;
     case 'diff':
-      return <DiffViewMainPanel />;
+      return <DiffView />;
   }
 }

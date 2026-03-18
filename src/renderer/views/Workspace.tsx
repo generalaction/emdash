@@ -1,7 +1,7 @@
-import { ModalRenderer } from '@renderer/components/ModalRenderer';
 import { LeftSidebar } from '@renderer/components/sidebar/left-sidebar';
 import { Toaster } from '@renderer/components/ui/toaster';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/components/WorkspaceLayout';
+import { ModalRenderer } from '@renderer/core/modal/modal-renderer';
 import { useWorkspaceSlots, useWorkspaceWrapParams } from '@renderer/core/view/navigation-provider';
 import { useTheme } from '@renderer/hooks/useTheme';
 

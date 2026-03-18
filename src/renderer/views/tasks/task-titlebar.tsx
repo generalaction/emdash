@@ -57,18 +57,18 @@ function ActiveTaskTitlebar() {
               <BotIcon className="size-3.5" />
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="editor"
-              size="sm"
-              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <Files className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
               value="diff"
               size="sm"
               className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
             >
               <FileDiff className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="editor"
+              size="sm"
+              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <Files className="size-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
           <ToggleGroup
@@ -89,18 +89,18 @@ function ActiveTaskTitlebar() {
               <GitCommit className="size-3.5" />
             </ToggleGroupItem>
             <ToggleGroupItem
-              value="files"
-              size="sm"
-              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <ListTree className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
               value="terminals"
               size="sm"
               className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
             >
               <Terminal className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="files"
+              size="sm"
+              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+            >
+              <ListTree className="size-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
         </>

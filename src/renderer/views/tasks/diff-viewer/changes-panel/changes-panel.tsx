@@ -22,8 +22,8 @@ import {
 import { Textarea } from '@renderer/components/ui/textarea';
 import { cn } from '@renderer/lib/utils';
 import { useTaskViewContext } from '../../task-view-context';
-import { useGitChangesContext } from '../git-changes-provider';
-import { useGitViewContext } from '../git-view-provider';
+import { useGitChangesContext } from '../state/git-changes-provider';
+import { useGitViewContext } from '../state/git-view-provider';
 import { useBranchStatus } from '../use-branch-status.tsx';
 import { useSelection, type SelectionState } from '../use-selection';
 import { PullRequestSection } from './pr-section';

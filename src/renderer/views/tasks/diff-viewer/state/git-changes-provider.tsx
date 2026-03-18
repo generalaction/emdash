@@ -3,7 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useMemo } from 'reac
 import { GitChange } from '@shared/git';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { extractErrorMessage } from './utils';
+import { extractErrorMessage } from '../utils';
 
 interface GitChangesContextValue {
   fileChanges: GitChange[];
