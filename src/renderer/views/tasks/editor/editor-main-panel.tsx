@@ -1,23 +1,13 @@
-import { loader } from '@monaco-editor/react';
 import { FileCode } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { EditorContent } from '@renderer/components/FileExplorer/CodeEditor';
 import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
+import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
 import { isMarkdownFile } from '@renderer/constants/file-explorer';
 import { rpc } from '@renderer/core/ipc';
-import { useTheme } from '@renderer/hooks/useTheme';
-import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
-import {
-  addMonacoKeyboardShortcuts,
-  configureMonacoEditor,
-  configureMonacoTypeScript,
-} from '@renderer/lib/monaco-config';
-import { applyMonacoTheme, defineMonacoThemes } from '@renderer/lib/monaco-themes';
+import { codeEditorPool } from '@renderer/lib/monaco-code-pool';
+import { addMonacoKeyboardShortcuts } from '@renderer/lib/monaco-config';
 import { useEditorContext } from './editor-provider';
-
-// ---------------------------------------------------------------------------
-// Diff decorations constants
-// ---------------------------------------------------------------------------
+import { PooledCodeEditor } from './pooled-code-editor';
 
 const DIFF_CONSTANTS = {
   INITIAL_DELAY_MS: 100,
@@ -35,10 +25,6 @@ interface DiffCacheEntry {
   diff: DiffLine[];
   timestamp: number;
 }
-
-// ---------------------------------------------------------------------------
-// useTaskEditorDiffDecorations — new-API version of useEditorDiffDecorations
-// ---------------------------------------------------------------------------
 
 function useTaskEditorDiffDecorations({
   editorRef,
@@ -226,10 +212,6 @@ function useTaskEditorDiffDecorations({
   return { refreshDecorations };
 }
 
-// ---------------------------------------------------------------------------
-// EditorMainPanel
-// ---------------------------------------------------------------------------
-
 export function EditorMainPanel() {
   const {
     projectId,
@@ -247,10 +229,7 @@ export function EditorMainPanel() {
     updateFileContent,
   } = useEditorContext();
 
-  const { effectiveTheme } = useTheme();
-  const monacoRef = useRef<any>(null);
   const editorRef = useRef<any>(null);
-  const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const prevIsSaving = useRef(false);
 
@@ -286,42 +265,16 @@ export function EditorMainPanel() {
     prevIsSaving.current = isSaving;
   }, [isSaving, editorReady, refreshDecorations]);
 
-  // Initialize Monaco
+  // Pre-warm the code editor pool (loads Monaco, registers themes, creates idle instance).
   useEffect(() => {
-    const initMonaco = async () => {
-      const monacoInstance = await loader.init();
-      if (!monacoRef.current) {
-        monacoRef.current = monacoInstance;
-        configureMonacoTypeScript(monacoInstance);
-        defineMonacoThemes(monacoInstance);
-      }
-    };
-    void initMonaco();
+    codeEditorPool
+      .init()
+      .catch((err: unknown) => console.warn('[monaco-code-pool] init failed:', err));
   }, []);
-
-  // Apply theme changes
-  useEffect(() => {
-    const applyTheme = async () => {
-      const monacoInstance = await loader.init();
-      applyMonacoTheme(monacoInstance, effectiveTheme);
-    };
-    void applyTheme();
-  }, [effectiveTheme]);
 
   const handleEditorMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
-      editorRegistrationCleanupRef.current?.();
-      editorRegistrationCleanupRef.current = registerActiveCodeEditor(editor);
-
-      if (!monacoRef.current) {
-        monacoRef.current = monaco;
-        configureMonacoTypeScript(monaco);
-      }
-
-      defineMonacoThemes(monaco);
-      configureMonacoEditor(editor);
-      editor.updateOptions({ glyphMargin: true });
 
       addMonacoKeyboardShortcuts(editor, monaco, {
         onSave: async () => {
@@ -340,14 +293,6 @@ export function EditorMainPanel() {
     },
     [saveFile, saveAllFiles, refreshDecorations]
   );
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      editorRegistrationCleanupRef.current?.();
-      editorRegistrationCleanupRef.current = null;
-    };
-  }, []);
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
@@ -386,15 +331,25 @@ export function EditorMainPanel() {
         previewMode={previewMode}
         onTogglePreview={togglePreview}
       />
-      <EditorContent
-        activeFile={activeFile}
-        effectiveTheme={effectiveTheme}
-        onEditorMount={handleEditorMount}
-        onEditorChange={handleEditorChange}
-        isPreviewActive={isPreviewActive}
-        modelRootPath={modelRootPath}
-        taskPath={modelRootPath}
-      />
+      {isPreviewActive && activeFile ? (
+        <MarkdownPreview
+          content={activeFile.content}
+          rootPath={modelRootPath}
+          fileDir={
+            activeFile.path.includes('/')
+              ? activeFile.path.substring(0, activeFile.path.lastIndexOf('/'))
+              : ''
+          }
+        />
+      ) : (
+        <PooledCodeEditor
+          activeFile={activeFile}
+          modelRootPath={modelRootPath}
+          glyphMargin={true}
+          onEditorChange={handleEditorChange}
+          onMount={handleEditorMount}
+        />
+      )}
     </div>
   );
 }
