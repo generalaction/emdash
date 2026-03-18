@@ -49,9 +49,6 @@ vi.mock('@main/core/shared/oauth-flow', () => ({
   executeOAuthFlow: (...args: unknown[]) => mockExecuteOAuthFlow(...args),
 }));
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
-
 describe('GitHubAuthServiceImpl', () => {
   let service: GitHubAuthServiceImpl;
 
@@ -160,18 +157,7 @@ describe('GitHubAuthServiceImpl', () => {
   });
 
   describe('startOAuthFlow()', () => {
-    it('returns error when auth server is unhealthy', async () => {
-      mockFetch.mockRejectedValue(new Error('network error'));
-
-      const result = await service.startOAuthFlow('https://auth.test');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Auth server unavailable');
-      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
-    });
-
     it('executes OAuth flow and stores token on success', async () => {
-      mockFetch.mockResolvedValue({ ok: true });
       mockExecuteOAuthFlow.mockResolvedValue({ accessToken: 'ghp_new' });
       mockSetPassword.mockResolvedValue(undefined);
       vi.spyOn(service, 'getUserInfo').mockResolvedValue({
@@ -200,90 +186,12 @@ describe('GitHubAuthServiceImpl', () => {
     });
 
     it('returns error when no access token in response', async () => {
-      mockFetch.mockResolvedValue({ ok: true });
       mockExecuteOAuthFlow.mockResolvedValue({ sessionToken: 'session-only' });
 
       const result = await service.startOAuthFlow('https://auth.test');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('No access token in response');
-    });
-  });
-
-  describe('connect()', () => {
-    it('returns existing token from keytar if valid', async () => {
-      mockGetPassword.mockResolvedValueOnce('ghp_existing').mockResolvedValueOnce('keytar');
-      vi.spyOn(service, 'getUserInfo').mockResolvedValue({
-        id: 1,
-        login: 'testuser',
-        name: 'Test',
-        email: '',
-        avatar_url: '',
-      });
-
-      const result = await service.connect('https://auth.test', true);
-
-      expect(result.success).toBe(true);
-      expect(result.token).toBe('ghp_existing');
-      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
-    });
-
-    it('tries OAuth when hasAccount and no cached token', async () => {
-      mockGetPassword.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      mockExtractGhCliToken.mockResolvedValue(null);
-      mockFetch.mockResolvedValue({ ok: true });
-      mockExecuteOAuthFlow.mockResolvedValue({ accessToken: 'ghp_oauth' });
-      mockSetPassword.mockResolvedValue(undefined);
-      vi.spyOn(service, 'getUserInfo').mockResolvedValue({
-        id: 1,
-        login: 'testuser',
-        name: 'Test',
-        email: '',
-        avatar_url: '',
-      });
-
-      const result = await service.connect('https://auth.test', true);
-
-      expect(result.success).toBe(true);
-      expect(mockExecuteOAuthFlow).toHaveBeenCalled();
-    });
-
-    it('skips OAuth when hasAccount is false', async () => {
-      mockGetPassword.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      mockExtractGhCliToken.mockResolvedValue('ghp_cli');
-      mockSetPassword.mockResolvedValue(undefined);
-      vi.spyOn(service, 'getUserInfo').mockResolvedValue({
-        id: 1,
-        login: 'testuser',
-        name: 'Test',
-        email: '',
-        avatar_url: '',
-      });
-
-      const result = await service.connect('https://auth.test', false);
-
-      expect(result.success).toBe(true);
-      expect(result.token).toBe('ghp_cli');
-      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
-    });
-
-    it('falls back to gh CLI when no authServerBaseUrl', async () => {
-      mockGetPassword.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      mockExtractGhCliToken.mockResolvedValue('ghp_cli');
-      mockSetPassword.mockResolvedValue(undefined);
-      vi.spyOn(service, 'getUserInfo').mockResolvedValue({
-        id: 1,
-        login: 'testuser',
-        name: 'Test',
-        email: '',
-        avatar_url: '',
-      });
-
-      const result = await service.connect();
-
-      expect(result.success).toBe(true);
-      expect(result.token).toBe('ghp_cli');
-      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
     });
   });
 });

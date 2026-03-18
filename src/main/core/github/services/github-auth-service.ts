@@ -42,7 +42,6 @@ export interface GitHubAuthService {
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
   getUserInfo(token: string): Promise<GitHubUser | null>;
-  connect(authServerBaseUrl?: string, hasAccount?: boolean): Promise<AuthResult>;
   startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult>;
   startDeviceFlowAuth(): Promise<DeviceCodeResult>;
   storeToken(token: string): Promise<void>;
@@ -160,51 +159,8 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
     }
   }
 
-  /**
-   * Full GitHub connection flow with fallback chain:
-   * 1. keytar (already have a token?)
-   * 2. Auth server OAuth via /authorize/github (if hasAccount + server healthy)
-   * 3. gh CLI token extraction
-   * 4. Device flow
-   */
-  async connect(authServerBaseUrl?: string, hasAccount?: boolean): Promise<AuthResult> {
-    const existing = await this.getToken();
-    if (existing) {
-      const user = await this.getUserInfo(existing);
-      if (user) return { success: true, token: existing, user };
-      await this.logout();
-    }
-
-    if (hasAccount && authServerBaseUrl) {
-      const oauthResult = await this.startOAuthFlow(authServerBaseUrl);
-      if (oauthResult.success) return oauthResult;
-    }
-
-    const cliToken = await extractGhCliToken(getLocalExec());
-    if (cliToken) {
-      await this.storeToken(cliToken, 'cli');
-      const user = await this.getUserInfo(cliToken);
-      return { success: true, token: cliToken, user: user || undefined };
-    }
-
-    const deviceResult = await this.startDeviceFlowAuth();
-    return {
-      success: deviceResult.success,
-      error: deviceResult.error,
-    };
-  }
-
   async startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult> {
     try {
-      try {
-        const health = await fetch(`${authServerBaseUrl}/health`, {
-          signal: AbortSignal.timeout(3000),
-        });
-        if (!health.ok) throw new Error('Auth server unhealthy');
-      } catch {
-        return { success: false, error: 'Auth server unavailable' };
-      }
-
       const raw = await executeOAuthFlow({
         authorizeUrl: `${authServerBaseUrl}/auth/github`,
         exchangeUrl: `${authServerBaseUrl}/api/v1/auth/electron/exchange`,

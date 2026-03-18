@@ -35,7 +35,7 @@ export class EmdashAccountService {
   }
 
   getSession(): SessionState {
-    this.ensureInitialized();
+    this.cachedProfile = accountProfileCache.read();
     const hasAccount = this.cachedProfile?.hasAccount === true;
     const isSignedIn = hasAccount && this.sessionToken !== null;
     return {
