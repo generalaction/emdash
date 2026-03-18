@@ -165,7 +165,6 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       setGithubStatusMessage(undefined);
 
       showModal('githubDeviceFlowModal', {
-        onSuccess: (result: unknown) => handleDeviceFlowSuccess(result as GitHubUser),
         onError: handleDeviceFlowError,
       });
       void login();

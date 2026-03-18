@@ -15,7 +15,6 @@ import { Spinner } from './ui/spinner';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;
-  onSuccess?: (user: any) => void;
   onError?: (error: string) => void;
 }
 
@@ -24,14 +23,12 @@ type GithubDeviceFlowOverlayExtraProps = {
 };
 
 export function GithubDeviceFlowModalOverlay({
-  onSuccess,
   onClose,
   onError,
 }: GithubDeviceFlowOverlayExtraProps & BaseModalProps<unknown>) {
   return (
     <GithubDeviceFlowModal
       onClose={onClose}
-      onSuccess={onSuccess}
       onError={(error) => {
         onError?.(error);
         onClose();
@@ -40,7 +37,7 @@ export function GithubDeviceFlowModalOverlay({
   );
 }
 
-export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDeviceFlowModalProps) {
+export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModalProps) {
   const { toast } = useToast();
 
   // Presentational state - updated via IPC events from main process
@@ -108,15 +105,6 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
       setSuccess(true);
       setUser(data.user);
 
-      toast({
-        title: 'Success!',
-        description: 'Connected to GitHub',
-      });
-
-      if (onSuccess) {
-        onSuccess(data.user);
-      }
-
       // Auto-close after showing success animation
       setTimeout(() => {
         onClose();
@@ -144,7 +132,7 @@ export function GithubDeviceFlowModal({ onClose, onSuccess, onError }: GithubDev
       cleanupSuccess();
       cleanupError();
     };
-  }, [onSuccess, onError, onClose, toast]);
+  }, [onError, onClose, toast]);
 
   // Countdown timer for code expiration
   useEffect(() => {
