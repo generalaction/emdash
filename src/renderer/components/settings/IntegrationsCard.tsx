@@ -45,6 +45,7 @@ const IntegrationsCard: React.FC = () => {
     isLoading,
     githubLoading,
     handleGithubConnect,
+    cancelGithubConnect,
     logout,
     tokenSource,
     checkStatus,
@@ -127,6 +128,7 @@ const IntegrationsCard: React.FC = () => {
       connected: authenticated,
       loading: isLoading || githubLoading,
       onConnect: handleGithubConnect,
+      onCancel: cancelGithubConnect,
       onDisconnect: logout,
       disabledTooltip: isCliManaged
         ? 'Run `gh auth logout` in your terminal to disconnect'
@@ -204,9 +206,16 @@ const IntegrationsCard: React.FC = () => {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={integration.onConnect}
-                  disabled={integration.loading}
-                  aria-label={`Connect ${integration.name}`}
+                  onClick={
+                    integration.loading && integration.onCancel
+                      ? integration.onCancel
+                      : integration.onConnect
+                  }
+                  aria-label={
+                    integration.loading
+                      ? `Cancel connecting ${integration.name}`
+                      : `Connect ${integration.name}`
+                  }
                 >
                   {integration.loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

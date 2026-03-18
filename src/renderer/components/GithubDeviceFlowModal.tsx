@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Copy, ExternalLink, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import {
   githubAuthDeviceCodeChannel,
@@ -7,6 +7,7 @@ import {
 } from '@shared/events/githubEvents';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
+import { useGithubContext } from '../contexts/GithubContextProvider';
 import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
 import { Button } from './ui/button';
@@ -39,6 +40,7 @@ export function GithubDeviceFlowModalOverlay({
 
 export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModalProps) {
   const { toast } = useToast();
+  const { cancelGithubConnect } = useGithubContext();
 
   // Presentational state - updated via IPC events from main process
   const [userCode, setUserCode] = useState<string>('');
@@ -60,10 +62,10 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
   useEffect(() => {
     return () => {
       if (!authSucceededRef.current) {
-        rpc.github.authCancel();
+        cancelGithubConnect();
       }
     };
-  }, []);
+  }, [cancelGithubConnect]);
 
   // Subscribe to auth events from main process
   useEffect(() => {
@@ -240,14 +242,6 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
   return (
     <DialogContent className="max-w-[480px] p-0">
-      <button
-        onClick={handleClose}
-        className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-      >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </button>
-
       <div className="flex flex-col items-center px-8 py-12">
         <img src={emdashLogo} alt="Emdash" className="mb-8 h-8 opacity-90" />
 

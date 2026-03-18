@@ -26,6 +26,7 @@ type GithubContextValue = {
   githubStatusMessage: string | undefined;
   needsGhAuth: boolean;
   handleGithubConnect: () => Promise<void>;
+  cancelGithubConnect: () => void;
   login: () => Promise<GitHubAuthResponse>;
   logout: () => Promise<void>;
   checkStatus: () => Promise<GitHubStatusResponse>;
@@ -178,16 +179,18 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         variant: 'destructive',
       });
     }
-  }, [
-    toast,
-    checkStatus,
-    login,
-    showModal,
-    handleDeviceFlowSuccess,
-    handleDeviceFlowError,
-    hasAccount,
-    fetchAccountHealth,
-  ]);
+  }, [toast, checkStatus, login, showModal, handleDeviceFlowError, hasAccount, fetchAccountHealth]);
+
+  const cancelGithubConnect = useCallback(() => {
+    const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';
+    setGithubLoading(false);
+    setGithubStatusMessage(undefined);
+    rpc.github.authCancel();
+    toast({
+      title: 'GitHub connection unsuccessful',
+      description: `${flowLabel} was canceled`,
+    });
+  }, [githubStatusMessage, toast]);
 
   const value: GithubContextValue = {
     authenticated,
@@ -199,6 +202,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     githubStatusMessage,
     needsGhAuth,
     handleGithubConnect,
+    cancelGithubConnect,
     login,
     logout,
     checkStatus,
