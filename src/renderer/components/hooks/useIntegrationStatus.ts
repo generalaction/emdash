@@ -8,7 +8,6 @@ interface IntegrationStatus {
 
   // GitHub
   isGithubConnected: boolean;
-  githubInstalled: boolean;
   githubLoading: boolean;
   handleGithubConnect: () => Promise<void>;
 
@@ -29,19 +28,15 @@ export function useIntegrationStatus(): IntegrationStatus {
     useIntegrationsContext();
 
   const {
-    installed: githubInstalled,
-    authenticated: githubAuthenticated,
+    authenticated: isGithubConnected,
     isLoading: githubLoading,
     handleGithubConnect,
   } = useGithubContext();
-
-  const isGithubConnected = githubInstalled && githubAuthenticated;
 
   return {
     isLinearConnected,
     handleLinearConnect: connectLinear,
     isGithubConnected,
-    githubInstalled,
     githubLoading,
     handleGithubConnect,
     isJiraConnected,

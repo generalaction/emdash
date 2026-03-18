@@ -5,35 +5,31 @@ import {
   githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
+import type {
+  GitHubAuthResponse,
+  GitHubStatusResponse,
+  GitHubTokenSource,
+  GitHubUser,
+} from '@shared/github';
 import { events, rpc } from '../core/ipc';
 import { useModalContext } from '../core/modal/modal-provider';
 import { useToast } from '../hooks/use-toast';
-import { useAppContext } from './AppContextProvider';
-
-type GithubUser = any;
+import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
 
 type GithubContextValue = {
-  installed: boolean;
   authenticated: boolean;
-  user: GithubUser | null;
-  /** True while the status query is fetching or login/logout mutation is pending */
+  user: GitHubUser | null;
+  tokenSource: GitHubTokenSource;
   isLoading: boolean;
   isInitialized: boolean;
-
-  /** True during the handleGithubConnect flow (CLI install + auth start) */
   githubLoading: boolean;
   githubStatusMessage: string | undefined;
-  needsGhInstall: boolean;
   needsGhAuth: boolean;
-
-  /** Full connect flow: installs CLI if needed, starts device flow, shows modal */
   handleGithubConnect: () => Promise<void>;
-  /** Raw login — starts the device flow and returns the IPC result */
-  login: () => Promise<any>;
-  /** Logout and invalidate cached status */
+  cancelGithubConnect: () => void;
+  login: () => Promise<GitHubAuthResponse>;
   logout: () => Promise<void>;
-  /** Force-refresh status and return the raw result */
-  checkStatus: () => Promise<any>;
+  checkStatus: () => Promise<GitHubStatusResponse>;
 };
 
 const GITHUB_STATUS_KEY = ['github:status'] as const;
@@ -41,10 +37,12 @@ const GITHUB_STATUS_KEY = ['github:status'] as const;
 const GithubContext = createContext<GithubContextValue | null>(null);
 
 export function GithubContextProvider({ children }: { children: React.ReactNode }) {
-  const { showModal } = useModalContext();
   const { toast } = useToast();
-  const { platform } = useAppContext();
   const queryClient = useQueryClient();
+  const { showModal } = useModalContext();
+  const { data: accountSession } = useAccountSession();
+  const hasAccount = accountSession?.hasAccount === true;
+  const fetchAccountHealth = useFetchAccountHealth();
 
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
@@ -53,20 +51,19 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     data: statusData,
     isFetching,
     isSuccess,
-  } = useQuery({
+  } = useQuery<GitHubStatusResponse>({
     queryKey: GITHUB_STATUS_KEY,
     queryFn: () => rpc.github.getStatus(),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
 
-  const installed = statusData?.installed ?? true;
   const authenticated = statusData?.authenticated ?? false;
-  const user: GithubUser | null = statusData?.user ?? null;
+  const user: GitHubUser | null = statusData?.user ?? null;
+  const tokenSource: GitHubTokenSource = statusData?.tokenSource ?? null;
   const isInitialized = isSuccess;
 
-  const needsGhInstall = isInitialized && !installed;
-  const needsGhAuth = isInitialized && installed && !authenticated;
+  const needsGhAuth = isInitialized && !authenticated;
 
   const loginMutation = useMutation({
     mutationFn: () => rpc.github.auth(),
@@ -80,7 +77,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const isLoading = isFetching || loginMutation.isPending || logoutMutation.isPending;
 
   const checkStatus = useCallback(async () => {
-    return queryClient.fetchQuery({
+    return queryClient.fetchQuery<GitHubStatusResponse>({
       queryKey: GITHUB_STATUS_KEY,
       queryFn: () => rpc.github.getStatus(),
       staleTime: 0,
@@ -94,7 +91,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   }, [logoutMutation]);
 
   const handleDeviceFlowSuccess = useCallback(
-    async (flowUser: GithubUser) => {
+    async (flowUser: GitHubUser) => {
       void checkStatus();
       setTimeout(() => void checkStatus(), 500);
       toast({
@@ -140,59 +137,38 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     setGithubStatusMessage(undefined);
 
     try {
-      setGithubStatusMessage('Checking for GitHub CLI...');
-      const cliInstalled = await rpc.github.checkCLIInstalled();
-
-      if (!cliInstalled) {
-        let installMessage = 'Installing GitHub CLI...';
-        if (platform === 'darwin') {
-          installMessage = 'Installing GitHub CLI via Homebrew...';
-        } else if (platform === 'linux') {
-          installMessage = 'Installing GitHub CLI via apt...';
-        } else if (platform === 'win32') {
-          installMessage = 'Installing GitHub CLI via winget...';
-        }
-
-        setGithubStatusMessage(installMessage);
-        try {
-          await rpc.github.installCLI();
-        } catch (err) {
-          setGithubLoading(false);
-          setGithubStatusMessage(undefined);
-          toast({
-            title: 'Installation Failed',
-            description: `Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
-        toast({
-          title: 'GitHub CLI Installed',
-          description: 'Now authenticating with GitHub...',
-        });
-        void checkStatus();
+      const freshStatus = await checkStatus();
+      if (freshStatus?.authenticated) {
+        setGithubLoading(false);
+        setGithubStatusMessage(undefined);
+        return;
       }
 
-      setGithubStatusMessage('Starting authentication...');
-      const result = await login();
+      const isServerUp = hasAccount && (await fetchAccountHealth());
+      if (hasAccount && isServerUp) {
+        setGithubStatusMessage('Connecting via Emdash account...');
+        const oauthResult = await rpc.github.connectOAuth();
+        if (oauthResult?.success) {
+          await checkStatus();
+          if (oauthResult.user) {
+            toast({
+              title: 'Connected to GitHub',
+              description: `Signed in as ${oauthResult.user.login || oauthResult.user.name || 'user'}`,
+            });
+          }
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          return;
+        }
+      }
 
       setGithubLoading(false);
       setGithubStatusMessage(undefined);
 
-      if (result?.success) {
-        showModal('githubDeviceFlowModal', {
-          onSuccess: handleDeviceFlowSuccess,
-          onError: handleDeviceFlowError,
-        });
-      } else {
-        toast({
-          title: 'Authentication Failed',
-          description: result?.error || 'Could not start authentication',
-          variant: 'destructive',
-        });
-      }
+      showModal('githubDeviceFlowModal', {
+        onError: handleDeviceFlowError,
+      });
+      void login();
     } catch (error) {
       console.error('GitHub connection error:', error);
       setGithubLoading(false);
@@ -203,27 +179,30 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         variant: 'destructive',
       });
     }
-  }, [
-    platform,
-    toast,
-    checkStatus,
-    login,
-    showModal,
-    handleDeviceFlowSuccess,
-    handleDeviceFlowError,
-  ]);
+  }, [toast, checkStatus, login, showModal, handleDeviceFlowError, hasAccount, fetchAccountHealth]);
+
+  const cancelGithubConnect = useCallback(() => {
+    const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';
+    setGithubLoading(false);
+    setGithubStatusMessage(undefined);
+    rpc.github.authCancel();
+    toast({
+      title: 'GitHub connection unsuccessful',
+      description: `${flowLabel} was canceled`,
+    });
+  }, [githubStatusMessage, toast]);
 
   const value: GithubContextValue = {
-    installed,
     authenticated,
     user,
+    tokenSource,
     isLoading,
     isInitialized,
     githubLoading,
     githubStatusMessage,
-    needsGhInstall,
     needsGhAuth,
     handleGithubConnect,
+    cancelGithubConnect,
     login,
     logout,
     checkStatus,

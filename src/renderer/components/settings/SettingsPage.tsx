@@ -5,6 +5,7 @@ import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
 import TerminalSettingsCard from '../TerminalSettingsCard';
 import ThemeCard from '../ThemeCard';
 import { Separator } from '../ui/separator';
+import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
@@ -21,6 +22,7 @@ import { UpdateCard } from './UpdateCard';
 
 export type SettingsPageTab =
   | 'general'
+  | 'account'
   | 'clis-models'
   | 'integrations'
   | 'repository'
@@ -50,6 +52,7 @@ export function SettingsPage({
     isExternal?: boolean;
   }> = [
     { id: 'general', label: 'General' },
+    { id: 'account', label: 'Account' },
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'repository', label: 'Repository' },
@@ -84,6 +87,11 @@ export function SettingsPage({
           component: <UpdateCard />,
         },
       ],
+    },
+    account: {
+      title: 'Account',
+      description: 'Manage your Emdash account.',
+      sections: [{ component: <AccountTab /> }],
     },
     'clis-models': {
       title: 'Agents',
