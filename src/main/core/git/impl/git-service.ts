@@ -516,6 +516,10 @@ export class GitService implements GitProvider {
     return { hash: stdout.trim() };
   }
 
+  async fetch(): Promise<void> {
+    await this.exec('git', ['fetch'], { cwd: this.path });
+  }
+
   async push(): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
       const { stdout, stderr } = await this.exec('git', args, { cwd: this.path });

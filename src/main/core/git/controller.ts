@@ -153,6 +153,18 @@ export const gitController = createRPCController({
     }
   },
 
+  fetch: async (projectId: string, taskId: string) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.fetch();
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.fetch failed', { projectId, taskId, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   push: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });

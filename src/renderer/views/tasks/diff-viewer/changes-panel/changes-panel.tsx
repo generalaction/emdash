@@ -1,4 +1,14 @@
-import { File, History, Minus, Plus, Undo2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  File,
+  GitBranch,
+  History,
+  Minus,
+  Plus,
+  RefreshCcw,
+  Undo2,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
@@ -11,8 +21,10 @@ import {
 } from '@renderer/components/ui/resizable';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { cn } from '@renderer/lib/utils';
+import { useTaskViewContext } from '../../task-view-context';
 import { useGitChangesContext } from '../git-changes-provider';
 import { useGitViewContext } from '../git-view-provider';
+import { useBranchStatus } from '../use-branch-status.tsx';
 import { useSelection, type SelectionState } from '../use-selection';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
@@ -97,8 +109,31 @@ function SectionHeader({ label, count, selectionState, onToggleAll, actions }: S
 }
 
 function GitStatusSection() {
+  const { projectId, taskId } = useTaskViewContext();
+  const { data, fetchChanges, pullChanges, pushChanges } = useBranchStatus({ projectId, taskId });
   return (
-    <div>Current branch, last commit, ahead/behind count, push/pull buttons, fetch button</div>
+    <div className="p-2 border-t border-border flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <GitBranch className="size-3" />
+        <span className="text-sm text-muted-foreground">{data?.branch}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" className="flex-1" size="xs" onClick={() => fetchChanges()}>
+          <RefreshCcw className="size-3" />
+          Fetch
+        </Button>
+        <Button variant="outline" className="flex-1" size="xs" onClick={() => pullChanges()}>
+          <ArrowDown className="size-3" />
+          Pull
+          <Badge variant="secondary">{data?.behind ?? 0}</Badge>
+        </Button>
+        <Button variant="outline" className="flex-1" size="xs" onClick={() => pushChanges()}>
+          <ArrowUp className="size-3" />
+          Push
+          <Badge variant="secondary">{data?.ahead ?? 0}</Badge>
+        </Button>
+      </div>
+    </div>
   );
 }
 

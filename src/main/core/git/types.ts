@@ -34,6 +34,7 @@ export interface GitProvider {
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;
 
   commit(message: string): Promise<{ hash: string }>;
+  fetch(): Promise<void>;
   push(): Promise<Result<{ output: string }, PushError>>;
   pull(): Promise<Result<{ output: string }, PullError>>;
   softReset(): Promise<{ subject: string; body: string }>;

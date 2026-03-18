@@ -16,6 +16,8 @@ export type MainPanelView = 'agents' | 'editor' | 'diff';
 interface TaskViewContext {
   view: MainPanelView;
   setView: (view: MainPanelView) => void;
+  projectId: string;
+  taskId: string;
   activeConversationId?: string;
   setActiveConversationId: (conversationId: string) => void;
   activeTerminalId?: string;
@@ -99,6 +101,8 @@ export function TaskViewWrapper({
           view,
           setView,
           taskStatus,
+          projectId,
+          taskId,
           task: task ?? undefined,
           activeConversationId: agentsView.activeConversationId,
           setActiveConversationId,
