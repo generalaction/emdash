@@ -365,6 +365,10 @@ export class SkillsService {
     skillId: string,
     source?: { owner: string; repo: string }
   ): Promise<CatalogSkill> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
+
     await this.initialize();
     const catalog = await this.getCatalogIndex();
     let skill = catalog.skills.find((s) => s.id === skillId) ?? null;
@@ -427,6 +431,10 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
+
     const skillDir = path.join(SKILLS_ROOT, skillId);
 
     // Remove agent symlinks first

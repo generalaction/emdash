@@ -175,7 +175,7 @@ const SkillsView: React.FC = () => {
               >
                 skills.sh
               </a>{' '}
-              ecosystem. Search to discover skills from 89K+ community skills.
+              ecosystem. Search to discover community skills.
             </p>
           </div>
         )}
