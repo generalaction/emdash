@@ -1,5 +1,5 @@
 import { ConversationsPanel } from './conversations/panel';
-import { DiffViewMainPanel } from './diff-viewer/diff-view-main-panel';
+import { DiffViewMainPanel } from './diff-viewer/history-main-panel';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { useTaskViewContext } from './task-view-context';
 

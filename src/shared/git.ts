@@ -1,8 +1,10 @@
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
+export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
+
 export type GitChange = {
   path: string;
-  status: string;
+  status: GitChangeStatus;
   additions: number;
   deletions: number;
   isStaged: boolean;

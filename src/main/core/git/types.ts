@@ -18,10 +18,12 @@ export interface GitProvider {
   getFileDiff(filePath: string, base?: DiffBase): Promise<DiffResult>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
-  stageFile(filePath: string): Promise<void>;
+  stageFiles(filePaths: string[]): Promise<void>;
   stageAllFiles(): Promise<void>;
-  unstageFile(filePath: string): Promise<void>;
-  revertFile(filePath: string): Promise<{ action: 'unstaged' | 'reverted' }>;
+  unstageFiles(filePaths: string[]): Promise<void>;
+  unstageAllFiles(): Promise<void>;
+  revertFiles(filePaths: string[]): Promise<void>;
+  revertAllFiles(): Promise<void>;
 
   getLog(options?: {
     maxCount?: number;

@@ -122,14 +122,14 @@ export function useTerminals({
   }, [terminals, projectId, registerSession, taskId]);
 
   const terminalTabItems = useMemo((): TerminalTabItem[] => {
-    const lifecycle = (Object.entries(lifecycleScripts) as [LifecycleScriptType, string][]).map(
-      ([type, id]): TerminalTabItem => ({ kind: 'lifecycle', type, id })
-    );
+    const lifecycle = (Object.entries(lifecycleScripts) as [LifecycleScriptType, string][])
+      .filter(([type]) => !!projectSettings?.scripts?.[type])
+      .map(([type, id]): TerminalTabItem => ({ kind: 'lifecycle', type, id }));
     const regular = terminals.map(
       (t): TerminalTabItem => ({ kind: 'terminal', id: t.id, name: t.name })
     );
     return [...lifecycle, ...regular];
-  }, [lifecycleScripts, terminals]);
+  }, [lifecycleScripts, terminals, projectSettings]);
 
   return { terminalTabItems, createTerminal, removeTerminal, runLifecycleScript };
 }

@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
 import { DiffViewProvider } from './diff-viewer/diff-view-provider';
+import { GitChangesProvider } from './diff-viewer/git-changes-provider';
+import { GitViewProvider } from './diff-viewer/git-view-provider';
 import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';
@@ -18,9 +20,13 @@ function TaskViewWrapperWithProviders({
 }) {
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <DiffViewProvider>
-        <EditorProvider>{children}</EditorProvider>
-      </DiffViewProvider>
+      <GitViewProvider>
+        <GitChangesProvider projectId={projectId} taskId={taskId}>
+          <DiffViewProvider>
+            <EditorProvider>{children}</EditorProvider>
+          </DiffViewProvider>
+        </GitChangesProvider>
+      </GitViewProvider>
     </TaskViewWrapper>
   );
 }

@@ -37,10 +37,22 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.stageFile(filePath);
+      await env.git.stageFiles([filePath]);
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageFile failed', { projectId, taskId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  stageFiles: async (projectId: string, taskId: string, filePaths: string[]) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.stageFiles(filePaths);
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.stageFiles failed', { projectId, taskId, filePaths, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
     }
   },
@@ -61,10 +73,34 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.unstageFile(filePath);
+      await env.git.unstageFiles([filePath]);
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageFile failed', { projectId, taskId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  unstageFiles: async (projectId: string, taskId: string, filePaths: string[]) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.unstageFiles(filePaths);
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.unstageFiles failed', { projectId, taskId, filePaths, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  unstageAllFiles: async (projectId: string, taskId: string) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.unstageAllFiles();
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.unstageAllFiles failed', { projectId, taskId, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
     }
   },
@@ -73,10 +109,34 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.revertFile(filePath);
-      return ok({ action: result.action });
+      await env.git.revertFiles([filePath]);
+      return ok();
     } catch (e) {
       log.error('gitCtrl.revertFile failed', { projectId, taskId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  revertFiles: async (projectId: string, taskId: string, filePaths: string[]) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.revertFiles(filePaths);
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.revertFiles failed', { projectId, taskId, filePaths, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  revertAllFiles: async (projectId: string, taskId: string) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      await env.git.revertAllFiles();
+      return ok();
+    } catch (e) {
+      log.error('gitCtrl.revertAllFiles failed', { projectId, taskId, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
     }
   },

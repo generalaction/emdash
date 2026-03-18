@@ -19,6 +19,7 @@ import { err, ok, type Result } from '@main/lib/result';
 import { GitProvider } from '../types';
 import {
   computeBaseRef,
+  mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
   parseDiffLines,
@@ -56,6 +57,36 @@ export class GitService implements GitProvider {
       .map((l) => l.replace(/\r$/, ''))
       .filter((l) => l.length > 0);
 
+    // Fetch all staged and unstaged numstat counts in two parallel commands
+    // instead of N×2 sequential per-file invocations.
+    const parseNumstat = (
+      stdout: string
+    ): Map<string, { additions: number; deletions: number }> => {
+      const map = new Map<string, { additions: number; deletions: number }>();
+      for (const l of stdout
+        .trim()
+        .split('\n')
+        .filter((s) => s.trim())) {
+        const [addStr, delStr, ...pathParts] = l.split('\t');
+        const filePath = pathParts.join('\t');
+        if (!filePath) continue;
+        const existing = map.get(filePath) ?? { additions: 0, deletions: 0 };
+        existing.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
+        existing.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
+        map.set(filePath, existing);
+      }
+      return map;
+    };
+
+    const [stagedNumstat, unstagedNumstat] = await Promise.all([
+      this.exec('git', ['diff', '--numstat', '--cached'], { cwd: this.path })
+        .then((r) => parseNumstat(r.stdout))
+        .catch(() => new Map<string, { additions: number; deletions: number }>()),
+      this.exec('git', ['diff', '--numstat'], { cwd: this.path })
+        .then((r) => parseNumstat(r.stdout))
+        .catch(() => new Map<string, { additions: number; deletions: number }>()),
+    ]);
+
     const changes: GitChange[] = [];
 
     for (const line of statusLines) {
@@ -66,45 +97,15 @@ export class GitService implements GitProvider {
         filePath = (parts[parts.length - 1] ?? '').trim();
       }
 
-      let status = 'modified';
-      if (statusCode.includes('A') || statusCode.includes('?')) status = 'added';
-      else if (statusCode.includes('D')) status = 'deleted';
-      else if (statusCode.includes('R')) status = 'renamed';
-      else if (statusCode.includes('M')) status = 'modified';
-
+      const status = mapStatus(statusCode);
       const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-      let additions = 0;
-      let deletions = 0;
 
-      const sumNumstat = (stdout: string) => {
-        for (const l of stdout
-          .trim()
-          .split('\n')
-          .filter((s) => s.trim())) {
-          const p = l.split('\t');
-          if (p.length >= 2) {
-            additions += p[0] === '-' ? 0 : Number.parseInt(p[0] ?? '0', 10) || 0;
-            deletions += p[1] === '-' ? 0 : Number.parseInt(p[1] ?? '0', 10) || 0;
-          }
-        }
-      };
+      const staged = stagedNumstat.get(filePath);
+      const unstaged = unstagedNumstat.get(filePath);
+      let additions = (staged?.additions ?? 0) + (unstaged?.additions ?? 0);
+      const deletions = (staged?.deletions ?? 0) + (unstaged?.deletions ?? 0);
 
-      try {
-        const { stdout } = await this.exec(
-          'git',
-          ['diff', '--numstat', '--cached', '--', filePath],
-          { cwd: this.path }
-        );
-        if (stdout.trim()) sumNumstat(stdout);
-      } catch {}
-
-      try {
-        const { stdout } = await this.exec('git', ['diff', '--numstat', '--', filePath], {
-          cwd: this.path,
-        });
-        if (stdout.trim()) sumNumstat(stdout);
-      } catch {}
-
+      // Untracked files don't appear in git diff output; count lines from content.
       if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
         try {
           const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
@@ -120,39 +121,80 @@ export class GitService implements GitProvider {
     return changes;
   }
 
-  async stageFile(filePath: string): Promise<void> {
-    await this.exec('git', ['add', '--', filePath], { cwd: this.path });
+  async stageFiles(filePaths: string[]): Promise<void> {
+    if (filePaths.length === 0) return;
+    await this.exec('git', ['add', '--', ...filePaths], { cwd: this.path });
   }
 
   async stageAllFiles(): Promise<void> {
     await this.exec('git', ['add', '-A'], { cwd: this.path });
   }
 
-  async unstageFile(filePath: string): Promise<void> {
+  async unstageFiles(filePaths: string[]): Promise<void> {
+    if (filePaths.length === 0) return;
     try {
-      await this.exec('git', ['reset', 'HEAD', '--', filePath], { cwd: this.path });
+      await this.exec('git', ['reset', 'HEAD', '--', ...filePaths], { cwd: this.path });
     } catch {
-      await this.exec('git', ['rm', '--cached', '--', filePath], { cwd: this.path });
+      // Fallback for edge cases (e.g. new files with no HEAD): unstage each via rm --cached
+      for (const filePath of filePaths) {
+        try {
+          await this.exec('git', ['reset', 'HEAD', '--', filePath], { cwd: this.path });
+        } catch {
+          await this.exec('git', ['rm', '--cached', '--', filePath], { cwd: this.path });
+        }
+      }
     }
   }
 
-  async revertFile(filePath: string): Promise<{ action: 'unstaged' | 'reverted' }> {
-    let fileExistsInHead = false;
+  async unstageAllFiles(): Promise<void> {
     try {
-      await this.exec('git', ['cat-file', '-e', `HEAD:${filePath}`], { cwd: this.path });
-      fileExistsInHead = true;
+      await this.exec('git', ['reset', 'HEAD'], { cwd: this.path });
     } catch {
-      const exists = await this.fs.exists(filePath);
-      if (exists) {
-        await this.fs.remove(filePath);
-      }
-      return { action: 'reverted' };
+      // Repo may have no commits yet; ignore.
+    }
+  }
+
+  async revertFiles(filePaths: string[]): Promise<void> {
+    if (filePaths.length === 0) return;
+
+    // Determine which files exist in HEAD in a single command
+    let trackedPaths = new Set<string>();
+    try {
+      const { stdout } = await this.exec(
+        'git',
+        ['ls-tree', '--name-only', 'HEAD', '--', ...filePaths],
+        { cwd: this.path }
+      );
+      trackedPaths = new Set(stdout.trim().split('\n').filter(Boolean));
+    } catch {
+      // Empty repo — no HEAD yet, all files are untracked
     }
 
-    if (fileExistsInHead) {
-      await this.exec('git', ['checkout', 'HEAD', '--', filePath], { cwd: this.path });
+    const tracked = filePaths.filter((f) => trackedPaths.has(f));
+    const untracked = filePaths.filter((f) => !trackedPaths.has(f));
+
+    if (tracked.length > 0) {
+      await this.exec('git', ['checkout', 'HEAD', '--', ...tracked], { cwd: this.path });
     }
-    return { action: 'reverted' };
+
+    // Untracked files don't exist in git history — remove them from disk
+    for (const filePath of untracked) {
+      try {
+        const exists = await this.fs.exists(filePath);
+        if (exists) await this.fs.remove(filePath);
+      } catch {}
+    }
+  }
+
+  async revertAllFiles(): Promise<void> {
+    // Reset index and working tree for all tracked changes back to HEAD,
+    // then remove any untracked files/directories.
+    try {
+      await this.exec('git', ['reset', '--hard', 'HEAD'], { cwd: this.path });
+    } catch {
+      // Repo may have no commits yet; ignore.
+    }
+    await this.exec('git', ['clean', '-fd'], { cwd: this.path });
   }
 
   // ---------------------------------------------------------------------------
@@ -448,15 +490,7 @@ export class GitService implements GitProvider {
     for (const line of statusLines) {
       const [code, ...pathParts] = line.split('\t');
       const filePath = pathParts[pathParts.length - 1] || '';
-      const status =
-        code === 'A'
-          ? 'added'
-          : code === 'D'
-            ? 'deleted'
-            : code?.startsWith('R')
-              ? 'renamed'
-              : 'modified';
-      statusMap.set(filePath, status);
+      statusMap.set(filePath, mapStatus(code ?? ''));
     }
 
     return statLines.map((line) => {
