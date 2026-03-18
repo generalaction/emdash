@@ -5,7 +5,7 @@ import { emdashAccountService } from './services/emdash-account-service';
 export const accountController = createRPCController({
   getSession: async () => {
     try {
-      return emdashAccountService.getSession();
+      return await emdashAccountService.getSession();
     } catch (error) {
       log.error('Failed to get account session:', error);
       return { user: null, isSignedIn: false, hasAccount: false };

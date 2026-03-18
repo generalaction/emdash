@@ -1,14 +1,23 @@
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
+import { KV } from '@main/db/kv';
 import { ACCOUNT_CONFIG } from '../config';
 import { providerTokenRegistry } from '../provider-token-registry';
 import { accountCredentialStore } from './credential-store';
-import { accountProfileCache, type CachedProfile } from './profile-cache';
 
 export interface AccountUser {
   userId: string;
   username: string;
   avatarUrl: string;
   email: string;
+}
+
+export interface CachedProfile {
+  hasAccount: boolean;
+  userId: string;
+  username: string;
+  avatarUrl: string;
+  email: string;
+  lastValidated: string;
 }
 
 export interface SignInResult {
@@ -23,19 +32,18 @@ export interface SessionState {
   hasAccount: boolean;
 }
 
+interface AccountKVSchema extends Record<string, unknown> {
+  profile: CachedProfile;
+}
+
+const accountKV = new KV<AccountKVSchema>('account');
+
 export class EmdashAccountService {
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
-  private initialized = false;
 
-  private ensureInitialized(): void {
-    if (this.initialized) return;
-    this.initialized = true;
-    this.cachedProfile = accountProfileCache.read();
-  }
-
-  getSession(): SessionState {
-    this.cachedProfile = accountProfileCache.read();
+  async getSession(): Promise<SessionState> {
+    this.cachedProfile = await accountKV.get('profile');
     const hasAccount = this.cachedProfile?.hasAccount === true;
     const isSignedIn = hasAccount && this.sessionToken !== null;
     return {
@@ -94,8 +102,7 @@ export class EmdashAccountService {
       lastValidated: new Date().toISOString(),
     };
     this.cachedProfile = profile;
-    this.initialized = true;
-    accountProfileCache.write(profile);
+    await accountKV.set('profile', profile);
 
     const accessToken = raw.accessToken as string | undefined;
     const providerId = raw.providerId as string | undefined;
@@ -115,7 +122,7 @@ export class EmdashAccountService {
     await accountCredentialStore.clear();
     if (this.cachedProfile) {
       this.cachedProfile.hasAccount = true;
-      accountProfileCache.write(this.cachedProfile);
+      await accountKV.set('profile', this.cachedProfile);
     }
   }
 
@@ -148,14 +155,14 @@ export class EmdashAccountService {
         await accountCredentialStore.clear();
         if (this.cachedProfile) {
           this.cachedProfile.hasAccount = true;
-          accountProfileCache.write(this.cachedProfile);
+          await accountKV.set('profile', this.cachedProfile);
         }
         return false;
       }
 
       if (this.cachedProfile) {
         this.cachedProfile.lastValidated = new Date().toISOString();
-        accountProfileCache.write(this.cachedProfile);
+        await accountKV.set('profile', this.cachedProfile);
       }
       return true;
     } catch {

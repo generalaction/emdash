@@ -12,12 +12,16 @@ vi.mock('./credential-store', () => ({
   },
 }));
 
-const mockCacheRead = vi.fn();
-const mockCacheWrite = vi.fn();
-vi.mock('./profile-cache', () => ({
-  accountProfileCache: {
-    read: (...args: unknown[]) => mockCacheRead(...args),
-    write: (...args: unknown[]) => mockCacheWrite(...args),
+const mockKvGet = vi.fn();
+const mockKvSet = vi.fn();
+vi.mock('@main/db/kv', () => ({
+  KV: class {
+    get(...args: unknown[]) {
+      return mockKvGet(...args);
+    }
+    set(...args: unknown[]) {
+      return mockKvSet(...args);
+    }
   },
 }));
 
@@ -47,18 +51,19 @@ describe('EmdashAccountService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCacheRead.mockReturnValue(null);
+    mockKvGet.mockResolvedValue(null);
+    mockKvSet.mockResolvedValue(undefined);
     service = new EmdashAccountService();
   });
 
   describe('getSession()', () => {
-    it('returns no account when profile cache is empty', () => {
-      const session = service.getSession();
+    it('returns no account when profile cache is empty', async () => {
+      const session = await service.getSession();
       expect(session).toEqual({ user: null, isSignedIn: false, hasAccount: false });
     });
 
-    it('returns hasAccount true but not signed in when profile exists but no token', () => {
-      mockCacheRead.mockReturnValue({
+    it('returns hasAccount true but not signed in when profile exists but no token', async () => {
+      mockKvGet.mockResolvedValue({
         hasAccount: true,
         userId: 'u1',
         username: 'test',
@@ -66,8 +71,7 @@ describe('EmdashAccountService', () => {
         email: 'test@test.com',
         lastValidated: '2026-01-01',
       });
-      service = new EmdashAccountService();
-      const session = service.getSession();
+      const session = await service.getSession();
       expect(session.hasAccount).toBe(true);
       expect(session.isSignedIn).toBe(false);
       expect(session.user).toBeNull();
@@ -101,7 +105,8 @@ describe('EmdashAccountService', () => {
 
       expect(mockExecuteOAuthFlow).toHaveBeenCalledWith(expect.objectContaining({}));
       expect(mockCredSet).toHaveBeenCalledWith('session-abc');
-      expect(mockCacheWrite).toHaveBeenCalledWith(
+      expect(mockKvSet).toHaveBeenCalledWith(
+        'profile',
         expect.objectContaining({ hasAccount: true, username: 'testuser' })
       );
       expect(result).toEqual({
@@ -176,12 +181,23 @@ describe('EmdashAccountService', () => {
       mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
       await service.signIn();
       vi.clearAllMocks();
+      mockKvSet.mockResolvedValue(undefined);
 
       await service.signOut();
 
       expect(mockCredClear).toHaveBeenCalled();
-      expect(mockCacheWrite).toHaveBeenCalledWith(expect.objectContaining({ hasAccount: true }));
-      const session = service.getSession();
+      expect(mockKvSet).toHaveBeenCalledWith(
+        'profile',
+        expect.objectContaining({ hasAccount: true })
+      );
+      mockKvGet.mockResolvedValue({
+        hasAccount: true,
+        userId: 'u1',
+        username: 'test',
+        avatarUrl: '',
+        email: '',
+      });
+      const session = await service.getSession();
       expect(session.isSignedIn).toBe(false);
       expect(session.hasAccount).toBe(true);
     });
@@ -204,13 +220,17 @@ describe('EmdashAccountService', () => {
       mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
       await service.signIn();
       vi.clearAllMocks();
+      mockKvSet.mockResolvedValue(undefined);
 
       mockFetch.mockResolvedValue({ ok: false, status: 401 });
       const result = await service.validateSession();
 
       expect(result).toBe(false);
       expect(mockCredClear).toHaveBeenCalled();
-      expect(mockCacheWrite).toHaveBeenCalledWith(expect.objectContaining({ hasAccount: true }));
+      expect(mockKvSet).toHaveBeenCalledWith(
+        'profile',
+        expect.objectContaining({ hasAccount: true })
+      );
     });
 
     it('returns true on network error (optimistic)', async () => {
