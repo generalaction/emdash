@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
@@ -9,27 +10,26 @@ import { GitService } from '@main/core/git/impl/git-service';
 import type { GitProvider } from '@main/core/git/types';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { LocalConversationProvider } from '../conversations/impl/local-conversation';
-import { appSettingsService } from '../settings/settings-service';
-import { LocalTerminalProvider } from '../terminals/impl/local-terminal-provider';
-import { TerminalProvider } from '../terminals/terminal-provider';
-import type { ProjectProvider, TaskProvider } from './project-provider';
-import { LocalProjectSettingsProvider } from './settings/project-settings';
-import type { ProjectSettingsProvider } from './settings/schema';
-import { WorktreeService } from './worktrees/worktree-service';
+import { LocalConversationProvider } from '../../conversations/impl/local-conversation';
+import { appSettingsService } from '../../settings/settings-service';
+import { LocalTerminalProvider } from '../../terminals/impl/local-terminal-provider';
+import type { ProjectProvider, TaskProvider } from '../project-provider';
+import { LocalProjectSettingsProvider } from '../settings/project-settings';
+import type { ProjectSettingsProvider } from '../settings/schema';
+import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
-  // project.baseRef is a fully-qualified remote tracking ref like "origin/main".
-  // WorktreeService expects the bare branch name ("main") so that the reserve ID
-  // matches what claimReserve receives from task creation (which uses DefaultBranch.name).
   const slash = project.baseRef.indexOf('/');
   const bareDefaultBranch = slash !== -1 ? project.baseRef.slice(slash + 1) : project.baseRef;
 
+  const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
+    .defaultWorktreeDirectory;
+  const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
+
+  await fs.promises.mkdir(worktreePoolPath, { recursive: true });
+
   return new LocalProjectProvider(project, {
-    worktreePoolPath: path.join(
-      (await appSettingsService.get('localProject')).defaultWorktreeDirectory,
-      project.name
-    ),
+    worktreePoolPath,
     defaultBranch: bareDefaultBranch,
   });
 }

@@ -1,11 +1,11 @@
-import type { ProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 import { type LinearIssueSummary } from './linear';
 
 /** Per-agent run configuration for task creation */
 export interface AgentRun {
-  agent: ProviderId;
+  agent: AgentProviderId;
   runs: number;
 }
 
@@ -33,15 +33,15 @@ export interface TaskMetadata {
     // Per-agent run configuration
     agentRuns?: AgentRun[];
     // Legacy list of agent ids before agentRuns existed (for backward compatibility)
-    agents?: ProviderId[];
+    agents?: AgentProviderId[];
     variants: Array<{
       id: string;
-      agent: ProviderId;
+      agent: AgentProviderId;
       name: string; // worktree display name, e.g. taskName-agentSlug
       branch: string;
       path: string; // filesystem path of the worktree
       worktreeId: string; // WorktreeService id (stable hash of path)
     }>;
-    selectedAgent?: ProviderId | null;
+    selectedAgent?: AgentProviderId | null;
   } | null;
 }

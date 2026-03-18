@@ -4,10 +4,6 @@ import { net, protocol } from 'electron';
 export const APP_SCHEME = 'app';
 export const APP_ORIGIN = `${APP_SCHEME}://emdash`;
 
-/**
- * Register the custom `app://` scheme as a privileged, secure origin.
- * Must be called before `app.whenReady()`.
- */
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -22,12 +18,6 @@ export function registerAppScheme(): void {
   ]);
 }
 
-/**
- * Attach the file-serving handler for the `app://` scheme.
- * Must be called after `app.whenReady()`.
- *
- * Unknown paths fall back to `index.html` for SPA client-side routing.
- */
 export function setupAppProtocol(rendererRoot: string): void {
   const root = normalize(rendererRoot);
 

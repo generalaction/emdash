@@ -1,4 +1,4 @@
-export const PROVIDER_IDS = [
+export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
   'qwen',
@@ -23,12 +23,10 @@ export const PROVIDER_IDS = [
   'autohand',
 ] as const;
 
-export const DEFAULT_PROVIDER_ID = 'claude';
+export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
 
-export type ProviderId = (typeof PROVIDER_IDS)[number];
-
-export type ProviderDefinition = {
-  id: ProviderId;
+export type AgentProviderDefinition = {
+  id: AgentProviderId;
   name: string;
   docUrl?: string;
   installCommand?: string;
@@ -60,7 +58,7 @@ export type ProviderDefinition = {
   terminalOnly?: boolean;
 };
 
-export const PROVIDERS: ProviderDefinition[] = [
+export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'codex',
     name: 'Codex',
@@ -355,15 +353,15 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
 ];
 
-const PROVIDER_MAP = new Map<string, ProviderDefinition>(
-  PROVIDERS.map((provider) => [provider.id, provider])
+const PROVIDER_MAP = new Map<string, AgentProviderDefinition>(
+  AGENT_PROVIDERS.map((provider) => [provider.id, provider])
 );
 
-export function getProvider(id: ProviderId): ProviderDefinition | undefined {
+export function getProvider(id: AgentProviderId): AgentProviderDefinition | undefined {
   return PROVIDER_MAP.get(id);
 }
 
-export function getInstallCommandForProvider(id: ProviderId): string | null {
+export function getInstallCommandForProvider(id: AgentProviderId): string | null {
   return PROVIDER_MAP.get(id)?.installCommand ?? null;
 }
 
@@ -372,14 +370,16 @@ export function getInstallCommandForProvider(id: ProviderId): string | null {
  * @param value - The value to validate
  * @returns true if the value is a valid provider ID, false otherwise
  */
-export function isValidProviderId(value: unknown): value is ProviderId {
-  return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+export function isValidProviderId(value: unknown): value is AgentProviderId {
+  return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
 }
 
-export function getDocUrlForProvider(id: ProviderId): string | null {
+export function getDocUrlForProvider(id: AgentProviderId): string | null {
   return PROVIDER_MAP.get(id)?.docUrl ?? null;
 }
 
-export function listDetectableProviders(): ProviderDefinition[] {
-  return PROVIDERS.filter((provider) => provider.detectable !== false && provider.commands?.length);
+export function listDetectableProviders(): AgentProviderDefinition[] {
+  return AGENT_PROVIDERS.filter(
+    (provider) => provider.detectable !== false && provider.commands?.length
+  );
 }

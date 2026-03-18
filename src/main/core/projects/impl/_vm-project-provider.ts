@@ -1,4 +1,4 @@
-import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from './project-provider';
+import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from '../project-provider';
 
 export class VmEnvironmentProvider implements ProjectProvider {
   readonly type = 'vm';

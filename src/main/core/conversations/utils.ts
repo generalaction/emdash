@@ -1,4 +1,4 @@
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Conversation } from '@shared/conversations';
 import { ConversationRow } from '@main/db/schema';
 
@@ -11,7 +11,7 @@ export function mapConversationRowToConversation(
     title: row.title,
     taskId: row.taskId,
     projectId: row.projectId,
-    providerId: row.provider as ProviderId,
+    providerId: row.provider as AgentProviderId,
     autoApprove: row.config ? JSON.parse(row.config).autoApprove : undefined,
     resume: resume,
   };

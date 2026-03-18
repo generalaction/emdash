@@ -1,7 +1,7 @@
 import { Task } from 'electron';
 import { Archive, ArchiveRestore, ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
-import { getProvider, ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId, getProvider } from '@shared/agent-provider-registry';
 import { rpc } from '@renderer/core/ipc';
 import { usePrStatus } from '@renderer/hooks/usePrStatus';
 import { useTaskAgentNames } from '@renderer/hooks/useTaskAgentNames';
@@ -80,7 +80,7 @@ export function TaskRow({
       <div className="flex items-center gap-2">
         {showIds.map((id) => {
           const asset = agentAssets[id as keyof typeof agentAssets];
-          const provider = getProvider(id as ProviderId);
+          const provider = getProvider(id as AgentProviderId);
           if (!asset) return null;
           return (
             <div key={id} className="flex items-center gap-1">

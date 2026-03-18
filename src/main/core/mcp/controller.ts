@@ -1,4 +1,4 @@
-import { PROVIDERS } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
@@ -9,7 +9,7 @@ import { agentSupportsHttp, getAllMcpAgentIds } from './utils/config-paths';
 
 function mapProviders(agentIds: string[]): McpProvidersResponse[] {
   return agentIds.map((id) => {
-    const provider = PROVIDERS.find((p) => p.id === id);
+    const provider = AGENT_PROVIDERS.find((p) => p.id === id);
     const dep = localDependencyManager.get(id as DependencyId);
     return {
       id,

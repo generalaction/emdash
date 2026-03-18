@@ -1,4 +1,4 @@
-import { PROVIDERS, type ProviderId } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
 import ampcodeIcon from '../../assets/images/ampcode.png';
 import atlassianIcon from '../../assets/images/atlassian.png';
 import augmentcodeIcon from '../../assets/images/Auggie.svg?raw';
@@ -22,7 +22,7 @@ import opencodeIcon from '../../assets/images/opencode.png';
 import piIcon from '../../assets/images/pi.png';
 import qwenIcon from '../../assets/images/qwen.png';
 
-export type UiAgent = ProviderId;
+export type UiAgent = AgentProviderId;
 
 const ICONS: Record<string, string> = {
   'Auggie.svg': augmentcodeIcon,
@@ -62,7 +62,7 @@ export type AgentMeta = {
 };
 
 export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
-  PROVIDERS.map((p) => [
+  AGENT_PROVIDERS.map((p) => [
     p.id,
     {
       label: p.name,

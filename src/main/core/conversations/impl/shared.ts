@@ -1,4 +1,4 @@
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { Pty } from '@main/core/pty/pty';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
@@ -13,7 +13,7 @@ export function wireAgentClassifier({
   conversationId,
 }: {
   pty: Pty;
-  providerId: ProviderId;
+  providerId: AgentProviderId;
   projectId: string;
   taskId: string;
   conversationId: string;
@@ -44,7 +44,7 @@ export async function buildAgentCommand({
   sessionId,
   isResuming,
 }: {
-  providerId: ProviderId;
+  providerId: AgentProviderId;
   autoApprove?: boolean;
   initialPrompt?: string;
   sessionId: string;

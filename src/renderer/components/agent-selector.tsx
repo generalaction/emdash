@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { useDependencies } from '@renderer/contexts/DependenciesProvider';
 import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
@@ -18,12 +18,12 @@ import {
 interface AgentOption {
   value: string;
   label: string;
-  agentId: ProviderId;
+  agentId: AgentProviderId;
 }
 
 interface AgentSelectorProps {
-  value: ProviderId;
-  onChange: (agent: ProviderId) => void;
+  value: AgentProviderId;
+  onChange: (agent: AgentProviderId) => void;
   disabled?: boolean;
   className?: string;
 }
@@ -38,11 +38,11 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   const [open, setOpen] = useState(false);
 
   const options: AgentOption[] = installedAgents
-    .filter((id): id is ProviderId => id in agentConfig)
+    .filter((id): id is AgentProviderId => id in agentConfig)
     .map((id) => ({
       value: id,
-      label: agentConfig[id as ProviderId].name,
-      agentId: id as ProviderId,
+      label: agentConfig[id as AgentProviderId].name,
+      agentId: id as AgentProviderId,
     }));
 
   const selectedConfig = agentConfig[value];

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import { AgentSelector } from '@renderer/components/agent-selector';
@@ -42,7 +42,7 @@ export function CreateTaskModal({
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
     defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined
   );
-  const [providerId, setProviderId] = useState<ProviderId>('claude');
+  const [providerId, setProviderId] = useState<AgentProviderId>('claude');
   const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
   const [autoApprove, setAutoApprove] = useState(false);
   const [taskName, setTaskName] = useState(generateFriendlyTaskName());

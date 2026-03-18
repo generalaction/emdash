@@ -1,10 +1,10 @@
-import type { ProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 export type DependencyCategory = 'core' | 'agent';
 
 export type CoreDependencyId = 'git' | 'gh' | 'tmux' | 'ssh' | 'node';
 
-export type DependencyId = CoreDependencyId | ProviderId;
+export type DependencyId = CoreDependencyId | AgentProviderId;
 
 export interface ProbeResult {
   command: string;

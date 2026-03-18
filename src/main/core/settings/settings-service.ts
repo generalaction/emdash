@@ -4,77 +4,14 @@ import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
 import { getDefaultForKey } from './settings-registry';
+import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDeep } from './utils';
 
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
-// ---------------------------------------------------------------------------
-// Delta helpers — exported for reuse by OverrideSettings.
-// ---------------------------------------------------------------------------
-
-function isDeepEqual(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-export function mergeDeep(
-  base: Record<string, unknown>,
-  overrides: Record<string, unknown>
-): Record<string, unknown> {
-  const result = { ...base };
-  for (const [k, v] of Object.entries(overrides)) {
-    if (v === undefined) continue;
-    const baseVal = base[k];
-    if (isPlainObject(v) && isPlainObject(baseVal)) {
-      result[k] = mergeDeep(baseVal, v);
-    } else {
-      result[k] = v;
-    }
-  }
-  return result;
-}
-
-export function computeDelta(
-  value: Record<string, unknown>,
-  defaults: Record<string, unknown>
-): Record<string, unknown> {
-  const delta: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value)) {
-    if (!isDeepEqual(v, defaults[k])) {
-      delta[k] = v;
-    }
-  }
-  return delta;
-}
-
-// Returns only fields in `stored` that differ from `defaults`.
-// Handles legacy rows that stored the full value — fields at their default
-// value are excluded from the result (they are not "truly overridden").
-export function computeTrueOverrides(
-  stored: Record<string, unknown>,
-  defaults: Record<string, unknown>
-): Record<string, unknown> {
-  const overrides: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(stored)) {
-    if (!isDeepEqual(v, defaults[k])) {
-      overrides[k] = v;
-    }
-  }
-  return overrides;
-}
-
-// ---------------------------------------------------------------------------
-// Settings class — manages all fixed-key settings groups.
-// ---------------------------------------------------------------------------
-
 class Settings {
   private cache: Partial<AppSettings> = {};
 
-  // Returns the raw parsed JSON value — may be a plain object (for group settings)
-  // or a scalar (string for `theme` / `defaultAgent`).
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
     const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).execute();
     if (!row) return null;
@@ -98,9 +35,6 @@ class Settings {
     await db.delete(appSettings).where(eq(appSettings.key, key)).execute();
   }
 
-  // Zod is NOT used on the read path — validation happens only on write.
-  // Object settings are deep-merged with registry defaults; scalar settings
-  // (theme, defaultAgent) are used directly.
   async get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]> {
     if (key in this.cache) return this.cache[key] as AppSettings[K];
 
@@ -143,7 +77,6 @@ class Settings {
         AppSettings[K]
       >;
     } else {
-      // Scalar (theme, defaultAgent) — the whole value is the override if it differs
       value = raw as AppSettings[K];
       overrides = (isDeepEqual(raw, defaults) ? {} : raw) as Partial<AppSettings[K]>;
     }
@@ -151,7 +84,6 @@ class Settings {
     return { value, defaults, overrides };
   }
 
-  // Zod validation is kept on the write path — ensures only valid data enters the DB.
   async update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void> {
     const validated = APP_SETTINGS_SCHEMA_MAP[key].parse(value) as AppSettings[K];
     const defaults = getDefaultForKey(key);
@@ -166,13 +98,10 @@ class Settings {
       } else {
         await this.storeRaw(key, delta);
       }
+    } else if (isDeepEqual(validated, defaults)) {
+      await this.deleteRow(key);
     } else {
-      // Scalar — delete row if value matches default, otherwise store
-      if (isDeepEqual(validated, defaults)) {
-        await this.deleteRow(key);
-      } else {
-        await this.storeRaw(key, validated);
-      }
+      await this.storeRaw(key, validated);
     }
 
     delete this.cache[key];
@@ -185,7 +114,7 @@ class Settings {
 
   async resetField<K extends AppSettingsKey>(key: K, field: keyof AppSettings[K]): Promise<void> {
     const raw = await this.readRaw(key);
-    if (!isPlainObject(raw)) return; // no-op for scalar settings (theme, defaultAgent)
+    if (!isPlainObject(raw)) return;
 
     const delta = { ...raw };
     delete delta[field as string];

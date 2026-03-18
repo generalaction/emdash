@@ -55,7 +55,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     updatedAt: row.updatedAt,
   };
 
-  await projectManager.addProject(project);
+  await projectManager.openProject(project);
 
   return project;
 }
@@ -101,7 +101,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     updatedAt: row.updatedAt,
   };
 
-  await projectManager.addProject(project);
+  await projectManager.openProject(project);
 
   return project;
 }

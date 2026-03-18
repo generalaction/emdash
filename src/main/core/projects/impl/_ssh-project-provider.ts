@@ -18,8 +18,8 @@ import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-prov
 import { getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from './project-provider';
-import { ProjectSettingsProvider } from './settings/schema';
+import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from '../project-provider';
+import { ProjectSettingsProvider } from '../settings/schema';
 
 interface SshProvisionArgs extends BaseTaskProvisionArgs {
   workingDirectory: string;

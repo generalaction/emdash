@@ -1,6 +1,7 @@
 import z from 'zod';
-import { DEFAULT_PROVIDER_ID, PROVIDER_IDS, PROVIDERS } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
+import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
@@ -27,15 +28,12 @@ export const terminalSettingsSchema = z.object({
   autoCopyOnSelection: z.boolean(),
 });
 
-// z.optional().default() keeps the TypeScript type non-optional while still allowing
-// undefined as a stored value.
 export const themeSchema = z
   .optional(z.enum(['light', 'dark', 'dark-black', 'system']))
   .default('system');
 
-export const defaultAgentSchema = z.optional(z.enum(PROVIDER_IDS)).default(DEFAULT_PROVIDER_ID);
+export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
 
-// Each field is optional — defaults live in settings-registry.ts.
 export const keyboardSettingsSchema = z
   .optional(
     z.object({
@@ -57,7 +55,6 @@ export const keyboardSettingsSchema = z
   )
   .default({});
 
-// providerConfigs schema — used by OverrideSettings for per-item validation.
 export const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
   resumeFlag: z.string().optional(),
@@ -69,9 +66,8 @@ export const providerCustomConfigEntrySchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 
-// External defaults for providerConfigs, sourced from the provider registry.
 export const providerConfigDefaults = Object.fromEntries(
-  PROVIDERS.filter(
+  AGENT_PROVIDERS.filter(
     (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
   ).map((p) => [
     p.id,
@@ -111,7 +107,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
 } as const;
 
-// providerConfigs is intentionally excluded — it is managed by OverrideSettings.
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,

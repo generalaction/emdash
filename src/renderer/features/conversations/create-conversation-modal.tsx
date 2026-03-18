@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -20,7 +20,7 @@ export function CreateConversationModal({
   projectId: string;
   taskId: string;
 }) {
-  const [providerId, setProviderId] = useState<ProviderId>('claude');
+  const [providerId, setProviderId] = useState<AgentProviderId>('claude');
   const { createConversation, conversationsByTaskId } = useConversationsContext();
 
   const providerIdConversationsCount = useMemo(() => {

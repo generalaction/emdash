@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import { eq } from 'drizzle-orm';
 import { BrowserWindow, Notification } from 'electron';
-import { getProvider, type ProviderId } from '@shared/agent-provider-registry';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { parsePtyId } from '@shared/ptyId';
@@ -140,7 +140,8 @@ class AgentEventService {
       if (appFocused) return;
       if (!Notification.isSupported()) return;
 
-      const providerName = getProvider(event.providerId as ProviderId)?.name ?? event.providerId;
+      const providerName =
+        getProvider(event.providerId as AgentProviderId)?.name ?? event.providerId;
 
       let taskName: string | null = null;
       if (event.taskId) {

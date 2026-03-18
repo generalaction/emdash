@@ -39,7 +39,6 @@ class AppService {
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
 
-  /** Call once at startup to pre-warm the version cache and register edit-menu forwarding. */
   initialize(): void {
     void this.getCachedAppVersion();
 
@@ -54,8 +53,6 @@ class AppService {
     });
   }
 
-  // ─── App version ───────────────────────────────────────────────────────────
-
   getCachedAppVersion(): Promise<string> {
     if (this.cachedAppVersion) return Promise.resolve(this.cachedAppVersion);
     if (!this.cachedAppVersionPromise) {
@@ -66,8 +63,6 @@ class AppService {
     }
     return this.cachedAppVersionPromise;
   }
-
-  // ─── Fonts ─────────────────────────────────────────────────────────────────
 
   async listInstalledFonts(
     refresh?: boolean
@@ -92,8 +87,6 @@ class AppService {
       };
     }
   }
-
-  // ─── Installed-app detection ───────────────────────────────────────────────
 
   async checkInstalledApps(): Promise<Record<string, boolean>> {
     const platform = process.platform as PlatformKey;
@@ -145,8 +138,6 @@ class AppService {
     return availability;
   }
 
-  // ─── Shell / clipboard ─────────────────────────────────────────────────────
-
   async openExternal(url: string): Promise<void> {
     if (!url || typeof url !== 'string') throw new Error('Invalid URL');
     let parsedUrl: URL;
@@ -167,8 +158,6 @@ class AppService {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
   }
-
-  // ─── Open In ───────────────────────────────────────────────────────────────
 
   async openIn(args: {
     app: OpenInAppId;
@@ -326,8 +315,6 @@ class AppService {
     });
   }
 
-  // ─── Dialogs / misc ────────────────────────────────────────────────────────
-
   async openSelectDirectoryDialog(args: {
     title: string;
     message: string;
@@ -339,10 +326,6 @@ class AppService {
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
-  }
-
-  getDefaultProjectsDirectory(): string {
-    return join(homedir(), 'Projects');
   }
 }
 

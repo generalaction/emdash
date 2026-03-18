@@ -1,4 +1,4 @@
-import type { ProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 export interface Repo {
   id: string;
@@ -47,4 +47,4 @@ export interface Task {
   repos: Repo[];
 }
 
-export type Agent = ProviderId;
+export type Agent = AgentProviderId;

@@ -1,4 +1,4 @@
-import { ProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -35,7 +35,7 @@ export class SshConversationProvider implements ConversationProvider {
     const cfg: AgentSessionConfig = {
       taskId: opts.taskId,
       conversationId: opts.conversationId,
-      providerId: opts.providerId as ProviderId,
+      providerId: opts.providerId as AgentProviderId,
       command: opts.command,
       args: opts.args,
       cwd: opts.cwd,

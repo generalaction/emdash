@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getProvider, type ProviderId } from '@shared/agent-provider-registry';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import { rpc } from '../core/ipc';
 
 interface AgentNameInfo {
@@ -31,7 +31,7 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
         ];
 
         if (providerIds.length === 0 && fallbackAgentId) {
-          const provider = getProvider(fallbackAgentId as ProviderId);
+          const provider = getProvider(fallbackAgentId as AgentProviderId);
           const name = provider?.name ?? fallbackAgentId;
           setInfo({
             primaryName: name,
@@ -47,7 +47,7 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
           return;
         }
 
-        const primaryProvider = getProvider(providerIds[0] as ProviderId);
+        const primaryProvider = getProvider(providerIds[0] as AgentProviderId);
         const primaryName = primaryProvider?.name ?? providerIds[0];
         const totalChats = conversations.filter((c) => c.provider).length;
         const additionalCount = Math.max(0, totalChats - 1);
@@ -57,7 +57,7 @@ export function useTaskAgentNames(taskId: string, fallbackAgentId?: string): Age
         setInfo({ primaryName, additionalCount, displayLabel, providerIds });
       } catch {
         if (!cancelled && fallbackAgentId) {
-          const provider = getProvider(fallbackAgentId as ProviderId);
+          const provider = getProvider(fallbackAgentId as AgentProviderId);
           const name = provider?.name ?? fallbackAgentId;
           setInfo({
             primaryName: name,

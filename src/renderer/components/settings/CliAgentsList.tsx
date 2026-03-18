@@ -1,6 +1,6 @@
 import { Settings2, Sparkles } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { PROVIDERS } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { agentAssets } from '@renderer/providers/assets';
 import { useDependencies, type DependencyState } from '../../contexts/DependenciesProvider';
 import { rpc } from '../../core/ipc';
@@ -9,7 +9,7 @@ import CustomCommandModal from '../CustomCommandModal';
 import IntegrationRow from '../IntegrationRow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
-export const BASE_CLI_AGENTS: CliAgentStatus[] = PROVIDERS.filter(
+export const BASE_CLI_AGENTS: CliAgentStatus[] = AGENT_PROVIDERS.filter(
   (provider) => provider.detectable !== false
 ).map((provider) => ({
   id: provider.id,

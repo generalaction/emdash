@@ -1,8 +1,9 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_PROVIDER_ID } from '@shared/agent-provider-registry';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import type { OpenInAppId } from '@shared/openInApps';
+
+export const DEFAULT_AGENT_ID = 'claude';
 
 type SettingsDefaultsMap = {
   [K in AppSettingsKey]: AppSettings[K] | (() => AppSettings[K]);
@@ -10,7 +11,7 @@ type SettingsDefaultsMap = {
 
 export const SETTINGS_DEFAULTS = {
   localProject: () => ({
-    defaultProjectsDirectory: join(homedir(), 'emdash', 'projects'),
+    defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
     defaultWorktreeDirectory: join(homedir(), 'emdash', 'worktrees'),
     branchPrefix: 'emdash',
     pushOnCreate: true,
@@ -30,7 +31,7 @@ export const SETTINGS_DEFAULTS = {
     autoCopyOnSelection: false,
   },
   theme: 'system' as const,
-  defaultAgent: DEFAULT_PROVIDER_ID,
+  defaultAgent: DEFAULT_AGENT_ID,
   keyboard: {},
   openIn: {
     default: 'terminal' as const,

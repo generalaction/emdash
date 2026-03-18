@@ -1,6 +1,6 @@
 import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { PROVIDERS, type ProviderDefinition } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { useProviderSettings } from '../hooks/useProviderSettings';
 import { Button } from './ui/button';
@@ -27,7 +27,7 @@ type FormState = {
   envEntries: EnvEntry[];
 };
 
-const getDefaultFromProvider = (provider: ProviderDefinition | undefined): FormState => ({
+const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): FormState => ({
   cli: provider?.cli ?? '',
   resumeFlag: provider?.resumeFlag ?? '',
   defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
@@ -50,7 +50,7 @@ const configToFormState = (config: ProviderCustomConfig, fallback: FormState): F
 });
 
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
-  const provider = useMemo(() => PROVIDERS.find((p) => p.id === providerId), [providerId]);
+  const provider = useMemo(() => AGENT_PROVIDERS.find((p) => p.id === providerId), [providerId]);
   const registryDefaults = useMemo(() => getDefaultFromProvider(provider), [provider]);
 
   const {
