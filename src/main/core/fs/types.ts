@@ -3,6 +3,19 @@
  * Provides unified interface for local and remote (SSH/SFTP) filesystem operations
  */
 
+import type { FileWatchEvent } from '@shared/fs';
+
+export type { FileWatchEvent };
+
+/**
+ * Handle returned by FileSystemProvider.watch().
+ * Call update() to change the set of watched paths, close() to stop.
+ */
+export interface FileWatcher {
+  update(paths: string[]): void;
+  close(): void;
+}
+
 /**
  * File entry metadata returned by filesystem operations
  */
@@ -228,6 +241,17 @@ export interface FileSystemProvider {
   }>;
 
   mkdir(diPath: string, options?: { recursive?: boolean }): Promise<void>;
+
+  /**
+   * Watch a set of paths for filesystem changes.
+   * Returns a FileWatcher handle; call update() to change watched paths, close() to stop.
+   * Batches events and delivers them via callback.
+   * Optional — not all implementations support watching (e.g., SSH may fall back to polling).
+   */
+  watch?(
+    callback: (events: FileWatchEvent[]) => void,
+    options?: { debounceMs?: number }
+  ): FileWatcher;
 }
 
 /**

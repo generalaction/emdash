@@ -1,7 +1,9 @@
 import { createReadStream, promises as fs, type Stats } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
+import chokidar from 'chokidar';
 import ignore from 'ignore';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   DEFAULT_EMDASH_CONFIG,
   FileEntry,
@@ -9,6 +11,7 @@ import {
   FileSystemError,
   FileSystemErrorCodes,
   FileSystemProvider,
+  FileWatcher,
   ListOptions,
   ReadResult,
   SearchMatch,
@@ -78,6 +81,41 @@ const SEARCH_IGNORES = new Set([
   '.cache',
   '.parcel-cache',
 ]);
+
+// Directory names to exclude from the filesystem watcher (matched as path segments)
+const WATCH_IGNORED_NAMES = new Set([
+  '.git',
+  '.svn',
+  '.hg',
+  'node_modules',
+  'dist',
+  'build',
+  '.next',
+  '.nuxt',
+  'coverage',
+  '__pycache__',
+  '.pytest_cache',
+  'venv',
+  '.venv',
+  'target',
+  '.terraform',
+  '.serverless',
+  'worktrees',
+  '.emdash',
+  '.conductor',
+  '.cursor',
+  '.claude',
+  '.amp',
+  '.codex',
+  '.aider',
+  '.continue',
+  '.cody',
+  '.windsurf',
+]);
+
+function isWatchIgnored(absPath: string): boolean {
+  return absPath.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
+}
 
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
@@ -700,5 +738,63 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
     await fs.mkdir(this.resolvePath(dirPath), { recursive: options?.recursive ?? false });
+  }
+
+  watch(
+    callback: (events: FileWatchEvent[]) => void,
+    options: { debounceMs?: number } = {}
+  ): FileWatcher {
+    const stabilityMs = options.debounceMs ?? 200;
+    let currentAbsPaths: string[] = [];
+    let pending: FileWatchEvent[] = [];
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = () => {
+      if (pending.length) {
+        callback(pending);
+        pending = [];
+      }
+    };
+
+    const enqueue = (evt: FileWatchEvent) => {
+      pending.push(evt);
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = setTimeout(flush, stabilityMs);
+    };
+
+    const toRel = (absPath: string) => relative(this.projectPath, absPath).replace(/\\/g, '/');
+
+    const watcher = chokidar.watch([], {
+      ignoreInitial: true,
+      ignored: isWatchIgnored,
+      persistent: false,
+    });
+
+    watcher
+      .on('add', (p) => enqueue({ type: 'create', entryType: 'file', path: toRel(p) }))
+      .on('addDir', (p) => enqueue({ type: 'create', entryType: 'directory', path: toRel(p) }))
+      .on('unlink', (p) => enqueue({ type: 'delete', entryType: 'file', path: toRel(p) }))
+      .on('unlinkDir', (p) => enqueue({ type: 'delete', entryType: 'directory', path: toRel(p) }))
+      .on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
+
+    const projectPath = this.projectPath;
+
+    return {
+      update(paths: string[]) {
+        const absPaths = paths.filter((p) => p !== '').map((p) => join(projectPath, p));
+        // Also watch the project root itself for root-level changes
+        const allPaths = paths.includes('') ? [projectPath, ...absPaths] : absPaths;
+
+        const toRemove = currentAbsPaths.filter((p) => !allPaths.includes(p));
+        const toAdd = allPaths.filter((p) => !currentAbsPaths.includes(p));
+        if (toRemove.length) watcher.unwatch(toRemove);
+        if (toAdd.length) watcher.add(toAdd);
+        currentAbsPaths = allPaths;
+      },
+      close() {
+        if (flushTimer) clearTimeout(flushTimer);
+        void watcher.close();
+      },
+    };
   }
 }

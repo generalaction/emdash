@@ -1,9 +1,17 @@
 import { planEventChannel } from '@shared/events/appEvents';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { createRPCController } from '@shared/ipc/rpc';
 import { events } from '@main/lib/events';
 import { err, ok } from '@main/lib/result';
 import { resolveTask } from '../projects/utils';
-import { FileSystemErrorCodes, type ListOptions, type SearchOptions } from './types';
+import {
+  FileSystemErrorCodes,
+  type FileWatcher,
+  type ListOptions,
+  type SearchOptions,
+} from './types';
+
+const watcherRegistry = new Map<string, FileWatcher>();
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
@@ -209,5 +217,33 @@ export const filesController = createRPCController({
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
     }
+  },
+
+  watchSetPaths: async (projectId: string, taskId: string, paths: string[]) => {
+    const env = resolveTask(projectId, taskId);
+    if (!env)
+      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
+
+    if (!env.fs.watch) return ok({ supported: false as const });
+
+    const key = `${projectId}::${taskId}`;
+    const existing = watcherRegistry.get(key);
+    if (existing) {
+      existing.update(paths);
+    } else {
+      const watcher = env.fs.watch((evts) => {
+        events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
+      });
+      watcher.update(paths);
+      watcherRegistry.set(key, watcher);
+    }
+    return ok({ supported: true as const });
+  },
+
+  watchStop: async (projectId: string, taskId: string) => {
+    const key = `${projectId}::${taskId}`;
+    watcherRegistry.get(key)?.close();
+    watcherRegistry.delete(key);
+    return ok({});
   },
 });
