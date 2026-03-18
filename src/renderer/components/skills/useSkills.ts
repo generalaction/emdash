@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { CatalogSkill, CatalogIndex } from '@shared/skills/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -11,6 +11,11 @@ export function useSkills() {
   const [selectedSkill, setSelectedSkill] = useState<CatalogSkill | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // skills.sh search state
+  const [searchResults, setSearchResults] = useState<CatalogSkill[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchAbortRef = useRef(0);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -29,6 +34,38 @@ export function useSkills() {
     loadCatalog();
   }, [loadCatalog]);
 
+  // Debounced skills.sh search — fires when query is >= 2 chars
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const id = ++searchAbortRef.current;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await window.electronAPI.skillsSearch({ query: trimmed });
+        // Only apply if this is still the latest search
+        if (id !== searchAbortRef.current) return;
+        if (result.success && result.data) {
+          setSearchResults(result.data);
+        } else {
+          setSearchResults([]);
+        }
+      } catch {
+        if (id === searchAbortRef.current) setSearchResults([]);
+      } finally {
+        if (id === searchAbortRef.current) setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -44,8 +81,8 @@ export function useSkills() {
   }, []);
 
   const install = useCallback(
-    async (skillId: string) => {
-      // Optimistic update
+    async (skillId: string, source?: { owner: string; repo: string }) => {
+      // Optimistic update for catalog skills
       setCatalog((prev) => {
         if (!prev) return prev;
         return {
@@ -53,11 +90,15 @@ export function useSkills() {
           skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: true } : s)),
         };
       });
+      // Also update search results optimistically
+      setSearchResults((prev) =>
+        prev.map((s) => (s.id === skillId ? { ...s, installed: true } : s))
+      );
 
       try {
-        const result = await window.electronAPI.skillsInstall({ skillId });
+        const result = await window.electronAPI.skillsInstall({ skillId, source });
         if (!result.success) {
-          // Revert optimistic update
+          // Revert optimistic updates
           setCatalog((prev) => {
             if (!prev) return prev;
             return {
@@ -65,6 +106,9 @@ export function useSkills() {
               skills: prev.skills.map((s) => (s.id === skillId ? { ...s, installed: false } : s)),
             };
           });
+          setSearchResults((prev) =>
+            prev.map((s) => (s.id === skillId ? { ...s, installed: false } : s))
+          );
           toast({
             title: 'Install failed',
             description: result.error || 'Could not install skill',
@@ -73,7 +117,7 @@ export function useSkills() {
         } else {
           const skill = catalog?.skills.find((s) => s.id === skillId);
           import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-            captureTelemetry('skill_installed', { source: skill?.source });
+            captureTelemetry('skill_installed', { source: skill?.source || 'skills-sh' });
           });
           toast({
             title: 'Skill installed',
@@ -107,6 +151,9 @@ export function useSkills() {
           ),
         };
       });
+      setSearchResults((prev) =>
+        prev.map((s) => (s.id === skillId ? { ...s, installed: false, localPath: undefined } : s))
+      );
 
       try {
         const result = await window.electronAPI.skillsUninstall({ skillId });
@@ -143,9 +190,13 @@ export function useSkills() {
     });
     setSelectedSkill(skill);
     setShowDetailModal(true);
-    // Load full detail
+    // Load full detail — pass source for skills-sh skills not in catalog
     try {
-      const result = await window.electronAPI.skillsGetDetail({ skillId: skill.id });
+      const source =
+        skill.source === 'skills-sh' && skill.owner && skill.repo
+          ? { owner: skill.owner, repo: skill.repo }
+          : undefined;
+      const result = await window.electronAPI.skillsGetDetail({ skillId: skill.id, source });
       if (result.success && result.data) {
         setSelectedSkill(result.data);
       }
@@ -159,6 +210,7 @@ export function useSkills() {
     setSelectedSkill(null);
   }, []);
 
+  // Filter the local catalog by query (instant, client-side)
   const filteredSkills = useMemo(() => {
     if (!catalog) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -181,6 +233,15 @@ export function useSkills() {
     [filteredSkills]
   );
 
+  // skills.sh results, excluding those already shown in the catalog
+  const catalogIds = useMemo(() => new Set(filteredSkills.map((s) => s.id)), [filteredSkills]);
+  const skillsShResults = useMemo(
+    () => searchResults.filter((s) => !catalogIds.has(s.id)),
+    [searchResults, catalogIds]
+  );
+
+  const isSearchActive = searchQuery.trim().length >= 2;
+
   return {
     catalog,
     isLoading,
@@ -194,6 +255,9 @@ export function useSkills() {
     filteredSkills,
     installedSkills,
     recommendedSkills,
+    skillsShResults,
+    isSearching,
+    isSearchActive,
     refresh,
     install,
     uninstall,

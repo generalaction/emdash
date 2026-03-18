@@ -1227,7 +1227,10 @@ declare global {
         data?: import('@shared/skills/types').CatalogIndex;
         error?: string;
       }>;
-      skillsInstall: (args: { skillId: string }) => Promise<{
+      skillsInstall: (args: {
+        skillId: string;
+        source?: { owner: string; repo: string };
+      }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
@@ -1236,7 +1239,10 @@ declare global {
         success: boolean;
         error?: string;
       }>;
-      skillsGetDetail: (args: { skillId: string }) => Promise<{
+      skillsGetDetail: (args: {
+        skillId: string;
+        source?: { owner: string; repo: string };
+      }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
@@ -1244,6 +1250,11 @@ declare global {
       skillsGetDetectedAgents: () => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').DetectedAgent[];
+        error?: string;
+      }>;
+      skillsSearch: (args: { query: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill[];
         error?: string;
       }>;
       skillsCreate: (args: { name: string; description: string; content?: string }) => Promise<{
@@ -1898,7 +1909,7 @@ export interface ElectronAPI {
     data?: import('@shared/skills/types').CatalogIndex;
     error?: string;
   }>;
-  skillsInstall: (args: { skillId: string }) => Promise<{
+  skillsInstall: (args: { skillId: string; source?: { owner: string; repo: string } }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
@@ -1907,7 +1918,10 @@ export interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
-  skillsGetDetail: (args: { skillId: string }) => Promise<{
+  skillsGetDetail: (args: {
+    skillId: string;
+    source?: { owner: string; repo: string };
+  }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
@@ -1915,6 +1929,11 @@ export interface ElectronAPI {
   skillsGetDetectedAgents: () => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').DetectedAgent[];
+    error?: string;
+  }>;
+  skillsSearch: (args: { query: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill[];
     error?: string;
   }>;
   skillsCreate: (args: { name: string; description: string }) => Promise<{
