@@ -176,7 +176,7 @@ export function TaskPromptBar({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-12 w-12 shrink-0 rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90"
+              className="h-12 w-12 shrink-0 rounded-full bg-foreground text-background shadow-sm hover:opacity-80 hover:shadow-md"
               disabled={voiceInput.phase === 'preparing' || voiceInput.phase === 'transcribing'}
               onClick={() => {
                 void handleVoiceToggle();
