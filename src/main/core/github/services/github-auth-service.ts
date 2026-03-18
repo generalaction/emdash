@@ -1,33 +1,24 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { Octokit } from '@octokit/rest';
+import keytar from 'keytar';
 import {
   githubAuthCancelledChannel,
   githubAuthDeviceCodeChannel,
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
+import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
+import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getLocalExec } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { extractGhCliToken } from './gh-cli-token';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface GitHubUser {
-  id: number;
-  login: string;
-  name: string;
-  email: string;
-  avatar_url: string;
-}
-
-export interface AuthResult {
-  success: boolean;
-  token?: string;
-  user?: GitHubUser;
-  error?: string;
-}
+export type AuthResult = GitHubConnectResponse;
 
 export interface DeviceCodeResult {
   success: boolean;
@@ -43,12 +34,16 @@ export interface DeviceCodeResult {
  * Manages GitHub authentication tokens regardless of how they were obtained
  * (Emdash Account OAuth, Device Flow, PAT, or extracted from gh CLI).
  */
+export type TokenSource = 'keytar' | 'cli' | null;
+
 export interface GitHubAuthService {
   getToken(): Promise<string | null>;
+  getTokenSource(): Promise<TokenSource>;
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
   getUserInfo(token: string): Promise<GitHubUser | null>;
-  startOAuthAuth(): Promise<AuthResult>;
+  connect(authServerBaseUrl?: string, hasAccount?: boolean): Promise<AuthResult>;
+  startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult>;
   startDeviceFlowAuth(): Promise<DeviceCodeResult>;
   storeToken(token: string): Promise<void>;
   cancelAuth(): void;
@@ -57,6 +52,7 @@ export interface GitHubAuthService {
 
 const SERVICE_NAME = 'emdash-github';
 const ACCOUNT_NAME = 'github-token';
+const TOKEN_SOURCE_ACCOUNT_NAME = 'github-token-source';
 
 const GITHUB_CONFIG = {
   clientId: 'Ov23ligC35uHWopzCeWf',
@@ -66,19 +62,75 @@ const GITHUB_CONFIG = {
 export class GitHubAuthServiceImpl implements GitHubAuthService {
   private deviceFlowAbortController: AbortController | null = null;
 
-  async getToken(): Promise<string | null> {
+  private async getStoredTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     try {
-      const keytar = await import('keytar');
-      const stored = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
-      if (stored) return stored;
-    } catch {}
-
-    const token = await extractGhCliToken(getLocalExec());
-    if (token) {
-      await this.storeToken(token);
-      return token;
+      const [token, rawSource] = await Promise.all([
+        keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME),
+        keytar.getPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
+      ]);
+      const source: TokenSource = rawSource === 'cli' || rawSource === 'keytar' ? rawSource : null;
+      return { token: token ?? null, source };
+    } catch {
+      return { token: null, source: null };
     }
-    return null;
+  }
+
+  private async clearStoredToken(): Promise<void> {
+    await Promise.all([
+      keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME),
+      keytar.deletePassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
+    ]);
+  }
+
+  async getToken(): Promise<string | null> {
+    const { token: storedToken, source } = await this.getStoredTokenRecord();
+    const exec = getLocalExec();
+
+    if (storedToken && source === 'cli') {
+      const cliToken = await extractGhCliToken(exec);
+      if (!cliToken) {
+        try {
+          await this.clearStoredToken();
+        } catch (error) {
+          log.warn('Failed to clear stale CLI token from keytar:', error);
+        }
+        return null;
+      }
+      if (cliToken !== storedToken) {
+        try {
+          await this.storeToken(cliToken, 'cli');
+        } catch (error) {
+          log.warn('Failed to sync refreshed CLI token to keytar:', error);
+        }
+        return cliToken;
+      }
+      return storedToken;
+    }
+
+    if (storedToken) return storedToken;
+
+    const cliToken = await extractGhCliToken(exec);
+    if (!cliToken) return null;
+
+    try {
+      await this.storeToken(cliToken, 'cli');
+    } catch (error) {
+      log.warn('Failed to cache CLI token in keytar:', error);
+    }
+    return cliToken;
+  }
+
+  async getTokenSource(): Promise<TokenSource> {
+    const token = await this.getToken();
+    if (!token) return null;
+
+    const { source } = await this.getStoredTokenRecord();
+    if (source) return source;
+
+    const cliToken = await extractGhCliToken(getLocalExec());
+    if (cliToken && cliToken === token) return 'cli';
+
+    return 'keytar';
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -108,8 +160,73 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
     }
   }
 
-  async startOAuthAuth(): Promise<AuthResult> {
-    return { success: false, error: 'OAuth auth not available on this branch' };
+  /**
+   * Full GitHub connection flow with fallback chain:
+   * 1. keytar (already have a token?)
+   * 2. Auth server OAuth via /authorize/github (if hasAccount + server healthy)
+   * 3. gh CLI token extraction
+   * 4. Device flow
+   */
+  async connect(authServerBaseUrl?: string, hasAccount?: boolean): Promise<AuthResult> {
+    const existing = await this.getToken();
+    if (existing) {
+      const user = await this.getUserInfo(existing);
+      if (user) return { success: true, token: existing, user };
+      await this.logout();
+    }
+
+    if (hasAccount && authServerBaseUrl) {
+      const oauthResult = await this.startOAuthFlow(authServerBaseUrl);
+      if (oauthResult.success) return oauthResult;
+    }
+
+    const cliToken = await extractGhCliToken(getLocalExec());
+    if (cliToken) {
+      await this.storeToken(cliToken, 'cli');
+      const user = await this.getUserInfo(cliToken);
+      return { success: true, token: cliToken, user: user || undefined };
+    }
+
+    const deviceResult = await this.startDeviceFlowAuth();
+    return {
+      success: deviceResult.success,
+      error: deviceResult.error,
+    };
+  }
+
+  async startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult> {
+    try {
+      try {
+        const health = await fetch(`${authServerBaseUrl}/health`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (!health.ok) throw new Error('Auth server unhealthy');
+      } catch {
+        return { success: false, error: 'Auth server unavailable' };
+      }
+
+      const raw = await executeOAuthFlow({
+        authorizeUrl: `${authServerBaseUrl}/auth/github`,
+        exchangeUrl: `${authServerBaseUrl}/api/v1/auth/electron/exchange`,
+        successRedirectUrl: `${authServerBaseUrl}/auth/success`,
+        errorRedirectUrl: `${authServerBaseUrl}/auth/error`,
+      });
+
+      const accessToken = raw.accessToken as string;
+      if (!accessToken) {
+        return { success: false, error: 'No access token in response' };
+      }
+
+      await this.storeToken(accessToken);
+      const user = await this.getUserInfo(accessToken);
+      return { success: true, token: accessToken, user: user || undefined };
+    } catch (error) {
+      log.warn('GitHub OAuth flow failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'OAuth authentication failed',
+      };
+    }
   }
 
   async startDeviceFlowAuth(): Promise<DeviceCodeResult> {
@@ -169,11 +286,11 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
     }
   }
 
-  async storeToken(token: string): Promise<void> {
-    try {
-      const keytar = await import('keytar');
-      await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
-    } catch {}
+  async storeToken(token: string, source: Exclude<TokenSource, null> = 'keytar'): Promise<void> {
+    await Promise.all([
+      keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token),
+      keytar.setPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME, source),
+    ]);
   }
 
   cancelAuth(): void {
@@ -184,10 +301,7 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   }
 
   async logout(): Promise<void> {
-    try {
-      const keytar = await import('keytar');
-      await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
-    } catch {}
+    await this.clearStoredToken();
   }
 }
 

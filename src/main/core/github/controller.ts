@@ -1,7 +1,14 @@
 import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { Octokit } from '@octokit/rest';
+import type {
+  GitHubAuthResponse,
+  GitHubConnectResponse,
+  GitHubStatusResponse,
+} from '@shared/github';
 import { createRPCController } from '@shared/ipc/rpc';
+import { ACCOUNT_CONFIG } from '@main/core/account/config';
+import { accountProfileCache } from '@main/core/account/services/profile-cache';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
@@ -25,21 +32,25 @@ async function getOctokit(): Promise<Octokit> {
 export const githubController = createRPCController({
   // -- Auth ----------------------------------------------------------------
 
-  getStatus: async () => {
+  getStatus: async (): Promise<GitHubStatusResponse> => {
     try {
       const authenticated = await githubAuthService.isAuthenticated();
-      let user = null;
-      if (authenticated) {
-        user = await githubAuthService.getCurrentUser();
-      }
-      return { installed: true, authenticated, user };
+
+      const [user, tokenSource] = authenticated
+        ? await Promise.all([
+            githubAuthService.getCurrentUser(),
+            githubAuthService.getTokenSource(),
+          ])
+        : [null, null];
+
+      return { installed: true, authenticated, user, tokenSource };
     } catch (error) {
       log.error('GitHub status check failed:', error);
-      return { installed: true, authenticated: false, user: null };
+      return { installed: true, authenticated: false, user: null, tokenSource: null };
     }
   },
 
-  auth: async () => {
+  auth: async (): Promise<GitHubAuthResponse> => {
     try {
       return await githubAuthService.startDeviceFlowAuth();
     } catch (error) {
@@ -48,12 +59,14 @@ export const githubController = createRPCController({
     }
   },
 
-  authOAuth: async () => {
+  connect: async (): Promise<GitHubConnectResponse> => {
     try {
-      return await githubAuthService.startOAuthAuth();
+      const profile = accountProfileCache.read();
+      const { baseUrl } = ACCOUNT_CONFIG.authServer;
+      return await githubAuthService.connect(baseUrl, profile?.hasAccount === true);
     } catch (error) {
-      log.error('GitHub OAuth authentication failed:', error);
-      return { success: false, error: 'OAuth authentication failed' };
+      log.error('GitHub connect failed:', error);
+      return { success: false, error: 'Connection failed' };
     }
   },
 
