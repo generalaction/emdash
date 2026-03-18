@@ -38,6 +38,7 @@ export function useSkills() {
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length < 2) {
+      ++searchAbortRef.current; // invalidate any in-flight request
       setSearchResults([]);
       setIsSearching(false);
       return;
