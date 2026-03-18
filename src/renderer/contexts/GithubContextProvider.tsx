@@ -7,17 +7,16 @@ import {
 } from '@shared/events/githubEvents';
 import type {
   GitHubAuthResponse,
-  GitHubConnectResponse,
   GitHubStatusResponse,
   GitHubTokenSource,
   GitHubUser,
 } from '@shared/github';
 import { events, rpc } from '../core/ipc';
+import { useModalContext } from '../core/modal/modal-provider';
 import { useToast } from '../hooks/use-toast';
-import { useAppContext } from './AppContextProvider';
+import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
 
 type GithubContextValue = {
-  installed: boolean;
   authenticated: boolean;
   user: GitHubUser | null;
   tokenSource: GitHubTokenSource;
@@ -25,7 +24,6 @@ type GithubContextValue = {
   isInitialized: boolean;
   githubLoading: boolean;
   githubStatusMessage: string | undefined;
-  needsGhInstall: boolean;
   needsGhAuth: boolean;
   handleGithubConnect: () => Promise<void>;
   login: () => Promise<GitHubAuthResponse>;
@@ -39,8 +37,11 @@ const GithubContext = createContext<GithubContextValue | null>(null);
 
 export function GithubContextProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
-  const { platform } = useAppContext();
   const queryClient = useQueryClient();
+  const { showModal } = useModalContext();
+  const { data: accountSession } = useAccountSession();
+  const hasAccount = accountSession?.hasAccount === true;
+  const fetchAccountHealth = useFetchAccountHealth();
 
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
@@ -56,14 +57,12 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     refetchOnWindowFocus: true,
   });
 
-  const installed = statusData?.installed ?? true;
   const authenticated = statusData?.authenticated ?? false;
   const user: GitHubUser | null = statusData?.user ?? null;
   const tokenSource: GitHubTokenSource = statusData?.tokenSource ?? null;
   const isInitialized = isSuccess;
 
-  const needsGhInstall = isInitialized && !installed;
-  const needsGhAuth = isInitialized && installed && !authenticated;
+  const needsGhAuth = isInitialized && !authenticated;
 
   const loginMutation = useMutation({
     mutationFn: () => rpc.github.auth(),
@@ -137,55 +136,39 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     setGithubStatusMessage(undefined);
 
     try {
-      setGithubStatusMessage('Checking for GitHub CLI...');
-      const cliInstalled = await rpc.github.checkCLIInstalled();
-
-      if (!cliInstalled) {
-        let installMessage = 'Installing GitHub CLI...';
-        if (platform === 'darwin') {
-          installMessage = 'Installing GitHub CLI via Homebrew...';
-        } else if (platform === 'linux') {
-          installMessage = 'Installing GitHub CLI via apt...';
-        } else if (platform === 'win32') {
-          installMessage = 'Installing GitHub CLI via winget...';
-        }
-
-        setGithubStatusMessage(installMessage);
-        try {
-          await rpc.github.installCLI();
-        } catch (err) {
-          setGithubLoading(false);
-          setGithubStatusMessage(undefined);
-          toast({
-            title: 'Installation Failed',
-            description: `Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
-        toast({
-          title: 'GitHub CLI Installed',
-          description: 'Now authenticating with GitHub...',
-        });
-        void checkStatus();
+      const freshStatus = await checkStatus();
+      if (freshStatus?.authenticated) {
+        setGithubLoading(false);
+        setGithubStatusMessage(undefined);
+        return;
       }
 
-      const result: GitHubConnectResponse = await rpc.github.connect();
+      const isServerUp = hasAccount && (await fetchAccountHealth());
+      if (hasAccount && isServerUp) {
+        setGithubStatusMessage('Connecting via Emdash account...');
+        const oauthResult = await rpc.github.connectOAuth();
+        if (oauthResult?.success) {
+          await checkStatus();
+          if (oauthResult.user) {
+            toast({
+              title: 'Connected to GitHub',
+              description: `Signed in as ${oauthResult.user.login || oauthResult.user.name || 'user'}`,
+            });
+          }
+          setGithubLoading(false);
+          setGithubStatusMessage(undefined);
+          return;
+        }
+      }
 
       setGithubLoading(false);
       setGithubStatusMessage(undefined);
 
-      if (result?.success) {
-        await checkStatus();
-        if (result.user) {
-          toast({
-            title: 'Connected to GitHub',
-            description: `Signed in as ${result.user.login || result.user.name || 'user'}`,
-          });
-        }
-      }
+      showModal('githubDeviceFlowModal', {
+        onSuccess: (result: unknown) => handleDeviceFlowSuccess(result as GitHubUser),
+        onError: handleDeviceFlowError,
+      });
+      void login();
     } catch (error) {
       console.error('GitHub connection error:', error);
       setGithubLoading(false);
@@ -196,10 +179,18 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         variant: 'destructive',
       });
     }
-  }, [platform, toast, checkStatus]);
+  }, [
+    toast,
+    checkStatus,
+    login,
+    showModal,
+    handleDeviceFlowSuccess,
+    handleDeviceFlowError,
+    hasAccount,
+    fetchAccountHealth,
+  ]);
 
   const value: GithubContextValue = {
-    installed,
     authenticated,
     user,
     tokenSource,
@@ -207,7 +198,6 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     isInitialized,
     githubLoading,
     githubStatusMessage,
-    needsGhInstall,
     needsGhAuth,
     handleGithubConnect,
     login,
