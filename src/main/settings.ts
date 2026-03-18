@@ -636,19 +636,29 @@ export function updateProviderCustomConfig(
   config: ProviderCustomConfig | undefined
 ): void {
   const settings = getAppSettings();
-  const currentConfigs = settings.providerConfigs ?? {};
+  const currentConfigs = { ...(settings.providerConfigs ?? {}) };
 
   if (config === undefined) {
-    // Remove the config
-    const { [providerId]: _, ...rest } = currentConfigs;
-    updateAppSettings({ providerConfigs: rest });
+    delete currentConfigs[providerId];
   } else {
-    // Update/add the config
-    updateAppSettings({
-      providerConfigs: {
-        ...currentConfigs,
-        [providerId]: config,
-      },
-    });
+    // Strip undefined values so removed fields (e.g. env after
+    // deleting all env vars) don't linger from a previous save.
+    const cleaned: ProviderCustomConfig = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (v !== undefined) {
+        cleaned[k as keyof ProviderCustomConfig] = v;
+      }
+    }
+    if (Object.keys(cleaned).length > 0) {
+      currentConfigs[providerId] = cleaned;
+    } else {
+      delete currentConfigs[providerId];
+    }
   }
+
+  // Write the full providerConfigs map directly to avoid deepMerge
+  // preserving stale nested keys from the old config.
+  const next = normalizeSettings({ ...settings, providerConfigs: currentConfigs });
+  persistSettings(next);
+  cached = next;
 }
