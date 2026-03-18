@@ -646,10 +646,14 @@ export function updateProviderCustomConfig(
     const cleaned: ProviderCustomConfig = {};
     for (const [k, v] of Object.entries(config)) {
       if (v !== undefined) {
-        (cleaned as any)[k] = v;
+        cleaned[k as keyof ProviderCustomConfig] = v;
       }
     }
-    currentConfigs[providerId] = cleaned;
+    if (Object.keys(cleaned).length > 0) {
+      currentConfigs[providerId] = cleaned;
+    } else {
+      delete currentConfigs[providerId];
+    }
   }
 
   // Write the full providerConfigs map directly to avoid deepMerge
