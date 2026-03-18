@@ -41,3 +41,13 @@ export function useAccountHealth() {
     staleTime: 60_000,
   });
 }
+
+export function useFetchAccountHealth() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.fetchQuery({
+      queryKey: ACCOUNT_HEALTH_KEY,
+      queryFn: () => rpc.account.checkHealth(),
+      staleTime: 0,
+    });
+}
