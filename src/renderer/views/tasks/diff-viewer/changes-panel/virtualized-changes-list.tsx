@@ -8,6 +8,7 @@ export interface VirtualizedChangesListProps {
   onSelectChange?: (change: GitChange) => void;
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
+  activePath?: string;
 }
 
 const ITEM_HEIGHT = 28;
@@ -17,6 +18,7 @@ export function VirtualizedChangesList({
   onSelectChange,
   isSelected,
   onToggleSelect,
+  activePath,
 }: VirtualizedChangesListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -37,6 +39,7 @@ export function VirtualizedChangesList({
               key={change.path}
               change={change}
               isSelected={isSelected?.(change.path)}
+              isActive={change.path === activePath}
               onToggleSelect={onToggleSelect}
               style={{
                 position: 'absolute',

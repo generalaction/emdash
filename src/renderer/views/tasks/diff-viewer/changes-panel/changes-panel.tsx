@@ -163,6 +163,7 @@ export function ChangesPanel() {
     discardFilesChanges,
   } = useGitChangesContext();
   const { projectId, taskId } = useTaskViewContext();
+  const { activeFile, setActiveFile } = useGitViewContext();
 
   const { data } = useBranchStatus({ projectId, taskId });
 
@@ -253,6 +254,8 @@ export function ChangesPanel() {
               changes={unstagedFileChanges}
               isSelected={unstagedSelection.isSelected}
               onToggleSelect={unstagedSelection.toggleItem}
+              activePath={activeFile?.isStaged === false ? activeFile.path : undefined}
+              onSelectChange={(change) => setActiveFile({ path: change.path, isStaged: false })}
             />
           </div>
         </ResizablePanel>
@@ -300,6 +303,8 @@ export function ChangesPanel() {
               changes={stagedFileChanges}
               isSelected={stagedSelection.isSelected}
               onToggleSelect={stagedSelection.toggleItem}
+              activePath={activeFile?.isStaged === true ? activeFile.path : undefined}
+              onSelectChange={(change) => setActiveFile({ path: change.path, isStaged: true })}
             />
           </div>
           {hasStaged && <CommitCard />}

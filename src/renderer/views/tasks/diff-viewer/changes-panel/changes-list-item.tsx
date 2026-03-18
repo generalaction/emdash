@@ -9,16 +9,18 @@ import { FileIcon } from './file-icon';
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;
   isSelected?: boolean;
+  isActive?: boolean;
   onToggleSelect?: (path: string) => void;
 }
 
 export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProps>(
-  ({ change, isSelected, onToggleSelect, className, ...props }, ref) => {
+  ({ change, isSelected, isActive, onToggleSelect, className, ...props }, ref) => {
     const { filename, directory } = useMemo(() => splitPath(change.path), [change.path]);
     return (
       <button
         className={cn(
           'group/item w-full flex items-center gap-2 justify-between px-2 py-1 hover:bg-muted/50 h-7 rounded-md',
+          isActive && 'bg-muted',
           className
         )}
         ref={ref}
