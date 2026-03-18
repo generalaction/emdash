@@ -86,17 +86,6 @@ export const providerConfigDefaults = Object.fromEntries(
   ])
 );
 
-export const mcpSettingsSchema = z
-  .object({
-    context7: z
-      .object({
-        enabled: z.boolean(),
-        installHintsDismissed: z.record(z.string(), z.boolean()).optional(),
-      })
-      .default({ enabled: false }),
-  })
-  .default({ context7: { enabled: false } });
-
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
@@ -117,7 +106,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   notifications: notificationSettingsSchema,
   theme: themeSchema,
   openIn: openInSettingsSchema,
-  mcp: mcpSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
@@ -132,7 +120,6 @@ export const appSettingsSchema = z.object({
   notifications: notificationSettingsSchema,
   theme: themeSchema,
   openIn: openInSettingsSchema,
-  mcp: mcpSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,

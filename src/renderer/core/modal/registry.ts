@@ -3,6 +3,7 @@ import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
 import { ConfirmActionDialog } from '@renderer/components/ConfirmActionDialog';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
+import { McpModal } from '@renderer/components/mcp/McpModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
 import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/ProjectSettingsModal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
@@ -22,5 +23,6 @@ export const modalRegistry = {
   projectSettingsModal: ProjectSettingsModal,
   confirmActionModal: ConfirmActionDialog,
   createConversationModal: CreateConversationModal,
+  mcpServerModal: McpModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;

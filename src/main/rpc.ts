@@ -8,6 +8,7 @@ import { githubController } from './core/github/controller';
 import { jiraController } from './core/jira/controller';
 import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
+import { mcpController } from './core/mcp/controller';
 import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
 import { repositoryController } from './core/repository/controller';
@@ -39,6 +40,7 @@ export const rpcRouter = createRPCRouter({
   terminals: terminalsController,
   git: gitController,
   dependencies: dependenciesController,
+  mcp: mcpController,
 });
 
 export type RpcRouter = typeof rpcRouter;
