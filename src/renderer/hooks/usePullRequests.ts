@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { rpc } from '../core/ipc';
 
 export interface PullRequestSummary {
@@ -13,25 +14,19 @@ export interface PullRequestSummary {
 }
 
 export function usePullRequests(nameWithOwner?: string, enabled: boolean = true) {
-  const [prs, setPrs] = useState<PullRequestSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchPrs = useCallback(async () => {
-    if (!nameWithOwner || !enabled) {
-      setPrs([]);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await rpc.github.listPullRequests(nameWithOwner);
-      if (response?.success) {
-        const items = Array.isArray(response.prs) ? response.prs : [];
-        const mapped: PullRequestSummary[] = items
-          .map((item) => ({
+  const query = useQuery({
+    queryKey: ['pull-requests', nameWithOwner],
+    queryFn: async () => {
+      const response = await rpc.github.listPullRequests(nameWithOwner!);
+      if (!response?.success) {
+        throw new Error(response?.error || 'Failed to load pull requests');
+      }
+      const items = Array.isArray(response.prs) ? response.prs : [];
+      return items
+        .map(
+          (item): PullRequestSummary => ({
             number: Number(item.number) || 0,
             title: String(item.title || `PR #${item.number ?? 'unknown'}`),
             headRefName: String(item.headRefName || ''),
@@ -40,25 +35,26 @@ export function usePullRequests(nameWithOwner?: string, enabled: boolean = true)
             isDraft: !!item.isDraft,
             updatedAt: String(item.updatedAt || ''),
             authorLogin: item.author?.login ?? null,
-          }))
-          .filter((item) => item.number > 0);
-        setPrs(mapped);
-      } else {
-        setError(response?.error || 'Failed to load pull requests');
-        setPrs([]);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-      setPrs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [nameWithOwner, enabled]);
+          })
+        )
+        .filter((item) => item.number > 0);
+    },
+    enabled: !!nameWithOwner && enabled,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    if (!enabled) return;
-    fetchPrs();
-  }, [enabled, fetchPrs]);
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['pull-requests', nameWithOwner] });
+  }, [queryClient, nameWithOwner]);
 
-  return { prs, loading, error, refresh: fetchPrs };
+  return {
+    prs: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error
+      ? query.error instanceof Error
+        ? query.error.message
+        : String(query.error)
+      : null,
+    refresh,
+  };
 }

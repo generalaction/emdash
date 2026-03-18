@@ -84,10 +84,11 @@ export class WorktreeService {
       branchExists = true;
     } catch {}
     if (!branchExists) {
-      // Case 1: fresh — create the branch and worktree together
+      // Case 1: fresh — create the branch and worktree together.
+      // Use refs/heads/ prefix to avoid ambiguity when a tag exists with the same name.
       await this.exec(
         'git',
-        ['worktree', 'add', '-b', reserveBranchName, worktreePath, sourceBranch],
+        ['worktree', 'add', '-b', reserveBranchName, worktreePath, `refs/heads/${sourceBranch}`],
         { cwd: this.repoPath }
       );
       return;
@@ -147,9 +148,10 @@ export class WorktreeService {
         cwd: reservePath,
       }).catch(() => {});
     } else {
-      await this.exec('git', ['reset', '--hard', sourceBranch], { cwd: reservePath }).catch(
-        () => {}
-      );
+      // Use refs/heads/ prefix to avoid ambiguity when a tag exists with the same name.
+      await this.exec('git', ['reset', '--hard', `refs/heads/${sourceBranch}`], {
+        cwd: reservePath,
+      }).catch(() => {});
     }
 
     await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });

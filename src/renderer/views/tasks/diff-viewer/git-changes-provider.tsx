@@ -41,6 +41,8 @@ export function GitChangesProvider({
       if (!result.success) throw new Error(extractErrorMessage(result.error));
       return result.data?.changes ?? ([] as GitChange[]);
     },
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 
   const showConfirmActionModal = useShowModal('confirmActionModal');

@@ -26,6 +26,7 @@ import { useGitChangesContext } from '../git-changes-provider';
 import { useGitViewContext } from '../git-view-provider';
 import { useBranchStatus } from '../use-branch-status.tsx';
 import { useSelection, type SelectionState } from '../use-selection';
+import { PullRequestSection } from './pr-section';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
 interface SectionHeaderProps {
@@ -63,7 +64,7 @@ function CommitCard() {
   const [description, setDescription] = useState('');
   const { commitChanges } = useGitChangesContext();
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-1 items-center justify-between rounded-lg border border-border  p-2.5">
+    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border  p-2.5">
       <Input
         placeholder="Commit message"
         className="w-full"
@@ -83,6 +84,21 @@ function CommitCard() {
         onClick={() => commitChanges(commitMessage + '\n\n' + description)}
       >
         Commit
+      </Button>
+    </div>
+  );
+}
+
+function PushCard() {
+  const { projectId, taskId } = useTaskViewContext();
+  const { pushChanges, data } = useBranchStatus({ projectId, taskId });
+
+  return (
+    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border  p-2.5">
+      <Button variant="default" size="sm" className="w-full" onClick={() => pushChanges()}>
+        <ArrowUp className="size-3" />
+        Push changes
+        <Badge variant="secondary">{data?.ahead ?? 0}</Badge>
       </Button>
     </div>
   );
@@ -113,25 +129,23 @@ function GitStatusSection() {
   const { data, fetchChanges, pullChanges, pushChanges } = useBranchStatus({ projectId, taskId });
   return (
     <div className="p-2 border-t border-border flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <GitBranch className="size-3" />
-        <span className="text-sm text-muted-foreground">{data?.branch}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="outline" className="flex-1" size="xs" onClick={() => fetchChanges()}>
-          <RefreshCcw className="size-3" />
-          Fetch
-        </Button>
-        <Button variant="outline" className="flex-1" size="xs" onClick={() => pullChanges()}>
-          <ArrowDown className="size-3" />
-          Pull
-          <Badge variant="secondary">{data?.behind ?? 0}</Badge>
-        </Button>
-        <Button variant="outline" className="flex-1" size="xs" onClick={() => pushChanges()}>
-          <ArrowUp className="size-3" />
-          Push
-          <Badge variant="secondary">{data?.ahead ?? 0}</Badge>
-        </Button>
+      <PullRequestSection />
+      <div className="flex items-center gap-2 text-muted-foreground justify-between">
+        <div className="flex items-center gap-2">
+          <GitBranch className="size-3" />
+          <span className="text-sm text-muted-foreground">{data?.branch}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon-xs" onClick={() => fetchChanges()}>
+            <RefreshCcw className="size-3" />
+          </Button>
+          <Button variant="outline" size="icon-xs" onClick={() => pullChanges()}>
+            <ArrowDown className="size-3" />
+          </Button>
+          <Button variant="outline" size="icon-xs" onClick={() => pushChanges()}>
+            <ArrowUp className="size-3" />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -148,6 +162,9 @@ export function ChangesPanel() {
     unstageFilesChanges,
     discardFilesChanges,
   } = useGitChangesContext();
+  const { projectId, taskId } = useTaskViewContext();
+
+  const { data } = useBranchStatus({ projectId, taskId });
 
   const unstagedSelection = useSelection(unstagedFileChanges);
   const stagedSelection = useSelection(stagedFileChanges);
@@ -257,7 +274,7 @@ export function ChangesPanel() {
                 <Button
                   variant="outline"
                   size="xs"
-                  onClick={() => void handleUnstageSelection()}
+                  onClick={() => handleUnstageSelection()}
                   title="Unstage selected files"
                 >
                   <Minus className="size-3" />
@@ -269,7 +286,7 @@ export function ChangesPanel() {
                   variant="ghost"
                   size="xs"
                   disabled={!hasStaged}
-                  onClick={() => void unstageAllChanges()}
+                  onClick={() => unstageAllChanges()}
                   title="Unstage all files"
                 >
                   <Minus className="size-3" />
@@ -286,7 +303,9 @@ export function ChangesPanel() {
             />
           </div>
           {hasStaged && <CommitCard />}
+          {!hasStaged && (data?.ahead ?? 0) > 0 && <PushCard />}
         </ResizablePanel>
+
         <GitStatusSection />
       </ResizablePanelGroup>
     </div>

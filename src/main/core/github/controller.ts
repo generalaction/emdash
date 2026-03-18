@@ -9,6 +9,7 @@ import { githubAuthService } from '@main/core/github/services/github-auth-servic
 import { GitHubIssueServiceImpl } from '@main/core/github/services/issue-service';
 import { GitHubPullRequestServiceImpl } from '@main/core/github/services/pr-service';
 import { GitHubRepositoryServiceImpl } from '@main/core/github/services/repo-service';
+import { splitRepo } from '@main/core/github/services/utils';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
@@ -185,6 +186,36 @@ export const githubController = createRPCController({
       return { success: !!pr, pr: pr ?? undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get pull request';
+      return { success: false, error: message };
+    }
+  },
+
+  createPullRequest: async (params: {
+    nameWithOwner: string;
+    head: string;
+    base: string;
+    title: string;
+    draft: boolean;
+  }) => {
+    if (!params.nameWithOwner) return { success: false, error: 'Repository is required' };
+    if (!params.head) return { success: false, error: 'Head branch is required' };
+    if (!params.base) return { success: false, error: 'Base branch is required' };
+    if (!params.title) return { success: false, error: 'Title is required' };
+    try {
+      const octokit = await getOctokit();
+      const { owner, repo } = splitRepo(params.nameWithOwner);
+      const response = await octokit.rest.pulls.create({
+        owner,
+        repo,
+        head: params.head,
+        base: params.base,
+        title: params.title,
+        draft: params.draft,
+      });
+      return { success: true, url: response.data.html_url, number: response.data.number };
+    } catch (error) {
+      log.error('Failed to create pull request:', error);
+      const message = error instanceof Error ? error.message : 'Unable to create pull request';
       return { success: false, error: message };
     }
   },

@@ -77,6 +77,7 @@ function ActiveTaskTitlebar() {
             size="sm"
             className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1 mr-2"
             onValueChange={([value]) => {
+              if (!value) return;
               setRightPanelView(value as RightPanelView);
             }}
           >

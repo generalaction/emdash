@@ -12,6 +12,11 @@ export function splitPath(filePath: string) {
   return { filename, directory };
 }
 
+export function parseGithubNameWithOwner(remote: string): string | null {
+  const match = /github\.com[:/](.+?)(?:\.git)?$/.exec(remote);
+  return match?.[1] ?? null;
+}
+
 export function friendlyGitError(raw: string): string {
   const s = raw.toLowerCase();
   if (s.includes('non-fast-forward') || s.includes('tip of your current branch is behind'))
