@@ -18,6 +18,13 @@ export type VoiceInputToggleResult =
   | 'error'
   | 'noop';
 
+/** Computed once — the browser environment never changes during the app lifecycle. */
+const VOICE_INPUT_SUPPORTED =
+  typeof navigator !== 'undefined' &&
+  !!navigator.mediaDevices?.getUserMedia &&
+  typeof window !== 'undefined' &&
+  window.isSecureContext;
+
 // At 16 kHz sample rate this is ~100ms of audio — anything shorter is probably
 // accidental and not worth sending to the model.
 const MIN_CAPTURED_SAMPLES = 1600;
@@ -34,6 +41,7 @@ export function useRunAnywhereVoiceInput(args: { modelId: VoiceInputModelId }) {
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
 
   useEffect(() => {
+    if (!VOICE_INPUT_SUPPORTED) return;
     setModelStatus(getManagedVoiceModel(args.modelId)?.status ?? null);
     return ModelManager.onChange(() => {
       setModelStatus(getManagedVoiceModel(args.modelId)?.status ?? null);
@@ -211,11 +219,7 @@ export function useRunAnywhereVoiceInput(args: { modelId: VoiceInputModelId }) {
     transcript,
     transcriptId,
     statusText,
-    isSupported:
-      typeof navigator !== 'undefined' &&
-      !!navigator.mediaDevices?.getUserMedia &&
-      typeof window !== 'undefined' &&
-      window.isSecureContext,
+    isSupported: VOICE_INPUT_SUPPORTED,
     cancelListening,
     toggleRecording,
     stopListening,

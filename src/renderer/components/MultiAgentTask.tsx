@@ -233,10 +233,14 @@ const MultiAgentTask: React.FC<Props> = ({
       }
     );
     const results = await Promise.all(tasks);
+    let anyInjected = false;
     for (const result of results) {
       consumePromptComments(result.scopeKey, result.injected);
+      if (result.injected) anyInjected = true;
     }
-    setPrompt('');
+    if (anyInjected) {
+      setPrompt('');
+    }
   };
 
   // Track per-variant activity so we can render a spinner on the tabs

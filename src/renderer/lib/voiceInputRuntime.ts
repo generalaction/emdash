@@ -23,6 +23,10 @@ const RUNANYWHERE_HELPER_BASE_URL = '/assets/sherpa/';
 let initPromise: Promise<void> | null = null;
 let registeredCatalog = false;
 
+/** Tracks consecutive init failures to avoid unbounded retries on deterministic errors. */
+let consecutiveInitFailures = 0;
+const MAX_INIT_RETRIES = 3;
+
 function isDevelopmentRenderer() {
   if (typeof window === 'undefined') return false;
   return window.location.hostname === 'localhost' || window.location.port === '3000';
@@ -51,6 +55,10 @@ export async function ensureRunAnywhereReady() {
     return initPromise;
   }
 
+  if (consecutiveInitFailures >= MAX_INIT_RETRIES) {
+    throw new Error('Voice input initialization failed repeatedly. Restart the app to try again.');
+  }
+
   initPromise = (async () => {
     if (!RunAnywhere.isInitialized) {
       await RunAnywhere.initialize({
@@ -74,8 +82,12 @@ export async function ensureRunAnywhereReady() {
       );
       registeredCatalog = true;
     }
+
+    // Reset failure counter on success.
+    consecutiveInitFailures = 0;
   })().catch((error) => {
     initPromise = null;
+    consecutiveInitFailures += 1;
     throw error;
   });
 
