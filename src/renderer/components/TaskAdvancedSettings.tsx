@@ -48,7 +48,6 @@ interface TaskAdvancedSettingsProps {
   isGithubConnected: boolean;
   onGithubConnect: () => Promise<void>;
   githubLoading: boolean;
-  githubInstalled: boolean;
 
   // Jira
   selectedJiraIssue: JiraIssueSummary | null;
@@ -78,7 +77,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   isGithubConnected,
   onGithubConnect,
   githubLoading,
-  githubInstalled,
   selectedJiraIssue,
   onJiraIssueChange,
   isJiraConnected,
@@ -345,8 +343,6 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                           <Spinner size="sm" className="mr-1" />
                           Connecting...
                         </>
-                      ) : !githubInstalled ? (
-                        'Install CLI'
                       ) : (
                         'Connect'
                       )}

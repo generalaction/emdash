@@ -1,31 +1,23 @@
-import { ExternalLink, LogOut, RefreshCcw } from 'lucide-react';
+import { LogOut, RefreshCcw } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
-import { rpc } from '../core/ipc';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 
-type GithubConnectionStatus = 'connected' | 'disconnected' | 'missing';
+type GithubConnectionStatus = 'connected' | 'disconnected';
 
 interface GithubConnectionCardProps {
   onStatusChange?: (status: GithubConnectionStatus) => void;
 }
 
-const INSTALL_URL = 'https://cli.github.com/manual/installation';
-
 const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusChange }) => {
-  const { installed, authenticated, user, isLoading, login, logout, checkStatus } =
-    useGithubContext();
+  const { authenticated, user, isLoading, login, logout, checkStatus } = useGithubContext();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
-  const [isInstalling, setIsInstalling] = useState(false);
 
   const status: GithubConnectionStatus = useMemo(() => {
-    if (!installed) {
-      return 'missing';
-    }
     return authenticated ? 'connected' : 'disconnected';
-  }, [installed, authenticated]);
+  }, [authenticated]);
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -46,30 +38,8 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     setMessage(null);
     setIsError(false);
 
-    // Check if gh CLI is installed
-    const cliPresent = await rpc.github.checkCLIInstalled();
-
-    if (!cliPresent) {
-      // Offer to install
-      setMessage('GitHub CLI not found. Installing...');
-      setIsInstalling(true);
-
-      try {
-        await rpc.github.installCLI();
-      } catch (err) {
-        setIsInstalling(false);
-        setMessage(`Could not auto-install gh CLI: ${(err as Error).message || 'Unknown error'}`);
-        setIsError(true);
-        return;
-      }
-      setIsInstalling(false);
-
-      setMessage('GitHub CLI installed successfully!');
-    }
-
-    // Proceed with OAuth authentication
     try {
-      const result = await login(); // This now triggers OAuth flow
+      const result = await login();
       await checkStatus();
       if (result?.success) {
         setMessage('Successfully connected to GitHub!');
@@ -108,28 +78,9 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     }
   }, [checkStatus]);
 
-  const handleInstall = useCallback(async () => {
-    try {
-      await rpc.app.openExternal(INSTALL_URL);
-    } catch (error) {
-      console.error('Failed to open GitHub CLI install docs:', error);
-    }
-  }, []);
-
   return (
     <div id="settings-github-card" className="space-y-3">
-      {status === 'missing' ? (
-        <div className="space-y-3">
-          <div className="rounded-lg border border-dashed border-border bg-white p-3 dark:border-border dark:bg-background">
-            <p className="text-sm text-muted-foreground">
-              Install GitHub CLI (gh) to enable repo access.
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleInstall}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Install GitHub CLI
-          </Button>
-        </div>
-      ) : status === 'connected' ? (
+      {status === 'connected' ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-lg border border-border bg-white p-3 dark:border-border dark:bg-background">
             <div className="flex items-center gap-2">
@@ -184,10 +135,10 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
               disabled={isLoading}
               aria-busy={isLoading}
             >
-              {isLoading || isInstalling ? (
+              {isLoading ? (
                 <>
                   <Spinner size="sm" className="mr-2" />
-                  {isInstalling ? 'Installing CLI...' : 'Connecting…'}
+                  Connecting…
                 </>
               ) : (
                 'Sign in with GitHub'
