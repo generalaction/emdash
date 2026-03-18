@@ -623,6 +623,22 @@ export class TerminalSessionManager {
     }
   }
 
+  forwardWheelInput(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    if (this.dispatchWheelEventToTerminal(input)) {
+      return true;
+    }
+
+    return this.scrollViewportFromWheelDelta(input.deltaY, input.deltaMode);
+  }
+
   scrollViewportFromWheelDelta(deltaY: number, deltaMode: number): boolean {
     const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
     if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
@@ -1032,6 +1048,44 @@ export class TerminalSessionManager {
     }
 
     return deltaY / this.getApproximateRowHeightPx();
+  }
+
+  private dispatchWheelEventToTerminal(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    try {
+      const terminalElement = (this.terminal as any).element as HTMLElement | null;
+      if (!terminalElement) return false;
+
+      const rect = terminalElement.getBoundingClientRect();
+      const didPreventDefault = !terminalElement.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaX: input.deltaX,
+          deltaY: input.deltaY,
+          deltaMode: input.deltaMode,
+          altKey: input.altKey,
+          ctrlKey: input.ctrlKey,
+          metaKey: input.metaKey,
+          shiftKey: input.shiftKey,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
+      return didPreventDefault;
+    } catch (error) {
+      log.warn('Failed to forward wheel input to terminal', { id: this.id, error });
+      return false;
+    }
   }
 
   private getApproximateRowHeightPx(): number {

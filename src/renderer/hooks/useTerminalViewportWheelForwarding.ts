@@ -15,7 +15,15 @@ export function useTerminalViewportWheelForwarding(
       }
 
       const didScroll =
-        terminalRef.current?.scrollViewportFromWheelDelta(event.deltaY, event.deltaMode) ?? false;
+        terminalRef.current?.forwardWheelInput({
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          deltaMode: event.deltaMode,
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+        }) ?? false;
       if (didScroll) {
         event.preventDefault();
       }
