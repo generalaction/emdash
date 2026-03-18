@@ -1,12 +1,15 @@
 import { File, History, Minus, Plus, Undo2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
+import { Input } from '@renderer/components/ui/input';
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
+import { Textarea } from '@renderer/components/ui/textarea';
 import { cn } from '@renderer/lib/utils';
 import { useGitChangesContext } from '../git-changes-provider';
 import { useGitViewContext } from '../git-view-provider';
@@ -43,22 +46,59 @@ function ActionCard({ selectedCount, selectionActions, generalActions }: ActionC
   );
 }
 
+function CommitCard() {
+  const [commitMessage, setCommitMessage] = useState('');
+  const [description, setDescription] = useState('');
+  const { commitChanges } = useGitChangesContext();
+  return (
+    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-1 items-center justify-between rounded-lg border border-border  p-2.5">
+      <Input
+        placeholder="Commit message"
+        className="w-full"
+        value={commitMessage}
+        onChange={(e) => setCommitMessage(e.target.value)}
+      />
+      <Textarea
+        placeholder="Description"
+        className="w-full"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <Button
+        variant="default"
+        size="sm"
+        className="w-full"
+        onClick={() => commitChanges(commitMessage + '\n\n' + description)}
+      >
+        Commit
+      </Button>
+    </div>
+  );
+}
+
 function SectionHeader({ label, count, selectionState, onToggleAll, actions }: SectionHeaderProps) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 py-2 border-b border-border">
-      <div className="flex items-center gap-2">
+    <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
+      <div className="flex items-center gap-2 justify-between w-full">
+        <span className="text-sm text-muted-foreground flex items-center gap-2">
+          {label} <Badge variant="secondary">{count}</Badge>
+        </span>
         <Checkbox
           checked={selectionState === 'all'}
           indeterminate={selectionState === 'partial'}
           onCheckedChange={onToggleAll}
           aria-label={`Select all ${label.toLowerCase()}`}
+          className="mr-0.5"
         />
-        <span className="text-sm font-medium">
-          {label} ({count})
-        </span>
       </div>
       {actions}
     </div>
+  );
+}
+
+function GitStatusSection() {
+  return (
+    <div>Current branch, last commit, ahead/behind count, push/pull buttons, fetch button</div>
   );
 }
 
@@ -80,14 +120,21 @@ export function ChangesPanel() {
   const hasUnstaged = unstagedFileChanges.length > 0;
   const hasStaged = stagedFileChanges.length > 0;
 
-  const handleDiscardSelection = () => discardFilesChanges([...unstagedSelection.selectedPaths]);
-  const handleStageSelection = () => stageFilesChanges([...unstagedSelection.selectedPaths]);
-  const handleUnstageSelection = () => unstageFilesChanges([...stagedSelection.selectedPaths]);
+  const handleDiscardSelection = () => {
+    discardFilesChanges([...unstagedSelection.selectedPaths]);
+    unstagedSelection.clear();
+  };
+  const handleStageSelection = () => {
+    stageFilesChanges([...unstagedSelection.selectedPaths]);
+    unstagedSelection.clear();
+  };
+  const handleUnstageSelection = () => {
+    unstageFilesChanges([...stagedSelection.selectedPaths]);
+    stagedSelection.clear();
+  };
 
   return (
     <div className="flex h-full flex-col">
-      <ChangesPanelHeader />
-
       <ResizablePanelGroup direction="vertical" className="min-h-0 flex-1">
         {/* Unstaged section */}
         <ResizablePanel minSize={15} defaultSize={60} className="flex flex-col overflow-hidden">
@@ -98,6 +145,57 @@ export function ChangesPanel() {
             onToggleAll={unstagedSelection.toggleAll}
             actions={undefined}
           />
+          {hasUnstaged && (
+            <ActionCard
+              selectedCount={unstagedSelection.selectedPaths.size}
+              selectionActions={
+                <>
+                  <Button
+                    variant="link"
+                    size="xs"
+                    onClick={() => handleDiscardSelection()}
+                    title="Discard selected files"
+                  >
+                    <Undo2 className="size-3" />
+                    Discard
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleStageSelection()}
+                    title="Stage selected files"
+                  >
+                    <Plus className="size-3" />
+                    Stage
+                  </Button>
+                </>
+              }
+              generalActions={
+                <>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    disabled={!hasUnstaged}
+                    onClick={() => discardAllChanges()}
+                    title="Discard all changes"
+                  >
+                    <Undo2 className="size-3" />
+                    Discard all
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    disabled={!hasUnstaged}
+                    onClick={() => stageAllChanges()}
+                    title="Stage all changes"
+                  >
+                    <Plus className="size-3" />
+                    Stage all
+                  </Button>
+                </>
+              }
+            />
+          )}
           <div className="min-h-0 flex-1 p-1">
             <VirtualizedChangesList
               changes={unstagedFileChanges}
@@ -105,60 +203,10 @@ export function ChangesPanel() {
               onToggleSelect={unstagedSelection.toggleItem}
             />
           </div>
-          <ActionCard
-            selectedCount={unstagedSelection.selectedPaths.size}
-            selectionActions={
-              <>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void handleDiscardSelection()}
-                  title="Discard selected files"
-                >
-                  <Undo2 className="size-3" />
-                  Discard
-                </Button>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void handleStageSelection()}
-                  title="Stage selected files"
-                >
-                  <Plus className="size-3" />
-                  Stage
-                </Button>
-              </>
-            }
-            generalActions={
-              <>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={!hasUnstaged}
-                  onClick={() => void discardAllChanges()}
-                  title="Discard all changes"
-                >
-                  <Undo2 className="size-3" />
-                  Discard all
-                </Button>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={!hasUnstaged}
-                  onClick={() => void stageAllChanges()}
-                  title="Stage all changes"
-                >
-                  <Plus className="size-3" />
-                  Stage all
-                </Button>
-              </>
-            }
-          />
         </ResizablePanel>
 
         <ResizableHandle />
 
-        {/* Staged section */}
         <ResizablePanel minSize={15} defaultSize={40} className="flex flex-col overflow-hidden">
           <SectionHeader
             label="Staged"
@@ -167,6 +215,34 @@ export function ChangesPanel() {
             onToggleAll={stagedSelection.toggleAll}
             actions={undefined}
           />
+          {hasStaged && stagedSelection.selectedPaths.size > 0 && (
+            <ActionCard
+              selectedCount={stagedSelection.selectedPaths.size}
+              selectionActions={
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void handleUnstageSelection()}
+                  title="Unstage selected files"
+                >
+                  <Minus className="size-3" />
+                  Unstage
+                </Button>
+              }
+              generalActions={
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={!hasStaged}
+                  onClick={() => void unstageAllChanges()}
+                  title="Unstage all files"
+                >
+                  <Minus className="size-3" />
+                  Unstage all
+                </Button>
+              }
+            />
+          )}
           <div className="min-h-0 flex-1 p-1">
             <VirtualizedChangesList
               changes={stagedFileChanges}
@@ -174,33 +250,9 @@ export function ChangesPanel() {
               onToggleSelect={stagedSelection.toggleItem}
             />
           </div>
-          <ActionCard
-            selectedCount={stagedSelection.selectedPaths.size}
-            selectionActions={
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => void handleUnstageSelection()}
-                title="Unstage selected files"
-              >
-                <Minus className="size-3" />
-                Unstage
-              </Button>
-            }
-            generalActions={
-              <Button
-                variant="outline"
-                size="xs"
-                disabled={!hasStaged}
-                onClick={() => void unstageAllChanges()}
-                title="Unstage all files"
-              >
-                <Minus className="size-3" />
-                Unstage all
-              </Button>
-            }
-          />
+          {hasStaged && <CommitCard />}
         </ResizablePanel>
+        <GitStatusSection />
       </ResizablePanelGroup>
     </div>
   );

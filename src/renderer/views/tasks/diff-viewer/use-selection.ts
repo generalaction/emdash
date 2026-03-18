@@ -12,6 +12,7 @@ export interface UseSelectionReturn {
   toggleItem: (path: string) => void;
   /** Selects all when state is 'none' or 'partial', clears all when state is 'all'. */
   toggleAll: () => void;
+  clear: () => void;
 }
 
 export function useSelection(items: GitChange[]): UseSelectionReturn {
@@ -57,11 +58,16 @@ export function useSelection(items: GitChange[]): UseSelectionReturn {
     }
   }, [selectionState, items]);
 
+  const clear = useCallback(() => {
+    setSelectedPaths(new Set());
+  }, []);
+
   return {
     selectedPaths: effectiveSelected,
     selectionState,
     isSelected,
     toggleItem,
     toggleAll,
+    clear,
   };
 }
