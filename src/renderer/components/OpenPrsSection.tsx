@@ -18,12 +18,15 @@ import { useToast } from '../hooks/use-toast';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import {
   ArrowUpRight,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Github,
   Loader2,
   MessageSquare,
   Search,
+  XCircle,
 } from 'lucide-react';
 import type { Task } from '../types/app';
 
@@ -120,6 +123,50 @@ function getReviewStateMeta(state?: PullRequestReviewer['state']): {
         dotClassName: 'bg-slate-300 dark:bg-slate-600',
       };
   }
+}
+
+function CheckStatusIcon({
+  status,
+}: {
+  status: 'pass' | 'fail' | 'pending' | 'none' | null | undefined;
+}) {
+  if (!status || status === 'none') return null;
+
+  if (status === 'pass') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">All checks passed</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (status === 'fail') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0">
+            <XCircle className="h-4 w-4 text-red-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">Some checks failed</TooltipContent>
+      </Tooltip>
+    );
+  }
+  // pending
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="shrink-0">
+          <Clock className="h-4 w-4 text-amber-500" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">Checks in progress</TooltipContent>
+    </Tooltip>
+  );
 }
 
 const ReviewerBadge: React.FC<{ reviewer: PullRequestReviewer }> = ({ reviewer }) => {
@@ -387,6 +434,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                           <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
+                          <CheckStatusIcon status={pr.checksStatus} />
                           <span className="truncate text-sm font-medium">{pr.title}</span>
                           {pr.isDraft ? (
                             <span className={`${prBadgeClass} shrink-0`}>Draft</span>
