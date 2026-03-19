@@ -111,7 +111,6 @@ export const githubController = createRPCController({
   },
 
   issuesList: async (nameWithOwner: string, limit?: number) => {
-    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
@@ -124,10 +123,6 @@ export const githubController = createRPCController({
   },
 
   issuesSearch: async (nameWithOwner: string, searchTerm: string, limit?: number) => {
-    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
-    if (!searchTerm || typeof searchTerm !== 'string') {
-      return { success: false, error: 'Search term is required' };
-    }
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
@@ -140,10 +135,6 @@ export const githubController = createRPCController({
   },
 
   issuesGet: async (nameWithOwner: string, issueNumber: number) => {
-    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
-    if (!issueNumber || !Number.isFinite(issueNumber)) {
-      return { success: false, error: 'Issue number is required' };
-    }
     try {
       const octokit = await getOctokit();
       const service = new GitHubIssueServiceImpl(octokit);
@@ -159,9 +150,6 @@ export const githubController = createRPCController({
     nameWithOwner: string,
     options?: { limit?: number; searchQuery?: string }
   ) => {
-    if (!nameWithOwner) {
-      return { success: false, error: 'Repository is required' };
-    }
     try {
       const octokit = await getOctokit();
       const service = new GitHubPullRequestServiceImpl(octokit);
@@ -175,10 +163,6 @@ export const githubController = createRPCController({
   },
 
   getPullRequestDetails: async (nameWithOwner: string, prNumber: number) => {
-    if (!nameWithOwner) return { success: false, error: 'Repository is required' };
-    if (!prNumber || !Number.isFinite(prNumber)) {
-      return { success: false, error: 'PR number is required' };
-    }
     try {
       const octokit = await getOctokit();
       const service = new GitHubPullRequestServiceImpl(octokit);
@@ -197,10 +181,6 @@ export const githubController = createRPCController({
     title: string;
     draft: boolean;
   }) => {
-    if (!params.nameWithOwner) return { success: false, error: 'Repository is required' };
-    if (!params.head) return { success: false, error: 'Head branch is required' };
-    if (!params.base) return { success: false, error: 'Base branch is required' };
-    if (!params.title) return { success: false, error: 'Title is required' };
     try {
       const octokit = await getOctokit();
       const { owner, repo } = splitRepo(params.nameWithOwner);
@@ -279,7 +259,6 @@ export const githubController = createRPCController({
   },
 
   deleteRepository: async (owner: string, name: string) => {
-    if (!owner || !name) return { success: false, error: 'Owner and name are required' };
     try {
       const octokit = await getOctokit();
       const service = new GitHubRepositoryServiceImpl(octokit);
@@ -336,7 +315,6 @@ export const githubController = createRPCController({
   },
 
   checkRepositoryExists: async (owner: string, name: string) => {
-    if (!owner || !name) return { success: false, error: 'Owner and name are required' };
     try {
       const octokit = await getOctokit();
       const service = new GitHubRepositoryServiceImpl(octokit);
@@ -352,9 +330,6 @@ export const githubController = createRPCController({
   },
 
   cloneRepository: async (repoUrl: string, localPath: string) => {
-    if (!repoUrl || !localPath) {
-      return { success: false, error: 'Repository URL and local path are required' };
-    }
     try {
       const exec = getLocalExec();
       const fs = new LocalFileSystem(path.dirname(localPath));
@@ -375,9 +350,6 @@ export const githubController = createRPCController({
     description?: string;
   }) => {
     const { name, owner, isPrivate, description } = params;
-    if (!name || !owner) {
-      return { success: false, error: 'Name and owner are required' };
-    }
 
     let repoUrl: string | undefined;
     let nameWithOwner: string | undefined;
