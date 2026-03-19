@@ -65,3 +65,13 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
   return kind === 'svg';
 }
+
+/**
+ * Returns true if the file should be treated as binary for diff views.
+ * Binary and image files cannot be shown in Monaco; callers should skip
+ * model registration and show a "Binary file" placeholder instead.
+ */
+export function isBinaryForDiff(filePath: string): boolean {
+  const kind = getFileKind(filePath);
+  return kind === 'binary' || kind === 'image';
+}

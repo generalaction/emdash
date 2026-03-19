@@ -362,8 +362,6 @@ export function EditorMainPanel() {
         isPreviewActive={isPreviewActive}
         previewContent={previewContent}
         modelRootPath={modelRootPath}
-        projectId={projectId}
-        taskId={taskId}
         handleEditorChange={handleEditorChange}
         handleEditorMount={handleEditorMount}
       />
@@ -376,8 +374,6 @@ interface ActiveFileRendererProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  projectId: string;
-  taskId: string;
   handleEditorChange: (value: string) => void;
   handleEditorMount: (editor: any, monaco: any) => void;
 }
@@ -387,8 +383,6 @@ function ActiveFileRenderer({
   isPreviewActive,
   previewContent,
   modelRootPath,
-  projectId,
-  taskId,
   handleEditorChange,
   handleEditorMount,
 }: ActiveFileRendererProps) {
@@ -408,8 +402,6 @@ function ActiveFileRenderer({
           isPreviewActive={isPreviewActive}
           previewContent={previewContent}
           modelRootPath={modelRootPath}
-          projectId={projectId}
-          taskId={taskId}
           onEditorChange={handleEditorChange}
           onMount={handleEditorMount}
         />
@@ -430,8 +422,6 @@ interface CodeEditorSectionProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  projectId: string;
-  taskId: string;
   onEditorChange: (value: string) => void;
   onMount: (editor: any, monaco: any) => void;
 }
@@ -443,8 +433,6 @@ function CodeEditorSection({
   modelRootPath,
   onEditorChange,
   onMount,
-  projectId,
-  taskId,
 }: CodeEditorSectionProps) {
   if (isPreviewActive) {
     if (file.kind === 'svg') {
@@ -465,12 +453,10 @@ function CodeEditorSection({
     }
   }
 
+  const bufferUri = buildMonacoModelPath(modelRootPath, file.path);
   return (
     <PooledCodeEditor
-      activeFile={file}
-      modelRootPath={modelRootPath}
-      projectId={projectId}
-      taskId={taskId}
+      bufferUri={bufferUri}
       glyphMargin={true}
       onEditorChange={onEditorChange}
       onMount={onMount}

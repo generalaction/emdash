@@ -19,7 +19,7 @@ const diffPool = new MonacoPool<monaco.editor.IStandaloneDiffEditor>({
       const model = editor.getModel();
       editor.setModel(null);
       // Only dispose models this pool created (inmemory:// scheme).
-      // Registry-owned models (file://, disk://, base://) are managed by the registry.
+      // Registry-owned models (file://, disk://, git://) are managed by the registry.
       if (model?.original.uri.scheme === 'inmemory') model.original.dispose();
       if (model?.modified.uri.scheme === 'inmemory') model.modified.dispose();
     } catch (err) {
@@ -48,12 +48,20 @@ export const diffEditorPool = {
     diffPool.setTheme(getDiffThemeName(effectiveTheme));
   },
 
+  /**
+   * Apply typed-URI models to a diff editor.
+   *
+   * @param originalUri — git:// URI for the left (original) side
+   * @param modifiedUri — file:// buffer URI for the right (modified) side.
+   *                      If a buffer model exists the buffer is preferred (shows live edits);
+   *                      otherwise falls back to the disk:// model.
+   * @param language    — Monaco language identifier (used only as a fallback safety net)
+   */
   applyContent(
     entry: DiffPoolEntry,
-    original: string,
-    modified: string,
-    language: string,
-    registryUri?: string
+    originalUri: string,
+    modifiedUri: string,
+    language: string
   ): void {
     const m = diffPool.getMonaco();
     if (!m) return;
@@ -66,13 +74,15 @@ export const diffEditorPool = {
       if (prev.modified.uri.scheme === 'inmemory') prev.modified.dispose();
     }
 
-    // Use live registry models when the file is open, otherwise create inmemory models.
+    // Original side: use the registered git:// model, fall back to empty inmemory.
     const originalModel =
-      (registryUri ? modelRegistry.getGitBaseModel(registryUri) : undefined) ??
-      m.editor.createModel(original, language);
+      modelRegistry.getModelByUri(originalUri) ?? m.editor.createModel('', language);
+
+    // Modified side: prefer buffer (live edits) → disk snapshot → empty inmemory.
     const modifiedModel =
-      (registryUri ? modelRegistry.getDiskModel(registryUri) : undefined) ??
-      m.editor.createModel(modified, language);
+      modelRegistry.getModelByUri(modifiedUri) ??
+      modelRegistry.getModelByUri(modelRegistry.toDiskUri(modifiedUri)) ??
+      m.editor.createModel('', language);
 
     entry.editor.setModel({ original: originalModel, modified: modifiedModel });
   },

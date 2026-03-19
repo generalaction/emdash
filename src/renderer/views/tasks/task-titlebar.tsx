@@ -1,4 +1,12 @@
-import { BotIcon, FileDiff, Files, GitCommit, ListTree, Terminal } from 'lucide-react';
+import {
+  BotIcon,
+  FileDiff,
+  Files,
+  GitCommit,
+  ListTree,
+  MessageSquare,
+  Terminal,
+} from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
@@ -54,7 +62,7 @@ function ActiveTaskTitlebar() {
               size="sm"
               className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
             >
-              <BotIcon className="size-3.5" />
+              <MessageSquare className="size-3.5" />
             </ToggleGroupItem>
             <ToggleGroupItem
               value="diff"

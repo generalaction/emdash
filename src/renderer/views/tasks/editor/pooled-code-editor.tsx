@@ -5,18 +5,14 @@ import { codeEditorPool, type CodePoolEntry } from '@renderer/core/monaco/monaco
 import { configureMonacoEditor } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
 
 export interface PooledCodeEditorProps {
-  activeFile: ManagedFile | null;
-  modelRootPath: string;
-  projectId: string;
-  taskId: string;
+  /** The file:// buffer URI for the file to display. */
+  bufferUri: string;
   readOnly?: boolean;
   glyphMargin?: boolean;
   /** Called when content changes — use to mark the file dirty in parent state. */
@@ -38,10 +34,7 @@ export interface PooledCodeEditorProps {
  * component only attaches/detaches them; registration is driven by EditorProvider.
  */
 export function PooledCodeEditor({
-  activeFile,
-  modelRootPath,
-  projectId,
-  taskId,
+  bufferUri,
   readOnly = false,
   glyphMargin = false,
   onEditorChange,
@@ -59,18 +52,12 @@ export function PooledCodeEditor({
   readOnlyRef.current = readOnly;
   const glyphMarginRef = useRef(glyphMargin);
   glyphMarginRef.current = glyphMargin;
-  const activeFileRef = useRef(activeFile);
-  activeFileRef.current = activeFile;
-  const modelRootPathRef = useRef(modelRootPath);
-  modelRootPathRef.current = modelRootPath;
+  const bufferUriRef = useRef(bufferUri);
+  bufferUriRef.current = bufferUri;
   const onEditorChangeRef = useRef(onEditorChange);
   onEditorChangeRef.current = onEditorChange;
   const onMountRef = useRef(onMount);
   onMountRef.current = onMount;
-  const projectIdRef = useRef(projectId);
-  projectIdRef.current = projectId;
-  const taskIdRef = useRef(taskId);
-  taskIdRef.current = taskId;
 
   // Apply global theme whenever it changes.
   useEffect(() => {
@@ -108,19 +95,15 @@ export function PooledCodeEditor({
         lease.disposables.push({ dispose: cleanupActiveEditor });
       }
 
-      // Attach registry model for the current active file.
+      // Attach registry model for the current buffer URI.
       // EditorProvider awaits registerModel before updating state, so the buffer
       // model will usually exist already. onceBufferReady handles the rare race
       // during initial restore where the lease completes before registration finishes.
-      const file = activeFileRef.current;
-      if (file) {
-        const uri = buildMonacoModelPath(modelRootPathRef.current, file.path);
-        currentUriRef.current = uri;
-
-        const doAttach = () => modelRegistry.attach(editor, uri);
-        const cancelReadyCallback = modelRegistry.onceBufferReady(uri, doAttach);
-        lease.disposables.push({ dispose: cancelReadyCallback });
-      }
+      const uri = bufferUriRef.current;
+      currentUriRef.current = uri;
+      const doAttach = () => modelRegistry.attach(editor, uri);
+      const cancelReadyCallback = modelRegistry.onceBufferReady(uri, doAttach);
+      lease.disposables.push({ dispose: cancelReadyCallback });
 
       editor.layout();
 
@@ -136,19 +119,15 @@ export function PooledCodeEditor({
 
         // Debounced buffer save to persist unsaved edits across app restarts.
         if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-        const filePath = activeFileRef.current?.path;
-        if (filePath) {
+        if (uri) {
           bufferTimerRef.current = setTimeout(() => {
             bufferTimerRef.current = null;
             const currentUri = currentUriRef.current;
-            // Skip if the file was saved to disk since the timer was scheduled.
             if (!currentUri || !modelRegistry.isDirty(currentUri)) return;
-            void rpc.editorBuffer.saveBuffer(
-              projectIdRef.current,
-              taskIdRef.current,
-              filePath,
-              value
-            );
+            // Read projectId/taskId/filePath from the registry (no prop drilling needed).
+            const meta = modelRegistry.getEntryMeta(currentUri);
+            if (!meta) return;
+            void rpc.editorBuffer.saveBuffer(meta.projectId, meta.taskId, meta.filePath, value);
           }, BUFFER_DEBOUNCE_MS);
         }
       });
@@ -194,20 +173,18 @@ export function PooledCodeEditor({
     lease.editor.updateOptions({ glyphMargin });
   }, [glyphMargin]);
 
-  // Sync active file changes: switch the registry model, preserving view state.
+  // Sync bufferUri changes: switch the registry model, preserving view state.
   // Models are registered by EditorProvider before openFiles state is updated,
-  // so by the time this effect fires the buffer model always exists.
+  // so by the time this effect fires the buffer model should already exist.
   useEffect(() => {
     const lease = leaseRef.current;
-    if (!lease || !activeFile) return;
+    if (!lease || !bufferUri) return;
 
-    const newUri = buildMonacoModelPath(modelRootPath, activeFile.path);
     const previousUri = currentUriRef.current ?? undefined;
-
-    modelRegistry.attach(lease.editor, newUri, previousUri);
-    currentUriRef.current = newUri;
+    modelRegistry.attach(lease.editor, bufferUri, previousUri);
+    currentUriRef.current = bufferUri;
     lease.editor.layout();
-  }, [activeFile?.path, modelRootPath, projectId, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bufferUri]);
 
   return <div ref={mountRef} className="h-full w-full bg-(--monaco-bg)" />;
 }

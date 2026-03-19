@@ -7,8 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { gitStatusChangedChannel } from '@shared/events/appEvents';
-import { events, rpc } from '@renderer/core/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
@@ -233,7 +232,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           const buffers = await rpc.editorBuffer.listBuffers(projectId, taskId);
           for (const { filePath, content } of buffers) {
             const uri = buildMonacoModelPath(modelRootPath, filePath);
-            const model = modelRegistry.getModel(uri);
+            const model = modelRegistry.getModelByUri(uri);
             if (model) {
               model.setValue(content);
             }
@@ -252,14 +251,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   // Conflict dialog — shown lazily from saveFile when a pending conflict is detected.
   const showConflictModal = useShowModal('conflictDialog');
-
-  // Refresh git base models whenever git HEAD changes (commits, rebases, etc.).
-  useEffect(() => {
-    if (!taskId) return;
-    return events.on(gitStatusChangedChannel, () => {
-      void modelRegistry.refreshGitBaseModels(projectId, taskId);
-    });
-  }, [taskId, projectId]);
 
   const loadFile = useCallback(
     async (filePath: string) => {
@@ -407,8 +398,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     (filePath: string) => {
       const uri = buildMonacoModelPath(modelRootPath, filePath);
       // Decrement ref counts; models are disposed when counts reach 0.
-      modelRegistry.unregisterModel(uri, 'buffer');
-      modelRegistry.unregisterModel(uri, 'disk');
+      modelRegistry.unregisterModel(uri);
+      modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
@@ -453,8 +444,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
           // Clean up Monaco models for the outgoing preview tab.
           const uri = buildMonacoModelPath(modelRootPath, outgoingPreview);
-          modelRegistry.unregisterModel(uri, 'buffer');
-          modelRegistry.unregisterModel(uri, 'disk');
+          modelRegistry.unregisterModel(uri);
+          modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
           void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
           clearPreviewMode(outgoingPreview);
 
@@ -489,8 +480,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       if (!projectId || !taskId) return;
       for (const filePath of openFilesRef.current.keys()) {
         const uri = buildMonacoModelPath(modelRootPath, filePath);
-        modelRegistry.unregisterModel(uri, 'buffer');
-        modelRegistry.unregisterModel(uri, 'disk');
+        modelRegistry.unregisterModel(uri);
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       }
     };
     // Only run on unmount.
