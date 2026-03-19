@@ -8,8 +8,10 @@ import { FileIcon } from './FileIcons';
 interface FileTabsProps {
   openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
+  previewFilePath: string | null;
   onTabClick: (filePath: string) => void;
   onTabClose: (filePath: string) => void;
+  onPinTab: (filePath: string) => void;
   previewMode: Map<string, boolean>;
   onTogglePreview: (filePath: string) => void;
 }
@@ -17,8 +19,10 @@ interface FileTabsProps {
 export const FileTabs: React.FC<FileTabsProps> = ({
   openFiles,
   activeFilePath,
+  previewFilePath,
   onTabClick,
   onTabClose,
+  onPinTab,
   previewMode,
   onTogglePreview,
 }) => {
@@ -34,9 +38,11 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           path={path}
           file={file}
           isActive={activeFilePath === path}
+          isUnstable={previewFilePath === path}
           isMarkdown={isMarkdownFile(path)}
           isPreview={previewMode.get(path) ?? isMarkdownFile(path)}
           onClick={() => onTabClick(path)}
+          onDoubleClick={() => onPinTab(path)}
           onClose={(e) => {
             e.stopPropagation();
             onTabClose(path);
@@ -55,9 +61,11 @@ interface FileTabProps {
   path: string;
   file: ManagedFile;
   isActive: boolean;
+  isUnstable: boolean;
   isMarkdown: boolean;
   isPreview: boolean;
   onClick: () => void;
+  onDoubleClick: () => void;
   onClose: (e: React.MouseEvent) => void;
   onTogglePreview: (e: React.MouseEvent) => void;
 }
@@ -66,9 +74,11 @@ const FileTab: React.FC<FileTabProps> = ({
   path,
   file,
   isActive,
+  isUnstable,
   isMarkdown,
   isPreview,
   onClick,
+  onDoubleClick,
   onClose,
   onTogglePreview,
 }) => {
@@ -81,12 +91,15 @@ const FileTab: React.FC<FileTabProps> = ({
         isActive && 'bg-background'
       )}
       onClick={onClick}
-      title={path}
+      onDoubleClick={onDoubleClick}
+      title={isUnstable ? `${path} (preview — double-click to keep)` : path}
     >
       <span className="flex-shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         <FileIcon filename={fileName} isDirectory={false} />
       </span>
-      <span className="max-w-[200px] truncate text-xs">{fileName}</span>
+      <span className={cn('max-w-[200px] truncate text-xs', isUnstable && 'italic')}>
+        {fileName}
+      </span>
       {file.isDirty && (
         <span className="text-gray-500" title="Unsaved changes">
           ●

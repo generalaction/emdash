@@ -1,5 +1,5 @@
 import { loader } from '@monaco-editor/react';
-import { cssVar } from './cssVars';
+import { cssVar } from '../../lib/cssVars';
 
 export async function registerDiffThemes(): Promise<void> {
   const monacoInstance = await loader.init();

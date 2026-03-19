@@ -7,13 +7,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import { AUTO_SAVE_DELAY } from '@renderer/constants/file-explorer';
-import { rpc } from '@renderer/core/ipc';
+import { gitStatusChangedChannel } from '@shared/events/appEvents';
+import { events, rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
-import { modelRegistry } from '@renderer/lib/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../task-view-context';
 import { useEditorViewContext } from './editor-view-provider';
@@ -23,23 +23,27 @@ interface EditorContextValue {
   taskId: string;
   modelRootPath: string;
 
-  // Open files state
   openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
   activeFile: ManagedFile | null;
   hasUnsavedChanges: boolean;
   isSaving: boolean;
 
-  // File operations
+  /** Path of the current unstable/preview tab (italic in the tab bar). Null when all tabs are stable. */
+  previewFilePath: string | null;
+
   loadFile: (filePath: string) => Promise<void>;
+  /** Opens a file as an unstable preview tab; replaces the existing preview tab if clean. */
+  openFilePreview: (filePath: string) => Promise<void>;
+  /** Promotes the preview tab to a stable tab. */
+  pinFile: (filePath: string) => void;
   saveFile: (filePath?: string) => Promise<void>;
   saveAllFiles: () => Promise<void>;
   closeFile: (filePath: string) => void;
-  /** Marks a file as dirty without updating content in state (content lives in the registry model). */
+  /** Marks a file dirty in React state; model content is source of truth in the registry. */
   markDirty: (filePath: string) => void;
   setActiveFile: (filePath: string | null) => void;
 
-  // Git file changes (for tree coloring)
   fileChanges: { path: string; status: 'added' | 'modified' | 'deleted' | 'renamed' }[];
 
   handleCloseFile: (filePath: string) => void;
@@ -62,71 +66,82 @@ function isImageFile(filePath: string): boolean {
 export function EditorProvider({ children }: { children: ReactNode }) {
   const { task } = useTaskViewContext();
 
-  const projectId = task?.id ? task.projectId : '';
+  const projectId = task?.projectId ?? '';
   const taskId = task?.id ?? '';
   const modelRootPath = `task:${taskId}`;
 
   const restoringRef = useRef(false);
-  const autoSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const { clearPreviewMode } = useEditorViewContext();
 
   const [openFiles, setOpenFiles] = useState<Map<string, ManagedFile>>(new Map());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [previewFilePath, setPreviewFilePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const activeFile = activeFilePath ? (openFiles.get(activeFilePath) ?? null) : null;
   const hasUnsavedChanges = Array.from(openFiles.values()).some((f) => f.isDirty);
 
-  // Persist open files / active path to localStorage
+  // Persist open files / active path to localStorage.
   useEffect(() => {
     if (restoringRef.current) return;
     saveEditorState(taskId, {
       openFilePaths: Array.from(openFiles.keys()),
       activeFilePath,
+      previewFilePath,
     });
-  }, [taskId, openFiles, activeFilePath]);
+  }, [taskId, openFiles, activeFilePath, previewFilePath]);
 
+  /**
+   * Internal: load a file's content and register models in the registry.
+   *
+   * Models are registered (and awaited) BEFORE setOpenFiles is called so that
+   * PooledCodeEditor always sees an existing buffer model when it receives the
+   * updated activeFile prop.
+   */
   const loadFileInternal = useCallback(
     async (filePath: string) => {
       if (isImageFile(filePath)) {
         const result = await rpc.fs.readImage(projectId, taskId, filePath);
-        if (result.success && result.data?.dataUrl) {
-          const file: ManagedFile = {
-            path: filePath,
-            content: result.data.dataUrl,
-            originalContent: result.data.dataUrl,
-            isDirty: false,
-          };
-          setOpenFiles((prev) => new Map(prev).set(filePath, file));
-        } else {
-          const errorFile: ManagedFile = {
-            path: filePath,
-            content: '[IMAGE_ERROR]',
-            originalContent: '[IMAGE_ERROR]',
-            isDirty: false,
-          };
-          setOpenFiles((prev) => new Map(prev).set(filePath, errorFile));
-        }
+        const dataUrl = result.success
+          ? (result.data?.dataUrl ?? '[IMAGE_ERROR]')
+          : '[IMAGE_ERROR]';
+        const file: ManagedFile = {
+          path: filePath,
+          content: dataUrl,
+          originalContent: dataUrl,
+          isDirty: false,
+        };
+        setOpenFiles((prev) => new Map(prev).set(filePath, file));
         return;
       }
 
-      const result = await rpc.fs.readFile(projectId, taskId, filePath);
-      if (!result.success) {
-        console.error('Failed to load file:', result.error);
-        return;
-      }
-      const diskContent = result.data.content;
       const language = getMonacoLanguageId(filePath);
 
-      // Register the file in the model registry.
-      // openFile is a no-op if the model already exists (preserves unsaved edits).
-      modelRegistry.openFile(projectId, taskId, modelRootPath, filePath, diskContent, language);
+      // Register disk model first (buffer seeds from it), then buffer.
+      // Awaiting both before setting state guarantees models exist for PooledCodeEditor.
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        modelRootPath,
+        filePath,
+        language,
+        'disk'
+      );
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        modelRootPath,
+        filePath,
+        language,
+        'buffer'
+      );
 
       const file: ManagedFile = {
         path: filePath,
-        content: diskContent,
-        originalContent: diskContent,
+        content: modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '',
+        originalContent:
+          modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '',
         isDirty: false,
       };
       setOpenFiles((prev) => new Map(prev).set(filePath, file));
@@ -134,7 +149,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [projectId, taskId, modelRootPath]
   );
 
-  // Restore open files from localStorage on mount, then restore unsaved buffers.
+  // Restore open files from localStorage on mount, then apply any persisted unsaved buffers.
   useEffect(() => {
     if (!taskId) return;
     restoringRef.current = true;
@@ -145,15 +160,18 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       if (state?.openFilePaths?.length) {
         for (const filePath of state.openFilePaths) {
           await loadFileInternal(filePath).catch(() => {
-            /* skip missing files */
+            // Skip missing / deleted files silently.
           });
         }
         if (state.activeFilePath && state.openFilePaths.includes(state.activeFilePath)) {
           setActiveFilePath(state.activeFilePath);
         }
+        if (state.previewFilePath && state.openFilePaths.includes(state.previewFilePath)) {
+          setPreviewFilePath(state.previewFilePath);
+        }
       }
 
-      // Restore any unsaved buffers from the main process into their models.
+      // Restore persisted unsaved buffers into the buffer models.
       if (projectId && taskId) {
         try {
           const buffers = await rpc.editorBuffer.listBuffers(projectId, taskId);
@@ -176,17 +194,19 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
-  // Register a conflict handler so the model registry can surface external-vs-dirty conflicts.
+  // Register a conflict handler — invoked by the registry when an open file is
+  // modified on disk while the buffer has unsaved edits.
   const showConflictModal = useShowModal('conflictDialog');
   useEffect(() => {
     if (!taskId) return;
-    return modelRegistry.setConflictHandler(taskId, (filePath, uri, newContent) => {
+    return modelRegistry.setConflictHandler(taskId, (filePath, uri) => {
       showConflictModal({
         filePath,
         onSuccess: (accept) => {
           if (accept) {
-            modelRegistry.reloadFromDisk(uri, newContent);
+            modelRegistry.reloadFromDisk(uri);
             void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
+            const content = modelRegistry.getDiskValue(uri) ?? '';
             setOpenFiles((prev) => {
               const next = new Map(prev);
               const existing = next.get(filePath);
@@ -194,22 +214,32 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 next.set(filePath, {
                   ...existing,
                   isDirty: false,
-                  content: newContent,
-                  originalContent: newContent,
+                  content,
+                  originalContent: content,
                 });
               }
               return next;
             });
           }
-          // false = Keep Mine: leave buffer and dirty state intact.
+          // false = "Keep Mine": buffer stays dirty, disk model holds newer content.
         },
       });
     });
   }, [taskId, projectId, showConflictModal]);
 
+  // Refresh git base models whenever git HEAD changes (commits, rebases, etc.).
+  useEffect(() => {
+    if (!taskId) return;
+    return events.on(gitStatusChangedChannel, () => {
+      void modelRegistry.refreshGitBaseModels(projectId, taskId);
+    });
+  }, [taskId, projectId]);
+
   const loadFile = useCallback(
     async (filePath: string) => {
       await loadFileInternal(filePath);
+      // Promote to stable if it was the preview tab.
+      setPreviewFilePath((prev) => (prev === filePath ? null : prev));
       setActiveFilePath(filePath);
     },
     [loadFileInternal]
@@ -223,15 +253,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       const file = openFiles.get(targetPath);
       if (!file?.isDirty) return;
 
-      // Cancel pending auto-save timer.
-      const pending = autoSaveTimersRef.current.get(targetPath);
-      if (pending) {
-        clearTimeout(pending);
-        autoSaveTimersRef.current.delete(targetPath);
-      }
-
-      // For text files, get content from the registry model (source of truth).
-      // For image files, fall back to state content.
       const uri = buildMonacoModelPath(modelRootPath, targetPath);
       const content = modelRegistry.getValue(uri) ?? file.content;
 
@@ -240,7 +261,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         const result = await rpc.fs.writeFile(projectId, taskId, targetPath, content);
         if (result.success) {
           modelRegistry.markSaved(uri);
-          // Clear the persisted buffer since the file is now saved to disk.
           void rpc.editorBuffer.clearBuffer(projectId, taskId, targetPath);
           setOpenFiles((prev) => {
             const next = new Map(prev);
@@ -292,10 +312,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [openFiles]
   );
 
-  /**
-   * Mark a file as dirty without updating content in React state.
-   * Content is the source of truth in the Monaco model (MonacoModelRegistry).
-   */
   const markDirty = useCallback((filePath: string) => {
     setOpenFiles((prev) => {
       const next = new Map(prev);
@@ -312,50 +328,86 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const handleCloseFile = useCallback(
     (filePath: string) => {
-      // Cancel pending auto-save.
-      const pending = autoSaveTimersRef.current.get(filePath);
-      if (pending) {
-        clearTimeout(pending);
-        autoSaveTimersRef.current.delete(filePath);
-      }
-
-      // Close the model in the registry and clear any persisted buffer.
       const uri = buildMonacoModelPath(modelRootPath, filePath);
-      modelRegistry.closeFile(uri);
+      // Decrement ref counts; models are disposed when counts reach 0.
+      modelRegistry.unregisterModel(uri, 'buffer');
+      modelRegistry.unregisterModel(uri, 'disk');
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
       clearPreviewMode(filePath);
+      setPreviewFilePath((prev) => (prev === filePath ? null : prev));
     },
     [closeFile, clearPreviewMode, projectId, taskId, modelRootPath]
   );
 
-  // Cleanup: close all models for this task on unmount, cancel auto-save timers.
-  useEffect(() => {
-    const timers = autoSaveTimersRef.current;
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-      timers.clear();
-      if (projectId && taskId) {
-        modelRegistry.closeAllForTask(projectId, taskId);
+  /**
+   * Opens a file as an unstable preview tab (single-click behaviour).
+   * If there is already a clean preview tab, it is closed and replaced.
+   * If the file is already open (stable or preview), it is simply activated.
+   */
+  const openFilePreview = useCallback(
+    async (filePath: string) => {
+      if (openFiles.has(filePath)) {
+        setActiveFilePath(filePath);
+        return;
       }
-    };
-    // Only run cleanup on unmount — projectId/taskId are stable for the life of this provider.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+      // Close the existing clean preview tab before opening the new one.
+      setOpenFiles((prev) => {
+        const currentPreview = previewFilePath;
+        if (!currentPreview || currentPreview === filePath) return prev;
+        const previewFile = prev.get(currentPreview);
+        if (!previewFile || previewFile.isDirty) return prev;
+
+        // Clean up Monaco models for the outgoing preview tab.
+        const uri = buildMonacoModelPath(modelRootPath, currentPreview);
+        modelRegistry.unregisterModel(uri, 'buffer');
+        modelRegistry.unregisterModel(uri, 'disk');
+        void rpc.editorBuffer.clearBuffer(projectId, taskId, currentPreview);
+        clearPreviewMode(currentPreview);
+
+        const next = new Map(prev);
+        next.delete(currentPreview);
+        return next;
+      });
+      setPreviewFilePath(null);
+
+      await loadFileInternal(filePath);
+      setPreviewFilePath(filePath);
+      setActiveFilePath(filePath);
+    },
+    [
+      openFiles,
+      previewFilePath,
+      loadFileInternal,
+      modelRootPath,
+      projectId,
+      taskId,
+      clearPreviewMode,
+    ]
+  );
+
+  /** Promotes the preview tab to a stable tab (double-click on tab). */
+  const pinFile = useCallback((filePath: string) => {
+    setPreviewFilePath((prev) => (prev === filePath ? null : prev));
   }, []);
 
-  // Auto-save debounce wiring: schedule a save whenever isDirty flips on.
+  // Cleanup: unregister all models for this task on unmount.
+  const openFilesRef = useRef(openFiles);
+  openFilesRef.current = openFiles;
   useEffect(() => {
-    for (const [filePath, file] of openFiles) {
-      if (!file.isDirty) continue;
-      if (autoSaveTimersRef.current.has(filePath)) continue;
-      const timer = setTimeout(() => {
-        autoSaveTimersRef.current.delete(filePath);
-        void saveFile(filePath);
-      }, AUTO_SAVE_DELAY);
-      autoSaveTimersRef.current.set(filePath, timer);
-    }
-  }, [openFiles, saveFile]);
+    return () => {
+      if (!projectId || !taskId) return;
+      for (const filePath of openFilesRef.current.keys()) {
+        const uri = buildMonacoModelPath(modelRootPath, filePath);
+        modelRegistry.unregisterModel(uri, 'buffer');
+        modelRegistry.unregisterModel(uri, 'disk');
+      }
+    };
+    // Only run on unmount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <EditorContext.Provider
@@ -368,7 +420,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         activeFile,
         hasUnsavedChanges,
         isSaving,
+        previewFilePath,
         loadFile,
+        openFilePreview,
+        pinFile,
         saveFile,
         saveAllFiles,
         closeFile,

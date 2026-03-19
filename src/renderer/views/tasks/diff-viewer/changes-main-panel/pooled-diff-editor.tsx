@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { diffEditorPool, type DiffPoolEntry } from '@renderer/core/monaco/monaco-diff-pool';
 import { useTheme } from '@renderer/hooks/useTheme';
-import { diffEditorPool, type PoolEntry } from '@renderer/lib/monaco-diff-pool';
 
 export interface PooledDiffEditorProps {
   original: string;
@@ -8,11 +8,12 @@ export interface PooledDiffEditorProps {
   language: string;
   diffStyle: 'unified' | 'split';
   /**
-   * Monaco URI of the original file if it is currently open in the code editor.
-   * When provided, the diff editor reuses the registry model for the original side
-   * so that unsaved edits are reflected immediately in the diff.
+   * Buffer URI of the file if it is currently open in the code editor.
+   * When provided, the diff editor uses live registry models:
+   *   original side ← gitBaseModel (base:// scheme, git HEAD snapshot)
+   *   modified side ← diskModel    (disk:// scheme, current on-disk content)
    */
-  originalUri?: string;
+  registryUri?: string;
   /** Called whenever the modified editor's content height changes — for dynamic virtualization. */
   onHeightChange?: (height: number) => void;
 }
@@ -27,11 +28,11 @@ export function PooledDiffEditor({
   modified,
   language,
   diffStyle,
-  originalUri,
+  registryUri,
   onHeightChange,
 }: PooledDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const leaseRef = useRef<PoolEntry | null>(null);
+  const leaseRef = useRef<DiffPoolEntry | null>(null);
   const cancelledRef = useRef(false);
   const { effectiveTheme } = useTheme();
 
@@ -44,8 +45,8 @@ export function PooledDiffEditor({
   modifiedRef.current = modified;
   const languageRef = useRef(language);
   languageRef.current = language;
-  const originalUriRef = useRef(originalUri);
-  originalUriRef.current = originalUri;
+  const registryUriRef = useRef(registryUri);
+  registryUriRef.current = registryUri;
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
 
@@ -77,13 +78,13 @@ export function PooledDiffEditor({
         renderSideBySide: diffStyleRef.current === 'split',
       });
 
-      // Set initial content (reuse registry model for original if available).
+      // Set initial content (use live registry models when file is open).
       diffEditorPool.applyContent(
         lease,
         originalRef.current,
         modifiedRef.current,
         languageRef.current,
-        originalUriRef.current
+        registryUriRef.current
       );
 
       // Trigger layout now that the container has real dimensions.
@@ -122,18 +123,37 @@ export function PooledDiffEditor({
     lease.editor.layout();
   }, [diffStyle]);
 
-  // Sync content changes to the leased editor's models.
+  // Re-apply content when registryUri transitions from undefined → defined.
+  // This swaps inmemory models (created at mount from string fallbacks) for live
+  // registry models (gitBaseModel + diskModel) once registration completes.
+  // Also fires when registryUri goes back to undefined (e.g. active file cleared).
+  useEffect(() => {
+    const lease = leaseRef.current;
+    if (!lease) return;
+    diffEditorPool.applyContent(
+      lease,
+      originalRef.current,
+      modifiedRef.current,
+      languageRef.current,
+      registryUriRef.current
+    );
+    lease.editor.layout();
+  }, [registryUri]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync string content changes to pool-created inmemory models.
+  // Registry-owned models (base://, disk://) are kept live by the registry itself
+  // and do not need to be updated here.
   useEffect(() => {
     const lease = leaseRef.current;
     if (!lease) return;
     const model = lease.editor.getModel();
     if (!model) return;
-    // Only update the original model if it was created by the pool (inmemory:// scheme).
-    // Registry-owned models (file:// scheme) stay live via the registry itself.
     if (model.original.uri.scheme === 'inmemory' && model.original.getValue() !== original) {
       model.original.setValue(original);
     }
-    if (model.modified.getValue() !== modified) model.modified.setValue(modified);
+    if (model.modified.uri.scheme === 'inmemory' && model.modified.getValue() !== modified) {
+      model.modified.setValue(modified);
+    }
   }, [original, modified]);
 
   return <div ref={mountRef} className="h-full" />;

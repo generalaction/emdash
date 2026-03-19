@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
-import { modalRegistry } from './registry';
+import { modalRegistry } from './modal-registry';
 
 export interface BaseModalProps<TResult = unknown> {
   onSuccess: (result: TResult) => void;

@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
+import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
-import { modelRegistry } from '@renderer/lib/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../../task-view-context';
 import { useGitViewContext } from '../state/git-view-provider';
@@ -11,6 +12,53 @@ export function FileDiffView() {
   const { activeFile, diffStyle } = useGitViewContext();
   const { projectId, taskId } = useTaskViewContext();
 
+  // registryUri is undefined while disk+gitBase models are being registered,
+  // then set to the buffer URI once both are ready. PooledDiffEditor uses live
+  // registry models when registryUri is defined; falls back to RPC strings while loading.
+  const [registryUri, setRegistryUri] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!activeFile) {
+      setRegistryUri(undefined);
+      return;
+    }
+
+    const filePath = activeFile.path;
+    const language = getLanguageFromPath(filePath);
+    const uri = buildMonacoModelPath(`task:${taskId}`, filePath);
+    let cancelled = false;
+
+    async function register() {
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        `task:${taskId}`,
+        filePath,
+        language,
+        'disk'
+      );
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        `task:${taskId}`,
+        filePath,
+        language,
+        'gitBase'
+      );
+      if (!cancelled) setRegistryUri(uri);
+    }
+
+    void register();
+
+    return () => {
+      cancelled = true;
+      setRegistryUri(undefined);
+      modelRegistry.unregisterModel(uri, 'disk');
+      modelRegistry.unregisterModel(uri, 'gitBase');
+    };
+  }, [activeFile?.path, projectId, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep useFileDiff for binary/error metadata and as content fallback while models load.
   const { data: diff, isError } = useFileDiff(
     projectId,
     taskId,
@@ -56,10 +104,7 @@ export function FileDiffView() {
             modified={diff.modifiedContent ?? ''}
             language={language}
             diffStyle={diffStyle}
-            originalUri={(() => {
-              const uri = buildMonacoModelPath(`task:${taskId}`, activeFile.path);
-              return modelRegistry.hasModel(uri) ? uri : undefined;
-            })()}
+            registryUri={registryUri}
           />
         ) : null}
       </div>

@@ -3,6 +3,7 @@ export interface EditorState {
   openFilePaths: string[];
   activeFilePath: string | null;
   pinnedFiles?: string[];
+  previewFilePath?: string | null;
 }
 
 const KEY_PREFIX = 'emdash:editorState:';
@@ -26,6 +27,10 @@ export function getEditorState(taskId: string | null): EditorState | null {
           ? parsed.activeFilePath
           : null,
       pinnedFiles: Array.isArray(parsed.pinnedFiles) ? parsed.pinnedFiles : [],
+      previewFilePath:
+        typeof parsed.previewFilePath === 'string' || parsed.previewFilePath === null
+          ? parsed.previewFilePath
+          : null,
     };
   } catch {
     return null;
@@ -49,6 +54,8 @@ export function saveEditorState(taskId: string | null, partial: Partial<EditorSt
       activeFilePath:
         partial.activeFilePath !== undefined ? partial.activeFilePath : existing.activeFilePath,
       pinnedFiles: partial.pinnedFiles !== undefined ? partial.pinnedFiles : existing.pinnedFiles,
+      previewFilePath:
+        partial.previewFilePath !== undefined ? partial.previewFilePath : existing.previewFilePath,
     };
     localStorage.setItem(getKey(taskId), JSON.stringify(next));
   } catch {

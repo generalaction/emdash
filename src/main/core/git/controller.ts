@@ -16,6 +16,18 @@ export const gitController = createRPCController({
     }
   },
 
+  getFileAtHead: async (projectId: string, taskId: string, filePath: string) => {
+    try {
+      const env = resolveTask(projectId, taskId);
+      if (!env) return err({ type: 'not_found' as const });
+      const content = await env.git.getFileAtHead(filePath);
+      return ok({ content });
+    } catch (e) {
+      log.error('gitCtrl.getFileAtHead failed', { projectId, taskId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   getFileDiff: async (
     projectId: string,
     taskId: string,

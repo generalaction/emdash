@@ -4,9 +4,9 @@ import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
 import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
 import { isMarkdownFile } from '@renderer/constants/file-explorer';
 import { rpc } from '@renderer/core/ipc';
-import { codeEditorPool } from '@renderer/lib/monaco-code-pool';
-import { addMonacoKeyboardShortcuts } from '@renderer/lib/monaco-config';
-import { modelRegistry } from '@renderer/lib/monaco-model-registry';
+import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
+import { addMonacoKeyboardShortcuts } from '@renderer/core/monaco/monaco-config';
+import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useEditorContext } from './editor-provider';
 import { useEditorViewContext } from './editor-view-provider';
@@ -224,8 +224,10 @@ export function EditorMainPanel() {
     activeFilePath,
     activeFile,
     isSaving,
+    previewFilePath,
     handleCloseFile,
     setActiveFile,
+    pinFile,
     saveFile,
     saveAllFiles,
     markDirty,
@@ -333,8 +335,10 @@ export function EditorMainPanel() {
       <FileTabs
         openFiles={openFiles}
         activeFilePath={activeFilePath}
+        previewFilePath={previewFilePath}
         onTabClick={setActiveFile}
         onTabClose={handleCloseFile}
+        onPinTab={pinFile}
         previewMode={previewMode}
         onTogglePreview={togglePreview}
       />

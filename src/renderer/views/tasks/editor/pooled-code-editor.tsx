@@ -1,13 +1,13 @@
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 import { rpc } from '@renderer/core/ipc';
+import { codeEditorPool, type CodePoolEntry } from '@renderer/core/monaco/monaco-code-pool';
+import { configureMonacoEditor } from '@renderer/core/monaco/monaco-config';
+import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
-import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
-import { codeEditorPool, type CodePoolEntry } from '@renderer/lib/monaco-code-pool';
-import { configureMonacoEditor } from '@renderer/lib/monaco-config';
-import { modelRegistry } from '@renderer/lib/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -34,8 +34,8 @@ export interface PooledCodeEditorProps {
 
 /**
  * Leases a Monaco IStandaloneCodeEditor instance from the global pool on mount
- * and returns it on unmount. Models are managed by MonacoModelRegistry so unsaved
- * edits and undo history survive tab switches and editor releases.
+ * and returns it on unmount. Models are managed by MonacoModelRegistry — this
+ * component only attaches/detaches them; registration is driven by EditorProvider.
  */
 export function PooledCodeEditor({
   activeFile,
@@ -74,7 +74,7 @@ export function PooledCodeEditor({
 
   // Apply global theme whenever it changes.
   useEffect(() => {
-    codeEditorPool.setTheme(effectiveTheme);
+    codeEditorPool.setTheme(getMonacoTheme(effectiveTheme));
   }, [effectiveTheme]);
 
   // Mount: lease an editor, reparent its container, attach the registry model.
@@ -108,22 +108,18 @@ export function PooledCodeEditor({
         lease.disposables.push({ dispose: cleanupActiveEditor });
       }
 
-      // Attach the registry model for the current active file.
+      // Attach registry model for the current active file.
+      // EditorProvider awaits registerModel before updating state, so the buffer
+      // model will usually exist already. onceBufferReady handles the rare race
+      // during initial restore where the lease completes before registration finishes.
       const file = activeFileRef.current;
       if (file) {
-        const language = getMonacoLanguageId(file.path);
         const uri = buildMonacoModelPath(modelRootPathRef.current, file.path);
-        // openFile is a no-op if the model already exists (called by EditorProvider.loadFile).
-        modelRegistry.openFile(
-          projectIdRef.current,
-          taskIdRef.current,
-          modelRootPathRef.current,
-          file.path,
-          file.content,
-          language
-        );
-        modelRegistry.attach(editor, uri);
         currentUriRef.current = uri;
+
+        const doAttach = () => modelRegistry.attach(editor, uri);
+        const cancelReadyCallback = modelRegistry.onceBufferReady(uri, doAttach);
+        lease.disposables.push({ dispose: cancelReadyCallback });
       }
 
       editor.layout();
@@ -144,10 +140,9 @@ export function PooledCodeEditor({
         if (filePath) {
           bufferTimerRef.current = setTimeout(() => {
             bufferTimerRef.current = null;
-            const uri = currentUriRef.current;
-            // Skip if the file was saved to disk since the timer was scheduled
-            // (avoids re-inserting a buffer row that clearBuffer already removed).
-            if (!uri || !modelRegistry.isDirty(uri)) return;
+            const currentUri = currentUriRef.current;
+            // Skip if the file was saved to disk since the timer was scheduled.
+            if (!currentUri || !modelRegistry.isDirty(currentUri)) return;
             void rpc.editorBuffer.saveBuffer(
               projectIdRef.current,
               taskIdRef.current,
@@ -200,23 +195,15 @@ export function PooledCodeEditor({
   }, [glyphMargin]);
 
   // Sync active file changes: switch the registry model, preserving view state.
+  // Models are registered by EditorProvider before openFiles state is updated,
+  // so by the time this effect fires the buffer model always exists.
   useEffect(() => {
     const lease = leaseRef.current;
     if (!lease || !activeFile) return;
 
-    const language = getMonacoLanguageId(activeFile.path);
     const newUri = buildMonacoModelPath(modelRootPath, activeFile.path);
     const previousUri = currentUriRef.current ?? undefined;
 
-    // Ensure the model exists in the registry before attaching.
-    modelRegistry.openFile(
-      projectId,
-      taskId,
-      modelRootPath,
-      activeFile.path,
-      activeFile.content,
-      language
-    );
     modelRegistry.attach(lease.editor, newUri, previousUri);
     currentUriRef.current = newUri;
     lease.editor.layout();

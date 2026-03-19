@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { diffEditorPool } from '@renderer/lib/monaco-diff-pool';
+import { diffEditorPool } from '@renderer/core/monaco/monaco-diff-pool';
 import { useGitViewContext } from '../state/git-view-provider';
 import { DiffToolbar } from './diff-toolbar';
 import { FileDiffView } from './file-diff-view';

@@ -25,7 +25,7 @@ export type MonacoPoolOptions<TEditor> = {
   onInit?: (m: typeof monaco) => Promise<void>;
 };
 
-const DEFAULT_RESERVE = 1;
+const DEFAULT_RESERVE = 2;
 
 export class MonacoPool<TEditor> {
   private pool: PoolEntry<TEditor>[] = [];
