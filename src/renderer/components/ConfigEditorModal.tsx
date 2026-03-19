@@ -461,7 +461,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                     Shell commands to provision and tear down remote workspaces. When configured,
                     tasks can choose between a local worktree and a remote workspace.{' '}
                     <a
-                      href="https://docs.emdash.dev/docs/bring-your-own-infrastructure"
+                      href="https://docs.emdash.sh/bring-your-own-infrastructure"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline hover:text-foreground"
