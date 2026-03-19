@@ -736,9 +736,10 @@ export class LocalFileSystem implements FileSystemProvider {
 
   watch(
     callback: (events: FileWatchEvent[]) => void,
-    options: { debounceMs?: number } = {}
+    options: { debounceMs?: number; mode?: 'dirs' | 'files' } = {}
   ): FileWatcher {
     const stabilityMs = options.debounceMs ?? 200;
+    const mode = options.mode ?? 'dirs';
     let currentAbsPaths: string[] = [];
     let pending: FileWatchEvent[] = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -758,39 +759,47 @@ export class LocalFileSystem implements FileSystemProvider {
 
     const toRel = (absPath: string) => relative(this.projectPath, absPath).replace(/\\/g, '/');
 
-    const watcher = chokidar.watch([], {
-      ignoreInitial: true,
-      // depth: 0 prevents recursive directory traversal, keeping OS file-handle
-      // usage proportional to the number of explicitly watched paths rather than
-      // the total number of files in the project tree. The file-tree caller
-      // already supplies every expanded directory explicitly, so depth-0 is
-      // sufficient for change detection without blowing the EMFILE limit.
-      depth: 0,
-      // Only ignore based on path segments *relative* to the project root.
-      // Using the absolute path would cause the entire worktree to be ignored
-      // when the project lives inside a directory named 'worktrees'.
-      ignored: (absPath: string) => {
-        const rel = relative(this.projectPath, absPath);
-        if (!rel || rel.startsWith('..')) return false;
-        return rel.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
-      },
-      persistent: false,
-    });
+    // Only ignore based on path segments *relative* to the project root.
+    // Using the absolute path would cause the entire worktree to be ignored
+    // when the project lives inside a directory named 'worktrees'.
+    const ignored = (absPath: string) => {
+      const rel = relative(this.projectPath, absPath);
+      if (!rel || rel.startsWith('..')) return false;
+      return rel.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
+    };
 
-    watcher
-      .on('add', (p) => enqueue({ type: 'create', entryType: 'file', path: toRel(p) }))
-      .on('addDir', (p) => enqueue({ type: 'create', entryType: 'directory', path: toRel(p) }))
-      .on('unlink', (p) => enqueue({ type: 'delete', entryType: 'file', path: toRel(p) }))
-      .on('unlinkDir', (p) => enqueue({ type: 'delete', entryType: 'directory', path: toRel(p) }))
-      .on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
+    const watcher =
+      mode === 'dirs'
+        ? // depth: 0 watches only immediate contents of each added directory,
+          // keeping OS file-handle count O(expanded-dirs) instead of O(all-files).
+          // The file-tree supplies every expanded directory explicitly so depth-0
+          // is sufficient for structural change detection without EMFILE risk.
+          chokidar.watch([], { ignoreInitial: true, depth: 0, ignored, persistent: false })
+        : // Files mode: paths are individual files added explicitly by the editor.
+          // No depth restriction needed — chokidar watches each file directly.
+          // Only 'change' events are relevant here; structural changes are handled
+          // by the separate dirs watcher.
+          chokidar.watch([], { ignoreInitial: true, ignored, persistent: false });
+
+    if (mode === 'dirs') {
+      watcher
+        .on('add', (p) => enqueue({ type: 'create', entryType: 'file', path: toRel(p) }))
+        .on('addDir', (p) => enqueue({ type: 'create', entryType: 'directory', path: toRel(p) }))
+        .on('unlink', (p) => enqueue({ type: 'delete', entryType: 'file', path: toRel(p) }))
+        .on('unlinkDir', (p) => enqueue({ type: 'delete', entryType: 'directory', path: toRel(p) }))
+        .on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
+    } else {
+      watcher.on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
+    }
 
     const projectPath = this.projectPath;
 
     return {
       update(paths: string[]) {
         const absPaths = paths.filter((p) => p !== '').map((p) => join(projectPath, p));
-        // Also watch the project root itself for root-level changes
-        const allPaths = paths.includes('') ? [projectPath, ...absPaths] : absPaths;
+        // In dirs mode, the empty-string path means "watch the project root itself".
+        const allPaths =
+          mode === 'dirs' && paths.includes('') ? [projectPath, ...absPaths] : absPaths;
 
         const toRemove = currentAbsPaths.filter((p) => !allPaths.includes(p));
         const toAdd = allPaths.filter((p) => !currentAbsPaths.includes(p));

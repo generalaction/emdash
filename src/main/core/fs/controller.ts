@@ -11,9 +11,14 @@ import {
   type SearchOptions,
 } from './types';
 
-const watcherRegistry = new Map<string, FileWatcher>();
-// Per-label path groups: Map<`${projectId}::${taskId}`, Map<label, paths[]>>
-const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
+// Separate registries for directory watchers (depth:0, structural changes) and
+// file watchers (explicit file paths, change events only). Both emit through
+// the same fsWatchEventChannel so consumers see a unified stream.
+const dirWatcherRegistry = new Map<string, FileWatcher>();
+const fileWatcherRegistry = new Map<string, FileWatcher>();
+// Per-label path groups, keyed by mode then `${projectId}::${taskId}`
+const dirLabeledPaths = new Map<string, Map<string, string[]>>();
+const fileLabeledPaths = new Map<string, Map<string, string[]>>();
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
@@ -221,7 +226,13 @@ export const filesController = createRPCController({
     }
   },
 
-  watchSetPaths: async (projectId: string, taskId: string, paths: string[], label = 'default') => {
+  watchSetPaths: async (
+    projectId: string,
+    taskId: string,
+    paths: string[],
+    label = 'default',
+    watchType: 'dirs' | 'files' = 'dirs'
+  ) => {
     const env = resolveTask(projectId, taskId);
     if (!env) {
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
@@ -232,35 +243,49 @@ export const filesController = createRPCController({
     }
 
     const key = `${projectId}::${taskId}`;
-    const groups = watcherLabeledPaths.get(key) ?? new Map<string, string[]>();
+    const registry = watchType === 'files' ? fileWatcherRegistry : dirWatcherRegistry;
+    const labeledPaths = watchType === 'files' ? fileLabeledPaths : dirLabeledPaths;
+
+    const groups = labeledPaths.get(key) ?? new Map<string, string[]>();
     groups.set(label, paths);
-    watcherLabeledPaths.set(key, groups);
+    labeledPaths.set(key, groups);
     const union = [...new Set([...groups.values()].flat())];
 
-    const existing = watcherRegistry.get(key);
+    const existing = registry.get(key);
     if (existing) {
       existing.update(union);
     } else {
-      const watcher = env.fs.watch((evts) => {
-        events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
-      });
+      const watcher = env.fs.watch(
+        (evts) => {
+          events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
+        },
+        { mode: watchType }
+      );
       watcher.update(union);
-      watcherRegistry.set(key, watcher);
+      registry.set(key, watcher);
     }
     return ok({ supported: true as const });
   },
 
-  watchStop: async (projectId: string, taskId: string, label = 'default') => {
+  watchStop: async (
+    projectId: string,
+    taskId: string,
+    label = 'default',
+    watchType: 'dirs' | 'files' = 'dirs'
+  ) => {
     const key = `${projectId}::${taskId}`;
-    const groups = watcherLabeledPaths.get(key);
+    const registry = watchType === 'files' ? fileWatcherRegistry : dirWatcherRegistry;
+    const labeledPaths = watchType === 'files' ? fileLabeledPaths : dirLabeledPaths;
+
+    const groups = labeledPaths.get(key);
     groups?.delete(label);
     if (!groups?.size) {
-      watcherLabeledPaths.delete(key);
-      watcherRegistry.get(key)?.close();
-      watcherRegistry.delete(key);
+      labeledPaths.delete(key);
+      registry.get(key)?.close();
+      registry.delete(key);
     } else {
       const union = [...new Set([...groups.values()].flat())];
-      watcherRegistry.get(key)?.update(union);
+      registry.get(key)?.update(union);
     }
     return ok({});
   },

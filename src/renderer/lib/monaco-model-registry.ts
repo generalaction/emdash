@@ -209,7 +209,7 @@ class MonacoModelRegistry {
     this.watchSubscriptions.get(taskId)?.();
     this.watchSubscriptions.delete(taskId);
     this.conflictHandlers.delete(taskId);
-    rpc.fs.watchStop(projectId, taskId, 'editor').catch(() => {});
+    rpc.fs.watchStop(projectId, taskId, 'editor', 'files').catch(() => {});
   }
 
   /** Save the current view state for a URI (e.g. on tab blur). */
@@ -236,7 +236,7 @@ class MonacoModelRegistry {
     const paths = [...this.openEntries.values()]
       .filter((e) => e.taskId === taskId)
       .map((e) => e.filePath);
-    rpc.fs.watchSetPaths(projectId, taskId, paths, 'editor').catch(() => {});
+    rpc.fs.watchSetPaths(projectId, taskId, paths, 'editor', 'files').catch(() => {});
   }
 
   private async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {

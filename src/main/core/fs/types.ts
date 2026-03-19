@@ -247,10 +247,15 @@ export interface FileSystemProvider {
    * Returns a FileWatcher handle; call update() to change watched paths, close() to stop.
    * Batches events and delivers them via callback.
    * Optional — not all implementations support watching (e.g., SSH may fall back to polling).
+   *
+   * mode: 'dirs' (default) — watches directory structure with depth:0 to prevent EMFILE;
+   *       fires add/addDir/unlink/unlinkDir/change for immediate directory contents.
+   * mode: 'files' — watches explicitly-added individual files for content changes only;
+   *       no depth restriction, fires change events only.
    */
   watch?(
     callback: (events: FileWatchEvent[]) => void,
-    options?: { debounceMs?: number }
+    options?: { debounceMs?: number; mode?: 'dirs' | 'files' }
   ): FileWatcher;
 }
 
