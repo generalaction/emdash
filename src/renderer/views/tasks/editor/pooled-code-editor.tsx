@@ -209,5 +209,5 @@ export function PooledCodeEditor({
     lease.editor.layout();
   }, [activeFile?.path, modelRootPath, projectId, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={mountRef} className="h-full w-full" />;
+  return <div ref={mountRef} className="h-full w-full bg-(--monaco-bg)" />;
 }

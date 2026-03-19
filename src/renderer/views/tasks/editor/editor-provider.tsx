@@ -14,6 +14,7 @@ import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
+import { getFileKind } from '@renderer/lib/fileKind';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../task-view-context';
 import { useEditorViewContext } from './editor-view-provider';
@@ -57,12 +58,6 @@ export function useEditorContext(): EditorContextValue {
   return ctx;
 }
 
-function isImageFile(filePath: string): boolean {
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'];
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  return ext ? imageExtensions.includes(ext) : false;
-}
-
 export function EditorProvider({ children }: { children: ReactNode }) {
   const { task } = useTaskViewContext();
 
@@ -95,24 +90,81 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   /**
    * Internal: load a file's content and register models in the registry.
    *
-   * Models are registered (and awaited) BEFORE setOpenFiles is called so that
-   * PooledCodeEditor always sees an existing buffer model when it receives the
-   * updated activeFile prop.
+   * Three-phase approach to eliminate the "no file open" flash and show a
+   * loading state for slow (e.g. SSH) reads:
+   *
+   * 1. **Synchronous** — insert a `{ isLoading: true }` placeholder into
+   *    `openFiles` immediately so the tab bar is never empty.
+   * 2. **Async I/O** — read/fetch the file content via RPC.
+   * 3. **Settle** — replace the placeholder with the final `ManagedFile`.
    */
   const loadFileInternal = useCallback(
     async (filePath: string) => {
-      if (isImageFile(filePath)) {
-        const result = await rpc.fs.readImage(projectId, taskId, filePath);
-        const dataUrl = result.success
-          ? (result.data?.dataUrl ?? '[IMAGE_ERROR]')
-          : '[IMAGE_ERROR]';
-        const file: ManagedFile = {
+      const kind = getFileKind(filePath);
+
+      // Phase 1 — synchronous placeholder (no await, no flash).
+      setOpenFiles((prev) =>
+        new Map(prev).set(filePath, {
           path: filePath,
-          content: dataUrl,
-          originalContent: dataUrl,
+          kind,
+          isLoading: kind !== 'binary', // binary needs no I/O
+          content: '',
+          originalContent: '',
           isDirty: false,
-        };
-        setOpenFiles((prev) => new Map(prev).set(filePath, file));
+        })
+      );
+
+      // Phase 2+3 — async I/O, then replace placeholder.
+      if (kind === 'binary') {
+        // Nothing to load — placeholder already has isLoading: false.
+        return;
+      }
+
+      if (kind === 'image') {
+        const result = await rpc.fs.readImage(projectId, taskId, filePath);
+        const dataUrl = result.success ? (result.data?.dataUrl ?? '') : '';
+        setOpenFiles((prev) =>
+          new Map(prev).set(filePath, {
+            path: filePath,
+            kind: 'image',
+            isLoading: false,
+            content: dataUrl,
+            originalContent: dataUrl,
+            isDirty: false,
+          })
+        );
+        return;
+      }
+
+      // 'text' and 'svg': pre-read to detect truncation before registering Monaco models.
+      const readResult = await rpc.fs.readFile(projectId, taskId, filePath);
+
+      if (!readResult.success) {
+        setOpenFiles((prev) =>
+          new Map(prev).set(filePath, {
+            path: filePath,
+            kind: 'binary', // treat unreadable files as unsupported
+            isLoading: false,
+            content: '',
+            originalContent: '',
+            isDirty: false,
+          })
+        );
+        return;
+      }
+
+      if (readResult.data?.truncated) {
+        setOpenFiles((prev) =>
+          new Map(prev).set(filePath, {
+            path: filePath,
+            kind: 'too-large',
+            isLoading: false,
+            content: '',
+            originalContent: '',
+            isDirty: false,
+            totalSize: readResult.data?.totalSize,
+          })
+        );
         return;
       }
 
@@ -137,14 +189,18 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         'buffer'
       );
 
-      const file: ManagedFile = {
-        path: filePath,
-        content: modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '',
-        originalContent:
-          modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '',
-        isDirty: false,
-      };
-      setOpenFiles((prev) => new Map(prev).set(filePath, file));
+      const diskValue =
+        modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '';
+      setOpenFiles((prev) =>
+        new Map(prev).set(filePath, {
+          path: filePath,
+          kind, // 'text' or 'svg'
+          isLoading: false,
+          content: diskValue,
+          originalContent: diskValue,
+          isDirty: false,
+        })
+      );
     },
     [projectId, taskId, modelRootPath]
   );
@@ -366,6 +422,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
    * Opens a file as an unstable preview tab (single-click behaviour).
    * If there is already a clean preview tab, it is closed and replaced.
    * If the file is already open (stable or preview), it is simply activated.
+   *
+   * Load order is intentionally reversed vs the old approach:
+   *   NEW: load new file first → close old preview
+   * The synchronous loading placeholder added by `loadFileInternal` ensures
+   * `openFiles` is never empty during the transition, eliminating the flash.
    */
   const openFilePreview = useCallback(
     async (filePath: string) => {
@@ -374,29 +435,35 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Close the existing clean preview tab before opening the new one.
-      setOpenFiles((prev) => {
-        const currentPreview = previewFilePath;
-        if (!currentPreview || currentPreview === filePath) return prev;
-        const previewFile = prev.get(currentPreview);
-        if (!previewFile || previewFile.isDirty) return prev;
+      // Capture the outgoing preview path before any awaits.
+      const outgoingPreview = previewFilePath;
 
-        // Clean up Monaco models for the outgoing preview tab.
-        const uri = buildMonacoModelPath(modelRootPath, currentPreview);
-        modelRegistry.unregisterModel(uri, 'buffer');
-        modelRegistry.unregisterModel(uri, 'disk');
-        void rpc.editorBuffer.clearBuffer(projectId, taskId, currentPreview);
-        clearPreviewMode(currentPreview);
-
-        const next = new Map(prev);
-        next.delete(currentPreview);
-        return next;
-      });
-      setPreviewFilePath(null);
-
+      // Load the new file first. The synchronous placeholder phase of
+      // loadFileInternal immediately adds the new entry to openFiles, so the
+      // tab bar is never empty while waiting for async I/O to complete.
       await loadFileInternal(filePath);
       setPreviewFilePath(filePath);
       setActiveFilePath(filePath);
+
+      // Now it is safe to remove the old preview — the new file is already present.
+      if (outgoingPreview && outgoingPreview !== filePath) {
+        setOpenFiles((prev) => {
+          const previewFile = prev.get(outgoingPreview);
+          if (!previewFile || previewFile.isDirty) return prev;
+
+          // Clean up Monaco models for the outgoing preview tab.
+          const uri = buildMonacoModelPath(modelRootPath, outgoingPreview);
+          modelRegistry.unregisterModel(uri, 'buffer');
+          modelRegistry.unregisterModel(uri, 'disk');
+          void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
+          clearPreviewMode(outgoingPreview);
+
+          const next = new Map(prev);
+          next.delete(outgoingPreview);
+          return next;
+        });
+        setPreviewFilePath(filePath);
+      }
     },
     [
       openFiles,

@@ -1,12 +1,18 @@
 import { FileCode } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
 import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
 import { isMarkdownFile } from '@renderer/constants/file-explorer';
+import { BinaryRenderer } from '@renderer/core/editor/binary-renderer';
+import { ImageRenderer } from '@renderer/core/editor/image-renderer';
+import { LoadingRenderer } from '@renderer/core/editor/loading-renderer';
+import { SvgRenderer } from '@renderer/core/editor/svg-renderer';
+import { TooLargeRenderer } from '@renderer/core/editor/too-large-renderer';
 import { rpc } from '@renderer/core/ipc';
 import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
 import { addMonacoKeyboardShortcuts } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useEditorContext } from './editor-provider';
 import { useEditorViewContext } from './editor-view-provider';
@@ -315,12 +321,14 @@ export function EditorMainPanel() {
     [activeFilePath, markDirty]
   );
 
+  // Default preview mode: markdown and SVG default to rendered view.
   const isPreviewActive = activeFilePath
-    ? (previewMode.get(activeFilePath) ?? isMarkdownFile(activeFilePath))
+    ? (previewMode.get(activeFilePath) ??
+      (isMarkdownFile(activeFilePath) || activeFile?.kind === 'svg'))
     : false;
 
-  // For markdown preview, get live content from the registry model (source of truth).
-  const markdownContent = activeFile
+  // For markdown/SVG preview, get live content from the registry model (source of truth).
+  const previewContent = activeFile
     ? (modelRegistry.getValue(buildMonacoModelPath(modelRootPath, activeFile.path)) ??
       activeFile.content)
     : '';
@@ -349,27 +357,123 @@ export function EditorMainPanel() {
         previewMode={previewMode}
         onTogglePreview={togglePreview}
       />
-      {isPreviewActive && activeFile ? (
-        <MarkdownPreview
-          content={markdownContent}
-          rootPath={modelRootPath}
-          fileDir={
-            activeFile.path.includes('/')
-              ? activeFile.path.substring(0, activeFile.path.lastIndexOf('/'))
-              : ''
-          }
-        />
-      ) : (
-        <PooledCodeEditor
-          activeFile={activeFile}
+      <ActiveFileRenderer
+        file={activeFile}
+        isPreviewActive={isPreviewActive}
+        previewContent={previewContent}
+        modelRootPath={modelRootPath}
+        projectId={projectId}
+        taskId={taskId}
+        handleEditorChange={handleEditorChange}
+        handleEditorMount={handleEditorMount}
+      />
+    </div>
+  );
+}
+
+interface ActiveFileRendererProps {
+  file: ManagedFile | null;
+  isPreviewActive: boolean;
+  previewContent: string;
+  modelRootPath: string;
+  projectId: string;
+  taskId: string;
+  handleEditorChange: (value: string) => void;
+  handleEditorMount: (editor: any, monaco: any) => void;
+}
+
+function ActiveFileRenderer({
+  file,
+  isPreviewActive,
+  previewContent,
+  modelRootPath,
+  projectId,
+  taskId,
+  handleEditorChange,
+  handleEditorMount,
+}: ActiveFileRendererProps) {
+  if (!file) return null;
+
+  // Loading state is orthogonal to kind — check it first.
+  if (file.isLoading) {
+    return <LoadingRenderer />;
+  }
+
+  switch (file.kind) {
+    case 'text':
+    case 'svg':
+      return (
+        <CodeEditorSection
+          file={file}
+          isPreviewActive={isPreviewActive}
+          previewContent={previewContent}
           modelRootPath={modelRootPath}
           projectId={projectId}
           taskId={taskId}
-          glyphMargin={true}
           onEditorChange={handleEditorChange}
           onMount={handleEditorMount}
         />
-      )}
-    </div>
+      );
+    case 'image':
+      return <ImageRenderer file={file} />;
+    case 'too-large':
+      return <TooLargeRenderer file={file} />;
+    case 'binary':
+      return <BinaryRenderer file={file} />;
+    default:
+      return null;
+  }
+}
+
+interface CodeEditorSectionProps {
+  file: ManagedFile;
+  isPreviewActive: boolean;
+  previewContent: string;
+  modelRootPath: string;
+  projectId: string;
+  taskId: string;
+  onEditorChange: (value: string) => void;
+  onMount: (editor: any, monaco: any) => void;
+}
+
+function CodeEditorSection({
+  file,
+  isPreviewActive,
+  previewContent,
+  modelRootPath,
+  onEditorChange,
+  onMount,
+  projectId,
+  taskId,
+}: CodeEditorSectionProps) {
+  if (isPreviewActive) {
+    if (file.kind === 'svg') {
+      // Pass the live model content as `content` so SvgRenderer always shows
+      // the latest edits (previewContent comes from the Monaco buffer model).
+      return <SvgRenderer file={{ ...file, content: previewContent }} />;
+    }
+    if (isMarkdownFile(file.path)) {
+      return (
+        <MarkdownPreview
+          content={previewContent}
+          rootPath={modelRootPath}
+          fileDir={
+            file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''
+          }
+        />
+      );
+    }
+  }
+
+  return (
+    <PooledCodeEditor
+      activeFile={file}
+      modelRootPath={modelRootPath}
+      projectId={projectId}
+      taskId={taskId}
+      glyphMargin={true}
+      onEditorChange={onEditorChange}
+      onMount={onMount}
+    />
   );
 }
