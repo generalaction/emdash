@@ -19,6 +19,7 @@ const ipcOnHandlers = new Map<string, (...args: any[]) => any>();
 const appListeners = new Map<string, Array<() => void>>();
 const ptys = new Map<string, MockProc>();
 const notificationCtor = vi.fn();
+const awaitSetupMock = vi.fn(async (_taskId: string) => {});
 const notificationShow = vi.fn();
 const telemetryCaptureMock = vi.fn();
 const agentEventGetPortMock = vi.fn(() => 12345);
@@ -292,6 +293,12 @@ vi.mock('../../main/services/LifecycleScriptsService', () => ({
   lifecycleScriptsService: {
     getShellSetup: vi.fn(() => undefined),
     getTmuxEnabled: vi.fn(() => false),
+  },
+}));
+
+vi.mock('../../main/services/TaskLifecycleService', () => ({
+  taskLifecycleService: {
+    awaitSetup: (taskId: string) => awaitSetupMock(taskId),
   },
 }));
 
@@ -873,5 +880,66 @@ describe('ptyIpc notification lifecycle', () => {
         c[1][c[1].length - 1].includes('settings.local.json')
     );
     expect(hookConfigCalls).toHaveLength(0);
+  });
+
+  it('pty:startDirect waits for in-flight setup before spawning agent PTY', async () => {
+    let resolveSetup!: () => void;
+    const setupGate = new Promise<void>((resolve) => {
+      resolveSetup = resolve;
+    });
+    awaitSetupMock.mockReturnValueOnce(setupGate);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('claude', 'main', 'task-setup-gate-direct');
+    const handlerPromise = startDirect!(
+      { sender: createSender() },
+      { id, providerId: 'claude', cwd: '/tmp/task', cols: 120, rows: 32 }
+    );
+
+    // Setup is still pending — PTY must not be spawned yet
+    expect(startDirectPtyMock).not.toHaveBeenCalled();
+    expect(startPtyMock).not.toHaveBeenCalled();
+
+    // Unblock setup and wait for the handler to finish
+    resolveSetup();
+    await handlerPromise;
+
+    // PTY should now be spawned
+    expect(startDirectPtyMock).toHaveBeenCalledOnce();
+  });
+
+  it('pty:start waits for in-flight setup before spawning shell PTY', async () => {
+    let resolveSetup!: () => void;
+    const setupGate = new Promise<void>((resolve) => {
+      resolveSetup = resolve;
+    });
+    awaitSetupMock.mockReturnValueOnce(setupGate);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const start = ipcHandleHandlers.get('pty:start');
+    expect(start).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-setup-gate-shell');
+    const handlerPromise = start!(
+      { sender: createSender() },
+      { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 }
+    );
+
+    // Setup is still pending — PTY must not be spawned yet
+    expect(startPtyMock).not.toHaveBeenCalled();
+
+    // Unblock setup and wait for the handler to finish
+    resolveSetup();
+    await handlerPromise;
+
+    // PTY should now be spawned
+    expect(startPtyMock).toHaveBeenCalledOnce();
   });
 });

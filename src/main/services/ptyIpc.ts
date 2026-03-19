@@ -32,6 +32,7 @@ import { detectAndLoadTerminalConfig } from './TerminalConfigParser';
 import { ClaudeHookService } from './ClaudeHookService';
 import { databaseService } from './DatabaseService';
 import { lifecycleScriptsService } from './LifecycleScriptsService';
+import { taskLifecycleService } from './TaskLifecycleService';
 import { maybeAutoTrustForClaude } from './ClaudeConfigService';
 import { OpenCodeHookService, OPEN_CODE_PLUGIN_FILE } from './OpenCodeHookService';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -846,6 +847,14 @@ export function registerPtyIpc(): void {
         const parsedPty = parsePtyId(id);
         if (parsedPty) maybeAutoTrustForClaude(parsedPty.providerId, cwd);
 
+        // Wait for any in-flight setup script to finish before spawning the PTY.
+        // Setup scripts (e.g. copying .claude/skills into the worktree) must complete
+        // before the agent initializes, otherwise the copied files won't be picked up
+        // in the first session.
+        if (parsedPty?.kind === 'main') {
+          await taskLifecycleService.awaitSetup(parsedPty.suffix);
+        }
+
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
         const tmux = cwd ? await resolveTmuxEnabled(cwd) : false;
 
@@ -1319,6 +1328,15 @@ export function registerPtyIpc(): void {
         }
 
         maybeAutoTrustForClaude(providerId, cwd);
+
+        // Wait for any in-flight setup script to finish before spawning the PTY.
+        // Setup scripts (e.g. copying .claude/skills into the worktree) must complete
+        // before the agent initializes, otherwise the copied files won't be picked up
+        // in the first session.
+        const parsedDirectPty = parsePtyId(id);
+        if (parsedDirectPty?.kind === 'main') {
+          await taskLifecycleService.awaitSetup(parsedDirectPty.suffix);
+        }
 
         const shellSetup = await resolveShellSetup(cwd);
         const tmux = await resolveTmuxEnabled(cwd);

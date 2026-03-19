@@ -510,6 +510,27 @@ class TaskLifecycleService extends EventEmitter {
     return run;
   }
 
+  /**
+   * Waits for any in-flight setup for the given taskId to complete.
+   * Silently ignores setup failures — the caller proceeds regardless.
+   * Used to ensure setup scripts finish before the agent PTY is spawned.
+   */
+  awaitSetup(taskId: string): Promise<void> {
+    const prefix = `${taskId}::`;
+    const promises: Promise<void>[] = [];
+    for (const [key, promise] of this.setupInflight.entries()) {
+      if (key.startsWith(prefix)) {
+        promises.push(
+          promise.then(
+            () => {},
+            () => {}
+          )
+        );
+      }
+    }
+    return Promise.all(promises).then(() => {});
+  }
+
   getState(taskId: string): TaskLifecycleState {
     return this.ensureState(taskId);
   }
