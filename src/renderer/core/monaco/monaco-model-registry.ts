@@ -20,9 +20,6 @@ type GitBaseEntry = { model: monaco.editor.ITextModel };
 
 export type ModelType = 'buffer' | 'disk' | 'gitBase';
 
-/** Called when an open file is externally modified while the buffer has unsaved edits. */
-type ConflictHandler = (filePath: string, uri: string) => void;
-
 /** Metadata needed for watcher sync and FS operations. Keyed by buffer URI. Set when disk is registered. */
 type OpenEntry = {
   filePath: string;
@@ -59,13 +56,17 @@ class MonacoModelRegistry {
 
   private reloadingFromDisk = new Set<string>();
 
+  /**
+   * URIs where the file was externally modified while the buffer had unsaved edits.
+   * The conflict dialog is deferred until the user attempts to save the file.
+   */
+  private pendingConflicts = new Set<string>();
+
   /** fsWatchEventChannel unsubscribe functions, keyed by taskId */
   private diskWatchSubs = new Map<string, () => void>();
 
   /** gitStatusChangedChannel unsubscribe functions, keyed by taskId */
   private gitBaseWatchSubs = new Map<string, () => void>();
-
-  private conflictHandlers = new Map<string, ConflictHandler>();
 
   private bufferReadyCallbacks = new Map<string, Array<() => void>>();
 
@@ -317,8 +318,9 @@ class MonacoModelRegistry {
     if (bufferModel && !bufferModel.isDisposed()) bufferModel.dispose();
     this.bufferCache.delete(uri);
     this.bufferRefs.delete(uri);
-    // Cancel any pending attach callbacks for this URI.
+    // Cancel any pending attach callbacks and pending conflict for this URI.
     this.bufferReadyCallbacks.delete(uri);
+    this.pendingConflicts.delete(uri);
   }
 
   // ---------------------------------------------------------------------------
@@ -449,19 +451,49 @@ class MonacoModelRegistry {
       buf.setValue(disk.getValue());
       this.reloadingFromDisk.delete(uri);
     }
+    // Conflict is resolved — the incoming change was accepted.
+    this.pendingConflicts.delete(uri);
+  }
+
+  /**
+   * Write the buffer content to disk, sync the disk model, and clear the
+   * crash-recovery buffer entry. The mirror of `reloadFromDisk`.
+   *
+   * @returns the saved content string on success, or `null` on failure.
+   *          The caller is responsible for updating any React dirty-state.
+   */
+  async saveFileToDisk(uri: string): Promise<string | null> {
+    const buf = this.bufferCache.get(uri)?.model;
+    const entry = this.openEntries.get(uri);
+    if (!buf || !entry) return null;
+
+    const content = buf.getValue();
+    const result = await rpc.fs.writeFile(entry.projectId, entry.taskId, entry.filePath, content);
+    if (!result.success) return null;
+
+    // Keep disk model in sync so isDirty() immediately returns false.
+    this.markSaved(uri);
+    // Conflict is resolved — the user's version won.
+    this.pendingConflicts.delete(uri);
+    // Crash-recovery buffer is no longer needed once the file is on disk.
+    void rpc.editorBuffer.clearBuffer(entry.projectId, entry.taskId, entry.filePath);
+    return content;
   }
 
   // ---------------------------------------------------------------------------
-  // Conflict handling
+  // Conflict state
   // ---------------------------------------------------------------------------
 
   /**
-   * Register a callback invoked when an open file is modified on disk while
-   * the buffer has unsaved edits. Returns an unsubscribe function.
+   * Returns true if the file was externally modified while the buffer had
+   * unsaved edits. The conflict dialog is shown lazily, only when the user
+   * tries to save, so normal editing is never interrupted.
+   *
+   * Cleared automatically by `reloadFromDisk`, `saveFileToDisk`, and
+   * `unregisterBuffer` (file closed).
    */
-  setConflictHandler(taskId: string, cb: ConflictHandler): () => void {
-    this.conflictHandlers.set(taskId, cb);
-    return () => this.conflictHandlers.delete(taskId);
+  hasPendingConflict(uri: string): boolean {
+    return this.pendingConflicts.has(uri);
   }
 
   // ---------------------------------------------------------------------------
@@ -528,14 +560,22 @@ class MonacoModelRegistry {
       if (!result.success) continue;
       const newContent = result.data.content;
 
+      // Snapshot dirty state and buffer value BEFORE updating the disk model.
+      // If we checked isDirty() after, a clean buffer would appear dirty because
+      // the disk model would already hold the new (different) external content.
+      const wasDirty = this.isDirty(uri);
+      const bufValue = this.bufferCache.get(uri)?.model.getValue();
+      const newMatchesBuffer = bufValue === newContent;
+
       // 1. Always update the disk model — ground truth for "what's on disk".
       const diskEntry = this.diskCache.get(uri);
       if (diskEntry) {
         diskEntry.model.setValue(newContent);
       }
 
-      if (!this.isDirty(uri)) {
-        // 2a. Buffer is clean — pull it forward so the editor shows latest content.
+      if (!wasDirty || newMatchesBuffer) {
+        // 2a. Buffer is clean, or agent wrote exactly what the user had typed
+        //     → pull buffer forward silently; no conflict needed.
         const bufferEntry = this.bufferCache.get(uri);
         if (bufferEntry) {
           this.reloadingFromDisk.add(uri);
@@ -543,9 +583,10 @@ class MonacoModelRegistry {
           this.reloadingFromDisk.delete(uri);
         }
       } else {
-        // 2b. Buffer has user edits — show blocking conflict modal.
-        // Disk model already holds the new content for reloadFromDisk().
-        this.conflictHandlers.get(taskId)?.(event.path, uri);
+        // 2b. Buffer has genuine user edits that differ from the new disk content.
+        //     Mark as pending conflict — the dialog is deferred until the user
+        //     tries to save, so editing is not interrupted mid-keystroke.
+        this.pendingConflicts.add(uri);
       }
     }
   }

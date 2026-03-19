@@ -194,38 +194,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
-  // Register a conflict handler — invoked by the registry when an open file is
-  // modified on disk while the buffer has unsaved edits.
+  // Conflict dialog — shown lazily from saveFile when a pending conflict is detected.
   const showConflictModal = useShowModal('conflictDialog');
-  useEffect(() => {
-    if (!taskId) return;
-    return modelRegistry.setConflictHandler(taskId, (filePath, uri) => {
-      showConflictModal({
-        filePath,
-        onSuccess: (accept) => {
-          if (accept) {
-            modelRegistry.reloadFromDisk(uri);
-            void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
-            const content = modelRegistry.getDiskValue(uri) ?? '';
-            setOpenFiles((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(filePath);
-              if (existing) {
-                next.set(filePath, {
-                  ...existing,
-                  isDirty: false,
-                  content,
-                  originalContent: content,
-                });
-              }
-              return next;
-            });
-          }
-          // false = "Keep Mine": buffer stays dirty, disk model holds newer content.
-        },
-      });
-    });
-  }, [taskId, projectId, showConflictModal]);
 
   // Refresh git base models whenever git HEAD changes (commits, rebases, etc.).
   useEffect(() => {
@@ -254,14 +224,65 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       if (!file?.isDirty) return;
 
       const uri = buildMonacoModelPath(modelRootPath, targetPath);
-      const content = modelRegistry.getValue(uri) ?? file.content;
+
+      // If the file was externally modified while the buffer had unsaved edits,
+      // show the conflict dialog before writing. The save completes inside onSuccess
+      // so the user's choice is applied atomically.
+      if (modelRegistry.hasPendingConflict(uri)) {
+        showConflictModal({
+          filePath: targetPath,
+          onSuccess: async (accept) => {
+            if (accept) {
+              // "Accept Incoming" — discard user edits, reload buffer from disk.
+              modelRegistry.reloadFromDisk(uri); // also clears pendingConflict
+              void rpc.editorBuffer.clearBuffer(projectId, taskId, targetPath);
+              const content = modelRegistry.getDiskValue(uri) ?? '';
+              setOpenFiles((prev) => {
+                const next = new Map(prev);
+                const existing = next.get(targetPath);
+                if (existing) {
+                  next.set(targetPath, {
+                    ...existing,
+                    isDirty: false,
+                    content,
+                    originalContent: content,
+                  });
+                }
+                return next;
+              });
+            } else {
+              // "Keep Mine" — write the user's buffer to disk.
+              setIsSaving(true);
+              try {
+                const content = await modelRegistry.saveFileToDisk(uri); // also clears pendingConflict
+                if (content !== null) {
+                  setOpenFiles((prev) => {
+                    const next = new Map(prev);
+                    const updated = next.get(targetPath);
+                    if (updated) {
+                      next.set(targetPath, {
+                        ...updated,
+                        isDirty: false,
+                        originalContent: content,
+                        content,
+                      });
+                    }
+                    return next;
+                  });
+                }
+              } finally {
+                setIsSaving(false);
+              }
+            }
+          },
+        });
+        return;
+      }
 
       setIsSaving(true);
       try {
-        const result = await rpc.fs.writeFile(projectId, taskId, targetPath, content);
-        if (result.success) {
-          modelRegistry.markSaved(uri);
-          void rpc.editorBuffer.clearBuffer(projectId, taskId, targetPath);
+        const content = await modelRegistry.saveFileToDisk(uri);
+        if (content !== null) {
           setOpenFiles((prev) => {
             const next = new Map(prev);
             const updated = next.get(targetPath);
@@ -276,7 +297,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             return next;
           });
         } else {
-          console.error('Failed to save file:', result.error);
+          console.error('Failed to save file:', targetPath);
         }
       } catch (error) {
         console.error('Error saving file:', error);
@@ -284,7 +305,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setIsSaving(false);
       }
     },
-    [activeFilePath, openFiles, projectId, taskId, modelRootPath]
+    [activeFilePath, openFiles, modelRootPath, projectId, taskId, showConflictModal]
   );
 
   const saveAllFiles = useCallback(async () => {
