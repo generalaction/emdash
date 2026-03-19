@@ -78,14 +78,15 @@ export const GET_PR_DETAIL_QUERY = `
 `;
 
 export const GET_PR_CHECK_RUNS_QUERY = `
-  query getPrCheckRuns($owner: String!, $repo: String!, $number: Int!) {
+  query getPrCheckRuns($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
         commits(last: 1) {
           nodes {
             commit {
               statusCheckRollup {
-                contexts(first: 100) {
+                contexts(first: 100, after: $cursor) {
+                  pageInfo { hasNextPage endCursor }
                   nodes {
                     ... on CheckRun {
                       __typename

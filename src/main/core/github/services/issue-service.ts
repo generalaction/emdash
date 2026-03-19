@@ -81,6 +81,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     limit: number = 20
   ): Promise<GitHubIssue[]> {
     const term = searchTerm.trim();
+    if (!term) return [];
     const { owner, repo } = splitRepo(nameWithOwner);
     try {
       const octokit = await this.getOctokit();
