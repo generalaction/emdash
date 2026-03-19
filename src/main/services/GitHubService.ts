@@ -64,6 +64,7 @@ export interface GitHubPullRequest {
   reviewers?: GitHubReviewer[];
   additions?: number;
   deletions?: number;
+  checksStatus?: 'pass' | 'fail' | 'pending' | 'none';
 }
 
 export interface GitHubPullRequestListResult {
@@ -852,6 +853,7 @@ export class GitHubService {
         'reviewDecision',
         'additions',
         'deletions',
+        'statusCheckRollup',
       ];
       const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
@@ -881,6 +883,7 @@ export class GitHubService {
           reviewers: this.buildReviewerList(item?.reviewRequests, item?.latestReviews),
           additions: typeof item?.additions === 'number' ? item.additions : undefined,
           deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
+          checksStatus: this.deriveChecksStatus(item?.statusCheckRollup),
         }))
       );
 
@@ -892,6 +895,46 @@ export class GitHubService {
       console.error('Failed to list pull requests:', error);
       throw error;
     }
+  }
+
+  private deriveChecksStatus(rollup: any[]): 'pass' | 'fail' | 'pending' | 'none' {
+    if (!Array.isArray(rollup) || rollup.length === 0) return 'none';
+
+    let hasFail = false;
+    let hasPending = false;
+    let hasPass = false;
+
+    for (const item of rollup) {
+      if (item?.__typename === 'CheckRun') {
+        if (item.status !== 'COMPLETED') {
+          hasPending = true;
+        } else {
+          const c = item.conclusion;
+          if (['FAILURE', 'ACTION_REQUIRED', 'TIMED_OUT', 'STARTUP_FAILURE'].includes(c)) {
+            hasFail = true;
+          } else if (['SUCCESS', 'NEUTRAL', 'SKIPPED', 'CANCELLED'].includes(c)) {
+            hasPass = true;
+          } else {
+            hasPending = true;
+          }
+        }
+      } else {
+        // StatusContext
+        const s = item?.state;
+        if (['FAILURE', 'ERROR'].includes(s)) {
+          hasFail = true;
+        } else if (s === 'SUCCESS') {
+          hasPass = true;
+        } else {
+          hasPending = true;
+        }
+      }
+    }
+
+    if (hasFail) return 'fail';
+    if (hasPending) return 'pending';
+    if (hasPass) return 'pass';
+    return 'none';
   }
 
   private buildReviewerList(reviewRequests?: any[], latestReviews?: any[]): GitHubReviewer[] {
