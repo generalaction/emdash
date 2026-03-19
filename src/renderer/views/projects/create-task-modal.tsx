@@ -44,6 +44,7 @@ export function CreateTaskModal({
   );
   const [providerId, setProviderId] = useState<AgentProviderId>('claude');
   const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
+  const [pushBranch, setPushBranch] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
   const [taskName, setTaskName] = useState(generateFriendlyTaskName());
   const [showSlugHint, setShowSlugHint] = useState(false);
@@ -65,6 +66,7 @@ export function CreateTaskModal({
       sourceBranch: selectedBranch?.branch ?? '',
       taskBranch: createBranchAndWorktree ? taskName : undefined,
       linkedIssue: linkedIssue ?? undefined,
+      pushBranch: createBranchAndWorktree ? pushBranch : undefined,
     });
     onClose();
     navigate('task', { projectId, taskId: id });
@@ -74,6 +76,7 @@ export function CreateTaskModal({
     selectedBranch,
     taskName,
     createBranchAndWorktree,
+    pushBranch,
     linkedIssue,
     onClose,
     navigate,
@@ -114,6 +117,13 @@ export function CreateTaskModal({
             />
             <FieldLabel>Create task branch and worktree</FieldLabel>
           </Field>
+
+          {createBranchAndWorktree && (
+            <Field orientation="horizontal">
+              <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
+              <FieldLabel>Push branch to remote</FieldLabel>
+            </Field>
+          )}
 
           <Field>
             <FieldLabel>Attach an issue</FieldLabel>

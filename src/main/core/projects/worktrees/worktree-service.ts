@@ -35,8 +35,9 @@ export class WorktreeService {
     this.projectSettings = args.projectSettings;
     this.exec = args.exec;
 
-    this.projectSettings
-      .getDefaultBranch()
+    this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath })
+      .catch(() => {})
+      .then(() => this.projectSettings.getDefaultBranch())
       .then((branch) => this.ensureReserve(branch))
       .catch(() => {});
   }

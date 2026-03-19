@@ -533,7 +533,11 @@ export class GitService implements GitProvider {
       const stderr = (error as { stderr?: string })?.stderr || '';
       const message = stderr || String(error);
 
-      if (stderr.includes('has no upstream branch') || stderr.includes('no upstream configured')) {
+      if (
+        stderr.includes('has no upstream branch') ||
+        stderr.includes('no upstream configured') ||
+        stderr.includes('upstream branch of your current branch does not match')
+      ) {
         try {
           const { stdout: branchOut } = await this.exec('git', ['branch', '--show-current'], {
             cwd: this.path,
@@ -550,6 +554,25 @@ export class GitService implements GitProvider {
         return err({ type: 'rejected', message });
       }
 
+      return err({ type: 'error', message });
+    }
+  }
+
+  async publishBranch(branchName: string): Promise<Result<{ output: string }, PushError>> {
+    const doPush = async (args: string[]): Promise<string> => {
+      const { stdout, stderr } = await this.exec('git', args, { cwd: this.path });
+      return (stdout || stderr || '').trim();
+    };
+
+    try {
+      const output = await doPush(['push', '--set-upstream', 'origin', branchName]);
+      return ok({ output });
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || '';
+      const message = stderr || String(error);
+      if (stderr.includes('[rejected]') || stderr.includes('Updates were rejected')) {
+        return err({ type: 'rejected', message });
+      }
       return err({ type: 'error', message });
     }
   }
@@ -767,7 +790,7 @@ export class GitService implements GitProvider {
       await this.exec('git', ['fetch', 'origin'], { cwd: this.path }).catch(() => {});
     }
     const base = syncWithRemote ? `origin/${from}` : `refs/heads/${from}`;
-    await this.exec('git', ['branch', name, base], { cwd: this.path });
+    await this.exec('git', ['branch', '--no-track', name, base], { cwd: this.path });
   }
 
   async renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }> {

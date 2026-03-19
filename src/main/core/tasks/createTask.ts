@@ -49,6 +49,9 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
 
   if (taskBranch) {
     await project.git.createBranch(taskBranch, params.sourceBranch);
+    if (params.pushBranch) {
+      await project.git.publishBranch(taskBranch);
+    }
   }
 
   const provisionResult = await project.provisionTask(task, [], []);

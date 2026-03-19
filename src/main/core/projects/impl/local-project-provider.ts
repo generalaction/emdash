@@ -99,7 +99,7 @@ export class LocalProjectProvider implements ProjectProvider {
           taskId: task.id,
           error: String(e),
         });
-        return err<ProvisionTaskError>(toProvisionError(e));
+        return err(toProvisionError(e));
       });
 
     this.provisioningTasks.set(task.id, promise);

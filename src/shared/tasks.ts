@@ -38,6 +38,8 @@ export type CreateTaskParams = {
   taskBranch?: string;
   /** The issue to link to the task */
   linkedIssue?: Issue;
+  /** If true, push the task branch to the remote immediately after creation */
+  pushBranch?: boolean;
   /**  */
   initialConversation?: CreateConversationParams;
 };

@@ -24,13 +24,7 @@ async function getOctokit(): Promise<Octokit> {
   return new Octokit({ auth: token });
 }
 
-// ---------------------------------------------------------------------------
-// Controller
-// ---------------------------------------------------------------------------
-
 export const githubController = createRPCController({
-  // -- Auth ----------------------------------------------------------------
-
   getStatus: async (): Promise<GitHubStatusResponse> => {
     try {
       const authenticated = await githubAuthService.isAuthenticated();
@@ -116,8 +110,6 @@ export const githubController = createRPCController({
     }
   },
 
-  // -- Issues ---------------------------------------------------------------
-
   issuesList: async (nameWithOwner: string, limit?: number) => {
     if (!nameWithOwner) return { success: false, error: 'Repository is required' };
     try {
@@ -162,8 +154,6 @@ export const githubController = createRPCController({
       return { success: false, error: message };
     }
   },
-
-  // -- Pull Requests -------------------------------------------------------
 
   listPullRequests: async (
     nameWithOwner: string,
@@ -229,8 +219,6 @@ export const githubController = createRPCController({
       return { success: false, error: message };
     }
   },
-
-  // -- Repositories --------------------------------------------------------
 
   getRepositories: async () => {
     try {
@@ -362,8 +350,6 @@ export const githubController = createRPCController({
       };
     }
   },
-
-  // -- Project creation orchestration ---------------------------------------
 
   cloneRepository: async (repoUrl: string, localPath: string) => {
     if (!repoUrl || !localPath) {
