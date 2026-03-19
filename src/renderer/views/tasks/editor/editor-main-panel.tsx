@@ -6,7 +6,10 @@ import { isMarkdownFile } from '@renderer/constants/file-explorer';
 import { rpc } from '@renderer/core/ipc';
 import { codeEditorPool } from '@renderer/lib/monaco-code-pool';
 import { addMonacoKeyboardShortcuts } from '@renderer/lib/monaco-config';
+import { modelRegistry } from '@renderer/lib/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useEditorContext } from './editor-provider';
+import { useEditorViewContext } from './editor-view-provider';
 import { PooledCodeEditor } from './pooled-code-editor';
 
 const DIFF_CONSTANTS = {
@@ -216,18 +219,19 @@ export function EditorMainPanel() {
   const {
     projectId,
     taskId,
+    modelRootPath,
     openFiles,
     activeFilePath,
     activeFile,
     isSaving,
-    previewMode,
-    togglePreview,
     handleCloseFile,
     setActiveFile,
     saveFile,
     saveAllFiles,
-    updateFileContent,
+    markDirty,
   } = useEditorContext();
+
+  const { previewMode, togglePreview } = useEditorViewContext();
 
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -295,19 +299,22 @@ export function EditorMainPanel() {
   );
 
   const handleEditorChange = useCallback(
-    (value: string | undefined) => {
-      if (!activeFilePath || value === undefined) return;
-      updateFileContent(activeFilePath, value);
+    (_value: string) => {
+      if (!activeFilePath) return;
+      markDirty(activeFilePath);
     },
-    [activeFilePath, updateFileContent]
+    [activeFilePath, markDirty]
   );
 
   const isPreviewActive = activeFilePath
     ? (previewMode.get(activeFilePath) ?? isMarkdownFile(activeFilePath))
     : false;
 
-  // The model root path for Monaco — use taskId as a stable namespace
-  const modelRootPath = `task:${taskId}`;
+  // For markdown preview, get live content from the registry model (source of truth).
+  const markdownContent = activeFile
+    ? (modelRegistry.getValue(buildMonacoModelPath(modelRootPath, activeFile.path)) ??
+      activeFile.content)
+    : '';
 
   if (openFiles.size === 0) {
     return (
@@ -333,7 +340,7 @@ export function EditorMainPanel() {
       />
       {isPreviewActive && activeFile ? (
         <MarkdownPreview
-          content={activeFile.content}
+          content={markdownContent}
           rootPath={modelRootPath}
           fileDir={
             activeFile.path.includes('/')
@@ -345,6 +352,8 @@ export function EditorMainPanel() {
         <PooledCodeEditor
           activeFile={activeFile}
           modelRootPath={modelRootPath}
+          projectId={projectId}
+          taskId={taskId}
           glyphMargin={true}
           onEditorChange={handleEditorChange}
           onMount={handleEditorMount}

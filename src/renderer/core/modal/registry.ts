@@ -9,6 +9,7 @@ import { ProjectSettingsModal } from '@renderer/components/project-settings-moda
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 import { CreateConversationModal } from '@renderer/features/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
+import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
 import { ModalComponent } from './modal-provider';
 
 // Define overlays here so we can use them in the showOverlay function
@@ -24,5 +25,6 @@ export const modalRegistry = {
   confirmActionModal: ConfirmActionDialog,
   createConversationModal: CreateConversationModal,
   mcpServerModal: McpModal,
+  conflictDialog: ConflictDialog,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;

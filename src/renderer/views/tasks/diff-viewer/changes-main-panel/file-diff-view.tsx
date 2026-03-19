@@ -1,4 +1,6 @@
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
+import { modelRegistry } from '@renderer/lib/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../../task-view-context';
 import { useGitViewContext } from '../state/git-view-provider';
 import { useFileDiff } from '../state/use-file-diff';
@@ -54,6 +56,10 @@ export function FileDiffView() {
             modified={diff.modifiedContent ?? ''}
             language={language}
             diffStyle={diffStyle}
+            originalUri={(() => {
+              const uri = buildMonacoModelPath(`task:${taskId}`, activeFile.path);
+              return modelRegistry.hasModel(uri) ? uri : undefined;
+            })()}
           />
         ) : null}
       </div>

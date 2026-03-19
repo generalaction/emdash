@@ -2,7 +2,6 @@ import type * as monaco from 'monaco-editor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
 import { configureMonacoTypeScript } from '@renderer/lib/monaco-config';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco-themes';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from './monaco-pool';
 
 export type CodePoolEntry = GenericPoolEntry<monaco.editor.IStandaloneCodeEditor>;
@@ -12,9 +11,9 @@ const codePool = new MonacoPool<monaco.editor.IStandaloneCodeEditor>({
   reserveTarget: 1,
   createEditor: (m, container) => m.editor.create(container, { ...DEFAULT_EDITOR_OPTIONS }),
   cleanupOnRelease: (editor) => {
-    // Reset per-lease options before returning to the pool.
+    // Reset per-lease options and detach model before returning to the pool.
+    // Model lifecycle is owned by MonacoModelRegistry — not disposed here.
     editor.updateOptions({ readOnly: false, glyphMargin: false });
-    // Detach model but keep it alive in modelCache for the next lease.
     editor.setModel(null);
   },
   onInit: async (m) => {
@@ -23,18 +22,6 @@ const codePool = new MonacoPool<monaco.editor.IStandaloneCodeEditor>({
     configureMonacoTypeScript(m);
   },
 });
-
-/**
- * Model cache: keyed by Monaco URI string.
- * Models persist across editor releases so unsaved edits and undo history are never lost.
- */
-const modelCache = new Map<string, monaco.editor.ITextModel>();
-
-/**
- * View state cache: keyed by Monaco URI string.
- * Saves cursor position, scroll, and folding state between file switches.
- */
-const viewStateCache = new Map<string, monaco.editor.ICodeEditorViewState | null>();
 
 export const codeEditorPool = {
   init(): Promise<void> {
@@ -55,62 +42,6 @@ export const codeEditorPool = {
    */
   setTheme(effectiveTheme: string): void {
     codePool.setTheme(getMonacoTheme(effectiveTheme));
-  },
-
-  /**
-   * Attach the correct model to the leased editor for a given file.
-   *
-   * - Reuses a cached model if one exists for the URI — never overwrites content,
-   *   preserving any unsaved edits and the undo/redo stack.
-   * - Saves the view state (cursor, scroll) for `previousUri` before switching.
-   * - Restores the saved view state for the new file if available.
-   *
-   * Returns the URI string for the new file (store in a ref for the next call).
-   */
-  applyFile(
-    entry: CodePoolEntry,
-    modelRootPath: string,
-    filePath: string,
-    content: string,
-    language: string,
-    previousUri?: string
-  ): string {
-    const m = codePool.getMonaco();
-    const uri = buildMonacoModelPath(modelRootPath, filePath);
-
-    if (previousUri && previousUri !== uri) {
-      viewStateCache.set(previousUri, entry.editor.saveViewState());
-    }
-
-    if (m) {
-      const monacoUri = m.Uri.parse(uri);
-      let model = modelCache.get(uri) ?? m.editor.getModel(monacoUri);
-      if (!model) {
-        model = m.editor.createModel(content, language, monacoUri);
-        modelCache.set(uri, model);
-      }
-      entry.editor.setModel(model);
-    }
-
-    const savedViewState = viewStateCache.get(uri);
-    if (savedViewState) {
-      entry.editor.restoreViewState(savedViewState);
-    }
-
-    return uri;
-  },
-
-  /**
-   * Dispose a model and remove it from both caches.
-   * Call this when the user closes a file tab.
-   */
-  disposeModel(uri: string): void {
-    const model = modelCache.get(uri);
-    if (model && !model.isDisposed()) {
-      model.dispose();
-    }
-    modelCache.delete(uri);
-    viewStateCache.delete(uri);
   },
 
   /** Returns the underlying Monaco instance, or null if not yet initialised. */

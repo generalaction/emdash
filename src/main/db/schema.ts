@@ -226,6 +226,25 @@ export const lineComments = sqliteTable(
   })
 );
 
+export const editorBuffers = sqliteTable(
+  'editor_buffers',
+  {
+    id: text('id').primaryKey(), // `${projectId}:${taskId}:${filePath}`
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    filePath: text('file_path').notNull(),
+    content: text('content').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => ({
+    taskFileIdx: index('idx_editor_buffers_task_file').on(table.taskId, table.filePath),
+  })
+);
+
 export const kv = sqliteTable(
   'kv',
   {
@@ -295,3 +314,5 @@ export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;
+export type EditorBufferRow = typeof editorBuffers.$inferSelect;
+export type EditorBufferInsert = typeof editorBuffers.$inferInsert;

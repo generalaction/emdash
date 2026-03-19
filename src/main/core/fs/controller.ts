@@ -12,6 +12,8 @@ import {
 } from './types';
 
 const watcherRegistry = new Map<string, FileWatcher>();
+// Per-label path groups: Map<`${projectId}::${taskId}`, Map<label, paths[]>>
+const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
@@ -219,31 +221,47 @@ export const filesController = createRPCController({
     }
   },
 
-  watchSetPaths: async (projectId: string, taskId: string, paths: string[]) => {
+  watchSetPaths: async (projectId: string, taskId: string, paths: string[], label = 'default') => {
     const env = resolveTask(projectId, taskId);
-    if (!env)
+    if (!env) {
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
+    }
 
-    if (!env.fs.watch) return ok({ supported: false as const });
+    if (!env.fs.watch) {
+      return ok({ supported: false as const });
+    }
 
     const key = `${projectId}::${taskId}`;
+    const groups = watcherLabeledPaths.get(key) ?? new Map<string, string[]>();
+    groups.set(label, paths);
+    watcherLabeledPaths.set(key, groups);
+    const union = [...new Set([...groups.values()].flat())];
+
     const existing = watcherRegistry.get(key);
     if (existing) {
-      existing.update(paths);
+      existing.update(union);
     } else {
       const watcher = env.fs.watch((evts) => {
         events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
       });
-      watcher.update(paths);
+      watcher.update(union);
       watcherRegistry.set(key, watcher);
     }
     return ok({ supported: true as const });
   },
 
-  watchStop: async (projectId: string, taskId: string) => {
+  watchStop: async (projectId: string, taskId: string, label = 'default') => {
     const key = `${projectId}::${taskId}`;
-    watcherRegistry.get(key)?.close();
-    watcherRegistry.delete(key);
+    const groups = watcherLabeledPaths.get(key);
+    groups?.delete(label);
+    if (!groups?.size) {
+      watcherLabeledPaths.delete(key);
+      watcherRegistry.get(key)?.close();
+      watcherRegistry.delete(key);
+    } else {
+      const union = [...new Set([...groups.values()].flat())];
+      watcherRegistry.get(key)?.update(union);
+    }
     return ok({});
   },
 });

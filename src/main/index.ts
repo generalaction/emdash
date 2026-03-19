@@ -10,6 +10,7 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
+import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAuthService } from './core/github/services/github-auth-service';
 import { projectManager } from './core/projects/project-manager';
 import { appSettingsService } from './core/settings/settings-service';
@@ -63,6 +64,10 @@ app.on('activate', () => {
 app.whenReady().then(async () => {
   try {
     await initializeDatabase();
+    const BUFFER_STALE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+    editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
+      log.warn('Failed to prune stale editor buffers:', e);
+    });
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(

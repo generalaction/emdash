@@ -417,7 +417,9 @@ export function useFileTree(projectId: string, taskId: string): UseFileTreeResul
 
   useEffect(() => {
     if (!projectId || !taskId) return;
-    rpc.fs.watchSetPaths(projectId, taskId, ['', ...loadedPathsSnapshot]).catch(() => {});
+    rpc.fs
+      .watchSetPaths(projectId, taskId, ['', ...loadedPathsSnapshot], 'filetree')
+      .catch(() => {});
   }, [projectId, taskId, loadedPathsSnapshot]);
 
   // ---------------------------------------------------------------------------
@@ -426,7 +428,7 @@ export function useFileTree(projectId: string, taskId: string): UseFileTreeResul
 
   useEffect(() => {
     return () => {
-      rpc.fs.watchStop(projectId, taskId).catch(() => {});
+      rpc.fs.watchStop(projectId, taskId, 'filetree').catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, taskId]);

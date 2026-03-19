@@ -52,6 +52,10 @@ export class MonacoPool<TEditor> {
     this.initPromise = (async () => {
       const m = await loader.init();
       this.monacoInstance = m;
+      // Expose Monaco globally so module-level singletons (e.g. MonacoModelRegistry)
+      // can access it without a direct import dependency on the pool.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).__monaco = m;
       if (this.options.onInit) {
         await this.options.onInit(m);
       }

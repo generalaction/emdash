@@ -113,10 +113,6 @@ const WATCH_IGNORED_NAMES = new Set([
   '.windsurf',
 ]);
 
-function isWatchIgnored(absPath: string): boolean {
-  return absPath.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
-}
-
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
   '.png',
@@ -231,8 +227,6 @@ export class LocalFileSystem implements FileSystemProvider {
     const maxEntries = options.maxEntries || 10000;
     const timeBudgetMs = options.timeBudgetMs || 30000;
 
-    // Cancel any previous in-flight list and register a new abort controller
-    this.cancelPendingList();
     const abort = new AbortController();
     this.listAbort = abort;
 
@@ -766,7 +760,20 @@ export class LocalFileSystem implements FileSystemProvider {
 
     const watcher = chokidar.watch([], {
       ignoreInitial: true,
-      ignored: isWatchIgnored,
+      // depth: 0 prevents recursive directory traversal, keeping OS file-handle
+      // usage proportional to the number of explicitly watched paths rather than
+      // the total number of files in the project tree. The file-tree caller
+      // already supplies every expanded directory explicitly, so depth-0 is
+      // sufficient for change detection without blowing the EMFILE limit.
+      depth: 0,
+      // Only ignore based on path segments *relative* to the project root.
+      // Using the absolute path would cause the entire worktree to be ignored
+      // when the project lives inside a directory named 'worktrees'.
+      ignored: (absPath: string) => {
+        const rel = relative(this.projectPath, absPath);
+        if (!rel || rel.startsWith('..')) return false;
+        return rel.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
+      },
       persistent: false,
     });
 

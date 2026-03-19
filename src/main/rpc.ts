@@ -3,6 +3,7 @@ import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
+import { editorBufferController } from './core/editor/controller';
 import { filesController } from './core/fs/controller';
 import { gitController } from './core/git/controller';
 import { githubController } from './core/github/controller';
@@ -43,6 +44,7 @@ export const rpcRouter = createRPCRouter({
   git: gitController,
   dependencies: dependenciesController,
   mcp: mcpController,
+  editorBuffer: editorBufferController,
 });
 
 export type RpcRouter = typeof rpcRouter;

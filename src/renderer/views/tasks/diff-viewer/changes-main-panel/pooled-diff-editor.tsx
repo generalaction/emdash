@@ -7,6 +7,12 @@ export interface PooledDiffEditorProps {
   modified: string;
   language: string;
   diffStyle: 'unified' | 'split';
+  /**
+   * Monaco URI of the original file if it is currently open in the code editor.
+   * When provided, the diff editor reuses the registry model for the original side
+   * so that unsaved edits are reflected immediately in the diff.
+   */
+  originalUri?: string;
   /** Called whenever the modified editor's content height changes — for dynamic virtualization. */
   onHeightChange?: (height: number) => void;
 }
@@ -21,6 +27,7 @@ export function PooledDiffEditor({
   modified,
   language,
   diffStyle,
+  originalUri,
   onHeightChange,
 }: PooledDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -37,6 +44,8 @@ export function PooledDiffEditor({
   modifiedRef.current = modified;
   const languageRef = useRef(language);
   languageRef.current = language;
+  const originalUriRef = useRef(originalUri);
+  originalUriRef.current = originalUri;
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
 
@@ -68,12 +77,13 @@ export function PooledDiffEditor({
         renderSideBySide: diffStyleRef.current === 'split',
       });
 
-      // Set initial content.
+      // Set initial content (reuse registry model for original if available).
       diffEditorPool.applyContent(
         lease,
         originalRef.current,
         modifiedRef.current,
-        languageRef.current
+        languageRef.current,
+        originalUriRef.current
       );
 
       // Trigger layout now that the container has real dimensions.
@@ -118,7 +128,11 @@ export function PooledDiffEditor({
     if (!lease) return;
     const model = lease.editor.getModel();
     if (!model) return;
-    if (model.original.getValue() !== original) model.original.setValue(original);
+    // Only update the original model if it was created by the pool (inmemory:// scheme).
+    // Registry-owned models (file:// scheme) stay live via the registry itself.
+    if (model.original.uri.scheme === 'inmemory' && model.original.getValue() !== original) {
+      model.original.setValue(original);
+    }
     if (model.modified.getValue() !== modified) model.modified.setValue(modified);
   }, [original, modified]);
 
