@@ -4,6 +4,7 @@ import { classifyActivity, sampleActivityChunk } from '../lib/activityClassifier
 import { agentStatusStore } from '../lib/agentStatusStore';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
+import { buildPromptInjectionPayload } from '../lib/terminalInjection';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
@@ -15,8 +16,9 @@ export function useInitialPromptInjection(opts: {
   prompt?: string | null;
   enabled?: boolean;
   ptyKind?: 'main' | 'chat';
+  onSent?: () => void;
 }) {
-  const { scopeId, providerId, prompt, enabled = true, ptyKind = 'main' } = opts;
+  const { scopeId, providerId, prompt, enabled = true, ptyKind = 'main', onSent } = opts;
 
   useEffect(() => {
     if (!enabled) return;
@@ -28,13 +30,28 @@ export function useInitialPromptInjection(opts: {
     const ptyId = makePtyId(providerId as ProviderId, ptyKind, scopeId);
     let sent = false;
     let silenceTimer: any = null;
+    let eagerTimer: any = null;
+    let hardTimer: any = null;
     const send = () => {
       try {
         if (sent) return;
+        const pty = (window as any).electronAPI?.ptyInput;
+        if (!pty) return;
         agentStatusStore.markUserInputSubmitted({ ptyId });
-        (window as any).electronAPI?.ptyInput?.({ id: ptyId, data: trimmed + '\n' });
+        const { payload, submitDelayMs } = buildPromptInjectionPayload({
+          agent: providerId,
+          text: trimmed,
+        });
+        pty({ id: ptyId, data: payload });
+        const submitKey = providerId === 'amp' ? '\n' : '\r';
+        setTimeout(() => {
+          try {
+            pty({ id: ptyId, data: submitKey });
+          } catch {}
+        }, submitDelayMs);
         localStorage.setItem(sentKey, '1');
         sent = true;
+        onSent?.();
       } catch {}
     };
 
@@ -64,15 +81,19 @@ export function useInitialPromptInjection(opts: {
         }, 2000);
       }
     });
-    // Global last-resort fallback if neither event fires
-    const t = setTimeout(() => {
+    eagerTimer = setTimeout(() => {
       if (!sent) send();
-    }, 10000);
+    }, 300);
+    // Global last-resort fallback if neither event fires
+    hardTimer = setTimeout(() => {
+      if (!sent) send();
+    }, 5000);
     return () => {
-      clearTimeout(t);
+      if (eagerTimer) clearTimeout(eagerTimer);
+      if (hardTimer) clearTimeout(hardTimer);
       if (silenceTimer) clearTimeout(silenceTimer);
       offStarted?.();
       offData?.();
     };
-  }, [enabled, scopeId, providerId, prompt, ptyKind]);
+  }, [enabled, scopeId, providerId, prompt, ptyKind, onSent]);
 }
