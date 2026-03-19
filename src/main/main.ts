@@ -27,7 +27,7 @@ if (process.platform === 'darwin') {
     const path = require('path');
     const homeDir = os.homedir();
     const extras = [
-      path.join(homeDir, '.nvm/versions/node', process.version, 'bin'),
+      '/opt/homebrew/bin',
       path.join(homeDir, '.npm-global/bin'),
       path.join(homeDir, '.local/bin'),
       path.join(homeDir, '.bun/bin'),
