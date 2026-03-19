@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubAuthServiceImpl } from './github-auth-service';
 
-// Mock keytar
 const mockGetPassword = vi.fn();
 const mockSetPassword = vi.fn();
 const mockDeletePassword = vi.fn();
@@ -17,18 +16,15 @@ vi.mock('keytar', () => ({
   deletePassword: (...args: unknown[]) => mockDeletePassword(...args),
 }));
 
-// Mock gh-cli-token
 const mockExtractGhCliToken = vi.fn();
 vi.mock('./gh-cli-token', () => ({
   extractGhCliToken: (...args: unknown[]) => mockExtractGhCliToken(...args),
 }));
 
-// Mock exec
 vi.mock('@main/core/utils/exec', () => ({
   getLocalExec: () => vi.fn(),
 }));
 
-// Mock events
 vi.mock('@main/lib/events', () => ({
   events: { emit: vi.fn() },
 }));

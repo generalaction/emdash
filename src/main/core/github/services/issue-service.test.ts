@@ -1,6 +1,13 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
-import { GitHubIssueServiceImpl } from './issue-service';
+import { issueService } from './issue-service';
+import { getOctokit } from './octokit-provider';
+
+vi.mock('./octokit-provider', () => ({
+  getOctokit: vi.fn(),
+}));
+
+const mockGetOctokit = vi.mocked(getOctokit);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,7 +31,6 @@ function makeOctokit(overrides: {
   } as unknown as Octokit;
 }
 
-// REST-shaped mock data (snake_case, as returned by Octokit REST)
 const restIssue = {
   number: 1,
   title: 'Test issue',
@@ -38,7 +44,6 @@ const restIssue = {
   labels: [{ name: 'bug', color: 'fc2929' }],
 };
 
-// Expected camelCase output
 const expectedIssue = {
   number: 1,
   title: 'Test issue',
@@ -60,9 +65,9 @@ describe('GitHubIssueServiceImpl', () => {
   describe('listIssues', () => {
     it('maps REST response to camelCase', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue] });
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      const result = await svc.listIssues('owner/repo', 30);
+      const result = await issueService.listIssues('owner/repo', 30);
 
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
@@ -78,9 +83,9 @@ describe('GitHubIssueServiceImpl', () => {
     it('filters out pull requests', async () => {
       const pr = { ...restIssue, number: 2, pull_request: { url: 'https://...' } };
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue, pr] });
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      const result = await svc.listIssues('owner/repo');
+      const result = await issueService.listIssues('owner/repo');
 
       expect(result).toHaveLength(1);
       expect(result[0].number).toBe(1);
@@ -88,20 +93,20 @@ describe('GitHubIssueServiceImpl', () => {
 
     it('returns empty array on error', async () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      expect(await svc.listIssues('owner/repo')).toEqual([]);
+      expect(await issueService.listIssues('owner/repo')).toEqual([]);
     });
 
     it('clamps limit to 1-100', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [] });
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      await svc.listIssues('owner/repo', 0);
+      await issueService.listIssues('owner/repo', 0);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 1 }));
 
       listForRepo.mockClear();
-      await svc.listIssues('owner/repo', 999);
+      await issueService.listIssues('owner/repo', 999);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 100 }));
     });
   });
@@ -109,9 +114,9 @@ describe('GitHubIssueServiceImpl', () => {
   describe('searchIssues', () => {
     it('maps search results to camelCase', async () => {
       const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [restIssue] } });
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      const result = await svc.searchIssues('owner/repo', 'bug fix', 15);
+      const result = await issueService.searchIssues('owner/repo', 'bug fix', 15);
 
       expect(issuesAndPullRequests).toHaveBeenCalledWith({
         q: 'bug fix repo:owner/repo is:issue is:open',
@@ -124,27 +129,27 @@ describe('GitHubIssueServiceImpl', () => {
 
     it('returns empty for blank search term', async () => {
       const issuesAndPullRequests = vi.fn();
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await svc.searchIssues('owner/repo', '   ')).toEqual([]);
-      expect(await svc.searchIssues('owner/repo', '')).toEqual([]);
+      expect(await issueService.searchIssues('owner/repo', '   ')).toEqual([]);
+      expect(await issueService.searchIssues('owner/repo', '')).toEqual([]);
       expect(issuesAndPullRequests).not.toHaveBeenCalled();
     });
 
     it('returns empty on error', async () => {
       const issuesAndPullRequests = vi.fn().mockRejectedValue(new Error('API error'));
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await svc.searchIssues('owner/repo', 'query')).toEqual([]);
+      expect(await issueService.searchIssues('owner/repo', 'query')).toEqual([]);
     });
   });
 
   describe('getIssue', () => {
     it('maps detail response to camelCase with body', async () => {
       const issuesGet = vi.fn().mockResolvedValue({ data: { ...restIssue, body: 'Issue body' } });
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesGet }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
 
-      const result = await svc.getIssue('owner/repo', 42);
+      const result = await issueService.getIssue('owner/repo', 42);
 
       expect(issuesGet).toHaveBeenCalledWith({
         owner: 'owner',
@@ -156,9 +161,9 @@ describe('GitHubIssueServiceImpl', () => {
 
     it('returns null on error', async () => {
       const issuesGet = vi.fn().mockRejectedValue(new Error('Not found'));
-      const svc = new GitHubIssueServiceImpl(makeOctokit({ issuesGet }));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
 
-      expect(await svc.getIssue('owner/repo', 99)).toBeNull();
+      expect(await issueService.getIssue('owner/repo', 99)).toBeNull();
     });
   });
 });

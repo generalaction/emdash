@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { ExecFn } from '@main/core/utils/exec';
 import { extractGhCliToken, isGhCliAuthenticated } from './gh-cli-token';
 
-// Create a mock ExecFn that returns pre-defined responses based on command+args
 function makeExec(responses: Record<string, { stdout: string; stderr: string }>): ExecFn {
   return async (command: string, args?: string[]) => {
     const key = [command, ...(args || [])].join(' ');
