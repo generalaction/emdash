@@ -4,6 +4,7 @@ import type { AgentEvent } from '../../shared/agentEvents';
 import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
+import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -1322,17 +1323,15 @@ declare global {
       // Performance Monitor
       perfSubscribe: () => Promise<{
         success: boolean;
-        data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+        data?: ResourceMetricsSnapshot;
       }>;
       perfUnsubscribe: () => Promise<{ success: boolean }>;
-      perfGetSnapshot: () => Promise<{
+      perfGetSnapshot: (mode?: 'interactive' | 'idle') => Promise<{
         success: boolean;
-        data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+        data?: ResourceMetricsSnapshot;
         error?: string;
       }>;
-      onPerfSnapshot: (
-        listener: (snapshot: import('../../shared/performanceTypes').PerformanceSnapshot) => void
-      ) => () => void;
+      onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
     };
   }
 }
@@ -2006,17 +2005,15 @@ export interface ElectronAPI {
   // Performance Monitor
   perfSubscribe: () => Promise<{
     success: boolean;
-    data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+    data?: ResourceMetricsSnapshot;
   }>;
   perfUnsubscribe: () => Promise<{ success: boolean }>;
-  perfGetSnapshot: () => Promise<{
+  perfGetSnapshot: (mode?: 'interactive' | 'idle') => Promise<{
     success: boolean;
-    data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+    data?: ResourceMetricsSnapshot;
     error?: string;
   }>;
-  onPerfSnapshot: (
-    listener: (snapshot: import('../../shared/performanceTypes').PerformanceSnapshot) => void
-  ) => () => void;
+  onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';
