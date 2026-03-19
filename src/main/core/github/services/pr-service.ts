@@ -374,7 +374,11 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
         createdAt: c.created_at,
       })),
       reviews: reviewsData
-        .filter((r) => r.body || r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED')
+        .filter(
+          (r) =>
+            r.state !== 'PENDING' &&
+            (r.body || r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED')
+        )
         .map((r) => {
           const fallbackSubmittedAt =
             'updated_at' in r && typeof r.updated_at === 'string' ? r.updated_at : undefined;

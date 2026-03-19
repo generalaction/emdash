@@ -405,7 +405,7 @@ describe('GitHubPullRequestServiceImpl (REST-backed methods)', () => {
     ]);
   });
 
-  it('getPrComments includes pending reviews with fallback submittedAt', async () => {
+  it('getPrComments filters out PENDING reviews', async () => {
     mockPaginate
       .mockResolvedValueOnce([
         {
@@ -447,13 +447,9 @@ describe('GitHubPullRequestServiceImpl (REST-backed methods)', () => {
 
     expect(result.comments).toHaveLength(1);
     expect(result.comments[0].author.login).toBe('alice');
-    expect(result.reviews).toHaveLength(2);
+    expect(result.reviews).toHaveLength(1);
     expect(result.reviews[0].state).toBe('APPROVED');
-    expect(result.reviews[1]).toMatchObject({
-      id: 4,
-      state: 'PENDING',
-      submittedAt: '2026-01-01T03:00:00Z',
-    });
+    expect(result.reviews.every((r) => r.state !== 'PENDING')).toBe(true);
   });
 
   it('addPrComment returns created id', async () => {
