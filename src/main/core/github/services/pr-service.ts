@@ -1,67 +1,24 @@
 import type { Octokit } from '@octokit/rest';
 import { getOctokit } from './octokit-provider';
-import { GET_PR_DETAIL_QUERY, LIST_PRS_QUERY, SEARCH_PRS_QUERY } from './pr-queries';
+import {
+  GET_PR_CHECK_RUNS_QUERY,
+  GET_PR_DETAIL_QUERY,
+  LIST_PRS_QUERY,
+  SEARCH_PRS_QUERY,
+} from './pr-queries';
+import type {
+  CheckRunBucket,
+  GitHubPullRequest,
+  GitHubPullRequestListOptions,
+  GitHubPullRequestListResult,
+  GitHubPullRequestService,
+  GitHubPullRequestSummary,
+  GitHubReviewer,
+  PrCheckRun,
+  PrCommentsResult,
+  PullRequestFile,
+} from './pr-types';
 import { splitRepo } from './utils';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface GitHubPullRequestSummary {
-  number: number;
-  title: string;
-  url: string;
-  state: 'OPEN' | 'CLOSED' | 'MERGED';
-  isDraft: boolean;
-  createdAt: string;
-  updatedAt: string;
-  headRefName: string;
-  headRefOid: string;
-  baseRefName: string;
-  author: { login: string } | null;
-  headRepository: {
-    nameWithOwner: string;
-    url: string;
-    owner: { login: string };
-  } | null;
-  labels: Array<{ name: string; color: string }>;
-  assignees: Array<{ login: string; avatarUrl: string }>;
-  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-  reviewers: GitHubReviewer[];
-}
-
-export interface GitHubPullRequest extends GitHubPullRequestSummary {
-  additions: number;
-  deletions: number;
-  changedFiles: number;
-  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-  mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
-  body: string | null;
-}
-
-export interface GitHubReviewer {
-  login: string;
-  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
-}
-
-export interface GitHubPullRequestListResult {
-  prs: GitHubPullRequestSummary[];
-  totalCount: number;
-}
-
-export interface GitHubPullRequestListOptions {
-  limit?: number;
-  searchQuery?: string;
-}
-
-export interface GitHubPullRequestService {
-  listPullRequests(
-    nameWithOwner: string,
-    options?: GitHubPullRequestListOptions
-  ): Promise<GitHubPullRequestListResult>;
-
-  getPullRequestDetails(nameWithOwner: string, prNumber: number): Promise<GitHubPullRequest | null>;
-}
 
 // ---------------------------------------------------------------------------
 // GraphQL response shape (internal)
@@ -107,6 +64,94 @@ interface GqlPrNode {
 }
 
 // ---------------------------------------------------------------------------
+// Check-run helpers (module-level)
+// ---------------------------------------------------------------------------
+
+interface GqlCheckRunNode {
+  __typename: 'CheckRun';
+  name: string;
+  status: string;
+  conclusion: string | null;
+  detailsUrl: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  checkSuite: {
+    app: { name: string; logoUrl: string } | null;
+    workflowRun: { workflow: { name: string } } | null;
+  } | null;
+}
+
+interface GqlStatusContextNode {
+  __typename: 'StatusContext';
+  context: string;
+  state: string;
+  targetUrl: string | null;
+  createdAt: string;
+}
+
+interface GqlCheckRunsResponse {
+  repository: {
+    pullRequest: {
+      commits: {
+        nodes: Array<{
+          commit: {
+            statusCheckRollup: {
+              contexts: {
+                pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                nodes: Array<GqlCheckRunNode | GqlStatusContextNode>;
+              };
+            } | null;
+          };
+        }>;
+      };
+    } | null;
+  };
+}
+
+function mapCheckRunBucket(status: string, conclusion: string | null): CheckRunBucket {
+  if (
+    status === 'IN_PROGRESS' ||
+    status === 'QUEUED' ||
+    status === 'WAITING' ||
+    status === 'PENDING'
+  )
+    return 'pending';
+  if (!conclusion) return 'pending';
+  switch (conclusion) {
+    case 'SUCCESS':
+      return 'pass';
+    case 'NEUTRAL':
+    case 'SKIPPED':
+    case 'STALE':
+      return 'skipping';
+    case 'FAILURE':
+    case 'TIMED_OUT':
+    case 'ACTION_REQUIRED':
+    case 'STARTUP_FAILURE':
+      return 'fail';
+    case 'CANCELLED':
+      return 'cancel';
+    default:
+      return 'fail';
+  }
+}
+
+function mapStatusContextBucket(state: string): CheckRunBucket {
+  switch (state) {
+    case 'SUCCESS':
+      return 'pass';
+    case 'FAILURE':
+    case 'ERROR':
+      return 'fail';
+    case 'PENDING':
+    case 'EXPECTED':
+      return 'pending';
+    default:
+      return 'pending';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
@@ -121,31 +166,27 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     const limit = Math.min(Math.max(options.limit !== undefined ? options.limit : 30, 1), 100);
     const searchQuery = options.searchQuery?.trim();
 
-    try {
-      const octokit = await this.getOctokit();
-      if (searchQuery) {
-        const response = await octokit.graphql<{
-          search: { issueCount: number; nodes: GqlPrNode[] };
-        }>(SEARCH_PRS_QUERY, {
-          query: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
-          limit,
-        });
-        return {
-          prs: response.search.nodes.map((n) => this.mapToSummary(n)),
-          totalCount: response.search.issueCount,
-        };
-      }
-
+    const octokit = await this.getOctokit();
+    if (searchQuery) {
       const response = await octokit.graphql<{
-        repository: { pullRequests: { totalCount: number; nodes: GqlPrNode[] } };
-      }>(LIST_PRS_QUERY, { owner, repo, limit });
+        search: { issueCount: number; nodes: GqlPrNode[] };
+      }>(SEARCH_PRS_QUERY, {
+        query: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
+        limit,
+      });
       return {
-        prs: response.repository.pullRequests.nodes.map((n) => this.mapToSummary(n)),
-        totalCount: response.repository.pullRequests.totalCount,
+        prs: response.search.nodes.map((n) => this.mapToSummary(n)),
+        totalCount: response.search.issueCount,
       };
-    } catch {
-      return { prs: [], totalCount: 0 };
     }
+
+    const response = await octokit.graphql<{
+      repository: { pullRequests: { totalCount: number; nodes: GqlPrNode[] } };
+    }>(LIST_PRS_QUERY, { owner, repo, limit });
+    return {
+      prs: response.repository.pullRequests.nodes.map((n) => this.mapToSummary(n)),
+      totalCount: response.repository.pullRequests.totalCount,
+    };
   }
 
   async getPullRequestDetails(
@@ -153,17 +194,13 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     prNumber: number
   ): Promise<GitHubPullRequest | null> {
     const { owner, repo } = splitRepo(nameWithOwner);
-    try {
-      const octokit = await this.getOctokit();
-      const response = await octokit.graphql<{
-        repository: { pullRequest: GqlPrNode | null };
-      }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
-      const node = response.repository.pullRequest;
-      if (!node) return null;
-      return this.mapToDetail(node);
-    } catch {
-      return null;
-    }
+    const octokit = await this.getOctokit();
+    const response = await octokit.graphql<{
+      repository: { pullRequest: GqlPrNode | null };
+    }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
+    const node = response.repository.pullRequest;
+    if (!node) return null;
+    return this.mapToDetail(node);
   }
 
   private buildReviewers(node: GqlPrNode): GitHubReviewer[] {
@@ -205,6 +242,167 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
       reviewDecision: node.reviewDecision,
       reviewers: this.buildReviewers(node),
     };
+  }
+
+  async createPullRequest(params: {
+    nameWithOwner: string;
+    head: string;
+    base: string;
+    title: string;
+    body?: string;
+    draft: boolean;
+  }): Promise<{ url: string; number: number }> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(params.nameWithOwner);
+    const response = await octokit.rest.pulls.create({
+      owner,
+      repo,
+      head: params.head,
+      base: params.base,
+      title: params.title,
+      body: params.body,
+      draft: params.draft,
+    });
+    return { url: response.data.html_url, number: response.data.number };
+  }
+
+  async mergePullRequest(
+    nameWithOwner: string,
+    prNumber: number,
+    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
+  ): Promise<{ sha: string | null; merged: boolean }> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const response = await octokit.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number: prNumber,
+      merge_method: options.strategy,
+      sha: options.commitHeadOid,
+    });
+    return { sha: response.data.sha ?? null, merged: response.data.merged };
+  }
+
+  async getPullRequestFiles(nameWithOwner: string, prNumber: number): Promise<PullRequestFile[]> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 100,
+    });
+    return files.map((f) => ({
+      filename: f.filename,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      patch: f.patch,
+    }));
+  }
+
+  async getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+
+    const allNodes: Array<GqlCheckRunNode | GqlStatusContextNode> = [];
+    let cursor: string | undefined;
+
+    for (;;) {
+      const response: GqlCheckRunsResponse = await octokit.graphql(GET_PR_CHECK_RUNS_QUERY, {
+        owner,
+        repo,
+        number: prNumber,
+        cursor,
+      });
+
+      const contexts =
+        response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
+      if (!contexts) break;
+
+      allNodes.push(...contexts.nodes);
+      if (!contexts.pageInfo.hasNextPage) break;
+      cursor = contexts.pageInfo.endCursor ?? undefined;
+    }
+
+    return allNodes.map((node) => {
+      if (node.__typename === 'CheckRun') {
+        return {
+          name: node.name,
+          bucket: mapCheckRunBucket(node.status, node.conclusion),
+          workflowName: node.checkSuite?.workflowRun?.workflow?.name,
+          appName: node.checkSuite?.app?.name,
+          appLogoUrl: node.checkSuite?.app?.logoUrl,
+          detailsUrl: node.detailsUrl ?? undefined,
+          startedAt: node.startedAt ?? undefined,
+          completedAt: node.completedAt ?? undefined,
+        };
+      }
+      return {
+        name: node.context,
+        bucket: mapStatusContextBucket(node.state),
+        detailsUrl: node.targetUrl ?? undefined,
+        startedAt: node.createdAt,
+      };
+    });
+  }
+
+  async getPrComments(nameWithOwner: string, prNumber: number): Promise<PrCommentsResult> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+
+    const [commentsData, reviewsData] = await Promise.all([
+      octokit.paginate(octokit.rest.issues.listComments, {
+        owner,
+        repo,
+        issue_number: prNumber,
+        per_page: 100,
+      }),
+      octokit.paginate(octokit.rest.pulls.listReviews, {
+        owner,
+        repo,
+        pull_number: prNumber,
+        per_page: 100,
+      }),
+    ]);
+
+    return {
+      comments: commentsData.map((c) => ({
+        id: c.id,
+        author: { login: c.user?.login ?? 'unknown', avatarUrl: c.user?.avatar_url },
+        body: c.body ?? '',
+        createdAt: c.created_at,
+      })),
+      reviews: reviewsData
+        .filter((r) => r.body || r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED')
+        .map((r) => {
+          const fallbackSubmittedAt =
+            'updated_at' in r && typeof r.updated_at === 'string' ? r.updated_at : undefined;
+          return {
+            id: r.id,
+            author: { login: r.user?.login ?? 'unknown', avatarUrl: r.user?.avatar_url },
+            body: r.body ?? '',
+            submittedAt: r.submitted_at ?? fallbackSubmittedAt,
+            state: r.state,
+          };
+        }),
+    };
+  }
+
+  async addPrComment(
+    nameWithOwner: string,
+    prNumber: number,
+    body: string
+  ): Promise<{ id: number }> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const response = await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body,
+    });
+    return { id: response.data.id };
   }
 
   private mapToDetail(node: GqlPrNode): GitHubPullRequest {
