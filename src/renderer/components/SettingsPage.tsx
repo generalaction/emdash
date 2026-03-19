@@ -28,6 +28,7 @@ import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import { AccountTab } from './settings/AccountTab';
+import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
 export type SettingsPageTab =
@@ -241,7 +242,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
+      sections: [
+        { title: 'Integrations', component: <IntegrationsCard /> },
+        { component: <WorkspaceProviderInfoCard /> },
+      ],
     },
     repository: {
       title: 'Repository',
