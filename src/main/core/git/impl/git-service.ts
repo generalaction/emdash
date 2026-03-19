@@ -214,10 +214,13 @@ export class GitService implements GitProvider {
   }
 
   async getFileDiff(filePath: string, base: DiffBase = 'HEAD'): Promise<DiffResult> {
+    const isBranchDiff = base !== 'HEAD' && base !== 'staged';
     const diffArgs =
       base === 'staged'
         ? ['diff', '--no-color', '--unified=2000', '--cached', '--', filePath]
-        : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
+        : isBranchDiff
+          ? ['diff', '--no-color', '--unified=2000', `${base}...HEAD`, '--', filePath]
+          : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
 
     let diffStdout: string | undefined;
     try {
@@ -228,9 +231,11 @@ export class GitService implements GitProvider {
       diffStdout = stdout;
     } catch {}
 
+    const originalRef = isBranchDiff ? base : 'HEAD';
+
     const getOriginalContent = async (): Promise<string | undefined> => {
       try {
-        const { stdout } = await this.exec('git', ['show', `HEAD:${filePath}`], {
+        const { stdout } = await this.exec('git', ['show', `${originalRef}:${filePath}`], {
           cwd: this.path,
           maxBuffer: MAX_DIFF_CONTENT_BYTES,
         });
@@ -241,6 +246,17 @@ export class GitService implements GitProvider {
     };
 
     const getModifiedContent = async (): Promise<string | undefined> => {
+      if (isBranchDiff) {
+        try {
+          const { stdout } = await this.exec('git', ['show', `HEAD:${filePath}`], {
+            cwd: this.path,
+            maxBuffer: MAX_DIFF_CONTENT_BYTES,
+          });
+          return stripTrailingNewline(stdout);
+        } catch {
+          return undefined;
+        }
+      }
       try {
         const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
         if (result.truncated) return undefined;

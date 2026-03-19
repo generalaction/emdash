@@ -25,7 +25,9 @@ export interface GitInfo {
   rootPath: string;
 }
 
-export type DiffBase = 'HEAD' | 'staged';
+type GitRef = string & NonNullable<unknown>;
+
+export type DiffBase = 'HEAD' | 'staged' | GitRef;
 
 export type Commit = {
   hash: string;

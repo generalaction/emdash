@@ -1,3 +1,4 @@
+import type { DiffBase } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { resolveTask } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
@@ -28,12 +29,7 @@ export const gitController = createRPCController({
     }
   },
 
-  getFileDiff: async (
-    projectId: string,
-    taskId: string,
-    filePath: string,
-    base?: 'HEAD' | 'staged'
-  ) => {
+  getFileDiff: async (projectId: string, taskId: string, filePath: string, base?: DiffBase) => {
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
