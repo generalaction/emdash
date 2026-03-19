@@ -1,5 +1,5 @@
 import { classifyActivity, sampleActivityChunk } from './activityClassifier';
-import { CLEAR_BUSY_MS, BUSY_HOLD_MS } from './activityConstants';
+import { CLEAR_BUSY_MS, BUSY_HOLD_MS, INACTIVITY_CLEAR_MS } from './activityConstants';
 import { type PtyIdKind, parsePtyId, makePtyId } from '@shared/ptyId';
 import { PROVIDER_IDS } from '@shared/providers/registry';
 import type { AgentEvent } from '@shared/agentEvents';
@@ -15,6 +15,7 @@ class ActivityStore {
   private listeners = new Map<string, Set<Listener>>();
   private states = new Map<string, boolean>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private inactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private busySince = new Map<string, number>();
   private subscribed = false;
   private subscribedIds = new Set<string>();
@@ -53,9 +54,18 @@ class ActivityStore {
     } else if (signal === 'idle') {
       this.setBusy(wsId, false, true);
     } else if (this.states.get(wsId)) {
-      // neutral: keep current but set soft clear timer
       this.armTimer(wsId);
     }
+    if (this.states.get(wsId)) {
+      this.armInactivityTimer(wsId);
+    }
+  }
+
+  private armInactivityTimer(wsId: string) {
+    const prev = this.inactivityTimers.get(wsId);
+    if (prev) clearTimeout(prev);
+    const t = setTimeout(() => this.setBusy(wsId, false, true), INACTIVITY_CLEAR_MS);
+    this.inactivityTimers.set(wsId, t);
   }
 
   private ensureSubscribed() {
@@ -104,11 +114,13 @@ class ActivityStore {
 
   private setBusy(wsId: string, busy: boolean, _fromEvent = false) {
     const current = this.states.get(wsId) || false;
-    // If setting busy: clear timers and record start
     if (busy) {
       const prev = this.timers.get(wsId);
       if (prev) clearTimeout(prev);
       this.timers.delete(wsId);
+      const prevInact = this.inactivityTimers.get(wsId);
+      if (prevInact) clearTimeout(prevInact);
+      this.inactivityTimers.delete(wsId);
       this.busySince.set(wsId, Date.now());
       if (!current) {
         this.states.set(wsId, true);
@@ -126,6 +138,9 @@ class ActivityStore {
       const prev = this.timers.get(wsId);
       if (prev) clearTimeout(prev);
       this.timers.delete(wsId);
+      const prevInact = this.inactivityTimers.get(wsId);
+      if (prevInact) clearTimeout(prevInact);
+      this.inactivityTimers.delete(wsId);
       this.busySince.delete(wsId);
       if (this.states.get(wsId) !== false) {
         this.states.set(wsId, false);
@@ -254,6 +269,9 @@ class ActivityStore {
           const pendingTimer = this.timers.get(wsId);
           if (pendingTimer) clearTimeout(pendingTimer);
           this.timers.delete(wsId);
+          const pendingInact = this.inactivityTimers.get(wsId);
+          if (pendingInact) clearTimeout(pendingInact);
+          this.inactivityTimers.delete(wsId);
           this.busySince.delete(wsId);
           this.states.delete(wsId);
         }
