@@ -35,7 +35,7 @@ interface SkillDetailModalProps {
   skill: CatalogSkill | null;
   isOpen: boolean;
   onClose: () => void;
-  onInstall: (skillId: string) => Promise<boolean>;
+  onInstall: (skillId: string, source?: { owner: string; repo: string }) => Promise<boolean>;
   onUninstall: (skillId: string) => Promise<boolean>;
   onOpenTerminal?: (skillPath: string) => void;
 }
@@ -60,7 +60,11 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     if (!skill) return;
     setIsProcessing(true);
     try {
-      const success = await onInstall(skill.id);
+      const source =
+        skill.source === 'skills-sh' && skill.owner && skill.repo
+          ? { owner: skill.owner, repo: skill.repo }
+          : undefined;
+      const success = await onInstall(skill.id, source);
       if (success) setJustInstalled(true);
     } finally {
       setIsProcessing(false);
@@ -102,16 +106,44 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
         {skill.source !== 'local' && (
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <img
-              src={
-                skill.source === 'openai'
-                  ? 'https://github.com/openai.png'
-                  : 'https://github.com/anthropics.png'
-              }
-              alt=""
-              className="h-5 w-5 rounded-sm"
-            />
-            <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
+            {skill.source === 'skills-sh' ? (
+              <>
+                <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-900 text-[10px] font-bold text-white dark:bg-white dark:text-neutral-900">
+                  S
+                </span>
+                <span>
+                  From{' '}
+                  <a
+                    href={
+                      skill.owner && skill.repo
+                        ? `https://skills.sh/${skill.owner}/${skill.repo}/${skill.id}`
+                        : 'https://skills.sh'
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+                  >
+                    skills.sh
+                  </a>
+                  {skill.owner && (
+                    <span className="text-muted-foreground/60"> · {skill.owner}</span>
+                  )}
+                </span>
+              </>
+            ) : (
+              <>
+                <img
+                  src={
+                    skill.source === 'openai'
+                      ? 'https://github.com/openai.png'
+                      : 'https://github.com/anthropics.png'
+                  }
+                  alt=""
+                  className="h-5 w-5 rounded-sm"
+                />
+                <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
+              </>
+            )}
           </div>
         )}
 

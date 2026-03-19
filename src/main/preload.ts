@@ -784,10 +784,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Skills management
   skillsGetCatalog: () => ipcRenderer.invoke('skills:getCatalog'),
   skillsRefreshCatalog: () => ipcRenderer.invoke('skills:refreshCatalog'),
-  skillsInstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:install', args),
+  skillsInstall: (args: { skillId: string; source?: { owner: string; repo: string } }) =>
+    ipcRenderer.invoke('skills:install', args),
   skillsUninstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:uninstall', args),
-  skillsGetDetail: (args: { skillId: string }) => ipcRenderer.invoke('skills:getDetail', args),
+  skillsGetDetail: (args: { skillId: string; source?: { owner: string; repo: string } }) =>
+    ipcRenderer.invoke('skills:getDetail', args),
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
+  skillsSearch: (args: { query: string }) => ipcRenderer.invoke('skills:search', args),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
 
