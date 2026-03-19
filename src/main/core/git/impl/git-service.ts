@@ -202,8 +202,12 @@ export class GitService implements GitProvider {
   // ---------------------------------------------------------------------------
 
   async getFileAtHead(filePath: string): Promise<string | null> {
+    return this.getFileAtRef(filePath, 'HEAD');
+  }
+
+  async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
     try {
-      const { stdout } = await this.exec('git', ['show', `HEAD:${filePath}`], {
+      const { stdout } = await this.exec('git', ['show', `${ref}:${filePath}`], {
         cwd: this.path,
         maxBuffer: MAX_DIFF_CONTENT_BYTES,
       });

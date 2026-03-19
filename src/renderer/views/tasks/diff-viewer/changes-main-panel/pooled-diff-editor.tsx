@@ -1,34 +1,36 @@
 import { useEffect, useRef } from 'react';
 import { diffEditorPool, type DiffPoolEntry } from '@renderer/core/monaco/monaco-diff-pool';
+import { useBufferExists } from '@renderer/core/monaco/use-model';
 import { useTheme } from '@renderer/hooks/useTheme';
 
 export interface PooledDiffEditorProps {
-  original: string;
-  modified: string;
+  /** git:// URI for the left (original) side — e.g. git://task:abc/HEAD/src/index.ts */
+  originalUri: string;
+  /**
+   * file:// buffer URI for the right (modified) side.
+   * The pool resolves this to the buffer model (live user edits) if it exists,
+   * or falls back to the disk:// model (on-disk snapshot).
+   */
+  modifiedUri: string;
   language: string;
   diffStyle: 'unified' | 'split';
-  /**
-   * Buffer URI of the file if it is currently open in the code editor.
-   * When provided, the diff editor uses live registry models:
-   *   original side ← gitBaseModel (base:// scheme, git HEAD snapshot)
-   *   modified side ← diskModel    (disk:// scheme, current on-disk content)
-   */
-  registryUri?: string;
   /** Called whenever the modified editor's content height changes — for dynamic virtualization. */
   onHeightChange?: (height: number) => void;
 }
 
 /**
  * Leases a Monaco diff editor instance from the global pool on mount and returns
- * it on unmount. The pool keeps a reserve of pre-created editors so there is no
- * loader.init() or createDiffEditor() latency on first render.
+ * it on unmount. Both models must already be registered in MonacoModelRegistry
+ * (use `useModelStatus` to gate rendering until they're ready).
+ *
+ * Automatically swaps the modified side from disk to buffer (and back) when the
+ * user opens or closes the file in the code editor.
  */
 export function PooledDiffEditor({
-  original,
-  modified,
+  originalUri,
+  modifiedUri,
   language,
   diffStyle,
-  registryUri,
   onHeightChange,
 }: PooledDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -39,16 +41,19 @@ export function PooledDiffEditor({
   // Stable refs so effect closures always read current prop values.
   const diffStyleRef = useRef(diffStyle);
   diffStyleRef.current = diffStyle;
-  const originalRef = useRef(original);
-  originalRef.current = original;
-  const modifiedRef = useRef(modified);
-  modifiedRef.current = modified;
+  const originalUriRef = useRef(originalUri);
+  originalUriRef.current = originalUri;
+  const modifiedUriRef = useRef(modifiedUri);
+  modifiedUriRef.current = modifiedUri;
   const languageRef = useRef(language);
   languageRef.current = language;
-  const registryUriRef = useRef(registryUri);
-  registryUriRef.current = registryUri;
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
+
+  // Track whether the buffer model exists for the modified URI.
+  // When a file is opened/closed in the code editor while this diff is visible,
+  // re-apply content so the editor swaps between buffer and disk models.
+  const bufferExists = useBufferExists(modifiedUri);
 
   // Apply global theme whenever it changes.
   useEffect(() => {
@@ -78,13 +83,12 @@ export function PooledDiffEditor({
         renderSideBySide: diffStyleRef.current === 'split',
       });
 
-      // Set initial content (use live registry models when file is open).
+      // Set models (guaranteed ready by parent gating on useModelStatus).
       diffEditorPool.applyContent(
         lease,
-        originalRef.current,
-        modifiedRef.current,
-        languageRef.current,
-        registryUriRef.current
+        originalUriRef.current,
+        modifiedUriRef.current,
+        languageRef.current
       );
 
       // Trigger layout now that the container has real dimensions.
@@ -123,38 +127,19 @@ export function PooledDiffEditor({
     lease.editor.layout();
   }, [diffStyle]);
 
-  // Re-apply content when registryUri transitions from undefined → defined.
-  // This swaps inmemory models (created at mount from string fallbacks) for live
-  // registry models (gitBaseModel + diskModel) once registration completes.
-  // Also fires when registryUri goes back to undefined (e.g. active file cleared).
+  // Re-apply when the buffer model appears or disappears (file opened/closed in editor).
+  // bufferExists changes → swap modified side between buffer (live edits) and disk snapshot.
   useEffect(() => {
     const lease = leaseRef.current;
     if (!lease) return;
     diffEditorPool.applyContent(
       lease,
-      originalRef.current,
-      modifiedRef.current,
-      languageRef.current,
-      registryUriRef.current
+      originalUriRef.current,
+      modifiedUriRef.current,
+      languageRef.current
     );
     lease.editor.layout();
-  }, [registryUri]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync string content changes to pool-created inmemory models.
-  // Registry-owned models (base://, disk://) are kept live by the registry itself
-  // and do not need to be updated here.
-  useEffect(() => {
-    const lease = leaseRef.current;
-    if (!lease) return;
-    const model = lease.editor.getModel();
-    if (!model) return;
-    if (model.original.uri.scheme === 'inmemory' && model.original.getValue() !== original) {
-      model.original.setValue(original);
-    }
-    if (model.modified.uri.scheme === 'inmemory' && model.modified.getValue() !== modified) {
-      model.modified.setValue(modified);
-    }
-  }, [original, modified]);
+  }, [bufferExists]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div ref={mountRef} className="h-full" />;
 }

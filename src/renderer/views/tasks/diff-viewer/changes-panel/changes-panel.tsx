@@ -9,7 +9,7 @@ import {
   RefreshCcw,
   Undo2,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
@@ -20,15 +20,54 @@ import {
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { Textarea } from '@renderer/components/ui/textarea';
+import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import { isBinaryForDiff } from '@renderer/lib/fileKind';
+import { getLanguageFromPath } from '@renderer/lib/languageUtils';
+import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { cn } from '@renderer/lib/utils';
 import { useTaskViewContext } from '../../task-view-context';
 import { useGitChangesContext } from '../state/git-changes-provider';
 import { ActiveFile, useGitViewContext } from '../state/git-view-provider';
 import { useBranchStatus } from '../state/use-branch-status.tsx';
-import { useOptimisticFileDiff } from '../state/use-file-diff';
 import { useSelection, type SelectionState } from '../state/use-selection';
 import { PullRequestSection } from './pr-section';
 import { VirtualizedChangesList } from './virtualized-changes-list';
+
+/**
+ * Returns a stable callback that pre-warms Monaco models on hover so that when the user
+ * clicks to open a diff the models are already loaded. Models are unregistered on unmount.
+ * TTL eviction (60 s after last subscriber leaves) handles any remaining cleanup.
+ */
+function usePrefetchModels(projectId: string, taskId: string) {
+  const prefetchedRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const prefetched = prefetchedRef.current;
+    return () => {
+      for (const filePath of prefetched) {
+        const uri = buildMonacoModelPath(`task:${taskId}`, filePath);
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, 'HEAD'));
+      }
+    };
+  }, [taskId]);
+
+  return useCallback(
+    (filePath: string) => {
+      if (prefetchedRef.current.has(filePath)) return;
+      if (isBinaryForDiff(filePath)) return;
+      prefetchedRef.current.add(filePath);
+      const language = getLanguageFromPath(filePath);
+      void modelRegistry
+        .registerModel(projectId, taskId, `task:${taskId}`, filePath, language, 'disk')
+        .catch(() => {});
+      void modelRegistry
+        .registerModel(projectId, taskId, `task:${taskId}`, filePath, language, 'git')
+        .catch(() => {});
+    },
+    [projectId, taskId]
+  );
+}
 
 interface SectionHeaderProps {
   label: string;
@@ -173,7 +212,7 @@ export function ChangesPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const { activeFile, setActiveFile } = useGitViewContext();
   const { setView } = useTaskViewContext();
-  const prefetchDiff = useOptimisticFileDiff(projectId, taskId);
+  const prefetchDiff = usePrefetchModels(projectId, taskId);
 
   const { data } = useBranchStatus({ projectId, taskId });
 
@@ -275,7 +314,7 @@ export function ChangesPanel() {
               onSelectChange={(change) =>
                 handleSelectChange({ path: change.path, isStaged: false })
               }
-              onPrefetch={(change) => prefetchDiff(change.path, false)}
+              onPrefetch={(change) => prefetchDiff(change.path)}
             />
           </div>
         </ResizablePanel>
@@ -325,7 +364,7 @@ export function ChangesPanel() {
               onToggleSelect={stagedSelection.toggleItem}
               activePath={activeFile?.isStaged === true ? activeFile.path : undefined}
               onSelectChange={(change) => handleSelectChange({ path: change.path, isStaged: true })}
-              onPrefetch={(change) => prefetchDiff(change.path, true)}
+              onPrefetch={(change) => prefetchDiff(change.path)}
             />
           </div>
           {hasStaged && <CommitCard />}

@@ -1,58 +1,79 @@
 import type * as monaco from 'monaco-editor';
-import { gitStatusChangedChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
 import { buildMonacoModelPath } from '../../lib/monacoModelPath';
 
 // ---------------------------------------------------------------------------
-// Entry types — each model type gets its own typed wrapper
+// Discriminated-union entry types
 // ---------------------------------------------------------------------------
 
-type BufferEntry = {
+export interface BufferModelEntry {
+  type: 'buffer';
   model: monaco.editor.ITextModel;
   /** Monaco cursor/scroll/folding state, saved between tab switches. */
   viewState: monaco.editor.ICodeEditorViewState | null;
-};
-
-type DiskEntry = { model: monaco.editor.ITextModel };
-type GitBaseEntry = { model: monaco.editor.ITextModel };
-
-export type ModelType = 'buffer' | 'disk' | 'gitBase';
-
-/** Metadata needed for watcher sync and FS operations. Keyed by buffer URI. Set when disk is registered. */
-type OpenEntry = {
-  filePath: string;
+  refs: number;
   projectId: string;
   taskId: string;
+  filePath: string;
   language: string;
-};
+}
+
+export interface DiskModelEntry {
+  type: 'disk';
+  model: monaco.editor.ITextModel;
+  refs: number;
+  projectId: string;
+  taskId: string;
+  filePath: string;
+  language: string;
+}
+
+export interface GitModelEntry {
+  type: 'git';
+  model: monaco.editor.ITextModel;
+  refs: number;
+  projectId: string;
+  taskId: string;
+  filePath: string;
+  language: string;
+  /** The git ref — 'HEAD' for the current commit; any ref string for PR/merge-target diffs. */
+  ref: string;
+}
+
+export type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
+export type ModelType = 'buffer' | 'disk' | 'gitBase' | 'git';
+export type ModelStatus = 'loading' | 'ready' | 'error';
 
 /**
- * Manages up to three Monaco ITextModel instances per open file.
+ * Manages up to three Monaco ITextModel instances per open file using a single
+ * unified map keyed by Monaco URI string.
  *
  *   buffer  (file://)  — writable; shown in the code editor; holds user edits + undo stack
  *   disk    (disk://)  — read-only mirror of the current on-disk content; updated by watcher
- *   gitBase (base://)  — read-only snapshot of git HEAD; updated when HEAD changes
+ *   git     (git://)   — read-only snapshot of a git ref (HEAD or arbitrary ref)
  *
- * Models are created/destroyed via `registerModel` / `unregisterModel`. Both are reference-
- * counted so disk models shared between the editor and the diff panel are disposed only
- * when the last consumer unregisters.
+ * ### Two-layer lifecycle
  *
- * Registrations are driven by React callers:
- *   EditorProvider   → 'disk' + 'buffer'  (awaits register before setOpenFiles)
- *   FileDiffView     → 'disk' + 'gitBase' (useEffect on activeFile)
+ * **Registration** (`registerModel` / `unregisterModel`): purely loads and caches content.
+ * Ref-counted. No FS watching or polling until a React subscriber appears.
+ *
+ * **Subscription** (`subscribeToUri`): the React integration point for `useSyncExternalStore`.
+ * When subscriber count goes 0→1 for a URI, FS watching and polling start for that task.
+ * When count goes 1→0, watching stops and a 60 s TTL eviction timer starts.
+ * This means only models currently visible in the UI consume FS resources.
+ *
+ * Binary files must be filtered by callers before registering (use `getFileKind` from fileKind.ts).
  */
 class MonacoModelRegistry {
-  private bufferCache = new Map<string, BufferEntry>();
-  private diskCache = new Map<string, DiskEntry>();
-  private gitBaseCache = new Map<string, GitBaseEntry>();
-
-  private bufferRefs = new Map<string, number>();
-  private diskRefs = new Map<string, number>();
-  private gitBaseRefs = new Map<string, number>();
-
-  private openEntries = new Map<string, OpenEntry>();
+  /**
+   * Unified model map. Key is the Monaco URI string (scheme encodes entry type).
+   *   file://  → BufferModelEntry
+   *   disk://  → DiskModelEntry
+   *   git://   → GitModelEntry
+   */
+  private modelMap = new Map<string, ModelEntry>();
 
   private reloadingFromDisk = new Set<string>();
 
@@ -62,31 +83,263 @@ class MonacoModelRegistry {
    */
   private pendingConflicts = new Set<string>();
 
-  /** fsWatchEventChannel unsubscribe functions, keyed by taskId */
-  private diskWatchSubs = new Map<string, () => void>();
-
-  /** gitStatusChangedChannel unsubscribe functions, keyed by taskId */
-  private gitBaseWatchSubs = new Map<string, () => void>();
+  /**
+   * fsWatchEventChannel subscriptions, keyed by taskId.
+   * Kept alive while any disk paths or git-head dirs are being watched for the task.
+   */
+  private fsEventSubs = new Map<string, () => void>();
 
   private bufferReadyCallbacks = new Map<string, Array<() => void>>();
 
-  private toDiskUri(bufferUri: string): string {
+  /**
+   * In-flight fetch deduplication. Prevents duplicate RPCs when two callers
+   * register the same file concurrently before either resolves.
+   * Key: `{projectId}:{taskId}:{filePath}:disk` or `…:git:{ref}`
+   */
+  private pendingFetches = new Map<string, Promise<string | null>>();
+
+  // ---------------------------------------------------------------------------
+  // Subscription groups (mirror of FS controller's labeledPaths)
+  // ---------------------------------------------------------------------------
+
+  /** taskId → Set<filePath> currently in the 'disk' file-watch group */
+  private diskSubscribedByTask = new Map<string, Set<string>>();
+
+  /** Tasks whose .git dir is currently in the 'git-head' dir-watch group */
+  private gitHeadWatchedTasks = new Set<string>();
+
+  // ---------------------------------------------------------------------------
+  // Per-task polling fallback
+  // ---------------------------------------------------------------------------
+
+  private taskPollers = new Map<string, ReturnType<typeof setInterval>>();
+
+  // ---------------------------------------------------------------------------
+  // React subscription (SWR layer)
+  // ---------------------------------------------------------------------------
+
+  /** useSyncExternalStore listeners keyed by typed URI */
+  private listeners = new Map<string, Set<() => void>>();
+
+  /** Number of active useSyncExternalStore subscribers per typed URI */
+  private subscriberCt = new Map<string, number>();
+
+  /** Model loading status — driven by registerDisk/registerGit */
+  private modelStatus = new Map<string, ModelStatus>();
+
+  /**
+   * 60 s TTL timers. Started when subscriber count drops to 0.
+   * When fired, orphaned models (refs ≤ 0) are cleaned up.
+   * Cancelled when a new subscriber arrives or when unregisterModel disposes the model.
+   */
+  private evictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  // ---------------------------------------------------------------------------
+  // URI helpers (public)
+  // ---------------------------------------------------------------------------
+
+  toDiskUri(bufferUri: string): string {
     return bufferUri.replace(/^file:\/\//, 'disk://');
   }
 
-  private toBaseUri(bufferUri: string): string {
-    return bufferUri.replace(/^file:\/\//, 'base://');
+  /**
+   * Convert a buffer URI (file://) to a git:// URI for the given ref.
+   * Ref is percent-encoded so slashes in branch names (e.g. origin/main) are safe.
+   * Example: file://task:abc/src/index.ts + ref='HEAD' → git://task:abc/HEAD/src/index.ts
+   */
+  toGitUri(bufferUri: string, ref: string): string {
+    const withoutScheme = bufferUri.replace(/^file:\/\//, '');
+    const slashIdx = withoutScheme.indexOf('/');
+    if (slashIdx < 0) return bufferUri;
+    const root = withoutScheme.slice(0, slashIdx);
+    const filePath = withoutScheme.slice(slashIdx + 1);
+    return `git://${root}/${encodeURIComponent(ref)}/${filePath}`;
   }
+
+  // ---------------------------------------------------------------------------
+  // React subscription API (used by useSyncExternalStore hooks in use-model.ts)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Subscribe to change notifications for a typed URI. Drives FS watching:
+   * count 0→1 starts watching; count 1→0 stops watching and starts 60 s TTL.
+   *
+   * Use via `useSyncExternalStore` hooks in `use-model.ts`, not directly.
+   * Returns a cleanup function for the subscription.
+   */
+  subscribeToUri(uri: string, cb: () => void): () => void {
+    // Register listener.
+    let listenerSet = this.listeners.get(uri);
+    if (!listenerSet) {
+      listenerSet = new Set();
+      this.listeners.set(uri, listenerSet);
+    }
+    listenerSet.add(cb);
+
+    const prev = this.subscriberCt.get(uri) ?? 0;
+    this.subscriberCt.set(uri, prev + 1);
+
+    if (prev === 0) {
+      // Cancel any pending eviction timer.
+      const timer = this.evictionTimers.get(uri);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        this.evictionTimers.delete(uri);
+      }
+      // Activate FS watching if model already exists; otherwise it activates
+      // from registerDisk/registerGit once the model entry is created.
+      this.activateUriWatch(uri);
+    }
+
+    return () => {
+      const curr = this.subscriberCt.get(uri) ?? 0;
+      const next = Math.max(0, curr - 1);
+
+      const currentListeners = this.listeners.get(uri);
+      currentListeners?.delete(cb);
+      if (currentListeners && !currentListeners.size) {
+        this.listeners.delete(uri);
+      }
+
+      if (next === 0) {
+        this.subscriberCt.delete(uri);
+        // Stop FS watching immediately.
+        this.deactivateUriWatch(uri);
+        // Start 60 s TTL — cleans up orphaned prefetch models (refs ≤ 0).
+        const t = setTimeout(() => {
+          this.evictionTimers.delete(uri);
+          const entry = this.modelMap.get(uri);
+          if (!entry || entry.refs > 0) return;
+          if (!entry.model.isDisposed()) entry.model.dispose();
+          this.modelMap.delete(uri);
+          this.modelStatus.delete(uri);
+        }, 60_000);
+        this.evictionTimers.set(uri, t);
+      } else {
+        this.subscriberCt.set(uri, next);
+      }
+    };
+  }
+
+  /** Snapshot of the model's load status — used as the `getSnapshot` arg to useSyncExternalStore. */
+  getStatus(uri: string): ModelStatus {
+    return this.modelStatus.get(uri) ?? 'loading';
+  }
+
+  /** Returns core metadata for a registered model — used by PooledCodeEditor to read projectId/taskId/filePath. */
+  getEntryMeta(uri: string): { projectId: string; taskId: string; filePath: string } | undefined {
+    const entry = this.modelMap.get(uri);
+    if (!entry) return undefined;
+    return { projectId: entry.projectId, taskId: entry.taskId, filePath: entry.filePath };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal notification
+  // ---------------------------------------------------------------------------
+
+  private notify(uri: string): void {
+    this.listeners.get(uri)?.forEach((cb) => cb());
+  }
+
+  // ---------------------------------------------------------------------------
+  // FS watch activation / deactivation (driven by subscribeToUri)
+  // ---------------------------------------------------------------------------
+
+  private activateUriWatch(uri: string): void {
+    const entry = this.modelMap.get(uri);
+    if (!entry) return; // model still loading; registerDisk/registerGit will call this after creation
+
+    if (entry.type === 'disk') {
+      const set = this.diskSubscribedByTask.get(entry.taskId) ?? new Set<string>();
+      if (!set.has(entry.filePath)) {
+        set.add(entry.filePath);
+        this.diskSubscribedByTask.set(entry.taskId, set);
+        this.ensureFsEventSub(entry.projectId, entry.taskId);
+        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
+      }
+      this.startPoller(entry.projectId, entry.taskId);
+    } else if (entry.type === 'git' && entry.ref === 'HEAD') {
+      if (!this.gitHeadWatchedTasks.has(entry.taskId)) {
+        void rpc.fs.watchSetPaths(entry.projectId, entry.taskId, ['.git'], 'git-head', 'dirs');
+        this.gitHeadWatchedTasks.add(entry.taskId);
+        this.ensureFsEventSub(entry.projectId, entry.taskId);
+      }
+      this.startPoller(entry.projectId, entry.taskId);
+    }
+    // buffer: no FS watching side effect
+  }
+
+  private deactivateUriWatch(uri: string): void {
+    const entry = this.modelMap.get(uri);
+    if (!entry) return;
+
+    if (entry.type === 'disk') {
+      this.diskSubscribedByTask.get(entry.taskId)?.delete(entry.filePath);
+      const set = this.diskSubscribedByTask.get(entry.taskId);
+      if (!set?.size) {
+        this.diskSubscribedByTask.delete(entry.taskId);
+        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'disk', 'files');
+      } else {
+        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
+      }
+      this.maybeCleanupFsEventSub(entry.taskId);
+      this.maybeStopPoller(entry.taskId);
+    } else if (entry.type === 'git' && entry.ref === 'HEAD') {
+      if (
+        !this.taskHasGitHeadSubscribers(entry.taskId) &&
+        this.gitHeadWatchedTasks.has(entry.taskId)
+      ) {
+        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'git-head', 'dirs');
+        this.gitHeadWatchedTasks.delete(entry.taskId);
+        this.maybeCleanupFsEventSub(entry.taskId);
+      }
+      this.maybeStopPoller(entry.taskId);
+    }
+    // buffer: no-op
+  }
+
+  private taskHasSubscribers(taskId: string): boolean {
+    for (const [uri, entry] of this.modelMap) {
+      if (entry.taskId === taskId && (this.subscriberCt.get(uri) ?? 0) > 0) return true;
+    }
+    return false;
+  }
+
+  private taskHasGitHeadSubscribers(taskId: string): boolean {
+    for (const [gitUri, entry] of this.modelMap) {
+      if (entry.type === 'git' && entry.taskId === taskId && entry.ref === 'HEAD') {
+        if ((this.subscriberCt.get(gitUri) ?? 0) > 0) return true;
+      }
+    }
+    return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dedup fetch
+  // ---------------------------------------------------------------------------
+
+  private dedupFetch(key: string, fn: () => Promise<string | null>): Promise<string | null> {
+    const existing = this.pendingFetches.get(key);
+    if (existing) return existing;
+    const p = fn().finally(() => this.pendingFetches.delete(key));
+    this.pendingFetches.set(key, p);
+    return p;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Register (public API)
+  // ---------------------------------------------------------------------------
 
   /**
    * Register (or increment the reference count of) a model for `filePath`.
    *
-   * - `'disk'`    — fetches disk content via RPC, creates `disk://` model, subscribes task to
-   *                 fsWatchEventChannel
-   * - `'gitBase'` — fetches HEAD content via RPC; skipped silently for untracked files (null).
-   *                 Creates `base://` model, subscribes task to gitStatusChangedChannel
-   * - `'buffer'`  — seeds from the existing disk model (disk must be registered first).
-   *                 Creates `file://` model, fires any queued `onceBufferReady` callbacks
+   * - `'disk'`          — fetches disk content via RPC, creates `disk://` model.
+   *                       FS watching is NOT started here; it starts only when a React
+   *                       component subscribes via `subscribeToUri` (useModelStatus).
+   * - `'gitBase'`/`'git'` — fetches git content via RPC; creates `git://` model.
+   *                       .git dir watch starts only when subscribed to.
+   * - `'buffer'`        — seeds from the existing disk model (disk must be registered first).
+   *                       Creates `file://` model, fires any queued `onceBufferReady` callbacks.
    *
    * Idempotent: if the model already exists, just increments ref count and returns the URI.
    *
@@ -98,7 +351,8 @@ class MonacoModelRegistry {
     modelRootPath: string,
     filePath: string,
     language: string,
-    type: ModelType
+    type: ModelType,
+    ref = 'HEAD'
   ): Promise<string> {
     const uri = buildMonacoModelPath(modelRootPath, filePath);
 
@@ -106,7 +360,8 @@ class MonacoModelRegistry {
       case 'disk':
         return this.registerDisk(projectId, taskId, uri, filePath, language);
       case 'gitBase':
-        return this.registerGitBase(projectId, taskId, uri, filePath, language);
+      case 'git':
+        return this.registerGit(projectId, taskId, uri, filePath, language, ref);
       case 'buffer':
         return this.registerBuffer(uri, language);
     }
@@ -119,109 +374,157 @@ class MonacoModelRegistry {
     filePath: string,
     language: string
   ): Promise<string> {
-    const prev = this.diskRefs.get(uri) ?? 0;
-    this.diskRefs.set(uri, prev + 1);
+    const diskUri = this.toDiskUri(uri);
+    const existing = this.modelMap.get(diskUri);
 
-    // Already exists — just bump ref count.
-    if (prev > 0) return uri;
-
-    const result = await rpc.fs.readFile(projectId, taskId, filePath);
-    if (!result.success) {
-      this.diskRefs.set(uri, prev); // roll back
-      throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${result.error}`);
+    if (existing?.type === 'disk') {
+      existing.refs += 1;
+      return uri;
     }
-    const content = result.data.content;
+
+    // Mark as loading before the async RPC.
+    this.modelStatus.set(diskUri, 'loading');
+    this.notify(diskUri);
+
+    let content: string;
+    try {
+      const fetchKey = `${projectId}:${taskId}:${filePath}:disk`;
+      const result = await this.dedupFetch(fetchKey, async () => {
+        const res = await rpc.fs.readFile(projectId, taskId, filePath);
+        if (!res.success)
+          throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
+        return res.data.content;
+      });
+      if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
+      content = result;
+    } catch (err) {
+      this.modelStatus.set(diskUri, 'error');
+      this.notify(diskUri);
+      throw err;
+    }
 
     const m = this.getMonaco();
     if (m) {
-      const diskMonacoUri = m.Uri.parse(this.toDiskUri(uri));
+      const diskMonacoUri = m.Uri.parse(diskUri);
       let model = m.editor.getModel(diskMonacoUri);
-      if (!model) {
-        model = m.editor.createModel(content, language, diskMonacoUri);
-      }
-      this.diskCache.set(uri, { model });
+      if (!model) model = m.editor.createModel(content, language, diskMonacoUri);
+      const entry: DiskModelEntry = {
+        type: 'disk',
+        model,
+        refs: 1,
+        projectId,
+        taskId,
+        filePath,
+        language,
+      };
+      this.modelMap.set(diskUri, entry);
     }
 
-    this.openEntries.set(uri, { filePath, projectId, taskId, language });
+    this.modelStatus.set(diskUri, 'ready');
+    this.notify(diskUri);
 
-    if (!this.diskWatchSubs.has(taskId)) {
-      const unsub = events.on(
-        fsWatchEventChannel,
-        (data) => void this.handleFsEvents(data.taskId, data.events),
-        taskId
-      );
-      this.diskWatchSubs.set(taskId, unsub);
+    // If React components subscribed while model was loading, activate FS watching now.
+    if ((this.subscriberCt.get(diskUri) ?? 0) > 0) {
+      this.activateUriWatch(diskUri);
     }
 
-    this.syncDiskWatchedPaths(projectId, taskId);
     return uri;
   }
 
-  private async registerGitBase(
+  private async registerGit(
     projectId: string,
     taskId: string,
     uri: string,
     filePath: string,
-    language: string
+    language: string,
+    ref: string
   ): Promise<string> {
-    const prev = this.gitBaseRefs.get(uri) ?? 0;
-    this.gitBaseRefs.set(uri, prev + 1);
+    const gitUri = this.toGitUri(uri, ref);
+    const existing = this.modelMap.get(gitUri);
 
-    if (prev > 0) return uri;
-
-    const result = await rpc.git.getFileAtHead(projectId, taskId, filePath);
-    // Silently skip new/untracked files with no HEAD content.
-    if (!result.success || result.data.content === null) {
-      // Keep ref count at 1 so unregister still works cleanly.
+    if (existing?.type === 'git') {
+      existing.refs += 1;
       return uri;
     }
 
-    const content = result.data.content;
+    this.modelStatus.set(gitUri, 'loading');
+    this.notify(gitUri);
+
+    const fetchKey = `${projectId}:${taskId}:${filePath}:git:${ref}`;
+    const content = await this.dedupFetch(fetchKey, async () => {
+      const result =
+        ref === 'HEAD'
+          ? await rpc.git.getFileAtHead(projectId, taskId, filePath)
+          : await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
+      if (!result.success || result.data.content === null) return null;
+      return result.data.content;
+    });
+
     const m = this.getMonaco();
     if (m) {
-      const baseMonacoUri = m.Uri.parse(this.toBaseUri(uri));
-      let model = m.editor.getModel(baseMonacoUri);
-      if (!model) {
-        model = m.editor.createModel(content, language, baseMonacoUri);
-      }
-      this.gitBaseCache.set(uri, { model });
+      const gitMonacoUri = m.Uri.parse(gitUri);
+      let model = m.editor.getModel(gitMonacoUri);
+      if (!model) model = m.editor.createModel(content ?? '', language, gitMonacoUri);
+      const entry: GitModelEntry = {
+        type: 'git',
+        model,
+        refs: 1,
+        projectId,
+        taskId,
+        filePath,
+        language,
+        ref,
+      };
+      this.modelMap.set(gitUri, entry);
     }
 
-    // Ensure task-level git HEAD subscription.
-    if (!this.gitBaseWatchSubs.has(taskId)) {
-      const entry = this.openEntries.get(uri);
-      const pId = entry?.projectId ?? projectId;
-      const unsub = events.on(gitStatusChangedChannel, () => {
-        void this.refreshGitBaseModelsForTask(pId, taskId);
-      });
-      this.gitBaseWatchSubs.set(taskId, unsub);
+    this.modelStatus.set(gitUri, 'ready');
+    this.notify(gitUri);
+
+    // If React components subscribed while model was loading, activate watching now.
+    if ((this.subscriberCt.get(gitUri) ?? 0) > 0) {
+      this.activateUriWatch(gitUri);
     }
 
-    this.syncGitBaseWatchedPaths(projectId, taskId);
     return uri;
   }
 
   private registerBuffer(uri: string, language: string): string {
-    const prev = this.bufferRefs.get(uri) ?? 0;
-    this.bufferRefs.set(uri, prev + 1);
+    const existing = this.modelMap.get(uri);
 
-    if (prev > 0) return uri;
+    if (existing?.type === 'buffer') {
+      existing.refs += 1;
+      return uri;
+    }
 
-    // Seed content from disk model (disk must be registered first).
-    const diskModel = this.diskCache.get(uri)?.model;
-    const seedContent = diskModel ? diskModel.getValue() : '';
+    const diskEntry = this.modelMap.get(this.toDiskUri(uri));
+    const seedContent = diskEntry?.type === 'disk' ? diskEntry.model.getValue() : '';
+    const projectId = diskEntry?.projectId ?? '';
+    const taskId = diskEntry?.taskId ?? '';
+    const filePath = diskEntry?.filePath ?? '';
 
     const m = this.getMonaco();
     if (m) {
       const bufferMonacoUri = m.Uri.parse(uri);
       let model = m.editor.getModel(bufferMonacoUri);
-      if (!model) {
-        model = m.editor.createModel(seedContent, language, bufferMonacoUri);
-      }
-      this.bufferCache.set(uri, { model, viewState: null });
+      if (!model) model = m.editor.createModel(seedContent, language, bufferMonacoUri);
+      const entry: BufferModelEntry = {
+        type: 'buffer',
+        model,
+        refs: 1,
+        projectId,
+        taskId,
+        filePath,
+        language,
+        viewState: null,
+      };
+      this.modelMap.set(uri, entry);
     }
 
-    // Fire any deferred attach callbacks registered by PooledCodeEditor.
+    this.modelStatus.set(uri, 'ready');
+    // Notify buffer URI: useBufferExists subscribers (e.g. PooledDiffEditor) will re-render.
+    this.notify(uri);
+
     const callbacks = this.bufferReadyCallbacks.get(uri);
     if (callbacks?.length) {
       callbacks.forEach((cb) => cb());
@@ -231,96 +534,64 @@ class MonacoModelRegistry {
     return uri;
   }
 
+  // ---------------------------------------------------------------------------
+  // Unregister (public API)
+  // ---------------------------------------------------------------------------
+
   /**
-   * Decrement the reference count for a model type. Disposes the Monaco model
-   * and cleans up subscriptions when count reaches 0.
+   * Decrement the reference count for a model by its typed URI.
+   * Disposes the Monaco model and cleans up subscriptions when count reaches 0.
+   *
+   * Pass the typed URI directly:
+   *   buffer → the file:// buffer URI (same as returned by registerModel)
+   *   disk   → toDiskUri(bufferUri)
+   *   git    → toGitUri(bufferUri, ref)
    */
-  unregisterModel(uri: string, type: ModelType): void {
-    switch (type) {
-      case 'disk':
-        this.unregisterDisk(uri);
-        break;
-      case 'gitBase':
-        this.unregisterGitBase(uri);
-        break;
-      case 'buffer':
-        this.unregisterBuffer(uri);
-        break;
+  unregisterModel(uri: string): void {
+    // Cancel any pending TTL eviction — we're explicitly disposing.
+    const timer = this.evictionTimers.get(uri);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.evictionTimers.delete(uri);
     }
-  }
 
-  private unregisterDisk(uri: string): void {
-    const count = this.diskRefs.get(uri) ?? 0;
-    if (count <= 0) return;
-
-    const next = count - 1;
-    this.diskRefs.set(uri, next);
-
-    if (next > 0) return;
-
-    const entry = this.openEntries.get(uri);
-    const diskModel = this.diskCache.get(uri)?.model;
-    if (diskModel && !diskModel.isDisposed()) diskModel.dispose();
-    this.diskCache.delete(uri);
-    this.diskRefs.delete(uri);
-    this.openEntries.delete(uri);
-
+    const entry = this.modelMap.get(uri);
     if (!entry) return;
-    const { projectId, taskId } = entry;
 
-    // Re-sync watched paths; unsubscribe task watcher if no disk models remain.
-    const remainingForTask = this.diskModelsForTask(taskId);
-    if (remainingForTask.length === 0) {
-      this.diskWatchSubs.get(taskId)?.();
-      this.diskWatchSubs.delete(taskId);
-      rpc.fs.watchStop(projectId, taskId, 'disk', 'files').catch(() => {});
+    entry.refs -= 1;
+    if (entry.refs > 0) return;
+
+    if (!entry.model.isDisposed()) entry.model.dispose();
+    this.modelMap.delete(uri);
+    this.modelStatus.delete(uri);
+
+    if (entry.type === 'disk') {
+      // Remove from subscription group unconditionally (model is gone).
+      this.diskSubscribedByTask.get(entry.taskId)?.delete(entry.filePath);
+      const set = this.diskSubscribedByTask.get(entry.taskId);
+      if (!set?.size) {
+        this.diskSubscribedByTask.delete(entry.taskId);
+        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'disk', 'files');
+      } else {
+        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
+      }
+      this.maybeCleanupFsEventSub(entry.taskId);
+    } else if (entry.type === 'git') {
+      const remaining = this.gitEntriesForTask(entry.taskId);
+      if (remaining.length === 0 && this.gitHeadWatchedTasks.has(entry.taskId)) {
+        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'git-head', 'dirs');
+        this.gitHeadWatchedTasks.delete(entry.taskId);
+        this.maybeCleanupFsEventSub(entry.taskId);
+      }
     } else {
-      this.syncDiskWatchedPaths(projectId, taskId);
+      // buffer
+      this.bufferReadyCallbacks.delete(uri);
+      this.pendingConflicts.delete(uri);
+      // Notify buffer URI: useBufferExists subscribers will re-render (hasModel now false).
+      this.notify(uri);
     }
-  }
 
-  private unregisterGitBase(uri: string): void {
-    const count = this.gitBaseRefs.get(uri) ?? 0;
-    if (count <= 0) return;
-
-    const next = count - 1;
-    this.gitBaseRefs.set(uri, next);
-
-    if (next > 0) return;
-
-    const baseModel = this.gitBaseCache.get(uri)?.model;
-    if (baseModel && !baseModel.isDisposed()) baseModel.dispose();
-    this.gitBaseCache.delete(uri);
-    this.gitBaseRefs.delete(uri);
-
-    // Unsubscribe task gitBase watcher if no gitBase models remain for the task.
-    const entry = this.openEntries.get(uri);
-    if (!entry) return;
-    const { projectId, taskId } = entry;
-    const remaining = this.gitBaseModelsForTask(taskId);
-    if (remaining.length === 0) {
-      this.gitBaseWatchSubs.get(taskId)?.();
-      this.gitBaseWatchSubs.delete(taskId);
-    }
-    this.syncGitBaseWatchedPaths(projectId, taskId);
-  }
-
-  private unregisterBuffer(uri: string): void {
-    const count = this.bufferRefs.get(uri) ?? 0;
-    if (count <= 0) return;
-
-    const next = count - 1;
-    this.bufferRefs.set(uri, next);
-
-    if (next > 0) return;
-
-    const bufferModel = this.bufferCache.get(uri)?.model;
-    if (bufferModel && !bufferModel.isDisposed()) bufferModel.dispose();
-    this.bufferCache.delete(uri);
-    this.bufferRefs.delete(uri);
-    // Cancel any pending attach callbacks and pending conflict for this URI.
-    this.bufferReadyCallbacks.delete(uri);
-    this.pendingConflicts.delete(uri);
+    this.maybeStopPoller(entry.taskId);
   }
 
   // ---------------------------------------------------------------------------
@@ -333,12 +604,12 @@ class MonacoModelRegistry {
    */
   attach(editor: monaco.editor.IStandaloneCodeEditor, newUri: string, previousUri?: string): void {
     if (previousUri && previousUri !== newUri) {
-      const prev = this.bufferCache.get(previousUri);
-      if (prev) prev.viewState = editor.saveViewState();
+      const prev = this.modelMap.get(previousUri);
+      if (prev?.type === 'buffer') prev.viewState = editor.saveViewState();
     }
 
-    const entry = this.bufferCache.get(newUri);
-    if (entry) {
+    const entry = this.modelMap.get(newUri);
+    if (entry?.type === 'buffer') {
       editor.setModel(entry.model);
       if (entry.viewState) {
         editor.restoreViewState(entry.viewState);
@@ -352,7 +623,7 @@ class MonacoModelRegistry {
    * Returns a cleanup function that cancels the pending callback.
    */
   onceBufferReady(uri: string, cb: () => void): () => void {
-    if (this.bufferCache.has(uri)) {
+    if (this.modelMap.has(uri)) {
       cb();
       return () => {};
     }
@@ -377,10 +648,10 @@ class MonacoModelRegistry {
 
   /** Returns true if the buffer has unsaved changes relative to on-disk content. */
   isDirty(uri: string): boolean {
-    const buf = this.bufferCache.get(uri)?.model;
-    const disk = this.diskCache.get(uri)?.model;
-    if (!buf || !disk) return false;
-    return buf.getValue() !== disk.getValue();
+    const buf = this.modelMap.get(uri);
+    const disk = this.modelMap.get(this.toDiskUri(uri));
+    if (!buf || buf.type !== 'buffer' || !disk || disk.type !== 'disk') return false;
+    return buf.model.getValue() !== disk.model.getValue();
   }
 
   /**
@@ -388,10 +659,10 @@ class MonacoModelRegistry {
    * Syncs the disk model to match the buffer so isDirty() returns false.
    */
   markSaved(uri: string): void {
-    const buf = this.bufferCache.get(uri)?.model;
-    const disk = this.diskCache.get(uri)?.model;
-    if (buf && disk) {
-      disk.setValue(buf.getValue());
+    const buf = this.modelMap.get(uri);
+    const disk = this.modelMap.get(this.toDiskUri(uri));
+    if (buf?.type === 'buffer' && disk?.type === 'disk') {
+      disk.model.setValue(buf.model.getValue());
     }
   }
 
@@ -399,34 +670,29 @@ class MonacoModelRegistry {
   // Content access
   // ---------------------------------------------------------------------------
 
-  /** Get the buffer (editable) model — used by the code editor pool. */
-  getModel(uri: string): monaco.editor.ITextModel | undefined {
-    return this.bufferCache.get(uri)?.model;
-  }
-
-  /** Get the disk model (current on-disk snapshot) — used as 'modified' in diff viewer. */
-  getDiskModel(uri: string): monaco.editor.ITextModel | undefined {
-    return this.diskCache.get(uri)?.model;
-  }
-
-  /** Get the git base model (HEAD snapshot) — used as 'original' in diff viewer. */
-  getGitBaseModel(uri: string): monaco.editor.ITextModel | undefined {
-    return this.gitBaseCache.get(uri)?.model;
+  /**
+   * Returns the ITextModel stored at the given typed URI, or undefined.
+   * Use toDiskUri / toGitUri to construct typed URIs for disk/git entries.
+   */
+  getModelByUri(uri: string): monaco.editor.ITextModel | undefined {
+    return this.modelMap.get(uri)?.model;
   }
 
   /** Current text content of the buffer model. */
   getValue(uri: string): string | null {
-    return this.bufferCache.get(uri)?.model.getValue() ?? null;
+    const entry = this.modelMap.get(uri);
+    return entry?.type === 'buffer' ? entry.model.getValue() : null;
   }
 
   /** Current text content of the disk model. */
   getDiskValue(uri: string): string | null {
-    return this.diskCache.get(uri)?.model.getValue() ?? null;
+    const entry = this.modelMap.get(this.toDiskUri(uri));
+    return entry?.type === 'disk' ? entry.model.getValue() : null;
   }
 
   /** True if a buffer model is registered for this URI. */
   hasModel(uri: string): boolean {
-    return this.bufferCache.has(uri);
+    return this.modelMap.get(uri)?.type === 'buffer';
   }
 
   /** True while a programmatic disk reload is in progress (suppresses false dirty flag). */
@@ -444,39 +710,33 @@ class MonacoModelRegistry {
    * skips treating this as a user edit.
    */
   reloadFromDisk(uri: string): void {
-    const buf = this.bufferCache.get(uri)?.model;
-    const disk = this.diskCache.get(uri)?.model;
-    if (buf && disk) {
+    const buf = this.modelMap.get(uri);
+    const disk = this.modelMap.get(this.toDiskUri(uri));
+    if (buf?.type === 'buffer' && disk?.type === 'disk') {
       this.reloadingFromDisk.add(uri);
-      buf.setValue(disk.getValue());
+      buf.model.setValue(disk.model.getValue());
       this.reloadingFromDisk.delete(uri);
     }
-    // Conflict is resolved — the incoming change was accepted.
     this.pendingConflicts.delete(uri);
   }
 
   /**
    * Write the buffer content to disk, sync the disk model, and clear the
-   * crash-recovery buffer entry. The mirror of `reloadFromDisk`.
+   * crash-recovery buffer entry.
    *
    * @returns the saved content string on success, or `null` on failure.
-   *          The caller is responsible for updating any React dirty-state.
    */
   async saveFileToDisk(uri: string): Promise<string | null> {
-    const buf = this.bufferCache.get(uri)?.model;
-    const entry = this.openEntries.get(uri);
-    if (!buf || !entry) return null;
+    const buf = this.modelMap.get(uri);
+    if (!buf || buf.type !== 'buffer') return null;
 
-    const content = buf.getValue();
-    const result = await rpc.fs.writeFile(entry.projectId, entry.taskId, entry.filePath, content);
+    const content = buf.model.getValue();
+    const result = await rpc.fs.writeFile(buf.projectId, buf.taskId, buf.filePath, content);
     if (!result.success) return null;
 
-    // Keep disk model in sync so isDirty() immediately returns false.
     this.markSaved(uri);
-    // Conflict is resolved — the user's version won.
     this.pendingConflicts.delete(uri);
-    // Crash-recovery buffer is no longer needed once the file is on disk.
-    void rpc.editorBuffer.clearBuffer(entry.projectId, entry.taskId, entry.filePath);
+    void rpc.editorBuffer.clearBuffer(buf.projectId, buf.taskId, buf.filePath);
     return content;
   }
 
@@ -484,55 +744,79 @@ class MonacoModelRegistry {
   // Conflict state
   // ---------------------------------------------------------------------------
 
-  /**
-   * Returns true if the file was externally modified while the buffer had
-   * unsaved edits. The conflict dialog is shown lazily, only when the user
-   * tries to save, so normal editing is never interrupted.
-   *
-   * Cleared automatically by `reloadFromDisk`, `saveFileToDisk`, and
-   * `unregisterBuffer` (file closed).
-   */
   hasPendingConflict(uri: string): boolean {
     return this.pendingConflicts.has(uri);
   }
 
   // ---------------------------------------------------------------------------
-  // Git base refresh (called by EditorProvider on gitStatusChangedChannel)
+  // Manual invalidation
   // ---------------------------------------------------------------------------
 
   /**
-   * Re-fetches HEAD content for all open files in a task.
-   * Also called internally when the per-task gitBase subscription fires.
+   * Re-fetch the model at `uri` from its source (disk or git). No-op for buffers.
+   * Bypasses dedup cache — always fires a fresh RPC.
    */
-  async refreshGitBaseModels(projectId: string, taskId: string): Promise<void> {
-    return this.refreshGitBaseModelsForTask(projectId, taskId);
+  async invalidateModel(uri: string): Promise<void> {
+    const entry = this.modelMap.get(uri);
+    if (!entry) return;
+    if (entry.type === 'disk') {
+      const res = await rpc.fs.readFile(entry.projectId, entry.taskId, entry.filePath);
+      if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
+    } else if (entry.type === 'git') {
+      const res =
+        entry.ref === 'HEAD'
+          ? await rpc.git.getFileAtHead(entry.projectId, entry.taskId, entry.filePath)
+          : await rpc.git.getFileAtRef(entry.projectId, entry.taskId, entry.filePath, entry.ref);
+      if (res.success && res.data.content !== null) {
+        entry.model.setValue(res.data.content);
+        this.notify(uri);
+      }
+    }
   }
 
-  private async refreshGitBaseModelsForTask(projectId: string, taskId: string): Promise<void> {
-    const entries = [...this.openEntries.entries()].filter(
-      ([, e]) => e.projectId === projectId && e.taskId === taskId
-    );
+  // ---------------------------------------------------------------------------
+  // Git model refresh (triggered by .git dir watcher)
+  // ---------------------------------------------------------------------------
 
-    for (const [uri, entry] of entries) {
-      if (!this.gitBaseCache.has(uri)) continue;
+  private async refreshGitModelsForTask(projectId: string, taskId: string): Promise<void> {
+    const gitEntries = [...this.modelMap.entries()].filter(
+      ([uri, e]) => e.type === 'git' && e.taskId === taskId && uri.startsWith('git://')
+    ) as [string, GitModelEntry][];
 
+    for (const [gitUri, entry] of gitEntries) {
+      if (entry.ref !== 'HEAD') continue;
       const result = await rpc.git.getFileAtHead(projectId, taskId, entry.filePath);
       if (!result.success || result.data.content === null) continue;
-
-      const newContent = result.data.content;
-      const existing = this.gitBaseCache.get(uri);
-      if (existing) {
-        if (existing.model.getValue() !== newContent) {
-          existing.model.setValue(newContent);
-        }
-      } else {
-        const m = this.getMonaco();
-        if (m) {
-          const baseUri = m.Uri.parse(this.toBaseUri(uri));
-          const model = m.editor.createModel(newContent, entry.language, baseUri);
-          this.gitBaseCache.set(uri, { model });
-        }
+      if (entry.model.getValue() !== result.data.content) {
+        entry.model.setValue(result.data.content);
+        this.notify(gitUri);
       }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Disk update helper (shared by handleFsEvents, pollTask, invalidateModel)
+  // ---------------------------------------------------------------------------
+
+  private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
+    const bufferUri = diskUri.replace(/^disk:\/\//, 'file://');
+    const wasDirty = this.isDirty(bufferUri);
+    const bufEntry = this.modelMap.get(bufferUri);
+    const bufValue = bufEntry?.type === 'buffer' ? bufEntry.model.getValue() : undefined;
+    const newMatchesBuffer = bufValue === newContent;
+
+    entry.model.setValue(newContent);
+    this.notify(diskUri);
+
+    if (!wasDirty || newMatchesBuffer) {
+      if (bufEntry?.type === 'buffer') {
+        this.reloadingFromDisk.add(bufferUri);
+        bufEntry.model.setValue(newContent);
+        this.reloadingFromDisk.delete(bufferUri);
+        this.notify(bufferUri);
+      }
+    } else {
+      this.pendingConflicts.add(bufferUri);
     }
   }
 
@@ -541,76 +825,126 @@ class MonacoModelRegistry {
   // ---------------------------------------------------------------------------
 
   private syncDiskWatchedPaths(projectId: string, taskId: string): void {
-    const paths = this.diskModelsForTask(taskId).map((e) => e.filePath);
+    const paths = [...(this.diskSubscribedByTask.get(taskId) ?? [])];
     rpc.fs.watchSetPaths(projectId, taskId, paths, 'disk', 'files').catch(() => {});
   }
 
-  private syncGitBaseWatchedPaths(_projectId: string, _taskId: string): void {
-    // Reserved for future .git folder watching to keep gitBase models up-to-date.
-    // No-op until that watcher is wired.
-  }
-
   private async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {
-    for (const event of fsEvents.filter((e) => e.type === 'modify')) {
-      const found = this.findEntryByTaskAndPath(taskId, event.path);
-      if (!found) continue;
-      const { uri, entry } = found;
+    // Route .git dir events → git model refresh.
+    const hasGitEvent = fsEvents.some((e) => e.path.startsWith('.git'));
+    if (hasGitEvent) {
+      const gitEntry = [...this.modelMap.values()].find(
+        (e): e is GitModelEntry => e.type === 'git' && e.taskId === taskId
+      );
+      if (gitEntry) void this.refreshGitModelsForTask(gitEntry.projectId, taskId);
+    }
 
+    // Process disk file modification events (skip .git paths).
+    for (const event of fsEvents.filter((e) => e.type === 'modify' && !e.path.startsWith('.git'))) {
+      const diskEntry = this.findDiskEntryByTaskAndPath(taskId, event.path);
+      if (!diskEntry) continue;
+      const { diskUri, entry } = diskEntry;
       const result = await rpc.fs.readFile(entry.projectId, taskId, event.path);
       if (!result.success) continue;
-      const newContent = result.data.content;
+      this.applyDiskUpdate(diskUri, entry, result.data.content);
+    }
+  }
 
-      // Snapshot dirty state and buffer value BEFORE updating the disk model.
-      // If we checked isDirty() after, a clean buffer would appear dirty because
-      // the disk model would already hold the new (different) external content.
-      const wasDirty = this.isDirty(uri);
-      const bufValue = this.bufferCache.get(uri)?.model.getValue();
-      const newMatchesBuffer = bufValue === newContent;
+  // ---------------------------------------------------------------------------
+  // Per-task polling fallback (10 s)
+  // ---------------------------------------------------------------------------
 
-      // 1. Always update the disk model — ground truth for "what's on disk".
-      const diskEntry = this.diskCache.get(uri);
-      if (diskEntry) {
-        diskEntry.model.setValue(newContent);
-      }
+  private startPoller(projectId: string, taskId: string): void {
+    if (this.taskPollers.has(taskId)) return;
+    const id = setInterval(() => void this.pollTask(projectId, taskId), 10_000);
+    this.taskPollers.set(taskId, id);
+  }
 
-      if (!wasDirty || newMatchesBuffer) {
-        // 2a. Buffer is clean, or agent wrote exactly what the user had typed
-        //     → pull buffer forward silently; no conflict needed.
-        const bufferEntry = this.bufferCache.get(uri);
-        if (bufferEntry) {
-          this.reloadingFromDisk.add(uri);
-          bufferEntry.model.setValue(newContent);
-          this.reloadingFromDisk.delete(uri);
+  private maybeStopPoller(taskId: string): void {
+    // Keep poller alive while any model for this task has subscribers.
+    if (this.taskHasSubscribers(taskId)) return;
+    const id = this.taskPollers.get(taskId);
+    if (id !== undefined) {
+      clearInterval(id);
+      this.taskPollers.delete(taskId);
+    }
+  }
+
+  private async pollTask(projectId: string, taskId: string): Promise<void> {
+    for (const [uri, entry] of this.modelMap) {
+      if (entry.taskId !== taskId) continue;
+      if (entry.type === 'disk') {
+        const res = await rpc.fs.readFile(projectId, taskId, entry.filePath);
+        if (res.success && res.data.content !== entry.model.getValue()) {
+          this.applyDiskUpdate(uri, entry, res.data.content);
         }
-      } else {
-        // 2b. Buffer has genuine user edits that differ from the new disk content.
-        //     Mark as pending conflict — the dialog is deferred until the user
-        //     tries to save, so editing is not interrupted mid-keystroke.
-        this.pendingConflicts.add(uri);
+      } else if (entry.type === 'git') {
+        const res =
+          entry.ref === 'HEAD'
+            ? await rpc.git.getFileAtHead(projectId, taskId, entry.filePath)
+            : await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, entry.ref);
+        if (
+          res.success &&
+          res.data.content !== null &&
+          res.data.content !== entry.model.getValue()
+        ) {
+          entry.model.setValue(res.data.content);
+          this.notify(uri);
+        }
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // FS event subscription management
+  // ---------------------------------------------------------------------------
+
+  private ensureFsEventSub(projectId: string, taskId: string): void {
+    if (this.fsEventSubs.has(taskId)) return;
+    const unsub = events.on(
+      fsWatchEventChannel,
+      (data) => void this.handleFsEvents(data.taskId, data.events),
+      taskId
+    );
+    this.fsEventSubs.set(taskId, unsub);
+  }
+
+  private maybeCleanupFsEventSub(taskId: string): void {
+    const hasDiskSub = (this.diskSubscribedByTask.get(taskId)?.size ?? 0) > 0;
+    if (hasDiskSub) return;
+    if (this.gitHeadWatchedTasks.has(taskId)) return;
+    this.fsEventSubs.get(taskId)?.();
+    this.fsEventSubs.delete(taskId);
   }
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private diskModelsForTask(taskId: string): OpenEntry[] {
-    return [...this.openEntries.values()].filter((e) => e.taskId === taskId);
+  private diskEntriesForTask(taskId: string): DiskModelEntry[] {
+    const result: DiskModelEntry[] = [];
+    for (const entry of this.modelMap.values()) {
+      if (entry.type === 'disk' && entry.taskId === taskId) result.push(entry);
+    }
+    return result;
   }
 
-  private gitBaseModelsForTask(taskId: string): OpenEntry[] {
-    return [...this.openEntries.entries()]
-      .filter(([uri, e]) => e.taskId === taskId && this.gitBaseCache.has(uri))
-      .map(([, e]) => e);
+  private gitEntriesForTask(taskId: string): GitModelEntry[] {
+    const result: GitModelEntry[] = [];
+    for (const entry of this.modelMap.values()) {
+      if (entry.type === 'git' && entry.taskId === taskId) result.push(entry);
+    }
+    return result;
   }
 
-  private findEntryByTaskAndPath(
+  private findDiskEntryByTaskAndPath(
     taskId: string,
     filePath: string
-  ): { uri: string; entry: OpenEntry } | undefined {
-    for (const [uri, entry] of this.openEntries) {
-      if (entry.taskId === taskId && entry.filePath === filePath) return { uri, entry };
+  ): { diskUri: string; entry: DiskModelEntry } | undefined {
+    for (const [diskUri, entry] of this.modelMap) {
+      if (entry.type === 'disk' && entry.taskId === taskId && entry.filePath === filePath) {
+        return { diskUri, entry };
+      }
     }
     return undefined;
   }
