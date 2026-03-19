@@ -418,6 +418,12 @@ function buildRemoteInitKeystrokes(args: {
       )}; fi`;
       lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
     }
+  } else if (args.tmux) {
+    // tmux-only (no provider): wrap the shell in a named tmux session for persistence.
+    // Falls back gracefully if tmux isn't installed on the remote.
+    const tmuxName = quoteShellArg(args.tmux.sessionName);
+    const shScript = `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; fi`;
+    lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
   }
 
   return lines.length ? `${lines.join('\n')}\n` : '';
@@ -567,6 +573,41 @@ async function resolveTmuxEnabled(cwd: string): Promise<boolean> {
   return false;
 }
 
+async function resolveRemoteTmuxEnabled(
+  ssh: { target: string; args: string[] },
+  cwd: string
+): Promise<boolean> {
+  try {
+    // Build list of paths to check: cwd first, then project root if cwd is a worktree
+    const paths = [cwd];
+    const marker = '/.emdash/worktrees/';
+    const markerIdx = cwd.indexOf(marker);
+    if (markerIdx > 0) {
+      paths.push(cwd.slice(0, markerIdx));
+    }
+
+    // Read all .emdash.json files in a single SSH exec to avoid multiple round trips
+    const catParts = paths.map(
+      (p) => `cat ${quoteShellArg(`${p}/.emdash.json`)} 2>/dev/null || echo '{}'`
+    );
+    const { stdout } = await execFileAsync('ssh', [
+      ...ssh.args,
+      ssh.target,
+      catParts.join('; echo "---EMDASH_SEP---"; '),
+    ]);
+
+    const parts = stdout.split('---EMDASH_SEP---');
+    for (const part of parts) {
+      try {
+        if (JSON.parse(part.trim())?.tmux === true) return true;
+      } catch {}
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
   setOnDirectCliExit(async (id: string, cwd: string) => {
@@ -693,10 +734,11 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings.
+          // Resolve tmux config from remote .emdash.json.
           // Workspace-provisioned connections always use tmux for session persistence.
           const isWorkspaceConnection = remote.connectionId.startsWith('workspace-');
-          const remoteTmux = isWorkspaceConnection || (cwd ? await resolveTmuxEnabled(cwd) : false);
+          const remoteTmux =
+            isWorkspaceConnection || (cwd ? await resolveRemoteTmuxEnabled(ssh, cwd) : false);
           const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
@@ -1228,10 +1270,11 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings.
+          // Resolve tmux config from remote .emdash.json.
           // Workspace-provisioned connections always use tmux for session persistence.
           const isWorkspaceConn = remote.connectionId.startsWith('workspace-');
-          const remoteTmux = isWorkspaceConn || (cwd ? await resolveTmuxEnabled(cwd) : false);
+          const remoteTmux =
+            isWorkspaceConn || (cwd ? await resolveRemoteTmuxEnabled(ssh, cwd) : false);
           const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
