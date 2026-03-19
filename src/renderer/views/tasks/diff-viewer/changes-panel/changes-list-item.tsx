@@ -35,26 +35,28 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
           <span
             className={cn(
               'transition-opacity',
-              'group-hover/item:opacity-0',
+              onToggleSelect && 'group-hover/item:opacity-0',
               isSelected && 'opacity-0'
             )}
           >
             <GitChangeStatusIcon status={change.status} className="size-4" />
           </span>
-          <span
-            className={cn(
-              'absolute inset-0 flex items-center justify-center transition-opacity',
-              'opacity-0 group-hover/item:opacity-100',
-              isSelected && 'opacity-100'
-            )}
-          >
-            <Checkbox
-              checked={isSelected ?? false}
-              onCheckedChange={() => onToggleSelect?.(change.path)}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Select ${filename}`}
-            />
-          </span>
+          {onToggleSelect && (
+            <span
+              className={cn(
+                'absolute inset-0 flex items-center justify-center transition-opacity',
+                'opacity-0 group-hover/item:opacity-100',
+                isSelected && 'opacity-100'
+              )}
+            >
+              <Checkbox
+                checked={isSelected ?? false}
+                onCheckedChange={() => onToggleSelect(change.path)}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Select ${filename}`}
+              />
+            </span>
+          )}
         </div>
       </button>
     );

@@ -27,7 +27,7 @@ import { ActiveFile, useGitViewContext } from '../state/git-view-provider';
 import { useBranchStatus } from '../state/use-branch-status.tsx';
 import { useOptimisticFileDiff } from '../state/use-file-diff';
 import { useSelection, type SelectionState } from '../state/use-selection';
-import { PullRequestSection } from './pr-section';
+import { PullRequestSection } from './pr-section/pr-section';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
 interface SectionHeaderProps {
@@ -132,7 +132,6 @@ function GitStatusSection() {
   const isUnpublished = data !== undefined && !hasMatchingUpstream;
   return (
     <div className="p-2 border-t border-border flex flex-col gap-2">
-      <PullRequestSection />
       <div className="flex items-center gap-2 text-muted-foreground justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="size-3" />
@@ -331,7 +330,10 @@ export function ChangesPanel() {
           {hasStaged && <CommitCard />}
           {!hasStaged && (data?.ahead ?? 0) > 0 && <PushCard />}
         </ResizablePanel>
-
+        <ResizableHandle />
+        <ResizablePanel minSize={5} defaultSize={60} className="flex flex-col overflow-hidden">
+          <PullRequestSection />
+        </ResizablePanel>
         <GitStatusSection />
       </ResizablePanelGroup>
     </div>
