@@ -39,8 +39,8 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           file={file}
           isActive={activeFilePath === path}
           isUnstable={previewFilePath === path}
-          isMarkdown={isMarkdownFile(path)}
-          isPreview={previewMode.get(path) ?? isMarkdownFile(path)}
+          isPreviewable={isMarkdownFile(path) || file.kind === 'svg'}
+          isPreview={previewMode.get(path) ?? (isMarkdownFile(path) || file.kind === 'svg')}
           onClick={() => onTabClick(path)}
           onDoubleClick={() => onPinTab(path)}
           onClose={(e) => {
@@ -62,7 +62,8 @@ interface FileTabProps {
   file: ManagedFile;
   isActive: boolean;
   isUnstable: boolean;
-  isMarkdown: boolean;
+  /** Whether this file supports a rendered preview toggle (markdown, SVG). */
+  isPreviewable: boolean;
   isPreview: boolean;
   onClick: () => void;
   onDoubleClick: () => void;
@@ -75,7 +76,7 @@ const FileTab: React.FC<FileTabProps> = ({
   file,
   isActive,
   isUnstable,
-  isMarkdown,
+  isPreviewable,
   isPreview,
   onClick,
   onDoubleClick,
@@ -105,7 +106,7 @@ const FileTab: React.FC<FileTabProps> = ({
           ●
         </span>
       )}
-      {isMarkdown && (
+      {isPreviewable && (
         <button
           className="ml-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={onTogglePreview}

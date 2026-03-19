@@ -4,11 +4,20 @@ import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorag
 import { dispatchFileChangeEvent, subscribeToFileChanges } from '@renderer/lib/fileChangeEvents';
 import { rpc } from '../core/ipc';
 
+/** Stable classification of a file, determined once at load time. */
+export type ManagedFileKind = 'text' | 'image' | 'svg' | 'too-large' | 'binary';
+
 export interface ManagedFile {
   path: string;
   content: string;
   isDirty: boolean;
   originalContent: string;
+  /** File type classification — drives which renderer is shown. */
+  kind: ManagedFileKind;
+  /** True while the file is being loaded via RPC. Orthogonal to `kind`. */
+  isLoading: boolean;
+  /** Populated for `kind === 'too-large'`: actual file size in bytes. */
+  totalSize?: number;
 }
 
 interface UseFileManagerOptions {
@@ -88,6 +97,8 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
               content: result.dataUrl,
               originalContent: result.dataUrl,
               isDirty: false,
+              kind: 'image',
+              isLoading: false,
             };
 
             setOpenFiles((prev) => new Map(prev).set(filePath, file));
@@ -99,6 +110,8 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
               content: '[IMAGE_ERROR]',
               originalContent: '[IMAGE_ERROR]',
               isDirty: false,
+              kind: 'image',
+              isLoading: false,
             };
             setOpenFiles((prev) => new Map(prev).set(filePath, errorFile));
             setActiveFilePath(filePath);
@@ -115,6 +128,8 @@ export function useFileManager(options: UseFileManagerOptions): UseFileManagerRe
             content: result.content,
             originalContent: result.content,
             isDirty: false,
+            kind: 'text',
+            isLoading: false,
           };
 
           setOpenFiles((prev) => new Map(prev).set(filePath, file));
