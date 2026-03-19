@@ -271,6 +271,17 @@ export function EditorMainPanel() {
     prevIsSaving.current = isSaving;
   }, [isSaving, editorReady, refreshDecorations]);
 
+  // Stable refs so the Monaco keyboard command (registered once at lease time)
+  // always calls the latest version of each function without a stale closure.
+  const saveFileRef = useRef(saveFile);
+  const saveAllFilesRef = useRef(saveAllFiles);
+  const refreshDecorationsRef = useRef(refreshDecorations);
+  useEffect(() => {
+    saveFileRef.current = saveFile;
+    saveAllFilesRef.current = saveAllFiles;
+    refreshDecorationsRef.current = refreshDecorations;
+  });
+
   // Pre-warm the code editor pool (loads Monaco, registers themes, creates idle instance).
   useEffect(() => {
     codeEditorPool
@@ -284,20 +295,16 @@ export function EditorMainPanel() {
 
       addMonacoKeyboardShortcuts(editor, monaco, {
         onSave: async () => {
-          await saveFile();
-          setTimeout(() => {
-            if (refreshDecorations) void refreshDecorations(true);
-          }, 700);
+          await saveFileRef.current();
+          setTimeout(() => void refreshDecorationsRef.current?.(true), 700);
         },
-        onSaveAll: saveAllFiles,
+        onSaveAll: () => void saveAllFilesRef.current(),
       });
 
       setEditorReady(true);
-      setTimeout(() => {
-        if (refreshDecorations) void refreshDecorations();
-      }, 100);
+      setTimeout(() => void refreshDecorationsRef.current?.(), 100);
     },
-    [saveFile, saveAllFiles, refreshDecorations]
+    [] // no deps — all functions accessed via always-current refs above
   );
 
   const handleEditorChange = useCallback(
