@@ -76,3 +76,46 @@ export const GET_PR_DETAIL_QUERY = `
   }
   ${PR_SUMMARY_FRAGMENT}
 `;
+
+export const GET_PR_CHECK_RUNS_QUERY = `
+  query getPrCheckRuns($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                contexts(first: 100) {
+                  nodes {
+                    ... on CheckRun {
+                      __typename
+                      name
+                      status
+                      conclusion
+                      detailsUrl
+                      startedAt
+                      completedAt
+                      checkSuite {
+                        app { name logoUrl }
+                        workflowRun {
+                          workflow { name }
+                        }
+                      }
+                    }
+                    ... on StatusContext {
+                      __typename
+                      context
+                      state
+                      targetUrl
+                      createdAt
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
