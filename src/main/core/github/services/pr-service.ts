@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { getOctokit } from './octokit-provider';
 import { GET_PR_DETAIL_QUERY, LIST_PRS_QUERY, SEARCH_PRS_QUERY } from './pr-queries';
 import { splitRepo } from './utils';
 
@@ -110,7 +111,7 @@ interface GqlPrNode {
 // ---------------------------------------------------------------------------
 
 export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
-  constructor(private readonly octokit: Octokit) {}
+  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
   async listPullRequests(
     nameWithOwner: string,
@@ -121,8 +122,9 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     const searchQuery = options.searchQuery?.trim();
 
     try {
+      const octokit = await this.getOctokit();
       if (searchQuery) {
-        const response = await this.octokit.graphql<{
+        const response = await octokit.graphql<{
           search: { issueCount: number; nodes: GqlPrNode[] };
         }>(SEARCH_PRS_QUERY, {
           query: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
@@ -134,7 +136,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
         };
       }
 
-      const response = await this.octokit.graphql<{
+      const response = await octokit.graphql<{
         repository: { pullRequests: { totalCount: number; nodes: GqlPrNode[] } };
       }>(LIST_PRS_QUERY, { owner, repo, limit });
       return {
@@ -152,7 +154,8 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   ): Promise<GitHubPullRequest | null> {
     const { owner, repo } = splitRepo(nameWithOwner);
     try {
-      const response = await this.octokit.graphql<{
+      const octokit = await this.getOctokit();
+      const response = await octokit.graphql<{
         repository: { pullRequest: GqlPrNode | null };
       }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
       const node = response.repository.pullRequest;
@@ -216,3 +219,5 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     };
   }
 }
+
+export const prService = new GitHubPullRequestServiceImpl(getOctokit);

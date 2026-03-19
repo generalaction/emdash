@@ -11,9 +11,9 @@ import { ACCOUNT_CONFIG } from '@main/core/account/config';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
-import { GitHubIssueServiceImpl } from '@main/core/github/services/issue-service';
+import { issueService } from '@main/core/github/services/issue-service';
 import { prService } from '@main/core/github/services/pr-service';
-import { GitHubRepositoryServiceImpl } from '@main/core/github/services/repo-service';
+import { repoService } from '@main/core/github/services/repo-service';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
@@ -111,9 +111,7 @@ export const githubController = createRPCController({
 
   issuesList: async (nameWithOwner: string, limit?: number) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubIssueServiceImpl(octokit);
-      const issues = await service.listIssues(nameWithOwner, limit ?? 50);
+      const issues = await issueService.listIssues(nameWithOwner, limit ?? 50);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to list issues';
@@ -123,9 +121,7 @@ export const githubController = createRPCController({
 
   issuesSearch: async (nameWithOwner: string, searchTerm: string, limit?: number) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubIssueServiceImpl(octokit);
-      const issues = await service.searchIssues(nameWithOwner, searchTerm, limit ?? 20);
+      const issues = await issueService.searchIssues(nameWithOwner, searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to search issues';
@@ -135,9 +131,7 @@ export const githubController = createRPCController({
 
   issuesGet: async (nameWithOwner: string, issueNumber: number) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubIssueServiceImpl(octokit);
-      const issue = await service.getIssue(nameWithOwner, issueNumber);
+      const issue = await issueService.getIssue(nameWithOwner, issueNumber);
       return { success: !!issue, issue: issue ?? undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get issue';
@@ -260,9 +254,7 @@ export const githubController = createRPCController({
 
   getRepositories: async () => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
-      return await service.listRepositories();
+      return await repoService.listRepositories();
     } catch (error) {
       log.error('Failed to get repositories:', error);
       return [];
@@ -271,9 +263,7 @@ export const githubController = createRPCController({
 
   getOwners: async () => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
-      const owners = await service.getOwners();
+      const owners = await repoService.getOwners();
       return { success: true, owners };
     } catch (error) {
       log.error('Failed to get owners:', error);
@@ -292,10 +282,8 @@ export const githubController = createRPCController({
     visibility?: 'public' | 'private';
   }) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
       const isPrivate = params.isPrivate ?? params.visibility === 'private';
-      const repoInfo = await service.createRepository({
+      const repoInfo = await repoService.createRepository({
         name: params.name,
         owner: params.owner,
         description: params.description,
@@ -318,9 +306,7 @@ export const githubController = createRPCController({
 
   deleteRepository: async (owner: string, name: string) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
-      await service.deleteRepository(owner, name);
+      await repoService.deleteRepository(owner, name);
       return { success: true };
     } catch (error) {
       log.error('Failed to delete repository:', error);
@@ -333,10 +319,7 @@ export const githubController = createRPCController({
 
   validateRepoName: async (name: string, owner?: string) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
-
-      const formatValidation = service.validateRepositoryName(name);
+      const formatValidation = repoService.validateRepositoryName(name);
       if (!formatValidation.valid) {
         return {
           success: true,
@@ -347,7 +330,7 @@ export const githubController = createRPCController({
       }
 
       if (owner) {
-        const exists = await service.checkRepositoryExists(owner, name);
+        const exists = await repoService.checkRepositoryExists(owner, name);
         if (exists) {
           return {
             success: true,
@@ -374,9 +357,7 @@ export const githubController = createRPCController({
 
   checkRepositoryExists: async (owner: string, name: string) => {
     try {
-      const octokit = await getOctokit();
-      const service = new GitHubRepositoryServiceImpl(octokit);
-      const exists = await service.checkRepositoryExists(owner, name);
+      const exists = await repoService.checkRepositoryExists(owner, name);
       return { success: true, exists };
     } catch (error) {
       log.error('Failed to check repository existence:', error);
@@ -415,8 +396,6 @@ export const githubController = createRPCController({
     let githubRepoCreated = false;
 
     try {
-      const octokit = await getOctokit();
-      const repoService = new GitHubRepositoryServiceImpl(octokit);
       const repoInfo = await repoService.createRepository({ name, owner, isPrivate, description });
       repoUrl = repoInfo.url;
       nameWithOwner = repoInfo.nameWithOwner;
@@ -456,8 +435,6 @@ export const githubController = createRPCController({
 
       if (githubRepoCreated && nameWithOwner) {
         try {
-          const octokit = await getOctokit();
-          const repoService = new GitHubRepositoryServiceImpl(octokit);
           const [repoOwner, repoName] = nameWithOwner.split('/');
           await repoService.deleteRepository(repoOwner, repoName);
         } catch (cleanupError) {

@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { getOctokit } from './octokit-provider';
 import { splitRepo } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -52,12 +53,13 @@ interface RestIssue {
 // ---------------------------------------------------------------------------
 
 export class GitHubIssueServiceImpl implements GitHubIssueService {
-  constructor(private readonly octokit: Octokit) {}
+  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
   async listIssues(nameWithOwner: string, limit: number = 50): Promise<GitHubIssue[]> {
     const { owner, repo } = splitRepo(nameWithOwner);
     try {
-      const { data } = await this.octokit.rest.issues.listForRepo({
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.rest.issues.listForRepo({
         owner,
         repo,
         state: 'open',
@@ -79,10 +81,10 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     limit: number = 20
   ): Promise<GitHubIssue[]> {
     const term = searchTerm.trim();
-    if (!term) return [];
     const { owner, repo } = splitRepo(nameWithOwner);
     try {
-      const { data } = await this.octokit.rest.search.issuesAndPullRequests({
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.rest.search.issuesAndPullRequests({
         q: `${term} repo:${owner}/${repo} is:issue is:open`,
         per_page: Math.min(Math.max(limit, 1), 100),
         sort: 'updated',
@@ -97,7 +99,8 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   async getIssue(nameWithOwner: string, issueNumber: number): Promise<GitHubIssueDetail | null> {
     const { owner, repo } = splitRepo(nameWithOwner);
     try {
-      const { data } = await this.octokit.rest.issues.get({
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.rest.issues.get({
         owner,
         repo,
         issue_number: issueNumber,
@@ -134,3 +137,5 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     };
   }
 }
+
+export const issueService = new GitHubIssueServiceImpl(getOctokit);

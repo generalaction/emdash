@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,10 +90,11 @@ const RESERVED_NAMES = new Set([
 ]);
 
 export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
-  constructor(private readonly octokit: Octokit) {}
+  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
   async listRepositories(): Promise<GitHubRepo[]> {
-    const { data } = await this.octokit.rest.repos.listForAuthenticatedUser({
+    const octokit = await this.getOctokit();
+    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
       per_page: 100,
       sort: 'updated',
       direction: 'desc',
@@ -101,11 +103,12 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 
   async getOwners(): Promise<GitHubOwner[]> {
-    const { data: user } = await this.octokit.rest.users.getAuthenticated();
+    const octokit = await this.getOctokit();
+    const { data: user } = await octokit.rest.users.getAuthenticated();
     const owners: GitHubOwner[] = [{ login: user.login, type: 'User' }];
 
     try {
-      const { data: orgs } = await this.octokit.rest.orgs.listForAuthenticatedUser();
+      const { data: orgs } = await octokit.rest.orgs.listForAuthenticatedUser();
       for (const org of orgs) {
         owners.push({ login: org.login, type: 'Organization' });
       }
@@ -120,7 +123,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     owner: string;
     isPrivate: boolean;
   }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }> {
-    const { data: user } = await this.octokit.rest.users.getAuthenticated();
+    const octokit = await this.getOctokit();
+    const { data: user } = await octokit.rest.users.getAuthenticated();
     const isCurrentUser = params.owner === user.login;
 
     const createParams = {
@@ -130,8 +134,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     };
 
     const { data } = isCurrentUser
-      ? await this.octokit.rest.repos.createForAuthenticatedUser(createParams)
-      : await this.octokit.rest.repos.createInOrg({ ...createParams, org: params.owner });
+      ? await octokit.rest.repos.createForAuthenticatedUser(createParams)
+      : await octokit.rest.repos.createInOrg({ ...createParams, org: params.owner });
 
     return {
       url: data.html_url,
@@ -141,12 +145,14 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 
   async deleteRepository(owner: string, name: string): Promise<void> {
-    await this.octokit.rest.repos.delete({ owner, repo: name });
+    const octokit = await this.getOctokit();
+    await octokit.rest.repos.delete({ owner, repo: name });
   }
 
   async checkRepositoryExists(owner: string, name: string): Promise<boolean> {
+    const octokit = await this.getOctokit();
     try {
-      await this.octokit.rest.repos.get({ owner, repo: name });
+      await octokit.rest.repos.get({ owner, repo: name });
       return true;
     } catch (err: unknown) {
       if (err != null && typeof err === 'object' && 'status' in err && err.status === 404) {
@@ -208,3 +214,5 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     };
   }
 }
+
+export const repoService = new GitHubRepositoryServiceImpl(getOctokit);
