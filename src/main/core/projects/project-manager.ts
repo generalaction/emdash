@@ -45,13 +45,7 @@ class ProjectManager {
 
     await Promise.allSettled(
       allProjects.map(async (project) => {
-        const result = await this.openProject(project);
-        if (!result.success) {
-          log.error('ProjectManager: failed to initialize provider', {
-            projectId: project.id,
-            ...result.error,
-          });
-        }
+        await this.openProject(project);
       })
     );
   }

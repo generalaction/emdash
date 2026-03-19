@@ -7,31 +7,45 @@ import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
+import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@main/lib/result';
 import { LocalConversationProvider } from '../../conversations/impl/local-conversation';
 import { appSettingsService } from '../../settings/settings-service';
 import { LocalTerminalProvider } from '../../terminals/impl/local-terminal-provider';
-import type { ProjectProvider, TaskProvider } from '../project-provider';
+import type {
+  ProjectProvider,
+  ProvisionTaskError,
+  TaskProvider,
+  TeardownTaskError,
+} from '../project-provider';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
-export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
-  const slash = project.baseRef.indexOf('/');
-  const bareDefaultBranch = slash !== -1 ? project.baseRef.slice(slash + 1) : project.baseRef;
+const TASK_TIMEOUT_MS = 60_000;
 
+function toProvisionError(e: unknown): ProvisionTaskError {
+  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
+  return { type: 'error', message: e instanceof Error ? e.message : String(e) };
+}
+
+function toTeardownError(e: unknown): TeardownTaskError {
+  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
+  return { type: 'error', message: e instanceof Error ? e.message : String(e) };
+}
+
+export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
   const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
     .defaultWorktreeDirectory;
   const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
 
   await fs.promises.mkdir(worktreePoolPath, { recursive: true });
 
-  return new LocalProjectProvider(project, {
-    worktreePoolPath,
-    defaultBranch: bareDefaultBranch,
-  });
+  return new LocalProjectProvider(project, { worktreePoolPath });
 }
 
 export class LocalProjectProvider implements ProjectProvider {
@@ -41,47 +55,86 @@ export class LocalProjectProvider implements ProjectProvider {
   readonly fs: FileSystemProvider;
 
   private tasks = new Map<string, TaskProvider>();
+  private provisioningTasks = new Map<string, Promise<Result<TaskProvider, ProvisionTaskError>>>();
+  private tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
   private worktreeService: WorktreeService;
 
   constructor(
     private readonly project: LocalProject,
     options: {
       worktreePoolPath: string;
-      defaultBranch: string;
     }
   ) {
-    this.settings = new LocalProjectSettingsProvider(project.path);
+    this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
     this.fs = new LocalFileSystem(project.path);
     this.git = new GitService(project.path, getLocalExec(), this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
-      defaultBranch: options.defaultBranch,
       repoPath: project.path,
       projectSettings: this.settings,
       exec: getLocalExec(),
     });
   }
 
-  async provisionTask(task: Task, conversations: Conversation[], terminals: Terminal[]) {
-    const existing = this.tasks.get(task.id);
-    if (existing) return existing;
+  async provisionTask(
+    task: Task,
+    conversations: Conversation[],
+    terminals: Terminal[]
+  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
+    if (this.tasks.has(task.id)) return ok(this.tasks.get(task.id)!);
+    if (this.provisioningTasks.has(task.id)) return this.provisioningTasks.get(task.id)!;
 
+    const promise = withTimeout(
+      this.doProvisionTask(task, conversations, terminals),
+      TASK_TIMEOUT_MS
+    )
+      .then((taskEnv) => {
+        this.tasks.set(task.id, taskEnv);
+        this.provisioningTasks.delete(task.id);
+        return ok(taskEnv);
+      })
+      .catch((e) => {
+        this.provisioningTasks.delete(task.id);
+        log.error('LocalProjectProvider: failed to provision task', {
+          taskId: task.id,
+          error: String(e),
+        });
+        return err<ProvisionTaskError>(toProvisionError(e));
+      });
+
+    this.provisioningTasks.set(task.id, promise);
+    return promise;
+  }
+
+  private async doProvisionTask(
+    task: Task,
+    conversations: Conversation[],
+    terminals: Terminal[]
+  ): Promise<TaskProvider> {
     let workDir: string;
 
     if (task.taskBranch) {
-      if (await this.worktreeService.getWorktree(task.taskBranch)) {
-        workDir = (await this.worktreeService.getWorktree(task.taskBranch))!;
+      const existing = await this.worktreeService.getWorktree(task.taskBranch);
+      if (existing) {
+        workDir = existing;
       } else {
-        workDir = await this.worktreeService.claimReserve(task.sourceBranch, task.taskBranch, {
-          syncWithRemote: true,
-        });
+        const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
+        if (!result.success) {
+          switch (result.error.type) {
+            case 'reserve-failed':
+              throw new Error(`Could not prepare worktree for branch "${task.sourceBranch}"`);
+            case 'worktree-setup-failed':
+              throw new Error(`Failed to set up worktree for task`);
+          }
+        }
+        workDir = result.data;
       }
     } else {
       workDir = this.project.path;
     }
 
-    const fs = new LocalFileSystem(workDir);
-    const git = new GitService(workDir, getLocalExec(), fs);
+    const taskFs = new LocalFileSystem(workDir);
+    const taskGit = new GitService(workDir, getLocalExec(), taskFs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
@@ -97,13 +150,11 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskEnv: TaskProvider = {
       taskId: task.id,
       taskPath: workDir,
-      fs,
-      git,
+      fs: taskFs,
+      git: taskGit,
       conversations: conversationProvider,
       terminals: terminalProvider,
     };
-
-    this.tasks.set(task.id, taskEnv);
 
     const scripts = (await this.settings.get()).scripts;
 
@@ -153,15 +204,32 @@ export class LocalProjectProvider implements ProjectProvider {
     return this.tasks.get(taskId);
   }
 
-  async teadownTask(taskId: string): Promise<void> {
+  async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
+    if (this.tearingDownTasks.has(taskId)) return this.tearingDownTasks.get(taskId)!;
     const task = this.tasks.get(taskId);
-    if (!task) return;
+    if (!task) return ok();
 
-    // run teardown script
+    const promise = withTimeout(this.doTeardownTask(task), TASK_TIMEOUT_MS)
+      .then(() => ok<void>())
+      .catch((e) => {
+        log.error('LocalProjectProvider: failed to teardown task', {
+          taskId,
+          error: String(e),
+        });
+        return err<TeardownTaskError>(toTeardownError(e));
+      })
+      .finally(() => {
+        this.tasks.delete(taskId);
+        this.tearingDownTasks.delete(taskId);
+      });
 
+    this.tearingDownTasks.set(taskId, promise);
+    return promise;
+  }
+
+  private async doTeardownTask(task: TaskProvider): Promise<void> {
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-    this.tasks.delete(taskId);
   }
 
   async cleanup(): Promise<void> {

@@ -17,7 +17,10 @@ export function useProjectSettings(projectId: string) {
 
   const mutation = useMutation<void, Error, ProjectSettings>({
     mutationFn: (updated) => rpc.projects.updateProjectSettings(projectId, updated),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['repository', 'defaultBranch', projectId] });
+    },
   });
 
   return {

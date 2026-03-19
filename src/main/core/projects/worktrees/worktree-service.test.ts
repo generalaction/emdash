@@ -20,12 +20,17 @@ async function initRepo(dir: string, exec: ExecFn): Promise<void> {
   await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir });
 }
 
-function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider {
+function makeSettings(
+  preservePatterns: string[] = [],
+  defaultBranch = 'main'
+): ProjectSettingsProvider {
   return {
     get: async () => ({ preservePatterns }),
     update: async () => {},
     ensure: async () => {},
     getWorktreeDirectory: async () => '',
+    getDefaultBranch: async () => defaultBranch,
+    getRemote: async () => 'origin',
   } as ProjectSettingsProvider;
 }
 
@@ -66,7 +71,6 @@ describe('WorktreeService', () => {
   function makeService(
     overrides: Partial<{
       worktreePoolPath: string;
-      defaultBranch: string;
       repoPath: string;
       exec: ExecFn;
       projectSettings: ProjectSettingsProvider;
@@ -74,7 +78,6 @@ describe('WorktreeService', () => {
   ): WorktreeService {
     return new WorktreeService({
       worktreePoolPath: poolDir,
-      defaultBranch: 'main',
       repoPath: repoDir,
       exec,
       projectSettings: makeSettings(),
@@ -213,45 +216,49 @@ describe('WorktreeService', () => {
   });
 
   // -------------------------------------------------------------------------
-  // claimReserve
+  // serveWorktree
   // -------------------------------------------------------------------------
 
-  describe('claimReserve', () => {
-    it('claims the reserve and returns the target worktree path', async () => {
+  describe('serveWorktree', () => {
+    it('serves the reserve and returns the target worktree path', async () => {
+      await exec('git', ['branch', 'emdash/mytask-abc'], { cwd: repoDir });
       const svc = makeService();
-      const result = await svc.claimReserve('main', 'emdash/mytask-abc', {
-        syncWithRemote: false,
-      });
+      const result = await svc.serveWorktree('main', 'emdash/mytask-abc');
 
-      expect(result).toBe(path.join(poolDir, 'emdash', 'mytask-abc'));
-      expect(fs.existsSync(result)).toBe(true);
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(path.join(poolDir, 'emdash', 'mytask-abc'));
+      expect(fs.existsSync(result.data)).toBe(true);
     });
 
     it('creates parent directory for branch names with slashes', async () => {
       // Regression: git worktree move does not create intermediate directories.
       // The parent of poolDir/emdash/mytask-xyz must be created before the move.
+      await exec('git', ['branch', 'emdash/mytask-xyz'], { cwd: repoDir });
       const svc = makeService();
-      const result = await svc.claimReserve('main', 'emdash/mytask-xyz', {
-        syncWithRemote: false,
-      });
+      const result = await svc.serveWorktree('main', 'emdash/mytask-xyz');
 
-      expect(fs.existsSync(result)).toBe(true);
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(result.data)).toBe(true);
       expect(fs.existsSync(path.join(poolDir, 'emdash'))).toBe(true);
     });
 
     it('auto-creates reserve when called without a prior ensureReserve', async () => {
+      await exec('git', ['branch', 'task/demand-test'], { cwd: repoDir });
       const svc = makeService();
-      // Do NOT call ensureReserve — claimReserve must create the reserve on demand.
-      const result = await svc.claimReserve('main', 'task/demand-test', {
-        syncWithRemote: false,
-      });
+      // Do NOT call ensureReserve — serveWorktree must create the reserve on demand.
+      const result = await svc.serveWorktree('main', 'task/demand-test');
 
-      expect(fs.existsSync(result)).toBe(true);
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(result.data)).toBe(true);
     });
 
-    it('replenishes the default-branch reserve after claiming it', async () => {
+    it('replenishes the default-branch reserve after serving it', async () => {
+      await exec('git', ['branch', 'task/replenish-test'], { cwd: repoDir });
       const svc = makeService();
-      await svc.claimReserve('main', 'task/replenish-test', { syncWithRemote: false });
+      await svc.serveWorktree('main', 'task/replenish-test');
 
       // The background replenishment is fire-and-forget; calling ensureReserve
       // joins the in-progress promise or finds it already complete.
@@ -264,8 +271,9 @@ describe('WorktreeService', () => {
       // Regression: when defaultBranch was "origin/main" but sourceBranch was "main"
       // the equality check (sourceBranch === this.defaultBranch) never fired.
       // With the fix, defaultBranch is always the bare name so replenishment works.
-      const svc = makeService({ defaultBranch: 'main' });
-      await svc.claimReserve('main', 'task/replenish-equality', { syncWithRemote: false });
+      await exec('git', ['branch', 'task/replenish-equality'], { cwd: repoDir });
+      const svc = makeService({ projectSettings: makeSettings([], 'main') });
+      await svc.serveWorktree('main', 'task/replenish-equality');
 
       // Join any in-progress background replenishment.
       await svc.ensureReserve('main');
@@ -275,10 +283,11 @@ describe('WorktreeService', () => {
 
     it('does not replenish reserve when sourceBranch is not the default branch', async () => {
       await exec('git', ['branch', 'other'], { cwd: repoDir });
+      await exec('git', ['branch', 'task/other-task', 'other'], { cwd: repoDir });
 
       const svc = makeService();
       await svc.ensureReserve('other');
-      await svc.claimReserve('other', 'task/other-task', { syncWithRemote: false });
+      await svc.serveWorktree('other', 'task/other-task');
 
       // No automatic replenishment for non-default branches.
       // The reserve path should not exist at this point.
@@ -286,49 +295,43 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(path.join(poolDir, '_reserve-other'))).toBe(false);
     });
 
-    it('silently swallows fetch and reset errors when syncWithRemote=true and no remote', async () => {
-      // The fetch origin and reset --hard origin/X calls both have .catch(() => {}).
-      // This test verifies those errors are swallowed and the claim succeeds.
-      const svc = makeService();
-      await expect(
-        svc.claimReserve('main', 'task/no-remote', { syncWithRemote: true })
-      ).resolves.toBeTruthy();
-    });
-
-    it('copies preserved files into the claimed worktree', async () => {
+    it('copies preserved files into the served worktree', async () => {
       fs.writeFileSync(path.join(repoDir, '.env'), 'SECRET=abc');
+      await exec('git', ['branch', 'task/env-test'], { cwd: repoDir });
 
       const svc = makeService({ projectSettings: makeSettings(['.env']) });
-      const result = await svc.claimReserve('main', 'task/env-test', {
-        syncWithRemote: false,
-      });
+      const result = await svc.serveWorktree('main', 'task/env-test');
 
-      expect(fs.existsSync(path.join(result, '.env'))).toBe(true);
-      expect(fs.readFileSync(path.join(result, '.env'), 'utf8')).toBe('SECRET=abc');
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(path.join(result.data, '.env'))).toBe(true);
+      expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
     });
 
     it('copies preserved files in nested subdirectories', async () => {
       fs.mkdirSync(path.join(repoDir, '.claude'), { recursive: true });
       fs.writeFileSync(path.join(repoDir, '.claude', 'settings.json'), '{}');
+      await exec('git', ['branch', 'task/nested-env'], { cwd: repoDir });
 
       const svc = makeService({ projectSettings: makeSettings(['.claude/**']) });
-      const result = await svc.claimReserve('main', 'task/nested-env', {
-        syncWithRemote: false,
-      });
+      const result = await svc.serveWorktree('main', 'task/nested-env');
 
-      expect(fs.existsSync(path.join(result, '.claude', 'settings.json'))).toBe(true);
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(path.join(result.data, '.claude', 'settings.json'))).toBe(true);
     });
 
-    it('completes silently when preserve pattern matches no files', async () => {
+    it('completes successfully when preserve pattern matches no files', async () => {
+      await exec('git', ['branch', 'task/no-match'], { cwd: repoDir });
       const svc = makeService({ projectSettings: makeSettings(['.env.nonexistent']) });
-      await expect(
-        svc.claimReserve('main', 'task/no-match', { syncWithRemote: false })
-      ).resolves.toBeTruthy();
+      const result = await svc.serveWorktree('main', 'task/no-match');
+      expect(result.success).toBe(true);
     });
 
     it('recovers when reserve directory is stale (exists on disk but not tracked by git)', async () => {
       // Regression: previously failed with "fatal: '..._reserve-main' is not a working tree"
-      // because claimReserve only checked fs.existsSync and skipped ensureReserve entirely.
+      // because serveWorktree only checked fs.existsSync and skipped ensureReserve entirely.
+      await exec('git', ['branch', 'task/stale-recover'], { cwd: repoDir });
       const svc = makeService();
       await svc.ensureReserve('main');
 
@@ -337,23 +340,36 @@ describe('WorktreeService', () => {
       await exec('git', ['worktree', 'remove', '--force', reservePath], { cwd: repoDir });
       await fs.promises.mkdir(reservePath, { recursive: true });
 
-      // claimReserve must detect the stale reserve, rebuild it, and complete normally.
-      const result = await svc.claimReserve('main', 'task/stale-recover', {
-        syncWithRemote: false,
-      });
+      // serveWorktree must detect the stale reserve, rebuild it, and complete normally.
+      const result = await svc.serveWorktree('main', 'task/stale-recover');
 
-      expect(fs.existsSync(result)).toBe(true);
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(result.data)).toBe(true);
     });
 
-    it('returns existing path when called twice with the same branchName (duplicate claim)', async () => {
+    it('returns existing path when called twice with the same branchName (duplicate serve)', async () => {
       // Regression: previously attempted a second git worktree move which failed
       // because the target path was already occupied.
+      await exec('git', ['branch', 'task/dup'], { cwd: repoDir });
       const svc = makeService();
-      const first = await svc.claimReserve('main', 'task/dup', { syncWithRemote: false });
-      const second = await svc.claimReserve('main', 'task/dup', { syncWithRemote: false });
+      const first = await svc.serveWorktree('main', 'task/dup');
+      const second = await svc.serveWorktree('main', 'task/dup');
 
-      expect(first).toBe(second);
-      expect(fs.existsSync(first)).toBe(true);
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      if (!first.success || !second.success) throw new Error('expected success');
+      expect(first.data).toBe(second.data);
+      expect(fs.existsSync(first.data)).toBe(true);
+    });
+
+    it('returns reserve-failed when sourceBranch does not exist', async () => {
+      await exec('git', ['branch', 'task/no-source'], { cwd: repoDir });
+      const svc = makeService();
+      const result = await svc.serveWorktree('nonexistent-branch', 'task/no-source');
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('reserve-failed');
     });
   });
 
@@ -376,9 +392,10 @@ describe('WorktreeService', () => {
       expect(result).toBeUndefined();
     });
 
-    it('returns path for a claimed worktree', async () => {
+    it('returns path for a served worktree', async () => {
+      await exec('git', ['branch', 'emdash/my-task'], { cwd: repoDir });
       const svc = makeService();
-      await svc.claimReserve('main', 'emdash/my-task', { syncWithRemote: false });
+      await svc.serveWorktree('main', 'emdash/my-task');
 
       const result = await svc.getWorktree('emdash/my-task');
       expect(result).toBe(path.join(poolDir, 'emdash', 'my-task'));

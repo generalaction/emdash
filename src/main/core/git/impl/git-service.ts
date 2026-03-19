@@ -744,6 +744,32 @@ export class GitService implements GitProvider {
     }
   }
 
+  async getRemotes(): Promise<{ name: string; url: string }[]> {
+    try {
+      const { stdout } = await this.exec('git', ['remote', '-v'], { cwd: this.path });
+      const seen = new Set<string>();
+      const remotes: { name: string; url: string }[] = [];
+      for (const line of stdout.split('\n')) {
+        const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line.trim());
+        if (match?.[1] && match[2] && !seen.has(match[1])) {
+          seen.add(match[1]);
+          remotes.push({ name: match[1], url: match[2] });
+        }
+      }
+      return remotes;
+    } catch {
+      return [];
+    }
+  }
+
+  async createBranch(name: string, from: string, syncWithRemote = true): Promise<void> {
+    if (syncWithRemote) {
+      await this.exec('git', ['fetch', 'origin'], { cwd: this.path }).catch(() => {});
+    }
+    const base = syncWithRemote ? `origin/${from}` : `refs/heads/${from}`;
+    await this.exec('git', ['branch', name, base], { cwd: this.path });
+  }
+
   async renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }> {
     let remotePushed = false;
     try {

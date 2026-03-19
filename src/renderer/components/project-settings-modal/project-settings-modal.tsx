@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -10,11 +12,20 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { ScrollArea } from '@renderer/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/components/ui/select';
 import { Separator } from '@renderer/components/ui/separator';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
+import { rpc } from '@renderer/core/ipc';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { BranchSelector } from '@renderer/views/projects/branch-selector';
 import { useProjectSettings } from './use-project-settings';
 
 export interface ProjectSettingsModalProps extends BaseModalProps<void> {
@@ -29,6 +40,8 @@ type FormState = {
   scriptRun: string;
   scriptTeardown: string;
   worktreeDirectory: string;
+  defaultBranch: string;
+  remote: string;
 };
 
 function normalizeScript(val: string | string[] | undefined): string {
@@ -45,6 +58,8 @@ function settingsToForm(s: ProjectSettings): FormState {
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
     worktreeDirectory: s.worktreeDirectory ?? '',
+    defaultBranch: s.defaultBranch ?? '',
+    remote: s.remote ?? '',
   };
 }
 
@@ -62,10 +77,13 @@ function formToSettings(f: FormState): ProjectSettings {
       teardown: f.scriptTeardown,
     },
     worktreeDirectory: f.worktreeDirectory || undefined,
+    defaultBranch: f.defaultBranch || undefined,
+    remote: f.remote || undefined,
   };
 }
 
 interface ProjectSettingsFormProps {
+  projectId: string;
   initial: ProjectSettings;
   onSuccess: () => void;
   onClose: () => void;
@@ -74,12 +92,21 @@ interface ProjectSettingsFormProps {
 }
 
 function ProjectSettingsForm({
+  projectId,
   initial,
   onSuccess,
   onClose,
   save,
   isSaving,
 }: ProjectSettingsFormProps) {
+  const { data: branches = [] } = useQuery({
+    queryKey: ['repository', 'branches', projectId],
+    queryFn: () => rpc.repository.getBranches(projectId),
+  });
+  const { data: remotes = [] } = useQuery({
+    queryKey: ['repository', 'remotes', projectId],
+    queryFn: () => rpc.repository.getRemotes(projectId),
+  });
   const [form, setForm] = useState<FormState>(() => settingsToForm(initial));
   const [original] = useState<FormState>(() => settingsToForm(initial));
 
@@ -125,6 +152,51 @@ function ProjectSettingsForm({
               value={form.worktreeDirectory}
               onChange={(e) => update('worktreeDirectory', e.target.value)}
             />
+          </Field>
+
+          <Separator />
+
+          <Field>
+            <FieldTitle>Default branch</FieldTitle>
+            <FieldDescription>
+              The branch new tasks are created from by default. Overrides the branch detected at
+              project creation time.
+            </FieldDescription>
+            <BranchSelector
+              branches={branches}
+              value={form.defaultBranch ? { type: 'local', branch: form.defaultBranch } : undefined}
+              onValueChange={(branch: Branch) => update('defaultBranch', branch.branch)}
+            />
+          </Field>
+
+          <Separator />
+
+          <Field>
+            <FieldTitle>Remote</FieldTitle>
+            <FieldDescription>
+              The git remote used for fetching and syncing worktrees. Defaults to{' '}
+              <code className="font-mono text-xs">origin</code>.
+            </FieldDescription>
+            <Select
+              value={form.remote || 'origin'}
+              onValueChange={(value) => update('remote', value ?? '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a remote" />
+              </SelectTrigger>
+              <SelectContent>
+                {remotes.length > 0 ? (
+                  remotes.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>
+                      {r.name}
+                      <span className="ml-2 text-xs text-muted-foreground">{r.url}</span>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="origin">origin</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Separator />
@@ -225,6 +297,7 @@ export function ProjectSettingsModal({ projectId, onSuccess, onClose }: ProjectS
         </div>
       ) : (
         <ProjectSettingsForm
+          projectId={projectId}
           initial={settings}
           onSuccess={onSuccess}
           onClose={onClose}

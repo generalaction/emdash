@@ -47,7 +47,14 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     throw new Error('Project not found');
   }
 
-  await project.provisionTask(task, [], []);
+  if (taskBranch) {
+    await project.git.createBranch(taskBranch, params.sourceBranch);
+  }
+
+  const provisionResult = await project.provisionTask(task, [], []);
+  if (!provisionResult.success) {
+    throw new Error(`Failed to provision task: ${provisionResult.error.message}`);
+  }
 
   return task;
 }

@@ -7,13 +7,24 @@ export const repositoryController = createRPCController({
     if (!project) {
       throw new Error('Project not found');
     }
-    return await project.git.getBranches();
+    return project.git.getBranches();
   },
   getDefaultBranch: async (projectId: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
-    return await project.git.getDefaultBranch();
+    const [name, remote] = await Promise.all([
+      project.settings.getDefaultBranch(),
+      project.settings.getRemote(),
+    ]);
+    return { name, remote, existsLocally: true };
+  },
+  getRemotes: async (projectId: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    return project.git.getRemotes();
   },
 });

@@ -17,8 +17,15 @@ import {
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { ok, type Result } from '@main/lib/result';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import type { BaseTaskProvisionArgs, ProjectProvider, TaskProvider } from '../project-provider';
+import type {
+  BaseTaskProvisionArgs,
+  ProjectProvider,
+  ProvisionTaskError,
+  TaskProvider,
+  TeardownTaskError,
+} from '../project-provider';
 import { ProjectSettingsProvider } from '../settings/schema';
 
 interface SshProvisionArgs extends BaseTaskProvisionArgs {
@@ -85,9 +92,9 @@ export class SshProjectProvider implements ProjectProvider {
     task: Task,
     conversations: Conversation[],
     terminals: Terminal[]
-  ): Promise<TaskProvider> {
+  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
     const existing = this.environments.get(task.id);
-    if (existing) return existing;
+    if (existing) return ok(existing);
 
     const fs = new SshFileSystem(this.proxy, workingDirectory);
     const git = new GitService(workingDirectory, getSshExec(this.proxy), fs);
@@ -143,19 +150,20 @@ export class SshProjectProvider implements ProjectProvider {
       )
     );
 
-    return taskEnv;
+    return ok(taskEnv);
   }
 
   getTask(taskId: string): TaskProvider | undefined {
     return this.environments.get(taskId);
   }
 
-  async teadownTask(taskId: string): Promise<void> {
+  async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     this.agentProviders.get(taskId)?.destroyAll();
     this.terminalProviders.get(taskId)?.destroyAll();
     this.agentProviders.delete(taskId);
     this.terminalProviders.delete(taskId);
     this.environments.delete(taskId);
+    return ok();
   }
 
   async cleanup(): Promise<void> {

@@ -1,5 +1,4 @@
-import type { GitChangeStatus } from '@shared/git';
-import type { DiffLine } from '@main/core/git/types';
+import type { DiffLine, GitChangeStatus } from '@shared/git';
 
 /** Maximum bytes for fetching file content in diffs. */
 export const MAX_DIFF_CONTENT_BYTES = 512 * 1024;
@@ -57,6 +56,15 @@ export function parseDiffLines(stdout: string): { lines: DiffLine[]; isBinary: b
   }
   const isBinary = result.length === 0 && stdout.includes('Binary files');
   return { lines: result, isBinary };
+}
+
+/**
+ * Strips the remote prefix from a fully-qualified remote tracking ref.
+ * e.g. "origin/main" → "main", "main" → "main"
+ */
+export function bareRefName(ref: string): string {
+  const slash = ref.indexOf('/');
+  return slash !== -1 ? ref.slice(slash + 1) : ref;
 }
 
 export function computeBaseRef(

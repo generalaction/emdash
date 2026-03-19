@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { glob } from 'glob';
 import { ExecFn } from '@main/core/utils/exec';
+import { log } from '@main/lib/logger';
+import { err, ok, Result } from '@main/lib/result';
 import { ProjectSettingsProvider } from '../settings/schema';
+
+export type ServeWorktreeError =
+  | { type: 'reserve-failed'; sourceBranch: string; cause: unknown }
+  | { type: 'worktree-setup-failed'; cause: unknown };
 
 function createStableWorktreeReserveId(sourceBranch: string) {
   // Replace slashes with dashes so the reserve always lives as a flat directory
@@ -14,25 +20,25 @@ export class WorktreeService {
   private readonly reserveInProgress = new Map<string, Promise<void>>();
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly worktreePoolPath: string;
-  private readonly defaultBranch: string;
   private readonly repoPath: string;
   private readonly exec: ExecFn;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     worktreePoolPath: string;
-    defaultBranch: string;
     repoPath: string;
     exec: ExecFn;
     projectSettings: ProjectSettingsProvider;
   }) {
     this.worktreePoolPath = args.worktreePoolPath;
-    this.defaultBranch = args.defaultBranch;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.exec = args.exec;
 
-    this.ensureReserve(this.defaultBranch).catch(() => {});
+    this.projectSettings
+      .getDefaultBranch()
+      .then((branch) => this.ensureReserve(branch))
+      .catch(() => {});
   }
 
   private async isValidWorktree(worktreePath: string): Promise<boolean> {
@@ -44,8 +50,6 @@ export class WorktreeService {
     }
   }
 
-  // Serialize all git worktree creation operations so concurrent ensureReserve
-  // calls for different branches don't race on git's ref/lock files.
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
     const result = this.gitOpQueue.then(fn, fn);
     this.gitOpQueue = result.catch(() => {});
@@ -59,8 +63,6 @@ export class WorktreeService {
     );
     if (fs.existsSync(reservePath)) {
       if (await this.isValidWorktree(reservePath)) return;
-      // Stale directory: exists on disk but not registered as a git worktree.
-      // Remove it so createReserve can set it up correctly.
       await fs.promises.rm(reservePath, { recursive: true, force: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
@@ -71,6 +73,19 @@ export class WorktreeService {
     });
     this.reserveInProgress.set(sourceBranch, creation);
     return creation;
+  }
+
+  private async doEnsureReserve(sourceBranch: string): Promise<void> {
+    const reservePath = path.join(
+      this.worktreePoolPath,
+      createStableWorktreeReserveId(sourceBranch)
+    );
+    if (fs.existsSync(reservePath)) {
+      if (await this.isValidWorktree(reservePath)) return;
+      await fs.promises.rm(reservePath, { recursive: true, force: true });
+      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+    }
+    await this.createReserve(sourceBranch);
   }
 
   private async createReserve(sourceBranch: string): Promise<void> {
@@ -124,47 +139,60 @@ export class WorktreeService {
     return undefined;
   }
 
-  async claimReserve(
+  async serveWorktree(
     sourceBranch: string,
-    branchName: string,
-    options?: { syncWithRemote?: boolean }
-  ): Promise<string> {
+    branchName: string
+  ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
-    const { syncWithRemote = true } = options ?? {};
+    return this.enqueueGitOp(() => this.doServeWorktree(sourceBranch, branchName));
+  }
+
+  private async doServeWorktree(
+    sourceBranch: string,
+    branchName: string
+  ): Promise<Result<string, ServeWorktreeError>> {
     const reserveBranchName = createStableWorktreeReserveId(sourceBranch);
     const reservePath = path.join(this.worktreePoolPath, reserveBranchName);
     const targetPath = path.join(this.worktreePoolPath, branchName);
 
-    // If this branch has already been claimed, return the existing path immediately.
-    if (fs.existsSync(targetPath)) return targetPath;
+    // Fast path: worktree already exists on disk.
+    if (fs.existsSync(targetPath)) return ok(targetPath);
 
+    // Ensure the reserve worktree is ready. Use doEnsureReserve (not ensureReserve)
+    // because we're already inside enqueueGitOp — calling ensureReserve here would
+    // deadlock by trying to re-enqueue into the same serialised queue.
     if (!fs.existsSync(reservePath) || !(await this.isValidWorktree(reservePath))) {
-      await this.ensureReserve(sourceBranch);
+      try {
+        await this.doEnsureReserve(sourceBranch);
+      } catch (cause) {
+        return err({ type: 'reserve-failed', sourceBranch, cause });
+      }
     }
 
-    if (syncWithRemote) {
-      await this.exec('git', ['fetch', 'origin'], { cwd: reservePath }).catch(() => {});
-      await this.exec('git', ['reset', '--hard', `origin/${sourceBranch}`], {
-        cwd: reservePath,
-      }).catch(() => {});
-    } else {
-      // Use refs/heads/ prefix to avoid ambiguity when a tag exists with the same name.
-      await this.exec('git', ['reset', '--hard', `refs/heads/${sourceBranch}`], {
-        cwd: reservePath,
-      }).catch(() => {});
+    try {
+      await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+      // Move the reserve worktree directory to the task's permanent path.
+      await this.exec('git', ['worktree', 'move', reservePath, targetPath], {
+        cwd: this.repoPath,
+      });
+      // Switch the worktree HEAD to the already-created task branch (fast: same commit).
+      await this.exec('git', ['switch', branchName], { cwd: targetPath });
+      // Clean up the now-unused reserve branch.
+      await this.exec('git', ['branch', '-D', reserveBranchName], { cwd: this.repoPath });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause });
     }
 
-    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-    await this.exec('git', ['worktree', 'move', reservePath, targetPath], { cwd: this.repoPath });
-    await this.exec('git', ['branch', '-m', reserveBranchName, branchName], { cwd: this.repoPath });
+    await this.copyPreservedFiles(targetPath).catch((e) => {
+      log.warn('WorktreeService: failed to copy preserved files', { targetPath, error: String(e) });
+    });
 
-    await this.copyPreservedFiles(targetPath);
-
-    if (sourceBranch === this.defaultBranch) {
+    const defaultBranch = await this.projectSettings.getDefaultBranch();
+    if (sourceBranch === defaultBranch) {
       this.ensureReserve(sourceBranch).catch(() => {});
     }
 
-    return targetPath;
+    return ok(targetPath);
   }
 
   async moveWorktree(oldPath: string, newPath: string): Promise<void> {

@@ -2,6 +2,7 @@ import { Conversation } from '@shared/conversations';
 import { Task } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import type { Result } from '@main/lib/result';
 import { ConversationProvider } from '../conversations/types';
 import type { GitProvider } from '../git/types';
 import { TerminalProvider } from '../terminals/terminal-provider';
@@ -12,6 +13,14 @@ export type BaseTaskProvisionArgs = {
   conversations: Conversation[];
   terminals: Terminal[];
 };
+
+export type ProvisionTaskError =
+  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'error'; message: string };
+
+export type TeardownTaskError =
+  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'error'; message: string };
 
 export interface TaskProvider {
   readonly taskId: string;
@@ -31,8 +40,8 @@ export interface ProjectProvider {
     args: Task,
     conversations: Conversation[],
     terminals: Terminal[]
-  ): Promise<TaskProvider>;
+  ): Promise<Result<TaskProvider, ProvisionTaskError>>;
   getTask(taskId: string): TaskProvider | undefined;
-  teadownTask(taskId: string): Promise<void>;
+  teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>>;
   cleanup(): Promise<void>;
 }

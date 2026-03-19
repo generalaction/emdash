@@ -48,6 +48,8 @@ export interface GitProvider {
 
   getBranches(): Promise<Branch[]>;
   getDefaultBranch(): Promise<DefaultBranch>;
+  getRemotes(): Promise<{ name: string; url: string }[]>;
+  createBranch(name: string, from: string, syncWithRemote?: boolean): Promise<void>;
   renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }>;
 
   detectInfo(): Promise<GitInfo>;

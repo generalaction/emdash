@@ -22,11 +22,15 @@ export const projectSettingsSchema = z.object({
     })
     .optional(),
   worktreeDirectory: z.string().optional(),
+  defaultBranch: z.string().optional(),
+  remote: z.string().optional(),
 });
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
 export interface ProjectSettingsProvider {
+  getDefaultBranch(): Promise<string>;
+  getRemote(): Promise<string>;
   getWorktreeDirectory(): Promise<string>;
   get(): Promise<ProjectSettings>;
   update(settings: ProjectSettings): Promise<void>;

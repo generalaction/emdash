@@ -5,7 +5,10 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { ProjectSettings, ProjectSettingsProvider, projectSettingsSchema } from './schema';
 
 export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
-  constructor(private readonly projectPath: string) {}
+  constructor(
+    private readonly projectPath: string,
+    private readonly defaultBranchFallback: string = 'main'
+  ) {}
 
   async get(): Promise<ProjectSettings> {
     const settingsPath = path.join(this.projectPath, '.emdash.json');
@@ -30,6 +33,16 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     }
   }
 
+  async getDefaultBranch(): Promise<string> {
+    const settings = await this.get();
+    return settings.defaultBranch ?? this.defaultBranchFallback;
+  }
+
+  async getRemote(): Promise<string> {
+    const settings = await this.get();
+    return settings.remote ?? 'origin';
+  }
+
   async getWorktreeDirectory(): Promise<string> {
     const settings = await this.get();
     if (settings.worktreeDirectory) {
@@ -40,7 +53,10 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
 }
 
 export class SshProjectSettingsProvider implements ProjectSettingsProvider {
-  constructor(private readonly fs: SshFileSystem) {}
+  constructor(
+    private readonly fs: SshFileSystem,
+    private readonly defaultBranchFallback: string = 'main'
+  ) {}
 
   async get(): Promise<ProjectSettings> {
     const exists = await this.fs.exists('.emdash.json');
@@ -66,6 +82,16 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
       const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
       await this.fs.write('.emdash.json', JSON.stringify(defaultSettings, null, 2));
     }
+  }
+
+  async getDefaultBranch(): Promise<string> {
+    const settings = await this.get();
+    return settings.defaultBranch ?? this.defaultBranchFallback;
+  }
+
+  async getRemote(): Promise<string> {
+    const settings = await this.get();
+    return settings.remote ?? 'origin';
   }
 
   async getWorktreeDirectory(): Promise<string> {

@@ -5,7 +5,7 @@ import { ConfirmActionDialog } from '@renderer/components/ConfirmActionDialog';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { McpModal } from '@renderer/components/mcp/McpModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
-import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/ProjectSettingsModal';
+import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/project-settings-modal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 import { CreateConversationModal } from '@renderer/features/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
