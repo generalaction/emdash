@@ -1318,6 +1318,21 @@ declare global {
         data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
+
+      // Performance Monitor
+      perfSubscribe: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+      }>;
+      perfUnsubscribe: () => Promise<{ success: boolean }>;
+      perfGetSnapshot: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+        error?: string;
+      }>;
+      onPerfSnapshot: (
+        listener: (snapshot: import('../../shared/performanceTypes').PerformanceSnapshot) => void
+      ) => () => void;
     };
   }
 }
@@ -1987,6 +2002,21 @@ export interface ElectronAPI {
     data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
+
+  // Performance Monitor
+  perfSubscribe: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+  }>;
+  perfUnsubscribe: () => Promise<{ success: boolean }>;
+  perfGetSnapshot: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/performanceTypes').PerformanceSnapshot;
+    error?: string;
+  }>;
+  onPerfSnapshot: (
+    listener: (snapshot: import('../../shared/performanceTypes').PerformanceSnapshot) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

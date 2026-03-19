@@ -835,6 +835,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpRemoveServer: (serverName: string) => ipcRenderer.invoke('mcp:remove-server', serverName),
   mcpGetProviders: () => ipcRenderer.invoke('mcp:get-providers'),
   mcpRefreshProviders: () => ipcRenderer.invoke('mcp:refresh-providers'),
+
+  // Performance Monitor
+  perfSubscribe: () => ipcRenderer.invoke('perf:subscribe'),
+  perfUnsubscribe: () => ipcRenderer.invoke('perf:unsubscribe'),
+  perfGetSnapshot: () => ipcRenderer.invoke('perf:getSnapshot'),
+  onPerfSnapshot: (listener: (snapshot: any) => void) => {
+    const channel = 'perf:snapshot';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 });
 
 // Type definitions for the exposed API

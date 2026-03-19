@@ -19,6 +19,7 @@ import BrowserToggleButton from './BrowserToggleButton';
 import TitlebarContext from './TitlebarContext';
 import WindowControls from './WindowControls';
 import TitlebarMenu from './TitlebarMenu';
+import PerformanceChip from './PerformanceChip';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
@@ -208,12 +209,18 @@ const Titlebar: React.FC<TitlebarProps> = ({
         ref={headerRef}
         className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center bg-muted shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background"
       >
-        {/* Left: menu bar (Windows/Linux only) */}
+        {/* Left: menu bar (Windows/Linux only) + performance chip */}
         {!isMacOS && (
           <div className="pointer-events-auto flex-shrink-0">
             <TitlebarMenu />
           </div>
         )}
+        <div
+          className="pointer-events-auto flex flex-shrink-0 items-center [-webkit-app-region:no-drag]"
+          style={{ paddingLeft: isMacOS ? '78px' : '8px' }}
+        >
+          <PerformanceChip />
+        </div>
         {/* Center: project/task context (grows to fill) */}
         <div
           className={`pointer-events-none flex min-w-0 flex-1 justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
