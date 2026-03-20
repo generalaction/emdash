@@ -6,6 +6,7 @@ import { db } from '@main/db/client';
 function serializePr(pr: Omit<PullRequest, 'id'>) {
   return {
     provider: pr.provider,
+    nameWithOwner: pr.nameWithOwner,
     url: pr.url,
     title: pr.title,
     status: pr.status,
@@ -20,6 +21,7 @@ function serializePr(pr: Omit<PullRequest, 'id'>) {
 function deserializePr(row: typeof pullRequests.$inferSelect): PullRequest {
   return {
     id: row.id,
+    nameWithOwner: row.nameWithOwner,
     provider: row.provider as PullRequest['provider'],
     url: row.url,
     title: row.title,
@@ -67,9 +69,23 @@ export class PullRequestProvider {
     return deserializePr(row);
   }
 
-  async listPullRequests(): Promise<PullRequest[]> {
-    const rows = await db.select().from(pullRequests).orderBy(desc(pullRequests.updatedAt));
+  async listPullRequests(nameWithOwner: string): Promise<PullRequest[]> {
+    const rows = await db
+      .select()
+      .from(pullRequests)
+      .where(eq(pullRequests.nameWithOwner, nameWithOwner))
+      .orderBy(desc(pullRequests.updatedAt));
     return rows.map(deserializePr);
+  }
+
+  async getLatestUpdatedAt(nameWithOwner: string): Promise<string | undefined> {
+    const [row] = await db
+      .select({ updatedAt: pullRequests.updatedAt })
+      .from(pullRequests)
+      .where(eq(pullRequests.nameWithOwner, nameWithOwner))
+      .orderBy(desc(pullRequests.updatedAt))
+      .limit(1);
+    return row?.updatedAt;
   }
 
   async deletePullRequest(id: string): Promise<void> {
