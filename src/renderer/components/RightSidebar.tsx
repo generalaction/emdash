@@ -51,8 +51,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   // For workspace tasks, use the workspace connection instead of project-level
   const { connectionId: wsConnectionId, remotePath: wsRemotePath } = useWorkspaceConnection(task);
+  const isWorkspaceTask = !!task?.metadata?.workspace;
   const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
   const effectiveRemotePath = wsRemotePath || projectRemotePath || null;
+  // When a workspace task is active but its connection hasn't resolved yet,
+  // terminals should wait instead of starting a local session.
+  const awaitingRemote = isWorkspaceTask && !wsConnectionId;
 
   const toggleVariantCollapsed = (variantKey: string) => {
     setCollapsedVariants((prev) => {
@@ -238,6 +242,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                     }
                                   : undefined
                               }
+                              awaitingRemote={awaitingRemote}
                               defaultBranch={projectDefaultBranch || undefined}
                               portSeed={v.worktreeId}
                               className="min-h-[200px]"
@@ -276,13 +281,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                           agent={v.agent}
                           projectPath={projectPath || task?.path}
                           remote={
-                            projectRemoteConnectionId
+                            effectiveConnectionId
                               ? {
-                                  connectionId: projectRemoteConnectionId,
-                                  projectPath: projectRemotePath || projectPath || undefined,
+                                  connectionId: effectiveConnectionId,
+                                  projectPath: effectiveRemotePath || projectPath || undefined,
                                 }
                               : undefined
                           }
+                          awaitingRemote={awaitingRemote}
                           defaultBranch={projectDefaultBranch || undefined}
                           portSeed={v.worktreeId}
                           className="h-full min-h-0"
@@ -297,6 +303,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   projectPath={projectPath}
                   effectiveConnectionId={effectiveConnectionId}
                   effectiveRemotePath={effectiveRemotePath}
+                  awaitingRemote={awaitingRemote}
                   projectDefaultBranch={projectDefaultBranch}
                   onOpenChanges={onOpenChanges}
                 />
@@ -354,6 +361,7 @@ const SingleTaskSidebar: React.FC<{
   projectPath?: string | null;
   effectiveConnectionId?: string | null;
   effectiveRemotePath?: string | null;
+  awaitingRemote?: boolean;
   projectDefaultBranch?: string | null;
   onOpenChanges?: (filePath?: string, taskPath?: string) => void;
 }> = ({
@@ -361,6 +369,7 @@ const SingleTaskSidebar: React.FC<{
   projectPath,
   effectiveConnectionId,
   effectiveRemotePath,
+  awaitingRemote,
   projectDefaultBranch,
   onOpenChanges,
 }) => {
@@ -383,6 +392,7 @@ const SingleTaskSidebar: React.FC<{
                 }
               : undefined
           }
+          awaitingRemote={awaitingRemote}
           defaultBranch={projectDefaultBranch || undefined}
           className="h-full min-h-0"
         />
