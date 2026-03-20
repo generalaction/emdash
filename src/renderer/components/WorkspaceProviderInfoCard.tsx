@@ -10,22 +10,8 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 import { useToast } from '../hooks/use-toast';
-import awsLogo from '../../assets/images/aws.png';
-import hetznerLogo from '../../assets/images/hetzner.png';
-import azureSvg from '../../assets/images/azure.svg?raw';
-import dockerSvg from '../../assets/images/docker.svg?raw';
-
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
-
-const SvgLogo = ({ raw, alt }: { raw: string; alt: string }) => (
-  <span
-    className="inline-flex h-7 w-7 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
-    role="img"
-    aria-label={alt}
-    dangerouslySetInnerHTML={{ __html: raw }}
-  />
-);
 
 const DOCS_URL = 'https://docs.emdash.sh/bring-your-own-infrastructure';
 
@@ -266,25 +252,17 @@ const AccessRequestModal: React.FC<AccessRequestModalProps> = ({
 };
 
 export const WorkspaceProviderInfoCard: React.FC = () => {
-  const enabled = useFeatureFlag('workspace-provider');
+  const hasWorkspaceProviderAccess = useFeatureFlag('workspace-provider');
   const { isSignedIn, user } = useEmdashAccount();
   const { user: githubUser } = useGithubContext();
   const [isContactOpen, setIsContactOpen] = useState(false);
 
-  if (!enabled) return null;
+  if (hasWorkspaceProviderAccess) return null;
 
   return (
     <>
       <div className="flex flex-col gap-3 rounded-lg border border-muted bg-muted/20 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-foreground">Workspace Provider</h3>
-          <div className="flex items-center gap-3">
-            <img src={awsLogo} alt="AWS" className="h-7 object-contain" />
-            <img src={hetznerLogo} alt="Hetzner" className="h-7 object-contain" />
-            <SvgLogo raw={azureSvg} alt="Azure" />
-            <SvgLogo raw={dockerSvg} alt="Docker" />
-          </div>
-        </div>
+        <h3 className="text-sm font-medium text-foreground">Workspace Provider</h3>
         <p className="text-sm text-muted-foreground">
           Run tasks on your own infrastructure. Configure provision and teardown scripts per-project
           in the project config.
