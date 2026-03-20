@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, ExternalLink, Globe, Terminal } from 'lucide-react';
-import type { McpServer, McpCatalogEntry, McpProvidersResponse } from '@shared/mcp/types';
+import type { McpServer, McpCatalogEntry } from '@shared/mcp/types';
 import AgentLogo from '../AgentLogo';
 import { agentConfig } from '../../lib/agentConfig';
 import { mcpIconMap } from '../../lib/mcpIcons';
@@ -11,7 +11,6 @@ import type { Agent } from '../../types';
 interface McpServerCardProps {
   server?: McpServer;
   catalogEntry?: McpCatalogEntry;
-  providers?: McpProvidersResponse[];
   onEdit: (server: McpServer) => void;
   onAdd?: (entry: McpCatalogEntry) => void;
 }
@@ -67,7 +66,6 @@ const McpIcon: React.FC<{ name: string; catalogKey?: string }> = ({ name, catalo
 export const McpServerCard: React.FC<McpServerCardProps> = ({
   server,
   catalogEntry,
-  providers,
   onEdit,
   onAdd,
 }) => {
@@ -86,7 +84,7 @@ export const McpServerCard: React.FC<McpServerCardProps> = ({
 
   // Get synced provider logos for installed servers
   const syncedProviders =
-    isInstalled && server && providers
+    isInstalled && server
       ? (server.providers
           .map((id) => {
             const config = agentConfig[id as Agent];
