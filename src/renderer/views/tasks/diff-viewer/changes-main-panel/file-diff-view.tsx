@@ -69,15 +69,6 @@ export function FileDiffView() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Breadcrumb header */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs">
-        <span className="font-medium truncate">{filename}</span>
-        {directory && <span className="text-muted-foreground truncate">{directory}</span>}
-        <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-          {activeFile.isStaged ? 'Staged' : 'Unstaged'}
-        </span>
-      </div>
-
       <div className="min-h-0 flex-1">
         {isBinary ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
