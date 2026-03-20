@@ -1,18 +1,14 @@
-import React from 'react';
 import emdashLogoWhite from '@/assets/images/emdash/emdash_logo_white.svg';
 import emdashLogo from '@/assets/images/emdash/emdash_logo.svg';
+import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { useTheme } from '@renderer/hooks/useTheme';
 
-interface HomeViewProps {
-  onOpenProject: () => void;
-  onNewProjectClick: () => void;
-  onCloneProjectClick: () => void;
-  onAddRemoteProject: () => void;
+export function HomeTitlebar() {
+  return <Titlebar />;
 }
 
-const HomeView: React.FC<HomeViewProps> = () => {
+export function HomeMainPanel() {
   const { effectiveTheme } = useTheme();
-
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="container mx-auto flex min-h-full max-w-3xl flex-1 flex-col justify-center px-8 py-8">
@@ -52,6 +48,9 @@ const HomeView: React.FC<HomeViewProps> = () => {
       </div>
     </div>
   );
-};
+}
 
-export default HomeView;
+export const homeView = {
+  TitlebarSlot: HomeTitlebar,
+  MainPanel: HomeMainPanel,
+};

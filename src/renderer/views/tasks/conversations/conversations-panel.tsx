@@ -8,7 +8,7 @@ import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { useTaskViewContext } from '../task-view-context';
-import { ConversationsTabs } from './tabs';
+import { ConversationsTabs } from './conversation-tabs';
 
 export function ConversationsPanel() {
   const { params } = useParams('task');
