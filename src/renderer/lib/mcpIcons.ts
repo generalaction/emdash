@@ -41,6 +41,7 @@ import exaPng from '../../assets/images/mcp/exa.png';
 import jamPng from '../../assets/images/mcp/jam.png';
 import motherduckPng from '../../assets/images/mcp/motherduck.png';
 import magicPatternsPng from '../../assets/images/mcp/magic_patterns.png';
+import deepwikiPng from '../../assets/images/mcp/deepwiki.png';
 
 export interface McpIconDef {
   type: 'svg' | 'png';
@@ -97,5 +98,6 @@ export const mcpIconMap: Record<string, McpIconDef> = {
   wix: { type: 'svg', data: wixSvg, color: '0C6EFC' },
   devrev: { type: 'svg', data: devrevSvg, color: '0D0D0D', preserveColors: true },
   exa: { type: 'png', data: exaPng, color: '4F46E5' },
+  deepwiki: { type: 'png', data: deepwikiPng, color: '0D0D0D' },
   dev_manager: { type: 'svg', data: '', color: '6B7280' },
 };
