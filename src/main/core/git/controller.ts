@@ -180,7 +180,7 @@ export const gitController = createRPCController({
       const result = await env.git.push();
       if (!result.success) {
         log.error('gitCtrl.push failed', { projectId, taskId, error: result.error });
-        return err({ type: 'git_error' as const, ...result.error });
+        return err({ ...result.error, type: 'git_error' as const });
       }
       return ok({ output: result.data.output });
     } catch (e) {
@@ -196,7 +196,7 @@ export const gitController = createRPCController({
       const result = await env.git.pull();
       if (!result.success) {
         log.error('gitCtrl.pull failed', { projectId, taskId, error: result.error });
-        return err({ type: 'git_error' as const, ...result.error });
+        return err({ ...result.error, type: 'git_error' as const });
       }
       return ok({ output: result.data.output });
     } catch (e) {

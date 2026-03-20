@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
 import { cn } from '@renderer/lib/utils';
-import { FileIcon } from '../diff-viewer/changes-panel/file-icon';
+import { FileIcon } from '../diff-viewer/changes-right-panel/file-icon';
 import { useEditorFiletreeContext } from './editor-filetree-provider';
 import { useEditorContext } from './editor-provider';
 

@@ -1,6 +1,6 @@
 import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
 import React from 'react';
-import { FileIcon } from '../changes-panel/file-icon';
+import { FileIcon } from '../changes-right-panel/file-icon';
 import { splitPath } from '../utils';
 
 interface DiffToolbarProps {

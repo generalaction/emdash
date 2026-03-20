@@ -1,4 +1,4 @@
-import { ChangesPanel } from './diff-viewer/changes-panel/changes-panel';
+import { ChangesPanel } from './diff-viewer/changes-right-panel/changes-panel';
 import { EditorFileTree } from './editor/editor-file-tree';
 import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/panel';
