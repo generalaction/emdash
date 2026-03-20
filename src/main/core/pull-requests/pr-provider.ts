@@ -1,9 +1,9 @@
 import { desc, eq, sql } from 'drizzle-orm';
 import { pullRequests } from '@/main/db/schema';
-import type { PullRequest, PullRequestInput } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/pull-requests';
 import { db } from '@main/db/client';
 
-function serializePr(pr: PullRequestInput) {
+function serializePr(pr: Omit<PullRequest, 'id'>) {
   return {
     provider: pr.provider,
     url: pr.url,
@@ -33,7 +33,7 @@ function deserializePr(row: typeof pullRequests.$inferSelect): PullRequest {
 }
 
 export class PullRequestProvider {
-  async upsertPullRequest(pr: PullRequestInput): Promise<PullRequest> {
+  async upsertPullRequest(pr: Omit<PullRequest, 'id'>): Promise<PullRequest> {
     const serialized = serializePr(pr);
     const [row] = await db
       .insert(pullRequests)
@@ -53,7 +53,7 @@ export class PullRequestProvider {
     return deserializePr(row);
   }
 
-  async upsertPullRequests(prs: PullRequestInput[]): Promise<PullRequest[]> {
+  async upsertPullRequests(prs: Omit<PullRequest, 'id'>[]): Promise<PullRequest[]> {
     const results: PullRequest[] = [];
     for (const pr of prs) {
       results.push(await this.upsertPullRequest(pr));

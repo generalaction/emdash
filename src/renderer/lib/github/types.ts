@@ -1,17 +1,8 @@
-// Check Runs
+import type { PrCheckRun, PrCommentAuthor } from '@shared/pull-requests';
 
-import { CheckRunBucket } from '@shared/pull-requests';
-
-export interface CheckRun {
-  name: string;
-  bucket: CheckRunBucket;
-  workflowName?: string;
-  appName?: string;
-  appLogoUrl?: string;
-  detailsUrl?: string;
-  startedAt?: string;
-  completedAt?: string;
-}
+// Re-export shared types under renderer-friendly names
+export type CheckRun = PrCheckRun;
+export type { PrCommentAuthor };
 
 export interface CheckRunsSummary {
   total: number;
@@ -24,11 +15,6 @@ export interface CheckRunsSummary {
 }
 
 // PR Comments
-export interface PrCommentAuthor {
-  login: string;
-  avatarUrl?: string;
-}
-
 export interface PrComment {
   id: string;
   author: PrCommentAuthor;

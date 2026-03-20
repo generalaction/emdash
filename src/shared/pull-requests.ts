@@ -1,8 +1,13 @@
-import { GitHubReviewer, ReviewDecision } from '@main/core/github/services/pr-types';
-
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
 export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+
+export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+
+export interface GitHubReviewer {
+  login: string;
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
 
 export type PullRequestAuthor = {
   userName: string;
@@ -13,7 +18,6 @@ export type PullRequestAuthor = {
 // Common fields all forges share
 interface PullRequestBase {
   id: string;
-  provider: string;
   url: string;
   title: string;
   status: PullRequestStatus;
@@ -46,7 +50,52 @@ export interface GitHubPrMetadata {
   body: string | null;
 }
 
-// Discriminated union — add new forges here
-export type PullRequest = PullRequestBase & { provider: 'github'; metadata: GitHubPrMetadata };
+export type GitHubPullRequest = PullRequestBase & {
+  provider: 'github';
+  metadata: GitHubPrMetadata;
+};
 
-export type PullRequestInput = Omit<PullRequest, 'id'>;
+// Discriminated union — add new forges here
+export type PullRequest = GitHubPullRequest;
+
+// ── Pass-through types (service → renderer) ────────────────────────
+
+export interface PullRequestFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
+export interface PrCheckRun {
+  name: string;
+  bucket: CheckRunBucket;
+  workflowName?: string;
+  appName?: string;
+  appLogoUrl?: string;
+  detailsUrl?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface PrCommentAuthor {
+  login: string;
+  avatarUrl?: string;
+}
+
+export interface PrCommentsResult {
+  comments: Array<{
+    id: number;
+    author: PrCommentAuthor;
+    body: string;
+    createdAt: string;
+  }>;
+  reviews: Array<{
+    id: number;
+    author: PrCommentAuthor;
+    body: string;
+    submittedAt?: string;
+    state: string;
+  }>;
+}
