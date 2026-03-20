@@ -10,7 +10,7 @@ export default defineConfig(({ command }) => ({
   test: {
     dir: '.',
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   build: {
     outDir: '../../dist/renderer',

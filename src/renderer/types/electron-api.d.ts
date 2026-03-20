@@ -1275,6 +1275,9 @@ declare global {
       workspaceCancel: (args: {
         instanceId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      onWorkspaceProvisionTimeoutWarning: (
+        listener: (data: { instanceId: string }) => void
+      ) => () => void;
       workspaceTerminate: (args: {
         instanceId: string;
         terminateCommand: string;
@@ -1952,6 +1955,9 @@ export interface ElectronAPI {
     projectPath: string;
   }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
   workspaceCancel: (args: { instanceId: string }) => Promise<{ success: boolean; error?: string }>;
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string }) => void
+  ) => () => void;
   workspaceTerminate: (args: {
     instanceId: string;
     terminateCommand: string;

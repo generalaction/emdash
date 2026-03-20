@@ -8,8 +8,13 @@ import { workspaceInstances, sshConnections, type WorkspaceInstanceRow } from '.
 import { eq, and, inArray } from 'drizzle-orm';
 import { sshService } from './ssh/SshService';
 
+import { ipcMain } from 'electron';
+
 /** Default timeout for provision/terminate scripts (5 minutes). */
-const PROVISION_TIMEOUT_MS = 5 * 60 * 1000;
+export const PROVISION_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Hard safety cap timeout for provision scripts (1 hour). */
+export const PROVISION_HARD_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** Default timeout for terminate scripts (2 minutes). */
 const TERMINATE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -260,6 +265,10 @@ export class WorkspaceProviderService extends EventEmitter {
         cwd: config.projectPath,
         envVars,
         timeoutMs: PROVISION_TIMEOUT_MS,
+        hardTimeoutMs: PROVISION_HARD_TIMEOUT_MS,
+        onTimeoutWarning: () => {
+          this.emit('provision-timeout-warning', { instanceId });
+        },
         onStderr: (line) => {
           stderr += line;
           this.emit('provision-progress', { instanceId, line });
@@ -328,8 +337,10 @@ export class WorkspaceProviderService extends EventEmitter {
     cwd: string;
     envVars: Record<string, string>;
     timeoutMs: number;
+    hardTimeoutMs?: number;
     onStderr?: (line: string) => void;
     onStdout?: (data: string) => void;
+    onTimeoutWarning?: () => void;
     trackProcess?: (child: ChildProcess) => void;
   }): Promise<{ exitCode: number }> {
     return new Promise((resolve, reject) => {
@@ -348,6 +359,9 @@ export class WorkspaceProviderService extends EventEmitter {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        if (hardTimer) {
+          clearTimeout(hardTimer);
+        }
         if (result instanceof Error) {
           reject(result);
         } else {
@@ -356,9 +370,21 @@ export class WorkspaceProviderService extends EventEmitter {
       };
 
       const timer = setTimeout(() => {
-        child.kill('SIGTERM');
-        finish(new Error(`Script timed out after ${opts.timeoutMs / 1000}s`));
+        if (opts.onTimeoutWarning) {
+          opts.onTimeoutWarning();
+        } else {
+          child.kill('SIGTERM');
+          finish(new Error(`Script timed out after ${opts.timeoutMs / 1000}s`));
+        }
       }, opts.timeoutMs);
+
+      let hardTimer: NodeJS.Timeout | undefined;
+      if (opts.hardTimeoutMs && opts.onTimeoutWarning) {
+        hardTimer = setTimeout(() => {
+          child.kill('SIGTERM');
+          finish(new Error(`Script hard timed out after ${opts.hardTimeoutMs! / 1000}s`));
+        }, opts.hardTimeoutMs);
+      }
 
       child.stdout?.on('data', (buf: Buffer) => {
         opts.onStdout?.(buf.toString('utf-8'));

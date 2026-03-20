@@ -20,10 +20,10 @@ function createChild(pid = 1234): MockChild {
   child.pid = pid;
   child.exitCode = null;
   child.killed = false;
-  child.kill = () => {
+  child.kill = vi.fn(() => {
     child.killed = true;
     return true;
-  };
+  });
   return child;
 }
 
@@ -31,6 +31,17 @@ function createChild(pid = 1234): MockChild {
 // Mocks
 // ---------------------------------------------------------------------------
 const spawnMock = vi.fn();
+
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  },
+  BrowserWindow: {
+    getAllWindows: vi.fn().mockReturnValue([]),
+  },
+}));
 
 vi.mock('node:child_process', () => ({
   spawn: (...args: any[]) => spawnMock(...args),
@@ -353,6 +364,111 @@ describe('WorkspaceProviderService', () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].status).toBe('ready');
+    });
+
+    it('emits timeout warning at PROVISION_TIMEOUT_MS without killing process', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.resetModules();
+      const child = createChild();
+      spawnMock.mockReturnValue(child);
+
+      const { workspaceProviderService, PROVISION_TIMEOUT_MS } = await import(
+        '../../main/services/WorkspaceProviderService'
+      );
+
+      const events: any[] = [];
+      workspaceProviderService.on('provision-timeout-warning', (evt: any) => events.push(evt));
+
+      const instanceId = await workspaceProviderService.provision({
+        taskId: 'task-8',
+        repoUrl: 'git@github.com:org/repo.git',
+        branch: 'b',
+        baseRef: 'main',
+        provisionCommand: './p.sh',
+        projectPath: '/p',
+      });
+
+      // advance past normal timeout, we iterate it so microtasks run
+      await vi.advanceTimersByTimeAsync(PROVISION_TIMEOUT_MS + 1000);
+
+      expect(child.kill).not.toHaveBeenCalled();
+      expect(events).toHaveLength(1);
+      expect(events[0].instanceId).toBe(instanceId);
+
+      // clean up
+      child.emit('exit', 0);
+      vi.useRealTimers();
+    });
+
+    it('hard kills process at PROVISION_HARD_TIMEOUT_MS', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.resetModules();
+      const child = createChild();
+      spawnMock.mockReturnValue(child);
+
+      const { workspaceProviderService, PROVISION_HARD_TIMEOUT_MS } = await import(
+        '../../main/services/WorkspaceProviderService'
+      );
+
+      const completeEvents: any[] = [];
+      workspaceProviderService.on('provision-complete', (evt: any) => completeEvents.push(evt));
+
+      await workspaceProviderService.provision({
+        taskId: 'task-9',
+        repoUrl: 'git',
+        branch: 'b',
+        baseRef: 'main',
+        provisionCommand: './p.sh',
+        projectPath: '/p',
+      });
+
+      // advance past hard timeout
+      await vi.advanceTimersByTimeAsync(PROVISION_HARD_TIMEOUT_MS + 1000);
+
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(completeEvents).toHaveLength(1);
+      expect(completeEvents[0].status).toBe('error');
+      expect(completeEvents[0].error).toContain('hard timed out');
+
+      // clean up
+      child.emit('exit', 0);
+      vi.useRealTimers();
+    });
+
+    it('clears timeouts on successful exit', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.resetModules();
+      const child = createChild();
+      spawnMock.mockReturnValue(child);
+
+      const { workspaceProviderService, PROVISION_TIMEOUT_MS } = await import(
+        '../../main/services/WorkspaceProviderService'
+      );
+
+      const warnEvents: any[] = [];
+      workspaceProviderService.on('provision-timeout-warning', (evt: any) => warnEvents.push(evt));
+
+      await workspaceProviderService.provision({
+        taskId: 'task-10',
+        repoUrl: 'git',
+        branch: 'b',
+        baseRef: 'main',
+        provisionCommand: './p.sh',
+        projectPath: '/p',
+      });
+
+      // Let microtasks tick for process spawn
+      await vi.advanceTimersByTimeAsync(50);
+
+      // exit before timeout
+      child.emit('exit', 0);
+
+      // advance past timeout
+      await vi.advanceTimersByTimeAsync(PROVISION_TIMEOUT_MS + 1000);
+
+      expect(warnEvents).toHaveLength(0); // Timers should have been cleared
+
+      vi.useRealTimers();
     });
   });
 

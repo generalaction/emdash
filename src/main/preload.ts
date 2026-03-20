@@ -804,6 +804,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
   }) => ipcRenderer.invoke('workspace:provision', args),
   workspaceCancel: (args: { instanceId: string }) => ipcRenderer.invoke('workspace:cancel', args),
+  onWorkspaceProvisionTimeoutWarning: (callback: (data: { instanceId: string }) => void) => {
+    const channel = 'workspace:provision-timeout-warning';
+    const wrapped = (_: any, data: { instanceId: string }) => callback(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   workspaceTerminate: (args: {
     instanceId: string;
     terminateCommand: string;

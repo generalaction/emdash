@@ -23,6 +23,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
   const [status, setStatus] = useState<ProvisioningStatus>(null);
   const [lines, setLines] = useState<string[]>(() => getProvisionLogs(task.id));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showWarning, setShowWarning] = useState(false);
   const { toast } = useToast();
   const logEndRef = useRef<HTMLDivElement>(null);
   // Track the instanceId so we can filter events for this task's workspace only
@@ -30,6 +31,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
 
   // Check workspace status on mount / task change
   useEffect(() => {
+    setShowWarning(false);
     let cancelled = false;
     void (async () => {
       try {
@@ -75,18 +77,28 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
         if (data.status === 'ready') {
           setStatus('ready');
+          setShowWarning(false);
           clearProvisionLogs(task.id);
           toast({ title: 'Workspace connected', description: 'Remote workspace is ready.' });
         } else {
           setStatus('error');
+          setShowWarning(false);
           setErrorMessage(data.error || 'Workspace provisioning failed.');
         }
+      }
+    );
+
+    const unsubWarning = window.electronAPI.onWorkspaceProvisionTimeoutWarning(
+      (data: { instanceId: string }) => {
+        if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
+        setShowWarning(true);
       }
     );
 
     return () => {
       unsubProgress();
       unsubComplete();
+      unsubWarning();
     };
   }, []);
 
@@ -135,6 +147,13 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
     }
   }, [task.id]);
 
+  const handleTimeoutCancel = useCallback(() => {
+    if (instanceIdRef.current) {
+      void window.electronAPI.workspaceCancel({ instanceId: instanceIdRef.current });
+    }
+    setShowWarning(false);
+  }, []);
+
   // Don't render if no workspace or provisioning is complete
   if (!task.metadata?.workspace) return null;
   if (status === 'ready' || status === null) return null;
@@ -182,10 +201,28 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         </div>
       )}
 
-      {status === 'provisioning' && (
+      {status === 'provisioning' && !showWarning && (
         <Button variant="ghost" size="sm" className="text-xs" onClick={handleCancel}>
           Cancel
         </Button>
+      )}
+      {status === 'provisioning' && showWarning && (
+        <div className="mt-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-lg border border-destructive bg-destructive/10 p-4 text-center">
+          <p className="text-sm font-semibold text-destructive">
+            Provisioning is taking longer than expected.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            You can keep waiting or cancel and try again.
+          </p>
+          <div className="flex w-full gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setShowWarning(false)}>
+              Keep Waiting
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={handleTimeoutCancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ const WORKSPACE_CHANNELS = {
   STATUS: 'workspace:status',
   PROVISION_PROGRESS: 'workspace:provision-progress',
   PROVISION_COMPLETE: 'workspace:provision-complete',
+  PROVISION_TIMEOUT_WARNING: 'workspace:provision-timeout-warning',
 } as const;
 
 /**
@@ -32,6 +33,12 @@ export function registerWorkspaceIpc() {
       }
     }
   );
+
+  workspaceProviderService.on('provision-timeout-warning', (data: { instanceId: string }) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(WORKSPACE_CHANNELS.PROVISION_TIMEOUT_WARNING, data);
+    }
+  });
 
   workspaceProviderService.on(
     'provision-complete',
