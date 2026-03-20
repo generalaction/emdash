@@ -7,17 +7,21 @@ export function useFileDiff(
   taskId: string,
   filePath: string,
   isStaged: boolean,
-  enabled = true
+  enabled = true,
+  baseRef?: string
 ) {
+  const diffBase = baseRef ?? (isStaged ? 'staged' : undefined);
   return useQuery({
-    queryKey: ['git', 'diff', isStaged ? 'staged' : 'unstaged', projectId, taskId, filePath],
+    queryKey: [
+      'git',
+      'diff',
+      baseRef ?? (isStaged ? 'staged' : 'unstaged'),
+      projectId,
+      taskId,
+      filePath,
+    ],
     queryFn: async () => {
-      const result = await rpc.git.getFileDiff(
-        projectId,
-        taskId,
-        filePath,
-        isStaged ? 'staged' : undefined
-      );
+      const result = await rpc.git.getFileDiff(projectId, taskId, filePath, diffBase);
       if (!result.success) {
         throw new Error(
           result.error && 'message' in result.error ? result.error.message : 'Failed to load diff'
@@ -30,7 +34,6 @@ export function useFileDiff(
   });
 }
 
-/** Returns a stable callback that prefetches a file diff into the TanStack Query cache on hover. */
 export function useOptimisticFileDiff(projectId: string, taskId: string) {
   const queryClient = useQueryClient();
 

@@ -9,6 +9,8 @@ export function ActiveFileSync() {
   useEffect(() => {
     if (!activeFile) return;
 
+    if (activeFile.baseRef) return;
+
     const inCurrentList = activeFile.isStaged
       ? stagedFileChanges.some((f) => f.path === activeFile.path)
       : unstagedFileChanges.some((f) => f.path === activeFile.path);

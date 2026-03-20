@@ -5,6 +5,8 @@ export interface ActiveFile {
   isStaged: boolean;
   /** Controls virtualizer scroll animation when this file becomes active. Defaults to 'smooth'. */
   scrollBehavior?: 'smooth' | 'auto';
+  /** When set, diff is between this ref and HEAD (for PR/branch diffs). */
+  baseRef?: string;
 }
 
 interface GitViewContextValue {

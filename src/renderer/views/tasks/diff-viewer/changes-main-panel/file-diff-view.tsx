@@ -64,7 +64,8 @@ export function FileDiffView() {
     taskId,
     activeFile?.path ?? '',
     activeFile?.isStaged ?? false,
-    !!activeFile
+    !!activeFile,
+    activeFile?.baseRef
   );
 
   if (!activeFile) {
@@ -85,7 +86,11 @@ export function FileDiffView() {
         <span className="font-medium truncate">{filename}</span>
         {directory && <span className="text-muted-foreground truncate">{directory}</span>}
         <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-          {activeFile.isStaged ? 'Staged' : 'Unstaged'}
+          {activeFile.baseRef
+            ? `vs ${activeFile.baseRef}`
+            : activeFile.isStaged
+              ? 'Staged'
+              : 'Unstaged'}
         </span>
       </div>
 
