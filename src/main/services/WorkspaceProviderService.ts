@@ -8,8 +8,8 @@ import { workspaceInstances, sshConnections, type WorkspaceInstanceRow } from '.
 import { eq, and, inArray } from 'drizzle-orm';
 import { sshService } from './ssh/SshService';
 
-/** Default timeout for provision/terminate scripts (5 minutes). */
-const PROVISION_TIMEOUT_MS = 5 * 60 * 1000;
+/** Show a warning if provisioning exceeds 5 minutes. */
+const PROVISION_WARNING_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** Default timeout for terminate scripts (2 minutes). */
 const TERMINATE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -48,11 +48,14 @@ export interface TerminateConfig {
  * shell scripts.  Emits events so the renderer can stream progress:
  *
  * - `provision-progress`  { instanceId, line }
+ * - `provision-timeout-warning`  { instanceId, timeoutMs }
  * - `provision-complete`  { instanceId, status, error? }
  */
 export class WorkspaceProviderService extends EventEmitter {
   /** In-flight provision processes keyed by instanceId. */
   private provisionProcesses = new Map<string, ChildProcess>();
+  /** Provision attempts the user has explicitly cancelled. */
+  private cancelledProvisionIds = new Set<string>();
 
   // ---------------------------------------------------------------------------
   // Provision
@@ -95,6 +98,7 @@ export class WorkspaceProviderService extends EventEmitter {
 
   /** Cancel an in-flight provision by killing the child process. */
   async cancel(instanceId: string): Promise<void> {
+    this.cancelledProvisionIds.add(instanceId);
     const child = this.provisionProcesses.get(instanceId);
     if (child) {
       child.kill('SIGTERM');
@@ -132,7 +136,7 @@ export class WorkspaceProviderService extends EventEmitter {
         command: config.terminateCommand,
         cwd: config.projectPath,
         envVars,
-        timeoutMs: TERMINATE_TIMEOUT_MS,
+        hardTimeoutMs: TERMINATE_TIMEOUT_MS,
         onStderr: (line) => stderrLines.push(line),
       });
 
@@ -259,7 +263,13 @@ export class WorkspaceProviderService extends EventEmitter {
         command: config.provisionCommand,
         cwd: config.projectPath,
         envVars,
-        timeoutMs: PROVISION_TIMEOUT_MS,
+        warningTimeoutMs: PROVISION_WARNING_TIMEOUT_MS,
+        onTimeoutWarning: () => {
+          this.emit('provision-timeout-warning', {
+            instanceId,
+            timeoutMs: PROVISION_WARNING_TIMEOUT_MS,
+          });
+        },
         onStderr: (line) => {
           stderr += line;
           this.emit('provision-progress', { instanceId, line });
@@ -269,6 +279,9 @@ export class WorkspaceProviderService extends EventEmitter {
         },
         trackProcess: (child) => {
           this.provisionProcesses.set(instanceId, child);
+          if (this.cancelledProvisionIds.has(instanceId)) {
+            child.kill('SIGTERM');
+          }
         },
       });
 
@@ -276,10 +289,15 @@ export class WorkspaceProviderService extends EventEmitter {
       this.provisionProcesses.delete(instanceId);
 
       if (result.exitCode !== 0) {
+        if (this.cancelledProvisionIds.has(instanceId)) {
+          throw new Error('Workspace provisioning was cancelled.');
+        }
         throw new Error(
           `Provision script exited with code ${result.exitCode}.\n${stderr.slice(-500)}`
         );
       }
+
+      this.cancelledProvisionIds.delete(instanceId);
 
       // Parse the JSON output from stdout.
       const output = this.parseProvisionOutput(stdout);
@@ -311,10 +329,23 @@ export class WorkspaceProviderService extends EventEmitter {
       this.emit('provision-complete', { instanceId, status: 'ready' });
     } catch (err) {
       this.provisionProcesses.delete(instanceId);
-      const message = err instanceof Error ? err.message : String(err);
-      log.error('[WorkspaceProvider] Provision failed', { instanceId, error: message });
+      const wasCancelled = this.cancelledProvisionIds.delete(instanceId);
+      const message = wasCancelled
+        ? 'Workspace provisioning was cancelled.'
+        : err instanceof Error
+          ? err.message
+          : String(err);
+
+      if (wasCancelled) {
+        log.info('[WorkspaceProvider] Provision cancelled', { instanceId });
+      } else {
+        log.error('[WorkspaceProvider] Provision failed', { instanceId, error: message });
+      }
+
       await this.updateStatus(instanceId, 'error');
-      capture('workspace_provisioning_failed', { error_type: 'provision' });
+      if (!wasCancelled) {
+        capture('workspace_provisioning_failed', { error_type: 'provision' });
+      }
       this.emit('provision-complete', { instanceId, status: 'error', error: message });
     }
   }
@@ -327,7 +358,9 @@ export class WorkspaceProviderService extends EventEmitter {
     command: string;
     cwd: string;
     envVars: Record<string, string>;
-    timeoutMs: number;
+    hardTimeoutMs?: number;
+    warningTimeoutMs?: number;
+    onTimeoutWarning?: () => void;
     onStderr?: (line: string) => void;
     onStdout?: (data: string) => void;
     trackProcess?: (child: ChildProcess) => void;
@@ -347,7 +380,8 @@ export class WorkspaceProviderService extends EventEmitter {
       const finish = (result: { exitCode: number } | Error) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        clearTimeout(hardTimeoutTimer);
+        clearTimeout(warningTimer);
         if (result instanceof Error) {
           reject(result);
         } else {
@@ -355,10 +389,21 @@ export class WorkspaceProviderService extends EventEmitter {
         }
       };
 
-      const timer = setTimeout(() => {
-        child.kill('SIGTERM');
-        finish(new Error(`Script timed out after ${opts.timeoutMs / 1000}s`));
-      }, opts.timeoutMs);
+      const hardTimeoutMs = opts.hardTimeoutMs;
+      const hardTimeoutTimer =
+        hardTimeoutMs == null
+          ? undefined
+          : setTimeout(() => {
+              child.kill('SIGTERM');
+              finish(new Error(`Script timed out after ${hardTimeoutMs / 1000}s`));
+            }, hardTimeoutMs);
+
+      const warningTimer =
+        opts.warningTimeoutMs == null
+          ? undefined
+          : setTimeout(() => {
+              opts.onTimeoutWarning?.();
+            }, opts.warningTimeoutMs);
 
       child.stdout?.on('data', (buf: Buffer) => {
         opts.onStdout?.(buf.toString('utf-8'));

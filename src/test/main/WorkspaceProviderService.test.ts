@@ -259,6 +259,55 @@ describe('WorkspaceProviderService', () => {
       expect(events[0].error).toContain('exited with code 1');
     });
 
+    it('emits a timeout warning without killing the provision process', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.resetModules();
+        const child = createChild();
+        spawnMock.mockReturnValue(child);
+
+        const { workspaceProviderService } = await import(
+          '../../main/services/WorkspaceProviderService'
+        );
+
+        const warnings: any[] = [];
+        const events: any[] = [];
+        workspaceProviderService.on('provision-timeout-warning', (evt: any) => warnings.push(evt));
+        workspaceProviderService.on('provision-complete', (evt: any) => events.push(evt));
+
+        await workspaceProviderService.provision({
+          taskId: 'task-timeout-warning',
+          repoUrl: 'git@github.com:org/repo.git',
+          branch: 'emdash/long-provision',
+          baseRef: 'main',
+          provisionCommand: './provision.sh',
+          projectPath: '/project',
+        });
+
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toEqual(
+          expect.objectContaining({
+            instanceId: expect.any(String),
+            timeoutMs: expect.any(Number),
+          })
+        );
+        expect(warnings[0].timeoutMs).toBeGreaterThan(0);
+        expect(child.killed).toBe(false);
+
+        child.stdout.emit('data', Buffer.from('{"host": "workspace-test-timeout"}'));
+        child.emit('exit', 0);
+
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].status).toBe('ready');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('streams stderr lines as provision-progress events', async () => {
       vi.resetModules();
       const child = createChild();
@@ -384,6 +433,43 @@ describe('WorkspaceProviderService', () => {
 
       expect(child.killed).toBe(true);
       expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }));
+    });
+
+    it('emits a cancelled message instead of a generic exit code error', async () => {
+      vi.resetModules();
+      const child = createChild();
+      spawnMock.mockReturnValue(child);
+
+      const { workspaceProviderService } = await import(
+        '../../main/services/WorkspaceProviderService'
+      );
+
+      const events: any[] = [];
+      workspaceProviderService.on('provision-complete', (evt: any) => events.push(evt));
+
+      const instanceId = await workspaceProviderService.provision({
+        taskId: 'task-cancel-message',
+        repoUrl: 'git@github.com:org/repo.git',
+        branch: 'emdash/cancel-message-test',
+        baseRef: 'main',
+        provisionCommand: './provision.sh',
+        projectPath: '/project',
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      await workspaceProviderService.cancel(instanceId);
+      child.emit('exit', -1);
+
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          instanceId,
+          status: 'error',
+          error: 'Workspace provisioning was cancelled.',
+        })
+      );
     });
   });
 
