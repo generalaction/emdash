@@ -372,14 +372,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
-  getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  getGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:get-status', arg),
   getDeleteRisks: (args: {
     targets: Array<{ id: string; taskPath: string }>;
     includePr?: boolean;
   }) => ipcRenderer.invoke('git:get-delete-risks', args),
-  watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
-  unwatchGitStatus: (taskPath: string, watchId?: string) =>
-    ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
+  watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:watch-status', arg),
+  unwatchGitStatus: (arg: string | { taskPath: string; taskId?: string }, watchId?: string) =>
+    ipcRenderer.invoke('git:unwatch-status', arg, watchId),
   onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
     attachGitStatusBridgeOnce();
     gitStatusChangedListeners.add(listener);
@@ -389,13 +391,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getFileDiff: (args: {
     taskPath: string;
+    taskId?: string;
     filePath: string;
     baseRef?: string;
     forceLarge?: boolean;
   }) => ipcRenderer.invoke('git:get-file-diff', args),
-  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) =>
+  updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) =>
     ipcRenderer.invoke('git:update-index', args),
-  revertFile: (args: { taskPath: string; filePath: string }) =>
+  revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommit: (args: { taskPath: string; message: string }) =>
     ipcRenderer.invoke('git:commit', args),
@@ -416,6 +419,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
+    taskId?: string;
     commitMessage?: string;
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
@@ -432,7 +436,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     web?: boolean;
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
-  mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
+  mergeToMain: (args: { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:merge-to-main', args),
   mergePr: (args: {
     taskPath: string;
     prNumber?: number;
@@ -450,7 +455,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
   getPrComments: (args: { taskPath: string; prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
-  getBranchStatus: (args: { taskPath: string }) =>
+  getBranchStatus: (args: { taskPath: string; taskId?: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
     ipcRenderer.invoke('git:rename-branch', args),

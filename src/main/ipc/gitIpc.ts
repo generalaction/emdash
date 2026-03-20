@@ -26,7 +26,10 @@ import { databaseService } from '../services/DatabaseService';
 import { injectIssueFooter } from '../lib/prIssueFooter';
 import { getCreatePrBodyPlan } from '../lib/prCreateBodyPlan';
 import { patchCurrentPrBodyWithIssueFooter } from '../lib/prIssueFooterPatch';
-import { resolveRemoteProjectForWorktreePath } from '../utils/remoteProjectResolver';
+import {
+  resolveRemoteProjectForWorktreePath,
+  resolveRemoteContext,
+} from '../utils/remoteProjectResolver';
 import { RemoteGitService } from '../services/RemoteGitService';
 import { sshService } from '../services/ssh/SshService';
 
@@ -58,8 +61,10 @@ const remoteStatusPollers = new Map<string, RemoteStatusPollEntry>();
 
 const ensureRemoteStatusPoller = (
   taskPath: string,
-  connectionId: string
+  connectionId: string,
+  remotePath?: string
 ): { success: true; watchId: string } => {
+  const gitPath = remotePath || taskPath;
   const watchId = randomUUID();
   const existing = remoteStatusPollers.get(taskPath);
   if (existing) {
@@ -70,7 +75,7 @@ const ensureRemoteStatusPoller = (
   const entry: RemoteStatusPollEntry = {
     intervalId: setInterval(async () => {
       try {
-        const changes = await remoteGitService.getStatusDetailed(connectionId, taskPath);
+        const changes = await remoteGitService.getStatusDetailed(connectionId, gitPath);
         // Simple hash: join paths + statuses to detect changes
         const hash = changes.map((c) => `${c.path}:${c.status}:${c.isStaged}`).join('|');
         const poller = remoteStatusPollers.get(taskPath);
@@ -702,39 +707,54 @@ export function registerGitIpc() {
     }
   };
 
-  ipcMain.handle('git:watch-status', async (_, taskPath: string) => {
-    const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-    if (remoteProject) {
-      return ensureRemoteStatusPoller(taskPath, remoteProject.sshConnectionId);
+  ipcMain.handle(
+    'git:watch-status',
+    async (_, arg: string | { taskPath: string; taskId?: string }) => {
+      const taskPath = typeof arg === 'string' ? arg : arg.taskPath;
+      const taskId = typeof arg === 'string' ? undefined : arg.taskId;
+      const remote = await resolveRemoteContext(taskPath, taskId);
+      if (remote) {
+        return ensureRemoteStatusPoller(taskPath, remote.connectionId, remote.remotePath);
+      }
+      return ensureGitStatusWatcher(taskPath);
     }
-    return ensureGitStatusWatcher(taskPath);
-  });
+  );
 
-  ipcMain.handle('git:unwatch-status', async (_, taskPath: string, watchId?: string) => {
-    const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-    if (remoteProject) {
-      return releaseRemoteStatusPoller(taskPath, watchId);
+  ipcMain.handle(
+    'git:unwatch-status',
+    async (_, arg: string | { taskPath: string; taskId?: string }, watchId?: string) => {
+      const taskPath = typeof arg === 'string' ? arg : arg.taskPath;
+      const taskId = typeof arg === 'string' ? undefined : arg.taskId;
+      const remote = await resolveRemoteContext(taskPath, taskId);
+      if (remote) {
+        return releaseRemoteStatusPoller(taskPath, watchId);
+      }
+      return releaseGitStatusWatcher(taskPath, watchId);
     }
-    return releaseGitStatusWatcher(taskPath, watchId);
-  });
+  );
 
   // Git: Status (moved from Codex IPC)
-  ipcMain.handle('git:get-status', async (_, taskPath: string) => {
-    try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-      if (remoteProject) {
-        const changes = await remoteGitService.getStatusDetailed(
-          remoteProject.sshConnectionId,
-          taskPath
-        );
+  ipcMain.handle(
+    'git:get-status',
+    async (_, arg: string | { taskPath: string; taskId?: string }) => {
+      const taskPath = typeof arg === 'string' ? arg : arg.taskPath;
+      const taskId = typeof arg === 'string' ? undefined : arg.taskId;
+      try {
+        const remote = await resolveRemoteContext(taskPath, taskId);
+        if (remote) {
+          const changes = await remoteGitService.getStatusDetailed(
+            remote.connectionId,
+            remote.remotePath
+          );
+          return { success: true, changes };
+        }
+        const changes = await gitGetStatus(taskPath);
         return { success: true, changes };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
-      const changes = await gitGetStatus(taskPath);
-      return { success: true, changes };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  );
 
   ipcMain.handle(
     'git:get-delete-risks',
@@ -866,14 +886,20 @@ export function registerGitIpc() {
     'git:get-file-diff',
     async (
       _,
-      args: { taskPath: string; filePath: string; baseRef?: string; forceLarge?: boolean }
+      args: {
+        taskPath: string;
+        taskId?: string;
+        filePath: string;
+        baseRef?: string;
+        forceLarge?: boolean;
+      }
     ) => {
       try {
-        const remoteProject = await resolveRemoteProjectForWorktreePath(args.taskPath);
-        if (remoteProject) {
+        const remote = await resolveRemoteContext(args.taskPath, args.taskId);
+        if (remote) {
           const diff = await remoteGitService.getFileDiff(
-            remoteProject.sshConnectionId,
-            args.taskPath,
+            remote.connectionId,
+            remote.remotePath,
             args.filePath,
             args.baseRef,
             args.forceLarge
@@ -894,66 +920,68 @@ export function registerGitIpc() {
   );
 
   // Git: Update index (stage/unstage all or selected paths)
-  ipcMain.handle('git:update-index', async (_, args: { taskPath: string } & GitIndexUpdateArgs) => {
-    try {
-      const operationArgs: GitIndexUpdateArgs = {
-        action: args.action,
-        scope: args.scope,
-        filePaths: args.scope === 'paths' ? (args.filePaths || []).filter(Boolean) : undefined,
-      };
-      if (
-        operationArgs.scope === 'paths' &&
-        (!operationArgs.filePaths || operationArgs.filePaths.length === 0)
-      ) {
+  ipcMain.handle(
+    'git:update-index',
+    async (_, args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) => {
+      try {
+        const operationArgs: GitIndexUpdateArgs = {
+          action: args.action,
+          scope: args.scope,
+          filePaths: args.scope === 'paths' ? (args.filePaths || []).filter(Boolean) : undefined,
+        };
+        if (
+          operationArgs.scope === 'paths' &&
+          (!operationArgs.filePaths || operationArgs.filePaths.length === 0)
+        ) {
+          return { success: true };
+        }
+
+        log.info('Updating git index', {
+          taskPath: args.taskPath,
+          action: operationArgs.action,
+          scope: operationArgs.scope,
+          count: operationArgs.filePaths?.length ?? null,
+        });
+
+        const remote = await resolveRemoteContext(args.taskPath, args.taskId);
+        if (remote) {
+          await remoteGitService.updateIndex(remote.connectionId, remote.remotePath, operationArgs);
+        } else {
+          await gitUpdateIndex(args.taskPath, operationArgs);
+        }
         return { success: true };
+      } catch (error) {
+        log.error('Failed to update git index', { taskPath: args.taskPath, error });
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
-
-      log.info('Updating git index', {
-        taskPath: args.taskPath,
-        action: operationArgs.action,
-        scope: operationArgs.scope,
-        count: operationArgs.filePaths?.length ?? null,
-      });
-
-      const remoteProject = await resolveRemoteProjectForWorktreePath(args.taskPath);
-      if (remoteProject) {
-        await remoteGitService.updateIndex(
-          remoteProject.sshConnectionId,
-          args.taskPath,
-          operationArgs
-        );
-      } else {
-        await gitUpdateIndex(args.taskPath, operationArgs);
-      }
-      return { success: true };
-    } catch (error) {
-      log.error('Failed to update git index', { taskPath: args.taskPath, error });
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  );
 
   // Git: Revert file
-  ipcMain.handle('git:revert-file', async (_, args: { taskPath: string; filePath: string }) => {
-    try {
-      log.info('Reverting file:', { taskPath: args.taskPath, filePath: args.filePath });
-      const remoteProject = await resolveRemoteProjectForWorktreePath(args.taskPath);
-      let result: { action: string };
-      if (remoteProject) {
-        result = await remoteGitService.revertFile(
-          remoteProject.sshConnectionId,
-          args.taskPath,
-          args.filePath
-        );
-      } else {
-        result = await gitRevertFile(args.taskPath, args.filePath);
+  ipcMain.handle(
+    'git:revert-file',
+    async (_, args: { taskPath: string; taskId?: string; filePath: string }) => {
+      try {
+        log.info('Reverting file:', { taskPath: args.taskPath, filePath: args.filePath });
+        const remote = await resolveRemoteContext(args.taskPath, args.taskId);
+        let result: { action: string };
+        if (remote) {
+          result = await remoteGitService.revertFile(
+            remote.connectionId,
+            remote.remotePath,
+            args.filePath
+          );
+        } else {
+          result = await gitRevertFile(args.taskPath, args.filePath);
+        }
+        log.info('File operation completed:', { filePath: args.filePath, action: result.action });
+        return { success: true, action: result.action };
+      } catch (error) {
+        log.error('Failed to revert file:', { filePath: args.filePath, error });
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
-      log.info('File operation completed:', { filePath: args.filePath, action: result.action });
-      return { success: true, action: result.action };
-    } catch (error) {
-      log.error('Failed to revert file:', { filePath: args.filePath, error });
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
+  );
   // Git: Generate PR title and description
   ipcMain.handle(
     'git:generate-pr-content',
@@ -1890,6 +1918,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       _,
       args: {
         taskPath: string;
+        taskId?: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
@@ -1897,27 +1926,30 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     ) => {
       const {
         taskPath,
+        taskId,
         commitMessage = 'chore: apply task changes',
         createBranchIfOnDefault = true,
         branchPrefix = 'orch',
       } = (args ||
         ({} as {
           taskPath: string;
+          taskId?: string;
           commitMessage?: string;
           createBranchIfOnDefault?: boolean;
           branchPrefix?: string;
         })) as {
         taskPath: string;
+        taskId?: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
       };
 
       try {
-        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
+        const remote = await resolveRemoteContext(taskPath, taskId);
 
-        if (remoteProject) {
-          return await commitAndPushRemote(remoteProject.sshConnectionId, taskPath, {
+        if (remote) {
+          return await commitAndPushRemote(remote.connectionId, remote.remotePath, {
             commitMessage,
             createBranchIfOnDefault,
             branchPrefix,
@@ -2039,93 +2071,86 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   );
 
   // Git: Get branch status (current branch, default branch, ahead/behind counts)
-  ipcMain.handle('git:get-branch-status', async (_, args: { taskPath: string }) => {
-    const { taskPath } = args || ({} as { taskPath: string });
+  ipcMain.handle(
+    'git:get-branch-status',
+    async (_, args: { taskPath: string; taskId?: string }) => {
+      const { taskPath, taskId } = args || ({} as { taskPath: string; taskId?: string });
 
-    if (!taskPath) {
-      return { success: false, error: 'Path does not exist' };
-    }
-
-    const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-    if (remoteProject) {
-      try {
-        const status = await remoteGitService.getBranchStatus(
-          remoteProject.sshConnectionId,
-          taskPath
-        );
-        return { success: true, ...status };
-      } catch (error) {
-        log.error(`getBranchStatus (remote): error for ${taskPath}:`, error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      if (!taskPath) {
+        return { success: false, error: 'Path does not exist' };
       }
-    }
 
-    // Early exit for missing/invalid local path
-    if (!fs.existsSync(taskPath)) {
-      log.warn(`getBranchStatus: path does not exist: ${taskPath}`);
-      return { success: false, error: 'Path does not exist' };
-    }
-
-    // Check if it's a git repo - expected to fail often for non-git paths
-    try {
-      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-    } catch {
-      log.warn(`getBranchStatus: not a git repository: ${taskPath}`);
-      return { success: false, error: 'Not a git repository' };
-    }
-
-    try {
-      // Current branch
-      const { stdout: currentBranchOut } = await execFileAsync(GIT, ['branch', '--show-current'], {
-        cwd: taskPath,
-      });
-      const branch = (currentBranchOut || '').trim();
-
-      // Determine default branch
-      let defaultBranch = 'main';
-      try {
-        const { stdout } = await execFileAsync(
-          'gh',
-          ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
-          { cwd: taskPath }
-        );
-        const db = (stdout || '').trim();
-        if (db) defaultBranch = db;
-      } catch {
+      const remote = await resolveRemoteContext(taskPath, taskId);
+      if (remote) {
         try {
-          // Use symbolic-ref to resolve origin/HEAD then take the last path part
+          const status = await remoteGitService.getBranchStatus(
+            remote.connectionId,
+            remote.remotePath
+          );
+          return { success: true, ...status };
+        } catch (error) {
+          log.error(`getBranchStatus (remote): error for ${taskPath}:`, error);
+          return { success: false, error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+
+      // Early exit for missing/invalid local path
+      if (!fs.existsSync(taskPath)) {
+        log.warn(`getBranchStatus: path does not exist: ${taskPath}`);
+        return { success: false, error: 'Path does not exist' };
+      }
+
+      // Check if it's a git repo - expected to fail often for non-git paths
+      try {
+        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
+      } catch {
+        log.warn(`getBranchStatus: not a git repository: ${taskPath}`);
+        return { success: false, error: 'Not a git repository' };
+      }
+
+      try {
+        // Current branch
+        const { stdout: currentBranchOut } = await execFileAsync(
+          GIT,
+          ['branch', '--show-current'],
+          {
+            cwd: taskPath,
+          }
+        );
+        const branch = (currentBranchOut || '').trim();
+
+        // Determine default branch
+        let defaultBranch = 'main';
+        try {
           const { stdout } = await execFileAsync(
-            GIT,
-            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+            'gh',
+            ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
             { cwd: taskPath }
           );
-          const line = (stdout || '').trim();
-          const last = line.split('/').pop();
-          if (last) defaultBranch = last;
-        } catch {}
-      }
-
-      // Ahead/behind relative to upstream tracking branch
-      let ahead = 0;
-      let behind = 0;
-      try {
-        // Best case: compare against the upstream tracking branch (@{upstream})
-        const { stdout } = await execFileAsync(
-          GIT,
-          ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
-          { cwd: taskPath }
-        );
-        const parts = (stdout || '').trim().split(/\s+/);
-        if (parts.length >= 2) {
-          behind = parseInt(parts[0] || '0', 10) || 0;
-          ahead = parseInt(parts[1] || '0', 10) || 0;
+          const db = (stdout || '').trim();
+          if (db) defaultBranch = db;
+        } catch {
+          try {
+            // Use symbolic-ref to resolve origin/HEAD then take the last path part
+            const { stdout } = await execFileAsync(
+              GIT,
+              ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+              { cwd: taskPath }
+            );
+            const line = (stdout || '').trim();
+            const last = line.split('/').pop();
+            if (last) defaultBranch = last;
+          } catch {}
         }
-      } catch {
+
+        // Ahead/behind relative to upstream tracking branch
+        let ahead = 0;
+        let behind = 0;
         try {
-          // Fallback: compare against origin/<current-branch>
+          // Best case: compare against the upstream tracking branch (@{upstream})
           const { stdout } = await execFileAsync(
             GIT,
-            ['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`],
+            ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
             { cwd: taskPath }
           );
           const parts = (stdout || '').trim().split(/\s+/);
@@ -2134,39 +2159,53 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             ahead = parseInt(parts[1] || '0', 10) || 0;
           }
         } catch {
-          // No upstream — use git status as last resort
           try {
-            const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
-            const line = (stdout || '').split(/\n/)[0] || '';
-            const m = line.match(/ahead\s+(\d+)/i);
-            const n = line.match(/behind\s+(\d+)/i);
-            if (m) ahead = parseInt(m[1] || '0', 10) || 0;
-            if (n) behind = parseInt(n[1] || '0', 10) || 0;
-          } catch {}
+            // Fallback: compare against origin/<current-branch>
+            const { stdout } = await execFileAsync(
+              GIT,
+              ['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`],
+              { cwd: taskPath }
+            );
+            const parts = (stdout || '').trim().split(/\s+/);
+            if (parts.length >= 2) {
+              behind = parseInt(parts[0] || '0', 10) || 0;
+              ahead = parseInt(parts[1] || '0', 10) || 0;
+            }
+          } catch {
+            // No upstream — use git status as last resort
+            try {
+              const { stdout } = await execFileAsync(GIT, ['status', '-sb'], { cwd: taskPath });
+              const line = (stdout || '').split(/\n/)[0] || '';
+              const m = line.match(/ahead\s+(\d+)/i);
+              const n = line.match(/behind\s+(\d+)/i);
+              if (m) ahead = parseInt(m[1] || '0', 10) || 0;
+              if (n) behind = parseInt(n[1] || '0', 10) || 0;
+            } catch {}
+          }
         }
-      }
 
-      // Count commits ahead of origin/<defaultBranch> (for PR visibility)
-      let aheadOfDefault = 0;
-      if (branch !== defaultBranch) {
-        try {
-          const { stdout: countOut } = await execFileAsync(
-            GIT,
-            ['rev-list', '--count', `origin/${defaultBranch}..HEAD`],
-            { cwd: taskPath }
-          );
-          aheadOfDefault = parseInt(countOut.trim(), 10) || 0;
-        } catch {
-          // origin/<defaultBranch> may not exist
+        // Count commits ahead of origin/<defaultBranch> (for PR visibility)
+        let aheadOfDefault = 0;
+        if (branch !== defaultBranch) {
+          try {
+            const { stdout: countOut } = await execFileAsync(
+              GIT,
+              ['rev-list', '--count', `origin/${defaultBranch}..HEAD`],
+              { cwd: taskPath }
+            );
+            aheadOfDefault = parseInt(countOut.trim(), 10) || 0;
+          } catch {
+            // origin/<defaultBranch> may not exist
+          }
         }
-      }
 
-      return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
-    } catch (error) {
-      log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+        return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
+      } catch (error) {
+        log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
-  });
+  );
 
   ipcMain.handle(
     'git:list-remote-branches',
@@ -2300,13 +2339,13 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   );
 
   // Git: Merge current branch to main via GitHub (create PR + merge immediately)
-  ipcMain.handle('git:merge-to-main', async (_, args: { taskPath: string }) => {
-    const { taskPath } = args || ({} as { taskPath: string });
+  ipcMain.handle('git:merge-to-main', async (_, args: { taskPath: string; taskId?: string }) => {
+    const { taskPath, taskId } = args || ({} as { taskPath: string; taskId?: string });
 
     try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-      if (remoteProject) {
-        return await mergeToMainRemote(remoteProject.sshConnectionId, taskPath);
+      const remote = await resolveRemoteContext(taskPath, taskId);
+      if (remote) {
+        return await mergeToMainRemote(remote.connectionId, remote.remotePath);
       }
 
       // Get current and default branch names

@@ -22,7 +22,7 @@ let requestCounter = 0;
 
 export async function getCachedGitStatus(
   taskPath: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean; taskId?: string }
 ): Promise<GitStatusResult> {
   if (!taskPath) return { success: false, error: 'workspace-unavailable' };
   const force = options?.force ?? false;
@@ -42,7 +42,9 @@ export async function getCachedGitStatus(
   latestRequestId.set(taskPath, requestId);
   const promise = (async () => {
     try {
-      const res = await window.electronAPI.getGitStatus(taskPath);
+      const res = await window.electronAPI.getGitStatus(
+        options?.taskId ? { taskPath, taskId: options.taskId } : taskPath
+      );
       const result = res ?? {
         success: false,
         error: 'Failed to load git status',

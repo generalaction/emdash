@@ -17,6 +17,7 @@ interface WatcherRefreshOptions {
 
 interface UseGitStatusAutoRefreshParams {
   taskPath?: string;
+  taskId?: string;
   shouldPoll: boolean;
   idleIntervalMs: number;
   hasLoadedRef: MutableRefObject<boolean>;
@@ -36,6 +37,7 @@ const DEFAULT_MIN_FORCE_REFRESH_INTERVAL_MS = 300;
 
 export function useGitStatusAutoRefresh({
   taskPath,
+  taskId,
   shouldPoll,
   idleIntervalMs,
   hasLoadedRef,
@@ -156,15 +158,16 @@ export function useGitStatusAutoRefresh({
     let watchId: string | undefined;
     let disposed = false;
 
+    const watchArg = taskId ? { taskPath, taskId } : taskPath;
     const watchPromise = api.watchGitStatus
-      ? api.watchGitStatus(taskPath)
+      ? api.watchGitStatus(watchArg)
       : Promise.resolve({ success: false });
 
     watchPromise
       .then((res: { success?: boolean; watchId?: string }) => {
         if (disposed) {
           if (res?.success && res.watchId && api.unwatchGitStatus) {
-            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
+            api.unwatchGitStatus(watchArg, res.watchId).catch(() => {});
           }
           return;
         }
@@ -189,10 +192,10 @@ export function useGitStatusAutoRefresh({
       disposed = true;
       off?.();
       if (api.unwatchGitStatus && watchId) {
-        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
+        api.unwatchGitStatus(watchArg, watchId).catch(() => {});
       }
     };
-  }, [taskPath, scheduleWatcherRefresh]);
+  }, [taskPath, taskId, scheduleWatcherRefresh]);
 
   return {
     shouldPollRef,

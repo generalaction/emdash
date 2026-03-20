@@ -16,6 +16,7 @@ export interface FileChange {
 interface UseFileChangesOptions {
   isActive?: boolean;
   idleIntervalMs?: number;
+  taskId?: string;
 }
 
 export function shouldRefreshFileChanges(
@@ -35,7 +36,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     return document.visibilityState === 'visible';
   });
 
-  const { isActive = true, idleIntervalMs = 60000 } = options;
+  const { isActive = true, idleIntervalMs = 60000, taskId } = options;
   const taskPathRef = useRef(taskPath);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -105,7 +106,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
       const requestPath = currentPath;
 
       try {
-        const result = await getCachedGitStatus(requestPath, { force: options?.force });
+        const result = await getCachedGitStatus(requestPath, { force: options?.force, taskId });
 
         if (!mountedRef.current) return;
 
@@ -163,6 +164,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   const shouldPoll = shouldRefreshFileChanges(taskPath, isActive, isDocumentVisible);
   const { shouldPollRef, scheduleWatcherRefresh, clearScheduledRefresh } = useGitStatusAutoRefresh({
     taskPath,
+    taskId,
     shouldPoll,
     idleIntervalMs,
     hasLoadedRef,
