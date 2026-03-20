@@ -13,6 +13,7 @@ import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
+import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
@@ -45,6 +46,7 @@ export const rpcRouter = createRPCRouter({
   dependencies: dependenciesController,
   mcp: mcpController,
   editorBuffer: editorBufferController,
+  pullRequests: pullRequestController,
 });
 
 export type RpcRouter = typeof rpcRouter;
