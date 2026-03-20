@@ -1,12 +1,11 @@
 import { Task } from 'electron';
 import { Archive, ArchiveRestore, ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
-import { AgentProviderId, getProvider } from '@shared/agent-provider-registry';
 import { rpc } from '@renderer/core/ipc';
 import { usePrStatus } from '@renderer/hooks/usePrStatus';
 import { useTaskAgentNames } from '@renderer/hooks/useTaskAgentNames';
 import { useTaskChanges } from '@renderer/hooks/useTaskChanges';
-import { agentAssets } from '@renderer/providers/assets';
+import { agentMeta } from '@renderer/providers/meta';
 import AgentLogo from '../agent-logo';
 import PrPreviewTooltip from '../PrPreviewTooltip';
 import { ChangesBadge } from '../TaskChanges';
@@ -79,21 +78,18 @@ export function TaskRow({
     return (
       <div className="flex items-center gap-2">
         {showIds.map((id) => {
-          const asset = agentAssets[id as keyof typeof agentAssets];
-          const provider = getProvider(id as AgentProviderId);
-          if (!asset) return null;
+          const meta = agentMeta[id as keyof typeof agentMeta];
+          if (!meta?.icon) return null;
           return (
             <div key={id} className="flex items-center gap-1">
               <AgentLogo
-                logo={asset.logo}
-                alt={asset.alt}
-                isSvg={asset.isSvg}
-                invertInDark={asset.invertInDark}
+                logo={meta.icon}
+                alt={meta.alt ?? id}
+                isSvg={meta.isSvg}
+                invertInDark={meta.invertInDark}
                 className="h-4 w-4"
               />
-              <span className="text-sm font-medium text-muted-foreground">
-                {provider?.name ?? id}
-              </span>
+              <span className="text-sm font-medium text-muted-foreground">{meta.label}</span>
             </div>
           );
         })}

@@ -5,8 +5,8 @@ import {
   usePendingProjectsContext,
   type PendingProject,
 } from '@renderer/components/add-project-modal/pending-projects-provider';
-import ReorderList from '@renderer/components/ReorderList';
-import SidebarEmptyState from '@renderer/components/sidebar/SidebarEmptyState';
+import ReorderList from '@renderer/components/reorder-list';
+import SidebarEmptyState from '@renderer/components/sidebar/sidebar-empty-state';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import {
   isCurrentView,

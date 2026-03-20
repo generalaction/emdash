@@ -55,6 +55,10 @@ export type AgentProviderDefinition = {
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
+  /** Accessible alt text for the provider logo. */
+  alt?: string;
+  /** When true, the logo should be colour-inverted in dark mode. */
+  invertInDark?: boolean;
   terminalOnly?: boolean;
 };
 
@@ -71,6 +75,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: 'resume --last',
     icon: 'openai.svg',
+    alt: 'Codex',
     terminalOnly: true,
   },
   {
@@ -87,6 +92,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     sessionIdFlag: '--session-id',
     planActivateCommand: '/plan',
     icon: 'claude.png',
+    alt: 'Claude Code',
     terminalOnly: true,
   },
   {
@@ -100,6 +106,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '-f',
     initialPromptFlag: '',
     icon: 'cursor.svg',
+    alt: 'Cursor CLI',
     terminalOnly: true,
   },
   {
@@ -114,6 +121,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gemini.png',
+    alt: 'Gemini CLI',
     terminalOnly: true,
   },
   {
@@ -128,6 +136,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '-i',
     resumeFlag: '--continue',
     icon: 'qwen.png',
+    alt: 'Qwen Code CLI',
     terminalOnly: true,
   },
   {
@@ -141,6 +150,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '-r',
     icon: 'droid.svg',
+    alt: 'Factory Droid',
     terminalOnly: true,
   },
   {
@@ -155,6 +165,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     useKeystrokeInjection: true,
     icon: 'ampcode.png',
+    alt: 'Amp CLI',
     terminalOnly: true,
   },
   {
@@ -168,6 +179,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     useKeystrokeInjection: true,
     icon: 'opencode.png',
+    alt: 'OpenCode CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -180,6 +193,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'copilot',
     autoApproveFlag: '--allow-all-tools',
     icon: 'gh-copilot.svg',
+    alt: 'GitHub Copilot CLI',
     terminalOnly: true,
   },
   {
@@ -192,6 +206,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'crush',
     autoApproveFlag: '--yolo',
     icon: 'charm.png',
+    alt: 'Charm CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -206,6 +222,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
+    alt: 'Auggie CLI',
     terminalOnly: true,
   },
   {
@@ -220,6 +237,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
     icon: 'goose.png',
+    alt: 'Goose CLI',
     terminalOnly: true,
   },
   {
@@ -233,6 +251,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-c',
     icon: 'kimi.png',
+    alt: 'Kimi CLI',
     terminalOnly: true,
   },
   {
@@ -247,6 +266,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '--continue',
     icon: 'kilocode.png',
+    alt: 'Kilocode CLI',
     terminalOnly: true,
   },
   {
@@ -260,6 +280,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['chat'],
     initialPromptFlag: '',
     icon: 'kiro.png',
+    alt: 'Kiro CLI',
     terminalOnly: true,
   },
   {
@@ -272,6 +293,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     autoStartCommand: 'acli rovodev run',
     icon: 'atlassian.png',
+    alt: 'Rovo Dev CLI',
     terminalOnly: true,
   },
   {
@@ -285,6 +307,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '',
     icon: 'cline.png',
+    alt: 'Cline CLI',
     terminalOnly: true,
   },
   {
@@ -298,6 +321,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '-p',
     resumeFlag: '--resume',
     icon: 'continue.png',
+    alt: 'Continue CLI',
     terminalOnly: true,
   },
   {
@@ -310,6 +334,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'codebuff',
     initialPromptFlag: '',
     icon: 'codebuff.png',
+    alt: 'Codebuff CLI',
     terminalOnly: true,
   },
   {
@@ -323,6 +348,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--auto-approve',
     initialPromptFlag: '--prompt',
     icon: 'mistral.png',
+    alt: 'Mistral Vibe CLI',
     terminalOnly: true,
   },
   {
@@ -336,6 +362,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '-c',
     icon: 'pi.png',
+    alt: 'Pi CLI',
     terminalOnly: true,
   },
   {
@@ -349,6 +376,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--unrestricted',
     initialPromptFlag: '-p',
     icon: 'autohand.svg',
+    alt: 'Autohand Code CLI',
     terminalOnly: true,
   },
 ];

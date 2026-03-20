@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/_deprecated/diff-viewer/editorConfig';
+import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/core/monaco/editorConfig';
 import { getDiffThemeName, registerDiffThemes } from './monaco-diff-themes';
 import { modelRegistry } from './monaco-model-registry';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from './monaco-pool';
