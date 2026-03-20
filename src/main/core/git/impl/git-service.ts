@@ -484,6 +484,60 @@ export class GitService implements GitProvider {
     return commits[0] || null;
   }
 
+  async getChangedFiles(base: DiffBase): Promise<GitChange[]> {
+    const ref = base === 'staged' ? '--cached' : String(base);
+
+    const parseNumstat = (
+      stdout: string
+    ): Map<string, { additions: number; deletions: number }> => {
+      const map = new Map<string, { additions: number; deletions: number }>();
+      for (const l of stdout
+        .trim()
+        .split('\n')
+        .filter((s) => s.trim())) {
+        const [addStr, delStr, ...pathParts] = l.split('\t');
+        const filePath = pathParts.join('\t');
+        if (!filePath) continue;
+        const existing = map.get(filePath) ?? { additions: 0, deletions: 0 };
+        existing.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
+        existing.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
+        map.set(filePath, existing);
+      }
+      return map;
+    };
+
+    const diffArgs =
+      base === 'staged' ? ['diff', '--numstat', '--cached'] : ['diff', '--numstat', ref];
+    const nameArgs =
+      base === 'staged' ? ['diff', '--name-status', '--cached'] : ['diff', '--name-status', ref];
+
+    const [numstatResult, nameStatusResult] = await Promise.all([
+      this.exec('git', diffArgs, { cwd: this.path }).catch(() => ({ stdout: '' })),
+      this.exec('git', nameArgs, { cwd: this.path }).catch(() => ({ stdout: '' })),
+    ]);
+
+    const numstatMap = parseNumstat(numstatResult.stdout);
+
+    const changes: GitChange[] = [];
+    for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
+      const parts = line.split('\t');
+      const code = parts[0] ?? '';
+      const filePath = (parts[parts.length - 1] ?? '').trim();
+      if (!filePath) continue;
+
+      const stat = numstatMap.get(filePath);
+      changes.push({
+        path: filePath,
+        status: mapStatus(code),
+        additions: stat?.additions ?? 0,
+        deletions: stat?.deletions ?? 0,
+        isStaged: base === 'staged',
+      });
+    }
+
+    return changes;
+  }
+
   async getCommitFiles(commitHash: string): Promise<CommitFile[]> {
     const { stdout } = await this.exec(
       'git',

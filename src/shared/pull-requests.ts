@@ -1,4 +1,4 @@
-export type PullRequestStatus = 'open' | 'closed' | 'draft' | 'merged';
+export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
 export type PullRequestAuthor = {
   userName: string;
@@ -7,17 +7,21 @@ export type PullRequestAuthor = {
 };
 
 export type PullRequest = {
+  id: string;
   provider: 'github';
+  identifier: string; // a number for gh
   status: PullRequestStatus;
   url: string;
+  isDraft?: boolean;
   title: string;
-  identifier: string;
-  // source branch name
   headRefName: string;
-  headRefOid?: string;
-  // target branch name
   baseRefName: string;
   author?: PullRequestAuthor;
+  reviewDecision?: 'approved' | 'changes_requested' | 'review_required';
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
+
   // defined if the pull request is from a fork
   headRepository?: {
     name: string;

@@ -14,6 +14,7 @@ import type { Result } from '@main/lib/result';
 
 export interface GitProvider {
   getStatus(): Promise<GitChange[]>;
+  getChangedFiles(base: DiffBase): Promise<GitChange[]>;
 
   getFileDiff(filePath: string, base?: DiffBase): Promise<DiffResult>;
   getFileAtHead(filePath: string): Promise<string | null>;

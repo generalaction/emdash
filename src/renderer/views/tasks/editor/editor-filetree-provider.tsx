@@ -1,6 +1,5 @@
 import React, { createContext, useContext } from 'react';
 import type { FileNode } from '@shared/fs';
-import { useTaskViewContext } from '../task-view-context';
 import { useFileTree, type UseFileTreeResult } from './use-file-tree';
 
 export interface EditorFiletreeContextValue {
@@ -15,8 +14,15 @@ export interface EditorFiletreeContextValue {
 
 const EditorFiletreeContext = createContext<EditorFiletreeContextValue | null>(null);
 
-export function EditorFiletreeProvider({ children }: { children: React.ReactNode }) {
-  const { projectId, taskId } = useTaskViewContext();
+export function EditorFiletreeProvider({
+  children,
+  projectId,
+  taskId,
+}: {
+  children: React.ReactNode;
+  projectId: string;
+  taskId: string;
+}) {
   const filetree: UseFileTreeResult = useFileTree(projectId, taskId);
 
   return (

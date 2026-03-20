@@ -1,16 +1,10 @@
-import { usePrContext } from '../../state/pr-provider';
+import { PullRequest } from '@shared/pull-requests';
 import { CreatePullRequestSection } from './create-pr-section';
 import { MergePullRequestSection } from './merge-pr-section';
 import { PrFilesList } from './pr-files-list';
 import { StatusSection } from './status-section';
 
-export function PullRequestSection() {
-  const { state, pr, prDetails, branchName, baseBranch, nameWithOwner, mergePr } = usePrContext();
-
-  if (state === 'loading' || state === 'no-remote' || state === 'up-to-date') {
-    return null;
-  }
-
+export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   if (state === 'can-create-pr') {
     return <CreatePullRequestSection nameWithOwner={nameWithOwner!} branchName={branchName!} />;
   }
@@ -31,4 +25,8 @@ export function PullRequestSection() {
       <MergePullRequestSection prDetails={prDetails} onMerge={mergePr} />
     </>
   );
+}
+
+export function CreatePullRequestCard() {
+  return <div>Create Pull Request Card</div>;
 }
