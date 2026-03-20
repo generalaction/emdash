@@ -4,7 +4,18 @@ import { classifyActivity, sampleActivityChunk } from '../lib/activityClassifier
 import { agentStatusStore } from '../lib/agentStatusStore';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
-import { buildPromptInjectionPayload } from '../lib/terminalInjection';
+import {
+  buildPromptInjectionPayload,
+  getPromptSubmitKey,
+  getSlowStartupConfig,
+} from '../lib/terminalInjection';
+
+// Default timing for providers without slow-startup config
+const DEFAULT_SILENCE_AFTER_STARTED_MS = 2000;
+const DEFAULT_EAGER_TIMER_MS = 300;
+const DEFAULT_HARD_TIMER_MS = 5000;
+const IDLE_SEND_DELAY_MS = 250;
+const SILENCE_DEBOUNCE_MS = 1200;
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
@@ -28,13 +39,65 @@ export function useInitialPromptInjection(opts: {
     if (localStorage.getItem(sentKey) === '1') return;
 
     const ptyId = makePtyId(providerId as ProviderId, ptyKind, scopeId);
+    const cfg = getSlowStartupConfig(providerId);
+    const submitKey = getPromptSubmitKey(providerId);
+
     let sent = false;
-    let silenceTimer: any = null;
-    let eagerTimer: any = null;
-    let hardTimer: any = null;
-    const send = () => {
+    let submitConfirmed = false;
+    let promptPersisted = false;
+    let promptNotified = false;
+    let ptyReady = false;
+    let sawIdleBeforeSend = false;
+    let retryCount = 0;
+    let lastSubmitAt = 0;
+    const effectStartedAt = Date.now();
+
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    let eagerTimer: ReturnType<typeof setTimeout> | null = null;
+    let hardTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setInterval> | null = null;
+    const submitTimers: Array<ReturnType<typeof setTimeout>> = [];
+
+    const persistPromptSent = () => {
+      if (promptPersisted) return;
+      promptPersisted = true;
+      localStorage.setItem(sentKey, '1');
+    };
+
+    const notifyPromptSent = () => {
+      if (promptNotified) return;
+      promptNotified = true;
+      onSent?.();
+    };
+
+    const stopRetries = () => {
+      if (retryTimer) {
+        clearInterval(retryTimer);
+        retryTimer = null;
+      }
+      if (retryDeadlineTimer) {
+        clearTimeout(retryDeadlineTimer);
+        retryDeadlineTimer = null;
+      }
+    };
+
+    const sendSubmit = (pty: ((arg: { id: string; data: string }) => void) | undefined) => {
+      if (!pty) return;
+      try {
+        pty({ id: ptyId, data: submitKey });
+        lastSubmitAt = Date.now();
+      } catch {}
+    };
+
+    const send = (force: boolean = false) => {
       try {
         if (sent) return;
+        if (!force && !ptyReady) return;
+        if (!force && cfg && !sawIdleBeforeSend) {
+          const startupAgeMs = Date.now() - effectStartedAt;
+          if (startupAgeMs < cfg.minStartupBeforeSendMs) return;
+        }
         const pty = (window as any).electronAPI?.ptyInput;
         if (!pty) return;
         agentStatusStore.markUserInputSubmitted({ ptyId });
@@ -43,55 +106,107 @@ export function useInitialPromptInjection(opts: {
           text: trimmed,
         });
         pty({ id: ptyId, data: payload });
-        const submitKey = providerId === 'amp' ? '\n' : '\r';
-        setTimeout(() => {
-          try {
-            pty({ id: ptyId, data: submitKey });
-          } catch {}
-        }, submitDelayMs);
-        localStorage.setItem(sentKey, '1');
+        persistPromptSent();
+
+        const scheduleSubmit = (delayMs: number) => {
+          const t = setTimeout(() => {
+            sendSubmit(pty);
+            if (!cfg) notifyPromptSent();
+          }, delayMs);
+          submitTimers.push(t);
+        };
+
+        if (cfg) {
+          // Some providers can spend a long time in MCP/startup. Keep submitting Enter
+          // until we observe an idle->busy transition after injection.
+          scheduleSubmit(submitDelayMs);
+          retryTimer = setInterval(() => {
+            if (submitConfirmed) {
+              stopRetries();
+              return;
+            }
+            if (retryCount >= cfg.maxSubmitRetries) {
+              stopRetries();
+              notifyPromptSent();
+              return;
+            }
+            retryCount += 1;
+            sendSubmit(pty);
+          }, cfg.retryIntervalMs);
+          // Safety cap: never allow infinite submit retries.
+          retryDeadlineTimer = setTimeout(() => {
+            if (submitConfirmed) return;
+            submitConfirmed = true;
+            stopRetries();
+            notifyPromptSent();
+          }, cfg.retryDeadlineMs);
+        } else {
+          scheduleSubmit(submitDelayMs);
+        }
         sent = true;
-        onSent?.();
       } catch {}
     };
 
     const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
+      ptyReady = true;
       // Debounce-based idle: send after a short period of silence
       if (silenceTimer) clearTimeout(silenceTimer);
       silenceTimer = setTimeout(() => {
         if (!sent) send();
-      }, 1200);
+      }, SILENCE_DEBOUNCE_MS);
 
       // Heuristic: if classifier says idle, trigger a quicker send
       try {
         const signal = classifyActivity(providerId, sampleActivityChunk(chunk));
         if (signal === 'idle' && !sent) {
-          setTimeout(send, 250);
+          if (cfg) sawIdleBeforeSend = true;
+          setTimeout(send, IDLE_SEND_DELAY_MS);
+        } else if (cfg && sent && !submitConfirmed) {
+          // Stop retries as soon as the provider shows active processing.
+          if (signal === 'busy') {
+            submitConfirmed = true;
+            stopRetries();
+            notifyPromptSent();
+          } else if (signal === 'idle' && !cfg.skipIdleRetries) {
+            // If still idle, nudge submit with a cooldown to avoid Enter bursts from redraw spam.
+            if (Date.now() - lastSubmitAt >= cfg.idleRetryCooldownMs) {
+              sendSubmit((window as any).electronAPI?.ptyInput);
+            }
+          }
         }
       } catch {
         // ignore classifier errors; rely on silence debounce
       }
     });
+
     const offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
       if (info?.id === ptyId) {
+        ptyReady = true;
         // Start a silence timer in case no output arrives (rare but possible)
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (!sent) send();
-        }, 2000);
+        }, cfg?.silenceAfterStartedMs ?? DEFAULT_SILENCE_AFTER_STARTED_MS);
       }
     });
-    eagerTimer = setTimeout(() => {
-      if (!sent) send();
-    }, 300);
+
+    if (!cfg) {
+      eagerTimer = setTimeout(() => {
+        if (!sent) send();
+      }, DEFAULT_EAGER_TIMER_MS);
+    }
+
     // Global last-resort fallback if neither event fires
     hardTimer = setTimeout(() => {
-      if (!sent) send();
-    }, 5000);
+      if (!sent) send(true);
+    }, cfg?.hardTimerMs ?? DEFAULT_HARD_TIMER_MS);
+
     return () => {
       if (eagerTimer) clearTimeout(eagerTimer);
       if (hardTimer) clearTimeout(hardTimer);
       if (silenceTimer) clearTimeout(silenceTimer);
+      stopRetries();
+      for (const t of submitTimers) clearTimeout(t);
       offStarted?.();
       offData?.();
     };
