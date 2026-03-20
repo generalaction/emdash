@@ -21,7 +21,7 @@ export function GitStatusSection() {
           <Tooltip>
             <TooltipTrigger className="flex min-w-0 items-center gap-2">
               <GitBranch className="size-3 shrink-0" />
-              <span className="truncate text-sm text-muted-foreground">{data?.branch}</span>
+              <span className="truncate text-xs text-muted-foreground">{data?.branch}</span>
             </TooltipTrigger>
             <TooltipContent side="bottom">{data?.branch}</TooltipContent>
           </Tooltip>

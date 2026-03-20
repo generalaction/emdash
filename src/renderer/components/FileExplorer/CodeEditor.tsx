@@ -1,5 +1,6 @@
 import Editor, { loader, type OnChange, type OnMount } from '@monaco-editor/react';
 import React, { useEffect } from 'react';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
 import {
   applyMonacoTheme,
@@ -72,9 +73,10 @@ export const EditorContent: React.FC<EditorContentProps> = ({
 };
 
 const NoFileOpen: React.FC = () => (
-  <div className="flex flex-1 items-center justify-center text-muted-foreground">
-    <div className="text-center" />
-  </div>
+  <EmptyState
+    label="No file open"
+    description="Select a file from the explorer to view or edit it."
+  />
 );
 
 const ImagePreview: React.FC<{ file: ManagedFile }> = ({ file }) => (

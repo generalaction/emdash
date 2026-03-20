@@ -2,6 +2,7 @@ import { MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
@@ -29,20 +30,14 @@ export function ConversationsPanel() {
 
   if (conversations.length === 0) {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
-        <div className="flex max-w-sm flex-col items-center text-center">
-          <div
-            className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/60 bg-muted/30"
-            aria-hidden
-          >
-            <MessageSquare className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <h2 className="text-sm font-semibold text-foreground">No conversations yet</h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Create one to open a terminal session for this task and work with an agent.
-          </p>
+      <EmptyState
+        icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
+        label="No conversations yet"
+        description="Create one to open a terminal session for this task and work with an agent."
+        action={
           <Button
-            className="mt-5"
+            size="sm"
+            variant="outline"
             onClick={() =>
               showCreateConversationModal({
                 projectId: params.projectId,
@@ -53,8 +48,8 @@ export function ConversationsPanel() {
           >
             Create conversation
           </Button>
-        </div>
-      </div>
+        }
+      />
     );
   }
 

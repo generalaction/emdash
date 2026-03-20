@@ -2,12 +2,21 @@ import { useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { Input } from '@renderer/components/ui/input';
 import { Textarea } from '@renderer/components/ui/textarea';
-import { useGitChangesContext } from '../state/git-changes-provider';
 
-export function CommitCard() {
+interface CommitCardProps {
+  onCommit: (message: string) => void;
+}
+
+export function CommitCard({ onCommit }: CommitCardProps) {
   const [commitMessage, setCommitMessage] = useState('');
   const [description, setDescription] = useState('');
-  const { commitChanges } = useGitChangesContext();
+
+  const handleCommit = () => {
+    onCommit(commitMessage + '\n\n' + description);
+    setCommitMessage('');
+    setDescription('');
+  };
+
   return (
     <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border  p-2.5">
       <Input
@@ -22,12 +31,7 @@ export function CommitCard() {
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
-      <Button
-        variant="default"
-        size="sm"
-        className="w-full"
-        onClick={() => commitChanges(commitMessage + '\n\n' + description)}
-      >
+      <Button variant="default" size="sm" className="w-full" onClick={handleCommit}>
         Commit
       </Button>
     </div>

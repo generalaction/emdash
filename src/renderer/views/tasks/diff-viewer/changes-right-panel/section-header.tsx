@@ -27,20 +27,19 @@ export function SectionHeader({
   return (
     <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
       <div className="flex items-center gap-2 justify-between w-full">
-        <span className="text-sm text-muted-foreground flex items-center gap-2">
-          <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
-          <button
-            onClick={onToggleCollapsed}
-            className="p-2 text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                'size-4 transition-transform duration-200 ease-in-out',
-                collapsed ? '-rotate-90' : 'rotate-0'
-              )}
-            />
-          </button>
-        </span>
+        <button onClick={onToggleCollapsed}>
+          <span className="text-sm text-muted-foreground flex items-center gap-2">
+            <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
+            <span className="p-2 text-muted-foreground hover:text-foreground">
+              <ChevronDown
+                className={cn(
+                  'size-4 transition-transform duration-200 ease-in-out',
+                  collapsed ? '-rotate-90' : 'rotate-0'
+                )}
+              />
+            </span>
+          </span>
+        </button>
         <Checkbox
           checked={selectionState === 'all'}
           indeterminate={selectionState === 'partial'}
@@ -66,20 +65,19 @@ export function PullRequestSectionHeader({
   return (
     <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
       <div className="flex items-center gap-2 justify-between w-full">
-        <span className="text-sm text-muted-foreground flex items-center gap-2">
-          Pull Requests <Badge variant="secondary">{count}</Badge>
-          <button
-            onClick={onToggleCollapsed}
-            className="p-2 text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                'size-4 transition-transform duration-200 ease-in-out',
-                collapsed ? '-rotate-90' : 'rotate-0'
-              )}
-            />
-          </button>
-        </span>
+        <button onClick={onToggleCollapsed}>
+          <span className="text-sm text-muted-foreground flex items-center gap-2">
+            Pull Requests <Badge variant="secondary">{count}</Badge>
+            <span className="p-2 text-muted-foreground hover:text-foreground">
+              <ChevronDown
+                className={cn(
+                  'size-4 transition-transform duration-200 ease-in-out',
+                  collapsed ? '-rotate-90' : 'rotate-0'
+                )}
+              />
+            </span>
+          </span>
+        </button>
         <Button variant="outline" size="xs">
           <Plus className="size-3" />
           Create PR

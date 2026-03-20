@@ -2,6 +2,7 @@ import { Terminal } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { useParams } from '@renderer/core/view/navigation-provider';
@@ -34,23 +35,16 @@ export function TerminalsPanel() {
 
   if (terminalTabItems.length === 0) {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
-        <div className="flex max-w-sm flex-col items-center text-center">
-          <div
-            className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/60 bg-muted/30"
-            aria-hidden
-          >
-            <Terminal className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <h2 className="text-sm font-semibold text-foreground">No terminals yet</h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Add a terminal to run shell commands in this task&apos;s working directory.
-          </p>
-          <Button className="mt-5" onClick={handleCreate}>
+      <EmptyState
+        icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+        label="No terminals yet"
+        description="Add a terminal to run shell commands in this task's working directory."
+        action={
+          <Button size="sm" variant="outline" onClick={handleCreate}>
             New terminal
           </Button>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
