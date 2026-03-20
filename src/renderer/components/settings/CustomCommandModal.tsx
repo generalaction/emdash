@@ -2,12 +2,12 @@ import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
-import { useProviderSettings } from '../hooks/useProviderSettings';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useProviderSettings } from '../../hooks/useProviderSettings';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

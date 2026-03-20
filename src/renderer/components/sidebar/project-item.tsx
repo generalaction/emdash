@@ -3,6 +3,7 @@ import React, { useEffect, useMemo } from 'react';
 import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
 import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { usePrefetchRepository } from '@renderer/hooks/use-repository';
@@ -41,6 +42,7 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { forceOpenIds, setForceOpenIds } = useSidebarContext();
   const { activeTasksByProjectId: tasksByProjectId } = useTasksDataContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
+  const { entries: bootstrapEntries } = useProjectBootstrapContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
   const { params: projectParams } = useParams('project');
@@ -130,7 +132,10 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
             />
           )}
           <button
-            className="flex-1 min-w-0 self-stretch flex items-center truncate text-left"
+            className={cn(
+              'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
+              bootstrapEntries[project.data.id]?.status === 'bootstrapping' && 'text-foreground/40'
+            )}
             onClick={() => navigate('project', { projectId: project.data.id })}
           >
             {project.data.name}

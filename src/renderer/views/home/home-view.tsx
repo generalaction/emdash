@@ -1,5 +1,5 @@
-import HomeView from '@renderer/components/HomeView';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import HomeView from '@renderer/views/home/HomeView';
 
 export function HomeTitlebar() {
   return <Titlebar />;

@@ -1,11 +1,11 @@
 import React from 'react';
-import type { BaseModalProps } from '../core/modal/modal-provider';
-import { useProjectsDataContext } from '../core/projects/projects-data-provider';
-import { useWorkspaceLayoutContext } from '../core/view/layout-provider';
-import { useNavigate } from '../core/view/navigation-provider';
-import { useTheme } from '../hooks/useTheme';
+import { useRightSidebar } from '@renderer/components/ui/right-sidebar';
+import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { useTheme } from '@renderer/hooks/useTheme';
 import CommandPalette from './CommandPalette';
-import { useRightSidebar } from './ui/right-sidebar';
 
 type CommandPaletteModalProps = BaseModalProps<void>;
 

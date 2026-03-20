@@ -4,8 +4,8 @@ import {
   getDocUrlForProvider,
   getInstallCommandForProvider,
 } from '@shared/agent-provider-registry';
-import { agentMeta, type UiAgent } from '../providers/meta';
-import { Button } from './ui/button';
+import { agentMeta, type UiAgent } from '../../providers/meta';
+import { Button } from '../ui/button';
 
 type Props = {
   agent: UiAgent;

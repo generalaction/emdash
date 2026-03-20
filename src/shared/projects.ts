@@ -1,3 +1,9 @@
+export type ProjectBootstrapStatus =
+  | { status: 'ready' }
+  | { status: 'bootstrapping' }
+  | { status: 'error'; message: string }
+  | { status: 'not-started' };
+
 export type LocalProject = {
   type: 'local';
   id: string;

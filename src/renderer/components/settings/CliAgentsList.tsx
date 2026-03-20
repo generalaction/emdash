@@ -5,9 +5,9 @@ import { agentMeta } from '@renderer/providers/meta';
 import { useDependencies, type DependencyState } from '../../contexts/DependenciesProvider';
 import { rpc } from '../../core/ipc';
 import { CliAgentStatus } from '../../types/connections';
-import CustomCommandModal from '../CustomCommandModal';
-import IntegrationRow from '../IntegrationRow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import CustomCommandModal from './CustomCommandModal';
+import IntegrationRow from './IntegrationRow';
 
 export const BASE_CLI_AGENTS: CliAgentStatus[] = AGENT_PROVIDERS.filter(
   (provider) => provider.detectable !== false

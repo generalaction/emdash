@@ -1,7 +1,7 @@
-import type { LocalProject, SshProject } from '@shared/projects';
+import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
-import { getProjects } from '../projects/operations/getProjects';
+import { getProjectById, getProjects } from '../projects/operations/getProjects';
 import { createLocalProvider } from './impl/local-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
@@ -39,6 +39,7 @@ class ProjectManager {
   >();
   private providers = new Map<string, ProjectProvider>();
   private tearingDownProviders = new Map<string, Promise<Result<void, TeardownProviderError>>>();
+  private initializationErrors = new Map<string, InitializeProviderError>();
 
   async initialize(): Promise<void> {
     const allProjects = await getProjects();
@@ -64,12 +65,14 @@ class ProjectManager {
         return ok(provider);
       })
       .catch((e) => {
+        const initError = toInitError(e);
+        this.initializationErrors.set(project.id, initError);
         this.initializingProviders.delete(project.id);
         log.error('ProjectManager: error during project initialization', {
           projectId: project.id,
-          ...toInitError(e),
+          ...initError,
         });
-        return err<InitializeProviderError>(toInitError(e));
+        return err<InitializeProviderError>(initError);
       });
 
     this.initializingProviders.set(project.id, promise);
@@ -99,6 +102,20 @@ class ProjectManager {
 
   getProject(projectId: string): ProjectProvider | undefined {
     return this.providers.get(projectId);
+  }
+
+  getProjectBootstrapStatus(projectId: string): ProjectBootstrapStatus {
+    if (this.providers.has(projectId)) return { status: 'ready' };
+    if (this.initializingProviders.has(projectId)) return { status: 'bootstrapping' };
+    const initError = this.initializationErrors.get(projectId);
+    if (initError) return { status: 'error', message: initError.message };
+    return { status: 'not-started' };
+  }
+
+  async openProjectById(projectId: string): Promise<void> {
+    const project = await getProjectById(projectId);
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+    await this.openProject(project);
   }
 
   async shutdown(): Promise<void> {

@@ -3,7 +3,7 @@ import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
-} from './settings/TaskSettingsRows';
+} from './TaskSettingsRows';
 
 const TaskSettingsCard: React.FC = () => {
   return (

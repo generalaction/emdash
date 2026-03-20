@@ -22,7 +22,7 @@ import {
   APP_SHORTCUTS,
   getEffectiveHotkey,
   type ShortcutSettingsKey,
-} from '../hooks/useKeyboardShortcuts';
+} from '@renderer/hooks/useKeyboardShortcuts';
 
 interface CommandPaletteProps {
   isOpen: boolean;

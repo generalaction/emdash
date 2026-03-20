@@ -1,7 +1,7 @@
 import React from 'react';
-import emdashLogoWhite from '../../assets/images/emdash/emdash_logo_white.svg';
-import emdashLogo from '../../assets/images/emdash/emdash_logo.svg';
-import { useTheme } from '../hooks/useTheme';
+import emdashLogoWhite from '@/assets/images/emdash/emdash_logo_white.svg';
+import emdashLogo from '@/assets/images/emdash/emdash_logo.svg';
+import { useTheme } from '@renderer/hooks/useTheme';
 
 interface HomeViewProps {
   onOpenProject: () => void;

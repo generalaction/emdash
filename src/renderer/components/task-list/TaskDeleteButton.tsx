@@ -2,8 +2,8 @@ import { Folder, Trash } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import React, { useMemo } from 'react';
 import { cn } from '@renderer/lib/utils';
-import { useDeleteRisks } from '../hooks/useDeleteRisks';
-import { isActivePr } from '../lib/prStatus';
+import { useDeleteRisks } from '../../hooks/useDeleteRisks';
+import { isActivePr } from '../../lib/prStatus';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,11 +14,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from './ui/alert-dialog';
-import { Button } from './ui/button';
-import { Checkbox } from './ui/checkbox';
-import { Spinner } from './ui/spinner';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+} from '../ui/alert-dialog';
+import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Spinner } from '../ui/spinner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 type Props = {
   taskName: string;

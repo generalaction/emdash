@@ -1,12 +1,10 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { rpc } from '@renderer/core/ipc';
-import DefaultAgentSettingsCard from '../DefaultAgentSettingsCard';
-import TerminalSettingsCard from '../TerminalSettingsCard';
-import ThemeCard from '../ThemeCard';
 import { Separator } from '../ui/separator';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
+import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
@@ -18,6 +16,8 @@ import {
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
+import TerminalSettingsCard from './TerminalSettingsCard';
+import ThemeCard from './ThemeCard';
 import { UpdateCard } from './UpdateCard';
 
 export type SettingsPageTab =

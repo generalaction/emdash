@@ -1,11 +1,11 @@
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
-import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
+import { CommandPaletteModal } from '@renderer/components/cmdk/CommandPaletteModal';
 import { ConfirmActionDialog } from '@renderer/components/confirm-action-dialog';
-import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
+import { GithubDeviceFlowModalOverlay } from '@renderer/components/github-device-flow-modal';
 import { McpModal } from '@renderer/components/mcp/McpModal';
 import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/project-settings-modal';
-import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
+import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';

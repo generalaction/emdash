@@ -1,8 +1,8 @@
 import { motion } from 'motion/react';
 import React from 'react';
 import githubLogo from '../../assets/images/github.png';
-import type { PrStatus } from '../lib/prStatus';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import type { PrStatus } from '../../lib/prStatus';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 type Props = {
   pr: PrStatus;
