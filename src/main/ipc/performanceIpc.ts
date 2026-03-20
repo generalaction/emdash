@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { BrowserWindow, app, ipcMain } from 'electron';
+import { BrowserWindow, app, ipcMain, webContents } from 'electron';
 import { inArray } from 'drizzle-orm';
 import { log } from '../lib/logger';
 import type {
@@ -324,9 +324,15 @@ function cleanupWebContents(webContentsId: number) {
 }
 
 function broadcastSnapshot(snapshot: ResourceMetricsSnapshot) {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send('perf:snapshot', snapshot);
+  // Only send to webContents that called perf:subscribe (not every window).
+  // Snapshot the keys to avoid mutation during iteration.
+  for (const wcId of [...subscribersByWebContents.keys()]) {
+    const wc = webContents.fromId(wcId);
+    if (wc && !wc.isDestroyed()) {
+      wc.send('perf:snapshot', snapshot);
+    } else {
+      // webContents is gone — clean up the stale subscription entry
+      cleanupWebContents(wcId);
     }
   }
 }
