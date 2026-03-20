@@ -51,7 +51,7 @@ export function usePrComments(nameWithOwner?: string, prNumber?: number) {
   const query = useQuery({
     queryKey,
     queryFn: async () => {
-      const result = await rpc.github.getPrComments(nameWithOwner!, prNumber!);
+      const result = await rpc.pullRequests.getPrComments(nameWithOwner!, prNumber!);
       if (!result.success) throw new Error(result.error ?? 'Failed to fetch comments');
       const rawComments = 'comments' in result ? result.comments : [];
       const rawReviews = 'reviews' in result ? result.reviews : [];
@@ -64,7 +64,7 @@ export function usePrComments(nameWithOwner?: string, prNumber?: number) {
 
   const addComment = useMutation({
     mutationFn: async (body: string) => {
-      const result = await rpc.github.addPrComment(nameWithOwner!, prNumber!, body);
+      const result = await rpc.pullRequests.addPrComment(nameWithOwner!, prNumber!, body);
       if (!result.success) throw new Error(result.error ?? 'Failed to add comment');
       return result;
     },

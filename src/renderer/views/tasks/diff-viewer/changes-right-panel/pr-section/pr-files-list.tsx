@@ -44,7 +44,7 @@ export function PrFilesList({ nameWithOwner, prNumber, baseBranch }: PrFilesList
   const { data: files, isLoading } = useQuery({
     queryKey: ['pr-files', nameWithOwner, prNumber],
     queryFn: async () => {
-      const result = await rpc.github.getPullRequestFiles(nameWithOwner, prNumber);
+      const result = await rpc.pullRequests.getPullRequestFiles(nameWithOwner, prNumber);
       if (!result.success) throw new Error(result.error ?? 'Failed to fetch PR files');
       return result.files as PrFile[];
     },

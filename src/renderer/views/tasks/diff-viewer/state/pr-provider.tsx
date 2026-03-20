@@ -104,28 +104,32 @@ export function PrProvider({ children }: { children: ReactNode }) {
   const prDetailsQuery = useQuery({
     queryKey: ['pr-details', nameWithOwner, matchingPr?.number],
     queryFn: async () => {
-      const result = await rpc.github.getPullRequestDetails(nameWithOwner!, matchingPr!.number);
+      const result = await rpc.pullRequests.getPullRequestDetails(
+        nameWithOwner!,
+        matchingPr!.number
+      );
       if (!result.success) throw new Error(result.error ?? 'Failed to fetch PR details');
       const pr = result.pr;
       if (!pr) throw new Error('PR not found');
+      const stateMap = { open: 'OPEN', closed: 'CLOSED', merged: 'MERGED' } as const;
       return {
-        number: pr.number,
+        number: pr.metadata.number,
         title: pr.title,
-        headRefName: pr.headRefName,
-        baseRefName: pr.baseRefName,
+        headRefName: pr.metadata.headRefName,
+        baseRefName: pr.metadata.baseRefName,
         url: pr.url,
         isDraft: pr.isDraft,
         updatedAt: pr.updatedAt,
-        authorLogin: pr.author?.login ?? null,
-        headRefOid: pr.headRefOid,
-        state: pr.state,
-        reviewDecision: pr.reviewDecision,
-        additions: pr.additions,
-        deletions: pr.deletions,
-        changedFiles: pr.changedFiles,
-        mergeable: pr.mergeable,
-        mergeStateStatus: pr.mergeStateStatus,
-        body: pr.body,
+        authorLogin: pr.author?.userName ?? null,
+        headRefOid: pr.metadata.headRefOid,
+        state: stateMap[pr.status as keyof typeof stateMap],
+        reviewDecision: pr.metadata.reviewDecision,
+        additions: pr.metadata.additions,
+        deletions: pr.metadata.deletions,
+        changedFiles: pr.metadata.changedFiles,
+        mergeable: pr.metadata.mergeable,
+        mergeStateStatus: pr.metadata.mergeStateStatus,
+        body: pr.metadata.body,
       } satisfies PullRequestDetails;
     },
     enabled: !!nameWithOwner && !!matchingPr,
@@ -174,7 +178,11 @@ export function PrProvider({ children }: { children: ReactNode }) {
     async (options: { strategy: MergeMode; commitHeadOid?: string }): Promise<MergeResult> => {
       if (!nameWithOwner || !matchingPr) return { success: false, error: 'No PR to merge' };
       try {
-        const result = await rpc.github.mergePullRequest(nameWithOwner, matchingPr.number, options);
+        const result = await rpc.pullRequests.mergePullRequest(
+          nameWithOwner,
+          matchingPr.number,
+          options
+        );
         if (result.success) {
           setMergedState(true);
           toast({ title: 'PR merged', description: matchingPr.title || `#${matchingPr.number}` });

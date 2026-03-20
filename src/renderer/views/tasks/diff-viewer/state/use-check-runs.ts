@@ -7,7 +7,7 @@ export function useCheckRuns(nameWithOwner?: string, prNumber?: number) {
   const query = useQuery({
     queryKey: ['pr-check-runs', nameWithOwner, prNumber],
     queryFn: async () => {
-      const result = await rpc.github.getCheckRuns(nameWithOwner!, prNumber!);
+      const result = await rpc.pullRequests.getCheckRuns(nameWithOwner!, prNumber!);
       if (!result.success) throw new Error(result.error ?? 'Failed to fetch check runs');
       return result.checks as CheckRun[];
     },
