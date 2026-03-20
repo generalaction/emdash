@@ -23,9 +23,9 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
   const [status, setStatus] = useState<ProvisioningStatus>(null);
   const [lines, setLines] = useState<string[]>(() => getProvisionLogs(task.id));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const { toast } = useToast();
   const logEndRef = useRef<HTMLDivElement>(null);
-  // Track the instanceId so we can filter events for this task's workspace only
   const instanceIdRef = useRef<string | null>(null);
 
   // Check workspace status on mount / task change
@@ -43,11 +43,14 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         instanceIdRef.current = instance.id;
         if (instance.status === 'provisioning') {
           setStatus('provisioning');
+          setShowTimeoutWarning(!!instance.awaitingTimeoutChoice);
         } else if (instance.status === 'error') {
           setStatus('error');
+          setShowTimeoutWarning(false);
           setErrorMessage('Workspace provisioning failed.');
         } else if (instance.status === 'ready') {
           setStatus('ready');
+          setShowTimeoutWarning(false);
         } else {
           setStatus(null);
         }
@@ -75,18 +78,28 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
         if (data.status === 'ready') {
           setStatus('ready');
+          setShowTimeoutWarning(false);
           clearProvisionLogs(task.id);
           toast({ title: 'Workspace connected', description: 'Remote workspace is ready.' });
         } else {
           setStatus('error');
+          setShowTimeoutWarning(false);
           setErrorMessage(data.error || 'Workspace provisioning failed.');
         }
+      }
+    );
+
+    const unsubTimeoutWarning = window.electronAPI.onWorkspaceProvisionTimeoutWarning(
+      (data: { instanceId: string }) => {
+        if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
+        setShowTimeoutWarning(true);
       }
     );
 
     return () => {
       unsubProgress();
       unsubComplete();
+      unsubTimeoutWarning();
     };
   }, []);
 
@@ -101,6 +114,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
 
     setStatus('provisioning');
     setLines([]);
+    setShowTimeoutWarning(false);
     clearProvisionLogs(task.id);
     setErrorMessage(null);
 
@@ -135,6 +149,20 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
     }
   }, [task.id]);
 
+  const handleKeepWaiting = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.workspaceStatus({ taskId: task.id });
+      if (result.success && result.data) {
+        await window.electronAPI.workspaceProvisionKeepWaiting({
+          instanceId: result.data.id,
+        });
+        setShowTimeoutWarning(false);
+      }
+    } catch {
+      // Best effort
+    }
+  }, [task.id]);
+
   // Don't render if no workspace or provisioning is complete
   if (!task.metadata?.workspace) return null;
   if (status === 'ready' || status === null) return null;
@@ -150,9 +178,25 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         <>
           <Spinner size="lg" />
           <p className="text-sm font-medium text-foreground">Provisioning workspace...</p>
-          <p className="text-xs text-muted-foreground">
-            Running provision script. This may take a few minutes.
-          </p>
+          {showTimeoutWarning ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                Provisioning is taking longer than expected.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="default" size="sm" onClick={handleKeepWaiting}>
+                  Keep waiting
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleCancel}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Running provision script. This may take a few minutes.
+            </p>
+          )}
         </>
       )}
 
@@ -182,7 +226,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         </div>
       )}
 
-      {status === 'provisioning' && (
+      {status === 'provisioning' && !showTimeoutWarning && (
         <Button variant="ghost" size="sm" className="text-xs" onClick={handleCancel}>
           Cancel
         </Button>

@@ -8,8 +8,11 @@ import { workspaceInstances, sshConnections, type WorkspaceInstanceRow } from '.
 import { eq, and, inArray } from 'drizzle-orm';
 import { sshService } from './ssh/SshService';
 
-/** Default timeout for provision/terminate scripts (5 minutes). */
-const PROVISION_TIMEOUT_MS = 5 * 60 * 1000;
+/** Time after which we show a warning and let the user choose to keep waiting or cancel. */
+const PROVISION_WARNING_MS = 5 * 60 * 1000;
+
+/** Safety cap when user chooses to keep waiting (2 hours). */
+const PROVISION_EXTENDED_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 /** Default timeout for terminate scripts (2 minutes). */
 const TERMINATE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -49,10 +52,17 @@ export interface TerminateConfig {
  *
  * - `provision-progress`  { instanceId, line }
  * - `provision-complete`  { instanceId, status, error? }
+ * - `provision-timeout-warning`  { instanceId }  (user may keep waiting or cancel)
  */
 export class WorkspaceProviderService extends EventEmitter {
   /** In-flight provision processes keyed by instanceId. */
   private provisionProcesses = new Map<string, ChildProcess>();
+
+  /** InstanceIds that have hit the warning threshold and are awaiting user choice. */
+  private awaitingTimeoutChoice = new Set<string>();
+
+  /** Resolvers for the user's keep/cancel choice, keyed by instanceId. */
+  private provisionTimeoutResolvers = new Map<string, (choice: 'keep' | 'cancel') => void>();
 
   // ---------------------------------------------------------------------------
   // Provision
@@ -95,12 +105,33 @@ export class WorkspaceProviderService extends EventEmitter {
 
   /** Cancel an in-flight provision by killing the child process. */
   async cancel(instanceId: string): Promise<void> {
+    const resolver = this.provisionTimeoutResolvers.get(instanceId);
+    if (resolver) {
+      resolver('cancel');
+      this.provisionTimeoutResolvers.delete(instanceId);
+      this.awaitingTimeoutChoice.delete(instanceId);
+    }
     const child = this.provisionProcesses.get(instanceId);
     if (child) {
       child.kill('SIGTERM');
       this.provisionProcesses.delete(instanceId);
     }
     await this.updateStatus(instanceId, 'error');
+  }
+
+  /** Called when user chooses to keep waiting after the timeout warning. */
+  onProvisionTimeoutChoice(instanceId: string, choice: 'keep' | 'cancel'): void {
+    const resolver = this.provisionTimeoutResolvers.get(instanceId);
+    if (resolver) {
+      resolver(choice);
+      this.provisionTimeoutResolvers.delete(instanceId);
+      this.awaitingTimeoutChoice.delete(instanceId);
+    }
+  }
+
+  /** Whether the given instance is awaiting user choice after timeout warning. */
+  isAwaitingTimeoutChoice(instanceId: string): boolean {
+    return this.awaitingTimeoutChoice.has(instanceId);
   }
 
   // ---------------------------------------------------------------------------
@@ -255,20 +286,16 @@ export class WorkspaceProviderService extends EventEmitter {
     let stderr = '';
 
     try {
-      const result = await this.runScript({
+      const result = await this.runProvisionScript(instanceId, {
         command: config.provisionCommand,
         cwd: config.projectPath,
         envVars,
-        timeoutMs: PROVISION_TIMEOUT_MS,
         onStderr: (line) => {
           stderr += line;
           this.emit('provision-progress', { instanceId, line });
         },
         onStdout: (data) => {
           stdout += data;
-        },
-        trackProcess: (child) => {
-          this.provisionProcesses.set(instanceId, child);
         },
       });
 
@@ -320,7 +347,93 @@ export class WorkspaceProviderService extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Internal: script runner
+  // Internal: provision script runner (timeout warning instead of hard kill)
+  // ---------------------------------------------------------------------------
+
+  private runProvisionScript(
+    instanceId: string,
+    opts: {
+      command: string;
+      cwd: string;
+      envVars: Record<string, string>;
+      onStderr?: (line: string) => void;
+      onStdout?: (data: string) => void;
+    }
+  ): Promise<{ exitCode: number }> {
+    return new Promise((resolve, reject) => {
+      const env = { ...process.env, ...opts.envVars };
+      const child = spawn('bash', ['-c', opts.command], {
+        cwd: opts.cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      this.provisionProcesses.set(instanceId, child);
+
+      let settled = false;
+      let warningTimer: ReturnType<typeof setTimeout> | null = null;
+      let extendedTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (result: { exitCode: number } | Error) => {
+        if (settled) return;
+        settled = true;
+        this.awaitingTimeoutChoice.delete(instanceId);
+        const resolver = this.provisionTimeoutResolvers.get(instanceId);
+        if (resolver) {
+          resolver('keep');
+          this.provisionTimeoutResolvers.delete(instanceId);
+        }
+        if (warningTimer) clearTimeout(warningTimer);
+        if (extendedTimer) clearTimeout(extendedTimer);
+        if (result instanceof Error) {
+          reject(result);
+        } else {
+          resolve(result);
+        }
+      };
+
+      warningTimer = setTimeout(async () => {
+        if (settled) return;
+        this.emit('provision-timeout-warning', { instanceId });
+        this.awaitingTimeoutChoice.add(instanceId);
+        const choice = await new Promise<'keep' | 'cancel'>((res) => {
+          this.provisionTimeoutResolvers.set(instanceId, res);
+        });
+        if (settled) return;
+        if (choice === 'cancel') {
+          child.kill('SIGTERM');
+          finish(new Error('Provision cancelled by user'));
+        } else {
+          extendedTimer = setTimeout(() => {
+            child.kill('SIGTERM');
+            finish(new Error(`Provision script timed out after extended wait`));
+          }, PROVISION_EXTENDED_TIMEOUT_MS);
+        }
+      }, PROVISION_WARNING_MS);
+
+      child.stdout?.on('data', (buf: Buffer) => {
+        opts.onStdout?.(buf.toString('utf-8'));
+      });
+
+      child.stderr?.on('data', (buf: Buffer) => {
+        const text = buf.toString('utf-8');
+        for (const line of text.split('\n')) {
+          if (line.trim()) opts.onStderr?.(line);
+        }
+      });
+
+      child.on('error', (err) => {
+        finish(new Error(`Failed to spawn script: ${err.message}`));
+      });
+
+      child.on('exit', (code) => {
+        finish({ exitCode: code ?? -1 });
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal: script runner (used for terminate; hard timeout)
   // ---------------------------------------------------------------------------
 
   private runScript(opts: {

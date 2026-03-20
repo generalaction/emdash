@@ -461,6 +461,9 @@ declare global {
       workspaceCancel: (args: {
         instanceId: string;
       }) => Promise<{ success: boolean; error?: string }>;
+      workspaceProvisionKeepWaiting: (args: {
+        instanceId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
       workspaceTerminate: (args: {
         instanceId: string;
         terminateCommand: string;
@@ -481,6 +484,7 @@ declare global {
           connectionId: string | null;
           createdAt: number;
           terminatedAt: number | null;
+          awaitingTimeoutChoice?: boolean;
         } | null;
         error?: string;
       }>;
@@ -489,6 +493,9 @@ declare global {
       ) => () => void;
       onWorkspaceProvisionComplete: (
         listener: (data: { instanceId: string; status: string; error?: string }) => void
+      ) => () => void;
+      onWorkspaceProvisionTimeoutWarning: (
+        listener: (data: { instanceId: string }) => void
       ) => () => void;
     };
   }

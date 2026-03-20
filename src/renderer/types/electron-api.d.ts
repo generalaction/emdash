@@ -1952,6 +1952,9 @@ export interface ElectronAPI {
     projectPath: string;
   }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
   workspaceCancel: (args: { instanceId: string }) => Promise<{ success: boolean; error?: string }>;
+  workspaceProvisionKeepWaiting: (args: {
+    instanceId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   workspaceTerminate: (args: {
     instanceId: string;
     terminateCommand: string;
@@ -1980,6 +1983,9 @@ export interface ElectronAPI {
   ) => () => void;
   onWorkspaceProvisionComplete: (
     listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => () => void;
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string }) => void
   ) => () => void;
 
   // MCP

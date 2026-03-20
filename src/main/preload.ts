@@ -804,6 +804,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectPath: string;
   }) => ipcRenderer.invoke('workspace:provision', args),
   workspaceCancel: (args: { instanceId: string }) => ipcRenderer.invoke('workspace:cancel', args),
+  workspaceProvisionKeepWaiting: (args: { instanceId: string }) =>
+    ipcRenderer.invoke('workspace:provision-keep-waiting', args),
   workspaceTerminate: (args: {
     instanceId: string;
     terminateCommand: string;
@@ -828,6 +830,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       _: Electron.IpcRendererEvent,
       data: { instanceId: string; status: string; error?: string }
     ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onWorkspaceProvisionTimeoutWarning: (listener: (data: { instanceId: string }) => void) => {
+    const channel = 'workspace:provision-timeout-warning';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { instanceId: string }) => listener(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },

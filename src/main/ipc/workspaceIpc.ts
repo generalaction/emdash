@@ -8,10 +8,12 @@ import {
 const WORKSPACE_CHANNELS = {
   PROVISION: 'workspace:provision',
   CANCEL: 'workspace:cancel',
+  PROVISION_KEEP_WAITING: 'workspace:provision-keep-waiting',
   TERMINATE: 'workspace:terminate',
   STATUS: 'workspace:status',
   PROVISION_PROGRESS: 'workspace:provision-progress',
   PROVISION_COMPLETE: 'workspace:provision-complete',
+  PROVISION_TIMEOUT_WARNING: 'workspace:provision-timeout-warning',
 } as const;
 
 /**
@@ -41,6 +43,12 @@ export function registerWorkspaceIpc() {
       }
     }
   );
+
+  workspaceProviderService.on('provision-timeout-warning', (data: { instanceId: string }) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(WORKSPACE_CHANNELS.PROVISION_TIMEOUT_WARNING, data);
+    }
+  });
 
   // ── workspace:provision ──────────────────────────────────────────────
   ipcMain.handle(
@@ -87,6 +95,15 @@ export function registerWorkspaceIpc() {
     }
   });
 
+  // ── workspace:provision-keep-waiting ─────────────────────────────────
+  ipcMain.handle(
+    WORKSPACE_CHANNELS.PROVISION_KEEP_WAITING,
+    async (_, args: { instanceId: string }) => {
+      workspaceProviderService.onProvisionTimeoutChoice(args.instanceId, 'keep');
+      return { success: true };
+    }
+  );
+
   // ── workspace:terminate ──────────────────────────────────────────────
   ipcMain.handle(
     WORKSPACE_CHANNELS.TERMINATE,
@@ -119,7 +136,14 @@ export function registerWorkspaceIpc() {
   ipcMain.handle(WORKSPACE_CHANNELS.STATUS, async (_, args: { taskId: string }) => {
     try {
       const instance = await workspaceProviderService.getActiveInstance(args.taskId);
-      return { success: true, data: instance };
+      if (!instance) return { success: true, data: null };
+      const awaitingTimeoutChoice =
+        instance.status === 'provisioning' &&
+        workspaceProviderService.isAwaitingTimeoutChoice(instance.id);
+      return {
+        success: true,
+        data: { ...instance, awaitingTimeoutChoice },
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error('[workspaceIpc] status failed', { error: message });
