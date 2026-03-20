@@ -225,6 +225,7 @@ const MultiAgentTask: React.FC<Props> = ({
     return await new Promise<boolean>((resolve) => {
       let sent = false;
       let finished = false;
+      let ptyReady = false;
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
       let eagerTimer: ReturnType<typeof setTimeout> | null = null;
       let hardTimer: ReturnType<typeof setTimeout> | null = null;
@@ -258,6 +259,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
       const send = () => {
         if (sent) return;
+        if (!ptyReady) return;
         sent = true;
         try {
           const pty = (window as any).electronAPI?.ptyInput;
@@ -289,6 +291,7 @@ const MultiAgentTask: React.FC<Props> = ({
       };
 
       offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
+        ptyReady = true;
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (!sent) send();
@@ -303,6 +306,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
       offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
         if (info?.id === ptyId) {
+          ptyReady = true;
           if (silenceTimer) clearTimeout(silenceTimer);
           silenceTimer = setTimeout(
             () => {
@@ -319,12 +323,14 @@ const MultiAgentTask: React.FC<Props> = ({
         }, 300);
       }
 
-      hardTimer = setTimeout(
-        () => {
-          if (!sent) send();
-        },
-        hasSlowStartup ? 3000 : 5000
-      );
+      hardTimer = setTimeout(() => {
+        if (sent) return;
+        if (ptyReady) {
+          send();
+          return;
+        }
+        finish(false);
+      }, 5000);
     });
   };
 

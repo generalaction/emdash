@@ -90,11 +90,11 @@ export function useInitialPromptInjection(opts: {
       } catch {}
     };
 
-    const send = (force: boolean = false) => {
+    const send = () => {
       try {
         if (sent) return;
-        if (!force && !ptyReady) return;
-        if (!force && cfg && !sawIdleBeforeSend) {
+        if (!ptyReady) return;
+        if (cfg && !sawIdleBeforeSend) {
           const startupAgeMs = Date.now() - effectStartedAt;
           if (startupAgeMs < cfg.minStartupBeforeSendMs) return;
         }
@@ -198,7 +198,7 @@ export function useInitialPromptInjection(opts: {
 
     // Global last-resort fallback if neither event fires
     hardTimer = setTimeout(() => {
-      if (!sent) send(true);
+      if (!sent) send();
     }, cfg?.hardTimerMs ?? DEFAULT_HARD_TIMER_MS);
 
     return () => {
