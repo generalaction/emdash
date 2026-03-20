@@ -1,6 +1,5 @@
 import { homedir } from 'node:os';
 import * as path from 'node:path';
-import { Octokit } from '@octokit/rest';
 import type {
   GitHubAuthResponse,
   GitHubConnectResponse,
@@ -12,16 +11,9 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { issueService } from '@main/core/github/services/issue-service';
-import { prService } from '@main/core/github/services/pr-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-
-async function getOctokit(): Promise<Octokit> {
-  const token = await githubAuthService.getToken();
-  if (!token) throw new Error('Not authenticated');
-  return new Octokit({ auth: token });
-}
 
 export const githubController = createRPCController({
   getStatus: async (): Promise<GitHubStatusResponse> => {
@@ -136,117 +128,6 @@ export const githubController = createRPCController({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to get issue';
       return { success: false, error: message };
-    }
-  },
-
-  listPullRequests: async (
-    nameWithOwner: string,
-    options?: { limit?: number; searchQuery?: string }
-  ) => {
-    try {
-      const result = await prService.listPullRequests(nameWithOwner, options);
-      return { success: true, prs: result.prs, totalCount: result.totalCount };
-    } catch (error) {
-      log.error('Failed to list pull requests:', error);
-      const message = error instanceof Error ? error.message : 'Unable to list pull requests';
-      return { success: false, error: message };
-    }
-  },
-
-  getPullRequestDetails: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const pr = await prService.getPullRequestDetails(nameWithOwner, prNumber);
-      return { success: !!pr, pr: pr ?? undefined };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to get pull request';
-      return { success: false, error: message };
-    }
-  },
-
-  getPullRequestFiles: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const files = await prService.getPullRequestFiles(nameWithOwner, prNumber);
-      return { success: true, files };
-    } catch (error) {
-      log.error('Failed to get pull request files:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get pull request files',
-      };
-    }
-  },
-
-  createPullRequest: async (params: {
-    nameWithOwner: string;
-    head: string;
-    base: string;
-    title: string;
-    body?: string;
-    draft: boolean;
-  }) => {
-    try {
-      const result = await prService.createPullRequest(params);
-      return { success: true, url: result.url, number: result.number };
-    } catch (error) {
-      log.error('Failed to create pull request:', error);
-      const message = error instanceof Error ? error.message : 'Unable to create pull request';
-      return { success: false, error: message };
-    }
-  },
-
-  mergePullRequest: async (
-    nameWithOwner: string,
-    prNumber: number,
-    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
-  ) => {
-    try {
-      const result = await prService.mergePullRequest(nameWithOwner, prNumber, options);
-      return { success: true, sha: result.sha, merged: result.merged };
-    } catch (error) {
-      log.error('Failed to merge pull request:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to merge pull request',
-      };
-    }
-  },
-
-  getCheckRuns: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const checks = await prService.getCheckRuns(nameWithOwner, prNumber);
-      return { success: true, checks };
-    } catch (error) {
-      log.error('Failed to get check runs:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get check runs',
-      };
-    }
-  },
-
-  getPrComments: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const result = await prService.getPrComments(nameWithOwner, prNumber);
-      return { success: true, ...result };
-    } catch (error) {
-      log.error('Failed to get PR comments:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get PR comments',
-      };
-    }
-  },
-
-  addPrComment: async (nameWithOwner: string, prNumber: number, body: string) => {
-    try {
-      const result = await prService.addPrComment(nameWithOwner, prNumber, body);
-      return { success: true, id: result.id };
-    } catch (error) {
-      log.error('Failed to add PR comment:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to add comment',
-      };
     }
   },
 
