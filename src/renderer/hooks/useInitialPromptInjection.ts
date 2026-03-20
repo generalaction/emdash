@@ -106,12 +106,14 @@ export function useInitialPromptInjection(opts: {
           text: trimmed,
         });
         pty({ id: ptyId, data: payload });
-        persistPromptSent();
 
         const scheduleSubmit = (delayMs: number) => {
           const t = setTimeout(() => {
             sendSubmit(pty);
-            if (!cfg) notifyPromptSent();
+            if (!cfg) {
+              persistPromptSent();
+              notifyPromptSent();
+            }
           }, delayMs);
           submitTimers.push(t);
         };
@@ -120,6 +122,9 @@ export function useInitialPromptInjection(opts: {
           // Some providers can spend a long time in MCP/startup. Keep submitting Enter
           // until we observe an idle->busy transition after injection.
           scheduleSubmit(submitDelayMs);
+          // Mark a submit as pending so idle-nudge cooldown checks don't
+          // bypass the scheduled submitDelayMs for the initial chunk.
+          lastSubmitAt = Date.now();
           retryTimer = setInterval(() => {
             if (submitConfirmed) {
               stopRetries();
@@ -127,6 +132,7 @@ export function useInitialPromptInjection(opts: {
             }
             if (retryCount >= cfg.maxSubmitRetries) {
               stopRetries();
+              persistPromptSent();
               notifyPromptSent();
               return;
             }
@@ -138,6 +144,7 @@ export function useInitialPromptInjection(opts: {
             if (submitConfirmed) return;
             submitConfirmed = true;
             stopRetries();
+            persistPromptSent();
             notifyPromptSent();
           }, cfg.retryDeadlineMs);
         } else {
@@ -166,6 +173,7 @@ export function useInitialPromptInjection(opts: {
           if (signal === 'busy') {
             submitConfirmed = true;
             stopRetries();
+            persistPromptSent();
             notifyPromptSent();
           } else if (signal === 'idle' && !cfg.skipIdleRetries) {
             // If still idle, nudge submit with a cooldown to avoid Enter bursts from redraw spam.
