@@ -1,31 +1,103 @@
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
+export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+
+export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+
+export interface GitHubReviewer {
+  login: string;
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
+
 export type PullRequestAuthor = {
   userName: string;
   displayName: string;
   avatarUrl?: string;
 };
 
-export type PullRequest = {
+// Common fields all forges share
+interface PullRequestBase {
   id: string;
-  provider: 'github';
-  identifier: string; // a number for gh
-  status: PullRequestStatus;
+  identifier: string;
+  nameWithOwner: string;
   url: string;
-  isDraft?: boolean;
   title: string;
-  headRefName: string;
-  baseRefName: string;
-  author?: PullRequestAuthor;
-  reviewDecision?: 'approved' | 'changes_requested' | 'review_required';
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
+  status: PullRequestStatus;
+  author: PullRequestAuthor | null;
+  isDraft: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-  // defined if the pull request is from a fork
-  headRepository?: {
-    name: string;
-    owner: string;
+// GitHub-specific metadata
+export interface GitHubPrMetadata {
+  number: number;
+  headRefName: string;
+  headRefOid: string;
+  baseRefName: string;
+  headRepository: {
+    nameWithOwner: string;
     url: string;
-  };
+    owner: { login: string };
+  } | null;
+  labels: Array<{ name: string; color: string }>;
+  assignees: Array<{ login: string; avatarUrl: string }>;
+  reviewDecision: ReviewDecision;
+  reviewers: GitHubReviewer[];
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
+  body: string | null;
+}
+
+export type GitHubPullRequest = PullRequestBase & {
+  provider: 'github';
+  metadata: GitHubPrMetadata;
 };
+
+// Discriminated union — add new forges here
+export type PullRequest = GitHubPullRequest;
+
+// ── Pass-through types (service → renderer) ────────────────────────
+
+export interface PullRequestFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
+export interface PrCheckRun {
+  name: string;
+  bucket: CheckRunBucket;
+  workflowName?: string;
+  appName?: string;
+  appLogoUrl?: string;
+  detailsUrl?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface PrCommentAuthor {
+  login: string;
+  avatarUrl?: string;
+}
+
+export interface PrCommentsResult {
+  comments: Array<{
+    id: number;
+    author: PrCommentAuthor;
+    body: string;
+    createdAt: string;
+  }>;
+  reviews: Array<{
+    id: number;
+    author: PrCommentAuthor;
+    body: string;
+    submittedAt?: string;
+    state: string;
+  }>;
+}

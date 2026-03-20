@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1d5b3edb-768e-4d91-a21d-05e83125d2d9",
+  "id": "77f94ade-90d8-472e-8df1-20e888388354",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "app_settings": {
@@ -79,6 +79,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "config": {
+          "name": "config",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -116,6 +123,82 @@
         "conversations_task_id_tasks_id_fk": {
           "name": "conversations_task_id_tasks_id_fk",
           "tableFrom": "conversations",
+          "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "editor_buffers": {
+      "name": "editor_buffers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_editor_buffers_task_file": {
+          "name": "idx_editor_buffers_task_file",
+          "columns": ["task_id", "file_path"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "editor_buffers_project_id_projects_id_fk": {
+          "name": "editor_buffers_project_id_projects_id_fk",
+          "tableFrom": "editor_buffers",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "editor_buffers_task_id_tasks_id_fk": {
+          "name": "editor_buffers_task_id_tasks_id_fk",
+          "tableFrom": "editor_buffers",
           "tableTo": "tasks",
           "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
@@ -425,10 +508,33 @@
     "pull_requests": {
       "name": "pull_requests",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'github'"
+        },
+        "name_with_owner": {
+          "name": "name_with_owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
         "url": {
           "name": "url",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -447,17 +553,16 @@
           "autoincrement": false,
           "default": "'open'"
         },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'github'"
-        },
         "author": {
           "name": "author",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_draft": {
+          "name": "is_draft",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -484,6 +589,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
       "indexes": {
@@ -491,6 +604,11 @@
           "name": "idx_pull_requests_url",
           "columns": ["url"],
           "isUnique": true
+        },
+        "idx_pull_requests_name_with_owner": {
+          "name": "idx_pull_requests_name_with_owner",
+          "columns": ["name_with_owner"],
+          "isUnique": false
         }
       },
       "foreignKeys": {},
@@ -766,6 +884,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "ssh": {
+          "name": "ssh",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "name": {
           "name": "name",

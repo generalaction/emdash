@@ -37,7 +37,7 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
       const defaultBranchResult = await rpc.git.getDefaultBranch(projectId, taskId);
       const base = defaultBranchResult.success ? defaultBranchResult.data.name : 'main';
 
-      const result = await rpc.github.createPullRequest({
+      const result = await rpc.pullRequests.createPullRequest({
         nameWithOwner,
         head: branchName,
         base,

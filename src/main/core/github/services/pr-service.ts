@@ -1,23 +1,22 @@
 import type { Octokit } from '@octokit/rest';
+import type {
+  CheckRunBucket,
+  GitHubReviewer,
+  PrCheckRun,
+  PrCommentsResult,
+  PullRequest,
+  PullRequestFile,
+  PullRequestStatus,
+} from '@shared/pull-requests';
 import { getOctokit } from './octokit-provider';
 import {
   GET_PR_CHECK_RUNS_QUERY,
   GET_PR_DETAIL_QUERY,
   LIST_PRS_QUERY,
   SEARCH_PRS_QUERY,
+  SYNC_PRS_QUERY,
 } from './pr-queries';
-import type {
-  CheckRunBucket,
-  GitHubPullRequest,
-  GitHubPullRequestListOptions,
-  GitHubPullRequestListResult,
-  GitHubPullRequestService,
-  GitHubPullRequestSummary,
-  GitHubReviewer,
-  PrCheckRun,
-  PrCommentsResult,
-  PullRequestFile,
-} from './pr-types';
+import type { GitHubPullRequestListOptions, GitHubPullRequestService } from './pr-types';
 import { splitRepo } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -161,7 +160,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   async listPullRequests(
     nameWithOwner: string,
     options: GitHubPullRequestListOptions = {}
-  ): Promise<GitHubPullRequestListResult> {
+  ): Promise<{ prs: PullRequest[]; totalCount: number }> {
     const { owner, repo } = splitRepo(nameWithOwner);
     const limit = Math.min(Math.max(options.limit !== undefined ? options.limit : 30, 1), 100);
     const searchQuery = options.searchQuery?.trim();
@@ -175,7 +174,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
         limit,
       });
       return {
-        prs: response.search.nodes.map((n) => this.mapToSummary(n)),
+        prs: response.search.nodes.map((n) => this.mapToUnified(n, nameWithOwner)),
         totalCount: response.search.issueCount,
       };
     }
@@ -184,7 +183,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
       repository: { pullRequests: { totalCount: number; nodes: GqlPrNode[] } };
     }>(LIST_PRS_QUERY, { owner, repo, limit });
     return {
-      prs: response.repository.pullRequests.nodes.map((n) => this.mapToSummary(n)),
+      prs: response.repository.pullRequests.nodes.map((n) => this.mapToUnified(n, nameWithOwner)),
       totalCount: response.repository.pullRequests.totalCount,
     };
   }
@@ -192,7 +191,7 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   async getPullRequestDetails(
     nameWithOwner: string,
     prNumber: number
-  ): Promise<GitHubPullRequest | null> {
+  ): Promise<PullRequest | null> {
     const { owner, repo } = splitRepo(nameWithOwner);
     const octokit = await this.getOctokit();
     const response = await octokit.graphql<{
@@ -200,48 +199,25 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
     const node = response.repository.pullRequest;
     if (!node) return null;
-    return this.mapToDetail(node);
+    return this.mapToUnified(node, nameWithOwner);
   }
 
-  private buildReviewers(node: GqlPrNode): GitHubReviewer[] {
-    const reviewerMap = new Map<string, GitHubReviewer>();
-
-    for (const req of node.reviewRequests.nodes) {
-      const login = req.requestedReviewer?.login ?? req.requestedReviewer?.name;
-      if (login) {
-        reviewerMap.set(login, { login, state: 'PENDING' });
-      }
-    }
-
-    for (const review of node.latestReviews.nodes) {
-      const login = review.author?.login;
-      if (login) {
-        reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
-      }
-    }
-
-    return Array.from(reviewerMap.values());
-  }
-
-  private mapToSummary(node: GqlPrNode): GitHubPullRequestSummary {
-    return {
-      number: node.number,
-      title: node.title,
-      url: node.url,
-      state: node.state,
-      isDraft: node.isDraft,
-      createdAt: node.createdAt,
-      updatedAt: node.updatedAt,
-      headRefName: node.headRefName,
-      headRefOid: node.headRefOid,
-      baseRefName: node.baseRefName,
-      author: node.author,
-      headRepository: node.headRepository,
-      labels: node.labels.nodes,
-      assignees: node.assignees.nodes,
-      reviewDecision: node.reviewDecision,
-      reviewers: this.buildReviewers(node),
-    };
+  async getPullRequestFiles(nameWithOwner: string, prNumber: number): Promise<PullRequestFile[]> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 100,
+    });
+    return files.map((f) => ({
+      filename: f.filename,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      patch: f.patch,
+    }));
   }
 
   async createPullRequest(params: {
@@ -281,24 +257,6 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
       sha: options.commitHeadOid,
     });
     return { sha: response.data.sha ?? null, merged: response.data.merged };
-  }
-
-  async getPullRequestFiles(nameWithOwner: string, prNumber: number): Promise<PullRequestFile[]> {
-    const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
-    const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
-      owner,
-      repo,
-      pull_number: prNumber,
-      per_page: 100,
-    });
-    return files.map((f) => ({
-      filename: f.filename,
-      status: f.status,
-      additions: f.additions,
-      deletions: f.deletions,
-      patch: f.patch,
-    }));
   }
 
   async getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {
@@ -409,15 +367,93 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
     return { id: response.data.id };
   }
 
-  private mapToDetail(node: GqlPrNode): GitHubPullRequest {
+  private buildReviewers(node: GqlPrNode): GitHubReviewer[] {
+    const reviewerMap = new Map<string, GitHubReviewer>();
+
+    for (const req of node.reviewRequests.nodes) {
+      const login = req.requestedReviewer?.login ?? req.requestedReviewer?.name;
+      if (login) {
+        reviewerMap.set(login, { login, state: 'PENDING' });
+      }
+    }
+
+    for (const review of node.latestReviews.nodes) {
+      const login = review.author?.login;
+      if (login) {
+        reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
+      }
+    }
+
+    return Array.from(reviewerMap.values());
+  }
+
+  async syncPullRequests(nameWithOwner: string, sinceUpdatedAt?: string): Promise<PullRequest[]> {
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const octokit = await this.getOctokit();
+    const allPrs: PullRequest[] = [];
+    let cursor: string | undefined;
+
+    for (;;) {
+      const response = await octokit.graphql<{
+        repository: {
+          pullRequests: {
+            totalCount: number;
+            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+            nodes: GqlPrNode[];
+          };
+        };
+      }>(SYNC_PRS_QUERY, { owner, repo, cursor });
+
+      const { nodes, pageInfo } = response.repository.pullRequests;
+
+      let reachedCursor = false;
+      for (const node of nodes) {
+        if (sinceUpdatedAt && node.updatedAt <= sinceUpdatedAt) {
+          reachedCursor = true;
+          break;
+        }
+        allPrs.push(this.mapToUnified(node, nameWithOwner));
+      }
+
+      if (reachedCursor || !pageInfo.hasNextPage) break;
+      cursor = pageInfo.endCursor ?? undefined;
+    }
+
+    return allPrs;
+  }
+
+  private mapToUnified(node: GqlPrNode, nameWithOwner: string): PullRequest {
+    const status: PullRequestStatus =
+      node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
+
     return {
-      ...this.mapToSummary(node),
-      additions: node.additions ?? 0,
-      deletions: node.deletions ?? 0,
-      changedFiles: node.changedFiles ?? 0,
-      mergeable: node.mergeable ?? 'UNKNOWN',
-      mergeStateStatus: node.mergeStateStatus ?? 'UNKNOWN',
-      body: node.body ?? null,
+      id: node.url,
+      nameWithOwner,
+      provider: 'github',
+      url: node.url,
+      title: node.title,
+      status,
+      author: node.author ? { userName: node.author.login, displayName: node.author.login } : null,
+      isDraft: node.isDraft,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+      metadata: {
+        number: node.number,
+        headRefName: node.headRefName,
+        headRefOid: node.headRefOid,
+        baseRefName: node.baseRefName,
+        headRepository: node.headRepository,
+        labels: node.labels.nodes,
+        assignees: node.assignees.nodes,
+        reviewDecision: node.reviewDecision,
+        reviewers: this.buildReviewers(node),
+        additions: node.additions ?? 0,
+        deletions: node.deletions ?? 0,
+        changedFiles: node.changedFiles ?? 0,
+        mergeable: node.mergeable ?? 'UNKNOWN',
+        mergeStateStatus: node.mergeStateStatus ?? 'UNKNOWN',
+        body: node.body ?? null,
+      },
     };
   }
 }

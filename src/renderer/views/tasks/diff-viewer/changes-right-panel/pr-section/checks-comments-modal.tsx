@@ -12,6 +12,7 @@ import { useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import type { CheckRunBucket } from '@shared/pull-requests';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { DialogClose, DialogContent } from '@renderer/components/ui/dialog';
@@ -22,7 +23,6 @@ import {
   formatCheckDuration,
   formatRelativeTime,
   type CheckRun,
-  type CheckRunBucket,
   type PrComment,
 } from '@renderer/lib/github';
 import { useCheckRuns } from '../../state/use-check-runs';

@@ -1,4 +1,4 @@
-const PR_SUMMARY_FRAGMENT = `
+export const PR_SUMMARY_FRAGMENT = `
   fragment PrSummaryFields on PullRequest {
     number
     title
@@ -119,4 +119,17 @@ export const GET_PR_CHECK_RUNS_QUERY = `
       }
     }
   }
+`;
+
+export const SYNC_PRS_QUERY = `
+  query syncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequests(first: 100, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes { ...PrSummaryFields }
+      }
+    }
+  }
+  ${PR_SUMMARY_FRAGMENT}
 `;
