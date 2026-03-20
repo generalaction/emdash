@@ -1,4 +1,5 @@
 import { databaseService, type Project } from '../services/DatabaseService';
+import { workspaceProviderService } from '../services/WorkspaceProviderService';
 
 export type RemoteProject = Project & { sshConnectionId: string; remotePath: string };
 
@@ -11,6 +12,30 @@ export function isRemoteProject(project: Project | null): project is RemoteProje
     typeof project.remotePath === 'string' &&
     project.remotePath.length > 0
   );
+}
+
+export interface RemoteContext {
+  connectionId: string;
+  remotePath: string;
+}
+
+export async function resolveRemoteContext(
+  worktreePath: string,
+  taskId?: string
+): Promise<RemoteContext | null> {
+  // Check workspace instances by taskId first
+  if (taskId) {
+    const instance = await workspaceProviderService.getActiveInstance(taskId);
+    if (instance?.connectionId && instance?.worktreePath) {
+      return { connectionId: instance.connectionId, remotePath: instance.worktreePath };
+    }
+  }
+  // Fall back to existing project-based SSH matching
+  const project = await resolveRemoteProjectForWorktreePath(worktreePath);
+  if (project) {
+    return { connectionId: project.sshConnectionId, remotePath: worktreePath };
+  }
+  return null;
 }
 
 export async function resolveRemoteProjectForWorktreePath(
