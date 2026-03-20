@@ -1,5 +1,6 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { Badge } from '@renderer/components/ui/badge';
+import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import { cn } from '@renderer/lib/utils';
 import { SelectionState } from '../state/use-selection';
@@ -79,6 +80,10 @@ export function PullRequestSectionHeader({
             />
           </button>
         </span>
+        <Button variant="outline" size="xs">
+          <Plus className="size-3" />
+          Create PR
+        </Button>
       </div>
     </div>
   );

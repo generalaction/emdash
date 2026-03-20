@@ -1,3 +1,4 @@
+import { MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
@@ -28,19 +29,31 @@ export function ConversationsPanel() {
 
   if (conversations.length === 0) {
     return (
-      <div>
-        No conversations found{' '}
-        <Button
-          onClick={() =>
-            showCreateConversationModal({
-              projectId: params.projectId,
-              taskId: params.taskId,
-              onSuccess: ({ conversationId }) => setActiveConversationId(conversationId),
-            })
-          }
-        >
-          Create Conversation
-        </Button>
+      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
+        <div className="flex max-w-sm flex-col items-center text-center">
+          <div
+            className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/60 bg-muted/30"
+            aria-hidden
+          >
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h2 className="text-sm font-semibold text-foreground">No conversations yet</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            Create one to open a terminal session for this task and work with an agent.
+          </p>
+          <Button
+            className="mt-5"
+            onClick={() =>
+              showCreateConversationModal({
+                projectId: params.projectId,
+                taskId: params.taskId,
+                onSuccess: ({ conversationId }) => setActiveConversationId(conversationId),
+              })
+            }
+          >
+            Create conversation
+          </Button>
+        </div>
       </div>
     );
   }

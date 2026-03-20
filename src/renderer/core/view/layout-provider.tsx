@@ -8,14 +8,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ImperativePanelHandle } from 'react-resizable-panels';
+import { usePanelRef, type PanelImperativeHandle } from 'react-resizable-panels';
 import { panelDragStore } from './panel-drag-store';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
   isRightOpen: boolean;
-  leftPanelRef: RefObject<ImperativePanelHandle | null>;
-  rightPanelRef: RefObject<ImperativePanelHandle | null>;
+  leftPanelRef: RefObject<PanelImperativeHandle | null>;
+  rightPanelRef: RefObject<PanelImperativeHandle | null>;
   setIsLeftOpen: (open: boolean) => void;
   setIsRightOpen: (open: boolean) => void;
   handleDragging: (side: 'left' | 'right', dragging: boolean) => void;
@@ -27,8 +27,8 @@ export interface WorkspaceLayoutContextValue {
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
 
 export function useWorkspaceLayoutService() {
-  const leftPanelRef = useRef<ImperativePanelHandle>(null);
-  const rightPanelRef = useRef<ImperativePanelHandle>(null);
+  const leftPanelRef = usePanelRef();
+  const rightPanelRef = usePanelRef();
 
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [isRightOpen, setIsRightOpen] = useState(true);
@@ -54,16 +54,19 @@ export function useWorkspaceLayoutService() {
     };
   }, []);
 
-  const setCollapsed = useCallback((side: 'left' | 'right', collapsed: boolean) => {
-    const panel = side === 'left' ? leftPanelRef.current : rightPanelRef.current;
-    if (panel) {
-      if (collapsed) {
-        panel.collapse();
-      } else {
-        panel.expand();
+  const setCollapsed = useCallback(
+    (side: 'left' | 'right', collapsed: boolean) => {
+      const panel = side === 'left' ? leftPanelRef.current : rightPanelRef.current;
+      if (panel) {
+        if (collapsed) {
+          panel.collapse();
+        } else {
+          panel.expand();
+        }
       }
-    }
-  }, []);
+    },
+    [leftPanelRef, rightPanelRef]
+  );
 
   const toggleLeft = useCallback(() => {
     setCollapsed('left', isLeftOpen);

@@ -1,3 +1,4 @@
+import { Terminal } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
@@ -33,8 +34,22 @@ export function TerminalsPanel() {
 
   if (terminalTabItems.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Button onClick={handleCreate}>New Terminal</Button>
+      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
+        <div className="flex max-w-sm flex-col items-center text-center">
+          <div
+            className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/60 bg-muted/30"
+            aria-hidden
+          >
+            <Terminal className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h2 className="text-sm font-semibold text-foreground">No terminals yet</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            Add a terminal to run shell commands in this task&apos;s working directory.
+          </p>
+          <Button className="mt-5" onClick={handleCreate}>
+            New terminal
+          </Button>
+        </div>
       </div>
     );
   }

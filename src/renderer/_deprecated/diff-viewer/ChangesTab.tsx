@@ -60,13 +60,19 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
 
   return (
     <ResizablePanelGroup
-      direction="horizontal"
-      onLayout={(sizes) => {
-        if (sizes[0] !== undefined) onLeftPanelResize?.(sizes[0]);
+      orientation="horizontal"
+      onLayoutChange={(layout) => {
+        const w = layout['deprecated-changes-left'];
+        if (w !== undefined) onLeftPanelResize?.(w);
       }}
     >
       {/* Left panel — tabs + file list + commit area */}
-      <ResizablePanel defaultSize={leftPanelSize} minSize={20} maxSize={50}>
+      <ResizablePanel
+        id="deprecated-changes-left"
+        defaultSize={leftPanelSize}
+        minSize={20}
+        maxSize={50}
+      >
         <div className="flex h-full flex-col border-r border-border">
           {header}
           <div className="flex-1 overflow-y-auto">
@@ -89,7 +95,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({
       <ResizableHandle />
 
       {/* Right panel — diff viewer */}
-      <ResizablePanel defaultSize={100 - leftPanelSize} minSize={30}>
+      <ResizablePanel id="deprecated-changes-right" defaultSize={100 - leftPanelSize} minSize={30}>
         <DiffPanel
           taskId={taskId}
           taskPath={taskPath}
