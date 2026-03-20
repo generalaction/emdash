@@ -51,16 +51,14 @@ export const diffEditorPool = {
   /**
    * Apply typed-URI models to a diff editor.
    *
-   * @param originalUri — git:// URI for the left (original) side
-   * @param modifiedUri — file:// buffer URI for the right (modified) side.
-   *                      If a buffer model exists the buffer is preferred (shows live edits);
-   *                      otherwise falls back to the disk:// model.
-   * @param language    — Monaco language identifier (used only as a fallback safety net)
+   * @param originalUri — git:// URI for the left (original / HEAD) side
+   * @param modifiedDiskUri — disk:// URI for the right (modified) side — what git sees on disk.
+   * @param language — Monaco language identifier (used only as a fallback safety net)
    */
   applyContent(
     entry: DiffPoolEntry,
     originalUri: string,
-    modifiedUri: string,
+    modifiedDiskUri: string,
     language: string
   ): void {
     const m = diffPool.getMonaco();
@@ -78,11 +76,9 @@ export const diffEditorPool = {
     const originalModel =
       modelRegistry.getModelByUri(originalUri) ?? m.editor.createModel('', language);
 
-    // Modified side: prefer buffer (live edits) → disk snapshot → empty inmemory.
+    // Modified side: always the disk snapshot (matches `git diff` / working tree).
     const modifiedModel =
-      modelRegistry.getModelByUri(modifiedUri) ??
-      modelRegistry.getModelByUri(modelRegistry.toDiskUri(modifiedUri)) ??
-      m.editor.createModel('', language);
+      modelRegistry.getModelByUri(modifiedDiskUri) ?? m.editor.createModel('', language);
 
     entry.editor.setModel({ original: originalModel, modified: modifiedModel });
   },

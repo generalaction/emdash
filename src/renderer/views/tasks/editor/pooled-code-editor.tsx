@@ -5,6 +5,7 @@ import { codeEditorPool, type CodePoolEntry } from '@renderer/core/monaco/monaco
 import { configureMonacoEditor } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
+import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 
@@ -46,6 +47,11 @@ export function PooledCodeEditor({
   const currentUriRef = useRef<string | null>(null);
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { effectiveTheme } = useTheme();
+
+  // Subscribe to the disk model so FS watching + polling stay active while this file
+  // is open — external edits propagate via applyDiskUpdate → buffer model refresh.
+  const diskUri = modelRegistry.toDiskUri(bufferUri);
+  useModelStatus(diskUri);
 
   // Stable refs so effect closures always see current prop values without re-running.
   const readOnlyRef = useRef(readOnly);

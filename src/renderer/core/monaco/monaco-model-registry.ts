@@ -522,7 +522,6 @@ class MonacoModelRegistry {
     }
 
     this.modelStatus.set(uri, 'ready');
-    // Notify buffer URI: useBufferExists subscribers (e.g. PooledDiffEditor) will re-render.
     this.notify(uri);
 
     const callbacks = this.bufferReadyCallbacks.get(uri);
@@ -587,7 +586,6 @@ class MonacoModelRegistry {
       // buffer
       this.bufferReadyCallbacks.delete(uri);
       this.pendingConflicts.delete(uri);
-      // Notify buffer URI: useBufferExists subscribers will re-render (hasModel now false).
       this.notify(uri);
     }
 

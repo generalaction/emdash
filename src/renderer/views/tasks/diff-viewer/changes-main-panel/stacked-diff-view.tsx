@@ -279,7 +279,7 @@ function StackedFileSection({ file, taskId, diffStyle }: StackedFileSectionProps
           ) : (
             <PooledDiffEditor
               originalUri={gitUri}
-              modifiedUri={uri}
+              modifiedDiskUri={diskUri}
               language={language}
               diffStyle={diffStyle}
               onHeightChange={setContentHeight}

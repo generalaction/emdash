@@ -16,17 +16,3 @@ export function useModelStatus(uri: string): ModelStatus {
     () => modelRegistry.getStatus(uri)
   );
 }
-
-/**
- * Returns true when a buffer model (file://) exists for the given URI.
- * Used by PooledDiffEditor to swap the modified side from disk to buffer
- * when the user opens the file in the code editor while the diff is visible.
- *
- * @param bufferUri — a file:// URI (the buffer URI, not toDiskUri)
- */
-export function useBufferExists(bufferUri: string): boolean {
-  return useSyncExternalStore(
-    (cb) => modelRegistry.subscribeToUri(bufferUri, cb),
-    () => modelRegistry.hasModel(bufferUri)
-  );
-}
