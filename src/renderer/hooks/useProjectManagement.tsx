@@ -314,8 +314,11 @@ export const useProjectManagement = () => {
           const { log } = await import('../lib/logger');
           log.error('Git detection error:', error as any);
           toast({
-            title: 'Project Opened',
-            description: `Could not detect Git information. Path: ${result.path}`,
+            title: 'Failed to Open Project',
+            description:
+              error instanceof Error
+                ? error.message
+                : `Could not detect Git information. Path: ${result.path}`,
             variant: 'destructive',
           });
         }
@@ -391,8 +394,11 @@ export const useProjectManagement = () => {
         const { log } = await import('../lib/logger');
         log.error('Failed to load cloned project:', error);
         toast({
-          title: 'Project Cloned',
-          description: 'Repository cloned but failed to load. Please try opening it manually.',
+          title: 'Failed to add cloned project',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Repository cloned but failed to load. Please try opening it manually.',
           variant: 'destructive',
         });
       }
@@ -436,8 +442,11 @@ export const useProjectManagement = () => {
         const { log } = await import('../lib/logger');
         log.error('Failed to load new project:', error);
         toast({
-          title: 'Project Created',
-          description: 'Repository created but failed to load. Please try opening it manually.',
+          title: 'Failed to add new project',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Repository created but failed to load. Please try opening it manually.',
           variant: 'destructive',
         });
       }
@@ -502,7 +511,8 @@ export const useProjectManagement = () => {
         log.error('Failed to save remote project:', error);
         toast({
           title: 'Failed to add remote project',
-          description: 'An error occurred while saving the project.',
+          description:
+            error instanceof Error ? error.message : 'An error occurred while saving the project.',
           variant: 'destructive',
         });
       }
