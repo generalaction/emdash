@@ -1,3 +1,5 @@
+import { CheckRunBucket } from '@shared/pull-requests';
+
 export interface GitHubPullRequestSummary {
   number: number;
   title: string;
@@ -52,8 +54,6 @@ export interface PullRequestFile {
   deletions: number;
   patch?: string;
 }
-
-export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 export interface PrCheckRun {
   name: string;

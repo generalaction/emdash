@@ -1,5 +1,6 @@
 // Check Runs
-export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
+
+import { CheckRunBucket } from '@shared/pull-requests';
 
 export interface CheckRun {
   name: string;

@@ -1,4 +1,6 @@
-export type PullRequestStatus = 'open' | 'closed' | 'draft' | 'merged';
+export type PullRequestStatus = 'open' | 'closed' | 'merged';
+
+export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 export type PullRequestAuthor = {
   userName: string;
