@@ -1301,6 +1301,9 @@ declare global {
       onWorkspaceProvisionProgress: (
         listener: (data: { instanceId: string; line: string }) => void
       ) => () => void;
+      onWorkspaceProvisionTimeoutWarning: (
+        listener: (data: { instanceId: string; timeoutMs: number }) => void
+      ) => () => void;
       onWorkspaceProvisionComplete: (
         listener: (data: { instanceId: string; status: string; error?: string }) => void
       ) => () => void;
@@ -1977,6 +1980,9 @@ export interface ElectronAPI {
   }>;
   onWorkspaceProvisionProgress: (
     listener: (data: { instanceId: string; line: string }) => void
+  ) => () => void;
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string; timeoutMs: number }) => void
   ) => () => void;
   onWorkspaceProvisionComplete: (
     listener: (data: { instanceId: string; status: string; error?: string }) => void

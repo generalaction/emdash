@@ -820,6 +820,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string; timeoutMs: number }) => void
+  ) => {
+    const channel = 'workspace:provision-timeout-warning';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { instanceId: string; timeoutMs: number }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   onWorkspaceProvisionComplete: (
     listener: (data: { instanceId: string; status: string; error?: string }) => void
   ) => {
