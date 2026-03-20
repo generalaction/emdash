@@ -1,7 +1,7 @@
 import { AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { NotificationType } from '@shared/events/agentEvents';
-import { useAgent } from '../contexts/AgentProvider';
+import { useAgent } from '../core/conversations/AgentProvider';
 import { rpc } from '../core/ipc';
 import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskChanges } from '../hooks/useTaskChanges';

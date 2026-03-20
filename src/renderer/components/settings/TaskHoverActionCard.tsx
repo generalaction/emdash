@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const TaskHoverActionCard: React.FC = () => {

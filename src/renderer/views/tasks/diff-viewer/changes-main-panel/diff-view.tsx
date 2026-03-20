@@ -8,7 +8,6 @@ import { StackedDiffView } from './stacked-diff-view';
 export function DiffView() {
   const { viewMode, setViewMode, diffStyle, setDiffStyle, activeFile } = useGitViewContext();
 
-  // Warm up the pool as soon as the diff view is first rendered.
   useEffect(() => {
     diffEditorPool.init().catch((err: unknown) => console.warn('[monaco-pool] init failed:', err));
   }, []);

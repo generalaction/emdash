@@ -81,7 +81,7 @@ export function FileDiffView() {
         ) : (
           <PooledDiffEditor
             originalUri={gitUri}
-            modifiedUri={uri}
+            modifiedDiskUri={diskUri}
             language={language}
             diffStyle={diffStyle}
           />

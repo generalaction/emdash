@@ -1,5 +1,5 @@
 import { Conversation } from '@shared/conversations';
-import { Task } from '@shared/tasks';
+import { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { Result } from '@main/lib/result';
@@ -42,6 +42,7 @@ export interface ProjectProvider {
     terminals: Terminal[]
   ): Promise<Result<TaskProvider, ProvisionTaskError>>;
   getTask(taskId: string): TaskProvider | undefined;
+  getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus;
   teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>>;
   cleanup(): Promise<void>;
 }

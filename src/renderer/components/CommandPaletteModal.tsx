@@ -1,6 +1,6 @@
 import React from 'react';
 import type { BaseModalProps } from '../core/modal/modal-provider';
-import { useProjectsContext } from '../core/projects/project-provider';
+import { useProjectsDataContext } from '../core/projects/projects-data-provider';
 import { useWorkspaceLayoutContext } from '../core/view/layout-provider';
 import { useNavigate } from '../core/view/navigation-provider';
 import { useTheme } from '../hooks/useTheme';
@@ -13,7 +13,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({ onClos
   const { toggleLeft: toggleLeftSidebar } = useWorkspaceLayoutContext();
   const { toggle: toggleRightSidebar } = useRightSidebar();
   const { toggleTheme } = useTheme();
-  const { projects } = useProjectsContext();
+  const { projects } = useProjectsDataContext();
   const { navigate } = useNavigate();
 
   return (

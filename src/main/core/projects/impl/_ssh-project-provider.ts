@@ -4,6 +4,7 @@ import type { SFTPWrapper } from 'ssh2';
 import { Task } from 'vitest';
 import { Conversation } from '@shared/conversations';
 import { SshProject } from '@shared/projects';
+import type { TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -155,6 +156,11 @@ export class SshProjectProvider implements ProjectProvider {
 
   getTask(taskId: string): TaskProvider | undefined {
     return this.environments.get(taskId);
+  }
+
+  getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus {
+    if (this.environments.has(taskId)) return { status: 'ready' };
+    return { status: 'not-started' };
   }
 
   async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {

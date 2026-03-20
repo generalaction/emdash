@@ -1,12 +1,14 @@
-import { createContext, ReactNode, useCallback, useContext } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect } from 'react';
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
-import { useTaskViewState } from '@renderer/features/tasks/task-view-state-provider';
+import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
+import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
+import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
-import { useConversations } from './hooks/use-conversations';
+import { useConversations } from '../../core/conversations/use-conversations';
 import { useTask, type TaskStatus } from './hooks/use-task';
 import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';
 
@@ -51,6 +53,11 @@ export function TaskViewWrapper({
 }) {
   const { getTaskViewState, setTaskViewState } = useTaskViewState();
   const { taskStatus, task } = useTask({ projectId, taskId });
+  const { entries, startTracking } = useTaskBootstrapContext();
+
+  useEffect(() => {
+    startTracking(projectId, taskId);
+  }, [projectId, taskId, startTracking]);
   const { conversations, createConversation, removeConversation } = useConversations({
     projectId,
     taskId,
@@ -94,35 +101,48 @@ export function TaskViewWrapper({
     [setTaskViewState, taskId]
   );
 
+  const bootstrapEntry = entries[taskId];
+  const isBootstrapping =
+    bootstrapEntry?.status === 'bootstrapping' || taskStatus.status === 'pending';
+
+  console.log('[TaskViewWrapper] render', {
+    taskId,
+    taskStatus: taskStatus.status,
+    bootstrapEntryStatus: bootstrapEntry?.status,
+    isBootstrapping,
+  });
+
   return (
-    <ProjectViewWrapper projectId={projectId}>
-      <TaskViewContext.Provider
-        value={{
-          view,
-          setView,
-          taskStatus,
-          projectId,
-          taskId,
-          task: task ?? undefined,
-          activeConversationId: agentsView.activeConversationId,
-          setActiveConversationId,
-          activeTerminalId: terminalsView.activeTerminalId,
-          setActiveTerminalId,
-          rightPanelView,
-          setRightPanelView,
-          conversations,
-          createConversation,
-          removeConversation,
-          terminalTabItems,
-          createTerminal,
-          removeTerminal,
-          runLifecycleScript,
-          projectSettings,
-        }}
-      >
-        {children}
-      </TaskViewContext.Provider>
-    </ProjectViewWrapper>
+    <ViewLayoutOverrideContext.Provider value={{ hideRightPanel: isBootstrapping }}>
+      <ProjectViewWrapper projectId={projectId}>
+        <TaskViewContext.Provider
+          value={{
+            view,
+            setView,
+            taskStatus,
+            projectId,
+            taskId,
+            task: task ?? undefined,
+            activeConversationId: agentsView.activeConversationId,
+            setActiveConversationId,
+            activeTerminalId: terminalsView.activeTerminalId,
+            setActiveTerminalId,
+            rightPanelView,
+            setRightPanelView,
+            conversations,
+            createConversation,
+            removeConversation,
+            terminalTabItems,
+            createTerminal,
+            removeTerminal,
+            runLifecycleScript,
+            projectSettings,
+          }}
+        >
+          {children}
+        </TaskViewContext.Provider>
+      </ProjectViewWrapper>
+    </ViewLayoutOverrideContext.Provider>
   );
 }
 

@@ -1,6 +1,8 @@
+import { Terminal } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { useParams } from '@renderer/core/view/navigation-provider';
@@ -33,9 +35,16 @@ export function TerminalsPanel() {
 
   if (terminalTabItems.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Button onClick={handleCreate}>New Terminal</Button>
-      </div>
+      <EmptyState
+        icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+        label="No terminals yet"
+        description="Add a terminal to run shell commands in this task's working directory."
+        action={
+          <Button size="sm" variant="outline" onClick={handleCreate}>
+            New terminal
+          </Button>
+        }
+      />
     );
   }
 

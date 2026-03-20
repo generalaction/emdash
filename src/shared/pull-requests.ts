@@ -11,13 +11,14 @@ export interface GitHubReviewer {
 
 export type PullRequestAuthor = {
   userName: string;
-  displayName?: string;
+  displayName: string;
   avatarUrl?: string;
 };
 
 // Common fields all forges share
 interface PullRequestBase {
   id: string;
+  identifier: string;
   nameWithOwner: string;
   url: string;
   title: string;

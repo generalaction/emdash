@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { useRightSidebar } from '../components/ui/right-sidebar';
 import { useModalContext } from '../core/modal/modal-provider';
 import { useWorkspaceLayoutContext } from '../core/view/layout-provider';

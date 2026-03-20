@@ -3,7 +3,7 @@ import {
   usePendingProjectsContext,
   type PendingProject,
 } from '@renderer/components/add-project-modal/pending-projects-provider';
-import { useProjectsContext } from '@renderer/core/projects/project-provider';
+import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import type { Project } from '@renderer/types/app';
 import { RepositoryProvider } from './repository-provider';
 
@@ -34,7 +34,7 @@ interface ProjectViewWrapperProps {
 }
 
 export function ProjectViewWrapper({ children, projectId }: ProjectViewWrapperProps) {
-  const { projects } = useProjectsContext();
+  const { projects } = useProjectsDataContext();
   const { pendingProjects } = usePendingProjectsContext();
   const project = (projects.find((p) => p.id === projectId) ?? null) as Project | null;
   const pendingProject = pendingProjects.find((p) => p.id === projectId);

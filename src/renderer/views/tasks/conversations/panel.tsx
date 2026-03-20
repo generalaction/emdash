@@ -1,6 +1,8 @@
+import { MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
@@ -28,20 +30,26 @@ export function ConversationsPanel() {
 
   if (conversations.length === 0) {
     return (
-      <div>
-        No conversations found{' '}
-        <Button
-          onClick={() =>
-            showCreateConversationModal({
-              projectId: params.projectId,
-              taskId: params.taskId,
-              onSuccess: ({ conversationId }) => setActiveConversationId(conversationId),
-            })
-          }
-        >
-          Create Conversation
-        </Button>
-      </div>
+      <EmptyState
+        icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
+        label="No conversations yet"
+        description="Create one to open a terminal session for this task and work with an agent."
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              showCreateConversationModal({
+                projectId: params.projectId,
+                taskId: params.taskId,
+                onSuccess: ({ conversationId }) => setActiveConversationId(conversationId),
+              })
+            }
+          >
+            Create conversation
+          </Button>
+        }
+      />
     );
   }
 

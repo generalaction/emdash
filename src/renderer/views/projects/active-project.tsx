@@ -9,13 +9,13 @@ import {
 } from '@renderer/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useProjectsContext } from '@renderer/core/projects/project-provider';
+import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
-  const { deleteProject } = useProjectsContext();
+  const { deleteProject } = useProjectsDataContext();
 
   return (
     <div className="max-w-5xl mx-auto p-8 w-full">

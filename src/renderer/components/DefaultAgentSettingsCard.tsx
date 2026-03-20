@@ -1,6 +1,6 @@
 import React from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import type { Agent } from '../types';
 import { AgentSelector } from './agent-selector';
 

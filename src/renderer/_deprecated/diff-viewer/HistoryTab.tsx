@@ -73,13 +73,19 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
 
   return (
     <ResizablePanelGroup
-      direction="horizontal"
-      onLayout={(sizes) => {
-        if (sizes[0] !== undefined) onLeftPanelResize?.(sizes[0]);
+      orientation="horizontal"
+      onLayoutChange={(layout) => {
+        const w = layout['deprecated-history-left'];
+        if (w !== undefined) onLeftPanelResize?.(w);
       }}
     >
       {/* Left column: Tabs + Commit list */}
-      <ResizablePanel defaultSize={leftPanelSize} minSize={12} maxSize={40}>
+      <ResizablePanel
+        id="deprecated-history-left"
+        defaultSize={leftPanelSize}
+        minSize={12}
+        maxSize={40}
+      >
         <div className="flex h-full flex-col border-r border-border">
           {header}
           <div className="flex-1 overflow-y-auto">
@@ -95,7 +101,12 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
       <ResizableHandle />
 
       {/* Middle column: Commit detail + file list */}
-      <ResizablePanel defaultSize={middlePanelSize} minSize={10} maxSize={35}>
+      <ResizablePanel
+        id="deprecated-history-middle"
+        defaultSize={middlePanelSize}
+        minSize={10}
+        maxSize={35}
+      >
         <div className="flex h-full flex-col border-r border-border">
           {selectedCommit ? (
             <>
@@ -164,7 +175,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
       <ResizableHandle />
 
       {/* Right column: Diff view */}
-      <ResizablePanel defaultSize={rightPanelSize} minSize={30}>
+      <ResizablePanel id="deprecated-history-right" defaultSize={rightPanelSize} minSize={30}>
         <div className="flex h-full flex-col">
           {selectedCommit && selectedFile ? (
             <>

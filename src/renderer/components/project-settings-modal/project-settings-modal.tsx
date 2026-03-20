@@ -25,6 +25,8 @@ import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { rpc } from '@renderer/core/ipc';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useBranches } from '@renderer/core/projects/repository/use-branches';
+import { useRemotes } from '@renderer/core/projects/repository/use-remotes';
 import { BranchSelector } from '@renderer/views/projects/branch-selector';
 import { useProjectSettings } from './use-project-settings';
 
@@ -99,14 +101,9 @@ function ProjectSettingsForm({
   save,
   isSaving,
 }: ProjectSettingsFormProps) {
-  const { data: branches = [] } = useQuery({
-    queryKey: ['repository', 'branches', projectId],
-    queryFn: () => rpc.repository.getBranches(projectId),
-  });
-  const { data: remotes = [] } = useQuery({
-    queryKey: ['repository', 'remotes', projectId],
-    queryFn: () => rpc.repository.getRemotes(projectId),
-  });
+  const { branches } = useBranches(projectId);
+  const { remotes } = useRemotes(projectId);
+
   const [form, setForm] = useState<FormState>(() => settingsToForm(initial));
   const [original] = useState<FormState>(() => settingsToForm(initial));
 

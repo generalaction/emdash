@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { useOpenInApps } from '@renderer/hooks/useOpenInApps';
 import IntegrationRow from '../IntegrationRow';
 import { Switch } from '../ui/switch';

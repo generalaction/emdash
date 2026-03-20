@@ -1,17 +1,12 @@
-import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext, useState } from 'react';
 
 export interface ActiveFile {
   path: string;
-  isStaged: boolean;
-  /** Controls virtualizer scroll animation when this file becomes active. Defaults to 'smooth'. */
+  stage: 'unstaged' | 'staged' | 'pr';
   scrollBehavior?: 'smooth' | 'auto';
-  /** When set, diff is between this ref and HEAD (for PR/branch diffs). */
-  baseRef?: string;
 }
 
 interface GitViewContextValue {
-  activeTab: 'changes' | 'history';
-  setActiveTab: (tab: 'changes' | 'history') => void;
   diffStyle: 'unified' | 'split';
   setDiffStyle: (style: 'unified' | 'split') => void;
   viewMode: 'stacked' | 'file';
@@ -23,37 +18,17 @@ interface GitViewContextValue {
 const GitViewContext = createContext<GitViewContextValue | null>(null);
 
 export function GitViewProvider({ children }: { children: ReactNode }) {
-  const [activeTab, setActiveTab] = useState<'changes' | 'history'>('changes');
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
-    () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
-  );
-  const [viewMode, setViewMode] = useState<'stacked' | 'file'>(
-    () => (localStorage.getItem('diffViewer:viewMode') as 'stacked' | 'file') || 'stacked'
-  );
+  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
+  const [viewMode, setViewMode] = useState<'stacked' | 'file'>('stacked');
   const [activeFile, setActiveFile] = useState<ActiveFile | null>(null);
-
-  const setDiffStylePersisted = useCallback((style: 'unified' | 'split') => {
-    setDiffStyle(style);
-    localStorage.setItem('diffViewer:diffStyle', style);
-  }, []);
-
-  const setViewModePersisted = useCallback(
-    (mode: 'stacked' | 'file') => {
-      setViewMode(mode);
-      localStorage.setItem('diffViewer:viewMode', mode);
-    },
-    [setViewMode]
-  );
 
   return (
     <GitViewContext.Provider
       value={{
-        activeTab,
-        setActiveTab,
         diffStyle,
-        setDiffStyle: setDiffStylePersisted,
+        setDiffStyle,
         viewMode,
-        setViewMode: setViewModePersisted,
+        setViewMode,
         activeFile,
         setActiveFile,
       }}

@@ -2,8 +2,8 @@ import { Archive, MoreHorizontal, RotateCcw, Search, Trash2 } from 'lucide-react
 import { useMemo, useState } from 'react';
 import type { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -138,7 +138,7 @@ function TaskRows({
 export function TaskList() {
   const project = useRequiredCurrentProject();
   const { tasksByProjectId, activeTasksByProjectId, archiveTask, restoreTask, deleteTask } =
-    useTasksContext();
+    useTasksDataContext();
   const showConfirm = useShowModal('confirmActionModal');
 
   const activeTasks = activeTasksByProjectId[project.id] ?? [];
