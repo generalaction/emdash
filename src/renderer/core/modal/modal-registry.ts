@@ -1,13 +1,13 @@
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CommandPaletteModal } from '@renderer/components/CommandPaletteModal';
-import { ConfirmActionDialog } from '@renderer/components/ConfirmActionDialog';
+import { ConfirmActionDialog } from '@renderer/components/confirm-action-dialog';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/GithubDeviceFlowModal';
 import { McpModal } from '@renderer/components/mcp/McpModal';
-import { NewProjectModal } from '@renderer/components/NewProjectModal';
 import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/project-settings-modal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
+import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
 import { ChecksCommentsModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/checks-comments-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/create-pr-modal';

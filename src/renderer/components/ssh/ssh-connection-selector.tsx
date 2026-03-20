@@ -1,5 +1,5 @@
 import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
-import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
+import { useSshConnectionContext } from '@renderer/core/ssh/ssh-connection-provider';
 import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
 import { ComboboxPopover } from '../ui/combobox-popover';
 

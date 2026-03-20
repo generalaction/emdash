@@ -2,7 +2,7 @@ import React from 'react';
 import type { McpProvidersResponse } from '@shared/mcp/types';
 import { agentConfig } from '../../lib/agentConfig';
 import type { Agent } from '../../types';
-import AgentLogo from '../AgentLogo';
+import AgentLogo from '../agent-logo';
 import { Button } from '../ui/button';
 import { Field, FieldLabel } from '../ui/field';
 

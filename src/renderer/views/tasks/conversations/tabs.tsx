@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useCallback } from 'react';
-import AgentLogo from '@renderer/components/AgentLogo';
+import AgentLogo from '@renderer/components/agent-logo';
 import { Button } from '@renderer/components/ui/button';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { agentConfig } from '@renderer/lib/agentConfig';

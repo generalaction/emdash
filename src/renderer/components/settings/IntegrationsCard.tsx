@@ -4,9 +4,9 @@ import githubSvg from '@/assets/images/Github.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
 import linearSvg from '@/assets/images/Linear.svg?raw';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
-import { useIntegrationsContext } from '../../contexts/IntegrationsProvider';
+import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
+import JiraSetupForm from '../../core/integrations/JiraSetupForm';
 import { useTheme } from '../../hooks/useTheme';
-import JiraSetupForm from '../integrations/JiraSetupForm';
 import { Button } from '../ui/button';
 import {
   Dialog,

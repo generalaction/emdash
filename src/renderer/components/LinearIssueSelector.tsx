@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import { useLinearIssues } from '../hooks/use-linear-issues';
 import { type LinearIssueSummary } from '../types/linear';
-import AgentLogo from './AgentLogo';
+import AgentLogo from './agent-logo';
 import { LinearIssuePreviewTooltip } from './LinearIssuePreviewTooltip';
 import { LinearStatusPill } from './LinearStatusPill';
 import { Input } from './ui/input';

@@ -4,7 +4,6 @@ import React, { useMemo } from 'react';
 import { cn } from '@renderer/lib/utils';
 import { useDeleteRisks } from '../hooks/useDeleteRisks';
 import { isActivePr } from '../lib/prStatus';
-import DeletePrNotice from './DeletePrNotice';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -200,9 +199,6 @@ export const TaskDeleteButton: React.FC<Props> = ({
                       'Status unavailable'}
                   </span>
                 </div>
-                {status.pr && isActivePr(status.pr) ? (
-                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
-                ) : null}
               </motion.div>
             ) : null}
           </AnimatePresence>

@@ -7,7 +7,7 @@ import { usePrStatus } from '@renderer/hooks/usePrStatus';
 import { useTaskAgentNames } from '@renderer/hooks/useTaskAgentNames';
 import { useTaskChanges } from '@renderer/hooks/useTaskChanges';
 import { agentAssets } from '@renderer/providers/assets';
-import AgentLogo from '../AgentLogo';
+import AgentLogo from '../agent-logo';
 import PrPreviewTooltip from '../PrPreviewTooltip';
 import { ChangesBadge } from '../TaskChanges';
 import TaskDeleteButton from '../TaskDeleteButton';

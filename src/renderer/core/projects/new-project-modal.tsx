@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { rpc } from '../core/ipc';
-import { useCloseGuard } from '../hooks/useCloseGuard';
-import { Button } from './ui/button';
-import { DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Separator } from './ui/separator';
-import { SlugInput } from './ui/slug-input';
-import { Spinner } from './ui/spinner';
+import { Button } from '../../components/ui/button';
+import { DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+import { Separator } from '../../components/ui/separator';
+import { SlugInput } from '../../components/ui/slug-input';
+import { Spinner } from '../../components/ui/spinner';
+import { useCloseGuard } from '../../hooks/useCloseGuard';
+import { rpc } from '../ipc';
 
 interface NewProjectModalProps {
   onClose: () => void;

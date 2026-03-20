@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import { rpc } from '../core/ipc';
 import type { LinearIssueSummary } from '../types/linear';
-import AgentLogo from './AgentLogo';
+import AgentLogo from './agent-logo';
 import { LinearStatusPill } from './LinearStatusPill';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 

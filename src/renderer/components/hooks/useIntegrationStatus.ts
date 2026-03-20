@@ -1,5 +1,5 @@
 import { useGithubContext } from '../../contexts/GithubContextProvider';
-import { useIntegrationsContext } from '../../contexts/IntegrationsProvider';
+import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
 
 interface IntegrationStatus {
   // Linear

@@ -1,7 +1,7 @@
 import { FolderOpen } from 'lucide-react';
 import React from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 type Props = {
   title: string;
