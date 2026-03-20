@@ -35,105 +35,15 @@ const McpIcon: React.FC<{ name: string; catalogKey?: string }> = ({ name, catalo
         .replace('<svg ', `<svg fill="${fillColor}" `);
     }
 
-    // Parse SVG string into a React element without dangerouslySetInnerHTML
-    // by using DOMParser in the browser to safely parse and convert to React elements
-    const parseSvgToReact = (svgString: string): React.ReactElement | null => {
-      try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(svgString, 'image/svg+xml');
-        const svgNode = doc.querySelector('svg');
-        if (!svgNode) return null;
-
-        // Convert kebab-case to camelCase for React
-        const toCamelCase = (str: string): string =>
-          str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-
-        // Recursively convert DOM nodes to React elements
-        const domToReact = (node: Node, index: number): React.ReactNode => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const text = node.textContent?.trim();
-            return text || null;
-          }
-
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            const tagName = element.tagName.toLowerCase();
-
-            // Build props from attributes
-            const props: Record<string, string | number | React.CSSProperties> = { key: index };
-            element.getAttributeNames().forEach((attr) => {
-              const value = element.getAttribute(attr);
-              if (value !== null) {
-                const reactAttr = toCamelCase(attr);
-                // Handle style attribute: parse CSS string into object
-                if (reactAttr === 'style') {
-                  const styleObj: Record<string, string> = {};
-                  value.split(';').forEach((declaration) => {
-                    const [prop, val] = declaration.split(':').map((s) => s.trim());
-                    if (prop && val) {
-                      // Convert CSS kebab-case to React camelCase
-                      const reactProp = prop.replace(/-([a-z])/g, (_, letter) =>
-                        letter.toUpperCase()
-                      );
-                      styleObj[reactProp] = val;
-                    }
-                  });
-                  props[reactAttr] = styleObj;
-                } else {
-                  props[reactAttr] = value;
-                }
-              }
-            });
-
-            // Recursively process children
-            const children = Array.from(element.childNodes)
-              .map((child, i) => domToReact(child, i))
-              .filter(Boolean);
-
-            if (children.length === 0) {
-              return React.createElement(tagName, props);
-            }
-            return React.createElement(tagName, props, children);
-          }
-
-          return null;
-        };
-
-        const children = Array.from(svgNode.childNodes)
-          .map((child, i) => domToReact(child, i))
-          .filter(Boolean);
-
-        // Extract svg attributes
-        const svgProps: Record<string, string> = { className: 'h-full w-full' };
-        svgNode.getAttributeNames().forEach((attr) => {
-          const value = svgNode.getAttribute(attr);
-          if (value !== null) {
-            const reactAttr = toCamelCase(attr);
-            svgProps[reactAttr] = value;
-          }
-        });
-
-        return React.createElement('svg', svgProps, children);
-      } catch {
-        return null;
-      }
-    };
-
-    const svgElement = parseSvgToReact(processed);
-    if (!svgElement) {
-      // Fallback: use first letter if SVG parsing fails
-      const letter = name.charAt(0).toUpperCase();
-      return (
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-sm font-semibold text-foreground/60">
-          {letter}
-        </div>
-      );
-    }
+    // Add class for sizing
+    processed = processed.replace('<svg ', '<svg class="h-full w-full" ');
 
     return (
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 p-2">
-        {svgElement}
-      </div>
+      <div
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 p-2"
+        // Safe to use: SVGs are from bundled, trusted icon definitions (not user input)
+        dangerouslySetInnerHTML={{ __html: processed }}
+      />
     );
   }
 
