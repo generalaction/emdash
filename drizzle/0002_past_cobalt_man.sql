@@ -1,1 +1,0 @@
-ALTER TABLE `terminals` ADD `ssh` integer DEFAULT 0 NOT NULL;

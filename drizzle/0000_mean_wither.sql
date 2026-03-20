@@ -10,8 +10,20 @@ CREATE TABLE `conversations` (
 	`task_id` text NOT NULL,
 	`title` text NOT NULL,
 	`provider` text,
+	`config` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `editor_buffers` (
+	`id` text PRIMARY KEY NOT NULL,
+	`project_id` text NOT NULL,
+	`task_id` text NOT NULL,
+	`file_path` text NOT NULL,
+	`content` text NOT NULL,
+	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -59,14 +71,18 @@ CREATE TABLE `projects` (
 );
 --> statement-breakpoint
 CREATE TABLE `pull_requests` (
-	`url` text PRIMARY KEY NOT NULL,
+	`id` text PRIMARY KEY NOT NULL,
+	`provider` text DEFAULT 'github' NOT NULL,
+	`name_with_owner` text DEFAULT '' NOT NULL,
+	`url` text NOT NULL,
 	`title` text NOT NULL,
 	`status` text DEFAULT 'open' NOT NULL,
-	`provider` text DEFAULT 'github' NOT NULL,
 	`author` text,
+	`is_draft` integer,
 	`metadata` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`fetched_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `ssh_connections` (
@@ -109,6 +125,7 @@ CREATE TABLE `terminals` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
 	`task_id` text NOT NULL,
+	`ssh` integer DEFAULT 0 NOT NULL,
 	`name` text NOT NULL,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -118,6 +135,7 @@ CREATE TABLE `terminals` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_app_settings_key` ON `app_settings` (`key`);--> statement-breakpoint
 CREATE INDEX `idx_conversations_task_id` ON `conversations` (`task_id`);--> statement-breakpoint
+CREATE INDEX `idx_editor_buffers_task_file` ON `editor_buffers` (`task_id`,`file_path`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_kv_key` ON `kv` (`key`);--> statement-breakpoint
 CREATE INDEX `idx_line_comments_task_file` ON `line_comments` (`task_id`,`file_path`);--> statement-breakpoint
 CREATE INDEX `idx_messages_conversation_id` ON `messages` (`conversation_id`);--> statement-breakpoint
@@ -125,6 +143,7 @@ CREATE INDEX `idx_messages_timestamp` ON `messages` (`timestamp`);--> statement-
 CREATE UNIQUE INDEX `idx_projects_path` ON `projects` (`path`);--> statement-breakpoint
 CREATE INDEX `idx_projects_ssh_connection_id` ON `projects` (`ssh_connection_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_pull_requests_url` ON `pull_requests` (`url`);--> statement-breakpoint
+CREATE INDEX `idx_pull_requests_name_with_owner` ON `pull_requests` (`name_with_owner`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_ssh_connections_name` ON `ssh_connections` (`name`);--> statement-breakpoint
 CREATE INDEX `idx_ssh_connections_host` ON `ssh_connections` (`host`);--> statement-breakpoint
 CREATE INDEX `idx_tasks_project_id` ON `tasks` (`project_id`);--> statement-breakpoint

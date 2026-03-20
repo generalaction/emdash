@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1773375344229,
-      "tag": "0000_loose_kylun",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1773677537823,
-      "tag": "0001_big_loners",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1773766564252,
-      "tag": "0002_past_cobalt_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1773895491489,
-      "tag": "0003_previous_the_hand",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1774032650138,
-      "tag": "0004_early_kid_colt",
+      "when": 1774036008845,
+      "tag": "0000_mean_wither",
       "breakpoints": true
     }
   ]

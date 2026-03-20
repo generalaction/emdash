@@ -102,6 +102,7 @@ export const pullRequests = sqliteTable(
   {
     id: text('id').primaryKey(),
     provider: text('provider').notNull().default('github'),
+    nameWithOwner: text('name_with_owner').notNull().default(''),
     url: text('url').notNull(),
     title: text('title').notNull(),
     status: text('status').notNull().default('open'),
@@ -120,6 +121,7 @@ export const pullRequests = sqliteTable(
   },
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
+    nameWithOwnerIdx: index('idx_pull_requests_name_with_owner').on(table.nameWithOwner),
   })
 );
 

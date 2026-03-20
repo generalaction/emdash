@@ -1,1 +1,0 @@
-ALTER TABLE `conversations` ADD `config` text;
