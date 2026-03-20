@@ -19,9 +19,11 @@ export interface GitHubPullRequestSummary {
   } | null;
   labels: Array<{ name: string; color: string }>;
   assignees: Array<{ login: string; avatarUrl: string }>;
-  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  reviewDecision: ReviewDecision;
   reviewers: GitHubReviewer[];
 }
+
+export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
 
 export interface GitHubPullRequest extends GitHubPullRequestSummary {
   additions: number;
