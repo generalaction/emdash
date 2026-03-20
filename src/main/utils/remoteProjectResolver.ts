@@ -17,10 +17,13 @@ export async function resolveRemoteProjectForWorktreePath(
   worktreePath: string
 ): Promise<RemoteProject | null> {
   const all = await databaseService.getProjects();
-  // Pick the longest matching remotePath prefix.
+  const normalizedInput = worktreePath.replace(/\/+$/g, '');
   const candidates = all
     .filter((p) => isRemoteProject(p))
-    .filter((p) => worktreePath.startsWith(p.remotePath.replace(/\/+$/g, '') + '/'))
+    .filter((p) => {
+      const base = p.remotePath.replace(/\/+$/g, '');
+      return normalizedInput === base || normalizedInput.startsWith(base + '/');
+    })
     .sort((a, b) => b.remotePath.length - a.remotePath.length);
   return candidates[0] ?? null;
 }
