@@ -217,7 +217,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
         )}
         <div
           className="pointer-events-auto flex flex-shrink-0 items-center [-webkit-app-region:no-drag]"
-          style={{ paddingLeft: isMacOS ? '78px' : '8px' }}
+          style={{ paddingLeft: isMacOS ? '88px' : '8px' }}
         >
           <PerformanceChip />
         </div>
