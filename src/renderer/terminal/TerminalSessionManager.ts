@@ -29,6 +29,7 @@ import {
   type TerminalSearchBufferLike,
   type TerminalSearchMatch,
 } from './terminalSearch';
+import { scheduleTerminalWriteDrain } from './writeDrainScheduler';
 import { rpc } from '@/lib/rpc';
 import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
@@ -145,6 +146,7 @@ export class TerminalSessionManager {
   private readonly pendingWriteQueue: string[] = [];
   private queuedWriteChars = 0;
   private writeDrainScheduled = false;
+  private cancelPendingWriteDrain: CleanupFn | null = null;
   private writeInFlight = false;
   private shouldScrollToBottomAfterWrites = false;
   private lastSlowInputLogAt = 0;
@@ -562,6 +564,8 @@ export class TerminalSessionManager {
     this.pendingWriteQueue.length = 0;
     this.queuedWriteChars = 0;
     this.writeDrainScheduled = false;
+    this.cancelPendingWriteDrain?.();
+    this.cancelPendingWriteDrain = null;
     this.writeInFlight = false;
     this.shouldScrollToBottomAfterWrites = false;
     this.detach();
@@ -1373,8 +1377,9 @@ export class TerminalSessionManager {
   private scheduleWriteDrain() {
     if (this.writeDrainScheduled || this.disposed) return;
     this.writeDrainScheduled = true;
-    requestAnimationFrame(() => {
+    this.cancelPendingWriteDrain = scheduleTerminalWriteDrain(() => {
       this.writeDrainScheduled = false;
+      this.cancelPendingWriteDrain = null;
       this.drainQueuedWrites();
     });
   }
