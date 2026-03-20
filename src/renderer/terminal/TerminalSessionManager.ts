@@ -43,6 +43,8 @@ const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const MAX_TERMINAL_WRITE_CHARS_PER_SLICE = 16_384;
+const CATCH_UP_WRITE_CHARS_PER_SLICE = 262_144;
+const CATCH_UP_BACKLOG_THRESHOLD = 64 * 1024;
 const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
@@ -153,6 +155,7 @@ export class TerminalSessionManager {
   private wheelLineRemainder = 0;
   private activeSearchQuery = '';
   private activeSearchMatch: TerminalSearchMatch | null = null;
+  private documentVisible = !document.hidden;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -282,6 +285,19 @@ export class TerminalSessionManager {
         PANEL_RESIZE_DRAGGING_EVENT,
         handlePanelResizeDragging as EventListener
       )
+    );
+
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      if (this.documentVisible === visible) return;
+      this.documentVisible = visible;
+      if (visible && this.queuedWriteChars > 0) {
+        this.scheduleWriteDrain();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    this.disposables.push(() =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     );
 
     this.fitAddon = new FitAddon();
@@ -1494,10 +1510,16 @@ export class TerminalSessionManager {
   private scheduleWriteDrain() {
     if (this.writeDrainScheduled || this.disposed) return;
     this.writeDrainScheduled = true;
-    requestAnimationFrame(() => {
+    const run = () => {
       this.writeDrainScheduled = false;
       this.drainQueuedWrites();
-    });
+    };
+    const catchingUp = this.documentVisible && this.queuedWriteChars > CATCH_UP_BACKLOG_THRESHOLD;
+    if (this.documentVisible && !catchingUp) {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
   }
 
   private dequeueWriteSlice(maxChars: number): string {
@@ -1518,7 +1540,11 @@ export class TerminalSessionManager {
   private drainQueuedWrites() {
     if (this.disposed || this.writeInFlight) return;
 
-    const slice = this.dequeueWriteSlice(MAX_TERMINAL_WRITE_CHARS_PER_SLICE);
+    const catchingUp = this.documentVisible && this.queuedWriteChars > CATCH_UP_BACKLOG_THRESHOLD;
+    const maxChars = catchingUp
+      ? CATCH_UP_WRITE_CHARS_PER_SLICE
+      : MAX_TERMINAL_WRITE_CHARS_PER_SLICE;
+    const slice = this.dequeueWriteSlice(maxChars);
     if (!slice) {
       if (this.shouldScrollToBottomAfterWrites) {
         this.shouldScrollToBottomAfterWrites = false;
