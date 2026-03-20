@@ -743,7 +743,7 @@ export function registerPtyIpc(): void {
           const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
-            cwd: undefined,
+            cwd,
             tmux: remoteTmuxOpt,
           });
           if (remoteInit) {
@@ -1287,7 +1287,7 @@ export function registerPtyIpc(): void {
           const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
-            cwd: undefined,
+            cwd,
             provider: remoteProvider,
             tmux: tmuxOpt,
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
