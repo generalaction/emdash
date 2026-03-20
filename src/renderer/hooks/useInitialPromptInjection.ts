@@ -60,6 +60,7 @@ export function useInitialPromptInjection(opts: {
     let hardTimer: ReturnType<typeof setTimeout> | null = null;
     let retryDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setInterval> | null = null;
+    let idleSendTimer: ReturnType<typeof setTimeout> | null = null;
     const submitTimers: Array<ReturnType<typeof setTimeout>> = [];
 
     const persistPromptSent = () => {
@@ -97,13 +98,18 @@ export function useInitialPromptInjection(opts: {
       }
     };
 
-    const send = () => {
+    const send = (force = false) => {
       try {
         if (sent) return;
-        if (!ptyReady) return;
+        if (!force && !ptyReady) return;
         if (cfg && !sawIdleBeforeSend) {
-          const startupAgeMs = Date.now() - effectStartedAt;
-          if (startupAgeMs < cfg.minStartupBeforeSendMs) return;
+          if (force) {
+            // Fallback timers bypass the idle-before-send requirement
+            sawIdleBeforeSend = true;
+          } else {
+            const startupAgeMs = Date.now() - effectStartedAt;
+            if (startupAgeMs < cfg.minStartupBeforeSendMs) return;
+          }
         }
         const pty = (window as any).electronAPI?.ptyInput;
         if (!pty) return;
@@ -158,6 +164,23 @@ export function useInitialPromptInjection(opts: {
           scheduleSubmit(submitDelayMs);
         }
         sent = true;
+        // Injection succeeded — clear remaining fallback timers
+        if (eagerTimer) {
+          clearTimeout(eagerTimer);
+          eagerTimer = null;
+        }
+        if (hardTimer) {
+          clearTimeout(hardTimer);
+          hardTimer = null;
+        }
+        if (silenceTimer) {
+          clearTimeout(silenceTimer);
+          silenceTimer = null;
+        }
+        if (idleSendTimer) {
+          clearTimeout(idleSendTimer);
+          idleSendTimer = null;
+        }
       } catch {}
     };
 
@@ -174,7 +197,8 @@ export function useInitialPromptInjection(opts: {
         const signal = classifyActivity(providerId, sampleActivityChunk(chunk));
         if (signal === 'idle' && !sent) {
           if (cfg) sawIdleBeforeSend = true;
-          setTimeout(send, IDLE_SEND_DELAY_MS);
+          if (idleSendTimer) clearTimeout(idleSendTimer);
+          idleSendTimer = setTimeout(send, IDLE_SEND_DELAY_MS);
         } else if (cfg && sent && !submitConfirmed) {
           // Stop retries as soon as the provider shows active processing.
           if (signal === 'busy') {
@@ -207,19 +231,20 @@ export function useInitialPromptInjection(opts: {
 
     if (!cfg) {
       eagerTimer = setTimeout(() => {
-        if (!sent) send();
+        if (!sent) send(true);
       }, DEFAULT_EAGER_TIMER_MS);
     }
 
     // Global last-resort fallback if neither event fires
     hardTimer = setTimeout(() => {
-      if (!sent) send();
+      if (!sent) send(true);
     }, cfg?.hardTimerMs ?? DEFAULT_HARD_TIMER_MS);
 
     return () => {
       if (eagerTimer) clearTimeout(eagerTimer);
       if (hardTimer) clearTimeout(hardTimer);
       if (silenceTimer) clearTimeout(silenceTimer);
+      if (idleSendTimer) clearTimeout(idleSendTimer);
       stopRetries();
       for (const t of submitTimers) clearTimeout(t);
       offStarted?.();
