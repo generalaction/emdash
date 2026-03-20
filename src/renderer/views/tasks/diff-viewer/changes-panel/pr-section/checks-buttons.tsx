@@ -7,9 +7,11 @@ import { useCheckRuns } from '../../state/use-check-runs';
 export function ChecksButton({
   nameWithOwner,
   prNumber,
+  prUrl,
 }: {
   nameWithOwner: string;
   prNumber: number;
+  prUrl?: string;
 }) {
   const { summary, allComplete, hasFailures, isLoading } = useCheckRuns(nameWithOwner, prNumber);
   const { showModal } = useModalContext();
@@ -29,7 +31,7 @@ export function ChecksButton({
       variant="outline"
       size="icon-xs"
       title="Checks & comments"
-      onClick={() => showModal('checksCommentsModal', { nameWithOwner, prNumber })}
+      onClick={() => showModal('checksCommentsModal', { nameWithOwner, prNumber, prUrl })}
       className="relative"
     >
       <CircleCheckBig className="size-3" />

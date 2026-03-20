@@ -24,7 +24,8 @@ import { cn } from '@renderer/lib/utils';
 import { useTaskViewContext } from '../../task-view-context';
 import { useGitChangesContext } from '../state/git-changes-provider';
 import { ActiveFile, useGitViewContext } from '../state/git-view-provider';
-import { useBranchStatus } from '../state/use-branch-status.tsx';
+import { PrProvider } from '../state/pr-provider';
+import { useBranchStatus } from '../state/use-branch-status';
 import { useOptimisticFileDiff } from '../state/use-file-diff';
 import { useSelection, type SelectionState } from '../state/use-selection';
 import { PullRequestSection } from './pr-section/pr-section';
@@ -332,7 +333,9 @@ export function ChangesPanel() {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel minSize={5} defaultSize={60} className="flex flex-col overflow-hidden">
-          <PullRequestSection />
+          <PrProvider>
+            <PullRequestSection />
+          </PrProvider>
         </ResizablePanel>
         <GitStatusSection />
       </ResizablePanelGroup>

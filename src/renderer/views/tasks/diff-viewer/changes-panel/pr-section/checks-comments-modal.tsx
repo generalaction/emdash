@@ -1,5 +1,6 @@
 import {
   ArrowUp,
+  ArrowUpRight,
   CheckCircle2,
   ExternalLink,
   Loader2,
@@ -15,13 +16,22 @@ import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { DialogClose, DialogContent } from '@renderer/components/ui/dialog';
 import { Textarea } from '@renderer/components/ui/textarea';
+import { rpc } from '@renderer/core/ipc';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { useCheckRuns, type CheckRun, type CheckRunBucket } from '../../state/use-check-runs';
-import { usePrComments, type PrComment } from '../../state/use-pr-comments';
+import {
+  formatCheckDuration,
+  formatRelativeTime,
+  type CheckRun,
+  type CheckRunBucket,
+  type PrComment,
+} from '@renderer/lib/github';
+import { useCheckRuns } from '../../state/use-check-runs';
+import { usePrComments } from '../../state/use-pr-comments';
 
 export type ChecksCommentsModalArgs = {
   nameWithOwner: string;
   prNumber: number;
+  prUrl?: string;
 };
 
 type Props = BaseModalProps<void> & ChecksCommentsModalArgs;
@@ -48,20 +58,8 @@ function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   }
 }
 
-function formatDuration(startedAt?: string, completedAt?: string): string | null {
-  if (!startedAt || !completedAt) return null;
-  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-  if (isNaN(ms) || ms < 0) return null;
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s % 60}s`;
-  return '<1m';
-}
-
 function CheckRunItem({ check }: { check: CheckRun }) {
-  const duration = formatDuration(check.startedAt, check.completedAt);
+  const duration = formatCheckDuration(check.startedAt, check.completedAt);
   const subtitle = check.appName ?? check.workflowName;
   return (
     <div className="flex items-center gap-2 px-3 py-2">
@@ -79,7 +77,7 @@ function CheckRunItem({ check }: { check: CheckRun }) {
           <button
             className="text-muted-foreground hover:text-foreground"
             title="Open in GitHub"
-            onClick={() => window.open(check.detailsUrl, '_blank')}
+            onClick={() => rpc.app.openExternal(check.detailsUrl!)}
           >
             <ExternalLink className="size-3.5" />
           </button>
@@ -111,19 +109,6 @@ function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: bool
       ))}
     </div>
   );
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const ms = Date.now() - new Date(dateStr).getTime();
-  if (isNaN(ms) || ms < 0) return 'just now';
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
 }
 
 const reviewBadgeStyles: Record<string, string> = {
@@ -241,7 +226,7 @@ function CommentInput({ nameWithOwner, prNumber }: { nameWithOwner: string; prNu
   );
 }
 
-export function ChecksCommentsModal({ nameWithOwner, prNumber }: Props) {
+export function ChecksCommentsModal({ nameWithOwner, prNumber, prUrl }: Props) {
   const { checks, summary, isLoading: checksLoading } = useCheckRuns(nameWithOwner, prNumber);
 
   return (
@@ -275,10 +260,20 @@ export function ChecksCommentsModal({ nameWithOwner, prNumber }: Props) {
             </div>
           )}
         </div>
-        <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Open PR in browser"
+            onClick={() => prUrl && rpc.app.openExternal(prUrl)}
+          >
+            <ArrowUpRight className="size-4" />
+          </Button>
+          <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
+            <X className="size-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ChecksList checks={checks} isLoading={checksLoading} />

@@ -1,14 +1,13 @@
-import { usePullRequestSection } from '../../state/use-pr-section';
+import { usePrContext } from '../../state/pr-provider';
 import { CreatePullRequestSection } from './create-pr-section';
 import { MergePullRequestSection } from './merge-pr-section';
 import { PrFilesList } from './pr-files-list';
 import { StatusSection } from './status-section';
 
 export function PullRequestSection() {
-  const { state, pr, prDetails, branchName, baseBranch, nameWithOwner, isLoading, actions } =
-    usePullRequestSection();
+  const { state, pr, prDetails, branchName, baseBranch, nameWithOwner, mergePr } = usePrContext();
 
-  if (isLoading || state === 'no-remote' || state === 'up-to-date') {
+  if (state === 'loading' || state === 'no-remote' || state === 'up-to-date') {
     return null;
   }
 
@@ -29,7 +28,7 @@ export function PullRequestSection() {
         prNumber={pr!.number}
         baseBranch={baseBranch ?? 'main'}
       />
-      <MergePullRequestSection prDetails={prDetails} onMerge={actions.mergePr} />
+      <MergePullRequestSection prDetails={prDetails} onMerge={mergePr} />
     </>
   );
 }

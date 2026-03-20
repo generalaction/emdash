@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
-import { PullRequestSummary } from '@renderer/hooks/usePullRequests';
+import { rpc } from '@renderer/core/ipc';
+import type { PullRequestSummary } from '@renderer/lib/github';
 import { cn } from '@renderer/lib/utils';
 import { ChecksButton } from './checks-buttons';
 
@@ -43,12 +44,12 @@ export const StatusSection = ({ pr, nameWithOwner }: StatusSectionProps) => {
         </Badge>
         <span className="flex-1 min-w-0 truncate text-sm font-medium">{pr.title}</span>
         <div className="shrink-0 flex items-center gap-1">
-          <ChecksButton nameWithOwner={nameWithOwner} prNumber={pr.number} />
+          <ChecksButton nameWithOwner={nameWithOwner} prNumber={pr.number} prUrl={pr.url} />
           <Button
             variant="outline"
             size="icon-xs"
             title="Open in browser"
-            onClick={() => window.open(pr.url, '_blank')}
+            onClick={() => rpc.app.openExternal(pr.url)}
           >
             <ArrowUpRight className="size-3" />
           </Button>
