@@ -40,4 +40,6 @@ export interface GitHubPullRequestService {
   getPullRequestFiles(nameWithOwner: string, prNumber: number): Promise<PullRequestFile[]>;
 
   getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]>;
+
+  syncPullRequests(nameWithOwner: string, sinceUpdatedAt?: string): Promise<PullRequest[]>;
 }

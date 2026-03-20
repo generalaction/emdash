@@ -18,6 +18,7 @@ export type PullRequestAuthor = {
 // Common fields all forges share
 interface PullRequestBase {
   id: string;
+  nameWithOwner: string;
   url: string;
   title: string;
   status: PullRequestStatus;

@@ -57,30 +57,41 @@ const gqlPrDetailNode = {
   mergeStateStatus: 'CLEAN' as const,
 };
 
-const expectedSummary = {
-  number: 42,
-  title: 'feat: add widget',
+const expectedUnified = {
+  id: 'https://github.com/acme/my-repo/pull/42',
+  nameWithOwner: 'acme/my-repo',
+  provider: 'github',
   url: 'https://github.com/acme/my-repo/pull/42',
-  state: 'OPEN',
+  title: 'feat: add widget',
+  status: 'open',
+  author: { userName: 'dev', displayName: 'dev' },
   isDraft: false,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-02T00:00:00Z',
-  headRefName: 'feat/widget',
-  headRefOid: 'abc123',
-  baseRefName: 'main',
-  author: { login: 'dev' },
-  headRepository: {
-    nameWithOwner: 'acme/my-repo',
-    url: 'https://github.com/acme/my-repo',
-    owner: { login: 'acme' },
+  metadata: {
+    number: 42,
+    headRefName: 'feat/widget',
+    headRefOid: 'abc123',
+    baseRefName: 'main',
+    headRepository: {
+      nameWithOwner: 'acme/my-repo',
+      url: 'https://github.com/acme/my-repo',
+      owner: { login: 'acme' },
+    },
+    labels: [{ name: 'enhancement', color: '84b6eb' }],
+    assignees: [{ login: 'dev', avatarUrl: 'https://avatar.test/dev' }],
+    reviewDecision: null,
+    reviewers: [
+      { login: 'pending-reviewer', state: 'PENDING' },
+      { login: 'reviewer', state: 'APPROVED' },
+    ],
+    additions: 0,
+    deletions: 0,
+    changedFiles: 0,
+    mergeable: 'UNKNOWN',
+    mergeStateStatus: 'UNKNOWN',
+    body: null,
   },
-  labels: [{ name: 'enhancement', color: '84b6eb' }],
-  assignees: [{ login: 'dev', avatarUrl: 'https://avatar.test/dev' }],
-  reviewDecision: null,
-  reviewers: [
-    { login: 'pending-reviewer', state: 'PENDING' },
-    { login: 'reviewer', state: 'APPROVED' },
-  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -108,7 +119,7 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repo: 'my-repo',
       limit: 10,
     });
-    expect(result.prs).toEqual([expectedSummary]);
+    expect(result.prs).toEqual([expectedUnified]);
     expect(result.totalCount).toBe(1);
   });
 
@@ -159,7 +170,7 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
 
     const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
-    expect(result.prs[0].reviewers).toEqual([
+    expect(result.prs[0].metadata.reviewers).toEqual([
       { login: 'pending-reviewer', state: 'PENDING' },
       { login: 'reviewer', state: 'APPROVED' },
     ]);
@@ -172,8 +183,8 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
 
     const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
-    expect(result.prs[0].labels).toEqual([{ name: 'enhancement', color: '84b6eb' }]);
-    expect(result.prs[0].assignees).toEqual([
+    expect(result.prs[0].metadata.labels).toEqual([{ name: 'enhancement', color: '84b6eb' }]);
+    expect(result.prs[0].metadata.assignees).toEqual([
       { login: 'dev', avatarUrl: 'https://avatar.test/dev' },
     ]);
   });
@@ -201,13 +212,16 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
       number: 42,
     });
     expect(result).toEqual({
-      ...expectedSummary,
-      body: 'PR description',
-      additions: 10,
-      deletions: 5,
-      changedFiles: 3,
-      mergeable: 'MERGEABLE',
-      mergeStateStatus: 'CLEAN',
+      ...expectedUnified,
+      metadata: {
+        ...expectedUnified.metadata,
+        body: 'PR description',
+        additions: 10,
+        deletions: 5,
+        changedFiles: 3,
+        mergeable: 'MERGEABLE',
+        mergeStateStatus: 'CLEAN',
+      },
     });
   });
 
