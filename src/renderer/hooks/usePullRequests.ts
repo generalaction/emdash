@@ -1,25 +1,27 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import type { PullRequestSummary } from '@renderer/lib/github';
 import { rpc } from '../core/ipc';
 
-export interface PullRequestSummary {
-  number: number;
-  title: string;
-  headRefName: string;
-  baseRefName: string;
-  url: string;
-  isDraft: boolean;
-  updatedAt: string;
-  authorLogin: string | null;
+export type { PullRequestSummary } from '@renderer/lib/github';
+
+export interface UsePullRequestsOptions {
+  searchQuery?: string;
+  limit?: number;
+  enabled?: boolean;
 }
 
-export function usePullRequests(nameWithOwner?: string, enabled: boolean = true) {
+export function usePullRequests(nameWithOwner?: string, options: UsePullRequestsOptions = {}) {
+  const { searchQuery, limit, enabled = true } = options;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['pull-requests', nameWithOwner],
+    queryKey: ['pull-requests', nameWithOwner, searchQuery],
     queryFn: async () => {
-      const response = await rpc.github.listPullRequests(nameWithOwner!);
+      const response = await rpc.github.listPullRequests(nameWithOwner!, {
+        searchQuery,
+        limit,
+      });
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load pull requests');
       }
@@ -35,12 +37,16 @@ export function usePullRequests(nameWithOwner?: string, enabled: boolean = true)
             isDraft: !!item.isDraft,
             updatedAt: String(item.updatedAt || ''),
             authorLogin: item.author?.login ?? null,
+            headRefOid: String(item.headRefOid || ''),
+            state: item.state ?? 'OPEN',
+            reviewDecision: item.reviewDecision ?? null,
           })
         )
         .filter((item) => item.number > 0);
     },
     enabled: !!nameWithOwner && enabled,
     staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 
   const refresh = useCallback(() => {

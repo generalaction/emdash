@@ -4,6 +4,7 @@ import { ptyExitChannel } from '@shared/events/appEvents';
 import { rpc } from '@renderer/core/ipc';
 import { events } from '../../core/ipc';
 import { getAll, setStatus, type KanbanStatus } from '../../lib/kanbanStore';
+// TODO: migrate to rpc.github.listPullRequests when kanban has project context
 import { refreshPrStatus } from '../../lib/prStatusStore';
 import { subscribeDerivedStatus, watchTaskPty } from '../../lib/taskStatus';
 import type { Project, Task } from '../../types/app';

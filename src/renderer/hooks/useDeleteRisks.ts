@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { rpc } from '@renderer/core/ipc';
+// TODO: migrate to rpc.github.listPullRequests when this hook receives project context
 import { isActivePr, PrInfo } from '../lib/prStatus';
 import { refreshPrStatus } from '../lib/prStatusStore';
 

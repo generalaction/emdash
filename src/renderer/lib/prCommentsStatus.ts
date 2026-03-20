@@ -22,7 +22,7 @@ export function buildPrCommentsStatus(
     id: string;
     author: PrCommentAuthor;
     body: string;
-    submittedAt: string;
+    submittedAt?: string;
     state: string;
   }>
 ): PrCommentsStatus {
@@ -40,13 +40,18 @@ export function buildPrCommentsStatus(
       id: r.id,
       author: r.author,
       body: r.body,
-      createdAt: r.submittedAt,
+      createdAt: r.submittedAt ?? '',
       type: 'review',
       reviewState: r.state as PrComment['reviewState'],
     }));
 
+  const toMillis = (dateStr: string): number => {
+    const ms = new Date(dateStr).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+
   const all = [...comments, ...reviews].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    (a, b) => toMillis(a.createdAt) - toMillis(b.createdAt)
   );
 
   return { comments: all };
