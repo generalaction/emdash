@@ -248,7 +248,7 @@ export function ChangesPanel() {
         {/* Unstaged section */}
         <ResizablePanel minSize={15} defaultSize={60} className="flex flex-col overflow-hidden">
           <SectionHeader
-            label="Changes"
+            label="Changed"
             count={unstagedFileChanges.length}
             selectionState={unstagedSelection.selectionState}
             onToggleAll={unstagedSelection.toggleAll}

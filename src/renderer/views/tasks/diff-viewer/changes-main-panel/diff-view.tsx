@@ -6,7 +6,7 @@ import { FileDiffView } from './file-diff-view';
 import { StackedDiffView } from './stacked-diff-view';
 
 export function DiffView() {
-  const { viewMode, setViewMode, diffStyle, setDiffStyle } = useGitViewContext();
+  const { viewMode, setViewMode, diffStyle, setDiffStyle, activeFile } = useGitViewContext();
 
   // Warm up the pool as soon as the diff view is first rendered.
   useEffect(() => {
@@ -16,6 +16,8 @@ export function DiffView() {
   return (
     <div className="flex h-full flex-col">
       <DiffToolbar
+        diffSource={activeFile?.isStaged ? 'Staged' : 'Changed'}
+        filePath={activeFile?.path}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         diffStyle={diffStyle}
