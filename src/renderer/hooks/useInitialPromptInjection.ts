@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { initialPromptSentKey } from '../lib/keys';
 import { classifyActivity, sampleActivityChunk } from '../lib/activityClassifier';
 import { agentStatusStore } from '../lib/agentStatusStore';
@@ -30,6 +30,9 @@ export function useInitialPromptInjection(opts: {
   onSent?: () => void;
 }) {
   const { scopeId, providerId, prompt, enabled = true, ptyKind = 'main', onSent } = opts;
+
+  const onSentRef = useRef(onSent);
+  onSentRef.current = onSent;
 
   useEffect(() => {
     if (!enabled) return;
@@ -68,7 +71,7 @@ export function useInitialPromptInjection(opts: {
     const notifyPromptSent = () => {
       if (promptNotified) return;
       promptNotified = true;
-      onSent?.();
+      onSentRef.current?.();
     };
 
     const stopRetries = () => {
@@ -87,7 +90,11 @@ export function useInitialPromptInjection(opts: {
       try {
         pty({ id: ptyId, data: submitKey });
         lastSubmitAt = Date.now();
-      } catch {}
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[useInitialPromptInjection] pty submit failed:', err);
+        }
+      }
     };
 
     const send = () => {
@@ -218,5 +225,6 @@ export function useInitialPromptInjection(opts: {
       offStarted?.();
       offData?.();
     };
-  }, [enabled, scopeId, providerId, prompt, ptyKind, onSent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onSent is stabilized via onSentRef
+  }, [enabled, scopeId, providerId, prompt, ptyKind]);
 }
