@@ -100,16 +100,21 @@ export const tasks = sqliteTable(
 export const pullRequests = sqliteTable(
   'pull_requests',
   {
-    url: text('url').primaryKey(),
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull().default('github'),
+    url: text('url').notNull(),
     title: text('title').notNull(),
     status: text('status').notNull().default('open'),
-    provider: text('provider').notNull().default('github'),
     author: text('author'),
+    isDraft: integer('is_draft'),
     metadata: text('metadata'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    fetchedAt: text('fetched_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   },
