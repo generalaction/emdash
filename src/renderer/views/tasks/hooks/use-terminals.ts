@@ -6,7 +6,7 @@ import { rpc } from '@renderer/core/ipc';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { usePtySession } from '@renderer/core/pty/pty-session-context';
-import { useTerminalsContext } from '@renderer/features/terminals/terminal-data-provider';
+import { useTerminalsContext } from '@renderer/core/terminals/terminal-data-provider';
 
 /** Measure the terminals pane using a typical monospace cell size (13px font). */
 function getTerminalsPaneSize() {

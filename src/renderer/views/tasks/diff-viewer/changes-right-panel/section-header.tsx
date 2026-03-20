@@ -64,10 +64,13 @@ export function PullRequestSectionHeader({
 }) {
   return (
     <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
-      <div className="flex items-center gap-2 justify-between w-full">
-        <button onClick={onToggleCollapsed}>
-          <span className="text-sm text-muted-foreground flex items-center gap-2">
-            Pull Requests <Badge variant="secondary">{count}</Badge>
+      <div className="flex items-center gap-2 justify-between w-full min-w-0">
+        <button onClick={onToggleCollapsed} className="min-w-0">
+          <span className="text-sm text-muted-foreground flex items-center gap-2 min-w-0">
+            <span className="truncate">Pull Requests</span>{' '}
+            <Badge variant="secondary" className="shrink-0">
+              {count}
+            </Badge>
             <span className="p-2 text-muted-foreground hover:text-foreground">
               <ChevronDown
                 className={cn(

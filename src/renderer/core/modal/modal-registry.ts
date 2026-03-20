@@ -7,7 +7,7 @@ import { McpModal } from '@renderer/components/mcp/McpModal';
 import { NewProjectModal } from '@renderer/components/NewProjectModal';
 import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/project-settings-modal';
 import { UpdateModalOverlay } from '@renderer/components/UpdateModal';
-import { CreateConversationModal } from '@renderer/features/conversations/create-conversation-modal';
+import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
 import { ChecksCommentsModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/checks-comments-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/create-pr-modal';

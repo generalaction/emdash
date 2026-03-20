@@ -2,6 +2,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import { archiveTask } from './archiveTask';
 import { createTask } from './createTask';
 import { deleteTask } from './deleteTask';
+import { getBootstrapStatus } from './getBootstrapStatus';
 import { getTasks } from './getTasks';
 import { provisionTask } from './provisionTask';
 import { restoreTask } from './restoreTask';
@@ -13,4 +14,5 @@ export const taskController = createRPCController({
   archiveTask,
   restoreTask,
   provisionTask,
+  getBootstrapStatus,
 });

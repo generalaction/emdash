@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import type { CreateConversationParams } from '@shared/conversations';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { useConversationsContext } from '@renderer/core/conversations/conversation-data-provider';
 import { rpc } from '@renderer/core/ipc';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { usePtySession } from '@renderer/core/pty/pty-session-context';
-import { useConversationsContext } from '@renderer/features/conversations/conversation-data-provider';
 
-/** Measure the conversations pane using a typical monospace cell size (13px font). */
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
   return container ? (measureDimensions(container, 8, 16) ?? undefined) : undefined;

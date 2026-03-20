@@ -4,25 +4,25 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './components/ThemeProvider';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
-import { AgentProvider } from './contexts/AgentProvider';
-import { AppContextProvider } from './contexts/AppContextProvider';
-import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { DependenciesProvider } from './contexts/DependenciesProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { IntegrationsProvider } from './contexts/IntegrationsProvider';
 import { SshConnectionProvider } from './contexts/SshConnectionProvider';
+import { AppContextProvider } from './core/app/AppContextProvider';
+import { AppSettingsProvider } from './core/app/AppSettingsProvider';
+import { AgentProvider } from './core/conversations/AgentProvider';
+import { ConversationDataProvider } from './core/conversations/conversation-data-provider';
 import { ModalProvider } from './core/modal/modal-provider';
-import { ProjectsProvider } from './core/projects/project-provider';
+import { ProjectsDataProvider } from './core/projects/projects-data-provider';
 import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
 import { PtySessionProvider } from './core/pty/pty-session-context';
+import { TaskBootstrapProvider } from './core/tasks/task-bootstrap-provider';
+import { TaskViewStateProvider } from './core/tasks/task-view-state-provider';
+import { TasksDataProvider } from './core/tasks/tasks-data-provider';
+import { TerminalDataProvider } from './core/terminals/terminal-data-provider';
 import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
 import { WorkspaceViewProvider } from './core/view/provider';
-import { ConversationDataProvider } from './features/conversations/conversation-data-provider';
-import { TaskViewStateProvider } from './features/tasks/task-view-state-provider';
-import { TasksProvider } from './features/tasks/tasks-provider';
-import { TerminalDataProvider } from './features/terminals/terminal-data-provider';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import BrowserProvider from './providers/BrowserProvider';
 import { PendingTasksProvider } from './views/projects/pending-tasks-provider';
 import { WelcomeScreen } from './views/Welcome';
 import { Workspace } from './views/Workspace';
@@ -55,29 +55,29 @@ export function App() {
                         <GithubContextProvider>
                           <IntegrationsProvider>
                             <WorkspaceViewProvider>
-                              <ProjectsProvider>
+                              <ProjectsDataProvider>
                                 <PendingProjectsProvider>
-                                  <TasksProvider>
+                                  <TasksDataProvider>
                                     <PendingTasksProvider>
-                                      <ConversationDataProvider>
-                                        <TerminalDataProvider>
-                                          <TaskViewStateProvider>
-                                            <AgentProvider>
-                                              <BrowserProvider>
+                                      <TaskBootstrapProvider>
+                                        <ConversationDataProvider>
+                                          <TerminalDataProvider>
+                                            <TaskViewStateProvider>
+                                              <AgentProvider>
                                                 <RightSidebarProvider>
                                                   <ThemeProvider>
                                                     <ErrorBoundary>{renderContent()}</ErrorBoundary>
                                                   </ThemeProvider>
                                                 </RightSidebarProvider>
-                                              </BrowserProvider>
-                                            </AgentProvider>
-                                          </TaskViewStateProvider>
-                                        </TerminalDataProvider>
-                                      </ConversationDataProvider>
+                                              </AgentProvider>
+                                            </TaskViewStateProvider>
+                                          </TerminalDataProvider>
+                                        </ConversationDataProvider>
+                                      </TaskBootstrapProvider>
                                     </PendingTasksProvider>
-                                  </TasksProvider>
+                                  </TasksDataProvider>
                                 </PendingProjectsProvider>
-                              </ProjectsProvider>
+                              </ProjectsDataProvider>
                             </WorkspaceViewProvider>
                           </IntegrationsProvider>
                         </GithubContextProvider>

@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react';
 import React from 'react';
 import type { NotificationType } from '@shared/events/agentEvents';
-import { useAgent } from '../../contexts/AgentProvider';
+import { useAgent } from '../../core/conversations/AgentProvider';
 import { agentAssets } from '../../providers/assets';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import type { Task } from '../../types/app';

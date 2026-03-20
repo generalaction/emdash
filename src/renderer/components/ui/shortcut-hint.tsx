@@ -1,6 +1,6 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
 
 interface ShortcutHintProps {

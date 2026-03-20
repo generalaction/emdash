@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import { Switch } from './ui/switch';
 
 const RightSidebarSettingsCard: React.FC = () => {

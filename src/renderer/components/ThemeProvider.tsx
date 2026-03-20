@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 type Theme = 'light' | 'dark' | 'dark-black' | 'system';

@@ -5,8 +5,8 @@ import {
   type NotificationType,
   type SoundEvent,
 } from '@shared/events/agentEvents';
-import { events } from '../core/ipc';
-import { soundPlayer } from '../lib/soundPlayer';
+import { soundPlayer } from '../../lib/soundPlayer';
+import { events } from '../ipc';
 
 export type AgentNotification = {
   ptyId: string;

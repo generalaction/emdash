@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import { Task } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 
-interface TasksContextValue {
+interface TasksDataContextValue {
   tasks: Task[];
   tasksByProjectId: Record<string, Task[]>;
   activeTasksByProjectId: Record<string, Task[]>;
@@ -12,17 +12,17 @@ interface TasksContextValue {
   deleteTask: (taskId: string) => Promise<void>;
 }
 
-export const TasksContext = createContext<TasksContextValue | null>(null);
+const TasksDataContext = createContext<TasksDataContextValue | null>(null);
 
-export function useTasksContext(): TasksContextValue {
-  const ctx = useContext(TasksContext);
+export function useTasksDataContext(): TasksDataContextValue {
+  const ctx = useContext(TasksDataContext);
   if (!ctx) {
     throw new Error('useTasksContext must be used within a TasksContext.Provider');
   }
   return ctx;
 }
 
-export function TasksProvider({ children }: { children: React.ReactNode }) {
+export function TasksDataProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: tasks } = useQuery({
@@ -89,7 +89,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <TasksContext.Provider
+    <TasksDataContext.Provider
       value={{
         tasks: tasks ?? [],
         tasksByProjectId,
@@ -100,6 +100,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-    </TasksContext.Provider>
+    </TasksDataContext.Provider>
   );
 }

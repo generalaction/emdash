@@ -1,6 +1,8 @@
 import React from 'react';
 import { rpc } from '@renderer/core/ipc';
+import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { cn } from '@renderer/lib/utils';
 import { TaskItem } from './project-item';
 import { SidebarMenuButton } from './sidebar-primitives';
 
@@ -11,6 +13,10 @@ interface SidebarTaskItemProps {
 
 export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActive }) => {
   const { navigate } = useNavigate();
+  const { entries } = useTaskBootstrapContext();
+
+  const isBootstrapping =
+    task.status === 'pending' || entries[task.data.id]?.status === 'bootstrapping';
 
   const handleProvision = () => {
     if (task.status === 'ready') {
@@ -28,7 +34,14 @@ export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActiv
       onPointerEnter={handleProvision}
       isActive={isActive}
     >
-      <span className="overflow-hidden whitespace-nowrap">{task.data.name}</span>
+      <span
+        className={cn(
+          'overflow-hidden whitespace-nowrap transition-colors',
+          isBootstrapping && 'text-foreground/40'
+        )}
+      >
+        {task.data.name}
+      </span>
     </SidebarMenuButton>
   );
 });

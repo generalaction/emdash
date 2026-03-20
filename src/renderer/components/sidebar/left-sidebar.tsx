@@ -7,7 +7,7 @@ import {
 } from '@renderer/components/add-project-modal/pending-projects-provider';
 import ReorderList from '@renderer/components/ReorderList';
 import SidebarEmptyState from '@renderer/components/SidebarEmptyState';
-import { useProjectsContext } from '@renderer/core/projects/project-provider';
+import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import {
   isCurrentView,
   useNavigate,
@@ -35,7 +35,7 @@ export type ProjectItem =
   | { status: 'creating'; data: PendingProject };
 
 export const LeftSidebar: React.FC = () => {
-  const { projects } = useProjectsContext();
+  const { projects } = useProjectsDataContext();
   const { pendingProjects } = usePendingProjectsContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();

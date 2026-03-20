@@ -3,8 +3,8 @@ import React, { useEffect, useMemo } from 'react';
 import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
-import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
 import { usePrefetchRepository } from '@renderer/hooks/use-repository';
 import { cn } from '@renderer/lib/utils';
 import {
@@ -39,7 +39,7 @@ export type TaskItem =
 
 export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { forceOpenIds, setForceOpenIds } = useSidebarContext();
-  const { activeTasksByProjectId: tasksByProjectId } = useTasksContext();
+  const { activeTasksByProjectId: tasksByProjectId } = useTasksDataContext();
   const { pendingTasksByProjectId } = usePendingTasksContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();

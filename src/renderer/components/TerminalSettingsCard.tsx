@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import { rpc } from '../core/ipc';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

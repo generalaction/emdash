@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Task } from '@shared/tasks';
-import { useProjectsContext } from '@renderer/core/projects/project-provider';
-import { useTasksContext } from '@renderer/features/tasks/tasks-provider';
+import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
@@ -21,8 +21,8 @@ interface SidebarProviderProps {
 }
 
 export function SidebarProvider({ children }: SidebarProviderProps) {
-  const { projects } = useProjectsContext();
-  const { tasks } = useTasksContext();
+  const { projects } = useProjectsDataContext();
+  const { tasks } = useTasksDataContext();
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = React.useRef<Map<string, number>>(new Map());

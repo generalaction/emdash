@@ -1,6 +1,6 @@
 import { formatForDisplay, useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
 import React, { useState } from 'react';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { toast } from '../../hooks/use-toast';
 import {
   APP_SHORTCUTS,

@@ -28,6 +28,12 @@ export type Task = {
   linkedIssue?: Issue;
 };
 
+export type TaskBootstrapStatus =
+  | { status: 'ready' }
+  | { status: 'bootstrapping' }
+  | { status: 'error'; message: string }
+  | { status: 'not-started' };
+
 export type CreateTaskParams = {
   id: string;
   projectId: string;

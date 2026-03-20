@@ -17,6 +17,9 @@ export function TaskTitlebar() {
   if (taskStatus.status === 'pending') {
     return <PendingTaskTitlebar name={taskStatus.pendingTask?.name} />;
   }
+  if (taskStatus.status === 'bootstrapping' || taskStatus.status === 'error') {
+    return <PendingTaskTitlebar />;
+  }
   return <ActiveTaskTitlebar />;
 }
 

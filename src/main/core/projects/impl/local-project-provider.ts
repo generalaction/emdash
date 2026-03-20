@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
-import { Task } from '@shared/tasks';
+import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -57,6 +57,7 @@ export class LocalProjectProvider implements ProjectProvider {
   private tasks = new Map<string, TaskProvider>();
   private provisioningTasks = new Map<string, Promise<Result<TaskProvider, ProvisionTaskError>>>();
   private tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
+  private bootstrapErrors = new Map<string, ProvisionTaskError>();
   private worktreeService: WorktreeService;
 
   constructor(
@@ -94,12 +95,14 @@ export class LocalProjectProvider implements ProjectProvider {
         return ok(taskEnv);
       })
       .catch((e) => {
+        const provisionError = toProvisionError(e);
+        this.bootstrapErrors.set(task.id, provisionError);
         this.provisioningTasks.delete(task.id);
         log.error('LocalProjectProvider: failed to provision task', {
           taskId: task.id,
           error: String(e),
         });
-        return err(toProvisionError(e));
+        return err(provisionError);
       });
 
     this.provisioningTasks.set(task.id, promise);
@@ -111,6 +114,10 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<TaskProvider> {
+    log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
+    // DEBUG: artificial delay to visualize the loading state — remove before merging
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     let workDir: string;
 
     if (task.taskBranch) {
@@ -197,11 +204,20 @@ export class LocalProjectProvider implements ProjectProvider {
       )
     );
 
+    log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
     return taskEnv;
   }
 
   getTask(taskId: string): TaskProvider | undefined {
     return this.tasks.get(taskId);
+  }
+
+  getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus {
+    if (this.tasks.has(taskId)) return { status: 'ready' };
+    if (this.provisioningTasks.has(taskId)) return { status: 'bootstrapping' };
+    const bootstrapError = this.bootstrapErrors.get(taskId);
+    if (bootstrapError) return { status: 'error', message: bootstrapError.message };
+    return { status: 'not-started' };
   }
 
   async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAppContext } from '../contexts/AppContextProvider';
+import { useAppContext } from '../core/app/AppContextProvider';
 import type { Project } from '../types/app';
 
 /**

@@ -2,7 +2,7 @@ import { ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React from 'react';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
-import { useAppSettings } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import { rpc } from '@renderer/core/ipc';
 import { useToast } from '@renderer/hooks/use-toast';
 import { useOpenInApps } from '../../hooks/useOpenInApps';

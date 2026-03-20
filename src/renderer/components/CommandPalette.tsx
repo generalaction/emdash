@@ -17,7 +17,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,

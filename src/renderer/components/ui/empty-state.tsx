@@ -7,7 +7,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ label, description, action }: EmptyStateProps) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
+    <div className="flex h-full min-h-0 w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-xs flex-col items-center text-center">
         <h2 className="text-sm font-medium font-mono text-muted-foreground/70">{label}</h2>
         {description && (

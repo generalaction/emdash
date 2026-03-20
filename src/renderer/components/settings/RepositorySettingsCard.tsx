@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/contexts/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
