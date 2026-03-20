@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import type { Task } from '../types/app';
 import type { Project } from '../types/app';
 import { useToast } from '../hooks/use-toast';
+import { getProvisionLogs, appendProvisionLog, clearProvisionLogs } from '../lib/provisionLogCache';
 
 type ProvisioningStatus = 'provisioning' | 'error' | 'ready' | null;
 
@@ -20,7 +21,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
   className,
 }) => {
   const [status, setStatus] = useState<ProvisioningStatus>(null);
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<string[]>(() => getProvisionLogs(task.id));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { toast } = useToast();
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -65,7 +66,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
       (data: { instanceId: string; line: string }) => {
         // Only handle events for our task's workspace instance
         if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
-        setLines((prev) => [...prev, data.line]);
+        setLines(() => appendProvisionLog(task.id, data.line));
       }
     );
 
@@ -74,6 +75,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
         if (instanceIdRef.current && data.instanceId !== instanceIdRef.current) return;
         if (data.status === 'ready') {
           setStatus('ready');
+          clearProvisionLogs(task.id);
           toast({ title: 'Workspace connected', description: 'Remote workspace is ready.' });
         } else {
           setStatus('error');
@@ -99,6 +101,7 @@ const WorkspaceProvisioningOverlay: React.FC<WorkspaceProvisioningOverlayProps> 
 
     setStatus('provisioning');
     setLines([]);
+    clearProvisionLogs(task.id);
     setErrorMessage(null);
 
     void window.electronAPI
