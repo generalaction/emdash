@@ -147,6 +147,7 @@ export function useInitialPromptInjection(opts: {
               stopRetries();
               persistPromptSent();
               notifyPromptSent();
+              submitConfirmed = true;
               return;
             }
             retryCount += 1;
