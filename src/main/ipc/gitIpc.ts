@@ -751,6 +751,7 @@ export function registerGitIpc() {
         const changes = await gitGetStatus(taskPath);
         return { success: true, changes };
       } catch (error) {
+        log.error('git:get-status error', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
     }
