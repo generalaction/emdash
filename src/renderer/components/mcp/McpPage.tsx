@@ -193,6 +193,7 @@ export const McpPage: React.FC = () => {
                   key={server.name}
                   server={server}
                   catalogEntry={catalog.find((c) => c.key === server.name)}
+                  providers={providers}
                   onEdit={(s) => openModal({ type: 'edit', server: s })}
                 />
               ))}
@@ -211,6 +212,7 @@ export const McpPage: React.FC = () => {
                 <McpServerCard
                   key={entry.key}
                   catalogEntry={entry}
+                  providers={providers}
                   onEdit={() => {}}
                   onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
                 />
