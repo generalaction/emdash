@@ -61,6 +61,10 @@ interface TaskItemProps {
   showDelete?: boolean;
   showDirectBadge?: boolean;
   primaryAction?: 'delete' | 'archive';
+  /** 1-9 index for keyboard shortcut badge display */
+  shortcutIndex?: number;
+  /** Which modifier to show in the badge: 'ctrl' (⌃) or 'cmd' (⌘) */
+  shortcutModifier?: 'ctrl' | 'cmd';
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -73,6 +77,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   showDelete,
   showDirectBadge = true,
   primaryAction = 'delete',
+  shortcutIndex,
+  shortcutModifier = 'ctrl',
 }) => {
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
@@ -276,6 +282,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           />
         ) : (
           <>
+            {shortcutIndex !== undefined && (
+              <kbd className="flex-shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                {shortcutModifier === 'cmd' ? '⌘' : '⌃'}
+                {shortcutIndex}
+              </kbd>
+            )}
             {isPinned && (
               <Pin
                 className="h-3 w-3 flex-shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"

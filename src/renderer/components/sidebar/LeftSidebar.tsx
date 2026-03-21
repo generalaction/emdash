@@ -146,10 +146,29 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const { settings } = useAppSettings();
   const taskHoverAction = settings?.interface?.taskHoverAction ?? 'delete';
+  const taskModifier = settings?.keyboard?.numberShortcutBehavior === 'cmd-tasks' ? 'cmd' : 'ctrl';
   const changelogNotification = useChangelogNotification();
   const changelogEntry = changelogNotification.entry;
   const changelogCardRef = useRef<HTMLDivElement | null>(null);
   const [changelogCardHeight, setChangelogCardHeight] = useState(0);
+
+  // Compute global shortcut indices for tasks across all projects (1-9)
+  const taskShortcutIndices = useMemo(() => {
+    const indices = new Map<string, number>();
+    let globalIndex = 0;
+    for (const project of sortedProjects) {
+      const tasks = (tasksByProjectId[project.id] ?? [])
+        .slice()
+        .sort((a, b) => (b.metadata?.isPinned ? 1 : 0) - (a.metadata?.isPinned ? 1 : 0));
+      for (const task of tasks) {
+        if (globalIndex < 9) {
+          indices.set(task.id, globalIndex + 1); // 1-indexed for display
+        }
+        globalIndex++;
+      }
+    }
+    return indices;
+  }, [sortedProjects, tasksByProjectId]);
 
   const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
   const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
@@ -354,6 +373,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   )
                                   .map((task) => {
                                     const isActive = activeTask?.id === task.id;
+                                    // Get global shortcut index (1-9) for first 9 tasks across all projects
+                                    const shortcutIndex = taskShortcutIndices.get(task.id);
                                     return (
                                       <motion.div
                                         key={task.id}
@@ -375,6 +396,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           onDelete={() => handleDeleteTask(typedProject, task)}
                                           onArchive={() => onArchiveTask?.(typedProject, task)}
                                           primaryAction={taskHoverAction}
+                                          shortcutIndex={shortcutIndex}
+                                          shortcutModifier={taskModifier}
                                         />
                                       </motion.div>
                                     );
