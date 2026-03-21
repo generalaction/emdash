@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Clock, Timer } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Separator } from '../ui/separator';
 import type { Automation, AutomationRunLog } from '@shared/automations/types';
-import { formatRelativeTime } from './utils';
+import { formatRelativeTime, formatScheduleLabel } from './utils';
 
 interface RunLogsModalProps {
   isOpen: boolean;
@@ -36,13 +36,31 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
     }
   };
 
+  const statusLabel = (status: AutomationRunLog['status']) => {
+    switch (status) {
+      case 'success':
+        return 'text-emerald-600 dark:text-emerald-400';
+      case 'failure':
+        return 'text-red-600 dark:text-red-400';
+      case 'running':
+        return 'text-blue-600 dark:text-blue-400';
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-sm">Run History</DialogTitle>
+          <DialogTitle className="text-sm">{automation?.name ?? 'Run History'}</DialogTitle>
           <DialogDescription className="text-xs">
-            {automation?.name ?? 'Automation'} — last {logs.length} runs
+            {automation && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                {formatScheduleLabel(automation.schedule)}
+                <span className="text-muted-foreground/40">·</span>
+                {automation.runCount} run{automation.runCount !== 1 ? 's' : ''} total
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         <Separator />
@@ -53,23 +71,34 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
           </div>
         ) : logs.length === 0 ? (
           <div className="py-8 text-center">
-            <Clock className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted/40">
+              <Timer className="h-6 w-6 text-muted-foreground/30" />
+            </div>
             <p className="text-xs text-muted-foreground">No runs yet</p>
           </div>
         ) : (
-          <div className="space-y-1">
-            {logs.map((run) => (
+          <div className="space-y-0.5">
+            {logs.map((run, i) => (
               <div
                 key={run.id}
-                className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50"
+                className="flex items-center justify-between rounded-md px-3 py-2.5 transition-colors hover:bg-muted/40"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   {statusIcon(run.status)}
-                  <span className="text-xs font-medium capitalize">{run.status}</span>
+                  <div>
+                    <span className={`text-xs font-medium capitalize ${statusLabel(run.status)}`}>
+                      {run.status}
+                    </span>
+                    {run.error && (
+                      <p className="mt-0.5 max-w-[200px] truncate text-[10px] text-red-500/70">
+                        {run.error}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                   {run.finishedAt && run.startedAt && (
-                    <span>
+                    <span className="tabular-nums">
                       {Math.round(
                         (new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) /
                           1000
@@ -77,7 +106,9 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
                       s
                     </span>
                   )}
-                  <span>{formatRelativeTime(run.startedAt)}</span>
+                  <span className="text-muted-foreground/60">
+                    {formatRelativeTime(run.startedAt)}
+                  </span>
                 </div>
               </div>
             ))}

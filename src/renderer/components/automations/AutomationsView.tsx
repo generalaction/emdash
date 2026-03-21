@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, RefreshCw, Loader2, Timer, Search } from 'lucide-react';
+import { Plus, RefreshCw, Loader2, Timer, Search, Zap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
@@ -129,14 +129,27 @@ const AutomationsView: React.FC = () => {
           </Button>
         </div>
 
+        {/* Info banner (shown when there are no automations or no search active) */}
+        {automations.length > 0 && !searchQuery && (
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground/60" />
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Automations run your coding agents on a schedule. Each run creates a new task in the
+              selected project with the configured prompt. Pause or edit any automation at any time.
+            </p>
+          </div>
+        )}
+
         {/* Empty state */}
         {automations.length === 0 && (
           <div className="py-16 text-center">
-            <Timer className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
-            <h2 className="mb-1 text-sm font-medium">No automations yet</h2>
-            <p className="mx-auto mb-4 max-w-sm text-xs text-muted-foreground">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/40">
+              <Timer className="h-8 w-8 text-muted-foreground/30" />
+            </div>
+            <h2 className="mb-1.5 text-sm font-semibold">No automations yet</h2>
+            <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-muted-foreground">
               Create your first automation to schedule recurring agent tasks. Pick a project, write
-              a prompt, choose your agent, and set a schedule.
+              a prompt, choose your coding agent, and set a schedule.
             </p>
             <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -148,14 +161,13 @@ const AutomationsView: React.FC = () => {
         {/* Active automations */}
         {activeAutomations.length > 0 && (
           <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Active ({activeAutomations.length})
-            </h2>
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
             <div className="space-y-3">
               {activeAutomations.map((automation) => (
                 <AutomationCard
                   key={automation.id}
                   automation={automation}
+                  projects={projects}
                   onEdit={setEditingAutomation}
                   onToggle={handleToggle}
                   onDelete={setDeleteTarget}
@@ -170,14 +182,13 @@ const AutomationsView: React.FC = () => {
         {/* Paused automations */}
         {pausedAutomations.length > 0 && (
           <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Paused ({pausedAutomations.length})
-            </h2>
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Paused</h2>
             <div className="space-y-3">
               {pausedAutomations.map((automation) => (
                 <AutomationCard
                   key={automation.id}
                   automation={automation}
+                  projects={projects}
                   onEdit={setEditingAutomation}
                   onToggle={handleToggle}
                   onDelete={setDeleteTarget}
