@@ -13,11 +13,44 @@ import { DEFAULT_REVIEW_AGENT, DEFAULT_REVIEW_PROMPT } from '../../shared/review
 /** Minimal valid AppSettings skeleton for normalizeSettings. */
 function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
   return {
-    repository: { branchPrefix: 'emdash', pushOnCreate: true },
+    repository: {
+      branchPrefix: 'emdash',
+      pushOnCreate: true,
+      autoCloseLinkedIssuesOnPrCreate: true,
+    },
     projectPrep: { autoInstallOnOpenInEditor: true },
     ...overrides,
   } as AppSettings;
 }
+
+describe('normalizeSettings - repository settings', () => {
+  it('defaults autoCloseLinkedIssuesOnPrCreate to true', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: 'emdash',
+          pushOnCreate: true,
+        } as any,
+      })
+    );
+
+    expect(result.repository.autoCloseLinkedIssuesOnPrCreate).toBe(true);
+  });
+
+  it('preserves autoCloseLinkedIssuesOnPrCreate when explicitly disabled', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: 'emdash',
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: false,
+        },
+      })
+    );
+
+    expect(result.repository.autoCloseLinkedIssuesOnPrCreate).toBe(false);
+  });
+});
 
 describe('normalizeSettings – taskHoverAction', () => {
   it('preserves "archive"', () => {
