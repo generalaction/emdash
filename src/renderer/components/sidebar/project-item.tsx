@@ -4,9 +4,9 @@ import { LocalProject, SshProject } from '@shared/projects';
 import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
+import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
 import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
-import { usePrefetchRepository } from '@renderer/hooks/use-repository';
 import { cn } from '@renderer/lib/utils';
 import {
   PendingTask,

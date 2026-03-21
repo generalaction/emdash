@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { Project } from '@shared/projects';
 import {
   usePendingProjectsContext,
   type PendingProject,
 } from '@renderer/components/add-project-modal/pending-projects-provider';
 import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
-import type { Project } from '@renderer/types/app';
 import { RepositoryProvider } from './repository-provider';
 
 export type ProjectStatus =

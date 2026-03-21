@@ -3,13 +3,13 @@ import { PendingProjectsProvider } from './components/add-project-modal/pending-
 import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
-import { DependenciesProvider } from './contexts/DependenciesProvider';
-import { GithubContextProvider } from './contexts/GithubContextProvider';
 import { AppContextProvider } from './core/app/AppContextProvider';
 import { AppSettingsProvider } from './core/app/AppSettingsProvider';
 import { ThemeProvider } from './core/app/ThemeProvider';
 import { AgentProvider } from './core/conversations/AgentProvider';
 import { ConversationDataProvider } from './core/conversations/conversation-data-provider';
+import { DependenciesProvider } from './core/dependencies-provider';
+import { GithubContextProvider } from './core/github-context-provider';
 import { IntegrationsProvider } from './core/integrations/integrations-provider';
 import { ModalProvider } from './core/modal/modal-provider';
 import { ProjectBootstrapProvider } from './core/projects/project-bootstrap-provider';

@@ -3,7 +3,6 @@ import {
   appSettingsSchema,
   interfaceSettingsSchema,
   localProjectSettingsSchema,
-  mcpSettingsSchema,
   notificationSettingsSchema,
   providerCustomConfigEntrySchema,
   taskSettingsSchema,
@@ -16,7 +15,7 @@ export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 export type TaskSettings = z.infer<typeof taskSettingsSchema>;
 export type TerminalSettings = z.infer<typeof terminalSettingsSchema>;
 export type Theme = z.infer<typeof themeSchema>;
-export type McpSettings = z.infer<typeof mcpSettingsSchema>;
+
 export type InterfaceSettings = z.infer<typeof interfaceSettingsSchema>;
 export type ProviderCustomConfig = z.infer<typeof providerCustomConfigEntrySchema>;
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;

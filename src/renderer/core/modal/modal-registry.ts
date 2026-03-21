@@ -9,8 +9,8 @@ import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
-import { ChecksCommentsModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/checks-comments-modal';
-import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/changes-right-panel/pr-section/create-pr-modal';
+import { ChecksCommentsModal } from '@renderer/views/tasks/diff-viewer/right-panel/pr-section/checks-comments-modal';
+import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/right-panel/pr-section/create-pr-modal';
 import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
 import { ModalComponent } from './modal-provider';
 

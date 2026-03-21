@@ -1,5 +1,4 @@
-import { Github, MoreHorizontal, Trash } from 'lucide-react';
-import { TaskList } from '@renderer/components/projects/task-list';
+import { Github, MoreHorizontal } from 'lucide-react';
 import { Button } from '@renderer/components/ui/button';
 import {
   DropdownMenu,
@@ -10,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { TaskList } from '@renderer/views/projects/task-list/task-list';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 
 export function ActiveProject() {

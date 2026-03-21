@@ -1,8 +1,10 @@
 import { createContext, ReactNode, useContext, useState } from 'react';
 
+export type Stage = 'unstaged' | 'staged' | 'pr';
+
 export interface ActiveFile {
   path: string;
-  stage: 'unstaged' | 'staged' | 'pr';
+  stage: Stage;
   scrollBehavior?: 'smooth' | 'auto';
 }
 

@@ -26,3 +26,5 @@ export type SshProject = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type Project = LocalProject | SshProject;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
+import type { ManagedFile } from '@renderer/core/editor/types';
 
 interface SvgRendererProps {
   file: ManagedFile;

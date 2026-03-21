@@ -1,12 +1,4 @@
-import {
-  BotIcon,
-  FileDiff,
-  Files,
-  GitCommit,
-  ListTree,
-  MessageSquare,
-  Terminal,
-} from 'lucide-react';
+import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';

@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import githubSvg from '@/assets/images/Github.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
 import linearSvg from '@/assets/images/Linear.svg?raw';
-import { useGithubContext } from '../../contexts/GithubContextProvider';
+import { useGithubContext } from '../../core/github-context-provider';
 import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
 import JiraSetupForm from '../../core/integrations/JiraSetupForm';
 import { useTheme } from '../../hooks/useTheme';

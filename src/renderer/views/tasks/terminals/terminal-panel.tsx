@@ -7,7 +7,7 @@ import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { useTaskViewContext } from '../task-view-context';
-import { TerminalsTabs } from './tabs';
+import { TerminalsTabs } from './terminal-tabs';
 
 export function TerminalsPanel() {
   const { params } = useParams('task');

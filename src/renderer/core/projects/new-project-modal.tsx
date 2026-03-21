@@ -7,8 +7,8 @@ import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { Separator } from '../../components/ui/separator';
 import { SlugInput } from '../../components/ui/slug-input';
 import { Spinner } from '../../components/ui/spinner';
-import { useCloseGuard } from '../../hooks/useCloseGuard';
 import { rpc } from '../ipc';
+import { useCloseGuard } from '../modal/use-close-guard';
 
 interface NewProjectModalProps {
   onClose: () => void;

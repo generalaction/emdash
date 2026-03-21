@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { ConversationsPanel } from './conversations/conversations-panel';
-import { DiffView } from './diff-viewer/changes-main-panel/diff-view';
+import { DiffView } from './diff-viewer/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { useTaskViewContext } from './task-view-context';
 

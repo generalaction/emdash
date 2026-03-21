@@ -7,7 +7,7 @@ import {
 } from '@shared/events/githubEvents';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
-import { useGithubContext } from '../contexts/GithubContextProvider';
+import { useGithubContext } from '../core/github-context-provider';
 import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
 import { Button } from './ui/button';

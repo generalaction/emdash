@@ -7,13 +7,13 @@ import {
   useRef,
   useState,
 } from 'react';
+import { getFileKind } from '@renderer/core/editor/fileKind';
+import type { ManagedFile } from '@renderer/core/editor/types';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
-import { getFileKind } from '@renderer/lib/fileKind';
 import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../task-view-context';
 import { useEditorViewContext } from './editor-view-provider';
@@ -169,8 +169,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
       const language = getMonacoLanguageId(filePath);
 
-      // Register disk model first (buffer seeds from it), then buffer.
-      // Awaiting both before setting state guarantees models exist for PooledCodeEditor.
+      // Register disk first (buffer seeds from it), then git baseline, then buffer.
+      // Awaiting all three before setting state guarantees models exist for PooledCodeEditor
+      // and useDiffDecorations.
       await modelRegistry.registerModel(
         projectId,
         taskId,
@@ -178,6 +179,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         filePath,
         language,
         'disk'
+      );
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        modelRootPath,
+        filePath,
+        language,
+        'git'
       );
       await modelRegistry.registerModel(
         projectId,
@@ -400,6 +409,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       // Decrement ref counts; models are disposed when counts reach 0.
       modelRegistry.unregisterModel(uri);
       modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+      modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, 'HEAD'));
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
