@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useToast } from './use-toast';
+import { saveActiveIds } from '../constants/layout';
 import type { Automation } from '@shared/automations/types';
 import type { Agent } from '../types';
 
@@ -11,7 +12,16 @@ import type { Agent } from '../types';
  * Must be mounted inside both ProjectManagement and TaskManagement providers.
  */
 export function useAutomationTrigger(): void {
-  const { projects, activateProjectView } = useProjectManagementContext();
+  const {
+    projects,
+    setSelectedProject,
+    setShowHomeView,
+    setShowSkillsView,
+    setShowMcpView,
+    setShowAutomationsView,
+    setShowEditorMode,
+    setShowKanban,
+  } = useProjectManagementContext();
   const { handleCreateTask } = useTaskManagementContext();
   const { toast } = useToast();
 
@@ -27,14 +37,26 @@ export function useAutomationTrigger(): void {
         return;
       }
 
-      // Activate the project so the task appears in the sidebar
-      activateProjectView(project);
+      // Switch to the project view WITHOUT resetting the active task.
+      // activateProjectView() fires resetTaskTrigger which would clear
+      // the task that createTaskMutation is about to set — so we set
+      // the project-management states directly instead.
+      setSelectedProject(project);
+      setShowHomeView(false);
+      setShowSkillsView(false);
+      setShowMcpView(false);
+      setShowAutomationsView(false);
+      setShowEditorMode(false);
+      setShowKanban(false);
+      saveActiveIds(project.id, null);
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const taskName = `${automation.name} — ${timeStr}`;
 
       try {
+        // handleCreateTask → createTaskMutation.onMutate sets activeTask
+        // automatically, so ChatInterface mounts and auto-starts the agent.
         await handleCreateTask(
           taskName,
           automation.prompt,
@@ -66,7 +88,18 @@ export function useAutomationTrigger(): void {
         });
       }
     },
-    [projects, activateProjectView, handleCreateTask, toast]
+    [
+      projects,
+      setSelectedProject,
+      setShowHomeView,
+      setShowSkillsView,
+      setShowMcpView,
+      setShowAutomationsView,
+      setShowEditorMode,
+      setShowKanban,
+      handleCreateTask,
+      toast,
+    ]
   );
 
   useEffect(() => {
