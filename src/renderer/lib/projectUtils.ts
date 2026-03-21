@@ -96,6 +96,19 @@ export function withRepoKey(project: Project, platform?: string): Project {
 }
 
 /**
+ * Parses the GitHub owner/repo slug from a git remote URL.
+ * Handles both HTTPS and SSH formats:
+ *   https://github.com/owner/repo.git  →  "owner/repo"
+ *   git@github.com:owner/repo.git      →  "owner/repo"
+ * Returns null if the URL is not a GitHub remote.
+ */
+export function parseGithubOwnerRepo(remoteUrl: string): string | null {
+  if (!remoteUrl) return null;
+  const match = remoteUrl.match(/github\.com[/:]([^/]+\/[^/.]+?)(?:\.git)?(?:[/?#].*)?$/i);
+  return match ? match[1] : null;
+}
+
+/**
  * Determines the GitHub connection info for a project being added.
  * Returns connected: true only when the user is authenticated, the remote
  * is a GitHub URL, and connectToGitHub succeeds. Otherwise falls through
