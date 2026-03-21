@@ -86,15 +86,27 @@ export function useInitialPromptInjection(opts: {
       }
     };
 
+    const logDevError = (message: string, error: unknown, context?: Record<string, unknown>) => {
+      if (process.env.NODE_ENV !== 'development') return;
+      if (context) {
+        console.error(message, error, context);
+        return;
+      }
+      console.error(message, error);
+    };
+
     const sendSubmit = (pty: ((arg: { id: string; data: string }) => void) | undefined) => {
       if (!pty) return;
       try {
         pty({ id: ptyId, data: submitKey });
         lastSubmitAt = Date.now();
       } catch (err) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[useInitialPromptInjection] pty submit failed:', err);
-        }
+        logDevError('[useInitialPromptInjection] pty submit failed:', err, {
+          ptyId,
+          providerId,
+          scopeId,
+          ptyKind,
+        });
       }
     };
 
@@ -182,7 +194,17 @@ export function useInitialPromptInjection(opts: {
           clearTimeout(idleSendTimer);
           idleSendTimer = null;
         }
-      } catch {}
+      } catch (err) {
+        logDevError('[useInitialPromptInjection] prompt injection failed:', err, {
+          ptyId,
+          providerId,
+          scopeId,
+          ptyKind,
+          force,
+          ptyReady,
+          sent,
+        });
+      }
     };
 
     const offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
