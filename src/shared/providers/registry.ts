@@ -57,7 +57,31 @@ export type ProviderDefinition = {
   autoStartCommand?: string;
   icon?: string;
   terminalOnly?: boolean;
+  /**
+   * Normalized key characters (e.g. 'e', 'k') that this provider's TUI
+   * handles internally via the platform modifier key (Ctrl on Linux/Windows,
+   * Cmd on macOS). When the agent's terminal is focused, these keys will NOT
+   * be intercepted as app-level shortcuts and will instead pass through to
+   * the CLI process.
+   */
+  reservedShortcuts?: string[];
 };
+
+/**
+ * Common readline keybindings that conflict with emdash app shortcuts on
+ * Linux/Windows (where the platform modifier is Ctrl).
+ *
+ * These are standard readline editing commands used by virtually all
+ * terminal-based agent CLIs:
+ *   e → end-of-line        (conflicts with Toggle Editor)
+ *   k → kill-to-end        (conflicts with Command Palette)
+ *   n → next-history       (conflicts with New Task)
+ *   p → prev-history       (conflicts with Toggle Kanban)
+ *   b → backward-char      (conflicts with Toggle Left Sidebar)
+ *   o → operate-and-get-next (conflicts with Open in Editor)
+ *   t → transpose-chars    (conflicts with Toggle Theme)
+ */
+export const READLINE_SHORTCUTS: string[] = ['e', 'k', 'n', 'p', 'b', 'o', 't'];
 
 export const PROVIDERS: ProviderDefinition[] = [
   {
@@ -73,6 +97,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: 'resume --last',
     icon: 'openai.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'claude',
@@ -89,6 +114,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     planActivateCommand: '/plan',
     icon: 'claude.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'cursor',
@@ -102,6 +128,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'cursor.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'gemini',
@@ -116,6 +143,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gemini.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'qwen',
@@ -130,6 +158,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'qwen.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'droid',
@@ -143,6 +172,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '-r',
     icon: 'droid.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'amp',
@@ -157,6 +187,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     useKeystrokeInjection: true,
     icon: 'ampcode.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'opencode',
@@ -170,6 +201,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     useKeystrokeInjection: true,
     icon: 'opencode.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'hermes',
@@ -185,6 +217,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'hermesagent.jpg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'copilot',
@@ -198,6 +231,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '-i',
     icon: 'gh-copilot.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'charm',
@@ -210,6 +244,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     icon: 'charm.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'auggie',
@@ -224,6 +259,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'goose',
@@ -238,6 +274,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '-t',
     icon: 'goose.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'kimi',
@@ -251,6 +288,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '-c',
     icon: 'kimi.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'kilocode',
@@ -265,6 +303,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'kilocode.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'kiro',
@@ -278,6 +317,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'kiro.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'rovo',
@@ -290,6 +330,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoStartCommand: 'acli rovodev run',
     icon: 'atlassian.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'cline',
@@ -303,6 +344,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'cline.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'continue',
@@ -316,6 +358,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'continue.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'codebuff',
@@ -328,6 +371,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'codebuff.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'mistral',
@@ -341,6 +385,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '--prompt',
     icon: 'mistral.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'pi',
@@ -354,6 +399,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
   {
     id: 'autohand',
@@ -367,6 +413,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     initialPromptFlag: '-p',
     icon: 'autohand.svg',
     terminalOnly: true,
+    reservedShortcuts: READLINE_SHORTCUTS,
   },
 ];
 
