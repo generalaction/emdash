@@ -96,6 +96,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [expandedTerminalId]);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
+
   const terminalRefs = useRef<Map<string, { focus: () => void }>>(new Map());
   const setTerminalRef = useCallback((id: string, ref: { focus: () => void } | null) => {
     if (ref) {
