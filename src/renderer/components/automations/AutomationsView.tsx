@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, RefreshCw, Loader2, Timer, Search, Zap } from 'lucide-react';
+import { Plus, RefreshCw, Loader2, Timer, Search, Zap, Activity } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +17,7 @@ import AutomationCard from './AutomationCard';
 import AutomationModal from './AutomationModal';
 import RunLogsModal from './RunLogsModal';
 import { useAutomations } from './useAutomations';
+import { useRunningAutomations } from './useRunningAutomations';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import type { Automation, CreateAutomationInput } from '@shared/automations/types';
 
@@ -72,6 +74,8 @@ const AutomationsView: React.FC = () => {
     await triggerNow(id);
   };
 
+  const { allRunning, isRunning } = useRunningAutomations();
+
   const filteredAutomations = searchQuery
     ? automations.filter(
         (a) =>
@@ -81,8 +85,11 @@ const AutomationsView: React.FC = () => {
       )
     : automations;
 
-  const activeAutomations = filteredAutomations.filter((a) => a.status === 'active');
-  const pausedAutomations = filteredAutomations.filter((a) => a.status !== 'active');
+  // Separate currently-running automations from the rest
+  const runningAutomations = filteredAutomations.filter((a) => isRunning(a.id));
+  const nonRunningFiltered = filteredAutomations.filter((a) => !isRunning(a.id));
+  const activeAutomations = nonRunningFiltered.filter((a) => a.status === 'active');
+  const pausedAutomations = nonRunningFiltered.filter((a) => a.status !== 'active');
 
   if (isLoading) {
     return (
@@ -104,32 +111,51 @@ const AutomationsView: React.FC = () => {
         </div>
 
         {/* Toolbar */}
-        <div className="mb-6 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search automations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+        <TooltipProvider delayDuration={300}>
+          <div className="mb-6 flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search automations..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Search by name, prompt, or project</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  aria-label="Refresh automations"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh automations</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  New Automation
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Create a new scheduled automation</TooltipContent>
+            </Tooltip>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            aria-label="Refresh"
-          >
-            <RefreshCw
-              className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New Automation
-          </Button>
-        </div>
+        </TooltipProvider>
 
         {/* Info banner */}
         {automations.length > 0 && !searchQuery && (
@@ -157,6 +183,33 @@ const AutomationsView: React.FC = () => {
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Create Automation
             </Button>
+          </div>
+        )}
+
+        {/* Running Now — shown when any automation is actively being triggered */}
+        {runningAutomations.length > 0 && (
+          <div className="mb-6">
+            <h2 className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-blue-600 dark:text-blue-400">
+              <Activity className="h-3 w-3" />
+              Running Now
+              <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500/15 px-1 text-[10px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                {runningAutomations.length}
+              </span>
+            </h2>
+            <div className="space-y-3">
+              {runningAutomations.map((automation) => (
+                <AutomationCard
+                  key={automation.id}
+                  automation={automation}
+                  projects={projects}
+                  onEdit={setEditingAutomation}
+                  onToggle={handleToggle}
+                  onDelete={setDeleteTarget}
+                  onTriggerNow={handleTriggerNow}
+                  onViewLogs={setLogsAutomation}
+                />
+              ))}
+            </div>
           </div>
         )}
 

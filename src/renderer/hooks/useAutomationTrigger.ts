@@ -4,6 +4,7 @@ import { useProjectManagementContext } from '../contexts/ProjectManagementProvid
 import { useToast } from './use-toast';
 import { rpc } from '../lib/rpc';
 import { makePtyId } from '@shared/ptyId';
+import { setAutomationRunPhase } from '../components/automations/useRunningAutomations';
 import type { Automation } from '@shared/automations/types';
 import type { ProviderId } from '@shared/providers/registry';
 
@@ -11,6 +12,8 @@ import type { ProviderId } from '@shared/providers/registry';
  * Global listener for automation trigger events from the main process.
  * Creates a task and starts the agent fully in the background —
  * no view switching, no navigation away from the current screen.
+ *
+ * Emits phase updates so the AutomationCard can show live progress.
  */
 export function useAutomationTrigger(): void {
   const { projects } = useProjectManagementContext();
@@ -26,8 +29,14 @@ export function useAutomationTrigger(): void {
           description: `Project not found for "${automation.name}"`,
           variant: 'destructive',
         });
+        setAutomationRunPhase(automation.id, automation.name, 'error', {
+          error: 'Project not found',
+        });
         return;
       }
+
+      // Phase 1: Preparing
+      setAutomationRunPhase(automation.id, automation.name, 'preparing');
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -43,6 +52,8 @@ export function useAutomationTrigger(): void {
         // 1. Create worktree (optional) or use project path directly
         // ---------------------------------------------------------------
         if (useWorktree) {
+          setAutomationRunPhase(automation.id, automation.name, 'creating-worktree');
+
           const worktreeResult = await window.electronAPI.worktreeCreate({
             projectPath: project.path,
             taskName,
@@ -63,6 +74,8 @@ export function useAutomationTrigger(): void {
         // ---------------------------------------------------------------
         // 2. Save the task to the database
         // ---------------------------------------------------------------
+        setAutomationRunPhase(automation.id, automation.name, 'saving-task');
+
         await rpc.db.saveTask({
           id: taskId,
           projectId: project.id,
@@ -86,6 +99,8 @@ export function useAutomationTrigger(): void {
         // ---------------------------------------------------------------
         // 3. Start the agent PTY in the background
         // ---------------------------------------------------------------
+        setAutomationRunPhase(automation.id, automation.name, 'starting-agent', { taskId });
+
         const ptyId = makePtyId(automation.agentId as ProviderId, 'main', taskId);
         await window.electronAPI.ptyStartDirect({
           id: ptyId,
@@ -95,14 +110,21 @@ export function useAutomationTrigger(): void {
           initialPrompt: automation.prompt,
         });
 
+        // Phase: Agent is now running
+        setAutomationRunPhase(automation.id, automation.name, 'running', { taskId });
+
         toast({
           title: 'Automation running',
           description: `"${automation.name}" started in ${project.name}`,
         });
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to start automation';
+        setAutomationRunPhase(automation.id, automation.name, 'error', {
+          error: errorMessage,
+        });
         toast({
           title: 'Automation failed',
-          description: err instanceof Error ? err.message : 'Failed to start automation',
+          description: errorMessage,
           variant: 'destructive',
         });
       }
