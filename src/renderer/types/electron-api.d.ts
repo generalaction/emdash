@@ -352,7 +352,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (taskPath: string) => Promise<{
+      getGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -391,13 +391,13 @@ declare global {
         >;
         error?: string;
       }>;
-      watchGitStatus: (taskPath: string) => Promise<{
+      watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         watchId?: string;
         error?: string;
       }>;
       unwatchGitStatus: (
-        taskPath: string,
+        arg: string | { taskPath: string; taskId?: string },
         watchId?: string
       ) => Promise<{
         success: boolean;
@@ -408,6 +408,7 @@ declare global {
       ) => () => void;
       getFileDiff: (args: {
         taskPath: string;
+        taskId?: string;
         filePath: string;
         baseRef?: string;
         forceLarge?: boolean;
@@ -416,11 +417,11 @@ declare global {
         diff?: DiffPayload;
         error?: string;
       }>;
-      updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+      updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) => Promise<{
         success: boolean;
         error?: string;
       }>;
-      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+      revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'reverted';
         error?: string;
@@ -498,6 +499,7 @@ declare global {
       }>;
       gitCommitAndPush: (args: {
         taskPath: string;
+        taskId?: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
@@ -528,7 +530,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      mergeToMain: (args: { taskPath: string }) => Promise<{
+      mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         output?: string;
         prUrl?: string;
@@ -612,7 +614,7 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      getBranchStatus: (args: { taskPath: string }) => Promise<{
+      getBranchStatus: (args: { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         branch?: string;
         defaultBranch?: string;
@@ -1629,7 +1631,7 @@ export interface ElectronAPI {
     output?: string;
     error?: string;
   }>;
-  mergeToMain: (args: { taskPath: string }) => Promise<{
+  mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
     success: boolean;
     output?: string;
     prUrl?: string;
