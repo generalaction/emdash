@@ -35,6 +35,7 @@ import { activityStore } from '@/lib/activityStore';
 import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
 import { rpc } from '@/lib/rpc';
+import { OPEN_SETTINGS_PAGE_EVENT, type OpenSettingsPageDetail } from '@/lib/settingsPageEvents';
 import { soundPlayer } from '@/lib/soundPlayer';
 import BrowserProvider, { useBrowser } from '@/providers/BrowserProvider';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
@@ -187,6 +188,16 @@ export function Workspace() {
       openSettingsPage();
     });
     return () => cleanup?.();
+  }, [openSettingsPage]);
+
+  useEffect(() => {
+    const handleOpenSettingsPage = (event: Event) => {
+      const detail = (event as CustomEvent<OpenSettingsPageDetail>).detail;
+      openSettingsPage(detail?.tab ?? 'general');
+    };
+
+    window.addEventListener(OPEN_SETTINGS_PAGE_EVENT, handleOpenSettingsPage);
+    return () => window.removeEventListener(OPEN_SETTINGS_PAGE_EVENT, handleOpenSettingsPage);
   }, [openSettingsPage]);
 
   const handleToggleKanban = useCallback(() => {

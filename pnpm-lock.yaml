@@ -83,6 +83,12 @@ importers:
       '@radix-ui/react-use-controllable-state':
         specifier: ^1.2.2
         version: 1.2.2(@types/react@18.3.28)(react@18.3.1)
+      '@runanywhere/web':
+        specifier: 0.1.0-beta.10
+        version: 0.1.0-beta.10
+      '@runanywhere/web-onnx':
+        specifier: 0.1.0-beta.10
+        version: 0.1.0-beta.10(@runanywhere/web@0.1.0-beta.10)
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@18.3.1)
@@ -1808,6 +1814,16 @@ packages:
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
+
+  '@runanywhere/web-onnx@0.1.0-beta.10':
+    resolution: {integrity: sha512-PYMvoE5ij0fK3sHoEYzwvp0FgZYQpX2Jdygfrs63+YYH+CtJ5vQVoukQfnHl/Knl8psL0WPY+Ukj5NvDp3yD9Q==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@runanywhere/web': '>=0.1.0-beta.0'
+
+  '@runanywhere/web@0.1.0-beta.10':
+    resolution: {integrity: sha512-GSnymtlu7Vx1+ufV3V8o6zgpiKGxFqHlfmq7ynyLGAZOkR+Hj96geryS1NMTTEZN34MHOZ0TjSM49NsMpfRCPg==}
+    engines: {node: '>=18.0.0'}
 
   '@shikijs/core@3.22.0':
     resolution: {integrity: sha512-iAlTtSDDbJiRpvgL5ugKEATDtHdUVkqgHDm/gbD2ZS9c88mx7G1zSYjjOxp5Qa0eaW0MAQosFRmJSk354PRoQA==}
@@ -7542,6 +7558,12 @@ snapshots:
     optional: true
 
   '@rtsao/scc@1.1.0': {}
+
+  '@runanywhere/web-onnx@0.1.0-beta.10(@runanywhere/web@0.1.0-beta.10)':
+    dependencies:
+      '@runanywhere/web': 0.1.0-beta.10
+
+  '@runanywhere/web@0.1.0-beta.10': {}
 
   '@shikijs/core@3.22.0':
     dependencies:

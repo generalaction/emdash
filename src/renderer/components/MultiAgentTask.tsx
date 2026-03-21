@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { type Task } from '../types/chat';
 import { type Agent } from '../types';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
 import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import { agentMeta } from '@/providers/meta';
@@ -13,7 +11,6 @@ import { classifyActivity, sampleActivityChunk } from '@/lib/activityClassifier'
 import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
-import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
@@ -21,12 +18,14 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
 import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useCommentInjection } from '@/hooks/useCommentInjection';
-import { isSlashCommandInput } from '@/lib/slashCommand';
-import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
-import { formatCommentsForAgent } from '@/lib/formatCommentsForAgent';
-import { buildPromptInjectionPayload } from '@/lib/terminalInjection';
 import { TaskScopeProvider } from './TaskScopeContext';
 import TaskContextBadges from './TaskContextBadges';
+import { TaskPromptBar } from './TaskPromptBar';
+import {
+  consumePromptComments,
+  injectPromptViaPty,
+  preparePromptSubmission,
+} from '@/lib/promptSubmission';
 
 interface Props {
   task: Task;
@@ -214,131 +213,35 @@ const MultiAgentTask: React.FC<Props> = ({
     return null;
   }, [task.metadata]);
 
-  const injectPrompt = async (ptyId: string, agent: Agent, text: string): Promise<boolean> => {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return false;
-
-    return await new Promise<boolean>((resolve) => {
-      let sent = false;
-      let finished = false;
-      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
-      let eagerTimer: ReturnType<typeof setTimeout> | null = null;
-      let hardTimer: ReturnType<typeof setTimeout> | null = null;
-      let offData: (() => void) | undefined;
-      let offStarted: (() => void) | undefined;
-
-      const cleanup = () => {
-        if (silenceTimer) {
-          clearTimeout(silenceTimer);
-          silenceTimer = null;
-        }
-        if (eagerTimer) {
-          clearTimeout(eagerTimer);
-          eagerTimer = null;
-        }
-        if (hardTimer) {
-          clearTimeout(hardTimer);
-          hardTimer = null;
-        }
-        offData?.();
-        offStarted?.();
-      };
-
-      const finish = (didInject: boolean) => {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        resolve(didInject);
-      };
-
-      const send = () => {
-        if (sent) return;
-        sent = true;
-        try {
-          const pty = (window as any).electronAPI?.ptyInput;
-          if (!pty) {
-            finish(false);
-            return;
-          }
-          const { payload, submitDelayMs } = buildPromptInjectionPayload({ agent, text: trimmed });
-          pty({ id: ptyId, data: payload });
-          setTimeout(() => {
-            try {
-              pty({ id: ptyId, data: '\r' });
-            } catch {}
-          }, submitDelayMs);
-          finish(true);
-        } catch {
-          finish(false);
-        }
-      };
-
-      offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
-        if (silenceTimer) clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(() => {
-          if (!sent) send();
-        }, 1000);
-        try {
-          const signal = classifyActivity(agent, chunk);
-          if (signal === 'idle' && !sent) {
-            setTimeout(send, 200);
-          }
-        } catch {}
-      });
-
-      offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
-        if (info?.id === ptyId) {
-          if (silenceTimer) clearTimeout(silenceTimer);
-          silenceTimer = setTimeout(() => {
-            if (!sent) send();
-          }, 1500);
-        }
-      });
-
-      eagerTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 300);
-
-      hardTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 5000);
-    });
-  };
-
   const handleRunAll = async () => {
     const msg = prompt.trim();
     if (!msg) return;
-    const isSlashCommand = isSlashCommandInput(msg);
-    // Send concurrently via PTY injection for all agents (Codex/Claude included)
+
     const tasks: Promise<{ scopeKey: string | null; injected: boolean }>[] = variants.map(
       async (v) => {
         const termId = `${v.worktreeId}-main`;
-        let messageWithComments = msg;
-        let scopeKey: string | null = null;
-        if (!isSlashCommand) {
-          scopeKey = buildCommentScopeKey(task.id, v.path);
-          const comments = draftCommentsStore.getAll(scopeKey);
-          const pendingText = formatCommentsForAgent(comments, {
-            includeIntro: false,
-            leadingNewline: true,
-          });
-          if (pendingText) {
-            messageWithComments = `${msg}${pendingText}`;
-          } else {
-            scopeKey = null;
-          }
-        }
-        const injected = await injectPrompt(termId, v.agent, messageWithComments);
-        return { scopeKey, injected };
+        const prepared = preparePromptSubmission({
+          prompt: msg,
+          taskId: task.id,
+          taskPath: v.path,
+        });
+        const injected = await injectPromptViaPty({
+          ptyId: termId,
+          agent: v.agent,
+          text: prepared.text,
+        });
+        return { scopeKey: prepared.commentScopeKey, injected };
       }
     );
     const results = await Promise.all(tasks);
+    let anyInjected = false;
     for (const result of results) {
-      if (result.scopeKey && result.injected) {
-        draftCommentsStore.consumeAll(result.scopeKey);
-      }
+      consumePromptComments(result.scopeKey, result.injected);
+      if (result.injected) anyInjected = true;
     }
-    setPrompt('');
+    if (anyInjected) {
+      setPrompt('');
+    }
   };
 
   // Track per-variant activity so we can render a spinner on the tabs
@@ -696,7 +599,11 @@ const MultiAgentTask: React.FC<Props> = ({
                           (agentMeta[v.agent]?.initialPromptFlag === undefined ||
                             agentMeta[v.agent]?.useKeystrokeInjection)
                         ) {
-                          void injectPrompt(`${v.worktreeId}-main`, v.agent, initialInjection);
+                          void injectPromptViaPty({
+                            ptyId: `${v.worktreeId}-main`,
+                            agent: v.agent,
+                            text: initialInjection,
+                          });
                         }
                         if (initialInjection && !task.metadata?.initialInjectionSent) {
                           void rpc.db.saveTask({
@@ -717,37 +624,12 @@ const MultiAgentTask: React.FC<Props> = ({
         })}
 
         <div className="px-6 pb-6 pt-4">
-          <div className="mx-auto max-w-4xl">
-            <div className="relative rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-card">
-              <div className="flex items-center gap-2 rounded-md px-4 py-3">
-                <Input
-                  className="h-9 flex-1 border-border bg-muted dark:border-border dark:bg-muted"
-                  placeholder="Tell the agents what to do..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (prompt.trim()) {
-                        void handleRunAll();
-                      }
-                    }
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 border border-border bg-muted px-3 text-xs font-medium hover:bg-muted dark:border-border dark:bg-muted dark:hover:bg-muted"
-                  onClick={handleRunAll}
-                  disabled={!prompt.trim()}
-                  title="Run in all panes (Enter)"
-                  aria-label="Run in all panes"
-                >
-                  <CornerDownLeft className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
+          <TaskPromptBar
+            value={prompt}
+            onChange={setPrompt}
+            onSubmit={handleRunAll}
+            placeholder="Tell the agents what to do..."
+          />
         </div>
       </div>
     </TaskScopeProvider>

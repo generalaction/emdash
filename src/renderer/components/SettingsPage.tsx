@@ -30,6 +30,7 @@ import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
+import { VoiceInputSettingsCard } from './VoiceInputSettingsCard';
 
 export type SettingsPageTab =
   | 'general'
@@ -258,6 +259,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <VoiceInputSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Workspace',
@@ -285,7 +287,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
   const currentContent = tabContent[activeTab as keyof typeof tabContent];
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden px-6 pb-0 pt-8">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden px-6 pb-8 pt-8">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1060px] flex-col gap-6">
         {/* Header */}
         <div className="flex flex-col gap-6">
@@ -313,7 +315,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
         {/* Contents: Navigation + Content */}
         <div className="grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-8 overflow-hidden">
           {/* Navigation menu */}
-          <nav className="flex min-h-0 w-52 flex-col gap-2 overflow-y-auto">
+          <nav className="flex min-h-0 w-52 flex-col gap-2 overflow-y-auto pb-8 pr-2">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id && !tab.isExternal;
 
@@ -345,29 +347,31 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
 
           {/* Content container */}
           {currentContent && (
-            <div className="flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto pb-8">
-              <div className="mx-auto w-full max-w-4xl space-y-8">
-                {/* Page title */}
-                <div className="flex flex-col gap-6">
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-base font-medium">{currentContent.title}</h2>
-                    <p className="text-sm text-muted-foreground">{currentContent.description}</p>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div className="h-full overflow-y-auto pr-2">
+                <div className="mx-auto w-full max-w-4xl space-y-8 pb-8">
+                  {/* Page title */}
+                  <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-1">
+                      <h2 className="text-base font-medium">{currentContent.title}</h2>
+                      <p className="text-sm text-muted-foreground">{currentContent.description}</p>
+                    </div>
+                    <Separator />
                   </div>
-                  <Separator />
-                </div>
 
-                {/* Sections */}
-                {currentContent.sections.map((section, index) => (
-                  <div key={index} className="flex flex-col gap-3">
-                    {section.title && (
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
-                        {section.action && <div>{section.action}</div>}
-                      </div>
-                    )}
-                    {section.component}
-                  </div>
-                ))}
+                  {/* Sections */}
+                  {currentContent.sections.map((section, index) => (
+                    <div key={index} className="flex flex-col gap-3">
+                      {section.title && (
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
+                          {section.action && <div>{section.action}</div>}
+                        </div>
+                      )}
+                      {section.component}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
