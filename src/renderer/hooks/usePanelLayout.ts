@@ -17,6 +17,7 @@ export interface UsePanelLayoutOptions {
   showSettingsPage: boolean;
   showSkillsView: boolean;
   showMcpView: boolean;
+  showAutomationsView: boolean;
   selectedProject: { id: string } | null;
   activeTask: { id: string } | null;
 }
@@ -30,6 +31,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showSettingsPage,
     showSkillsView,
     showMcpView,
+    showAutomationsView,
     selectedProject,
     activeTask,
   } = opts;
@@ -262,7 +264,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     if (!autoRightSidebarBehavior || !isInitialLoadComplete) return;
 
     const isRepoHomePage = selectedProject !== null && activeTask === null;
-    const isNonTaskView = showSettingsPage || showSkillsView || showMcpView;
+    const isNonTaskView = showSettingsPage || showSkillsView || showMcpView || showAutomationsView;
     const shouldCollapse = isRepoHomePage || isNonTaskView;
 
     if (shouldCollapse) {
@@ -276,6 +278,7 @@ export function usePanelLayout(opts: UsePanelLayoutOptions) {
     showSettingsPage,
     showSkillsView,
     showMcpView,
+    showAutomationsView,
     selectedProject,
     activeTask,
   ]);

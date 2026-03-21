@@ -252,6 +252,7 @@ export function Workspace() {
     showSettingsPage,
     showSkillsView: projectMgmt.showSkillsView,
     showMcpView: projectMgmt.showMcpView,
+    showAutomationsView: projectMgmt.showAutomationsView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });

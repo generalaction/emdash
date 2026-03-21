@@ -97,6 +97,7 @@ export const useProjectManagement = () => {
   const [showHomeView, setShowHomeView] = useState<boolean>(true);
   const [showSkillsView, setShowSkillsView] = useState(false);
   const [showMcpView, setShowMcpView] = useState(false);
+  const [showAutomationsView, setShowAutomationsView] = useState(false);
   const [showEditorMode, setShowEditorMode] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
   // Trigger counters — incremented to signal task management to reset active task / auto-open modal
@@ -210,6 +211,7 @@ export const useProjectManagement = () => {
       setShowHomeView(false);
       setShowSkillsView(false);
       setShowMcpView(false);
+      setShowAutomationsView(false);
       setResetTaskTrigger((t) => t + 1);
       setShowEditorMode(false);
       setShowKanban(false);
@@ -232,6 +234,7 @@ export const useProjectManagement = () => {
     setShowHomeView(true);
     setShowSkillsView(false);
     setShowMcpView(false);
+    setShowAutomationsView(false);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -246,6 +249,7 @@ export const useProjectManagement = () => {
     setShowHomeView(false);
     setShowSkillsView(true);
     setShowMcpView(false);
+    setShowAutomationsView(false);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -260,6 +264,22 @@ export const useProjectManagement = () => {
     setShowHomeView(false);
     setShowSkillsView(false);
     setShowMcpView(true);
+    setShowAutomationsView(false);
+    setResetTaskTrigger((t) => t + 1);
+    setShowEditorMode(false);
+    setShowKanban(false);
+    saveActiveIds(null, null);
+  };
+
+  const handleGoToAutomations = () => {
+    void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+      captureTelemetry('automations_view_opened');
+    });
+    setSelectedProject(null);
+    setShowHomeView(false);
+    setShowSkillsView(false);
+    setShowMcpView(false);
+    setShowAutomationsView(true);
     setResetTaskTrigger((t) => t + 1);
     setShowEditorMode(false);
     setShowKanban(false);
@@ -644,6 +664,8 @@ export const useProjectManagement = () => {
     setShowSkillsView,
     showMcpView,
     setShowMcpView,
+    showAutomationsView,
+    setShowAutomationsView,
     showEditorMode,
     setShowEditorMode,
     showKanban,
@@ -652,6 +674,7 @@ export const useProjectManagement = () => {
     autoOpenTaskModalTrigger,
     handleGoToSkills,
     handleGoToMcp,
+    handleGoToAutomations,
     projectBranchOptions,
     projectDefaultBranch,
     setProjectDefaultBranch,
