@@ -26,6 +26,7 @@ import { databaseService } from '../services/DatabaseService';
 import { injectIssueFooter } from '../lib/prIssueFooter';
 import { getCreatePrBodyPlan } from '../lib/prCreateBodyPlan';
 import { patchCurrentPrBodyWithIssueFooter } from '../lib/prIssueFooterPatch';
+import { getAppSettings } from '../settings';
 import {
   resolveRemoteProjectForWorktreePath,
   resolveRemoteContext,
@@ -58,6 +59,10 @@ type RemoteStatusPollEntry = {
   connectionId: string;
 };
 const remoteStatusPollers = new Map<string, RemoteStatusPollEntry>();
+
+function shouldAutoCloseLinkedIssuesOnPrCreate(): boolean {
+  return getAppSettings().repository.autoCloseLinkedIssuesOnPrCreate !== false;
+}
 
 const ensureRemoteStatusPoller = (
   taskPath: string,
@@ -400,13 +405,17 @@ export function registerGitIpc() {
     const { title, body, base, head, draft, web, fill } = opts;
     const outputs: string[] = [];
 
+    const autoCloseLinkedIssuesOnPrCreate = shouldAutoCloseLinkedIssuesOnPrCreate();
+
     // Enrich body with issue footer
     let prBody = body;
-    try {
-      const task = await databaseService.getTaskByPath(taskPath);
-      prBody = injectIssueFooter(body, task?.metadata);
-    } catch {
-      // Non-fatal
+    if (autoCloseLinkedIssuesOnPrCreate) {
+      try {
+        const task = await databaseService.getTaskByPath(taskPath);
+        prBody = injectIssueFooter(body, task?.metadata);
+      } catch {
+        // Non-fatal
+      }
     }
 
     const {
@@ -511,7 +520,7 @@ export function registerGitIpc() {
     }
 
     // Patch body if needed
-    if (shouldPatchFilledBody && url) {
+    if (autoCloseLinkedIssuesOnPrCreate && shouldPatchFilledBody && url) {
       try {
         const task = await databaseService.getTaskByPath(taskPath);
         if (task?.metadata) {
@@ -597,21 +606,23 @@ export function registerGitIpc() {
       }
     }
 
-    // Patch PR body with issue footer
-    try {
-      const task = await databaseService.getTaskByPath(taskPath);
-      if (task?.metadata) {
-        const footer = injectIssueFooter(undefined, task.metadata);
-        if (footer) {
-          await remoteGitService.execGh(
-            connectionId,
-            taskPath,
-            `pr edit --body ${quoteGhArg(footer)}`
-          );
+    if (shouldAutoCloseLinkedIssuesOnPrCreate()) {
+      // Patch PR body with issue footer
+      try {
+        const task = await databaseService.getTaskByPath(taskPath);
+        if (task?.metadata) {
+          const footer = injectIssueFooter(undefined, task.metadata);
+          if (footer) {
+            await remoteGitService.execGh(
+              connectionId,
+              taskPath,
+              `pr edit --body ${quoteGhArg(footer)}`
+            );
+          }
         }
+      } catch {
+        // Non-fatal
       }
-    } catch {
-      // Non-fatal
     }
 
     // Merge
@@ -1094,14 +1105,17 @@ export function registerGitIpc() {
         }
 
         const outputs: string[] = [];
+        const autoCloseLinkedIssuesOnPrCreate = shouldAutoCloseLinkedIssuesOnPrCreate();
         let taskMetadata: unknown = undefined;
         let prBody = body;
-        try {
-          const task = await databaseService.getTaskByPath(taskPath);
-          taskMetadata = task?.metadata;
-          prBody = injectIssueFooter(body, task?.metadata);
-        } catch (error) {
-          log.debug('Unable to enrich PR body with issue footer', { taskPath, error });
+        if (autoCloseLinkedIssuesOnPrCreate) {
+          try {
+            const task = await databaseService.getTaskByPath(taskPath);
+            taskMetadata = task?.metadata;
+            prBody = injectIssueFooter(body, task?.metadata);
+          } catch (error) {
+            log.debug('Unable to enrich PR body with issue footer', { taskPath, error });
+          }
         }
         const { shouldPatchFilledBody, shouldUseBodyFile, shouldUseFill } = getCreatePrBodyPlan({
           fill,
@@ -1275,7 +1289,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const urlMatch = out.match(/https?:\/\/\S+/);
         const url = urlMatch ? urlMatch[0] : null;
 
-        if (shouldPatchFilledBody) {
+        if (autoCloseLinkedIssuesOnPrCreate && shouldPatchFilledBody) {
           try {
             const didPatchBody = await patchCurrentPrBodyWithIssueFooter({
               taskPath,
@@ -2403,17 +2417,20 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
 
       // Create PR (or use existing)
+      const autoCloseLinkedIssuesOnPrCreate = shouldAutoCloseLinkedIssuesOnPrCreate();
       let prUrl = '';
       let prExists = false;
       let taskMetadata: unknown = undefined;
-      try {
-        const task = await databaseService.getTaskByPath(taskPath);
-        taskMetadata = task?.metadata;
-      } catch (metadataError) {
-        log.debug('Unable to load task metadata for merge-to-main issue footer', {
-          taskPath,
-          metadataError,
-        });
+      if (autoCloseLinkedIssuesOnPrCreate) {
+        try {
+          const task = await databaseService.getTaskByPath(taskPath);
+          taskMetadata = task?.metadata;
+        } catch (metadataError) {
+          log.debug('Unable to load task metadata for merge-to-main issue footer', {
+            taskPath,
+            metadataError,
+          });
+        }
       }
       try {
         const prCreateArgs = ['pr', 'create', '--fill', '--base', defaultBranch];
@@ -2430,7 +2447,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         prExists = true;
       }
 
-      if (prExists) {
+      if (autoCloseLinkedIssuesOnPrCreate && prExists) {
         try {
           await patchCurrentPrBodyWithIssueFooter({
             taskPath,

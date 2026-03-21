@@ -25,6 +25,7 @@ const IS_MAC = process.platform === 'darwin';
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
+  autoCloseLinkedIssuesOnPrCreate: boolean;
 }
 
 export type ShortcutModifier =
@@ -145,6 +146,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    autoCloseLinkedIssuesOnPrCreate: true,
   },
   projectPrep: {
     autoInstallOnOpenInEditor: true,
@@ -360,6 +362,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      autoCloseLinkedIssuesOnPrCreate: DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate,
     },
     projectPrep: {
       autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
@@ -383,9 +386,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
+  const autoCloseLinkedIssuesOnPrCreate = Boolean(
+    repo?.autoCloseLinkedIssuesOnPrCreate ??
+      DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate
+  );
 
   out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
+  out.repository.autoCloseLinkedIssuesOnPrCreate = autoCloseLinkedIssuesOnPrCreate;
   // Project prep
   const prep = (input as any)?.projectPrep || {};
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(
