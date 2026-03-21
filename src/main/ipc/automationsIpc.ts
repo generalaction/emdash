@@ -1,10 +1,28 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { automationsService } from '../services/AutomationsService';
 import { databaseService } from '../services/DatabaseService';
 import { log } from '../lib/logger';
-import type { CreateAutomationInput, UpdateAutomationInput } from '../../shared/automations/types';
+import type {
+  Automation,
+  CreateAutomationInput,
+  UpdateAutomationInput,
+} from '../../shared/automations/types';
+
+/** Send an automation trigger event to all renderer windows */
+function sendTriggerToRenderer(automation: Automation): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('automation:trigger', automation);
+  }
+}
 
 export function registerAutomationsIpc(): void {
+  // Wire up the scheduler to send triggers to the renderer
+  automationsService.onTrigger((automation) => {
+    log.info(`[Automations] Sending trigger to renderer for: ${automation.name}`);
+    sendTriggerToRenderer(automation);
+  });
+  automationsService.start();
+
   ipcMain.handle('automations:list', async () => {
     try {
       const automations = await automationsService.list();
@@ -93,9 +111,9 @@ export function registerAutomationsIpc(): void {
       if (!automation) {
         return { success: false, error: 'Automation not found' };
       }
-      // The trigger callback will handle creating the task
-      // For manual trigger, we just fire the trigger
       log.info(`[Automations] Manual trigger for: ${automation.name} (${automation.id})`);
+      // Send trigger to renderer so it creates a task
+      sendTriggerToRenderer(automation);
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to trigger automation:', error);

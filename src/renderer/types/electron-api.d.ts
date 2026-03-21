@@ -1380,6 +1380,9 @@ declare global {
         data?: import('../../shared/automations/types').Automation;
         error?: string;
       }>;
+      onAutomationTrigger: (
+        listener: (automation: import('../../shared/automations/types').Automation) => void
+      ) => () => void;
     };
   }
 }
@@ -2106,6 +2109,9 @@ export interface ElectronAPI {
     data?: import('../../shared/automations/types').Automation;
     error?: string;
   }>;
+  onAutomationTrigger: (
+    listener: (automation: import('../../shared/automations/types').Automation) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

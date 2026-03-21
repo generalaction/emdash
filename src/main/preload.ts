@@ -893,6 +893,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('automations:runLogs', args),
   automationsTriggerNow: (args: { id: string }) =>
     ipcRenderer.invoke('automations:triggerNow', args),
+  onAutomationTrigger: (
+    listener: (automation: {
+      id: string;
+      name: string;
+      projectId: string;
+      prompt: string;
+      agentId: string;
+    }) => void
+  ) => {
+    const handler = (_event: any, automation: any) => listener(automation);
+    ipcRenderer.on('automation:trigger', handler);
+    return () => {
+      ipcRenderer.removeListener('automation:trigger', handler);
+    };
+  },
 });
 
 // Type definitions for the exposed API

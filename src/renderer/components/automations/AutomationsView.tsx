@@ -67,6 +67,8 @@ const AutomationsView: React.FC = () => {
   };
 
   const handleTriggerNow = async (id: string) => {
+    // triggerNow sends via IPC to main, which sends back an automation:trigger event
+    // that gets picked up by our listener above — creating the task
     await triggerNow(id);
   };
 
@@ -129,7 +131,7 @@ const AutomationsView: React.FC = () => {
           </Button>
         </div>
 
-        {/* Info banner (shown when there are no automations or no search active) */}
+        {/* Info banner */}
         {automations.length > 0 && !searchQuery && (
           <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
             <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground/60" />
