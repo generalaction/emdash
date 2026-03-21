@@ -30,6 +30,7 @@ import { registerPlainIpc } from './plainIpc';
 import { registerForgejoIpc } from './forgejoIpc';
 import { registerAccountIpc } from './accountIpc';
 import { changelogController } from './changelogIpc';
+import { registerPerformanceIpc } from './performanceIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
@@ -74,4 +75,5 @@ export function registerAllIpc() {
   registerGitlabIpc();
   registerPlainIpc();
   registerForgejoIpc();
+  registerPerformanceIpc();
 }
