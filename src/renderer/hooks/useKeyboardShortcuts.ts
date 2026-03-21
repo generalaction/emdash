@@ -292,8 +292,8 @@ export function getTaskSelectionIndex(
   // Determine which modifier to check based on setting
   let hasTaskModifier: boolean;
   if (useCmdForTasks) {
-    // User wants Cmd/Meta for tasks
-    hasTaskModifier = isMac ? event.metaKey && !event.ctrlKey : event.metaKey;
+    // User wants Cmd/Meta for tasks (on non-Mac, Ctrl acts as Command equivalent)
+    hasTaskModifier = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
   } else {
     // Default: Ctrl for tasks (not Meta)
     hasTaskModifier = event.ctrlKey && !event.metaKey;

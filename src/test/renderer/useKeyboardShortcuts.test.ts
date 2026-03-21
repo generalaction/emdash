@@ -179,7 +179,7 @@ describe('getTaskSelectionIndex', () => {
       )
     ).toBe(0);
 
-    // Ctrl should NOT work when tasks are set to use Cmd
+    // Ctrl should NOT work when tasks are set to use Cmd on Mac
     expect(
       getTaskSelectionIndex(
         {
@@ -189,7 +189,40 @@ describe('getTaskSelectionIndex', () => {
           altKey: false,
           shiftKey: false,
         } as KeyboardEvent,
-        true // useCmdForTasks = true
+        true, // useCmdForTasks = true
+        true // isMac
+      )
+    ).toBeNull();
+  });
+
+  it('uses Ctrl as Cmd equivalent for tasks on non-Mac when useCmdForTasks is true', () => {
+    // On Windows/Linux, Ctrl acts as the Command equivalent
+    expect(
+      getTaskSelectionIndex(
+        {
+          key: '1',
+          metaKey: false,
+          ctrlKey: true,
+          altKey: false,
+          shiftKey: false,
+        } as KeyboardEvent,
+        true, // useCmdForTasks = true
+        false // isMac = false (Windows/Linux)
+      )
+    ).toBe(0);
+
+    // Meta key alone should NOT work on non-Mac (it's the Windows key, not commonly used)
+    expect(
+      getTaskSelectionIndex(
+        {
+          key: '1',
+          metaKey: true,
+          ctrlKey: false,
+          altKey: false,
+          shiftKey: false,
+        } as KeyboardEvent,
+        true, // useCmdForTasks = true
+        false // isMac = false
       )
     ).toBeNull();
   });
