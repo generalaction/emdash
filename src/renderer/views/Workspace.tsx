@@ -155,14 +155,6 @@ export function Workspace() {
     };
   }, []);
 
-  // Listen for native menu "Settings" click (main → renderer)
-  useEffect(() => {
-    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
-      openSettingsPage();
-    });
-    return () => cleanup?.();
-  }, [openSettingsPage]);
-
   // Listen for native menu Undo/Redo (main → renderer) and keep operations editor-scoped.
   useEffect(() => {
     const cleanupUndo = window.electronAPI.onMenuUndo?.(() => {
@@ -188,6 +180,14 @@ export function Workspace() {
   // --- Project management (provided by ProjectManagementProvider in App.tsx) ---
   const projectMgmt = useProjectManagementContext();
   const { showEditorMode, setShowEditorMode, setShowKanban } = projectMgmt;
+
+  // Listen for native menu "Settings" click (main → renderer)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onMenuOpenSettings?.(() => {
+      openSettingsPage();
+    });
+    return () => cleanup?.();
+  }, [openSettingsPage]);
 
   const handleToggleKanban = useCallback(() => {
     if (!projectMgmt.selectedProject) return;
@@ -257,7 +257,10 @@ export function Workspace() {
   });
 
   // Show toast on update availability
-  useUpdateNotifier({ checkOnMount: true, onOpenSettings: () => openSettingsPage('general') });
+  useUpdateNotifier({
+    checkOnMount: true,
+    onOpenSettings: () => openSettingsPage('general'),
+  });
 
   // Listen for native menu "Check for Updates" click (main → renderer)
   useEffect(() => {
@@ -272,7 +275,14 @@ export function Workspace() {
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
-  const { activeTask } = taskMgmt;
+  const { activeTask, isCreatingTask } = taskMgmt;
+
+  // Hide the sidebar while the task is being created OR while it's still the
+  // optimistic placeholder (id starts with "optimistic-"). The latter guards
+  // against handleTaskInterfaceReady clearing isCreatingTask too early (it fires
+  // when ChatInterface first mounts with the placeholder, before onSuccess).
+  const isOptimisticTask = activeTask?.id?.startsWith('optimistic-') ?? false;
+  const effectiveTask = isCreatingTask || isOptimisticTask ? null : activeTask;
   const activeTaskProjectPath = useMemo(
     () =>
       activeTask?.projectId
@@ -387,6 +397,7 @@ export function Workspace() {
                     <LeftSidebar
                       onSidebarContextChange={handleSidebarContextChange}
                       onCloseSettingsPage={handleCloseSettingsPage}
+                      onOpenAccountSettings={() => openSettingsPage('account')}
                     />
                   </ResizablePanel>
                   <ResizableHandle
@@ -442,7 +453,7 @@ export function Workspace() {
                     order={3}
                   >
                     <RightSidebar
-                      task={activeTask}
+                      task={effectiveTask}
                       projectPath={selectedProject?.path || activeTaskProjectPath}
                       projectRemoteConnectionId={derivedRemoteConnectionId}
                       projectRemotePath={derivedRemotePath}
@@ -478,6 +489,9 @@ export function Workspace() {
                   onClose={handleCloseEditor}
                   connectionId={derivedRemoteConnectionId}
                   remotePath={derivedRemotePath}
+                  showSettingsPage={showSettingsPage}
+                  settingsPageInitialTab={settingsPageInitialTab}
+                  onCloseSettingsPage={handleCloseSettingsPage}
                 />
               )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { ArrowBigUp, Command, RotateCcw } from 'lucide-react';
+import { ArrowBigUp, Command, RotateCcw, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -11,13 +11,8 @@ import {
   type AppShortcut,
   type ShortcutSettingsKey,
 } from '../hooks/useKeyboardShortcuts';
-import type { ShortcutModifier } from '../types/shortcuts';
+import type { ShortcutBinding, ShortcutModifier } from '../types/shortcuts';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
-
-interface ShortcutBinding {
-  key: string;
-  modifier: ShortcutModifier;
-}
 
 // Get configurable shortcuts (filter out hidden ones)
 const CONFIGURABLE_SHORTCUTS = Object.entries(APP_SHORTCUTS)
@@ -26,9 +21,11 @@ const CONFIGURABLE_SHORTCUTS = Object.entries(APP_SHORTCUTS)
 
 function findConflictingShortcut(
   settingsKey: ShortcutSettingsKey,
-  binding: ShortcutBinding,
-  allBindings: Record<ShortcutSettingsKey, ShortcutBinding>
+  binding: ShortcutBinding | null,
+  allBindings: Record<ShortcutSettingsKey, ShortcutBinding | null>
 ): (AppShortcut & { id: string }) | null {
+  if (!binding) return null;
+
   const candidate = { key: binding.key, modifier: binding.modifier, description: '' };
 
   for (const shortcut of CONFIGURABLE_SHORTCUTS) {
@@ -77,7 +74,11 @@ const formatDisplayKey = (value: string): string => {
   return key.toUpperCase();
 };
 
-const ShortcutDisplay: React.FC<{ binding: ShortcutBinding }> = ({ binding }) => {
+const ShortcutDisplay: React.FC<{ binding: ShortcutBinding | null }> = ({ binding }) => {
+  if (!binding) {
+    return <span className="text-xs text-muted-foreground">Not set</span>;
+  }
+
   const displayKey = formatDisplayKey(binding.key);
 
   const kbdBase = 'flex h-6 min-w-6 items-center justify-center rounded bg-muted px-1.5 text-xs';
@@ -140,23 +141,22 @@ const KeyboardSettingsCard: React.FC = () => {
   const [capturingKey, setCapturingKey] = useState<ShortcutSettingsKey | null>(null);
   const captureRef = useRef<HTMLButtonElement>(null);
 
-  const bindings = useMemo<Record<ShortcutSettingsKey, ShortcutBinding>>(() => {
+  const bindings = useMemo<Record<ShortcutSettingsKey, ShortcutBinding | null>>(() => {
     const keyboard = settings?.keyboard;
-    const result: Record<string, ShortcutBinding> = {};
+    const result: Record<string, ShortcutBinding | null> = {};
     for (const shortcut of CONFIGURABLE_SHORTCUTS) {
-      const saved = keyboard?.[shortcut.settingsKey as keyof typeof keyboard];
-      // Only use saved if it's a ShortcutBinding (has key and modifier)
-      if (saved && typeof saved === 'object' && 'key' in saved && 'modifier' in saved) {
-        result[shortcut.settingsKey] = saved;
-      } else {
-        result[shortcut.settingsKey] = { key: shortcut.key, modifier: shortcut.modifier! };
-      }
+      const saved = keyboard?.[shortcut.settingsKey as ShortcutSettingsKey] as
+        | ShortcutBinding
+        | null
+        | undefined;
+      result[shortcut.settingsKey] =
+        saved === undefined ? { key: shortcut.key, modifier: shortcut.modifier! } : saved;
     }
-    return result as Record<ShortcutSettingsKey, ShortcutBinding>;
+    return result as Record<ShortcutSettingsKey, ShortcutBinding | null>;
   }, [settings?.keyboard]);
 
   const saveBinding = useCallback(
-    (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding) => {
+    (settingsKey: ShortcutSettingsKey, binding: ShortcutBinding | null) => {
       const shortcut = CONFIGURABLE_SHORTCUTS.find((s) => s.settingsKey === settingsKey);
       if (!shortcut) return;
 
@@ -172,8 +172,10 @@ const KeyboardSettingsCard: React.FC = () => {
       setError(null);
       updateSettings({ keyboard: { [settingsKey]: binding } });
       toast({
-        title: 'Shortcut updated',
-        description: `${shortcut.label} is now ${formatModifier(binding.modifier)} ${formatDisplayKey(binding.key)}`,
+        title: binding ? 'Shortcut updated' : 'Shortcut removed',
+        description: binding
+          ? `${shortcut.label} is now ${formatModifier(binding.modifier)} ${formatDisplayKey(binding.key)}`
+          : `${shortcut.label} no longer has a keyboard shortcut`,
       });
     },
     [bindings, updateSettings]
@@ -274,9 +276,14 @@ const KeyboardSettingsCard: React.FC = () => {
     }
   };
 
+  const handleClear = (shortcut: AppShortcut & { id: string }) => {
+    saveBinding(shortcut.settingsKey, null);
+  };
+
   const isModified = (shortcut: AppShortcut & { id: string }) => {
     const current = bindings[shortcut.settingsKey];
-    if (!current || !shortcut.modifier) return false;
+    if (!shortcut.modifier) return false;
+    if (!current) return true;
     return current.key !== shortcut.key || current.modifier !== shortcut.modifier;
   };
 
@@ -318,24 +325,67 @@ const KeyboardSettingsCard: React.FC = () => {
                   {isModified(shortcut) ? (
                     <TooltipProvider delayDuration={150}>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleReset(shortcut)}
-                            disabled={loading || saving}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Reset to default shortcut</p>
-                        </TooltipContent>
+                        <>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleReset(shortcut)}
+                              disabled={loading || saving}
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Reset to default shortcut</p>
+                          </TooltipContent>
+                        </>
+                      </Tooltip>
+                      <Tooltip>
+                        <>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleClear(shortcut)}
+                              disabled={loading || saving || !bindings[shortcut.settingsKey]}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Remove shortcut</p>
+                          </TooltipContent>
+                        </>
                       </Tooltip>
                     </TooltipProvider>
-                  ) : null}
+                  ) : (
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleClear(shortcut)}
+                              disabled={loading || saving || !bindings[shortcut.settingsKey]}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Remove shortcut</p>
+                          </TooltipContent>
+                        </>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   <Button
                     type="button"
                     variant="outline"

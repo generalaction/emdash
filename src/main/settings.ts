@@ -5,9 +5,16 @@ import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import {
+  DEFAULT_REVIEW_AGENT,
+  DEFAULT_REVIEW_PROMPT,
+  type ReviewSettings,
+} from '@shared/reviewPreset';
 
 export type DeepPartial<T> = {
-  [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
+  [K in keyof T]?: NonNullable<T[K]> extends object
+    ? DeepPartial<NonNullable<T[K]>> | Extract<T[K], null>
+    : T[K];
 };
 
 export type AppSettingsUpdate = DeepPartial<AppSettings>;
@@ -18,6 +25,7 @@ const IS_MAC = process.platform === 'darwin';
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
+  autoCloseLinkedIssuesOnPrCreate: boolean;
 }
 
 export type ShortcutModifier =
@@ -34,22 +42,24 @@ export interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
+export type KeyboardShortcutBinding = ShortcutBinding | null;
 export type NumberShortcutBehavior = 'ctrl-tasks' | 'cmd-tasks';
 
 export interface KeyboardSettings {
-  commandPalette?: ShortcutBinding;
-  settings?: ShortcutBinding;
-  toggleLeftSidebar?: ShortcutBinding;
-  toggleRightSidebar?: ShortcutBinding;
-  toggleTheme?: ShortcutBinding;
-  toggleKanban?: ShortcutBinding;
-  toggleEditor?: ShortcutBinding;
-  closeModal?: ShortcutBinding;
-  nextProject?: ShortcutBinding;
-  prevProject?: ShortcutBinding;
-  newTask?: ShortcutBinding;
-  nextAgent?: ShortcutBinding;
-  prevAgent?: ShortcutBinding;
+  commandPalette?: KeyboardShortcutBinding;
+  settings?: KeyboardShortcutBinding;
+  toggleLeftSidebar?: KeyboardShortcutBinding;
+  toggleRightSidebar?: KeyboardShortcutBinding;
+  toggleTheme?: KeyboardShortcutBinding;
+  toggleKanban?: KeyboardShortcutBinding;
+  toggleEditor?: KeyboardShortcutBinding;
+  closeModal?: KeyboardShortcutBinding;
+  nextProject?: KeyboardShortcutBinding;
+  prevProject?: KeyboardShortcutBinding;
+  newTask?: KeyboardShortcutBinding;
+  nextAgent?: KeyboardShortcutBinding;
+  prevAgent?: KeyboardShortcutBinding;
+  openInEditor?: KeyboardShortcutBinding;
   numberShortcutBehavior?: NumberShortcutBehavior;
 }
 
@@ -92,8 +102,10 @@ export interface AppSettings {
     soundFocusMode: 'always' | 'unfocused';
   };
   defaultProvider?: ProviderId;
+  review?: ReviewSettings;
   tasks?: {
     autoGenerateName: boolean;
+    autoInferTaskNames: boolean;
     autoApproveByDefault: boolean;
     createWorktreeByDefault: boolean;
     autoTrustWorktrees: boolean;
@@ -106,10 +118,14 @@ export interface AppSettings {
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
     fontFamily: string;
+    fontSize: number;
     autoCopyOnSelection: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  changelog?: {
+    dismissedVersions: string[];
+  };
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -132,6 +148,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    autoCloseLinkedIssuesOnPrCreate: true,
   },
   projectPrep: {
     autoInstallOnOpenInEditor: true,
@@ -147,8 +164,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     soundFocusMode: 'always',
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
+  review: {
+    enabled: false,
+    agent: DEFAULT_REVIEW_AGENT,
+    prompt: DEFAULT_REVIEW_PROMPT,
+  },
   tasks: {
     autoGenerateName: true,
+    autoInferTaskNames: true,
     autoApproveByDefault: false,
     createWorktreeByDefault: true,
     autoTrustWorktrees: true,
@@ -169,6 +192,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
+    openInEditor: { key: 'o', modifier: 'cmd' },
     numberShortcutBehavior: 'ctrl-tasks',
   },
   interface: {
@@ -179,10 +203,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   providerConfigs: {},
   terminal: {
     fontFamily: '',
+    fontSize: 0,
     autoCopyOnSelection: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
+  changelog: {
+    dismissedVersions: [],
+  },
 };
 
 function getSettingsPath(): string {
@@ -255,8 +283,12 @@ function normalizeShortcutModifier(value: unknown, fallback: ShortcutModifier): 
   return aliases[normalized] ?? fallback;
 }
 
-function isBinding(binding: ShortcutBinding, modifier: ShortcutModifier, key: string): boolean {
-  return binding.modifier === modifier && binding.key === key;
+function isBinding(
+  binding: KeyboardShortcutBinding | undefined,
+  modifier: ShortcutModifier,
+  key: string
+): boolean {
+  return binding?.modifier === modifier && binding?.key === key;
 }
 
 function assertNoKeyboardShortcutConflicts(keyboard?: KeyboardSettings): void {
@@ -333,6 +365,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      autoCloseLinkedIssuesOnPrCreate: DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate,
     },
     projectPrep: {
       autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
@@ -356,9 +389,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
+  const autoCloseLinkedIssuesOnPrCreate = Boolean(
+    repo?.autoCloseLinkedIssuesOnPrCreate ??
+      DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate
+  );
 
   out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
+  out.repository.autoCloseLinkedIssuesOnPrCreate = autoCloseLinkedIssuesOnPrCreate;
   // Project prep
   const prep = (input as any)?.projectPrep || {};
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(
@@ -391,10 +429,27 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     ? defaultProvider
     : DEFAULT_SETTINGS.defaultProvider!;
 
+  const review = (input as any)?.review || {};
+  const reviewAgent = isValidProviderId(review?.agent)
+    ? review.agent
+    : DEFAULT_SETTINGS.review!.agent;
+  const reviewPrompt =
+    typeof review?.prompt === 'string' && review.prompt.trim()
+      ? review.prompt.trim()
+      : DEFAULT_SETTINGS.review!.prompt;
+  out.review = {
+    enabled: Boolean(review?.enabled ?? DEFAULT_SETTINGS.review!.enabled),
+    agent: reviewAgent,
+    prompt: reviewPrompt,
+  };
+
   // Tasks
   const tasks = (input as any)?.tasks || {};
   out.tasks = {
     autoGenerateName: Boolean(tasks?.autoGenerateName ?? DEFAULT_SETTINGS.tasks!.autoGenerateName),
+    autoInferTaskNames: Boolean(
+      tasks?.autoInferTaskNames ?? DEFAULT_SETTINGS.tasks!.autoInferTaskNames
+    ),
     autoApproveByDefault: Boolean(
       tasks?.autoApproveByDefault ?? DEFAULT_SETTINGS.tasks!.autoApproveByDefault
     ),
@@ -424,7 +479,11 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
+  const normalizeBinding = (
+    binding: any,
+    defaultBinding: ShortcutBinding
+  ): KeyboardShortcutBinding => {
+    if (binding === null) return null;
     if (!binding || typeof binding !== 'object') return defaultBinding;
     const key = normalizeShortcutKey(binding.key) ?? defaultBinding.key;
     const modifier = normalizeShortcutModifier(binding.modifier, defaultBinding.modifier);
@@ -452,6 +511,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
+    openInEditor: normalizeBinding(keyboard.openInEditor, DEFAULT_SETTINGS.keyboard!.openInEditor!),
     numberShortcutBehavior:
       keyboard.numberShortcutBehavior === 'cmd-tasks'
         ? 'cmd-tasks'
@@ -521,7 +581,13 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
-  out.terminal = { fontFamily, autoCopyOnSelection };
+  const rawFontSize = term?.fontSize;
+  let fontSize = 0;
+  if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
+    const clamped = Math.round(rawFontSize);
+    fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
+  }
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;
@@ -537,6 +603,20 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   } else {
     out.hiddenOpenInApps = [];
   }
+
+  const rawDismissedVersions = (input as any)?.changelog?.dismissedVersions;
+  out.changelog = {
+    dismissedVersions: Array.isArray(rawDismissedVersions)
+      ? [
+          ...new Set(
+            rawDismissedVersions
+              .filter((value: unknown): value is string => typeof value === 'string')
+              .map((value) => value.trim().replace(/^v/i, ''))
+              .filter(Boolean)
+          ),
+        ]
+      : [],
+  };
 
   return out;
 }
@@ -571,19 +651,29 @@ export function updateProviderCustomConfig(
   config: ProviderCustomConfig | undefined
 ): void {
   const settings = getAppSettings();
-  const currentConfigs = settings.providerConfigs ?? {};
+  const currentConfigs = { ...(settings.providerConfigs ?? {}) };
 
   if (config === undefined) {
-    // Remove the config
-    const { [providerId]: _, ...rest } = currentConfigs;
-    updateAppSettings({ providerConfigs: rest });
+    delete currentConfigs[providerId];
   } else {
-    // Update/add the config
-    updateAppSettings({
-      providerConfigs: {
-        ...currentConfigs,
-        [providerId]: config,
-      },
-    });
+    // Strip undefined values so removed fields (e.g. env after
+    // deleting all env vars) don't linger from a previous save.
+    const cleaned: ProviderCustomConfig = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (v !== undefined) {
+        cleaned[k as keyof ProviderCustomConfig] = v;
+      }
+    }
+    if (Object.keys(cleaned).length > 0) {
+      currentConfigs[providerId] = cleaned;
+    } else {
+      delete currentConfigs[providerId];
+    }
   }
+
+  // Write the full providerConfigs map directly to avoid deepMerge
+  // preserving stale nested keys from the old config.
+  const next = normalizeSettings({ ...settings, providerConfigs: currentConfigs });
+  persistSettings(next);
+  cached = next;
 }

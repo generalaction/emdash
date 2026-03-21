@@ -8,6 +8,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppSettingsProvider } from './contexts/AppSettingsProvider';
 import { AppContextProvider } from './contexts/AppContextProvider';
 import { GithubContextProvider } from './contexts/GithubContextProvider';
+import { EmdashAccountProvider } from './contexts/EmdashAccountProvider';
+import { PostHogFeatureFlagProvider } from './contexts/PostHogFeatureFlagProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementContext';
 import { ModalProvider } from './contexts/ModalProvider';
@@ -34,17 +36,21 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ModalProvider>
         <AppContextProvider>
-          <GithubContextProvider>
-            <ProjectManagementProvider>
-              <TaskManagementProvider>
-                <AppSettingsProvider>
-                  <ThemeProvider>
-                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                  </ThemeProvider>
-                </AppSettingsProvider>
-              </TaskManagementProvider>
-            </ProjectManagementProvider>
-          </GithubContextProvider>
+          <EmdashAccountProvider>
+            <PostHogFeatureFlagProvider>
+              <GithubContextProvider>
+                <ProjectManagementProvider>
+                  <TaskManagementProvider>
+                    <AppSettingsProvider>
+                      <ThemeProvider>
+                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                      </ThemeProvider>
+                    </AppSettingsProvider>
+                  </TaskManagementProvider>
+                </ProjectManagementProvider>
+              </GithubContextProvider>
+            </PostHogFeatureFlagProvider>
+          </EmdashAccountProvider>
         </AppContextProvider>
       </ModalProvider>
     </QueryClientProvider>

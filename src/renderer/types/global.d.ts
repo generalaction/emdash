@@ -1,4 +1,6 @@
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
+import type { DiffPayload } from '../../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../../shared/git/types';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -69,6 +71,9 @@ declare global {
         id: string,
         listener: (info: { exitCode: number; signal?: number }) => void
       ) => () => void;
+      onPtyStarted: (listener: (data: { id: string }) => void) => () => void;
+      onPtyActivity: (listener: (data: { id: string; chunk?: string }) => void) => () => void;
+      onPtyExitGlobal: (listener: (data: { id: string }) => void) => () => void;
       // Worktree management
       worktreeCreate: (args: {
         projectPath: string;
@@ -102,6 +107,10 @@ declare global {
         projectId: string;
         projectPath: string;
         baseRef?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      worktreePreflightReserve: (args: {
+        projectId: string;
+        projectPath: string;
       }) => Promise<{ success: boolean; error?: string }>;
       worktreeHasReserve: (args: {
         projectId: string;
@@ -243,8 +252,9 @@ declare global {
         changes?: Array<{
           path: string;
           status: string;
-          additions: number;
-          deletions: number;
+          additions: number | null;
+          deletions: number | null;
+          isStaged: boolean;
           diff?: string;
         }>;
         error?: string;
@@ -260,6 +270,7 @@ declare global {
             staged: number;
             unstaged: number;
             untracked: number;
+            files: string[];
             ahead: number;
             behind: number;
             error?: string;
@@ -290,6 +301,25 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
+      getFileDiff: (args: {
+        taskPath: string;
+        filePath: string;
+        baseRef?: string;
+        forceLarge?: boolean;
+      }) => Promise<{
+        success: boolean;
+        diff?: DiffPayload;
+        error?: string;
+      }>;
+      updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+        success: boolean;
+        action?: 'reverted';
+        error?: string;
+      }>;
       listRemoteBranches: (args: { projectPath: string; remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
@@ -365,6 +395,7 @@ declare global {
       githubListPullRequests: (args: {
         projectPath: string;
         limit?: number;
+        searchQuery?: string;
       }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
       githubCreatePullRequestWorktree: (args: {
         projectPath: string;
@@ -378,6 +409,16 @@ declare global {
         worktree?: any;
         branchName?: string;
         taskName?: string;
+        task?: {
+          id: string;
+          name: string;
+          path: string;
+          branch: string;
+          projectId: string;
+          status: string;
+          agentId: string;
+          metadata?: { prNumber?: number; prTitle?: string | null };
+        };
         error?: string;
       }>;
       githubLogout: () => Promise<void>;
@@ -407,6 +448,51 @@ declare global {
         issues?: any[];
         error?: string;
       }>;
+
+      // Workspace provisioning
+      workspaceProvision: (args: {
+        taskId: string;
+        repoUrl: string;
+        branch: string;
+        baseRef: string;
+        provisionCommand: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+      workspaceCancel: (args: {
+        instanceId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceTerminate: (args: {
+        instanceId: string;
+        terminateCommand: string;
+        projectPath: string;
+        env?: Record<string, string>;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceStatus: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        data?: {
+          id: string;
+          taskId: string;
+          externalId: string | null;
+          host: string;
+          port: number;
+          username: string | null;
+          worktreePath: string | null;
+          status: string;
+          connectionId: string | null;
+          createdAt: number;
+          terminatedAt: number | null;
+        } | null;
+        error?: string;
+      }>;
+      onWorkspaceProvisionProgress: (
+        listener: (data: { instanceId: string; line: string }) => void
+      ) => () => void;
+      onWorkspaceProvisionTimeoutWarning: (
+        listener: (data: { instanceId: string; timeoutMs: number }) => void
+      ) => () => void;
+      onWorkspaceProvisionComplete: (
+        listener: (data: { instanceId: string; status: string; error?: string }) => void
+      ) => () => void;
     };
   }
 }

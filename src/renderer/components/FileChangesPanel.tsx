@@ -44,6 +44,7 @@ import {
 } from './ui/alert-dialog';
 import { useTaskScope } from './TaskScopeContext';
 import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
+import { formatDiffCount } from '../lib/gitChangePresentation';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -223,7 +224,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath);
+  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath, {
+    taskId: resolvedTaskId,
+  });
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const stagedCount = fileChanges.filter((change) => change.isStaged).length;
@@ -283,7 +286,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
+        const res = await window.electronAPI.getBranchStatus({
+          taskPath: safeTaskPath,
+          taskId: resolvedTaskId,
+        });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -305,11 +311,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     event.stopPropagation();
     setStagingFiles((prev) => new Set(prev).add(filePath));
     try {
-      if (stage) {
-        await window.electronAPI.stageFile({ taskPath: safeTaskPath, filePath });
-      } else {
-        await window.electronAPI.unstageFile({ taskPath: safeTaskPath, filePath });
-      }
+      await window.electronAPI.updateIndex({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+        action: stage ? 'stage' : 'unstage',
+        scope: 'paths',
+        filePaths: [filePath],
+      });
     } catch (err) {
       console.error('Staging failed:', err);
       toast({
@@ -331,7 +339,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const handleStageAll = async () => {
     setIsStagingAll(true);
     try {
-      await window.electronAPI.stageAllFiles({ taskPath: safeTaskPath });
+      await window.electronAPI.updateIndex({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+        action: 'stage',
+        scope: 'all',
+      });
     } catch (err) {
       console.error('Stage all failed:', err);
       toast({
@@ -351,7 +364,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setRestoreTarget(null);
     setRevertingFiles((prev) => new Set(prev).add(filePath));
     try {
-      await window.electronAPI.revertFile({ taskPath: safeTaskPath, filePath });
+      await window.electronAPI.revertFile({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+        filePath,
+      });
       dispatchFileChangeEvent(safeTaskPath, filePath);
     } catch (err) {
       console.error('Restore failed:', err);
@@ -394,6 +411,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     try {
       const result = await window.electronAPI.gitCommitAndPush({
         taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
         commitMessage: trimmedMessage,
         createBranchIfOnDefault: true,
       });
@@ -417,7 +435,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         // Reload branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskPathAtCommit });
+          const bs = await window.electronAPI.getBranchStatus({
+            taskPath: taskPathAtCommit,
+            taskId: resolvedTaskId,
+          });
           if (taskPathRef.current !== taskPathAtCommit) return;
           setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
         } catch {
@@ -447,7 +468,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const handleMergeToMain = async () => {
     setIsMergingToMain(true);
     try {
-      const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
+      const result = await window.electronAPI.mergeToMain({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+      });
       if (result.success) {
         toast({
           title: 'Merged to Main',
@@ -501,26 +525,53 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const renderPath = (p: string) => {
+  const renderPath = (p: string, status?: FileChange['status']) => {
     const last = p.lastIndexOf('/');
     const dir = last >= 0 ? p.slice(0, last + 1) : '';
     const base = last >= 0 ? p.slice(last + 1) : p;
+    const isDeleted = status === 'deleted';
     return (
       <span className="flex min-w-0" title={p}>
-        <span className="shrink-0 font-medium text-foreground">{base}</span>
-        {dir && <span className="ml-1 truncate text-muted-foreground">{dir}</span>}
+        <span
+          className={['shrink-0 font-medium text-foreground', isDeleted ? 'line-through' : '']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {base}
+        </span>
+        {dir && (
+          <span
+            className={['ml-1 truncate text-muted-foreground', isDeleted ? 'line-through' : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {dir}
+          </span>
+        )}
       </span>
     );
   };
+
+  const shouldShowDiffPill = (value: number | null | undefined) =>
+    typeof value === 'number' && value !== 0;
 
   // Use PR diff changes when in PR review mode, otherwise use local file changes
   const displayChanges = isPrReview ? prDiffChanges : fileChanges;
   const displayLoading = isPrReview ? prDiffLoading : isLoading;
 
-  const totalChanges = displayChanges.reduce(
+  const totalChanges = displayChanges.reduce<{
+    additions: number | null;
+    deletions: number | null;
+  }>(
     (acc, change) => ({
-      additions: acc.additions + change.additions,
-      deletions: acc.deletions + change.deletions,
+      additions:
+        acc.additions === null || change.additions === null
+          ? null
+          : acc.additions + change.additions,
+      deletions:
+        acc.deletions === null || change.deletions === null
+          ? null
+          : acc.deletions + change.deletions,
     }),
     { additions: 0, deletions: 0 }
   );
@@ -569,11 +620,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               {hasDisplayChanges ? (
                 <>
                   <span className="font-medium text-green-600 dark:text-green-400">
-                    +{totalChanges.additions}
+                    +{formatDiffCount(totalChanges.additions)}
                   </span>
                   <span className="text-muted-foreground">&middot;</span>
                   <span className="font-medium text-red-600 dark:text-red-400">
-                    -{totalChanges.deletions}
+                    -{formatDiffCount(totalChanges.deletions)}
                   </span>
                   <span className="text-muted-foreground">&middot;</span>
                   <span className="text-muted-foreground">
@@ -607,11 +658,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               <div className="flex items-center gap-2">
                 <div className="flex shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium text-green-600 dark:text-green-400">
-                    +{totalChanges.additions}
+                    +{formatDiffCount(totalChanges.additions)}
                   </span>
                   <span className="text-muted-foreground">&middot;</span>
                   <span className="font-medium text-red-600 dark:text-red-400">
-                    -{totalChanges.deletions}
+                    -{formatDiffCount(totalChanges.deletions)}
                   </span>
                 </div>
                 {hasStagedChanges && (
@@ -620,7 +671,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {onOpenChanges && (
                   <Button
                     variant="outline"
@@ -695,7 +746,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               <span className="text-muted-foreground">&middot;</span>
               <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {onOpenChanges && (
                 <Button
                   variant="outline"
@@ -852,16 +903,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     <FileIcon filename={change.path} isDirectory={false} size={16} />
                   </span>
                   <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="min-w-0 truncate text-sm">{renderPath(change.path)}</div>
+                    <div className="min-w-0 truncate text-sm">
+                      {renderPath(change.path, change.status)}
+                    </div>
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
-                  <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                    +{change.additions}
-                  </span>
-                  <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                    -{change.deletions}
-                  </span>
+                  {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                      +{formatDiffCount(change.additions)}
+                    </span>
+                  )}
+                  {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                      -{formatDiffCount(change.deletions)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))
@@ -880,16 +937,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                       <FileIcon filename={change.path} isDirectory={false} size={16} />
                     </span>
                     <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="min-w-0 truncate text-sm">{renderPath(change.path)}</div>
+                      <div className="min-w-0 truncate text-sm">
+                        {renderPath(change.path, change.status)}
+                      </div>
                     </div>
                   </div>
                   <div className="ml-3 flex shrink-0 items-center gap-2">
-                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                      +{change.additions}
-                    </span>
-                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                      -{change.deletions}
-                    </span>
+                    {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                      <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                        +{formatDiffCount(change.additions)}
+                      </span>
+                    )}
+                    {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                      <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                        -{formatDiffCount(change.deletions)}
+                      </span>
+                    )}
                     <div className="flex items-center gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>

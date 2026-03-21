@@ -879,4 +879,145 @@ export function registerFsIpc(): void {
       }
     }
   );
+
+  // Ensure entries exist in .gitignore (idempotent)
+  ipcMain.handle(
+    'fs:ensureGitignore',
+    async (_event, args: { projectPath: string; patterns: string[] }) => {
+      try {
+        const { projectPath, patterns } = args;
+        if (!projectPath || !fs.existsSync(projectPath) || patterns.length === 0) {
+          return { success: true };
+        }
+
+        const gitignorePath = path.join(projectPath, '.gitignore');
+        let content = '';
+        if (fs.existsSync(gitignorePath)) {
+          content = fs.readFileSync(gitignorePath, 'utf8');
+        }
+
+        const existingLines = new Set(content.split('\n').map((line) => line.trim()));
+        const toAdd = patterns.filter((p) => !existingLines.has(p));
+        if (toAdd.length === 0) return { success: true };
+
+        const suffix =
+          (content.length > 0 && !content.endsWith('\n') ? '\n' : '') +
+          '\n# Workspace provider scripts (added by Emdash)\n' +
+          toAdd.join('\n') +
+          '\n';
+
+        fs.writeFileSync(gitignorePath, content + suffix, 'utf8');
+        return { success: true };
+      } catch (error) {
+        console.error('fs:ensureGitignore failed:', error);
+        return { success: false, error: 'Failed to update .gitignore' };
+      }
+    }
+  );
+
+  // rename a file or directory
+
+  ipcMain.handle(
+    'fs:rename',
+    async (_event, args: { root: string; oldName: string; newName: string } & RemoteParams) => {
+      try {
+        if (isRemoteRequest(args)) {
+          try {
+            const rfs = createRemoteFs(args);
+            const oldPath = path.posix.join(args.remotePath, args.oldName);
+            const newPath = path.posix.join(args.remotePath, args.newName);
+            return await rfs.rename(oldPath, newPath);
+          } catch (error) {
+            console.error('fs:rename failed:', error);
+            return { success: false, error: 'Failed to rename file or directory' };
+          }
+        }
+
+        // local path
+
+        const { root, oldName, newName } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!oldName || !newName) return { success: false, error: 'Invalid file names' };
+        const oldAbs = path.resolve(root, oldName);
+        const newAbs = path.resolve(root, newName);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!oldAbs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+        if (!newAbs.startsWith(normRoot)) return { success: false, error: 'New path escapes root' };
+        if (!fs.existsSync(oldAbs)) return { success: false, error: 'Source does not exist' };
+        if (fs.existsSync(newAbs)) return { success: false, error: 'Destination already exists' };
+        fs.renameSync(oldAbs, newAbs);
+        return { success: true };
+      } catch (error) {
+        console.error('fs:rename failed:', error);
+        return { success: false, error: 'Failed to rename file or directory' };
+      }
+    }
+  );
+
+  // Create a directory
+  ipcMain.handle(
+    'fs:mkdir',
+    async (_event, args: { root: string; relPath: string } & RemoteParams) => {
+      try {
+        // --- Remote path ---
+        if (isRemoteRequest(args)) {
+          try {
+            const rfs = createRemoteFs(args);
+            const targetPath = path.posix.join(args.remotePath, args.relPath);
+            return await rfs.mkdir(targetPath);
+          } catch (error) {
+            console.error('fs:mkdir remote failed:', error);
+            return { success: false, error: 'Failed to create remote directory' };
+          }
+        }
+        // --- Local path ---
+        const { root, relPath } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid path' };
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+        fs.mkdirSync(abs, { recursive: true });
+        return { success: true };
+      } catch (error) {
+        console.error('fs:mkdir failed:', error);
+        return { success: false, error: 'Failed to create directory' };
+      }
+    }
+  );
+
+  // Remove a directory (recursive)
+  ipcMain.handle(
+    'fs:rmdir',
+    async (_event, args: { root: string; relPath: string } & RemoteParams) => {
+      try {
+        // --- Remote path ---
+        if (isRemoteRequest(args)) {
+          try {
+            const rfs = createRemoteFs(args);
+            const targetPath = path.posix.join(args.remotePath, args.relPath);
+            return await rfs.remove(targetPath);
+          } catch (error) {
+            console.error('fs:rmdir remote failed:', error);
+            return { success: false, error: 'Failed to remove remote directory' };
+          }
+        }
+        // --- Local path ---
+        const { root, relPath } = args;
+        if (!root || !fs.existsSync(root)) return { success: false, error: 'Invalid root path' };
+        if (!relPath) return { success: false, error: 'Invalid path' };
+        const abs = path.resolve(root, relPath);
+        const normRoot = path.resolve(root) + path.sep;
+        if (!abs.startsWith(normRoot)) return { success: false, error: 'Path escapes root' };
+        if (!fs.existsSync(abs)) return { success: true };
+        const st = safeStat(abs);
+        if (!st || !st.isDirectory()) return { success: false, error: 'Not a directory' };
+        fs.rmSync(abs, { recursive: true, force: true });
+        return { success: true };
+      } catch (error) {
+        console.error('fs:rmdir failed:', error);
+        return { success: false, error: 'Failed to remove directory' };
+      }
+    }
+  );
 }

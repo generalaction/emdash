@@ -126,8 +126,19 @@ type TelemetryEvent =
   | 'gitlab_disconnected'
   | 'gitlab_issues_searched'
   | 'gitlab_issue_selected'
+  // Forgejo integration
+  | 'forgejo_connected'
+  | 'forgejo_disconnected'
+  | 'forgejo_issues_searched'
+  | 'forgejo_issue_selected'
   // Task with issue
   | 'task_created_with_issue'
+  // Workspace provider
+  | 'workspace_provisioning_task_created'
+  | 'workspace_provisioning_started'
+  | 'workspace_provisioning_success'
+  | 'workspace_provisioning_failed'
+  | 'workspace_provider_config_saved'
   // Legacy/aggregate events
   | 'feature_used'
   | 'error'
@@ -487,6 +498,8 @@ export function getTelemetryStatus() {
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
     onboardingSeen,
+    posthogKey: apiKey,
+    posthogHost: host,
   };
 }
 

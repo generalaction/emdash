@@ -15,7 +15,7 @@ export interface CatalogSkill {
   /** Short description */
   description: string;
   /** Catalog source */
-  source: 'openai' | 'anthropic' | 'local';
+  source: 'openai' | 'anthropic' | 'skills-sh' | 'local';
   /** GitHub URL */
   sourceUrl?: string;
   /** Icon URL (OpenAI skills have SVG/PNG) */
@@ -32,6 +32,12 @@ export interface CatalogSkill {
   installed: boolean;
   /** Filesystem path if installed */
   localPath?: string;
+  /** GitHub owner for skills-sh skills (e.g. "vercel-labs") */
+  owner?: string;
+  /** GitHub repo for skills-sh skills (e.g. "agent-skills") */
+  repo?: string;
+  /** Total install count from skills.sh */
+  installs?: number;
 }
 
 export interface CatalogIndex {

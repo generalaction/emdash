@@ -35,9 +35,11 @@ const ModifierIcon: React.FC<{ modifier: ShortcutModifier }> = ({ modifier }) =>
 
 export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, className }) => {
   const { getShortcut } = useKeyboardSettings();
-  const { key, modifier } = getShortcut(settingsKey);
+  const binding = getShortcut(settingsKey);
 
-  if (!key) return null;
+  if (!binding?.key) return null;
+
+  const { key, modifier } = binding;
 
   // Format key display (handle arrow keys and special keys)
   let displayKey = normalizeShortcutKey(key);

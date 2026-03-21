@@ -4,9 +4,11 @@ import { APP_SHORTCUTS, type ShortcutSettingsKey } from '../hooks/useKeyboardSho
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { useQueryClient } from '@tanstack/react-query';
 
+type ResolvedShortcutBinding = { key: string; modifier?: ShortcutModifier };
+
 interface KeyboardSettingsContextValue {
   settings: KeyboardSettings | null;
-  getShortcut: (settingsKey: ShortcutSettingsKey) => { key: string; modifier?: ShortcutModifier };
+  getShortcut: (settingsKey: ShortcutSettingsKey) => ResolvedShortcutBinding | null;
   refreshSettings: () => Promise<void>;
 }
 
@@ -23,8 +25,11 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
   }, [queryClient]);
 
   const getShortcut = useCallback(
-    (settingsKey: ShortcutSettingsKey): { key: string; modifier?: ShortcutModifier } => {
+    (settingsKey: ShortcutSettingsKey): ResolvedShortcutBinding | null => {
       const custom = settings?.[settingsKey];
+      if (custom === null) {
+        return null;
+      }
       if (custom) {
         return { key: custom.key, modifier: custom.modifier };
       }
@@ -34,7 +39,7 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
       if (defaultShortcut) {
         return { key: defaultShortcut.key, modifier: defaultShortcut.modifier };
       }
-      return { key: '', modifier: undefined };
+      return null;
     },
     [settings]
   );
@@ -58,7 +63,7 @@ export const useKeyboardSettings = (): KeyboardSettingsContextValue => {
         if (defaultShortcut) {
           return { key: defaultShortcut.key, modifier: defaultShortcut.modifier };
         }
-        return { key: '', modifier: undefined };
+        return null;
       },
       refreshSettings: async () => {},
     };

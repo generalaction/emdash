@@ -3,6 +3,8 @@ import { type LinearIssueSummary } from './linear';
 import { type GitHubIssueSummary } from './github';
 import { type JiraIssueSummary } from './jira';
 import { type PlainThreadSummary } from './plain';
+import { type GitLabIssueSummary } from './gitlab';
+import { type ForgejoIssueSummary } from './forgejo';
 
 /** Per-agent run configuration for task creation */
 export interface AgentRun {
@@ -21,12 +23,19 @@ export interface TaskMetadata {
   githubIssue?: GitHubIssueSummary | null;
   jiraIssue?: JiraIssueSummary | null;
   plainThread?: PlainThreadSummary | null;
+  gitlabIssue?: GitLabIssueSummary | null;
+  forgejoIssue?: ForgejoIssueSummary | null;
   initialPrompt?: string | null;
   autoApprove?: boolean | null;
   /** True when the task name was auto-generated (not manually typed by the user) */
   nameGenerated?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  // When present, the task was created with a remote workspace provider
+  workspace?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null;
   /** Whether this task is pinned to the top of the sidebar */
   isPinned?: boolean | null;
   /** PR number when this task is a PR review task */

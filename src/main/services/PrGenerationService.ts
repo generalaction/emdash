@@ -2,6 +2,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { log } from '../lib/logger';
 import { getProvider, PROVIDER_IDS, type ProviderId } from '../../shared/providers/registry';
+import { stripAnsi } from '@shared/text/stripAnsi';
 
 const execFileAsync = promisify(execFile);
 
@@ -433,18 +434,6 @@ Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
   }
 
   /**
-   * Strip ANSI escape sequences from a string
-   */
-  private stripAnsi(text: string): string {
-    // Covers CSI sequences, OSC sequences, and other common escape codes
-    // eslint-disable-next-line no-control-regex
-    return text.replace(
-      /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[^[(\x1b]*?[a-zA-Z]/g,
-      ''
-    );
-  }
-
-  /**
    * Parse provider response into PR content.
    *
    * Multi-step extraction:
@@ -457,7 +446,7 @@ Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
   private parseProviderResponse(response: string): GeneratedPrContent | null {
     try {
       // Step 1: Strip ANSI escape sequences
-      let text = this.stripAnsi(response);
+      let text = stripAnsi(response, { stripOscSt: true, stripOtherEscapes: true });
 
       // Step 2: If this is a Claude --output-format json envelope, extract the result field
       try {

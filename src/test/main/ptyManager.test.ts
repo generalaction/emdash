@@ -11,6 +11,7 @@ const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
 const agentEventGetPortMock = vi.fn(() => 0);
 const agentEventGetTokenMock = vi.fn(() => '');
+const nodePtySpawnMock = vi.fn();
 
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
@@ -58,6 +59,10 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('node-pty', () => ({
+  spawn: (...args: any[]) => nodePtySpawnMock(...args),
+}));
+
 vi.mock('../../main/services/AgentEventService', () => ({
   agentEventService: {
     getPort: () => agentEventGetPortMock(),
@@ -78,6 +83,10 @@ describe('ptyManager provider command resolution', () => {
     agentEventGetTokenMock.mockReturnValue('');
     fsMkdirSyncMock.mockImplementation(() => undefined);
     fsWriteFileSyncMock.mockImplementation(() => undefined);
+    fsStatSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    fsAccessSyncMock.mockImplementation(() => undefined);
   });
 
   it('resolves provider command config from custom settings', async () => {
@@ -108,6 +117,8 @@ describe('ptyManager provider command resolution', () => {
       defaultArgs: ['--model', 'gpt-5'],
       autoApprove: true,
       autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+      extraArgs: ['--extra-flag'],
+      runtimeArgs: ['-c', 'notify=test'],
       initialPrompt: 'hello world',
       initialPromptFlag: '',
       useKeystrokeInjection: false,
@@ -119,8 +130,45 @@ describe('ptyManager provider command resolution', () => {
       '--model',
       'gpt-5',
       '--dangerously-bypass-approvals-and-sandbox',
+      '--extra-flag',
+      '-c',
+      'notify=test',
       'hello world',
     ]);
+  });
+
+  it('places positional prompt after --full-auto and runtime args for Codex', async () => {
+    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+
+    const args = buildProviderCliArgs({
+      autoApprove: true,
+      autoApproveFlag: '--full-auto',
+      runtimeArgs: ['-c', 'notify=["sh","-lc","curl ...","sh"]'],
+      initialPrompt: 'fix the login bug',
+      initialPromptFlag: '',
+      useKeystrokeInjection: false,
+    });
+
+    expect(args).toEqual([
+      '--full-auto',
+      '-c',
+      'notify=["sh","-lc","curl ...","sh"]',
+      'fix the login bug',
+    ]);
+  });
+
+  it('skips CLI prompt injection for Hermes-style TUI providers', async () => {
+    const { buildProviderCliArgs } = await import('../../main/services/ptyManager');
+
+    const args = buildProviderCliArgs({
+      resume: true,
+      resumeFlag: '--continue',
+      initialPrompt: 'scan the repo',
+      initialPromptFlag: '',
+      useKeystrokeInjection: true,
+    });
+
+    expect(args).toEqual(['--continue']);
   });
 
   it('covers all configured provider auto-approve flags', async () => {
@@ -293,6 +341,47 @@ describe('ptyManager provider command resolution', () => {
 
     expect(env.OPENCODE_CONFIG_DIR).toBeUndefined();
     expect(fsWriteFileSyncMock).not.toHaveBeenCalled();
+  });
+
+  it('spawns tmux using its absolute path when tmux wrapping is enabled', async () => {
+    const origPath = process.env.PATH;
+    process.env.PATH = `/opt/homebrew/bin${origPath ? ':' + origPath : ''}`;
+
+    fsStatSyncMock.mockImplementation((candidate: string) => {
+      if (candidate === '/opt/homebrew/bin/tmux') {
+        return { isFile: () => true };
+      }
+      throw new Error('ENOENT');
+    });
+    const mockProc = {
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    };
+    nodePtySpawnMock.mockReturnValue(mockProc);
+
+    const { startPty, getTmuxSessionName } = await import('../../main/services/ptyManager');
+    await startPty({
+      id: 'claude-main-task-tmux',
+      cwd: '/tmp/task',
+      shell: '/bin/zsh',
+      tmux: true,
+    });
+
+    process.env.PATH = origPath;
+
+    expect(nodePtySpawnMock).toHaveBeenCalledWith(
+      '/opt/homebrew/bin/tmux',
+      ['new-session', '-As', getTmuxSessionName('claude-main-task-tmux'), '--', '/bin/zsh', '-il'],
+      expect.objectContaining({
+        cwd: '/tmp/task',
+        env: expect.not.objectContaining({
+          PATH: expect.anything(),
+        }),
+      })
+    );
   });
 });
 

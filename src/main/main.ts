@@ -117,8 +117,10 @@ import { setupApplicationMenu } from './app/menu';
 import { registerAllIpc } from './ipc';
 import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
+import { emdashAccountService } from './services/EmdashAccountService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
@@ -309,9 +311,20 @@ app.whenReady().then(async () => {
   // Register IPC handlers
   registerAllIpc();
 
+  try {
+    await emdashAccountService.loadSessionToken();
+  } catch (error) {
+    console.warn('Failed to load account session:', error);
+  }
+
   // Clean up any orphaned reserve worktrees from previous sessions
   worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
     console.warn('Failed to cleanup orphaned reserves:', error);
+  });
+
+  // Reconcile workspace instances from previous sessions (mark stale as error, check connectivity)
+  workspaceProviderService.reconcileOnStartup().catch((error) => {
+    console.warn('Failed to reconcile workspace instances:', error);
   });
 
   // Warm provider installation cache

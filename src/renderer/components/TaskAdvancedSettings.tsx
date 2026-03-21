@@ -12,16 +12,20 @@ import { GitHubIssueSelector } from './GitHubIssueSelector';
 import JiraIssueSelector from './JiraIssueSelector';
 import { GitLabIssueSelector } from './GitLabIssueSelector';
 import { PlainThreadSelector } from './PlainThreadSelector';
+import { ForgejoIssueSelector } from './ForgejoIssueSelector';
 import LinearSetupForm from './integrations/LinearSetupForm';
 import JiraSetupForm from './integrations/JiraSetupForm';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
 import PlainSetupForm from './integrations/PlainSetupForm';
+import ForgejoSetupForm from './integrations/ForgejoSetupForm';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
 import { type JiraIssueSummary } from '../types/jira';
 import { type GitLabIssueSummary } from '../types/gitlab';
 import { type PlainThreadSummary } from '../types/plain';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 
 interface TaskAdvancedSettingsProps {
   isOpen: boolean;
@@ -30,6 +34,11 @@ interface TaskAdvancedSettingsProps {
   // Worktree
   useWorktree: boolean;
   onUseWorktreeChange: (value: boolean) => void;
+
+  // Remote workspace
+  useRemoteWorkspace: boolean;
+  onUseRemoteWorkspaceChange: (value: boolean) => void;
+  hasWorkspaceProvider: boolean;
 
   // Auto-approve
   autoApprove: boolean;
@@ -73,6 +82,12 @@ interface TaskAdvancedSettingsProps {
   onPlainThreadChange: (thread: PlainThreadSummary | null) => void;
   isPlainConnected: boolean | null;
   onPlainConnect: (apiKey: string) => Promise<void>;
+
+  // Forgejo
+  selectedForgejoIssue: ForgejoIssueSummary | null;
+  onForgejoIssueChange: (issue: ForgejoIssueSummary | null) => void;
+  isForgejoConnected: boolean | null;
+  onForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
@@ -80,6 +95,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   projectPath,
   useWorktree,
   onUseWorktreeChange,
+  useRemoteWorkspace,
+  onUseRemoteWorkspaceChange,
+  hasWorkspaceProvider,
   autoApprove,
   onAutoApproveChange,
   hasAutoApproveSupport,
@@ -109,8 +127,13 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onPlainThreadChange,
   isPlainConnected,
   onPlainConnect,
+  selectedForgejoIssue,
+  onForgejoIssueChange,
+  isForgejoConnected,
+  onForgejoConnect,
 }) => {
   const shouldReduceMotion = useReducedMotion();
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Linear setup state
@@ -137,6 +160,12 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const [plainApiKey, setPlainApiKey] = useState('');
   const [plainConnectionError, setPlainConnectionError] = useState<string | null>(null);
   const [autoOpenPlainSelector, setAutoOpenPlainSelector] = useState(false);
+
+  // Forgejo setup state
+  const [forgejoSetupOpen, setForgejoSetupOpen] = useState(false);
+  const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
+  const [forgejoToken, setForgejoToken] = useState('');
+  const [forgejoConnectionError, setForgejoConnectionError] = useState<string | null>(null);
 
   const handleLinearConnect = useCallback(async () => {
     const trimmedKey = linearApiKey.trim();
@@ -200,6 +229,21 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
   }, [plainApiKey, onPlainConnect]);
 
+  const handleForgejoConnect = useCallback(async () => {
+    setForgejoConnectionError(null);
+    try {
+      await onForgejoConnect({
+        instanceUrl: forgejoInstanceUrl.trim(),
+        token: forgejoToken.trim(),
+      });
+      setForgejoSetupOpen(false);
+      setForgejoInstanceUrl('');
+      setForgejoToken('');
+    } catch (error: any) {
+      setForgejoConnectionError(error?.message || 'Failed to connect.');
+    }
+  }, [forgejoInstanceUrl, forgejoToken, onForgejoConnect]);
+
   const handleLinearIssueChange = useCallback(
     (issue: LinearIssueSummary | null) => {
       onLinearIssueChange(issue);
@@ -208,6 +252,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
         onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -216,6 +261,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onJiraIssueChange,
       onGitlabIssueChange,
       onPlainThreadChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -227,6 +273,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
         onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -235,6 +282,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onJiraIssueChange,
       onGitlabIssueChange,
       onPlainThreadChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -246,6 +294,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onGitlabIssueChange(null);
         onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -254,6 +303,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onGitlabIssueChange,
       onPlainThreadChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -265,6 +315,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onJiraIssueChange(null);
         onPlainThreadChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -273,6 +324,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onJiraIssueChange,
       onPlainThreadChange,
+      onForgejoIssueChange,
     ]
   );
 
@@ -284,6 +336,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
         onGithubIssueChange(null);
         onJiraIssueChange(null);
         onGitlabIssueChange(null);
+        onForgejoIssueChange(null);
       }
     },
     [
@@ -292,6 +345,28 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
       onGithubIssueChange,
       onJiraIssueChange,
       onGitlabIssueChange,
+      onForgejoIssueChange,
+    ]
+  );
+
+  const handleForgejoIssueChange = useCallback(
+    (issue: ForgejoIssueSummary | null) => {
+      onForgejoIssueChange(issue);
+      if (issue) {
+        onLinearIssueChange(null);
+        onGithubIssueChange(null);
+        onJiraIssueChange(null);
+        onGitlabIssueChange(null);
+        onPlainThreadChange(null);
+      }
+    },
+    [
+      onForgejoIssueChange,
+      onLinearIssueChange,
+      onGithubIssueChange,
+      onJiraIssueChange,
+      onGitlabIssueChange,
+      onPlainThreadChange,
     ]
   );
 
@@ -313,6 +388,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     }
     if (selectedPlainThread) {
       return `e.g. Fix the customer-reported issue "${selectedPlainThread.title}" — describe any constraints.`;
+    }
+    if (selectedForgejoIssue) {
+      return `e.g. Fix the attached Forgejo issue #${selectedForgejoIssue.number} — describe any constraints.`;
     }
     return 'e.g. Summarize the key problems and propose a plan.';
   };
@@ -361,27 +439,51 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
           <AccordionContent className="space-y-4 overflow-hidden px-0 pt-2" id="task-advanced">
             <div className="flex flex-col gap-4 p-2">
               <div className="flex items-center gap-4">
-                <Label className="w-32 shrink-0">Run in worktree</Label>
-                <div className="min-w-0 flex-1">
+                <Label className="w-32 shrink-0">Workspace</Label>
+                <div className="min-w-0 flex-1 space-y-2">
                   <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
                     <Checkbox
-                      checked={useWorktree}
-                      onCheckedChange={(checked) => onUseWorktreeChange(checked === true)}
+                      checked={useWorktree && !useRemoteWorkspace}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          onUseWorktreeChange(true);
+                          onUseRemoteWorkspaceChange(false);
+                        } else {
+                          onUseWorktreeChange(false);
+                          onUseRemoteWorkspaceChange(false);
+                        }
+                      }}
                       className="mt-[1px]"
                     />
                     <div className="space-y-1">
-                      <span className="text-muted-foreground">
-                        {useWorktree
-                          ? 'Create isolated Git worktree (recommended)'
-                          : 'Work directly on current branch'}
-                      </span>
-                      {!useWorktree && (
+                      <span className="text-muted-foreground">Local worktree (recommended)</span>
+                      {!useWorktree && !useRemoteWorkspace && (
                         <p className="text-xs text-destructive">
-                          ⚠️ Changes will affect your current working directory
+                          Changes will affect your current working directory
                         </p>
                       )}
                     </div>
                   </label>
+                  {hasWorkspaceProvider && workspaceProviderEnabled && (
+                    <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                      <Checkbox
+                        checked={useRemoteWorkspace}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            onUseRemoteWorkspaceChange(true);
+                            onUseWorktreeChange(false);
+                          } else {
+                            onUseRemoteWorkspaceChange(false);
+                            onUseWorktreeChange(true);
+                          }
+                        }}
+                        className="mt-[1px]"
+                      />
+                      <span className="text-muted-foreground">
+                        Remote workspace (provision via script)
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -430,7 +532,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedGithubIssue ||
                         !!selectedJiraIssue ||
                         !!selectedGitlabIssue ||
-                        !!selectedPlainThread
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       autoOpen={autoOpenLinearSelector}
@@ -470,7 +573,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedJiraIssue ||
                         !!selectedLinearIssue ||
                         !!selectedGitlabIssue ||
-                        !!selectedPlainThread
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isGithubConnected ? 'Select a GitHub issue' : 'Select issue'}
@@ -516,7 +620,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedLinearIssue ||
                         !!selectedGithubIssue ||
                         !!selectedGitlabIssue ||
-                        !!selectedPlainThread
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isJiraConnected ? 'Select a Jira issue' : 'Select issue'}
@@ -553,7 +658,8 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                         !!selectedLinearIssue ||
                         !!selectedGithubIssue ||
                         !!selectedJiraIssue ||
-                        !!selectedPlainThread
+                        !!selectedPlainThread ||
+                        !!selectedForgejoIssue
                       }
                       className="w-full"
                       placeholder={isGitlabConnected ? 'Select a GitLab issue' : 'Select issue'}
@@ -604,6 +710,43 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                       variant="outline"
                       className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
                       onClick={() => setPlainSetupOpen(true)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                <Label htmlFor="forgejo-issue" className="pt-2">
+                  Forgejo issue
+                </Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <ForgejoIssueSelector
+                      projectPath={projectPath || ''}
+                      selectedIssue={selectedForgejoIssue}
+                      onIssueChange={handleForgejoIssueChange}
+                      isOpen={isOpen}
+                      disabled={
+                        !hasInitialPromptSupport ||
+                        !isForgejoConnected ||
+                        !!selectedLinearIssue ||
+                        !!selectedGithubIssue ||
+                        !!selectedJiraIssue ||
+                        !!selectedGitlabIssue
+                      }
+                      className="w-full"
+                      placeholder={isForgejoConnected ? 'Select a Forgejo issue' : 'Select issue'}
+                    />
+                  </div>
+                  {!isForgejoConnected && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 whitespace-nowrap border-border/50 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setForgejoSetupOpen(true)}
                     >
                       Connect
                     </Button>
@@ -760,6 +903,41 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 onClose={() => setPlainSetupOpen(false)}
                 canSubmit={!!plainApiKey.trim()}
                 error={plainConnectionError}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {forgejoSetupOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[1000] flex items-center justify-center px-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setForgejoSetupOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-xl border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ForgejoSetupForm
+                instanceUrl={forgejoInstanceUrl}
+                token={forgejoToken}
+                onChange={(u) => {
+                  if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
+                  if (typeof u.token === 'string') setForgejoToken(u.token);
+                }}
+                onClose={() => setForgejoSetupOpen(false)}
+                canSubmit={!!(forgejoInstanceUrl.trim() && forgejoToken.trim())}
+                error={forgejoConnectionError}
+                onSubmit={() => void handleForgejoConnect()}
               />
             </motion.div>
           </motion.div>

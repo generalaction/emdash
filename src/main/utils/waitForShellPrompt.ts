@@ -1,12 +1,10 @@
+import { stripAnsi } from '@shared/text/stripAnsi';
+
 /**
  * Matches common shell prompt endings: $, #, %, >, ❯ preceded by a non-digit, non-space character.
  * Each chunk is matched independently — prompts split across TCP segments rely on the timeout fallback.
  */
 const SHELL_PROMPT_RE = /\S.*(?<!\d)[#$%>❯]\s*$/;
-
-function stripAnsi(str: string): string {
-  return str.replace(/\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g, '');
-}
 
 export interface PromptWaitOptions {
   subscribe: (callback: (chunk: string) => void) => () => void;
@@ -48,7 +46,7 @@ export function waitForShellPrompt(options: PromptWaitOptions): PromptWaitHandle
 
   const unsubscribe = subscribe((chunk: string) => {
     if (done) return;
-    const clean = stripAnsi(chunk);
+    const clean = stripAnsi(chunk, { includePrivateCsiParams: true });
     if (SHELL_PROMPT_RE.test(clean)) {
       finish();
     }
