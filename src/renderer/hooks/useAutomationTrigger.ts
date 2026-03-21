@@ -4,7 +4,10 @@ import { useProjectManagementContext } from '../contexts/ProjectManagementProvid
 import { useToast } from './use-toast';
 import { rpc } from '../lib/rpc';
 import { makePtyId } from '@shared/ptyId';
-import { setAutomationRunPhase } from '../components/automations/useRunningAutomations';
+import {
+  setAutomationRunPhase,
+  clearAutomationRun,
+} from '../components/automations/useRunningAutomations';
 import type { Automation } from '@shared/automations/types';
 import type { ProviderId } from '@shared/providers/registry';
 
@@ -13,7 +16,10 @@ import type { ProviderId } from '@shared/providers/registry';
  * Creates a task and starts the agent fully in the background —
  * no view switching, no navigation away from the current screen.
  *
- * Emits phase updates so the AutomationCard can show live progress.
+ * Emits brief phase updates during the trigger sequence so the
+ * AutomationCard can show what's happening. Once the agent PTY
+ * is started the triggering state is cleared — long‑running
+ * tracking comes from the real task list.
  */
 export function useAutomationTrigger(): void {
   const { projects } = useProjectManagementContext();
@@ -99,7 +105,7 @@ export function useAutomationTrigger(): void {
         // ---------------------------------------------------------------
         // 3. Start the agent PTY in the background
         // ---------------------------------------------------------------
-        setAutomationRunPhase(automation.id, automation.name, 'starting-agent', { taskId });
+        setAutomationRunPhase(automation.id, automation.name, 'starting-agent');
 
         const ptyId = makePtyId(automation.agentId as ProviderId, 'main', taskId);
         await window.electronAPI.ptyStartDirect({
@@ -110,8 +116,10 @@ export function useAutomationTrigger(): void {
           initialPrompt: automation.prompt,
         });
 
-        // Phase: Agent is now running
-        setAutomationRunPhase(automation.id, automation.name, 'running', { taskId });
+        // Agent started — clear the triggering state.
+        // The real task now lives in the task list and can be
+        // tracked via useTaskStatus / useTaskBusy.
+        clearAutomationRun(automation.id);
 
         toast({
           title: 'Automation running',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, RefreshCw, Loader2, Timer, Search, Zap, Activity } from 'lucide-react';
+import { Plus, RefreshCw, Loader2, Timer, Search, Zap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -15,9 +15,9 @@ import {
 } from '../ui/alert-dialog';
 import AutomationCard from './AutomationCard';
 import AutomationModal from './AutomationModal';
+import AutomationRunningTasks from './AutomationRunningTasks';
 import RunLogsModal from './RunLogsModal';
 import { useAutomations } from './useAutomations';
-import { useRunningAutomations } from './useRunningAutomations';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import type { Automation, CreateAutomationInput } from '@shared/automations/types';
 
@@ -74,8 +74,6 @@ const AutomationsView: React.FC = () => {
     await triggerNow(id);
   };
 
-  const { allRunning, isRunning } = useRunningAutomations();
-
   const filteredAutomations = searchQuery
     ? automations.filter(
         (a) =>
@@ -85,11 +83,8 @@ const AutomationsView: React.FC = () => {
       )
     : automations;
 
-  // Separate currently-running automations from the rest
-  const runningAutomations = filteredAutomations.filter((a) => isRunning(a.id));
-  const nonRunningFiltered = filteredAutomations.filter((a) => !isRunning(a.id));
-  const activeAutomations = nonRunningFiltered.filter((a) => a.status === 'active');
-  const pausedAutomations = nonRunningFiltered.filter((a) => a.status !== 'active');
+  const activeAutomations = filteredAutomations.filter((a) => a.status === 'active');
+  const pausedAutomations = filteredAutomations.filter((a) => a.status !== 'active');
 
   if (isLoading) {
     return (
@@ -186,32 +181,8 @@ const AutomationsView: React.FC = () => {
           </div>
         )}
 
-        {/* Running Now — shown when any automation is actively being triggered */}
-        {runningAutomations.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-blue-600 dark:text-blue-400">
-              <Activity className="h-3 w-3" />
-              Running Now
-              <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500/15 px-1 text-[10px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
-                {runningAutomations.length}
-              </span>
-            </h2>
-            <div className="space-y-3">
-              {runningAutomations.map((automation) => (
-                <AutomationCard
-                  key={automation.id}
-                  automation={automation}
-                  projects={projects}
-                  onEdit={setEditingAutomation}
-                  onToggle={handleToggle}
-                  onDelete={setDeleteTarget}
-                  onTriggerNow={handleTriggerNow}
-                  onViewLogs={setLogsAutomation}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Automation tasks (created by automations, with stop/delete) */}
+        <AutomationRunningTasks />
 
         {/* Active automations */}
         {activeAutomations.length > 0 && (

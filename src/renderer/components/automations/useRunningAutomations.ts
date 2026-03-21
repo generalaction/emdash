@@ -1,12 +1,19 @@
 import { useSyncExternalStore, useCallback } from 'react';
 
+/**
+ * Tracks the *brief* triggering phase when a user clicks "Run now".
+ *
+ * Phases flow: preparing → creating-worktree → saving-task → starting-agent → (auto‑clear)
+ *
+ * This store does NOT track long‑running agent work. For that, look at
+ * the real Task list with `metadata.automationId` + `useTaskStatus`.
+ */
+
 export type AutomationRunPhase =
   | 'preparing'
   | 'creating-worktree'
   | 'saving-task'
   | 'starting-agent'
-  | 'running'
-  | 'done'
   | 'error';
 
 export interface AutomationRunState {
@@ -14,7 +21,6 @@ export interface AutomationRunState {
   automationName: string;
   phase: AutomationRunPhase;
   startedAt: number;
-  taskId?: string;
   error?: string;
 }
 
@@ -23,8 +29,6 @@ const PHASE_LABELS: Record<AutomationRunPhase, string> = {
   'creating-worktree': 'Creating worktree…',
   'saving-task': 'Saving task…',
   'starting-agent': 'Starting agent…',
-  running: 'Agent is running',
-  done: 'Completed',
   error: 'Failed',
 };
 
@@ -33,7 +37,7 @@ export function getPhaseLabel(phase: AutomationRunPhase): string {
 }
 
 // ---------------------------------------------------------------------------
-// Tiny external store so any component can subscribe without a context wrapper
+// Tiny external store — no context wrapper needed
 // ---------------------------------------------------------------------------
 type Listener = () => void;
 
@@ -41,7 +45,6 @@ let runs: Map<string, AutomationRunState> = new Map();
 const listeners: Set<Listener> = new Set();
 
 function emitChange(): void {
-  // Create a new Map reference so useSyncExternalStore sees a change
   runs = new Map(runs);
   for (const l of listeners) l();
 }
@@ -56,31 +59,17 @@ function getSnapshot(): Map<string, AutomationRunState> {
 }
 
 // ---------------------------------------------------------------------------
-// Public mutation API (called from useAutomationTrigger)
+// Public API — called from useAutomationTrigger
 // ---------------------------------------------------------------------------
+
 export function setAutomationRunPhase(
   automationId: string,
   automationName: string,
   phase: AutomationRunPhase,
-  extra?: { taskId?: string; error?: string }
+  extra?: { error?: string }
 ): void {
   const existing = runs.get(automationId);
-  if (phase === 'done') {
-    // Remove after a short delay so the user sees the "done" briefly
-    runs.set(automationId, {
-      ...(existing ?? { automationId, automationName, startedAt: Date.now() }),
-      automationId,
-      automationName,
-      phase,
-      ...extra,
-    });
-    emitChange();
-    setTimeout(() => {
-      runs.delete(automationId);
-      emitChange();
-    }, 3000);
-    return;
-  }
+
   if (phase === 'error') {
     runs.set(automationId, {
       ...(existing ?? { automationId, automationName, startedAt: Date.now() }),
@@ -90,13 +79,14 @@ export function setAutomationRunPhase(
       ...extra,
     });
     emitChange();
-    // Keep error visible a bit longer, then clean up
+    // Auto-clear error after a few seconds
     setTimeout(() => {
       runs.delete(automationId);
       emitChange();
-    }, 8000);
+    }, 6000);
     return;
   }
+
   runs.set(automationId, {
     automationId,
     automationName,
@@ -107,7 +97,9 @@ export function setAutomationRunPhase(
   emitChange();
 }
 
+/** Clear the triggering state (called once agent PTY is started) */
 export function clearAutomationRun(automationId: string): void {
+  if (!runs.has(automationId)) return;
   runs.delete(automationId);
   emitChange();
 }
@@ -118,14 +110,6 @@ export function clearAutomationRun(automationId: string): void {
 export function useRunningAutomations() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const isRunning = useCallback(
-    (automationId: string): boolean => {
-      const r = snapshot.get(automationId);
-      return !!r && r.phase !== 'done' && r.phase !== 'error';
-    },
-    [snapshot]
-  );
-
   const getRunState = useCallback(
     (automationId: string): AutomationRunState | undefined => {
       return snapshot.get(automationId);
@@ -133,9 +117,7 @@ export function useRunningAutomations() {
     [snapshot]
   );
 
-  const allRunning = Array.from(snapshot.values()).filter(
-    (r) => r.phase !== 'done' && r.phase !== 'error'
-  );
+  const triggeringCount = snapshot.size;
 
-  return { isRunning, getRunState, allRunning, snapshot };
+  return { getRunState, triggeringCount };
 }
