@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ExternalLink, Settings } from 'lucide-react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
@@ -34,6 +35,14 @@ interface TaskAdvancedSettingsProps {
   // Worktree
   useWorktree: boolean;
   onUseWorktreeChange: (value: boolean) => void;
+
+  // Custom branch and worktree names
+  customBranchName: string;
+  onCustomBranchNameChange: (value: string) => void;
+  branchNameError: string | null;
+  customWorktreeName: string;
+  onCustomWorktreeNameChange: (value: string) => void;
+  worktreeNameError: string | null;
 
   // Remote workspace
   useRemoteWorkspace: boolean;
@@ -95,6 +104,12 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   projectPath,
   useWorktree,
   onUseWorktreeChange,
+  customBranchName,
+  onCustomBranchNameChange,
+  branchNameError,
+  customWorktreeName,
+  onCustomWorktreeNameChange,
+  worktreeNameError,
   useRemoteWorkspace,
   onUseRemoteWorkspaceChange,
   hasWorkspaceProvider,
@@ -135,6 +150,26 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const shouldReduceMotion = useReducedMotion();
   const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Derive a suggested worktree folder name from the branch name for the placeholder
+  const getWorktreePlaceholder = (): string => {
+    const trimmed = customBranchName.trim();
+    if (!trimmed) return 'Leave empty to auto-generate';
+
+    // Take the part after the last slash, or the whole string if no slash
+    const lastSlashIndex = trimmed.lastIndexOf('/');
+    const baseName = lastSlashIndex >= 0 ? trimmed.slice(lastSlashIndex + 1) : trimmed;
+
+    // Sanitize for display
+    const sanitized = baseName
+      .replace(/[\\:*?"<>|]/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 100);
+
+    return sanitized ? `e.g. ${sanitized}` : 'Leave empty to auto-generate';
+  };
 
   // Linear setup state
   const [linearSetupOpen, setLinearSetupOpen] = useState(false);
@@ -486,6 +521,46 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                   )}
                 </div>
               </div>
+
+              {useWorktree && (
+                <>
+                  <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                    <Label htmlFor="custom-branch-name" className="pt-2">
+                      Branch name
+                    </Label>
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        id="custom-branch-name"
+                        value={customBranchName}
+                        onChange={(e) => onCustomBranchNameChange(e.target.value)}
+                        placeholder="Leave empty to auto-generate"
+                        className={branchNameError ? 'border-destructive' : ''}
+                      />
+                      {branchNameError && (
+                        <p className="mt-1 text-xs text-destructive">{branchNameError}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[128px_1fr] items-start gap-4">
+                    <Label htmlFor="custom-worktree-name" className="pt-2">
+                      Worktree folder
+                    </Label>
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        id="custom-worktree-name"
+                        value={customWorktreeName}
+                        onChange={(e) => onCustomWorktreeNameChange(e.target.value)}
+                        placeholder={getWorktreePlaceholder()}
+                        className={worktreeNameError ? 'border-destructive' : ''}
+                      />
+                      {worktreeNameError && (
+                        <p className="mt-1 text-xs text-destructive">{worktreeNameError}</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {hasAutoApproveSupport ? (
                 <div className="flex items-center gap-4">
