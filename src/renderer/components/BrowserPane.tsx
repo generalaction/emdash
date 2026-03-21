@@ -2,6 +2,7 @@ import React from 'react';
 import { X, ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useBrowser } from '@/providers/BrowserProvider';
 import { cn } from '@/lib/utils';
+import { normalizeAddressBarUrl } from '@/lib/browserPaneUtils';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Button } from './ui/button';
@@ -259,28 +260,32 @@ const BrowserPane: React.FC<{
       return;
     }
 
-    requestAnimationFrame(() => {
-      const bounds = computeBounds();
-      if (bounds && bounds.width > 0 && bounds.height > 0) {
-        if (hasBoundsChanged(bounds)) {
-          lastBoundsRef.current = bounds;
-          try {
-            (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
-            setTimeout(() => {
-              const updatedBounds = computeBounds();
-              if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
-                if (hasBoundsChanged(updatedBounds)) {
-                  lastBoundsRef.current = updatedBounds;
-                  try {
-                    (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
-                  } catch {}
+    // Delay show until after browserLoadURL has fired (URL_LOAD_DELAY_MS) to avoid
+    // a white flash caused by the WebContentsView becoming visible before the URL loads.
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        const bounds = computeBounds();
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+          if (hasBoundsChanged(bounds)) {
+            lastBoundsRef.current = bounds;
+            try {
+              (window as any).electronAPI?.browserShow?.(bounds, url || undefined);
+              setTimeout(() => {
+                const updatedBounds = computeBounds();
+                if (updatedBounds && updatedBounds.width > 0 && updatedBounds.height > 0) {
+                  if (hasBoundsChanged(updatedBounds)) {
+                    lastBoundsRef.current = updatedBounds;
+                    try {
+                      (window as any).electronAPI?.browserSetBounds?.(updatedBounds);
+                    } catch {}
+                  }
                 }
-              }
-            }, BOUNDS_UPDATE_DELAY_MS);
-          } catch {}
+              }, BOUNDS_UPDATE_DELAY_MS);
+            } catch {}
+          }
         }
-      }
-    });
+      });
+    }, URL_LOAD_DELAY_MS + 20);
 
     const onResize = () => {
       const bounds = computeBounds();
@@ -436,16 +441,16 @@ const BrowserPane: React.FC<{
 
   return (
     <div
-      className={cn(
-        'fixed bottom-0 left-0 right-0 z-[70] overflow-hidden',
-        paneVisible ? 'pointer-events-auto' : 'pointer-events-none'
-      )}
-      // Offset below the app titlebar so the pane’s toolbar is visible
+      className="pointer-events-none fixed bottom-0 left-0 right-0 z-[70] overflow-hidden"
+      // Offset below the app titlebar so the pane's toolbar is visible
       style={{ top: 'var(--tb, 36px)' }}
       aria-hidden={!paneVisible}
     >
       <div
-        className="absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl"
+        className={cn(
+          'absolute right-0 top-0 h-full border-l border-border bg-background shadow-xl',
+          paneVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        )}
         style={{
           width: `${widthPct}%`,
           transform: paneVisible ? 'translateX(0)' : 'translateX(100%)',
@@ -492,8 +497,7 @@ const BrowserPane: React.FC<{
             className="mx-2 flex min-w-0 flex-1"
             onSubmit={(e) => {
               e.preventDefault();
-              let next = address.trim();
-              if (!/^https?:\/\//i.test(next)) next = `http://${next}`;
+              const next = normalizeAddressBarUrl(address);
               navigate(next);
             }}
           >
