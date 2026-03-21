@@ -147,7 +147,7 @@ describe('GitHubService.isAuthenticated', () => {
     prCountStdout = '42';
 
     const service = new GitHubService();
-    const result = await service.getPullRequests('/tmp/repo', 10);
+    const result = await service.getPullRequests('/tmp/repo', { limit: 10 });
 
     expect(result.totalCount).toBe(42);
     expect(result.prs.map((pr) => pr.number)).toEqual([9, 8]);
@@ -155,5 +155,29 @@ describe('GitHubService.isAuthenticated', () => {
       execCalls.find((cmd) => cmd.startsWith('gh pr list --state open --limit 10'))
     ).toBeDefined();
     expect(execCalls.find((cmd) => cmd.startsWith('gh api search/issues'))).toBeDefined();
+  });
+
+  it('passes search queries through to gh pr list and the filtered count lookup', async () => {
+    prListStdout = JSON.stringify([
+      { number: 17, title: 'Needs review', updatedAt: '2026-03-04T10:00:00.000Z' },
+    ]);
+    prCountStdout = '3';
+
+    const service = new GitHubService();
+    const result = await service.getPullRequests('/tmp/repo', {
+      limit: 25,
+      searchQuery: 'review-requested:@me draft:false',
+    });
+
+    expect(result.totalCount).toBe(3);
+    expect(result.prs.map((pr) => pr.number)).toEqual([17]);
+    expect(
+      execCalls.find((cmd) => cmd.includes("--search 'review-requested:@me draft:false'"))
+    ).toBeDefined();
+    expect(
+      execCalls.find((cmd) =>
+        cmd.includes('repo:generalaction/emdash is:pr is:open review-requested:@me draft:false')
+      )
+    ).toBeDefined();
   });
 });

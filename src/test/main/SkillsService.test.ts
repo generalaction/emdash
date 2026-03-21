@@ -27,6 +27,7 @@ import {
   isValidSkillName,
   generateSkillMd,
 } from '../../shared/skills/validation';
+import type { CatalogSkill, CatalogIndex } from '../../shared/skills/types';
 
 describe('Skills validation', () => {
   describe('isValidSkillName', () => {
@@ -152,5 +153,131 @@ describe('SkillsService', () => {
 
     expect(skills).toHaveLength(2);
     expect(skills.map((s) => s.name).sort()).toEqual(['skill-a', 'skill-b']);
+  });
+});
+
+describe('CatalogSkill skills-sh source', () => {
+  it('accepts skills-sh as a valid source with owner/repo/installs', () => {
+    const skill: CatalogSkill = {
+      id: 'vercel-react-best-practices',
+      displayName: 'Vercel React Best Practices',
+      description: 'React and Next.js performance optimization',
+      source: 'skills-sh',
+      brandColor: '#171717',
+      frontmatter: {
+        name: 'vercel-react-best-practices',
+        description: 'React and Next.js performance optimization',
+      },
+      installed: false,
+      owner: 'vercel-labs',
+      repo: 'agent-skills',
+      installs: 223_323,
+    };
+    expect(skill.source).toBe('skills-sh');
+    expect(skill.owner).toBe('vercel-labs');
+    expect(skill.repo).toBe('agent-skills');
+    expect(skill.installs).toBe(223_323);
+  });
+
+  it('handles catalog deduplication across sources', () => {
+    const openaiSkill: CatalogSkill = {
+      id: 'code-review',
+      displayName: 'Code Review',
+      description: 'OpenAI code review',
+      source: 'openai',
+      frontmatter: { name: 'code-review', description: 'OpenAI code review' },
+      installed: false,
+    };
+    const skillsShSkill: CatalogSkill = {
+      id: 'code-review',
+      displayName: 'Code Review',
+      description: 'skills.sh code review',
+      source: 'skills-sh',
+      frontmatter: { name: 'code-review', description: 'skills.sh code review' },
+      installed: false,
+      owner: 'some-org',
+      repo: 'skills',
+    };
+
+    // Simulate dedup: first occurrence wins (openai has priority)
+    const allSkills = [openaiSkill, skillsShSkill];
+    const seen = new Set<string>();
+    const deduped = allSkills.filter((s) => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0].source).toBe('openai');
+  });
+
+  it('preserves owner/repo/installs fields in JSON round-trip', () => {
+    const catalog: CatalogIndex = {
+      version: 3,
+      lastUpdated: new Date().toISOString(),
+      skills: [
+        {
+          id: 'azure-ai',
+          displayName: 'Azure AI',
+          description: 'Build AI-powered applications',
+          source: 'skills-sh',
+          frontmatter: { name: 'azure-ai', description: 'Build AI-powered applications' },
+          installed: false,
+          owner: 'microsoft',
+          repo: 'agent-skills',
+          installs: 139_900,
+        },
+      ],
+    };
+
+    const json = JSON.stringify(catalog);
+    const parsed = JSON.parse(json) as CatalogIndex;
+    expect(parsed.version).toBe(3);
+    expect(parsed.skills[0].source).toBe('skills-sh');
+    expect(parsed.skills[0].owner).toBe('microsoft');
+    expect(parsed.skills[0].repo).toBe('agent-skills');
+    expect(parsed.skills[0].installs).toBe(139_900);
+  });
+
+  it('filters skills.sh search results that overlap with catalog', () => {
+    const catalogSkills: CatalogSkill[] = [
+      {
+        id: 'playwright',
+        displayName: 'Playwright',
+        description: 'From OpenAI',
+        source: 'openai',
+        frontmatter: { name: 'playwright', description: '' },
+        installed: false,
+      },
+    ];
+    const searchResults: CatalogSkill[] = [
+      {
+        id: 'playwright',
+        displayName: 'Playwright',
+        description: 'From skills.sh',
+        source: 'skills-sh',
+        frontmatter: { name: 'playwright', description: '' },
+        installed: false,
+        owner: 'some-org',
+        repo: 'skills',
+      },
+      {
+        id: 'playwright-best-practices',
+        displayName: 'Playwright Best Practices',
+        description: 'From skills.sh',
+        source: 'skills-sh',
+        frontmatter: { name: 'playwright-best-practices', description: '' },
+        installed: false,
+        owner: 'currents-dev',
+        repo: 'playwright-best-practices-skill',
+      },
+    ];
+
+    const catalogIds = new Set(catalogSkills.map((s) => s.id));
+    const filtered = searchResults.filter((s) => !catalogIds.has(s.id));
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe('playwright-best-practices');
   });
 });

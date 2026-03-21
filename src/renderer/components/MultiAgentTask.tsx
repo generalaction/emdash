@@ -4,7 +4,7 @@ import { type Agent } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import OpenInMenu from './titlebar/OpenInMenu';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import { agentMeta } from '@/providers/meta';
 import { agentAssets } from '@/providers/assets';
 import AgentLogo from './AgentLogo';
@@ -16,8 +16,10 @@ import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useCommentInjection } from '@/hooks/useCommentInjection';
 import { isSlashCommandInput } from '@/lib/slashCommand';
 import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
@@ -58,6 +60,8 @@ const MultiAgentTask: React.FC<Props> = ({
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
+  const { connectionId: wsConnectionId } = useWorkspaceConnection(task);
+  const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
   const multi = task.metadata?.multiAgent;
   const variants = (multi?.variants || []) as Variant[];
 
@@ -465,8 +469,10 @@ const MultiAgentTask: React.FC<Props> = ({
     activityStore.setTaskBusy(task.id, anyBusy);
   }, [variantBusy, task.id]);
 
-  // Ref to the active terminal
-  const activeTerminalRef = useRef<{ focus: () => void }>(null);
+  // Ref to control terminal focus and viewport scrolling imperatively.
+  const activeTerminalRef = useRef<TerminalPaneHandle>(null);
+  const handleTerminalViewportWheelForwarding =
+    useTerminalViewportWheelForwarding(activeTerminalRef);
 
   // Auto-scroll and focus when task or active tab changes
   useEffect(() => {
@@ -571,8 +577,8 @@ const MultiAgentTask: React.FC<Props> = ({
                   />
                   <OpenInMenu
                     path={v.path}
-                    isRemote={!!projectRemoteConnectionId}
-                    sshConnectionId={projectRemoteConnectionId}
+                    isRemote={!!effectiveConnectionId}
+                    sshConnectionId={effectiveConnectionId}
                     isActive={isActive}
                   />
                 </div>
@@ -624,7 +630,10 @@ const MultiAgentTask: React.FC<Props> = ({
                     </div>
                   </TooltipProvider>
                 </div>
-                <div className="min-h-0 flex-1 px-6 pt-4">
+                <div
+                  className="min-h-0 flex-1 px-6 pt-4"
+                  onWheelCapture={handleTerminalViewportWheelForwarding}
+                >
                   <div
                     className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                       v.agent === 'mistral'
@@ -641,9 +650,7 @@ const MultiAgentTask: React.FC<Props> = ({
                       id={`${v.worktreeId}-main`}
                       cwd={v.path}
                       remote={
-                        projectRemoteConnectionId
-                          ? { connectionId: projectRemoteConnectionId }
-                          : undefined
+                        effectiveConnectionId ? { connectionId: effectiveConnectionId } : undefined
                       }
                       providerId={v.agent}
                       env={variantEnvs.get(v.worktreeId || v.path)}

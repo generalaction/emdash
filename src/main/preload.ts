@@ -3,6 +3,8 @@ import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
 import type { McpServer } from '../shared/mcp/types';
+import type { DiffPayload } from '../shared/diff/types';
+import type { GitIndexUpdateArgs } from '../shared/git/types';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -69,6 +71,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
       handlers.push(() => ipcRenderer.removeListener(channel, wrapped));
     }
     return () => handlers.forEach((off) => off());
+  },
+
+  // Window controls (custom title bar on Windows/Linux)
+  windowMinimize: () => ipcRenderer.invoke('app:windowMinimize'),
+  windowMaximize: () => ipcRenderer.invoke('app:windowMaximize'),
+  windowClose: () => ipcRenderer.invoke('app:windowClose'),
+  windowIsMaximized: () => ipcRenderer.invoke('app:windowIsMaximized') as Promise<boolean>,
+  popupMenu: (args: { label: string; x: number; y: number }) =>
+    ipcRenderer.invoke('app:popupMenu', args),
+  onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => {
+    const onMaximize = () => listener(true);
+    const onUnmaximize = () => listener(false);
+    ipcRenderer.on('window:maximized', onMaximize);
+    ipcRenderer.on('window:unmaximized', onUnmaximize);
+    return () => {
+      ipcRenderer.removeListener('window:maximized', onMaximize);
+      ipcRenderer.removeListener('window:unmaximized', onUnmaximize);
+    };
   },
 
   // Open a path in a specific app
@@ -335,6 +355,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
     ipcRenderer.invoke('fs:saveProjectConfig', { projectPath, content }),
+  ensureGitignore: (projectPath: string, patterns: string[]) =>
+    ipcRenderer.invoke('fs:ensureGitignore', { projectPath, patterns }),
   // Attachments
   saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) =>
     ipcRenderer.invoke('fs:save-attachment', args),
@@ -350,14 +372,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
-  getGitStatus: (taskPath: string) => ipcRenderer.invoke('git:get-status', taskPath),
+  getGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:get-status', arg),
   getDeleteRisks: (args: {
     targets: Array<{ id: string; taskPath: string }>;
     includePr?: boolean;
   }) => ipcRenderer.invoke('git:get-delete-risks', args),
-  watchGitStatus: (taskPath: string) => ipcRenderer.invoke('git:watch-status', taskPath),
-  unwatchGitStatus: (taskPath: string, watchId?: string) =>
-    ipcRenderer.invoke('git:unwatch-status', taskPath, watchId),
+  watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:watch-status', arg),
+  unwatchGitStatus: (arg: string | { taskPath: string; taskId?: string }, watchId?: string) =>
+    ipcRenderer.invoke('git:unwatch-status', arg, watchId),
   onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
     attachGitStatusBridgeOnce();
     gitStatusChangedListeners.add(listener);
@@ -365,14 +389,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: { taskPath: string; filePath: string; baseRef?: string }) =>
-    ipcRenderer.invoke('git:get-file-diff', args),
-  stageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:stage-file', args),
-  stageAllFiles: (args: { taskPath: string }) => ipcRenderer.invoke('git:stage-all-files', args),
-  unstageFile: (args: { taskPath: string; filePath: string }) =>
-    ipcRenderer.invoke('git:unstage-file', args),
-  revertFile: (args: { taskPath: string; filePath: string }) =>
+  getFileDiff: (args: {
+    taskPath: string;
+    taskId?: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-file-diff', args),
+  updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) =>
+    ipcRenderer.invoke('git:update-index', args),
+  revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommit: (args: { taskPath: string; message: string }) =>
     ipcRenderer.invoke('git:commit', args),
@@ -384,11 +410,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:get-latest-commit', args),
   gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
     ipcRenderer.invoke('git:get-commit-files', args),
-  gitGetCommitFileDiff: (args: { taskPath: string; commitHash: string; filePath: string }) =>
-    ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitGetCommitFileDiff: (args: {
+    taskPath: string;
+    commitHash: string;
+    filePath: string;
+    forceLarge?: boolean;
+  }) => ipcRenderer.invoke('git:get-commit-file-diff', args),
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
   gitCommitAndPush: (args: {
     taskPath: string;
+    taskId?: string;
     commitMessage?: string;
     createBranchIfOnDefault?: boolean;
     branchPrefix?: string;
@@ -405,7 +436,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     web?: boolean;
     fill?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
-  mergeToMain: (args: { taskPath: string }) => ipcRenderer.invoke('git:merge-to-main', args),
+  mergeToMain: (args: { taskPath: string; taskId?: string }) =>
+    ipcRenderer.invoke('git:merge-to-main', args),
   mergePr: (args: {
     taskPath: string;
     prNumber?: number;
@@ -423,7 +455,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCheckRuns: (args: { taskPath: string }) => ipcRenderer.invoke('git:get-check-runs', args),
   getPrComments: (args: { taskPath: string; prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
-  getBranchStatus: (args: { taskPath: string }) =>
+  getBranchStatus: (args: { taskPath: string; taskId?: string }) =>
     ipcRenderer.invoke('git:get-branch-status', args),
   renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) =>
     ipcRenderer.invoke('git:rename-branch', args),
@@ -440,8 +472,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setOnboardingSeen: (flag: boolean) => ipcRenderer.invoke('telemetry:set-onboarding-seen', flag),
   connectToGitHub: (projectPath: string) => ipcRenderer.invoke('github:connect', projectPath),
 
+  // Emdash Account
+  accountGetSession: () => ipcRenderer.invoke('account:getSession'),
+  accountSignIn: () => ipcRenderer.invoke('account:signIn'),
+  accountSignOut: () => ipcRenderer.invoke('account:signOut'),
+  accountCheckServerHealth: () => ipcRenderer.invoke('account:checkServerHealth'),
+  accountValidateSession: () => ipcRenderer.invoke('account:validateSession'),
+
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
+  githubAuthOAuth: () => ipcRenderer.invoke('github:auth:oauth'),
   githubCancelAuth: () => ipcRenderer.invoke('github:auth:cancel'),
 
   // GitHub auth event listeners
@@ -504,7 +544,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPrivate: boolean;
     gitignoreTemplate?: string;
   }) => ipcRenderer.invoke('github:createNewProject', params),
-  githubListPullRequests: (args: { projectPath: string; limit?: number }) =>
+  githubListPullRequests: (args: { projectPath: string; limit?: number; searchQuery?: string }) =>
     ipcRenderer.invoke('github:listPullRequests', args),
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
@@ -749,12 +789,64 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Skills management
   skillsGetCatalog: () => ipcRenderer.invoke('skills:getCatalog'),
   skillsRefreshCatalog: () => ipcRenderer.invoke('skills:refreshCatalog'),
-  skillsInstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:install', args),
+  skillsInstall: (args: { skillId: string; source?: { owner: string; repo: string } }) =>
+    ipcRenderer.invoke('skills:install', args),
   skillsUninstall: (args: { skillId: string }) => ipcRenderer.invoke('skills:uninstall', args),
-  skillsGetDetail: (args: { skillId: string }) => ipcRenderer.invoke('skills:getDetail', args),
+  skillsGetDetail: (args: { skillId: string; source?: { owner: string; repo: string } }) =>
+    ipcRenderer.invoke('skills:getDetail', args),
   skillsGetDetectedAgents: () => ipcRenderer.invoke('skills:getDetectedAgents'),
+  skillsSearch: (args: { query: string }) => ipcRenderer.invoke('skills:search', args),
   skillsCreate: (args: { name: string; description: string }) =>
     ipcRenderer.invoke('skills:create', args),
+
+  // Workspace provisioning
+  workspaceProvision: (args: {
+    taskId: string;
+    repoUrl: string;
+    branch: string;
+    baseRef: string;
+    provisionCommand: string;
+    projectPath: string;
+  }) => ipcRenderer.invoke('workspace:provision', args),
+  workspaceCancel: (args: { instanceId: string }) => ipcRenderer.invoke('workspace:cancel', args),
+  workspaceTerminate: (args: {
+    instanceId: string;
+    terminateCommand: string;
+    projectPath: string;
+    env?: Record<string, string>;
+  }) => ipcRenderer.invoke('workspace:terminate', args),
+  workspaceStatus: (args: { taskId: string }) => ipcRenderer.invoke('workspace:status', args),
+  onWorkspaceProvisionProgress: (
+    listener: (data: { instanceId: string; line: string }) => void
+  ) => {
+    const channel = 'workspace:provision-progress';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { instanceId: string; line: string }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string; timeoutMs: number }) => void
+  ) => {
+    const channel = 'workspace:provision-timeout-warning';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { instanceId: string; timeoutMs: number }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onWorkspaceProvisionComplete: (
+    listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => {
+    const channel = 'workspace:provision-complete';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { instanceId: string; status: string; error?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
 
   // MCP
   mcpLoadAll: () => ipcRenderer.invoke('mcp:load-all'),
@@ -989,8 +1081,9 @@ export interface ElectronAPI {
     changes?: Array<{
       path: string;
       status: string;
-      additions: number;
-      deletions: number;
+      additions: number | null;
+      deletions: number | null;
+      isStaged: boolean;
       diff?: string;
     }>;
     error?: string;
@@ -1006,6 +1099,7 @@ export interface ElectronAPI {
         staged: number;
         unstaged: number;
         untracked: number;
+        files: string[];
         ahead: number;
         behind: number;
         error?: string;
@@ -1036,9 +1130,23 @@ export interface ElectronAPI {
   onGitStatusChanged: (
     listener: (data: { taskPath: string; error?: string }) => void
   ) => () => void;
-  getFileDiff: (args: { taskPath: string; filePath: string }) => Promise<{
+  getFileDiff: (args: {
+    taskPath: string;
+    filePath: string;
+    baseRef?: string;
+    forceLarge?: boolean;
+  }) => Promise<{
     success: boolean;
-    diff?: { lines: Array<{ left?: string; right?: string; type: 'context' | 'add' | 'del' }> };
+    diff?: DiffPayload;
+    error?: string;
+  }>;
+  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+    success: boolean;
+    action?: 'reverted';
     error?: string;
   }>;
   gitCommitAndPush: (args: {
@@ -1153,6 +1261,7 @@ export interface ElectronAPI {
       branch: string;
       projectId: string;
       status: string;
+      agentId: string;
       metadata?: { prNumber?: number; prTitle?: string | null };
     };
     error?: string;

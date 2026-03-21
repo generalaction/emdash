@@ -7,26 +7,26 @@ import type { ProviderId } from '@shared/providers/registry';
 
 /**
  * Injects an initial prompt into the provider's terminal once the PTY is ready.
- * One-shot per task. Provider-agnostic.
+ * One-shot per PTY scope. Provider-agnostic.
  */
 export function useInitialPromptInjection(opts: {
-  taskId: string;
+  scopeId: string;
   providerId: string; // codex | claude | ... used for PTY id prefix
   prompt?: string | null;
   enabled?: boolean;
+  ptyKind?: 'main' | 'chat';
 }) {
-  const { taskId, providerId, prompt, enabled = true } = opts;
+  const { scopeId, providerId, prompt, enabled = true, ptyKind = 'main' } = opts;
 
   useEffect(() => {
     if (!enabled) return;
     const trimmed = (prompt || '').trim();
     if (!trimmed) return;
-    const sentKey = initialPromptSentKey(taskId, providerId);
+    const sentKey = initialPromptSentKey(scopeId, providerId);
     if (localStorage.getItem(sentKey) === '1') return;
 
-    const ptyId = makePtyId(providerId as ProviderId, 'main', taskId);
+    const ptyId = makePtyId(providerId as ProviderId, ptyKind, scopeId);
     let sent = false;
-    let idleSeen = false;
     let silenceTimer: any = null;
     const send = () => {
       try {
@@ -49,7 +49,6 @@ export function useInitialPromptInjection(opts: {
       try {
         const signal = classifyActivity(providerId, sampleActivityChunk(chunk));
         if (signal === 'idle' && !sent) {
-          idleSeen = true;
           setTimeout(send, 250);
         }
       } catch {
@@ -75,5 +74,5 @@ export function useInitialPromptInjection(opts: {
       offStarted?.();
       offData?.();
     };
-  }, [enabled, taskId, providerId, prompt]);
+  }, [enabled, scopeId, providerId, prompt, ptyKind]);
 }

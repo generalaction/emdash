@@ -28,7 +28,9 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  vscodium: 'vscodium.png',
   terminal: 'terminal.png',
+  xcode: 'xcode.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
@@ -37,6 +39,7 @@ const ICON_PATHS = {
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
+  'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
 } as const;
 
@@ -97,16 +100,68 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
           'open -n -a "Visual Studio Code" {{path}}',
         ],
         checkCommands: ['code'],
-        bundleIds: ['com.microsoft.VSCode', 'com.microsoft.VSCodeInsiders'],
+        bundleIds: ['com.microsoft.VSCode'],
         appNames: ['Visual Studio Code'],
       },
       win32: {
-        openCommands: ['start "" code {{path}}', 'start "" code-insiders {{path}}'],
-        checkCommands: ['code', 'code-insiders'],
+        openCommands: ['start "" code {{path}}'],
+        checkCommands: ['code'],
       },
       linux: {
-        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
-        checkCommands: ['code', 'code-insiders'],
+        openCommands: ['code {{path}}'],
+        checkCommands: ['code'],
+      },
+    },
+  },
+  {
+    id: 'vscode-insiders',
+    label: 'VS Code Insiders',
+    iconPath: ICON_PATHS.vscode,
+    autoInstall: true,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v code-insiders >/dev/null 2>&1 && code-insiders {{path}}',
+          'open -n -b com.microsoft.VSCodeInsiders --args {{path}}',
+          'open -n -a "Visual Studio Code - Insiders" {{path}}',
+        ],
+        checkCommands: ['code-insiders'],
+        bundleIds: ['com.microsoft.VSCodeInsiders'],
+        appNames: ['Visual Studio Code - Insiders'],
+      },
+      win32: {
+        openCommands: ['start "" code-insiders {{path}}'],
+        checkCommands: ['code-insiders'],
+      },
+      linux: {
+        openCommands: ['code-insiders {{path}}'],
+        checkCommands: ['code-insiders'],
+      },
+    },
+  },
+  {
+    id: 'vscodium',
+    label: 'VSCodium',
+    iconPath: ICON_PATHS.vscodium,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'open -n -b com.vscodium --args {{path}}',
+          'open -n -a "VSCodium" {{path}}',
+        ],
+        checkCommands: ['codium'],
+        bundleIds: ['com.vscodium'],
+        appNames: ['VSCodium'],
+      },
+      win32: {
+        openCommands: ['start "" codium {{path}}'],
+        checkCommands: ['codium'],
+      },
+      linux: {
+        openCommands: ['codium {{path}}'],
+        checkCommands: ['codium'],
       },
     },
   },
@@ -127,6 +182,19 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
         ],
+      },
+    },
+  },
+  {
+    id: 'xcode',
+    label: 'Xcode',
+    iconPath: ICON_PATHS.xcode,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -b com.apple.dt.Xcode {{path}}', 'open -a "Xcode" {{path}}'],
+        bundleIds: ['com.apple.dt.Xcode'],
+        appNames: ['Xcode'],
       },
     },
   },
@@ -302,6 +370,28 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['rustrover {{path}}'],
         checkCommands: ['rustrover'],
+      },
+    },
+  },
+  {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['studio {{path}}', 'open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+        checkCommands: ['studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
       },
     },
   },

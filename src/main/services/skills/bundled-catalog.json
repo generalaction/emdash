@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "lastUpdated": "2026-02-07T00:00:00Z",
+  "version": 3,
+  "lastUpdated": "2026-03-18T00:00:00Z",
   "skills": [
     {
       "id": "cloudflare-deploy",

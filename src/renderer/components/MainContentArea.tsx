@@ -8,9 +8,11 @@ import SkillsView from './skills/SkillsView';
 import { McpPage } from './mcp/McpPage';
 import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
+import WorkspaceProvisioningOverlay from './WorkspaceProvisioningOverlay';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 interface MainContentAreaProps {
   showSettingsPage: boolean;
@@ -23,6 +25,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   settingsPageInitialTab,
   handleCloseSettingsPage,
 }) => {
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo();
   const {
@@ -45,6 +48,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   const {
     activeTask,
     activeTaskAgent,
+    tasksByProjectId,
     isCreatingTask,
     handleTaskInterfaceReady: onTaskInterfaceReady,
     openTaskModal,
@@ -70,6 +74,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <KanbanBoard
           project={selectedProject}
+          tasks={tasksByProjectId[selectedProject.id] ?? []}
           onOpenTask={(ws: any) => {
             handleSelectTask(ws);
             setShowKanban(false);
@@ -149,6 +154,10 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
           <div className="absolute inset-0 z-10 bg-background">
             <TaskCreationLoading />
           </div>
+        )}
+
+        {workspaceProviderEnabled && activeTask?.metadata?.workspace && !isCreatingTask && (
+          <WorkspaceProvisioningOverlay task={activeTask} project={selectedProject} />
         )}
       </div>
     );

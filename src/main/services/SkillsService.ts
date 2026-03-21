@@ -13,6 +13,41 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
 
+const SKILLS_SH_SEARCH_URL = 'https://skills.sh/api/search';
+
+/** Convert a kebab-case name to Title Case (e.g. "code-review" → "Code Review"). */
+function titleCase(kebab: string): string {
+  return kebab
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/** Deduplicate skills by id — first occurrence wins. */
+function deduplicateById(skills: CatalogSkill[]): CatalogSkill[] {
+  const seen = new Set<string>();
+  return skills.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
+/** skills.sh API response shape */
+interface SkillsShSearchResult {
+  query: string;
+  searchType: string;
+  skills: Array<{
+    id: string;
+    skillId: string;
+    name: string;
+    installs: number;
+    source: string;
+  }>;
+  count: number;
+  duration_ms: number;
+}
+
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
     if (redirectCount >= MAX_REDIRECTS) {
@@ -49,11 +84,11 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 }
 
 export class SkillsService {
-  private static readonly CATALOG_VERSION = 2;
+  private static readonly CATALOG_VERSION = 3;
   private catalogCache: CatalogIndex | null = null;
 
   async initialize(): Promise<void> {
-    await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
+    // EMDASH_META is inside SKILLS_ROOT, so creating it recursively covers both
     await fs.promises.mkdir(EMDASH_META, { recursive: true });
   }
 
@@ -95,13 +130,7 @@ export class SkillsService {
         allSkills.push(...anthropicSkills.value);
       }
 
-      // Deduplicate by id — first occurrence wins
-      const seen = new Set<string>();
-      const skills = allSkills.filter((s) => {
-        if (seen.has(s.id)) return false;
-        seen.add(s.id);
-        return true;
-      });
+      const skills = deduplicateById(allSkills);
 
       // If both failed, fall back to bundled
       if (skills.length === 0) {
@@ -182,9 +211,27 @@ export class SkillsService {
     return skills;
   }
 
-  async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
+  async getSkillDetail(
+    skillId: string,
+    source?: { owner: string; repo: string }
+  ): Promise<CatalogSkill | null> {
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    let skill = catalog.skills.find((s) => s.id === skillId) ?? null;
+
+    // If not in catalog but source info provided (search result), construct a shell
+    if (!skill && source) {
+      skill = {
+        id: skillId,
+        displayName: titleCase(skillId),
+        description: '',
+        source: 'skills-sh',
+        frontmatter: { name: skillId, description: '' },
+        installed: false,
+        owner: source.owner,
+        repo: source.repo,
+      };
+    }
+
     if (!skill) return null;
 
     // If installed, load the full SKILL.md from disk
@@ -197,14 +244,17 @@ export class SkillsService {
       }
     }
 
-    // For uninstalled catalog skills, fetch SKILL.md from GitHub
+    // For uninstalled catalog/search skills, fetch SKILL.md from GitHub
     if (!skill.installed && !skill.skillMdContent) {
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          const content = await httpsGet(mdUrl);
-          return { ...skill, skillMdContent: content };
-        }
+        const content = await this.fetchSkillMd(skill);
+        const { frontmatter: fm } = parseFrontmatter(content);
+        return {
+          ...skill,
+          skillMdContent: content,
+          description: skill.description || fm.description || '',
+          displayName: skill.displayName || fm.name || titleCase(skill.id),
+        };
       } catch {
         // Return what we have
       }
@@ -213,16 +263,13 @@ export class SkillsService {
     return skill;
   }
 
-  private getSkillMdUrl(skill: CatalogSkill): string | null {
-    if (skill.source === 'openai' && skill.sourceUrl) {
-      // e.g. https://github.com/openai/skills/tree/main/skills/.curated/linear
-      // → https://raw.githubusercontent.com/openai/skills/main/skills/.curated/linear/SKILL.md
-      const match = skill.sourceUrl.match(/github\.com\/([^/]+\/[^/]+)\/tree\/main\/(.+)/);
-      if (match) {
-        return `https://raw.githubusercontent.com/${match[1]}/main/${match[2]}/SKILL.md`;
-      }
-    }
-    if (skill.source === 'anthropic' && skill.sourceUrl) {
+  /**
+   * Resolve a deterministic raw-GitHub URL for OpenAI/Anthropic skills whose
+   * `sourceUrl` already encodes the exact path.  Returns null for skills-sh
+   * skills (those need the multi-path fallback in `fetchSkillMd`).
+   */
+  private getKnownSkillMdUrl(skill: CatalogSkill): string | null {
+    if (skill.sourceUrl) {
       const match = skill.sourceUrl.match(/github\.com\/([^/]+\/[^/]+)\/tree\/main\/(.+)/);
       if (match) {
         return `https://raw.githubusercontent.com/${match[1]}/main/${match[2]}/SKILL.md`;
@@ -231,10 +278,115 @@ export class SkillsService {
     return null;
   }
 
-  async installSkill(skillId: string): Promise<CatalogSkill> {
+  /**
+   * Fetch SKILL.md content for any skill.
+   *
+   * For OpenAI/Anthropic the path is deterministic (encoded in sourceUrl).
+   * For skills-sh the file location varies wildly across repos (skills/,
+   * .claude/skills/, root, etc.) and the directory name often differs from the
+   * frontmatter skill name.  We use the GitHub Trees API to locate all
+   * SKILL.md files in the repo and then match by directory name or by
+   * frontmatter `name` field.
+   */
+  private async fetchSkillMd(skill: CatalogSkill): Promise<string> {
+    // Fast path — known URL from sourceUrl (openai/anthropic catalogs)
+    const knownUrl = this.getKnownSkillMdUrl(skill);
+    if (knownUrl) return httpsGet(knownUrl);
+
+    if (!skill.owner || !skill.repo) {
+      throw new Error(`No source info for skill "${skill.id}"`);
+    }
+
+    const raw = (p: string) =>
+      `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/main/${p}`;
+
+    // Use the GitHub Trees API to find all SKILL.md files in one call
+    const treeUrl = `https://api.github.com/repos/${skill.owner}/${skill.repo}/git/trees/main?recursive=1`;
+    let skillMdPaths: string[];
+    try {
+      const treeData = await httpsGet(treeUrl);
+      const tree = JSON.parse(treeData) as {
+        tree: Array<{ path: string; type: string }>;
+      };
+      skillMdPaths = tree.tree
+        .filter((f) => f.type === 'blob' && f.path.endsWith('SKILL.md'))
+        .map((f) => f.path);
+    } catch {
+      // Trees API failed — fall back to guessing common paths
+      const guesses = [
+        `skills/${skill.id}/SKILL.md`,
+        'SKILL.md',
+        `${skill.id}/SKILL.md`,
+        `.claude/skills/${skill.id}/SKILL.md`,
+      ];
+      for (const p of guesses) {
+        try {
+          return await httpsGet(raw(p));
+        } catch {
+          // try next
+        }
+      }
+      throw new Error(`SKILL.md not found for skill "${skill.id}"`);
+    }
+
+    if (skillMdPaths.length === 0) {
+      throw new Error(`No SKILL.md in repo ${skill.owner}/${skill.repo}`);
+    }
+
+    // Single SKILL.md in the repo — use it directly
+    if (skillMdPaths.length === 1) {
+      return httpsGet(raw(skillMdPaths[0]));
+    }
+
+    // Multiple SKILL.md files — find the right one.
+    // 1. Check if any parent directory matches the skillId exactly
+    const byDir = skillMdPaths.find((p) => {
+      const parts = p.split('/');
+      return parts.length >= 2 && parts[parts.length - 2] === skill.id;
+    });
+    if (byDir) return httpsGet(raw(byDir));
+
+    // 2. Fetch each SKILL.md and match by frontmatter name
+    for (const p of skillMdPaths) {
+      try {
+        const content = await httpsGet(raw(p));
+        const { frontmatter: fm } = parseFrontmatter(content);
+        if (fm.name === skill.id) return content;
+      } catch {
+        // try next
+      }
+    }
+
+    // 3. Nothing matched — return the first one as best-effort
+    return httpsGet(raw(skillMdPaths[0]));
+  }
+
+  async installSkill(
+    skillId: string,
+    source?: { owner: string; repo: string }
+  ): Promise<CatalogSkill> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
+
     await this.initialize();
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    let skill = catalog.skills.find((s) => s.id === skillId) ?? null;
+
+    // If not in catalog but source info provided (from skills.sh search), construct a shell
+    if (!skill && source) {
+      skill = {
+        id: skillId,
+        displayName: titleCase(skillId),
+        description: '',
+        source: 'skills-sh',
+        frontmatter: { name: skillId, description: '' },
+        installed: false,
+        owner: source.owner,
+        repo: source.repo,
+      };
+    }
+
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
@@ -246,12 +398,7 @@ export class SkillsService {
       // Try to download the real SKILL.md from GitHub; fall back to generated stub
       let content: string;
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          content = await httpsGet(mdUrl);
-        } else {
-          content = generateSkillMd(skill.displayName, skill.description);
-        }
+        content = await this.fetchSkillMd(skill);
       } catch {
         content = generateSkillMd(skill.displayName, skill.description);
       }
@@ -284,6 +431,10 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
+
     const skillDir = path.join(SKILLS_ROOT, skillId);
 
     // Remove agent symlinks first
@@ -430,13 +581,7 @@ export class SkillsService {
     const installed = await this.getInstalledSkills();
     const installedMap = new Map(installed.map((s) => [s.id, s]));
 
-    // Deduplicate catalog skills by id (first occurrence wins)
-    const seen = new Set<string>();
-    const dedupedSkills = catalog.skills.filter((s) => {
-      if (seen.has(s.id)) return false;
-      seen.add(s.id);
-      return true;
-    });
+    const dedupedSkills = deduplicateById(catalog.skills);
 
     const mergedSkills = dedupedSkills.map((skill) => {
       const local = installedMap.get(skill.id);
@@ -489,10 +634,7 @@ export class SkillsService {
     // Fetch openai.yaml for each skill in parallel (with fallback)
     const skills = await Promise.all(
       allEntries.map(async (entry) => {
-        const fallbackName = entry.name
-          .split('-')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
+        const fallbackName = titleCase(entry.name);
 
         let displayName = fallbackName;
         let description = '';
@@ -563,10 +705,7 @@ export class SkillsService {
 
     for (const entry of entries) {
       if (entry.type !== 'dir') continue;
-      const fallbackName = entry.name
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
+      const fallbackName = titleCase(entry.name);
 
       let description = '';
 
@@ -597,6 +736,50 @@ export class SkillsService {
     }
 
     return skills;
+  }
+
+  /**
+   * Search the skills.sh ecosystem via their public API.
+   * Returns up to 100 matching skills sorted by relevance/installs.
+   */
+  async searchSkillsSh(query: string): Promise<CatalogSkill[]> {
+    if (query.length < 2) return [];
+
+    const url = `${SKILLS_SH_SEARCH_URL}?q=${encodeURIComponent(query)}`;
+    const data = await httpsGet(url);
+    const result = JSON.parse(data) as SkillsShSearchResult;
+
+    if (!result.skills || !Array.isArray(result.skills)) return [];
+
+    // Check installed skills so we can mark them
+    const installed = await this.getInstalledSkills();
+    const installedIds = new Set(installed.map((s) => s.id));
+
+    return result.skills
+      .filter((s) => s.skillId && s.source)
+      .map((s) => {
+        // source is "owner/repo" — split safely
+        const slashIdx = s.source.indexOf('/');
+        const owner = slashIdx > 0 ? s.source.slice(0, slashIdx) : s.source;
+        const repo = slashIdx > 0 ? s.source.slice(slashIdx + 1) : '';
+
+        const isInstalled = installedIds.has(s.skillId);
+        const localSkill = isInstalled ? installed.find((i) => i.id === s.skillId) : undefined;
+
+        return {
+          id: s.skillId,
+          displayName: titleCase(s.skillId),
+          description: '',
+          source: 'skills-sh' as const,
+          brandColor: '#171717',
+          frontmatter: { name: s.skillId, description: '' },
+          installed: isInstalled,
+          localPath: localSkill?.localPath,
+          owner,
+          repo,
+          installs: s.installs,
+        };
+      });
   }
 
   /** Minimal YAML parser for openai.yaml interface block */

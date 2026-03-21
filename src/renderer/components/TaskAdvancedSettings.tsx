@@ -19,6 +19,7 @@ import JiraSetupForm from './integrations/JiraSetupForm';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
 import PlainSetupForm from './integrations/PlainSetupForm';
 import ForgejoSetupForm from './integrations/ForgejoSetupForm';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { type LinearIssueSummary } from '../types/linear';
 import { type GitHubIssueSummary } from '../types/github';
 import { type GitHubIssueLink } from '../types/chat';
@@ -42,6 +43,11 @@ interface TaskAdvancedSettingsProps {
   customWorktreeName: string;
   onCustomWorktreeNameChange: (value: string) => void;
   worktreeNameError: string | null;
+
+  // Remote workspace
+  useRemoteWorkspace: boolean;
+  onUseRemoteWorkspaceChange: (value: boolean) => void;
+  hasWorkspaceProvider: boolean;
 
   // Auto-approve
   autoApprove: boolean;
@@ -104,6 +110,9 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   customWorktreeName,
   onCustomWorktreeNameChange,
   worktreeNameError,
+  useRemoteWorkspace,
+  onUseRemoteWorkspaceChange,
+  hasWorkspaceProvider,
   autoApprove,
   onAutoApproveChange,
   hasAutoApproveSupport,
@@ -139,6 +148,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   onForgejoConnect,
 }) => {
   const shouldReduceMotion = useReducedMotion();
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Derive a suggested worktree folder name from the branch name for the placeholder
@@ -464,27 +474,51 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
           <AccordionContent className="space-y-4 overflow-hidden px-0 pt-2" id="task-advanced">
             <div className="flex flex-col gap-4 p-2">
               <div className="flex items-center gap-4">
-                <Label className="w-32 shrink-0">Run in worktree</Label>
-                <div className="min-w-0 flex-1">
+                <Label className="w-32 shrink-0">Workspace</Label>
+                <div className="min-w-0 flex-1 space-y-2">
                   <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
                     <Checkbox
-                      checked={useWorktree}
-                      onCheckedChange={(checked) => onUseWorktreeChange(checked === true)}
+                      checked={useWorktree && !useRemoteWorkspace}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          onUseWorktreeChange(true);
+                          onUseRemoteWorkspaceChange(false);
+                        } else {
+                          onUseWorktreeChange(false);
+                          onUseRemoteWorkspaceChange(false);
+                        }
+                      }}
                       className="mt-[1px]"
                     />
                     <div className="space-y-1">
-                      <span className="text-muted-foreground">
-                        {useWorktree
-                          ? 'Create isolated Git worktree (recommended)'
-                          : 'Work directly on current branch'}
-                      </span>
-                      {!useWorktree && (
+                      <span className="text-muted-foreground">Local worktree (recommended)</span>
+                      {!useWorktree && !useRemoteWorkspace && (
                         <p className="text-xs text-destructive">
-                          ⚠️ Changes will affect your current working directory
+                          Changes will affect your current working directory
                         </p>
                       )}
                     </div>
                   </label>
+                  {hasWorkspaceProvider && workspaceProviderEnabled && (
+                    <label className="inline-flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                      <Checkbox
+                        checked={useRemoteWorkspace}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            onUseRemoteWorkspaceChange(true);
+                            onUseWorktreeChange(false);
+                          } else {
+                            onUseRemoteWorkspaceChange(false);
+                            onUseWorktreeChange(true);
+                          }
+                        }}
+                        className="mt-[1px]"
+                      />
+                      <span className="text-muted-foreground">
+                        Remote workspace (provision via script)
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
 

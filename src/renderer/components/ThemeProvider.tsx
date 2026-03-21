@@ -44,16 +44,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(theme, systemTheme);
   }, [theme, systemTheme]);
 
-  // Listen for OS theme changes when preference is 'system'
+  // Always keep systemTheme in sync with OS so switching to 'system' is instant
   useEffect(() => {
-    if (theme !== 'system') return undefined;
-
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => setSystemTheme(getSystemTheme());
 
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
+  }, []);
 
   const setTheme = (newTheme: Theme) => {
     updateSettings({ interface: { theme: newTheme } });
