@@ -11,6 +11,7 @@ import {
   Zap,
   Github,
   FolderGit2,
+  GitBranch,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import AgentLogo from '../AgentLogo';
@@ -172,6 +173,11 @@ const AutomationCard: React.FC<AutomationCardProps> = ({
           <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium">
             {agent?.name ?? automation.agentId}
           </span>
+          {automation.useWorktree && (
+            <span className="flex items-center gap-0.5 text-muted-foreground/50">
+              <GitBranch className="h-2.5 w-2.5" />
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">

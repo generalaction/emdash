@@ -28,6 +28,8 @@ export interface Automation {
   /** The coding agent provider id to use */
   agentId: string;
   schedule: AutomationSchedule;
+  /** Whether to create a worktree for each run */
+  useWorktree: boolean;
   status: AutomationStatus;
   /** ISO timestamp of last run */
   lastRunAt: string | null;
@@ -60,6 +62,8 @@ export interface CreateAutomationInput {
   prompt: string;
   agentId: string;
   schedule: AutomationSchedule;
+  /** Whether to create a worktree for each run (default: true) */
+  useWorktree?: boolean;
 }
 
 export interface UpdateAutomationInput {
@@ -69,4 +73,5 @@ export interface UpdateAutomationInput {
   agentId?: string;
   schedule?: AutomationSchedule;
   status?: AutomationStatus;
+  useWorktree?: boolean;
 }

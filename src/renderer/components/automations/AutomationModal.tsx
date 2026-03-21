@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Separator } from '../ui/separator';
+import { Switch } from '../ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
   const [minute, setMinute] = useState(0);
   const [dayOfWeek, setDayOfWeek] = useState<string>('mon');
   const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [useWorktree, setUseWorktree] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +70,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
       setMinute(editingAutomation.schedule.minute ?? 0);
       setDayOfWeek(editingAutomation.schedule.dayOfWeek ?? 'mon');
       setDayOfMonth(editingAutomation.schedule.dayOfMonth ?? 1);
+      setUseWorktree(editingAutomation.useWorktree ?? true);
     } else {
       setName('');
       setProjectId(projects[0]?.id ?? '');
@@ -78,6 +81,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
       setMinute(0);
       setDayOfWeek('mon');
       setDayOfMonth(1);
+      setUseWorktree(true);
     }
     setError(null);
   }, [editingAutomation, isOpen, projects]);
@@ -115,6 +119,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
           prompt: prompt.trim(),
           agentId,
           schedule: buildSchedule(),
+          useWorktree,
         });
       } else {
         await onSave({
@@ -123,6 +128,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
           prompt: prompt.trim(),
           agentId,
           schedule: buildSchedule(),
+          useWorktree,
         });
       }
       onClose();
@@ -370,6 +376,17 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
                 </Select>
               </div>
             </div>
+          </div>
+
+          {/* Worktree */}
+          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+            <div>
+              <Label className="text-xs font-medium">Use worktree</Label>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                Create an isolated branch for each run
+              </p>
+            </div>
+            <Switch checked={useWorktree} onCheckedChange={setUseWorktree} />
           </div>
 
           {error && <p className="text-xs text-destructive">{error}</p>}

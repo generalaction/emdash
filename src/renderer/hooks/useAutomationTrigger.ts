@@ -1,111 +1,119 @@
 import { useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useToast } from './use-toast';
-import { saveActiveIds } from '../constants/layout';
+import { rpc } from '../lib/rpc';
+import { makePtyId } from '@shared/ptyId';
 import type { Automation } from '@shared/automations/types';
-import type { Agent } from '../types';
+import type { ProviderId } from '@shared/providers/registry';
 
 /**
  * Global listener for automation trigger events from the main process.
- * Creates a new task in the target project when an automation fires.
- * Must be mounted inside both ProjectManagement and TaskManagement providers.
+ * Creates a task and starts the agent fully in the background —
+ * no view switching, no navigation away from the current screen.
  */
 export function useAutomationTrigger(): void {
-  const {
-    projects,
-    setSelectedProject,
-    setShowHomeView,
-    setShowSkillsView,
-    setShowMcpView,
-    setShowAutomationsView,
-    setShowEditorMode,
-    setShowKanban,
-  } = useProjectManagementContext();
-  const { handleCreateTask } = useTaskManagementContext();
+  const { projects } = useProjectManagementContext();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const createTaskFromAutomation = useCallback(
+  const runAutomationInBackground = useCallback(
     async (automation: Automation) => {
       const project = projects.find((p) => p.id === automation.projectId);
       if (!project) {
         toast({
           title: 'Automation failed',
-          description: `Project not found for automation "${automation.name}"`,
+          description: `Project not found for "${automation.name}"`,
           variant: 'destructive',
         });
         return;
       }
 
-      // Switch to the project view WITHOUT resetting the active task.
-      // activateProjectView() fires resetTaskTrigger which would clear
-      // the task that createTaskMutation is about to set — so we set
-      // the project-management states directly instead.
-      setSelectedProject(project);
-      setShowHomeView(false);
-      setShowSkillsView(false);
-      setShowMcpView(false);
-      setShowAutomationsView(false);
-      setShowEditorMode(false);
-      setShowKanban(false);
-      saveActiveIds(project.id, null);
-
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const taskName = `${automation.name} — ${timeStr}`;
+      const useWorktree = automation.useWorktree ?? true;
+
+      let branch: string;
+      let taskPath: string;
+      let taskId: string;
 
       try {
-        // handleCreateTask → createTaskMutation.onMutate sets activeTask
-        // automatically, so ChatInterface mounts and auto-starts the agent.
-        await handleCreateTask(
-          taskName,
-          automation.prompt,
-          [{ agent: automation.agentId as Agent, runs: 1 }],
-          null, // linkedLinearIssue
-          null, // linkedGithubIssue
-          null, // linkedJiraIssue
-          null, // linkedPlainThread
-          null, // linkedGitlabIssue
-          null, // linkedForgejoIssue
-          true, // autoApprove
-          true, // useWorktree
-          undefined, // baseRef
-          true, // nameGenerated
-          false, // useRemoteWorkspace
-          undefined, // workspaceProvider
-          project // overrideProject
-        );
+        // ---------------------------------------------------------------
+        // 1. Create worktree (optional) or use project path directly
+        // ---------------------------------------------------------------
+        if (useWorktree) {
+          const worktreeResult = await window.electronAPI.worktreeCreate({
+            projectPath: project.path,
+            taskName,
+            projectId: project.id,
+          });
+          if (!worktreeResult?.success || !worktreeResult.worktree) {
+            throw new Error(worktreeResult?.error || 'Failed to create worktree');
+          }
+          branch = worktreeResult.worktree.branch;
+          taskPath = worktreeResult.worktree.path;
+          taskId = worktreeResult.worktree.id;
+        } else {
+          branch = project.gitInfo?.branch || 'main';
+          taskPath = project.path;
+          taskId = `auto-${automation.id}-${Date.now()}`;
+        }
+
+        // ---------------------------------------------------------------
+        // 2. Save the task to the database
+        // ---------------------------------------------------------------
+        await rpc.db.saveTask({
+          id: taskId,
+          projectId: project.id,
+          name: taskName,
+          branch,
+          path: taskPath,
+          status: 'idle',
+          agentId: automation.agentId,
+          metadata: {
+            initialPrompt: automation.prompt,
+            autoApprove: true,
+            nameGenerated: true,
+            automationId: automation.id,
+          },
+          useWorktree,
+        });
+
+        // Invalidate task cache so the sidebar picks it up
+        void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
+
+        // ---------------------------------------------------------------
+        // 3. Start the agent PTY in the background
+        // ---------------------------------------------------------------
+        const ptyId = makePtyId(automation.agentId as ProviderId, 'main', taskId);
+        await window.electronAPI.ptyStartDirect({
+          id: ptyId,
+          providerId: automation.agentId,
+          cwd: taskPath,
+          autoApprove: true,
+          initialPrompt: automation.prompt,
+        });
 
         toast({
-          title: 'Automation triggered',
-          description: `Created task "${taskName}" in ${project.name}`,
+          title: 'Automation running',
+          description: `"${automation.name}" started in ${project.name}`,
         });
       } catch (err) {
         toast({
           title: 'Automation failed',
-          description: err instanceof Error ? err.message : 'Failed to create task',
+          description: err instanceof Error ? err.message : 'Failed to start automation',
           variant: 'destructive',
         });
       }
     },
-    [
-      projects,
-      setSelectedProject,
-      setShowHomeView,
-      setShowSkillsView,
-      setShowMcpView,
-      setShowAutomationsView,
-      setShowEditorMode,
-      setShowKanban,
-      handleCreateTask,
-      toast,
-    ]
+    [projects, toast, queryClient]
   );
 
   useEffect(() => {
     const unsub = window.electronAPI.onAutomationTrigger((automation) => {
-      void createTaskFromAutomation(automation);
+      void runAutomationInBackground(automation);
     });
     return unsub;
-  }, [createTaskFromAutomation]);
+  }, [runAutomationInBackground]);
 }

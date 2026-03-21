@@ -245,6 +245,7 @@ class AutomationsService {
       prompt: input.prompt,
       agentId: input.agentId,
       schedule: input.schedule,
+      useWorktree: input.useWorktree ?? true,
       status: 'active',
       lastRunAt: null,
       nextRunAt: computeNextRun(input.schedule),
@@ -270,6 +271,7 @@ class AutomationsService {
     if (input.prompt !== undefined) automation.prompt = input.prompt;
     if (input.agentId !== undefined) automation.agentId = input.agentId;
     if (input.status !== undefined) automation.status = input.status;
+    if (input.useWorktree !== undefined) automation.useWorktree = input.useWorktree;
     if (input.schedule !== undefined) {
       automation.schedule = input.schedule;
       automation.nextRunAt = computeNextRun(input.schedule);
