@@ -41,23 +41,24 @@ class AsyncMutex {
   private chain: Promise<void> = Promise.resolve();
 
   async run<T>(fn: () => Promise<T>): Promise<T> {
-    let result!: T;
-    this.chain = this.chain
-      .then(async () => {
-        result = await fn();
-      })
-      .catch(() => {
-        /* errors propagate via the returned promise, not the chain */
+    return new Promise<T>((resolve, reject) => {
+      this.chain = this.chain.then(async () => {
+        try {
+          resolve(await fn());
+        } catch (err) {
+          reject(err);
+        }
       });
-    // Wait for our slot in the chain
-    const ourSlot = this.chain;
-    await ourSlot;
-    return result;
+    });
   }
 }
 
-const dataMutex = new AsyncMutex();
-const runLogMutex = new AsyncMutex();
+/**
+ * Lock ordering: dataMutex → runLogMutex. NEVER acquire runLogMutex
+ * first when you also need dataMutex — that would risk a deadlock.
+ */
+const dataMutex = new AsyncMutex(); // Level 1 (outer)
+const runLogMutex = new AsyncMutex(); // Level 2 (inner, or standalone)
 
 async function readData(): Promise<AutomationsData> {
   try {
@@ -200,6 +201,7 @@ function generateId(): string {
 type AutomationTriggerCallback = (automation: Automation, runLogId: string) => void;
 
 const MAX_RUNS_PER_AUTOMATION = 100;
+const MAX_TOTAL_RUNS = 2000;
 
 class AutomationsService {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -320,6 +322,11 @@ class AutomationsService {
         automationRuns.slice(0, automationRuns.length - MAX_RUNS_PER_AUTOMATION).map((r) => r.id)
       );
       logs.runs = logs.runs.filter((r) => !idsToRemove.has(r.id));
+    }
+
+    // Global pruning — prevent unbounded growth across all automations
+    if (logs.runs.length > MAX_TOTAL_RUNS) {
+      logs.runs = logs.runs.slice(logs.runs.length - MAX_TOTAL_RUNS);
     }
 
     await writeRunLogs(logs);

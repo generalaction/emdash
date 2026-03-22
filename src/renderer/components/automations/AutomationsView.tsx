@@ -14,7 +14,6 @@ import {
 } from '../ui/alert-dialog';
 import AutomationRow from './AutomationRow';
 import AutomationInlineCreate from './AutomationInlineCreate';
-import AutomationModal from './AutomationModal';
 import AutomationRunningTasks from './AutomationRunningTasks';
 import ExampleAutomations from './ExampleAutomations';
 import RunLogsModal from './RunLogsModal';
@@ -45,8 +44,15 @@ const AutomationsView: React.FC = () => {
   const [logsAutomation, setLogsAutomation] = useState<Automation | null>(null);
   const [prefill, setPrefill] = useState<{ name: string; prompt: string } | null>(null);
 
+  const handleEdit = (automation: Automation) => {
+    setShowCreate(false);
+    setPrefill(null);
+    setEditingAutomation(automation);
+  };
+
   const handleUpdate = async (input: UpdateAutomationInput) => {
     await update(input);
+    setEditingAutomation(null);
   };
 
   const handleDelete = async () => {
@@ -84,6 +90,7 @@ const AutomationsView: React.FC = () => {
             size="sm"
             onClick={() => {
               setPrefill(null);
+              setEditingAutomation(null);
               setShowCreate(true);
             }}
             disabled={showCreate}
@@ -135,6 +142,28 @@ const AutomationsView: React.FC = () => {
           )}
         </AnimatePresence>
 
+        {/* Inline Edit */}
+        <AnimatePresence>
+          {editingAutomation && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <AutomationInlineCreate
+                key={editingAutomation.id}
+                projects={projects}
+                editingAutomation={editingAutomation}
+                onSave={async () => {}}
+                onUpdate={handleUpdate}
+                onCancel={() => setEditingAutomation(null)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Empty state with examples */}
         {!hasAutomations && !showCreate && <ExampleAutomations onSelect={handleExampleClick} />}
 
@@ -150,7 +179,7 @@ const AutomationsView: React.FC = () => {
                   key={automation.id}
                   automation={automation}
                   projects={projects}
-                  onEdit={setEditingAutomation}
+                  onEdit={handleEdit}
                   onToggle={toggle}
                   onDelete={setDeleteTarget}
                   onTriggerNow={triggerNow}
@@ -173,7 +202,7 @@ const AutomationsView: React.FC = () => {
                   key={automation.id}
                   automation={automation}
                   projects={projects}
-                  onEdit={setEditingAutomation}
+                  onEdit={handleEdit}
                   onToggle={toggle}
                   onDelete={setDeleteTarget}
                   onTriggerNow={triggerNow}
@@ -187,15 +216,6 @@ const AutomationsView: React.FC = () => {
         {/* Automation tasks (runs) — below active/paused */}
         <AutomationRunningTasks />
       </div>
-
-      {/* Edit Modal */}
-      <AutomationModal
-        isOpen={!!editingAutomation}
-        onClose={() => setEditingAutomation(null)}
-        onUpdate={handleUpdate}
-        projects={projects}
-        editingAutomation={editingAutomation}
-      />
 
       {/* Run Logs Modal */}
       <RunLogsModal

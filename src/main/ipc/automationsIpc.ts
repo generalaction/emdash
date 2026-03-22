@@ -9,6 +9,58 @@ import type {
 } from '../../shared/automations/types';
 
 // ---------------------------------------------------------------------------
+// Input validation helpers
+// ---------------------------------------------------------------------------
+
+function assertString(value: unknown, field: string): asserts value is string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Invalid ${field}: expected non-empty string`);
+  }
+}
+
+function assertOptionalString(value: unknown, field: string): asserts value is string | undefined {
+  if (value !== undefined && (typeof value !== 'string' || value.length === 0)) {
+    throw new Error(`Invalid ${field}: expected non-empty string or undefined`);
+  }
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function validateCreateInput(args: unknown): asserts args is CreateAutomationInput {
+  if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+  const a = args as Record<string, unknown>;
+  assertString(a.name, 'name');
+  assertString(a.projectId, 'projectId');
+  assertString(a.prompt, 'prompt');
+  assertString(a.agentId, 'agentId');
+  if (!a.schedule || typeof a.schedule !== 'object') {
+    throw new Error('Invalid schedule: expected object');
+  }
+}
+
+function validateUpdateInput(args: unknown): asserts args is UpdateAutomationInput {
+  if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+  const a = args as Record<string, unknown>;
+  assertString(a.id, 'id');
+  assertOptionalString(a.name, 'name');
+  assertOptionalString(a.prompt, 'prompt');
+  assertOptionalString(a.agentId, 'agentId');
+  if (a.schedule !== undefined && (typeof a.schedule !== 'object' || a.schedule === null)) {
+    throw new Error('Invalid schedule: expected object or undefined');
+  }
+  if (a.useWorktree !== undefined && typeof a.useWorktree !== 'boolean') {
+    throw new Error('Invalid useWorktree: expected boolean or undefined');
+  }
+}
+
+function validateIdArg(args: unknown): asserts args is { id: string } {
+  if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+  assertString((args as Record<string, unknown>).id, 'id');
+}
+
+// ---------------------------------------------------------------------------
 // Trigger queue — buffers triggers when no renderer window is available
 // ---------------------------------------------------------------------------
 interface QueuedTrigger {
@@ -16,6 +68,7 @@ interface QueuedTrigger {
   runLogId: string;
 }
 
+const MAX_TRIGGER_QUEUE = 50;
 const triggerQueue: QueuedTrigger[] = [];
 
 /** Send an automation trigger event to a renderer window, or queue it */
@@ -24,6 +77,12 @@ function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
   if (target && !target.isDestroyed()) {
     target.webContents.send('automation:trigger', { ...automation, _runLogId: runLogId });
   } else {
+    if (triggerQueue.length >= MAX_TRIGGER_QUEUE) {
+      const dropped = triggerQueue.shift()!;
+      log.warn(
+        `[Automations] Trigger queue full (${MAX_TRIGGER_QUEUE}) — dropping oldest: "${dropped.automation.name}"`
+      );
+    }
     log.warn(
       `[Automations] No window available — queuing trigger for "${automation.name}" (runLog: ${runLogId})`
     );
@@ -64,10 +123,11 @@ export function registerAutomationsIpc(): void {
     automationsService.stop();
   });
 
-  // Flush queued triggers when a new window appears
-  app.on('browser-window-created', () => {
-    // Small delay to let the window finish loading
-    setTimeout(() => flushTriggerQueue(), 2000);
+  // Flush queued triggers when a new window finishes loading
+  app.on('browser-window-created', (_, window) => {
+    window.webContents.once('did-finish-load', () => {
+      flushTriggerQueue();
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -80,22 +140,25 @@ export function registerAutomationsIpc(): void {
       return { success: true, data: automations };
     } catch (error) {
       log.error('Failed to list automations:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle('automations:get', async (_, args: { id: string }) => {
+  ipcMain.handle('automations:get', async (_, args: unknown) => {
     try {
+      validateIdArg(args);
       const automation = await automationsService.get(args.id);
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to get automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle('automations:create', async (_, args: CreateAutomationInput) => {
+  ipcMain.handle('automations:create', async (_, args: unknown) => {
     try {
+      validateCreateInput(args);
+
       // Resolve the project name from the DB and validate the project exists
       const projects = await databaseService.getProjects();
       const project = projects.find((p) => p.id === args.projectId);
@@ -111,55 +174,60 @@ export function registerAutomationsIpc(): void {
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to create automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle('automations:update', async (_, args: UpdateAutomationInput) => {
+  ipcMain.handle('automations:update', async (_, args: unknown) => {
     try {
+      validateUpdateInput(args);
       const automation = await automationsService.update(args);
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to update automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle('automations:delete', async (_, args: { id: string }) => {
+  ipcMain.handle('automations:delete', async (_, args: unknown) => {
     try {
+      validateIdArg(args);
       const deleted = await automationsService.delete(args.id);
       return { success: true, data: deleted };
     } catch (error) {
       log.error('Failed to delete automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle('automations:toggle', async (_, args: { id: string }) => {
+  ipcMain.handle('automations:toggle', async (_, args: unknown) => {
     try {
+      validateIdArg(args);
       const automation = await automationsService.toggleStatus(args.id);
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to toggle automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
-  ipcMain.handle(
-    'automations:runLogs',
-    async (_, args: { automationId: string; limit?: number }) => {
-      try {
-        const logs = await automationsService.getRunLogs(args.automationId, args.limit);
-        return { success: true, data: logs };
-      } catch (error) {
-        log.error('Failed to get automation run logs:', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
-      }
-    }
-  );
-
-  ipcMain.handle('automations:triggerNow', async (_, args: { id: string }) => {
+  ipcMain.handle('automations:runLogs', async (_, args: unknown) => {
     try {
+      if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+      const a = args as Record<string, unknown>;
+      assertString(a.automationId, 'automationId');
+      const limit = typeof a.limit === 'number' && a.limit > 0 ? Math.min(a.limit, 500) : undefined;
+      const logs = await automationsService.getRunLogs(a.automationId as string, limit);
+      return { success: true, data: logs };
+    } catch (error) {
+      log.error('Failed to get automation run logs:', error);
+      return { success: false, error: formatError(error) };
+    }
+  });
+
+  ipcMain.handle('automations:triggerNow', async (_, args: unknown) => {
+    try {
+      validateIdArg(args);
       const automation = await automationsService.get(args.id);
       if (!automation) {
         return { success: false, error: 'Automation not found' };
@@ -174,7 +242,7 @@ export function registerAutomationsIpc(): void {
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to trigger automation:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, error: formatError(error) };
     }
   });
 
@@ -182,35 +250,35 @@ export function registerAutomationsIpc(): void {
   // Run completion tracking — renderer reports back when a run finishes
   // -----------------------------------------------------------------------
 
-  ipcMain.handle(
-    'automations:completeRun',
-    async (
-      _,
-      args: {
-        runLogId: string;
-        automationId: string;
-        taskId?: string;
-        status: 'success' | 'failure';
-        error?: string;
+  ipcMain.handle('automations:completeRun', async (_, args: unknown) => {
+    try {
+      if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+      const a = args as Record<string, unknown>;
+      assertString(a.runLogId, 'runLogId');
+      assertString(a.automationId, 'automationId');
+      if (a.status !== 'success' && a.status !== 'failure') {
+        throw new Error('Invalid status: expected "success" or "failure"');
       }
-    ) => {
-      try {
-        // Update the run log
-        await automationsService.updateRunLog(args.runLogId, {
-          status: args.status,
-          finishedAt: new Date().toISOString(),
-          taskId: args.taskId ?? null,
-          error: args.error ?? null,
-        });
 
-        // Update the automation's last result
-        await automationsService.setLastRunResult(args.automationId, args.status, args.error);
+      // Update the run log
+      await automationsService.updateRunLog(a.runLogId as string, {
+        status: a.status,
+        finishedAt: new Date().toISOString(),
+        taskId: typeof a.taskId === 'string' ? a.taskId : null,
+        error: typeof a.error === 'string' ? a.error : null,
+      });
 
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to complete automation run:', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
-      }
+      // Update the automation's last result
+      await automationsService.setLastRunResult(
+        a.automationId as string,
+        a.status,
+        typeof a.error === 'string' ? a.error : undefined
+      );
+
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to complete automation run:', error);
+      return { success: false, error: formatError(error) };
     }
-  );
+  });
 }

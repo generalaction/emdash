@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pause, Play, Trash2, Pencil, Zap, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Spinner } from '../ui/spinner';
 import AgentLogo from '../AgentLogo';
 import { agentConfig } from '../../lib/agentConfig';
@@ -32,7 +33,6 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
   const agent = agentConfig[automation.agentId as Agent];
   const project = projects.find((p) => p.id === automation.projectId);
   const isActive = automation.status === 'active';
-  const isPaused = automation.status !== 'active';
 
   const { getRunState } = useRunningAutomations();
   const runState = getRunState(automation.id);
@@ -46,7 +46,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
   return (
     <div
       className={`group flex items-center gap-3 py-3 transition-colors ${
-        isPaused && !isTriggering ? 'opacity-45' : ''
+        !isActive && !isTriggering ? 'opacity-45' : ''
       }`}
     >
       {/* Agent icon */}
@@ -113,69 +113,93 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
       )}
 
       {/* Status label */}
-      <span
-        className={`text-xs font-medium ${
-          isActive ? 'text-emerald-500/70' : 'text-muted-foreground/40'
-        }`}
-      >
-        {isTriggering ? '' : isActive ? 'Active' : 'Paused'}
-      </span>
+      {!isTriggering && (
+        <span
+          className={`text-xs font-medium ${
+            isActive ? 'text-emerald-500/70' : 'text-muted-foreground/40'
+          }`}
+        >
+          {isActive ? 'Active' : 'Paused'}
+        </span>
+      )}
 
       {/* Actions — visible on hover */}
-      <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTriggerNow(automation.id);
-          }}
-          aria-label="Run now"
-          className="h-6 w-6 text-muted-foreground"
-          disabled={isTriggering}
-        >
-          <Zap className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(automation.id);
-          }}
-          aria-label={isActive ? 'Pause' : 'Resume'}
-          className="h-6 w-6 text-muted-foreground"
-          disabled={isTriggering}
-        >
-          {isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(automation);
-          }}
-          aria-label="Edit"
-          className="h-6 w-6 text-muted-foreground"
-          disabled={isTriggering}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(automation.id);
-          }}
-          aria-label="Delete"
-          className="h-6 w-6 text-destructive/60"
-          disabled={isTriggering}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
+      <TooltipProvider delayDuration={200}>
+        <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTriggerNow(automation.id);
+                }}
+                aria-label="Run now"
+                className="h-6 w-6 text-muted-foreground"
+                disabled={isTriggering}
+              >
+                <Zap className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Run now</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(automation.id);
+                }}
+                aria-label={isActive ? 'Pause' : 'Resume'}
+                className="h-6 w-6 text-muted-foreground"
+                disabled={isTriggering}
+              >
+                {isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{isActive ? 'Pause' : 'Resume'}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(automation);
+                }}
+                aria-label="Edit"
+                className="h-6 w-6 text-muted-foreground"
+                disabled={isTriggering}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Edit</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(automation.id);
+                }}
+                aria-label="Delete"
+                className="h-6 w-6 text-destructive/60"
+                disabled={isTriggering}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Delete</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     </div>
   );
 };

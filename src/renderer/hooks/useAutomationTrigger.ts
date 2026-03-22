@@ -123,14 +123,19 @@ export function useAutomationTrigger(): void {
           initialPrompt: automation.prompt,
         });
 
-        // Agent started — report success and clear the triggering state.
-        void window.electronAPI.automationsCompleteRun({
-          runLogId,
-          automationId: automation.id,
-          taskId,
-          status: 'success',
+        // Listen for PTY exit to report the real outcome back to main.
+        const unsubExit = window.electronAPI.onPtyExit(ptyId, ({ exitCode }) => {
+          unsubExit();
+          void window.electronAPI.automationsCompleteRun({
+            runLogId,
+            automationId: automation.id,
+            taskId,
+            status: exitCode === 0 ? 'success' : 'failure',
+            error: exitCode !== 0 ? `Agent exited with code ${exitCode}` : undefined,
+          });
         });
 
+        // Clear the brief triggering-phase indicator now that the PTY is up.
         clearAutomationRun(automation.id);
 
         toast({

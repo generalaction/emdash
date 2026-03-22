@@ -1,7 +1,17 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Square, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Spinner } from '../ui/spinner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import AgentLogo from '../AgentLogo';
 import { TaskStatusIndicator } from '../TaskStatusIndicator';
 import { agentConfig } from '../../lib/agentConfig';
@@ -67,6 +77,7 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
   const isWorking = status === 'working';
   const agent = task.agentId ? agentConfig[task.agentId as Agent] : null;
   const { handleDeleteTask, handleSelectTask } = useTaskManagementContext();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleStop = useCallback(() => {
     // Kill all provider PTYs for this task
@@ -162,7 +173,7 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
           size="icon-sm"
           onClick={(e) => {
             e.stopPropagation();
-            handleDelete();
+            setShowDeleteConfirm(true);
           }}
           aria-label="Delete task"
           className="h-7 w-7 text-destructive"
@@ -170,6 +181,28 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This will permanently delete this automation task and its worktree. This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 sm:gap-3">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

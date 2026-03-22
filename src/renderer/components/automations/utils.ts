@@ -91,7 +91,7 @@ export const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => ({
 }));
 
 /**
- * Shared schedule builder used by both AutomationInlineCreate and AutomationModal.
+ * Shared schedule builder used by AutomationInlineCreate (create & edit modes).
  * Eliminates duplicate buildSchedule logic across components.
  */
 export function buildSchedule(
@@ -101,7 +101,9 @@ export function buildSchedule(
   dayOfWeek: string,
   dayOfMonth: number
 ): AutomationSchedule {
-  const base: AutomationSchedule = { type, hour, minute };
+  const base: AutomationSchedule = { type, minute };
+  // hour is irrelevant for hourly schedules (only minute matters)
+  if (type !== 'hourly') base.hour = hour;
   if (type === 'weekly') base.dayOfWeek = dayOfWeek as DayOfWeek;
   if (type === 'monthly') base.dayOfMonth = dayOfMonth;
   return base;
