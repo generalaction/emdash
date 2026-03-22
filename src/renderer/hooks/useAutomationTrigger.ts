@@ -9,7 +9,7 @@ import {
   clearAutomationRun,
 } from '../components/automations/useRunningAutomations';
 import type { Automation } from '@shared/automations/types';
-import type { ProviderId } from '@shared/providers/registry';
+import { isValidProviderId } from '@shared/providers/registry';
 
 /**
  * Global listener for automation trigger events from the main process.
@@ -114,7 +114,13 @@ export function useAutomationTrigger(): void {
         // ---------------------------------------------------------------
         setAutomationRunPhase(automation.id, automation.name, 'starting-agent');
 
-        const ptyId = makePtyId(automation.agentId as ProviderId, 'main', taskId);
+        if (!isValidProviderId(automation.agentId)) {
+          throw new Error(
+            `Unknown provider "${automation.agentId}" for automation "${automation.name}"`
+          );
+        }
+
+        const ptyId = makePtyId(automation.agentId, 'main', taskId);
         await window.electronAPI.ptyStartDirect({
           id: ptyId,
           providerId: automation.agentId,
