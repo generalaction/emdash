@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   Automation,
   AutomationRunLog,
@@ -6,16 +6,21 @@ import type {
   UpdateAutomationInput,
 } from '@shared/automations/types';
 
+/** Auto-refresh interval for the automations list (ms) */
+const REFRESH_INTERVAL = 30_000;
+
 export function useAutomations() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
       const result = await window.electronAPI.automationsList();
       if (result.success && result.data) {
         setAutomations(result.data);
+        setError(null);
       } else {
         setError(result.error ?? 'Failed to load automations');
       }
@@ -26,8 +31,13 @@ export function useAutomations() {
     }
   }, []);
 
+  // Initial load + auto-refresh every 30s so nextRunAt / lastRunAt stay fresh
   useEffect(() => {
     void load();
+    refreshTimer.current = setInterval(() => void load(), REFRESH_INTERVAL);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
   }, [load]);
 
   const create = useCallback(
@@ -110,7 +120,8 @@ export function useAutomations() {
           return result.data;
         }
         return [];
-      } catch {
+      } catch (err) {
+        console.error('Failed to fetch run logs:', err);
         return [];
       }
     },
@@ -126,17 +137,21 @@ export function useAutomations() {
           return true;
         }
         return false;
-      } catch {
+      } catch (err) {
+        console.error('Failed to trigger automation:', err);
         return false;
       }
     },
     [load]
   );
 
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     automations,
     isLoading,
     error,
+    clearError,
     refresh: load,
     create,
     update,

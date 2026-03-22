@@ -962,6 +962,10 @@ export function useTaskManagement() {
       setActiveTaskAgent(getAgentForTask(task));
       saveActiveIds(task.projectId, task.id);
       queryClient.invalidateQueries({ queryKey: ['tasks', params.project.id] });
+      toast({
+        title: 'Task started',
+        description: task.name,
+      });
       if (warning) {
         toast({ title: 'Warning', description: warning });
       }

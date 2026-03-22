@@ -1,6 +1,6 @@
-import type { AutomationSchedule, DayOfWeek } from '@shared/automations/types';
+import type { AutomationSchedule, DayOfWeek, ScheduleType } from '@shared/automations/types';
 
-const DAY_LABELS: Record<DayOfWeek, string> = {
+export const DAY_LABELS: Record<DayOfWeek, string> = {
   mon: 'Monday',
   tue: 'Tuesday',
   wed: 'Wednesday',
@@ -26,8 +26,6 @@ export function formatScheduleLabel(schedule: AutomationSchedule): string {
       return `Weekly on ${DAY_LABELS[schedule.dayOfWeek ?? 'mon']} at ${time}`;
     case 'monthly':
       return `Monthly on the ${ordinal(schedule.dayOfMonth ?? 1)} at ${time}`;
-    case 'custom':
-      return schedule.cronExpression ?? 'Custom schedule';
   }
 }
 
@@ -73,15 +71,9 @@ export const SCHEDULE_TYPES = [
   { value: 'monthly' as const, label: 'Monthly' },
 ] as const;
 
-export const DAYS_OF_WEEK: { value: DayOfWeek; label: string }[] = [
-  { value: 'mon', label: 'Monday' },
-  { value: 'tue', label: 'Tuesday' },
-  { value: 'wed', label: 'Wednesday' },
-  { value: 'thu', label: 'Thursday' },
-  { value: 'fri', label: 'Friday' },
-  { value: 'sat', label: 'Saturday' },
-  { value: 'sun', label: 'Sunday' },
-];
+export const DAYS_OF_WEEK: { value: DayOfWeek; label: string }[] = (
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+).map((value) => ({ value, label: DAY_LABELS[value] }));
 
 export const HOURS = Array.from({ length: 24 }, (_, i) => ({
   value: i,
@@ -97,3 +89,20 @@ export const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => ({
   value: i + 1,
   label: ordinal(i + 1),
 }));
+
+/**
+ * Shared schedule builder used by both AutomationInlineCreate and AutomationModal.
+ * Eliminates duplicate buildSchedule logic across components.
+ */
+export function buildSchedule(
+  type: ScheduleType,
+  hour: number,
+  minute: number,
+  dayOfWeek: string,
+  dayOfMonth: number
+): AutomationSchedule {
+  const base: AutomationSchedule = { type, hour, minute };
+  if (type === 'weekly') base.dayOfWeek = dayOfWeek as DayOfWeek;
+  if (type === 'monthly') base.dayOfMonth = dayOfMonth;
+  return base;
+}

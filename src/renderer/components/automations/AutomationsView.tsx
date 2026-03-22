@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, RefreshCw, Loader2, Timer, Search, Zap } from 'lucide-react';
+import { Plus, Loader2, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,18 +12,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import AutomationCard from './AutomationCard';
+import AutomationRow from './AutomationRow';
+import AutomationInlineCreate from './AutomationInlineCreate';
 import AutomationModal from './AutomationModal';
 import AutomationRunningTasks from './AutomationRunningTasks';
+import ExampleAutomations from './ExampleAutomations';
 import RunLogsModal from './RunLogsModal';
 import { useAutomations } from './useAutomations';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import type { Automation, CreateAutomationInput } from '@shared/automations/types';
+import type { Automation, UpdateAutomationInput } from '@shared/automations/types';
 
 const AutomationsView: React.FC = () => {
   const {
     automations,
     isLoading,
+    error,
+    clearError,
     refresh,
     create,
     update,
@@ -36,25 +39,14 @@ const AutomationsView: React.FC = () => {
 
   const { projects } = useProjectManagementContext();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [logsAutomation, setLogsAutomation] = useState<Automation | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [prefill, setPrefill] = useState<{ name: string; prompt: string } | null>(null);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refresh();
-    setIsRefreshing(false);
-  };
-
-  const handleCreate = async (input: CreateAutomationInput) => {
-    await create(input);
-  };
-
-  const handleUpdate = async (id: string, input: Partial<CreateAutomationInput>) => {
-    await update({ id, ...input });
+  const handleUpdate = async (input: UpdateAutomationInput) => {
+    await update(input);
   };
 
   const handleDelete = async () => {
@@ -64,27 +56,14 @@ const AutomationsView: React.FC = () => {
     }
   };
 
-  const handleToggle = async (id: string) => {
-    await toggle(id);
+  const handleExampleClick = (name: string, prompt: string) => {
+    setPrefill({ name, prompt });
+    setShowCreate(true);
   };
 
-  const handleTriggerNow = async (id: string) => {
-    // triggerNow sends via IPC to main, which sends back an automation:trigger event
-    // that gets picked up by our listener above — creating the task
-    await triggerNow(id);
-  };
-
-  const filteredAutomations = searchQuery
-    ? automations.filter(
-        (a) =>
-          a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.projectName.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : automations;
-
-  const activeAutomations = filteredAutomations.filter((a) => a.status === 'active');
-  const pausedAutomations = filteredAutomations.filter((a) => a.status !== 'active');
+  const activeAutomations = automations.filter((a) => a.status === 'active');
+  const pausedAutomations = automations.filter((a) => a.status !== 'active');
+  const hasAutomations = automations.length > 0;
 
   if (isLoading) {
     return (
@@ -98,106 +77,83 @@ const AutomationsView: React.FC = () => {
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="text-lg font-semibold">Automations</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Schedule recurring tasks to run automatically with your coding agents
-          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPrefill(null);
+              setShowCreate(true);
+            }}
+            disabled={showCreate}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New Automation
+          </Button>
         </div>
 
-        {/* Toolbar */}
-        <TooltipProvider delayDuration={300}>
-          <div className="mb-6 flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search automations..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Search by name, prompt, or project</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh automations"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Refresh automations</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  New Automation
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Create a new scheduled automation</TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-
-        {/* Info banner */}
-        {automations.length > 0 && !searchQuery && (
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
-            <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground/60" />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Automations run your coding agents on a schedule. Each run creates a new task in the
-              selected project with the configured prompt. Pause or edit any automation at any time.
-            </p>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {automations.length === 0 && (
-          <div className="py-16 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/40">
-              <Timer className="h-8 w-8 text-muted-foreground/30" />
-            </div>
-            <h2 className="mb-1.5 text-sm font-semibold">No automations yet</h2>
-            <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-muted-foreground">
-              Create your first automation to schedule recurring agent tasks. Pick a project, write
-              a prompt, choose your coding agent, and set a schedule.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Create Automation
+        {/* Error banner */}
+        {error && (
+          <div className="mb-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <p className="text-xs text-destructive">{error}</p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-5 w-5 text-destructive/60 hover:text-destructive"
+              onClick={clearError}
+            >
+              <X className="h-3 w-3" />
             </Button>
           </div>
         )}
 
-        {/* Automation tasks (created by automations, with stop/delete) */}
-        <AutomationRunningTasks />
+        {/* Inline Create */}
+        <AnimatePresence>
+          {showCreate && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <AutomationInlineCreate
+                projects={projects}
+                prefill={prefill}
+                onSave={async (input) => {
+                  await create(input);
+                  setShowCreate(false);
+                  setPrefill(null);
+                }}
+                onCancel={() => {
+                  setShowCreate(false);
+                  setPrefill(null);
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Empty state with examples */}
+        {!hasAutomations && !showCreate && <ExampleAutomations onSelect={handleExampleClick} />}
 
         {/* Active automations */}
         {activeAutomations.length > 0 && (
           <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
-            <div className="space-y-3">
+            <div className="mb-1 border-b border-border/40 pb-2">
+              <h2 className="text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
+            </div>
+            <div className="divide-y divide-border/30">
               {activeAutomations.map((automation) => (
-                <AutomationCard
+                <AutomationRow
                   key={automation.id}
                   automation={automation}
                   projects={projects}
                   onEdit={setEditingAutomation}
-                  onToggle={handleToggle}
+                  onToggle={toggle}
                   onDelete={setDeleteTarget}
-                  onTriggerNow={handleTriggerNow}
+                  onTriggerNow={triggerNow}
                   onViewLogs={setLogsAutomation}
                 />
               ))}
@@ -208,17 +164,19 @@ const AutomationsView: React.FC = () => {
         {/* Paused automations */}
         {pausedAutomations.length > 0 && (
           <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Paused</h2>
-            <div className="space-y-3">
+            <div className="mb-1 border-b border-border/40 pb-2">
+              <h2 className="text-xs font-medium tracking-wide text-muted-foreground">Paused</h2>
+            </div>
+            <div className="divide-y divide-border/30">
               {pausedAutomations.map((automation) => (
-                <AutomationCard
+                <AutomationRow
                   key={automation.id}
                   automation={automation}
                   projects={projects}
                   onEdit={setEditingAutomation}
-                  onToggle={handleToggle}
+                  onToggle={toggle}
                   onDelete={setDeleteTarget}
-                  onTriggerNow={handleTriggerNow}
+                  onTriggerNow={triggerNow}
                   onViewLogs={setLogsAutomation}
                 />
               ))}
@@ -226,22 +184,14 @@ const AutomationsView: React.FC = () => {
           </div>
         )}
 
-        {/* Search no results */}
-        {searchQuery && filteredAutomations.length === 0 && automations.length > 0 && (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">No automations match your search.</p>
-          </div>
-        )}
+        {/* Automation tasks (runs) — below active/paused */}
+        <AutomationRunningTasks />
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Edit Modal */}
       <AutomationModal
-        isOpen={showCreateModal || !!editingAutomation}
-        onClose={() => {
-          setShowCreateModal(false);
-          setEditingAutomation(null);
-        }}
-        onSave={handleCreate}
+        isOpen={!!editingAutomation}
+        onClose={() => setEditingAutomation(null)}
         onUpdate={handleUpdate}
         projects={projects}
         editingAutomation={editingAutomation}
@@ -265,7 +215,7 @@ const AutomationsView: React.FC = () => {
               cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="gap-3 sm:gap-3">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}

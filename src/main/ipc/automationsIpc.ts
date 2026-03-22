@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { automationsService } from '../services/AutomationsService';
 import { databaseService } from '../services/DatabaseService';
 import { log } from '../lib/logger';
@@ -8,20 +8,71 @@ import type {
   UpdateAutomationInput,
 } from '../../shared/automations/types';
 
-/** Send an automation trigger event to all renderer windows */
-function sendTriggerToRenderer(automation: Automation): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('automation:trigger', automation);
+// ---------------------------------------------------------------------------
+// Trigger queue — buffers triggers when no renderer window is available
+// ---------------------------------------------------------------------------
+interface QueuedTrigger {
+  automation: Automation;
+  runLogId: string;
+}
+
+const triggerQueue: QueuedTrigger[] = [];
+
+/** Send an automation trigger event to a renderer window, or queue it */
+function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
+  const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  if (target && !target.isDestroyed()) {
+    target.webContents.send('automation:trigger', { ...automation, _runLogId: runLogId });
+  } else {
+    log.warn(
+      `[Automations] No window available — queuing trigger for "${automation.name}" (runLog: ${runLogId})`
+    );
+    triggerQueue.push({ automation, runLogId });
+  }
+}
+
+/** Flush any queued triggers to the first available window */
+function flushTriggerQueue(): void {
+  if (triggerQueue.length === 0) return;
+  const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  if (!target || target.isDestroyed()) return;
+
+  log.info(`[Automations] Flushing ${triggerQueue.length} queued trigger(s)`);
+  while (triggerQueue.length > 0) {
+    const item = triggerQueue.shift()!;
+    target.webContents.send('automation:trigger', {
+      ...item.automation,
+      _runLogId: item.runLogId,
+    });
   }
 }
 
 export function registerAutomationsIpc(): void {
   // Wire up the scheduler to send triggers to the renderer
-  automationsService.onTrigger((automation) => {
+  automationsService.onTrigger((automation, runLogId) => {
     log.info(`[Automations] Sending trigger to renderer for: ${automation.name}`);
-    sendTriggerToRenderer(automation);
+    sendTriggerToRenderer(automation, runLogId);
   });
-  automationsService.start();
+
+  // Reconcile missed runs (app was closed during scheduled time) then start
+  void automationsService.reconcileMissedRuns().then(() => {
+    automationsService.start();
+  });
+
+  // Stop scheduler on app quit
+  app.on('before-quit', () => {
+    automationsService.stop();
+  });
+
+  // Flush queued triggers when a new window appears
+  app.on('browser-window-created', () => {
+    // Small delay to let the window finish loading
+    setTimeout(() => flushTriggerQueue(), 2000);
+  });
+
+  // -----------------------------------------------------------------------
+  // CRUD handlers
+  // -----------------------------------------------------------------------
 
   ipcMain.handle('automations:list', async () => {
     try {
@@ -45,17 +96,19 @@ export function registerAutomationsIpc(): void {
 
   ipcMain.handle('automations:create', async (_, args: CreateAutomationInput) => {
     try {
-      // Resolve the project name from the DB
+      // Resolve the project name from the DB and validate the project exists
       const projects = await databaseService.getProjects();
       const project = projects.find((p) => p.id === args.projectId);
-
-      const automation = await automationsService.create(args);
-      // Persist the project name on the automation record
-      if (project) {
-        await automationsService.setProjectName(automation.id, project.name);
+      if (!project) {
+        return { success: false, error: `Unknown projectId: ${args.projectId}` };
       }
-      const updated = await automationsService.get(automation.id);
-      return { success: true, data: updated ?? automation };
+
+      // Set projectName directly — no separate call needed
+      const automation = await automationsService.create({
+        ...args,
+        projectName: project.name,
+      });
+      return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to create automation:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -112,12 +165,52 @@ export function registerAutomationsIpc(): void {
         return { success: false, error: 'Automation not found' };
       }
       log.info(`[Automations] Manual trigger for: ${automation.name} (${automation.id})`);
+
+      // Create a run log for the manual trigger
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+
       // Send trigger to renderer so it creates a task
-      sendTriggerToRenderer(automation);
+      sendTriggerToRenderer(automation, runLogId);
       return { success: true, data: automation };
     } catch (error) {
       log.error('Failed to trigger automation:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+
+  // -----------------------------------------------------------------------
+  // Run completion tracking — renderer reports back when a run finishes
+  // -----------------------------------------------------------------------
+
+  ipcMain.handle(
+    'automations:completeRun',
+    async (
+      _,
+      args: {
+        runLogId: string;
+        automationId: string;
+        taskId?: string;
+        status: 'success' | 'failure';
+        error?: string;
+      }
+    ) => {
+      try {
+        // Update the run log
+        await automationsService.updateRunLog(args.runLogId, {
+          status: args.status,
+          finishedAt: new Date().toISOString(),
+          taskId: args.taskId ?? null,
+          error: args.error ?? null,
+        });
+
+        // Update the automation's last result
+        await automationsService.setLastRunResult(args.automationId, args.status, args.error);
+
+        return { success: true };
+      } catch (error) {
+        log.error('Failed to complete automation run:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }

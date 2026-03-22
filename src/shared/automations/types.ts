@@ -1,4 +1,4 @@
-export type ScheduleType = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
+export type ScheduleType = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
 export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -12,8 +12,6 @@ export interface AutomationSchedule {
   dayOfWeek?: DayOfWeek;
   /** Day of month for monthly (1-31) */
   dayOfMonth?: number;
-  /** Cron expression for custom schedules */
-  cronExpression?: string;
 }
 
 export type AutomationStatus = 'active' | 'paused' | 'error';
@@ -59,6 +57,8 @@ export interface AutomationRunLog {
 export interface CreateAutomationInput {
   name: string;
   projectId: string;
+  /** Resolved project name — set by the backend from projectId */
+  projectName?: string;
   prompt: string;
   agentId: string;
   schedule: AutomationSchedule;

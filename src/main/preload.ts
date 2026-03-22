@@ -869,7 +869,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       minute?: number;
       dayOfWeek?: string;
       dayOfMonth?: number;
-      cronExpression?: string;
     };
   }) => ipcRenderer.invoke('automations:create', args),
   automationsUpdate: (args: {
@@ -883,7 +882,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       minute?: number;
       dayOfWeek?: string;
       dayOfMonth?: number;
-      cronExpression?: string;
     };
     status?: string;
   }) => ipcRenderer.invoke('automations:update', args),
@@ -893,6 +891,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('automations:runLogs', args),
   automationsTriggerNow: (args: { id: string }) =>
     ipcRenderer.invoke('automations:triggerNow', args),
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => ipcRenderer.invoke('automations:completeRun', args),
   onAutomationTrigger: (
     listener: (automation: {
       id: string;
@@ -900,6 +905,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       projectId: string;
       prompt: string;
       agentId: string;
+      _runLogId: string;
     }) => void
   ) => {
     const handler = (_event: any, automation: any) => listener(automation);

@@ -20,18 +20,24 @@ import { agentConfig } from '../../lib/agentConfig';
 import type {
   Automation,
   AutomationSchedule,
-  CreateAutomationInput,
+  UpdateAutomationInput,
   ScheduleType,
 } from '@shared/automations/types';
 import type { Project } from '../../types/app';
 import type { Agent } from '../../types';
-import { SCHEDULE_TYPES, DAYS_OF_WEEK, HOURS, MINUTES, DAYS_OF_MONTH } from './utils';
+import {
+  SCHEDULE_TYPES,
+  DAYS_OF_WEEK,
+  HOURS,
+  MINUTES,
+  DAYS_OF_MONTH,
+  buildSchedule,
+} from './utils';
 
 interface AutomationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (input: CreateAutomationInput) => Promise<void>;
-  onUpdate?: (id: string, input: Partial<CreateAutomationInput>) => Promise<void>;
+  onUpdate: (input: UpdateAutomationInput) => Promise<void>;
   projects: Project[];
   editingAutomation?: Automation | null;
 }
@@ -39,13 +45,11 @@ interface AutomationModalProps {
 const AutomationModal: React.FC<AutomationModalProps> = ({
   isOpen,
   onClose,
-  onSave,
   onUpdate,
   projects,
   editingAutomation,
 }) => {
   const [name, setName] = useState('');
-  const [projectId, setProjectId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [agentId, setAgentId] = useState('claude');
   const [scheduleType, setScheduleType] = useState<ScheduleType>('daily');
@@ -57,12 +61,9 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isEditing = !!editingAutomation;
-
   useEffect(() => {
     if (editingAutomation) {
       setName(editingAutomation.name);
-      setProjectId(editingAutomation.projectId);
       setPrompt(editingAutomation.prompt);
       setAgentId(editingAutomation.agentId);
       setScheduleType(editingAutomation.schedule.type);
@@ -71,38 +72,22 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
       setDayOfWeek(editingAutomation.schedule.dayOfWeek ?? 'mon');
       setDayOfMonth(editingAutomation.schedule.dayOfMonth ?? 1);
       setUseWorktree(editingAutomation.useWorktree ?? true);
-    } else {
-      setName('');
-      setProjectId(projects[0]?.id ?? '');
-      setPrompt('');
-      setAgentId('claude');
-      setScheduleType('daily');
-      setHour(9);
-      setMinute(0);
-      setDayOfWeek('mon');
-      setDayOfMonth(1);
-      setUseWorktree(true);
     }
     setError(null);
-  }, [editingAutomation, isOpen, projects]);
+  }, [editingAutomation, isOpen]);
 
-  const buildSchedule = (): AutomationSchedule => {
-    const base: AutomationSchedule = { type: scheduleType, hour, minute };
-    if (scheduleType === 'weekly') base.dayOfWeek = dayOfWeek as any;
-    if (scheduleType === 'monthly') base.dayOfMonth = dayOfMonth;
-    return base;
-  };
+  const selectedProject = editingAutomation
+    ? projects.find((p) => p.id === editingAutomation.projectId)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    if (!editingAutomation) return;
+
     if (!name.trim()) {
       setError('Name is required');
-      return;
-    }
-    if (!projectId) {
-      setError('Please select a project');
       return;
     }
     if (!prompt.trim()) {
@@ -112,25 +97,14 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
 
     setIsSaving(true);
     try {
-      if (isEditing && onUpdate) {
-        await onUpdate(editingAutomation!.id, {
-          name: name.trim(),
-          projectId,
-          prompt: prompt.trim(),
-          agentId,
-          schedule: buildSchedule(),
-          useWorktree,
-        });
-      } else {
-        await onSave({
-          name: name.trim(),
-          projectId,
-          prompt: prompt.trim(),
-          agentId,
-          schedule: buildSchedule(),
-          useWorktree,
-        });
-      }
+      await onUpdate({
+        id: editingAutomation.id,
+        name: name.trim(),
+        prompt: prompt.trim(),
+        agentId,
+        schedule: buildSchedule(scheduleType, hour, minute, dayOfWeek, dayOfMonth),
+        useWorktree,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save automation');
@@ -140,7 +114,6 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
   };
 
   const selectedAgent = agentConfig[agentId as Agent];
-  const selectedProject = projects.find((p) => p.id === projectId);
   const hasGithub =
     selectedProject?.githubInfo?.connected && selectedProject?.githubInfo?.repository;
 
@@ -153,12 +126,8 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
     >
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Automation' : 'New Automation'}</DialogTitle>
-          <DialogDescription className="text-xs">
-            {isEditing
-              ? 'Update the automation settings'
-              : 'Schedule a recurring task that runs automatically'}
-          </DialogDescription>
+          <DialogTitle>Edit Automation</DialogTitle>
+          <DialogDescription className="text-xs">Update the automation settings</DialogDescription>
         </DialogHeader>
         <Separator />
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -176,48 +145,23 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
             />
           </div>
 
-          {/* Project */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Select a project">
-                  {selectedProject && (
-                    <div className="flex items-center gap-2">
-                      {hasGithub ? (
-                        <Github className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="truncate">{selectedProject.name}</span>
-                    </div>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => {
-                  const pHasGh = p.githubInfo?.connected && p.githubInfo?.repository;
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        {pHasGh ? (
-                          <Github className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span>{p.name}</span>
-                        {pHasGh && (
-                          <span className="ml-auto text-[10px] text-muted-foreground/50">
-                            {p.githubInfo!.repository}
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Project (read-only) */}
+          {selectedProject && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Project</Label>
+              <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                {hasGithub ? (
+                  <Github className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <FolderGit2 className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span className="truncate">{selectedProject.name}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Project cannot be changed after creation
+              </p>
+            </div>
+          )}
 
           {/* Agent */}
           <div className="space-y-1.5">
@@ -269,7 +213,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
             </Label>
             <Textarea
               id="auto-prompt"
-              placeholder="What should the agent do? e.g. 'Review all open PRs and leave comments on code quality issues'"
+              placeholder="What should the agent do?"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className="min-h-[120px] text-sm"
@@ -396,7 +340,7 @@ const AutomationModal: React.FC<AutomationModalProps> = ({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isSaving}>
-              {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Automation'}
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>

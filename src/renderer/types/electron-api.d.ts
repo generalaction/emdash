@@ -1380,8 +1380,20 @@ declare global {
         data?: import('../../shared/automations/types').Automation;
         error?: string;
       }>;
+      automationsCompleteRun: (args: {
+        runLogId: string;
+        automationId: string;
+        taskId?: string;
+        status: 'success' | 'failure';
+        error?: string;
+      }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
       onAutomationTrigger: (
-        listener: (automation: import('../../shared/automations/types').Automation) => void
+        listener: (
+          automation: import('../../shared/automations/types').Automation & { _runLogId: string }
+        ) => void
       ) => () => void;
     };
   }
@@ -2109,8 +2121,20 @@ export interface ElectronAPI {
     data?: import('../../shared/automations/types').Automation;
     error?: string;
   }>;
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
   onAutomationTrigger: (
-    listener: (automation: import('../../shared/automations/types').Automation) => void
+    listener: (
+      automation: import('../../shared/automations/types').Automation & { _runLogId: string }
+    ) => void
   ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';

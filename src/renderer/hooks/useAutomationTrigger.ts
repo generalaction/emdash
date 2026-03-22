@@ -16,10 +16,8 @@ import type { ProviderId } from '@shared/providers/registry';
  * Creates a task and starts the agent fully in the background —
  * no view switching, no navigation away from the current screen.
  *
- * Emits brief phase updates during the trigger sequence so the
- * AutomationCard can show what's happening. Once the agent PTY
- * is started the triggering state is cleared — long‑running
- * tracking comes from the real task list.
+ * Tracks the run log ID so the main process can update run logs
+ * when the agent finishes (success/failure).
  */
 export function useAutomationTrigger(): void {
   const { projects } = useProjectManagementContext();
@@ -27,16 +25,25 @@ export function useAutomationTrigger(): void {
   const queryClient = useQueryClient();
 
   const runAutomationInBackground = useCallback(
-    async (automation: Automation) => {
+    async (automation: Automation & { _runLogId: string }) => {
+      const runLogId = automation._runLogId;
       const project = projects.find((p) => p.id === automation.projectId);
       if (!project) {
+        const errorMsg = `Project not found for "${automation.name}"`;
         toast({
           title: 'Automation failed',
-          description: `Project not found for "${automation.name}"`,
+          description: errorMsg,
           variant: 'destructive',
         });
         setAutomationRunPhase(automation.id, automation.name, 'error', {
           error: 'Project not found',
+        });
+        // Report failure back to main
+        void window.electronAPI.automationsCompleteRun({
+          runLogId,
+          automationId: automation.id,
+          status: 'failure',
+          error: errorMsg,
         });
         return;
       }
@@ -99,6 +106,14 @@ export function useAutomationTrigger(): void {
           useWorktree,
         });
 
+        // Report the taskId to the run log
+        void window.electronAPI.automationsCompleteRun({
+          runLogId,
+          automationId: automation.id,
+          taskId,
+          status: 'success',
+        });
+
         // Invalidate task cache so the sidebar picks it up
         void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
 
@@ -117,8 +132,6 @@ export function useAutomationTrigger(): void {
         });
 
         // Agent started — clear the triggering state.
-        // The real task now lives in the task list and can be
-        // tracked via useTaskStatus / useTaskBusy.
         clearAutomationRun(automation.id);
 
         toast({
@@ -134,6 +147,13 @@ export function useAutomationTrigger(): void {
           title: 'Automation failed',
           description: errorMessage,
           variant: 'destructive',
+        });
+        // Report failure back to main
+        void window.electronAPI.automationsCompleteRun({
+          runLogId,
+          automationId: automation.id,
+          status: 'failure',
+          error: errorMessage,
         });
       }
     },
