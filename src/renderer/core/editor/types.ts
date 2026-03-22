@@ -7,9 +7,6 @@ export interface ManagedFile {
   kind: ManagedFileKind;
   /** Raw content or data-URL (images). Empty string while loading or for binary files. */
   content: string;
-  /** The content as it was last read from disk — used to detect unsaved changes. */
-  originalContent: string;
-  isDirty: boolean;
   isLoading: boolean;
   /** Only set for `kind === 'too-large'` files. */
   totalSize?: number | null;

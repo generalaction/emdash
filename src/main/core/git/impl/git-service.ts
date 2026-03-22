@@ -217,6 +217,18 @@ export class GitService implements GitProvider {
     }
   }
 
+  async getFileAtIndex(filePath: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.exec('git', ['show', `:0:${filePath}`], {
+        cwd: this.path,
+        maxBuffer: MAX_DIFF_CONTENT_BYTES,
+      });
+      return stripTrailingNewline(stdout);
+    } catch {
+      return null;
+    }
+  }
+
   async getFileDiff(filePath: string, base: DiffBase = 'HEAD'): Promise<DiffResult> {
     const isBranchDiff = base !== 'HEAD' && base !== 'staged';
     const diffArgs =

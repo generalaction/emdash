@@ -1,10 +1,16 @@
 import { createContext, ReactNode, useContext, useState } from 'react';
 
-export type Stage = 'unstaged' | 'staged' | 'pr';
-
 export interface ActiveFile {
   path: string;
-  stage: Stage;
+  /**
+   * Which model types to use for the diff:
+   *   'disk'   — right side = disk:// (working tree); left = git at originalRef
+   *   'staged' — right side = git://'staged' (index content); left = git://HEAD
+   *   'git'    — right side = git://HEAD; left = git at originalRef (PR / ref diffs)
+   */
+  type: 'disk' | 'staged' | 'git';
+  /** Git ref for the left (original/before) side. For 'staged', always 'HEAD'. */
+  originalRef: string;
   scrollBehavior?: 'smooth' | 'auto';
 }
 

@@ -1,29 +1,37 @@
-import { useCallback } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useTaskViewContext } from '../task-view-context';
 
 export function useTaskViewNavigation() {
   const { setCollapsed } = useWorkspaceLayoutContext();
   const { setRightPanelView, setView, rightPanelView } = useTaskViewContext();
+  const [isPending, startTransition] = useTransition();
 
   const openAgentsView = useCallback(() => {
-    setView('agents');
-    if (rightPanelView === 'files') setRightPanelView('changes');
+    startTransition(() => {
+      setView('agents');
+      if (rightPanelView === 'files') setRightPanelView('changes');
+    });
   }, [setView, rightPanelView, setRightPanelView]);
 
   const openEditorView = useCallback(() => {
-    setView('editor');
-    setRightPanelView('files');
+    startTransition(() => {
+      setView('editor');
+      setRightPanelView('files');
+    });
     setCollapsed('right', false);
   }, [setView, setRightPanelView, setCollapsed]);
 
   const openDiffView = useCallback(() => {
-    setView('diff');
-    setRightPanelView('changes');
+    startTransition(() => {
+      setView('diff');
+      setRightPanelView('changes');
+    });
     setCollapsed('right', false);
   }, [setView, setRightPanelView, setCollapsed]);
 
   return {
+    isPending,
     openAgentsView,
     openEditorView,
     openDiffView,

@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
 import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
@@ -22,7 +22,7 @@ const MAX_STACKED_FILES = 75;
 
 export function StackedDiffView() {
   const { activeFile } = useGitViewContext();
-  const isStaged = activeFile?.stage === 'staged';
+  const isStaged = activeFile?.type === 'staged';
 
   return <StackedDiffPanel isStaged={isStaged} />;
 }
@@ -38,11 +38,30 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
 
   const files = isStaged ? stagedFileChanges : unstagedFileChanges;
 
+  // For staged panel: both sides are git models ('staged' index vs HEAD).
+  // For unstaged panel: right side is disk, left side is git//HEAD.
+  const diffType = isStaged ? ('staged' as const) : ('disk' as const);
+  const originalRef = 'HEAD';
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressObserver = useRef(false);
 
-  const scrollSyncRef = useRef({ files, isStaged, setActiveFile, suppress: suppressObserver });
-  scrollSyncRef.current = { files, isStaged, setActiveFile, suppress: suppressObserver };
+  const scrollSyncRef = useRef({
+    files,
+    isStaged,
+    diffType,
+    originalRef,
+    setActiveFile,
+    suppress: suppressObserver,
+  });
+  scrollSyncRef.current = {
+    files,
+    isStaged,
+    diffType,
+    originalRef,
+    setActiveFile,
+    suppress: suppressObserver,
+  };
 
   const virtualizer = useVirtualizer({
     count: files.length,
@@ -59,12 +78,18 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
     gap: 4,
     overscan: 8,
     onChange: (instance) => {
-      const { files: f, isStaged: s, setActiveFile: setFile, suppress } = scrollSyncRef.current;
+      const {
+        files: f,
+        diffType: dt,
+        originalRef: ref,
+        setActiveFile: setFile,
+        suppress,
+      } = scrollSyncRef.current;
       if (!suppress.current) {
         const startIndex = instance.range?.startIndex;
         if (startIndex != null) {
           const file = f[startIndex];
-          if (file) setFile({ path: file.path, stage: 'staged' });
+          if (file) setFile({ path: file.path, type: dt, originalRef: ref });
         }
       }
     },
@@ -77,33 +102,52 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
   useEffect(() => {
     if (files.length > MAX_STACKED_FILES) return;
 
-    const registered: Array<{ diskUri: string; gitUri: string }> = [];
+    const registered: Array<{ originalUri: string; modifiedUri: string }> = [];
 
     void (async () => {
       for (const file of files) {
         if (isBinaryForDiff(file.path)) continue;
         const language = getLanguageFromPath(file.path);
+        const root = `task:${taskId}`;
         try {
-          await modelRegistry.registerModel(
-            projectId,
-            taskId,
-            `task:${taskId}`,
-            file.path,
-            language,
-            'disk'
-          );
-          await modelRegistry.registerModel(
-            projectId,
-            taskId,
-            `task:${taskId}`,
-            file.path,
-            language,
-            'git'
-          );
-          const uri = buildMonacoModelPath(`task:${taskId}`, file.path);
+          if (diffType === 'staged') {
+            await modelRegistry.registerModel(
+              projectId,
+              taskId,
+              root,
+              file.path,
+              language,
+              'git',
+              'HEAD'
+            );
+            await modelRegistry.registerModel(
+              projectId,
+              taskId,
+              root,
+              file.path,
+              language,
+              'git',
+              'staged'
+            );
+          } else {
+            await modelRegistry.registerModel(projectId, taskId, root, file.path, language, 'disk');
+            await modelRegistry.registerModel(
+              projectId,
+              taskId,
+              root,
+              file.path,
+              language,
+              'git',
+              originalRef
+            );
+          }
+          const uri = buildMonacoModelPath(root, file.path);
           registered.push({
-            diskUri: modelRegistry.toDiskUri(uri),
-            gitUri: modelRegistry.toGitUri(uri, 'HEAD'),
+            originalUri: modelRegistry.toGitUri(uri, 'HEAD'),
+            modifiedUri:
+              diffType === 'staged'
+                ? modelRegistry.toGitUri(uri, 'staged')
+                : modelRegistry.toDiskUri(uri),
           });
         } catch {
           // Ignore individual file registration errors
@@ -112,18 +156,18 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
     })();
 
     return () => {
-      for (const { diskUri, gitUri } of registered) {
-        modelRegistry.unregisterModel(diskUri);
-        modelRegistry.unregisterModel(gitUri);
+      for (const { originalUri, modifiedUri } of registered) {
+        modelRegistry.unregisterModel(originalUri);
+        modelRegistry.unregisterModel(modifiedUri);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, taskId]);
+  }, [projectId, taskId, diffType]);
 
   // Click → scroll: when activeFile changes or mode switches back to stacked
   useEffect(() => {
     if (viewMode !== 'stacked') return;
-    if (activeFile?.stage !== 'staged') return;
+    if (activeFile?.type !== diffType) return;
     const index = files.findIndex((f) => f.path === activeFile?.path);
     if (index < 0) return;
 
@@ -141,7 +185,7 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
     return () => clearTimeout(timer);
     // scrollBehavior is intentionally omitted — see comment in original
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile?.path, activeFile?.stage, viewMode, files, isStaged, virtualizer]);
+  }, [activeFile?.path, activeFile?.type, viewMode, files, isStaged, virtualizer]);
 
   if (files.length === 0) {
     return (
@@ -178,7 +222,12 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              <StackedFileSection file={file} taskId={taskId} diffStyle={diffStyle} />
+              <StackedFileSection
+                file={file}
+                taskId={taskId}
+                diffStyle={diffStyle}
+                diffType={diffType}
+              />
             </div>
           );
         })}
@@ -191,27 +240,30 @@ interface StackedFileSectionProps {
   file: GitChange;
   taskId: string;
   diffStyle: 'unified' | 'split';
+  diffType: 'disk' | 'staged';
 }
 
 const MIN_EDITOR_HEIGHT = 100;
 
-function StackedFileSection({ file, taskId, diffStyle }: StackedFileSectionProps) {
+function StackedFileSection({ file, taskId, diffStyle, diffType }: StackedFileSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [forceLoad, setForceLoad] = useState(false);
   const [contentHeight, setContentHeight] = useState<number | null>(null);
 
   const uri = buildMonacoModelPath(`task:${taskId}`, file.path);
-  const diskUri = modelRegistry.toDiskUri(uri);
-  const gitUri = modelRegistry.toGitUri(uri, 'HEAD');
   const language = getLanguageFromPath(file.path);
   const isBinary = isBinaryForDiff(file.path);
+
+  const originalUri = modelRegistry.toGitUri(uri, 'HEAD');
+  const modifiedUri =
+    diffType === 'staged' ? modelRegistry.toGitUri(uri, 'staged') : modelRegistry.toDiskUri(uri);
 
   // Subscribe to model status — drives FS watching while this section is visible.
   // Mount of this component signals that the section is in the virtualizer viewport.
   // Unmount (scrolled out) stops FS watching via TTL eviction in subscribeToUri.
-  const diskStatus = useModelStatus(diskUri);
-  const gitStatus = useModelStatus(gitUri);
-  const isLoading = diskStatus === 'loading' || gitStatus === 'loading';
+  const originalStatus = useModelStatus(originalUri);
+  const modifiedStatus = useModelStatus(modifiedUri);
+  const isLoading = originalStatus === 'loading' || modifiedStatus === 'loading';
 
   const parts = file.path.split('/');
   const fileName = parts.pop() || file.path;
@@ -266,8 +318,8 @@ function StackedFileSection({ file, taskId, diffStyle }: StackedFileSectionProps
             </div>
           ) : (
             <PooledDiffEditor
-              originalUri={gitUri}
-              modifiedDiskUri={diskUri}
+              originalUri={originalUri}
+              modifiedUri={modifiedUri}
               language={language}
               diffStyle={diffStyle}
               onHeightChange={setContentHeight}

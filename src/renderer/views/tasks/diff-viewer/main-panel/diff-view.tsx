@@ -15,7 +15,7 @@ export function DiffView() {
   return (
     <div className="flex h-full flex-col">
       <DiffToolbar
-        diffSource={activeFile?.stage}
+        diffSource={activeFile?.type}
         filePath={activeFile?.path}
         viewMode={viewMode}
         onViewModeChange={setViewMode}

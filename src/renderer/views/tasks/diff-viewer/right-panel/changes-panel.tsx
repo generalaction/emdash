@@ -9,10 +9,7 @@ import {
 } from '@renderer/components/ui/resizable';
 import { cn } from '@renderer/lib/utils';
 import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
-import {
-  ActiveFile,
-  useGitViewContext,
-} from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
+import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useBranchStatus } from '@renderer/views/tasks/diff-viewer/state/use-branch-status';
 import { useSelection } from '@renderer/views/tasks/diff-viewer/state/use-selection';
@@ -54,7 +51,8 @@ export function ChangesPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const { activeFile, setActiveFile } = useGitViewContext();
   const { setView } = useTaskViewContext();
-  const prefetchDiff = usePrefetchModels(projectId, taskId);
+  const prefetchUnstagedDiff = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
+  const prefetchStagedDiff = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');
 
   const { data } = useBranchStatus({ projectId, taskId });
 
@@ -84,7 +82,7 @@ export function ChangesPanel() {
     if (!activeFile) return;
     setExpanded((prev) => ({
       ...prev,
-      [activeFile.stage === 'unstaged' ? 'unstaged' : 'staged']: true,
+      [activeFile.type === 'disk' ? 'unstaged' : 'staged']: true,
     }));
   }, [activeFile, setExpanded]);
 
@@ -123,11 +121,9 @@ export function ChangesPanel() {
     setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
   };
 
-  const handleSelectChange = (file: ActiveFile | null) => {
-    setActiveFile(file);
-    if (file) {
-      setView('diff');
-    }
+  const handleSelectChange = (path: string, type: 'disk' | 'staged') => {
+    setActiveFile({ path, type, originalRef: 'HEAD' });
+    setView('diff');
   };
 
   return (
@@ -215,11 +211,9 @@ export function ChangesPanel() {
                 changes={unstagedFileChanges}
                 isSelected={unstagedSelection.isSelected}
                 onToggleSelect={unstagedSelection.toggleItem}
-                activePath={activeFile?.stage === 'unstaged' ? activeFile.path : undefined}
-                onSelectChange={(change) =>
-                  handleSelectChange({ path: change.path, stage: 'unstaged' })
-                }
-                onPrefetch={(change) => prefetchDiff(change.path)}
+                activePath={activeFile?.type === 'disk' ? activeFile.path : undefined}
+                onSelectChange={(change) => handleSelectChange(change.path, 'disk')}
+                onPrefetch={(change) => prefetchUnstagedDiff(change.path)}
               />
             </div>
           </div>
@@ -279,11 +273,9 @@ export function ChangesPanel() {
                 changes={stagedFileChanges}
                 isSelected={stagedSelection.isSelected}
                 onToggleSelect={stagedSelection.toggleItem}
-                activePath={activeFile?.stage === 'staged' ? activeFile.path : undefined}
-                onSelectChange={(change) =>
-                  handleSelectChange({ path: change.path, stage: 'staged' })
-                }
-                onPrefetch={(change) => prefetchDiff(change.path)}
+                activePath={activeFile?.type === 'staged' ? activeFile.path : undefined}
+                onSelectChange={(change) => handleSelectChange(change.path, 'staged')}
+                onPrefetch={(change) => prefetchStagedDiff(change.path)}
               />
             </div>
             {hasStaged && <CommitCard onCommit={handleCommit} />}

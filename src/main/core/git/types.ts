@@ -19,6 +19,7 @@ export interface GitProvider {
   getFileDiff(filePath: string, base?: DiffBase): Promise<DiffResult>;
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
+  getFileAtIndex(filePath: string): Promise<string | null>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
   stageFiles(filePaths: string[]): Promise<void>;

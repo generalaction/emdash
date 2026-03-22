@@ -12,11 +12,13 @@ export function FileDiffView() {
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
   const language = activeFile ? getLanguageFromPath(activeFile.path) : '';
 
-  const { diskUri, gitUri, isLoading } = useDiffModels(
+  const { originalUri, modifiedUri, isLoading } = useDiffModels(
     projectId,
     taskId,
     isBinary ? null : (activeFile?.path ?? null),
-    language
+    language,
+    activeFile?.type ?? 'disk',
+    activeFile?.originalRef ?? 'HEAD'
   );
 
   if (!activeFile) {
@@ -40,8 +42,8 @@ export function FileDiffView() {
           </div>
         ) : (
           <PooledDiffEditor
-            originalUri={gitUri}
-            modifiedDiskUri={diskUri}
+            originalUri={originalUri}
+            modifiedUri={modifiedUri}
             language={language}
             diffStyle={diffStyle}
           />

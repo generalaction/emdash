@@ -1,6 +1,5 @@
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef } from 'react';
-import { rpc } from '@renderer/core/ipc';
 import { codeEditorPool, type CodePoolEntry } from '@renderer/core/monaco/monaco-code-pool';
 import { configureMonacoEditor } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
@@ -9,15 +8,11 @@ import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 
-const BUFFER_DEBOUNCE_MS = 2000;
-
 export interface PooledCodeEditorProps {
   /** The file:// buffer URI for the file to display. */
   bufferUri: string;
   readOnly?: boolean;
   glyphMargin?: boolean;
-  /** Called when content changes — use to mark the file dirty in parent state. */
-  onEditorChange?: (value: string) => void;
   /**
    * Called once after the editor instance is leased and configured.
    * Use for task-specific setup: keyboard shortcuts, decorations, etc.
@@ -38,14 +33,12 @@ export function PooledCodeEditor({
   bufferUri,
   readOnly = false,
   glyphMargin = false,
-  onEditorChange,
   onMount,
 }: PooledCodeEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const leaseRef = useRef<CodePoolEntry | null>(null);
   const cancelledRef = useRef(false);
   const currentUriRef = useRef<string | null>(null);
-  const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { effectiveTheme } = useTheme();
 
   // Subscribe to the disk model so FS watching + polling stay active while this file
@@ -60,8 +53,6 @@ export function PooledCodeEditor({
   glyphMarginRef.current = glyphMargin;
   const bufferUriRef = useRef(bufferUri);
   bufferUriRef.current = bufferUri;
-  const onEditorChangeRef = useRef(onEditorChange);
-  onEditorChangeRef.current = onEditorChange;
   const onMountRef = useRef(onMount);
   onMountRef.current = onMount;
 
@@ -113,32 +104,6 @@ export function PooledCodeEditor({
 
       editor.layout();
 
-      // Subscribe to content changes — fires on every keystroke.
-      const changeDisposable = editor.onDidChangeModelContent(() => {
-        const model = editor.getModel();
-        if (!model) return;
-        // Ignore programmatic reloads from disk — they are not user edits.
-        const uri = currentUriRef.current;
-        if (uri && modelRegistry.isReloadingFromDisk(uri)) return;
-        const value = model.getValue();
-        onEditorChangeRef.current?.(value);
-
-        // Debounced buffer save to persist unsaved edits across app restarts.
-        if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-        if (uri) {
-          bufferTimerRef.current = setTimeout(() => {
-            bufferTimerRef.current = null;
-            const currentUri = currentUriRef.current;
-            if (!currentUri || !modelRegistry.isDirty(currentUri)) return;
-            // Read projectId/taskId/filePath from the registry (no prop drilling needed).
-            const meta = modelRegistry.getEntryMeta(currentUri);
-            if (!meta) return;
-            void rpc.editorBuffer.saveBuffer(meta.projectId, meta.taskId, meta.filePath, value);
-          }, BUFFER_DEBOUNCE_MS);
-        }
-      });
-      lease.disposables.push(changeDisposable);
-
       // Caller-specific setup (keyboard shortcuts, decorations, etc.).
       const m = codeEditorPool.getMonaco();
       if (m) {
@@ -151,10 +116,6 @@ export function PooledCodeEditor({
 
     return () => {
       cancelledRef.current = true;
-      if (bufferTimerRef.current) {
-        clearTimeout(bufferTimerRef.current);
-        bufferTimerRef.current = null;
-      }
       const lease = leaseRef.current;
       leaseRef.current = null;
       currentUriRef.current = null;

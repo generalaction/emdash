@@ -95,21 +95,25 @@ export function TaskBootstrapProvider({ children }: { children: ReactNode }) {
 
       log(`startTracking: checking initial status`, { taskId });
 
+      // Set bootstrapping synchronously before the await so that consumers see a
+      // defined entry immediately and don't treat the undefined-entry window as
+      // "already ready", which would trigger premature file-tree loads.
+      const startedAt = Date.now();
+      setEntries((prev) => ({
+        ...prev,
+        [taskId]: { startedAt, status: 'bootstrapping' },
+      }));
+
       try {
         const result = await rpc.tasks.getBootstrapStatus(projectId, taskId);
         log(`startTracking: initial status = ${result.status}`, { taskId });
 
         if (result.status === 'ready') {
-          // Already bootstrapped — no loading state needed
-          log(`startTracking: already ready, no loading state`, { taskId });
+          // Already bootstrapped — resolve immediately with no visible loading delay.
+          log(`startTracking: already ready, resolving immediately`, { taskId });
+          resolveEntry(taskId, 'ready');
           return;
         }
-
-        const startedAt = Date.now();
-        setEntries((prev) => ({
-          ...prev,
-          [taskId]: { startedAt, status: 'bootstrapping' },
-        }));
 
         if (result.status === 'not-started') {
           log(`startTracking: not-started, kicking off provision`, { taskId });
@@ -121,10 +125,7 @@ export function TaskBootstrapProvider({ children }: { children: ReactNode }) {
 
         if (result.status === 'error') {
           log(`startTracking: initial status is error`, { taskId, error: result.message });
-          setEntries((prev) => ({
-            ...prev,
-            [taskId]: { startedAt, status: 'error', error: result.message },
-          }));
+          resolveEntry(taskId, 'error', result.message);
           return;
         }
 

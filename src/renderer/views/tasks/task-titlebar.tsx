@@ -1,6 +1,7 @@
 import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { RightPanelView, useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
@@ -29,7 +30,9 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 
 function ActiveTaskTitlebar() {
   const { view, task, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
-  const { openAgentsView, openEditorView, openDiffView } = useTaskViewNavigation();
+  const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
+
+  const delayedIsPending = useDelayedBoolean(isPending, 200);
 
   return (
     <Titlebar
@@ -42,6 +45,7 @@ function ActiveTaskTitlebar() {
       rightSlot={
         <>
           <ToggleGroup
+            disabled={delayedIsPending}
             variant="outline"
             value={[view]}
             size="sm"
@@ -75,6 +79,7 @@ function ActiveTaskTitlebar() {
             </ToggleGroupItem>
           </ToggleGroup>
           <ToggleGroup
+            disabled={delayedIsPending}
             variant="outline"
             value={[rightPanelView]}
             size="sm"

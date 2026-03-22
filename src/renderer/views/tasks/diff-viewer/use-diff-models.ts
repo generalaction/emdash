@@ -1,49 +1,79 @@
 import { useEffect } from 'react';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 
 export interface DiffModels {
-  diskUri: string;
-  gitUri: string;
+  originalUri: string;
+  modifiedUri: string;
   isLoading: boolean;
 }
 
 /**
- * Registers disk and git (HEAD) Monaco models for a single file and subscribes
- * to their load status. Handles registration, FS-watch activation (via
- * useModelStatus), and cleanup on unmount or file change.
+ * Registers the correct pair of Monaco models for a diff and subscribes to their
+ * load status. Model types depend on the diff context:
  *
- * Returns empty URIs and `isLoading: false` when `filePath` is null/empty so
- * callers can safely skip rendering without extra guards.
+ *   'disk'   — original = git at originalRef (e.g. HEAD); modified = disk (live working tree)
+ *   'staged' — original = git://HEAD; modified = git://'staged' (index content)
+ *   'git'    — original = git at originalRef (e.g. origin/main); modified = git://HEAD
+ *
+ * Returns empty URIs and `isLoading: false` when `filePath` is null/empty.
  */
 export function useDiffModels(
   projectId: string,
   taskId: string,
   filePath: string | null,
-  language: string
+  language: string,
+  type: 'disk' | 'staged' | 'git',
+  originalRef: string
 ): DiffModels {
   const uri = filePath ? buildMonacoModelPath(`task:${taskId}`, filePath) : '';
-  const diskUri = uri ? modelRegistry.toDiskUri(uri) : '';
-  const gitUri = uri ? modelRegistry.toGitUri(uri, 'HEAD') : '';
+
+  const originalUri = uri
+    ? modelRegistry.toGitUri(uri, type === 'staged' ? 'HEAD' : originalRef)
+    : '';
+  const modifiedUri = uri
+    ? type === 'disk'
+      ? modelRegistry.toDiskUri(uri)
+      : modelRegistry.toGitUri(uri, type === 'staged' ? 'staged' : 'HEAD')
+    : '';
 
   useEffect(() => {
     if (!filePath) return;
     const path = filePath;
+    const root = `task:${taskId}`;
 
-    modelRegistry.registerModel(projectId, taskId, `task:${taskId}`, path, language, 'disk');
-    modelRegistry.registerModel(projectId, taskId, `task:${taskId}`, path, language, 'git');
+    if (type === 'disk') {
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'disk');
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'git', originalRef);
+    } else if (type === 'staged') {
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'git', 'HEAD');
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'git', 'staged');
+    } else {
+      // 'git': both sides are git refs
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'git', originalRef);
+      void modelRegistry.registerModel(projectId, taskId, root, path, language, 'git', 'HEAD');
+    }
 
     return () => {
-      const u = buildMonacoModelPath(`task:${taskId}`, path);
-      modelRegistry.unregisterModel(modelRegistry.toDiskUri(u));
-      modelRegistry.unregisterModel(modelRegistry.toGitUri(u, 'HEAD'));
+      const u = buildMonacoModelPath(root, path);
+      if (type === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(u));
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(u, originalRef));
+      } else if (type === 'staged') {
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(u, 'HEAD'));
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(u, 'staged'));
+      } else {
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(u, originalRef));
+        modelRegistry.unregisterModel(modelRegistry.toGitUri(u, 'HEAD'));
+      }
     };
-  }, [filePath, projectId, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, projectId, taskId, type, originalRef]);
 
-  const diskStatus = useModelStatus(diskUri);
-  const gitStatus = useModelStatus(gitUri);
-  const isLoading = diskStatus === 'loading' || gitStatus === 'loading';
+  const originalStatus = useModelStatus(originalUri);
+  const modifiedStatus = useModelStatus(modifiedUri);
+  const isLoading = originalStatus === 'loading' || modifiedStatus === 'loading';
 
-  return { diskUri, gitUri, isLoading };
+  return { originalUri, modifiedUri, isLoading };
 }

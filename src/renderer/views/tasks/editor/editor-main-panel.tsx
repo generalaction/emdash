@@ -12,7 +12,7 @@ import { isMarkdownPath } from '@renderer/core/editor/utils';
 import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
 import { addMonacoKeyboardShortcuts } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
 import { useEditorContext } from './editor-provider';
 import { useEditorViewContext } from './editor-view-provider';
@@ -22,6 +22,7 @@ export function EditorMainPanel() {
   const {
     modelRootPath,
     openFiles,
+    tabs,
     activeFilePath,
     activeFile,
     previewFilePath,
@@ -30,7 +31,6 @@ export function EditorMainPanel() {
     pinFile,
     saveFile,
     saveAllFiles,
-    markDirty,
   } = useEditorContext();
 
   const { previewMode, togglePreview } = useEditorViewContext();
@@ -73,14 +73,6 @@ export function EditorMainPanel() {
     [] // no deps — all functions accessed via always-current refs above
   );
 
-  const handleEditorChange = useCallback(
-    (_value: string) => {
-      if (!activeFilePath) return;
-      markDirty(activeFilePath);
-    },
-    [activeFilePath, markDirty]
-  );
-
   // Default preview mode: markdown and SVG default to rendered view.
   const isPreviewActive = activeFilePath
     ? (previewMode.get(activeFilePath) ??
@@ -108,9 +100,11 @@ export function EditorMainPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <FileTabs
+        tabs={tabs}
         openFiles={openFiles}
         activeFilePath={activeFilePath}
         previewFilePath={previewFilePath}
+        modelRootPath={modelRootPath}
         onTabClick={setActiveFile}
         onTabClose={handleCloseFile}
         onPinTab={pinFile}
@@ -122,7 +116,6 @@ export function EditorMainPanel() {
         isPreviewActive={isPreviewActive}
         previewContent={previewContent}
         modelRootPath={modelRootPath}
-        handleEditorChange={handleEditorChange}
         handleEditorMount={handleEditorMount}
       />
     </div>
@@ -134,7 +127,6 @@ interface ActiveFileRendererProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  handleEditorChange: (value: string) => void;
   handleEditorMount: (editor: any, monaco: any) => void;
 }
 
@@ -143,7 +135,6 @@ function ActiveFileRenderer({
   isPreviewActive,
   previewContent,
   modelRootPath,
-  handleEditorChange,
   handleEditorMount,
 }: ActiveFileRendererProps) {
   if (!file) return null;
@@ -162,7 +153,6 @@ function ActiveFileRenderer({
           isPreviewActive={isPreviewActive}
           previewContent={previewContent}
           modelRootPath={modelRootPath}
-          onEditorChange={handleEditorChange}
           onMount={handleEditorMount}
         />
       );
@@ -182,7 +172,6 @@ interface CodeEditorSectionProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  onEditorChange: (value: string) => void;
   onMount: (editor: any, monaco: any) => void;
 }
 
@@ -191,7 +180,6 @@ function CodeEditorSection({
   isPreviewActive,
   previewContent,
   modelRootPath,
-  onEditorChange,
   onMount,
 }: CodeEditorSectionProps) {
   if (isPreviewActive) {
@@ -214,12 +202,5 @@ function CodeEditorSection({
   }
 
   const bufferUri = buildMonacoModelPath(modelRootPath, file.path);
-  return (
-    <PooledCodeEditor
-      bufferUri={bufferUri}
-      glyphMargin={true}
-      onEditorChange={onEditorChange}
-      onMount={onMount}
-    />
-  );
+  return <PooledCodeEditor bufferUri={bufferUri} glyphMargin={true} onMount={onMount} />;
 }

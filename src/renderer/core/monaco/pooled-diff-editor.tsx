@@ -3,10 +3,10 @@ import { diffEditorPool, type DiffPoolEntry } from '@renderer/core/monaco/monaco
 import { useTheme } from '@renderer/hooks/useTheme';
 
 export interface PooledDiffEditorProps {
-  /** git:// URI for the left (original) side — e.g. git://task:abc/HEAD/src/index.ts */
+  /** URI for the left (original/before) side — typically git:// */
   originalUri: string;
-  /** disk:// URI for the right (modified) side — on-disk content (what git sees). */
-  modifiedDiskUri: string;
+  /** URI for the right (modified/after) side — disk://, git://, etc. */
+  modifiedUri: string;
   language: string;
   diffStyle: 'unified' | 'split';
   /** Called whenever the modified editor's content height changes — for dynamic virtualization. */
@@ -20,7 +20,7 @@ export interface PooledDiffEditorProps {
  */
 export function PooledDiffEditor({
   originalUri,
-  modifiedDiskUri,
+  modifiedUri,
   language,
   diffStyle,
   onHeightChange,
@@ -35,8 +35,8 @@ export function PooledDiffEditor({
   diffStyleRef.current = diffStyle;
   const originalUriRef = useRef(originalUri);
   originalUriRef.current = originalUri;
-  const modifiedDiskUriRef = useRef(modifiedDiskUri);
-  modifiedDiskUriRef.current = modifiedDiskUri;
+  const modifiedUriRef = useRef(modifiedUri);
+  modifiedUriRef.current = modifiedUri;
   const languageRef = useRef(language);
   languageRef.current = language;
   const onHeightChangeRef = useRef(onHeightChange);
@@ -74,7 +74,7 @@ export function PooledDiffEditor({
       diffEditorPool.applyContent(
         lease,
         originalUriRef.current,
-        modifiedDiskUriRef.current,
+        modifiedUriRef.current,
         languageRef.current
       );
 

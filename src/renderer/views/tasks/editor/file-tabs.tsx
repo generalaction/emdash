@@ -3,12 +3,16 @@ import React from 'react';
 import { FileIcon } from '@renderer/components/FileExplorer/FileIcons';
 import type { ManagedFile } from '@renderer/core/editor/types';
 import { isMarkdownFile } from '@renderer/core/editor/utils';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
+import { useIsDirty } from '@renderer/core/monaco/use-model';
 import { cn } from '@renderer/lib/utils';
 
 interface FileTabsProps {
+  tabs: Array<{ tabId: string; filePath: string }>;
   openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
   previewFilePath: string | null;
+  modelRootPath: string;
   onTabClick: (filePath: string) => void;
   onTabClose: (filePath: string) => void;
   onPinTab: (filePath: string) => void;
@@ -17,49 +21,57 @@ interface FileTabsProps {
 }
 
 export const FileTabs: React.FC<FileTabsProps> = ({
+  tabs,
   openFiles,
   activeFilePath,
   previewFilePath,
+  modelRootPath,
   onTabClick,
   onTabClose,
   onPinTab,
   previewMode,
   onTogglePreview,
 }) => {
-  if (openFiles.size === 0) {
+  if (tabs.length === 0) {
     return null;
   }
 
   return (
     <div className="flex h-8 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/10 [overscroll-behavior-x:contain]">
-      {Array.from(openFiles.entries()).map(([path, file]) => (
-        <FileTab
-          key={path}
-          path={path}
-          file={file}
-          isActive={activeFilePath === path}
-          isUnstable={previewFilePath === path}
-          isPreviewable={isMarkdownFile(path) || file.kind === 'svg'}
-          isPreview={previewMode.get(path) ?? (isMarkdownFile(path) || file.kind === 'svg')}
-          onClick={() => onTabClick(path)}
-          onDoubleClick={() => onPinTab(path)}
-          onClose={(e) => {
-            e.stopPropagation();
-            onTabClose(path);
-          }}
-          onTogglePreview={(e) => {
-            e.stopPropagation();
-            onTogglePreview(path);
-          }}
-        />
-      ))}
+      {tabs.map(({ tabId, filePath }) => {
+        const file = openFiles.get(filePath);
+        if (!file) return null;
+        return (
+          <FileTab
+            key={tabId}
+            path={filePath}
+            modelRootPath={modelRootPath}
+            isActive={activeFilePath === filePath}
+            isUnstable={previewFilePath === filePath}
+            isPreviewable={isMarkdownFile(filePath) || file.kind === 'svg'}
+            isPreview={
+              previewMode.get(filePath) ?? (isMarkdownFile(filePath) || file.kind === 'svg')
+            }
+            onClick={() => onTabClick(filePath)}
+            onDoubleClick={() => onPinTab(filePath)}
+            onClose={(e) => {
+              e.stopPropagation();
+              onTabClose(filePath);
+            }}
+            onTogglePreview={(e) => {
+              e.stopPropagation();
+              onTogglePreview(filePath);
+            }}
+          />
+        );
+      })}
     </div>
   );
 };
 
 interface FileTabProps {
   path: string;
-  file: ManagedFile;
+  modelRootPath: string;
   isActive: boolean;
   isUnstable: boolean;
   /** Whether this file supports a rendered preview toggle (markdown, SVG). */
@@ -73,7 +85,7 @@ interface FileTabProps {
 
 const FileTab: React.FC<FileTabProps> = ({
   path,
-  file,
+  modelRootPath,
   isActive,
   isUnstable,
   isPreviewable,
@@ -84,6 +96,8 @@ const FileTab: React.FC<FileTabProps> = ({
   onTogglePreview,
 }) => {
   const fileName = path.split('/').pop() || 'Untitled';
+  const bufferUri = buildMonacoModelPath(modelRootPath, path);
+  const isDirty = useIsDirty(bufferUri);
 
   return (
     <div
@@ -101,7 +115,7 @@ const FileTab: React.FC<FileTabProps> = ({
       <span className={cn('max-w-[200px] truncate text-xs', isUnstable && 'italic')}>
         {fileName}
       </span>
-      {file.isDirty && (
+      {isDirty && (
         <span className="text-gray-500" title="Unsaved changes">
           ●
         </span>

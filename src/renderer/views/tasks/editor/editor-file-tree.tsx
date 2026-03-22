@@ -4,21 +4,14 @@ import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
 import { cn } from '@renderer/lib/utils';
 import { FileIcon } from '../diff-viewer/right-panel/file-icon';
-import { useEditorFiletreeContext } from './editor-filetree-provider';
+import { useTaskViewContext } from '../task-view-context';
 import { useEditorContext } from './editor-provider';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import { useFileTreeContext } from './file-tree/filetree-provider';
 
 interface FileChange {
   path: string;
   status: 'added' | 'modified' | 'deleted' | 'renamed';
 }
-
-// ---------------------------------------------------------------------------
-// FileTreeRow — flat, purely presentational row (no recursive children)
-// ---------------------------------------------------------------------------
 
 const FileTreeRow = React.memo(function FileTreeRow({
   node,
@@ -39,12 +32,16 @@ const FileTreeRow = React.memo(function FileTreeRow({
   fileChanges: FileChange[];
   style: React.CSSProperties;
 }) {
+  const { setView, view } = useTaskViewContext();
   const fileStatus = fileChanges.find((c) => c.path === node.path)?.status;
   // Each depth level adds 12px; the base offset reserves space for the chevron column.
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (view !== 'editor') {
+      setView('editor');
+    }
     if (node.type === 'directory') {
       onToggle();
     } else {
@@ -128,13 +125,9 @@ const FileTreeRow = React.memo(function FileTreeRow({
   );
 });
 
-// ---------------------------------------------------------------------------
-// EditorFileTree — virtualized consumer of EditorFiletreeContext
-// ---------------------------------------------------------------------------
-
 export function EditorFileTree() {
   const { activeFilePath, loadFile, openFilePreview, fileChanges } = useEditorContext();
-  const { visibleRows, expandedPaths, toggleExpand, isLoading, error } = useEditorFiletreeContext();
+  const { visibleRows, expandedPaths, toggleExpand, isLoading, error } = useFileTreeContext();
 
   const parentRef = useRef<HTMLDivElement>(null);
 

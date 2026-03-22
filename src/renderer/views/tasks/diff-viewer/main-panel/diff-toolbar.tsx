@@ -1,12 +1,12 @@
 import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
 import React from 'react';
 import { FileIcon } from '@renderer/views/tasks/diff-viewer/right-panel/file-icon';
-import { Stage } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
+import type { ActiveFile } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
 
 interface DiffToolbarProps {
   viewMode: 'stacked' | 'file';
-  diffSource?: Stage;
+  diffSource?: ActiveFile['type'];
   filePath?: string;
   onViewModeChange: (mode: 'stacked' | 'file') => void;
   diffStyle: 'unified' | 'split';
