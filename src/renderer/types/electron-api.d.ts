@@ -1334,6 +1334,67 @@ declare global {
         data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
+
+      // Automations
+      automationsList: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation[];
+        error?: string;
+      }>;
+      automationsGet: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsCreate: (
+        args: import('../../shared/automations/types').CreateAutomationInput
+      ) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation;
+        error?: string;
+      }>;
+      automationsUpdate: (
+        args: import('../../shared/automations/types').UpdateAutomationInput
+      ) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsDelete: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: boolean;
+        error?: string;
+      }>;
+      automationsToggle: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsRunLogs: (args: { automationId: string; limit?: number }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').AutomationRunLog[];
+        error?: string;
+      }>;
+      automationsTriggerNow: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation;
+        error?: string;
+      }>;
+      automationsCompleteRun: (args: {
+        runLogId: string;
+        automationId: string;
+        taskId?: string;
+        status: 'success' | 'failure';
+        error?: string;
+      }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      onAutomationTrigger: (
+        listener: (
+          automation: import('../../shared/automations/types').Automation & { _runLogId: string }
+        ) => void
+      ) => () => void;
     };
   }
 }
@@ -2014,6 +2075,67 @@ export interface ElectronAPI {
     data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
+
+  // Automations
+  automationsList: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation[];
+    error?: string;
+  }>;
+  automationsGet: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsCreate: (
+    args: import('../../shared/automations/types').CreateAutomationInput
+  ) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation;
+    error?: string;
+  }>;
+  automationsUpdate: (
+    args: import('../../shared/automations/types').UpdateAutomationInput
+  ) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsDelete: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: boolean;
+    error?: string;
+  }>;
+  automationsToggle: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsRunLogs: (args: { automationId: string; limit?: number }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').AutomationRunLog[];
+    error?: string;
+  }>;
+  automationsTriggerNow: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation;
+    error?: string;
+  }>;
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  onAutomationTrigger: (
+    listener: (
+      automation: import('../../shared/automations/types').Automation & { _runLogId: string }
+    ) => void
+  ) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

@@ -854,6 +854,66 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpRemoveServer: (serverName: string) => ipcRenderer.invoke('mcp:remove-server', serverName),
   mcpGetProviders: () => ipcRenderer.invoke('mcp:get-providers'),
   mcpRefreshProviders: () => ipcRenderer.invoke('mcp:refresh-providers'),
+
+  // Automations
+  automationsList: () => ipcRenderer.invoke('automations:list'),
+  automationsGet: (args: { id: string }) => ipcRenderer.invoke('automations:get', args),
+  automationsCreate: (args: {
+    name: string;
+    projectId: string;
+    prompt: string;
+    agentId: string;
+    schedule: {
+      type: string;
+      hour?: number;
+      minute?: number;
+      dayOfWeek?: string;
+      dayOfMonth?: number;
+    };
+  }) => ipcRenderer.invoke('automations:create', args),
+  automationsUpdate: (args: {
+    id: string;
+    name?: string;
+    prompt?: string;
+    agentId?: string;
+    schedule?: {
+      type: string;
+      hour?: number;
+      minute?: number;
+      dayOfWeek?: string;
+      dayOfMonth?: number;
+    };
+    status?: string;
+  }) => ipcRenderer.invoke('automations:update', args),
+  automationsDelete: (args: { id: string }) => ipcRenderer.invoke('automations:delete', args),
+  automationsToggle: (args: { id: string }) => ipcRenderer.invoke('automations:toggle', args),
+  automationsRunLogs: (args: { automationId: string; limit?: number }) =>
+    ipcRenderer.invoke('automations:runLogs', args),
+  automationsTriggerNow: (args: { id: string }) =>
+    ipcRenderer.invoke('automations:triggerNow', args),
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => ipcRenderer.invoke('automations:completeRun', args),
+  onAutomationTrigger: (
+    listener: (automation: {
+      id: string;
+      name: string;
+      projectId: string;
+      prompt: string;
+      agentId: string;
+      _runLogId: string;
+    }) => void
+  ) => {
+    const handler = (_event: any, automation: any) => listener(automation);
+    ipcRenderer.on('automation:trigger', handler);
+    return () => {
+      ipcRenderer.removeListener('automation:trigger', handler);
+    };
+  },
 });
 
 // Type definitions for the exposed API

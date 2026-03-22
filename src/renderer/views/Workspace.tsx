@@ -31,6 +31,7 @@ import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
+import { useAutomationTrigger } from '@/hooks/useAutomationTrigger';
 import { activityStore } from '@/lib/activityStore';
 import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
@@ -252,6 +253,7 @@ export function Workspace() {
     showSettingsPage,
     showSkillsView: projectMgmt.showSkillsView,
     showMcpView: projectMgmt.showMcpView,
+    showAutomationsView: projectMgmt.showAutomationsView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });
@@ -272,6 +274,9 @@ export function Workspace() {
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
+
+  // Listen for automation triggers from the main process (scheduled + manual)
+  useAutomationTrigger();
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;
