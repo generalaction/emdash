@@ -1,5 +1,6 @@
 import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { exec, execFile } from 'child_process';
+import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
@@ -627,6 +628,107 @@ export function registerAppIpc() {
   ipcMain.handle('app:getAppVersion', () => getCachedAppVersion());
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
+
+  // Detect available shells on the system
+  ipcMain.handle('app:detectShells', async () => {
+    type ShellInfo = { name: string; path: string };
+    const shells: ShellInfo[] = [];
+
+    if (process.platform === 'win32') {
+      const candidates: Array<{ name: string; paths: string[]; cmd?: string }> = [
+        {
+          name: 'Command Prompt',
+          paths: [
+            process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+            'C:\\Windows\\System32\\cmd.exe',
+          ],
+        },
+        {
+          name: 'PowerShell 7',
+          paths: [],
+          cmd: 'pwsh',
+        },
+        {
+          name: 'Windows PowerShell',
+          paths: ['C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'],
+        },
+        {
+          name: 'Git Bash',
+          paths: [
+            'C:\\Program Files\\Git\\bin\\bash.exe',
+            'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+          ],
+        },
+      ];
+
+      for (const candidate of candidates) {
+        for (const p of candidate.paths) {
+          if (existsSync(p)) {
+            shells.push({ name: candidate.name, path: p });
+            break;
+          }
+        }
+
+        if (!shells.some((s) => s.name === candidate.name) && candidate.cmd) {
+          try {
+            const resolved = await new Promise<string>((resolve, reject) => {
+              exec(`where ${candidate.cmd}`, { timeout: 5000 }, (err, stdout) => {
+                if (err) return reject(err);
+                const first = stdout.trim().split('\n')[0].replace(/\r/g, '').trim();
+                if (first) resolve(first);
+                else reject(new Error('not found'));
+              });
+            });
+            shells.push({ name: candidate.name, path: resolved });
+          } catch {
+            // Not installed
+          }
+        }
+      }
+
+      try {
+        const wslOutput = await new Promise<string>((resolve, reject) => {
+          exec('wsl --list --quiet', { timeout: 5000 }, (err, stdout) => {
+            if (err) return reject(err);
+            resolve(stdout);
+          });
+        });
+        const distros = wslOutput
+          .replace(/\0/g, '')
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean);
+        for (const distro of distros) {
+          shells.push({ name: `WSL: ${distro}`, path: `wsl -d ${distro}` });
+        }
+      } catch {
+        // WSL not installed
+      }
+    } else {
+      try {
+        const content = await readFile('/etc/shells', 'utf8');
+        const shellPaths = content
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l && !l.startsWith('#'));
+        for (const p of shellPaths) {
+          if (existsSync(p)) {
+            const name = p.split('/').pop() || p;
+            shells.push({ name, path: p });
+          }
+        }
+      } catch {
+        const fallbacks = ['/bin/bash', '/bin/zsh', '/bin/fish', '/bin/sh'];
+        for (const p of fallbacks) {
+          if (existsSync(p)) {
+            shells.push({ name: p.split('/').pop() || p, path: p });
+          }
+        }
+      }
+    }
+
+    return { success: true, data: shells };
+  });
 
   // Window controls (used by custom title bar on Windows/Linux)
   ipcMain.handle('app:windowMinimize', (event) => {

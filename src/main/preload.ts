@@ -73,6 +73,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => handlers.forEach((off) => off());
   },
 
+  // Shell detection
+  detectShells: () =>
+    ipcRenderer.invoke('app:detectShells') as Promise<{
+      success: boolean;
+      data?: Array<{ name: string; path: string }>;
+    }>,
+
   // Window controls (custom title bar on Windows/Linux)
   windowMinimize: () => ipcRenderer.invoke('app:windowMinimize'),
   windowMaximize: () => ipcRenderer.invoke('app:windowMaximize'),

@@ -118,6 +118,7 @@ export interface AppSettings {
     fontFamily: string;
     fontSize: number;
     autoCopyOnSelection: boolean;
+    shell: string;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -202,6 +203,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontFamily: '',
     fontSize: 0,
     autoCopyOnSelection: false,
+    shell: '',
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -580,7 +582,8 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     const clamped = Math.round(rawFontSize);
     fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
   }
-  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
+  const shell = typeof term?.shell === 'string' ? term.shell.trim() : '';
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection, shell };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;
