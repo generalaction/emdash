@@ -30,8 +30,8 @@ import {
 } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group';
-import { useSshConnectionContext } from '@renderer/contexts/SshConnectionProvider';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useSshConnectionContext } from '@renderer/core/ssh/ssh-connection-provider';
 
 const formSchema = z
   .object({

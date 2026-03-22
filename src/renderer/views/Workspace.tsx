@@ -1,12 +1,12 @@
 import { LeftSidebar } from '@renderer/components/sidebar/left-sidebar';
 import { Toaster } from '@renderer/components/ui/toaster';
-import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/components/WorkspaceLayout';
 import { ModalRenderer } from '@renderer/core/modal/modal-renderer';
 import {
   useViewLayoutOverride,
   useWorkspaceSlots,
   useWorkspaceWrapParams,
 } from '@renderer/core/view/navigation-provider';
+import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/core/view/workspace-layout';
 import { useTheme } from '@renderer/hooks/useTheme';
 
 export function Workspace() {

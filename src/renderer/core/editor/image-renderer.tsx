@@ -1,4 +1,4 @@
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
+import type { ManagedFile } from '@renderer/core/editor/types';
 
 interface ImageRendererProps {
   file: ManagedFile;

@@ -31,6 +31,36 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
   );
 }
 
+export async function getProjectById(
+  projectId: string
+): Promise<LocalProject | SshProject | undefined> {
+  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!row) return undefined;
+  if (row.workspaceProvider === 'local') {
+    return {
+      type: 'local' as const,
+      id: row.id,
+      name: row.name,
+      path: row.path,
+      baseRef: row.baseRef ?? 'main',
+      gitRemote: row.gitRemote ?? undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+  return {
+    type: 'ssh' as const,
+    id: row.id,
+    name: row.name,
+    path: row.path,
+    baseRef: row.baseRef ?? 'main',
+    gitRemote: row.gitRemote ?? undefined,
+    connectionId: row.sshConnectionId!,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 export async function getLocalProjectByPath(path: string): Promise<LocalProject | undefined> {
   const [row] = await db.select().from(projects).where(eq(projects.path, path)).limit(1);
   if (!row) return undefined;

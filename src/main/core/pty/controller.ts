@@ -1,5 +1,4 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { SshProjectProvider } from '@main/core/projects/impl/_ssh-project-provider';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
 import { projectManager } from '../projects/project-manager';

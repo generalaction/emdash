@@ -2,7 +2,9 @@ import type * as monaco from 'monaco-editor';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
-import { buildMonacoModelPath } from '../../lib/monacoModelPath';
+import { buildMonacoModelPath } from './monacoModelPath';
+
+const BUFFER_DEBOUNCE_MS = 2000;
 
 // ---------------------------------------------------------------------------
 // Discriminated-union entry types
@@ -133,6 +135,12 @@ class MonacoModelRegistry {
    * Cancelled when a new subscriber arrives or when unregisterModel disposes the model.
    */
   private evictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Debounce timers for crash-recovery buffer autosave, keyed by buffer URI. */
+  private bufferAutosaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** model.onDidChangeContent disposables for each registered buffer, keyed by buffer URI. */
+  private bufferContentDisposables = new Map<string, { dispose(): void }>();
 
   // ---------------------------------------------------------------------------
   // URI helpers (public)
@@ -452,12 +460,12 @@ class MonacoModelRegistry {
 
     const fetchKey = `${projectId}:${taskId}:${filePath}:git:${ref}`;
     const content = await this.dedupFetch(fetchKey, async () => {
-      const result =
-        ref === 'HEAD'
-          ? await rpc.git.getFileAtHead(projectId, taskId, filePath)
-          : await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
-      if (!result.success || result.data.content === null) return null;
-      return result.data.content;
+      if (ref === 'staged') {
+        const res = await rpc.git.getFileAtIndex(projectId, taskId, filePath);
+        return res.success ? res.data.content : null;
+      }
+      const res = await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
+      return res.success ? res.data.content : null;
     });
 
     const m = this.getMonaco();
@@ -519,6 +527,35 @@ class MonacoModelRegistry {
         viewState: null,
       };
       this.modelMap.set(uri, entry);
+
+      // Attach content-change listener for dirty tracking and crash-recovery autosave.
+      const disposable = model.onDidChangeContent(() => {
+        if (this.reloadingFromDisk.has(uri)) return;
+
+        // Notify React subscribers so useIsDirty re-evaluates.
+        this.notify(uri);
+
+        // Debounced crash-recovery save — persists unsaved edits across app restarts.
+        const existing = this.bufferAutosaveTimers.get(uri);
+        if (existing) clearTimeout(existing);
+        this.bufferAutosaveTimers.set(
+          uri,
+          setTimeout(() => {
+            this.bufferAutosaveTimers.delete(uri);
+            const currentEntry = this.modelMap.get(uri);
+            if (!currentEntry || currentEntry.type !== 'buffer') return;
+            if (!this.isDirty(uri)) return;
+            const value = currentEntry.model.getValue();
+            void rpc.editorBuffer.saveBuffer(
+              currentEntry.projectId,
+              currentEntry.taskId,
+              currentEntry.filePath,
+              value
+            );
+          }, BUFFER_DEBOUNCE_MS)
+        );
+      });
+      this.bufferContentDisposables.set(uri, disposable);
     }
 
     this.modelStatus.set(uri, 'ready');
@@ -584,6 +621,13 @@ class MonacoModelRegistry {
       }
     } else {
       // buffer
+      this.bufferContentDisposables.get(uri)?.dispose();
+      this.bufferContentDisposables.delete(uri);
+      const autosaveTimer = this.bufferAutosaveTimers.get(uri);
+      if (autosaveTimer !== undefined) {
+        clearTimeout(autosaveTimer);
+        this.bufferAutosaveTimers.delete(uri);
+      }
       this.bufferReadyCallbacks.delete(uri);
       this.pendingConflicts.delete(uri);
       this.notify(uri);
@@ -661,6 +705,7 @@ class MonacoModelRegistry {
     const disk = this.modelMap.get(this.toDiskUri(uri));
     if (buf?.type === 'buffer' && disk?.type === 'disk') {
       disk.model.setValue(buf.model.getValue());
+      this.notify(uri);
     }
   }
 
@@ -704,7 +749,7 @@ class MonacoModelRegistry {
 
   /**
    * Copy disk model content into the buffer model.
-   * Sets reloadingFromDisk so PooledCodeEditor's onDidChangeModelContent listener
+   * Sets reloadingFromDisk so the registry's onDidChangeContent listener
    * skips treating this as a user edit.
    */
   reloadFromDisk(uri: string): void {
@@ -714,6 +759,7 @@ class MonacoModelRegistry {
       this.reloadingFromDisk.add(uri);
       buf.model.setValue(disk.model.getValue());
       this.reloadingFromDisk.delete(uri);
+      this.notify(uri);
     }
     this.pendingConflicts.delete(uri);
   }
@@ -762,8 +808,8 @@ class MonacoModelRegistry {
       if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
-        entry.ref === 'HEAD'
-          ? await rpc.git.getFileAtHead(entry.projectId, entry.taskId, entry.filePath)
+        entry.ref === 'staged'
+          ? await rpc.git.getFileAtIndex(entry.projectId, entry.taskId, entry.filePath)
           : await rpc.git.getFileAtRef(entry.projectId, entry.taskId, entry.filePath, entry.ref);
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);
@@ -783,7 +829,7 @@ class MonacoModelRegistry {
 
     for (const [gitUri, entry] of gitEntries) {
       if (entry.ref !== 'HEAD') continue;
-      const result = await rpc.git.getFileAtHead(projectId, taskId, entry.filePath);
+      const result = await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, 'HEAD');
       if (!result.success || result.data.content === null) continue;
       if (entry.model.getValue() !== result.data.content) {
         entry.model.setValue(result.data.content);
@@ -807,9 +853,15 @@ class MonacoModelRegistry {
     this.notify(diskUri);
 
     if (!wasDirty || newMatchesBuffer) {
-      if (bufEntry?.type === 'buffer') {
+      // Only reload the buffer when content actually differs — skipping a no-op
+      // setValue avoids the post-save FS-echo cursor reset.
+      // applyEdits(ops, false) is used instead of setValue so that:
+      //   1. Cursor, selection, and scroll position are preserved.
+      //   2. The reload is invisible to Ctrl+Z (second arg suppresses undo tracking).
+      if (bufEntry?.type === 'buffer' && !newMatchesBuffer) {
         this.reloadingFromDisk.add(bufferUri);
-        bufEntry.model.setValue(newContent);
+        const fullRange = bufEntry.model.getFullModelRange();
+        bufEntry.model.applyEdits([{ range: fullRange, text: newContent }], false);
         this.reloadingFromDisk.delete(bufferUri);
         this.notify(bufferUri);
       }
@@ -877,10 +929,10 @@ class MonacoModelRegistry {
           this.applyDiskUpdate(uri, entry, res.data.content);
         }
       } else if (entry.type === 'git') {
-        const res =
-          entry.ref === 'HEAD'
-            ? await rpc.git.getFileAtHead(projectId, taskId, entry.filePath)
-            : await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, entry.ref);
+        // Skip polling staged/index content — it only changes through explicit staging operations,
+        // not over time. Those paths invalidate models directly.
+        if (entry.ref === 'staged') continue;
+        const res = await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, entry.ref);
         if (
           res.success &&
           res.data.content !== null &&

@@ -1,21 +1,22 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PendingProjectsProvider } from './components/add-project-modal/pending-projects-provider';
-import ErrorBoundary from './components/ErrorBoundary';
-import { ThemeProvider } from './components/ThemeProvider';
+import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
-import { DependenciesProvider } from './contexts/DependenciesProvider';
-import { GithubContextProvider } from './contexts/GithubContextProvider';
-import { IntegrationsProvider } from './contexts/IntegrationsProvider';
-import { SshConnectionProvider } from './contexts/SshConnectionProvider';
 import { AppContextProvider } from './core/app/AppContextProvider';
 import { AppSettingsProvider } from './core/app/AppSettingsProvider';
+import { ThemeProvider } from './core/app/ThemeProvider';
 import { AgentProvider } from './core/conversations/AgentProvider';
 import { ConversationDataProvider } from './core/conversations/conversation-data-provider';
+import { DependenciesProvider } from './core/dependencies-provider';
+import { GithubContextProvider } from './core/github-context-provider';
+import { IntegrationsProvider } from './core/integrations/integrations-provider';
 import { ModalProvider } from './core/modal/modal-provider';
+import { ProjectBootstrapProvider } from './core/projects/project-bootstrap-provider';
 import { ProjectsDataProvider } from './core/projects/projects-data-provider';
 import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
 import { PtySessionProvider } from './core/pty/pty-session-context';
+import { SshConnectionProvider } from './core/ssh/ssh-connection-provider';
 import { TaskBootstrapProvider } from './core/tasks/task-bootstrap-provider';
 import { TaskViewStateProvider } from './core/tasks/task-view-state-provider';
 import { TasksDataProvider } from './core/tasks/tasks-data-provider';
@@ -57,25 +58,29 @@ export function App() {
                             <WorkspaceViewProvider>
                               <ProjectsDataProvider>
                                 <PendingProjectsProvider>
-                                  <TasksDataProvider>
-                                    <PendingTasksProvider>
-                                      <TaskBootstrapProvider>
-                                        <ConversationDataProvider>
-                                          <TerminalDataProvider>
-                                            <TaskViewStateProvider>
-                                              <AgentProvider>
-                                                <RightSidebarProvider>
-                                                  <ThemeProvider>
-                                                    <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                                  </ThemeProvider>
-                                                </RightSidebarProvider>
-                                              </AgentProvider>
-                                            </TaskViewStateProvider>
-                                          </TerminalDataProvider>
-                                        </ConversationDataProvider>
-                                      </TaskBootstrapProvider>
-                                    </PendingTasksProvider>
-                                  </TasksDataProvider>
+                                  <ProjectBootstrapProvider>
+                                    <TasksDataProvider>
+                                      <PendingTasksProvider>
+                                        <TaskBootstrapProvider>
+                                          <ConversationDataProvider>
+                                            <TerminalDataProvider>
+                                              <TaskViewStateProvider>
+                                                <AgentProvider>
+                                                  <RightSidebarProvider>
+                                                    <ThemeProvider>
+                                                      <ErrorBoundary>
+                                                        {renderContent()}
+                                                      </ErrorBoundary>
+                                                    </ThemeProvider>
+                                                  </RightSidebarProvider>
+                                                </AgentProvider>
+                                              </TaskViewStateProvider>
+                                            </TerminalDataProvider>
+                                          </ConversationDataProvider>
+                                        </TaskBootstrapProvider>
+                                      </PendingTasksProvider>
+                                    </TasksDataProvider>
+                                  </ProjectBootstrapProvider>
                                 </PendingProjectsProvider>
                               </ProjectsDataProvider>
                             </WorkspaceViewProvider>

@@ -52,6 +52,12 @@ const ICONS: Record<string, string> = {
 export type AgentMeta = {
   label: string;
   icon?: string;
+  /** True when the icon is a raw SVG string rather than an image URL. */
+  isSvg?: boolean;
+  /** When true, the icon should be colour-inverted in dark mode. */
+  invertInDark?: boolean;
+  /** Accessible alt text for the provider logo. */
+  alt?: string;
   terminalOnly: boolean;
   cli?: string;
   planActivate?: string;
@@ -67,6 +73,9 @@ export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
     {
       label: p.name,
       icon: p.icon ? ICONS[p.icon] : undefined,
+      isSvg: p.icon ? p.icon.endsWith('.svg') : undefined,
+      invertInDark: p.invertInDark,
+      alt: p.alt,
       terminalOnly: p.terminalOnly ?? true,
       cli: p.cli,
       planActivate: p.planActivateCommand,

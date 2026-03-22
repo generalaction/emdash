@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { TaskList } from '@renderer/views/projects/task-list/task-list';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 
 export function ActiveProject() {

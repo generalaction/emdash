@@ -1,13 +1,13 @@
 import { Settings2, Sparkles } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
-import { agentAssets } from '@renderer/providers/assets';
-import { useDependencies, type DependencyState } from '../../contexts/DependenciesProvider';
+import { agentMeta } from '@renderer/providers/meta';
+import { useDependencies, type DependencyState } from '../../core/dependencies-provider';
 import { rpc } from '../../core/ipc';
 import { CliAgentStatus } from '../../types/connections';
-import CustomCommandModal from '../CustomCommandModal';
-import IntegrationRow from '../IntegrationRow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import CustomCommandModal from './CustomCommandModal';
+import IntegrationRow from './IntegrationRow';
 
 export const BASE_CLI_AGENTS: CliAgentStatus[] = AGENT_PROVIDERS.filter(
   (provider) => provider.detectable !== false
@@ -44,7 +44,7 @@ const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => void) => {
-  const logo = agentAssets[agent.id as keyof typeof agentAssets]?.logo;
+  const logo = agentMeta[agent.id as keyof typeof agentMeta]?.icon;
 
   const handleNameClick = agent.docUrl
     ? async () => {

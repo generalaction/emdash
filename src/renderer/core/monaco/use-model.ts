@@ -16,3 +16,20 @@ export function useModelStatus(uri: string): ModelStatus {
     () => modelRegistry.getStatus(uri)
   );
 }
+
+/**
+ * Returns true when the buffer model at `bufferUri` has unsaved changes relative
+ * to the on-disk content. Updates reactively whenever the buffer is edited, saved,
+ * or reloaded from disk.
+ *
+ * Subscribing to a file:// URI has no FS-watching side effects — only disk:// and
+ * git:// URIs activate watchers.
+ *
+ * @param bufferUri — a file:// buffer URI
+ */
+export function useIsDirty(bufferUri: string): boolean {
+  return useSyncExternalStore(
+    (cb) => modelRegistry.subscribeToUri(bufferUri, cb),
+    () => modelRegistry.isDirty(bufferUri)
+  );
+}

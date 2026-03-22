@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
-import { useDependencies } from '@renderer/contexts/DependenciesProvider';
+import { useDependencies } from '@renderer/core/dependencies-provider';
 import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
-import AgentLogo from './AgentLogo';
+import AgentLogo from './agent-logo';
 import {
   Combobox,
   ComboboxCollection,

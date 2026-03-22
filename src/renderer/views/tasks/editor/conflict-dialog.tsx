@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import {
   DialogContent,
@@ -7,7 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/components/ui/dialog';
-import { useModalContext, type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useCloseGuard } from '@renderer/core/modal/use-close-guard';
 
 export type ConflictDialogArgs = {
   filePath: string;
@@ -15,16 +15,9 @@ export type ConflictDialogArgs = {
 
 type Props = BaseModalProps<boolean> & ConflictDialogArgs;
 
-export function ConflictDialog({ filePath, onSuccess, onClose }: Props) {
+export function ConflictDialog({ filePath, onSuccess }: Props) {
   const shortPath = filePath.split('/').slice(-2).join('/');
-  const { setCloseGuard } = useModalContext();
-
-  // Prevent accidental dismissal via outside-click or Escape.
-  // The user must explicitly choose an action.
-  useEffect(() => {
-    setCloseGuard(true);
-    return () => setCloseGuard(false);
-  }, [setCloseGuard]);
+  useCloseGuard(true);
 
   return (
     <DialogContent showCloseButton={false} className="sm:max-w-sm">
@@ -35,7 +28,7 @@ export function ConflictDialog({ filePath, onSuccess, onClose }: Props) {
           outside the editor while you have unsaved edits. What would you like to do?
         </DialogDescription>
       </DialogHeader>
-      <DialogFooter className="gap-2 sm:gap-0">
+      <DialogFooter className="gap-2">
         <Button variant="outline" onClick={() => onSuccess(false)}>
           Keep Mine
         </Button>

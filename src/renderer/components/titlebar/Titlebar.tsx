@@ -5,15 +5,7 @@ import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 
-export function Titlebar({
-  leftSlot,
-  rightSlot,
-  centerSlot,
-}: {
-  leftSlot?: ReactNode;
-  rightSlot?: ReactNode;
-  centerSlot?: ReactNode;
-}) {
+export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   const { RightPanel } = useWorkspaceSlots();
   return (
@@ -23,9 +15,9 @@ export function Titlebar({
         !isLeftOpen && 'pl-17'
       )}
     >
-      <div className="pointer-events-auto flex w-full items-center gap-1 [-webkit-app-region:no-drag]">
+      <div className="pointer-events-auto flex w-full items-center gap-1">
         {!isLeftOpen && <div className="[-webkit-app-region:no-drag]"></div>}
-        <div className="grid w-full grid-cols-3">
+        <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
               <Toggle pressed={isLeftOpen} onPressedChange={() => setCollapsed('left', isLeftOpen)}>
@@ -33,9 +25,6 @@ export function Titlebar({
               </Toggle>
             )}
             {leftSlot}
-          </div>
-          <div className="flex items-center justify-center [-webkit-app-region:no-drag]">
-            {centerSlot}
           </div>
           <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
             {rightSlot}

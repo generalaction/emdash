@@ -1,7 +1,7 @@
 import { BranchNameGenerator } from 'nbranch';
-import type { GitHubIssueSummary } from '../types/github';
-import type { JiraIssueSummary } from '../types/jira';
-import type { LinearIssueSummary } from '../types/linear';
+import type { GitHubIssueSummary } from '../core/integrations/github';
+import type { JiraIssueSummary } from '../core/integrations/jira';
+import type { LinearIssueSummary } from '../core/integrations/linear';
 
 const MAX_NAME_LENGTH = 64;
 const MIN_INPUT_LENGTH = 10;

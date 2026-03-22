@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import { DEFAULT_EDITOR_OPTIONS } from '@renderer/constants/file-explorer';
+import { DEFAULT_EDITOR_OPTIONS } from '@renderer/core/editor/utils';
 import { configureMonacoTypeScript } from '@renderer/core/monaco/monaco-config';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from '@renderer/core/monaco/monaco-pool';
 import { defineMonacoThemes } from '@renderer/core/monaco/monaco-themes';

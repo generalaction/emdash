@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useState } from 'react';
-import { isMarkdownFile } from '@renderer/constants/file-explorer';
+import { isMarkdownFile } from '@renderer/core/editor/utils';
 
 interface EditorViewContextValue {
   /** Whether a given file is shown in preview mode (markdown preview, etc.). */

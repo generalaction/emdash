@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/_deprecated/diff-viewer/editorConfig';
+import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/core/monaco/editorConfig';
 import { getDiffThemeName, registerDiffThemes } from './monaco-diff-themes';
 import { modelRegistry } from './monaco-model-registry';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from './monaco-pool';
@@ -51,14 +51,14 @@ export const diffEditorPool = {
   /**
    * Apply typed-URI models to a diff editor.
    *
-   * @param originalUri — git:// URI for the left (original / HEAD) side
-   * @param modifiedDiskUri — disk:// URI for the right (modified) side — what git sees on disk.
+   * @param originalUri — URI for the left (original/before) side — typically git://
+   * @param modifiedUri — URI for the right (modified/after) side — disk://, git://, etc.
    * @param language — Monaco language identifier (used only as a fallback safety net)
    */
   applyContent(
     entry: DiffPoolEntry,
     originalUri: string,
-    modifiedDiskUri: string,
+    modifiedUri: string,
     language: string
   ): void {
     const m = diffPool.getMonaco();
@@ -72,13 +72,13 @@ export const diffEditorPool = {
       if (prev.modified.uri.scheme === 'inmemory') prev.modified.dispose();
     }
 
-    // Original side: use the registered git:// model, fall back to empty inmemory.
+    // Original side: use the registered model, fall back to empty inmemory.
     const originalModel =
       modelRegistry.getModelByUri(originalUri) ?? m.editor.createModel('', language);
 
-    // Modified side: always the disk snapshot (matches `git diff` / working tree).
+    // Modified side: disk://, git://, or any other registered URI scheme.
     const modifiedModel =
-      modelRegistry.getModelByUri(modifiedDiskUri) ?? m.editor.createModel('', language);
+      modelRegistry.getModelByUri(modifiedUri) ?? m.editor.createModel('', language);
 
     entry.editor.setModel({ original: originalModel, modified: modifiedModel });
   },

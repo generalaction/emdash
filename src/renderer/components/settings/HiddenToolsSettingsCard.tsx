@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { useOpenInApps } from '@renderer/hooks/useOpenInApps';
-import IntegrationRow from '../IntegrationRow';
 import { Switch } from '../ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import IntegrationRow from './IntegrationRow';
 
 export default function HiddenToolsSettingsCard() {
   const { value: openIn, update, isLoading, isSaving } = useAppSettingsKey('openIn');

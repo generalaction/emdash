@@ -1,291 +1,55 @@
 import { FileCode } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { FileTabs } from '@renderer/components/FileExplorer/FileTabs';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
-import { isMarkdownFile } from '@renderer/constants/file-explorer';
 import { BinaryRenderer } from '@renderer/core/editor/binary-renderer';
 import { ImageRenderer } from '@renderer/core/editor/image-renderer';
 import { LoadingRenderer } from '@renderer/core/editor/loading-renderer';
 import { SvgRenderer } from '@renderer/core/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/core/editor/too-large-renderer';
-import { rpc } from '@renderer/core/ipc';
+import type { ManagedFile } from '@renderer/core/editor/types';
+import { useDiffDecorations } from '@renderer/core/editor/use-diff-decorations';
+import { isMarkdownPath } from '@renderer/core/editor/utils';
 import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
 import { addMonacoKeyboardShortcuts } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
+import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
 import { useEditorContext } from './editor-provider';
 import { useEditorViewContext } from './editor-view-provider';
 import { PooledCodeEditor } from './pooled-code-editor';
 
-const DIFF_CONSTANTS = {
-  INITIAL_DELAY_MS: 100,
-  REFRESH_INTERVAL_MS: 2000,
-  DEBOUNCE_DELAY_MS: 500,
-  CACHE_TTL_MS: 5000,
-} as const;
-
-interface DiffLine {
-  lineNumber: number;
-  type: 'add' | 'modify' | 'delete';
-}
-
-interface DiffCacheEntry {
-  diff: DiffLine[];
-  timestamp: number;
-}
-
-function useTaskEditorDiffDecorations({
-  editorRef,
-  filePath,
-  projectId,
-  taskId,
-}: {
-  editorRef: RefObject<any>;
-  filePath: string;
-  projectId: string;
-  taskId: string;
-}) {
-  const decorationIdsRef = useRef<string[]>([]);
-  const lastDiffRef = useRef<DiffLine[]>([]);
-  const diffCacheRef = useRef<Map<string, DiffCacheEntry>>(new Map());
-
-  const computeDiff = useCallback(async (): Promise<DiffLine[]> => {
-    if (!filePath || !projectId || !taskId) return [];
-
-    const cacheKey = `${projectId}:${taskId}:${filePath}`;
-    const cached = diffCacheRef.current.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < DIFF_CONSTANTS.CACHE_TTL_MS) {
-      return cached.diff;
-    }
-
-    try {
-      const result = await rpc.git.getFileDiff(projectId, taskId, filePath);
-      if (!result.success || !result.data?.diff?.lines) return [];
-
-      const lines = result.data.diff.lines;
-      const allAdded = lines.every((line) => line.type === 'add');
-      const allContext = lines.every((line) => line.type === 'context');
-      if (allAdded || allContext) return [];
-
-      const diffLines: DiffLine[] = [];
-      let currentLineNumber = 1;
-      let pendingDelete = false;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const nextLine = lines[i + 1];
-
-        if (line.type === 'add') {
-          if (pendingDelete) {
-            diffLines.push({ lineNumber: currentLineNumber, type: 'modify' });
-            pendingDelete = false;
-          } else {
-            diffLines.push({ lineNumber: currentLineNumber, type: 'add' });
-          }
-          currentLineNumber++;
-        } else if (line.type === 'del') {
-          if (nextLine?.type === 'add') {
-            pendingDelete = true;
-          } else {
-            pendingDelete = false;
-          }
-        } else if (line.type === 'context') {
-          currentLineNumber++;
-          pendingDelete = false;
-        }
-      }
-
-      const uniqueDiffLines = Array.from(
-        new Map(diffLines.map((item) => [`${item.lineNumber}-${item.type}`, item])).values()
-      ).sort((a, b) => a.lineNumber - b.lineNumber);
-
-      diffCacheRef.current.set(cacheKey, { diff: uniqueDiffLines, timestamp: Date.now() });
-      return uniqueDiffLines;
-    } catch {
-      return [];
-    }
-  }, [filePath, projectId, taskId]);
-
-  const applyDecorations = useCallback(
-    (diffLines: DiffLine[]) => {
-      const ed = editorRef.current;
-      if (!ed?.getModel()) return;
-
-      const newDecorations: any[] = diffLines.map((diff) => {
-        const className =
-          diff.type === 'add'
-            ? 'diff-line-added'
-            : diff.type === 'modify'
-              ? 'diff-line-modified'
-              : 'diff-line-deleted';
-        const glyphMarginClassName =
-          diff.type === 'add'
-            ? 'diff-glyph-added'
-            : diff.type === 'modify'
-              ? 'diff-glyph-modified'
-              : 'diff-glyph-deleted';
-        return {
-          range: {
-            startLineNumber: diff.lineNumber,
-            startColumn: 1,
-            endLineNumber: diff.lineNumber,
-            endColumn: 1,
-          },
-          options: {
-            isWholeLine: true,
-            className,
-            glyphMarginClassName,
-          },
-        };
-      });
-
-      try {
-        decorationIdsRef.current = ed.deltaDecorations(decorationIdsRef.current, newDecorations);
-      } catch {
-        // ignore
-      }
-    },
-    [editorRef]
-  );
-
-  const areDiffsEqual = (a: DiffLine[], b: DiffLine[]): boolean => {
-    if (a.length !== b.length) return false;
-    return a.every((item, i) => item.lineNumber === b[i].lineNumber && item.type === b[i].type);
-  };
-
-  const refreshDecorations = useCallback(
-    async (invalidateCache = false) => {
-      if (invalidateCache && filePath) {
-        const cacheKey = `${projectId}:${taskId}:${filePath}`;
-        diffCacheRef.current.delete(cacheKey);
-      }
-      const diffLines = await computeDiff();
-      lastDiffRef.current = diffLines;
-      applyDecorations(diffLines);
-    },
-    [filePath, projectId, taskId, computeDiff, applyDecorations]
-  );
-
-  useEffect(() => {
-    const ed = editorRef.current;
-    if (!ed || !filePath) return;
-
-    const updateDecorations = async () => {
-      const diffLines = await computeDiff();
-      if (!areDiffsEqual(diffLines, lastDiffRef.current)) {
-        lastDiffRef.current = diffLines;
-        applyDecorations(diffLines);
-      }
-    };
-
-    const initialTimer = setTimeout(updateDecorations, DIFF_CONSTANTS.INITIAL_DELAY_MS);
-    const interval = setInterval(updateDecorations, DIFF_CONSTANTS.REFRESH_INTERVAL_MS);
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const disposable = ed.onDidChangeModelContent?.(() => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(updateDecorations, DIFF_CONSTANTS.DEBOUNCE_DELAY_MS);
-    });
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-      if (debounceTimer) clearTimeout(debounceTimer);
-      disposable?.dispose();
-      if (ed && !ed.isDisposed?.()) {
-        try {
-          ed.deltaDecorations(decorationIdsRef.current, []);
-        } catch {
-          // ignore
-        }
-      }
-      decorationIdsRef.current = [];
-    };
-  }, [editorRef, filePath, computeDiff, applyDecorations]);
-
-  // Periodic cache cleanup
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      const cache = diffCacheRef.current;
-      for (const [key, entry] of cache.entries()) {
-        if (now - entry.timestamp > DIFF_CONSTANTS.CACHE_TTL_MS) {
-          cache.delete(key);
-        }
-      }
-    }, DIFF_CONSTANTS.CACHE_TTL_MS * 2);
-    return () => clearInterval(cleanupInterval);
-  }, []);
-
-  return { refreshDecorations };
-}
-
 export function EditorMainPanel() {
   const {
-    projectId,
-    taskId,
     modelRootPath,
     openFiles,
+    tabs,
     activeFilePath,
     activeFile,
-    isSaving,
     previewFilePath,
     handleCloseFile,
     setActiveFile,
     pinFile,
     saveFile,
     saveAllFiles,
-    markDirty,
   } = useEditorContext();
 
   const { previewMode, togglePreview } = useEditorViewContext();
 
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
-  const prevIsSaving = useRef(false);
 
-  const { refreshDecorations } = useTaskEditorDiffDecorations({
-    editorRef,
-    filePath: activeFilePath ?? '',
-    projectId,
-    taskId,
-  });
+  const bufferUri =
+    editorReady && activeFilePath ? buildMonacoModelPath(modelRootPath, activeFilePath) : '';
 
-  // Re-apply decorations after active file changes
-  useEffect(() => {
-    if (editorReady && editorRef.current && activeFilePath && refreshDecorations) {
-      const timer = setTimeout(() => {
-        void refreshDecorations();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [activeFilePath, editorReady, refreshDecorations, activeFile?.isDirty]);
-
-  // Re-apply decorations after save completes
-  useEffect(() => {
-    if (prevIsSaving.current && !isSaving && editorReady && refreshDecorations) {
-      if (editorRef.current) {
-        void refreshDecorations(true);
-      }
-      const timer = setTimeout(() => {
-        void refreshDecorations(true);
-      }, 800);
-      prevIsSaving.current = false;
-      return () => clearTimeout(timer);
-    }
-    prevIsSaving.current = isSaving;
-  }, [isSaving, editorReady, refreshDecorations]);
+  useDiffDecorations(editorRef, bufferUri);
 
   // Stable refs so the Monaco keyboard command (registered once at lease time)
   // always calls the latest version of each function without a stale closure.
   const saveFileRef = useRef(saveFile);
   const saveAllFilesRef = useRef(saveAllFiles);
-  const refreshDecorationsRef = useRef(refreshDecorations);
   useEffect(() => {
     saveFileRef.current = saveFile;
     saveAllFilesRef.current = saveAllFiles;
-    refreshDecorationsRef.current = refreshDecorations;
   });
 
   // Pre-warm the code editor pool (loads Monaco, registers themes, creates idle instance).
@@ -300,31 +64,19 @@ export function EditorMainPanel() {
       editorRef.current = editor;
 
       addMonacoKeyboardShortcuts(editor, monaco, {
-        onSave: async () => {
-          await saveFileRef.current();
-          setTimeout(() => void refreshDecorationsRef.current?.(true), 700);
-        },
+        onSave: () => void saveFileRef.current(),
         onSaveAll: () => void saveAllFilesRef.current(),
       });
 
       setEditorReady(true);
-      setTimeout(() => void refreshDecorationsRef.current?.(), 100);
     },
     [] // no deps — all functions accessed via always-current refs above
-  );
-
-  const handleEditorChange = useCallback(
-    (_value: string) => {
-      if (!activeFilePath) return;
-      markDirty(activeFilePath);
-    },
-    [activeFilePath, markDirty]
   );
 
   // Default preview mode: markdown and SVG default to rendered view.
   const isPreviewActive = activeFilePath
     ? (previewMode.get(activeFilePath) ??
-      (isMarkdownFile(activeFilePath) || activeFile?.kind === 'svg'))
+      (isMarkdownPath(activeFilePath) || activeFile?.kind === 'svg'))
     : false;
 
   // For markdown/SVG preview, get live content from the registry model (source of truth).
@@ -348,9 +100,11 @@ export function EditorMainPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <FileTabs
+        tabs={tabs}
         openFiles={openFiles}
         activeFilePath={activeFilePath}
         previewFilePath={previewFilePath}
+        modelRootPath={modelRootPath}
         onTabClick={setActiveFile}
         onTabClose={handleCloseFile}
         onPinTab={pinFile}
@@ -362,7 +116,6 @@ export function EditorMainPanel() {
         isPreviewActive={isPreviewActive}
         previewContent={previewContent}
         modelRootPath={modelRootPath}
-        handleEditorChange={handleEditorChange}
         handleEditorMount={handleEditorMount}
       />
     </div>
@@ -374,7 +127,6 @@ interface ActiveFileRendererProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  handleEditorChange: (value: string) => void;
   handleEditorMount: (editor: any, monaco: any) => void;
 }
 
@@ -383,7 +135,6 @@ function ActiveFileRenderer({
   isPreviewActive,
   previewContent,
   modelRootPath,
-  handleEditorChange,
   handleEditorMount,
 }: ActiveFileRendererProps) {
   if (!file) return null;
@@ -402,7 +153,6 @@ function ActiveFileRenderer({
           isPreviewActive={isPreviewActive}
           previewContent={previewContent}
           modelRootPath={modelRootPath}
-          onEditorChange={handleEditorChange}
           onMount={handleEditorMount}
         />
       );
@@ -422,7 +172,6 @@ interface CodeEditorSectionProps {
   isPreviewActive: boolean;
   previewContent: string;
   modelRootPath: string;
-  onEditorChange: (value: string) => void;
   onMount: (editor: any, monaco: any) => void;
 }
 
@@ -431,7 +180,6 @@ function CodeEditorSection({
   isPreviewActive,
   previewContent,
   modelRootPath,
-  onEditorChange,
   onMount,
 }: CodeEditorSectionProps) {
   if (isPreviewActive) {
@@ -440,7 +188,7 @@ function CodeEditorSection({
       // the latest edits (previewContent comes from the Monaco buffer model).
       return <SvgRenderer file={{ ...file, content: previewContent }} />;
     }
-    if (isMarkdownFile(file.path)) {
+    if (isMarkdownPath(file.path)) {
       return (
         <MarkdownPreview
           content={previewContent}
@@ -454,12 +202,5 @@ function CodeEditorSection({
   }
 
   const bufferUri = buildMonacoModelPath(modelRootPath, file.path);
-  return (
-    <PooledCodeEditor
-      bufferUri={bufferUri}
-      glyphMargin={true}
-      onEditorChange={onEditorChange}
-      onMount={onMount}
-    />
-  );
+  return <PooledCodeEditor bufferUri={bufferUri} glyphMargin={true} onMount={onMount} />;
 }

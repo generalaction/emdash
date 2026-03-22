@@ -7,14 +7,14 @@ import {
   useRef,
   useState,
 } from 'react';
+import { getFileKind } from '@renderer/core/editor/fileKind';
+import type { ManagedFile } from '@renderer/core/editor/types';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import type { ManagedFile } from '@renderer/hooks/useFileManager';
+import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
+import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
-import { getEditorState, saveEditorState } from '@renderer/lib/editorStateStorage';
-import { getFileKind } from '@renderer/lib/fileKind';
-import { buildMonacoModelPath } from '@renderer/lib/monacoModelPath';
 import { useTaskViewContext } from '../task-view-context';
 import { useEditorViewContext } from './editor-view-provider';
 
@@ -26,7 +26,6 @@ interface EditorContextValue {
   openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
   activeFile: ManagedFile | null;
-  hasUnsavedChanges: boolean;
   isSaving: boolean;
 
   /** Path of the current unstable/preview tab (italic in the tab bar). Null when all tabs are stable. */
@@ -40,9 +39,10 @@ interface EditorContextValue {
   saveFile: (filePath?: string) => Promise<void>;
   saveAllFiles: () => Promise<void>;
   closeFile: (filePath: string) => void;
-  /** Marks a file dirty in React state; model content is source of truth in the registry. */
-  markDirty: (filePath: string) => void;
   setActiveFile: (filePath: string | null) => void;
+
+  /** Ordered list of open tabs with stable `tabId` for use as React keys. */
+  tabs: Array<{ tabId: string; filePath: string }>;
 
   fileChanges: { path: string; status: 'added' | 'modified' | 'deleted' | 'renamed' }[];
 
@@ -65,6 +65,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const modelRootPath = `task:${taskId}`;
 
   const restoringRef = useRef(false);
+  /** Maps filePath → stable tabId for all currently open files. */
+  const tabIdsRef = useRef<Map<string, string>>(new Map());
+
+  const { getTaskViewState, setTaskViewState } = useTaskViewState();
 
   const { clearPreviewMode } = useEditorViewContext();
 
@@ -74,17 +78,25 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [isSaving, setIsSaving] = useState(false);
 
   const activeFile = activeFilePath ? (openFiles.get(activeFilePath) ?? null) : null;
-  const hasUnsavedChanges = Array.from(openFiles.values()).some((f) => f.isDirty);
 
-  // Persist open files / active path to localStorage.
+  // Persist open tabs / active and preview pointers to view state.
   useEffect(() => {
     if (restoringRef.current) return;
-    saveEditorState(taskId, {
-      openFilePaths: Array.from(openFiles.keys()),
-      activeFilePath,
-      previewFilePath,
+    const tabs = Array.from(openFiles.keys()).map((filePath) => ({
+      tabId: tabIdsRef.current.get(filePath) ?? filePath,
+      uri: filePath,
+    }));
+    setTaskViewState(taskId, {
+      editorView: {
+        ...getTaskViewState(taskId).editorView,
+        tabs,
+        activeTabId: activeFilePath ? tabIdsRef.current.get(activeFilePath) : undefined,
+        previewTabId: previewFilePath ? tabIdsRef.current.get(previewFilePath) : undefined,
+      },
     });
-  }, [taskId, openFiles, activeFilePath, previewFilePath]);
+    // getTaskViewState is intentionally excluded — used only to read current editorView for merge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, openFiles, activeFilePath, previewFilePath, setTaskViewState]);
 
   /**
    * Internal: load a file's content and register models in the registry.
@@ -99,6 +111,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
    */
   const loadFileInternal = useCallback(
     async (filePath: string) => {
+      // Assign a stable tabId the first time this file is opened.
+      if (!tabIdsRef.current.has(filePath)) {
+        tabIdsRef.current.set(filePath, crypto.randomUUID());
+      }
+
       const kind = getFileKind(filePath);
 
       // Phase 1 — synchronous placeholder (no await, no flash).
@@ -108,8 +125,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           kind,
           isLoading: kind !== 'binary', // binary needs no I/O
           content: '',
-          originalContent: '',
-          isDirty: false,
         })
       );
 
@@ -128,8 +143,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             kind: 'image',
             isLoading: false,
             content: dataUrl,
-            originalContent: dataUrl,
-            isDirty: false,
           })
         );
         return;
@@ -145,8 +158,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             kind: 'binary', // treat unreadable files as unsupported
             isLoading: false,
             content: '',
-            originalContent: '',
-            isDirty: false,
           })
         );
         return;
@@ -159,8 +170,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             kind: 'too-large',
             isLoading: false,
             content: '',
-            originalContent: '',
-            isDirty: false,
             totalSize: readResult.data?.totalSize,
           })
         );
@@ -169,8 +178,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
       const language = getMonacoLanguageId(filePath);
 
-      // Register disk model first (buffer seeds from it), then buffer.
-      // Awaiting both before setting state guarantees models exist for PooledCodeEditor.
+      // Register disk first (buffer seeds from it), then git baseline, then buffer.
+      // Awaiting all three before setting state guarantees models exist for PooledCodeEditor
+      // and useDiffDecorations.
       await modelRegistry.registerModel(
         projectId,
         taskId,
@@ -178,6 +188,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         filePath,
         language,
         'disk'
+      );
+      await modelRegistry.registerModel(
+        projectId,
+        taskId,
+        modelRootPath,
+        filePath,
+        language,
+        'git'
       );
       await modelRegistry.registerModel(
         projectId,
@@ -196,33 +214,42 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           kind, // 'text' or 'svg'
           isLoading: false,
           content: diskValue,
-          originalContent: diskValue,
-          isDirty: false,
         })
       );
     },
     [projectId, taskId, modelRootPath]
   );
 
-  // Restore open files from localStorage on mount, then apply any persisted unsaved buffers.
+  // Restore open files from view state on mount, then apply any persisted unsaved buffers.
   useEffect(() => {
     if (!taskId) return;
     restoringRef.current = true;
 
-    const state = getEditorState(taskId);
+    const { editorView } = getTaskViewState(taskId);
 
     const restore = async () => {
-      if (state?.openFilePaths?.length) {
-        for (const filePath of state.openFilePaths) {
+      if (editorView.tabs.length) {
+        for (const { tabId, uri: filePath } of editorView.tabs) {
+          tabIdsRef.current.set(filePath, tabId);
           await loadFileInternal(filePath).catch(() => {
             // Skip missing / deleted files silently.
           });
         }
-        if (state.activeFilePath && state.openFilePaths.includes(state.activeFilePath)) {
-          setActiveFilePath(state.activeFilePath);
+
+        const openPaths = new Set(editorView.tabs.map((t) => t.uri));
+
+        if (editorView.activeTabId) {
+          const activeTab = editorView.tabs.find((t) => t.tabId === editorView.activeTabId);
+          if (activeTab && openPaths.has(activeTab.uri)) {
+            setActiveFilePath(activeTab.uri);
+          }
         }
-        if (state.previewFilePath && state.openFilePaths.includes(state.previewFilePath)) {
-          setPreviewFilePath(state.previewFilePath);
+
+        if (editorView.previewTabId) {
+          const previewTab = editorView.tabs.find((t) => t.tabId === editorView.previewTabId);
+          if (previewTab && openPaths.has(previewTab.uri)) {
+            setPreviewFilePath(previewTab.uri);
+          }
         }
       }
 
@@ -267,10 +294,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       const targetPath = filePath ?? activeFilePath;
       if (!targetPath) return;
 
-      const file = openFiles.get(targetPath);
-      if (!file?.isDirty) return;
-
       const uri = buildMonacoModelPath(modelRootPath, targetPath);
+      if (!modelRegistry.isDirty(uri)) return;
 
       // If the file was externally modified while the buffer had unsaved edits,
       // show the conflict dialog before writing. The save completes inside onSuccess
@@ -288,12 +313,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 const next = new Map(prev);
                 const existing = next.get(targetPath);
                 if (existing) {
-                  next.set(targetPath, {
-                    ...existing,
-                    isDirty: false,
-                    content,
-                    originalContent: content,
-                  });
+                  next.set(targetPath, { ...existing, content });
                 }
                 return next;
               });
@@ -307,12 +327,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                     const next = new Map(prev);
                     const updated = next.get(targetPath);
                     if (updated) {
-                      next.set(targetPath, {
-                        ...updated,
-                        isDirty: false,
-                        originalContent: content,
-                        content,
-                      });
+                      next.set(targetPath, { ...updated, content });
                     }
                     return next;
                   });
@@ -334,12 +349,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             const next = new Map(prev);
             const updated = next.get(targetPath);
             if (updated) {
-              next.set(targetPath, {
-                ...updated,
-                isDirty: false,
-                originalContent: content,
-                content,
-              });
+              next.set(targetPath, { ...updated, content });
             }
             return next;
           });
@@ -352,17 +362,17 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setIsSaving(false);
       }
     },
-    [activeFilePath, openFiles, modelRootPath, projectId, taskId, showConflictModal]
+    [activeFilePath, modelRootPath, projectId, taskId, showConflictModal]
   );
 
   const saveAllFiles = useCallback(async () => {
-    const dirtyPaths = Array.from(openFiles.entries())
-      .filter(([, f]) => f.isDirty)
-      .map(([p]) => p);
+    const dirtyPaths = Array.from(openFiles.keys()).filter((p) =>
+      modelRegistry.isDirty(buildMonacoModelPath(modelRootPath, p))
+    );
     for (const path of dirtyPaths) {
       await saveFile(path);
     }
-  }, [openFiles, saveFile]);
+  }, [openFiles, modelRootPath, saveFile]);
 
   const closeFile = useCallback(
     (filePath: string) => {
@@ -380,26 +390,19 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [openFiles]
   );
 
-  const markDirty = useCallback((filePath: string) => {
-    setOpenFiles((prev) => {
-      const next = new Map(prev);
-      const existing = next.get(filePath);
-      if (!existing || existing.isDirty) return prev;
-      next.set(filePath, { ...existing, isDirty: true });
-      return next;
-    });
-  }, []);
-
   const setActiveFile = useCallback((filePath: string | null) => {
     setActiveFilePath(filePath);
   }, []);
 
   const handleCloseFile = useCallback(
     (filePath: string) => {
+      tabIdsRef.current.delete(filePath);
+
       const uri = buildMonacoModelPath(modelRootPath, filePath);
       // Decrement ref counts; models are disposed when counts reach 0.
       modelRegistry.unregisterModel(uri);
       modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+      modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, 'HEAD'));
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
@@ -438,14 +441,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
       // Now it is safe to remove the old preview — the new file is already present.
       if (outgoingPreview && outgoingPreview !== filePath) {
+        const outgoingUri = buildMonacoModelPath(modelRootPath, outgoingPreview);
         setOpenFiles((prev) => {
           const previewFile = prev.get(outgoingPreview);
-          if (!previewFile || previewFile.isDirty) return prev;
+          if (!previewFile || modelRegistry.isDirty(outgoingUri)) return prev;
 
           // Clean up Monaco models for the outgoing preview tab.
-          const uri = buildMonacoModelPath(modelRootPath, outgoingPreview);
-          modelRegistry.unregisterModel(uri);
-          modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+          modelRegistry.unregisterModel(outgoingUri);
+          modelRegistry.unregisterModel(modelRegistry.toDiskUri(outgoingUri));
           void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
           clearPreviewMode(outgoingPreview);
 
@@ -472,6 +475,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setPreviewFilePath((prev) => (prev === filePath ? null : prev));
   }, []);
 
+  const tabs = Array.from(openFiles.keys()).map((filePath) => ({
+    tabId: tabIdsRef.current.get(filePath) ?? filePath,
+    filePath,
+  }));
+
   // Cleanup: unregister all models for this task on unmount.
   const openFilesRef = useRef(openFiles);
   openFilesRef.current = openFiles;
@@ -495,9 +503,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         taskId,
         modelRootPath,
         openFiles,
+        tabs,
         activeFilePath,
         activeFile,
-        hasUnsavedChanges,
         isSaving,
         previewFilePath,
         loadFile,
@@ -506,7 +514,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         saveFile,
         saveAllFiles,
         closeFile,
-        markDirty,
         setActiveFile,
         fileChanges: [],
         handleCloseFile,

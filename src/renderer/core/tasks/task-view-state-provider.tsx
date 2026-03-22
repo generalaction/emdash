@@ -1,20 +1,48 @@
 import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 
-interface TaskViewState {
-  view: 'agents' | 'editor' | 'diff';
-  agentsView: {
-    activeConversationId?: string;
-  };
-  terminalsView: {
-    activeTerminalId?: string;
-  };
-  rightPanelView: 'changes' | 'files' | 'terminals';
+export type MainPanelView = 'agents' | 'editor' | 'diff';
+export type RightPanelView = 'changes' | 'files' | 'terminals';
+
+export type AgentsViewState = {
+  activeConversationId?: string;
+  rightPanelView: RightPanelView;
+};
+
+export type TerminalsViewState = {
+  activeTerminalId?: string;
+};
+
+export type EditorTab = {
+  tabId: string;
+  /** Worktree-relative file path (e.g. `src/components/App.tsx`). Not a Monaco URI. */
+  uri: string;
+};
+
+export type EditorViewState = {
+  tabs: EditorTab[];
+  activeTabId?: string;
+  previewTabId?: string;
+  expandedPaths: string[];
+};
+
+export interface TaskViewState {
+  view: MainPanelView;
+  agentsView: AgentsViewState;
+  terminalsView: TerminalsViewState;
+  editorView: EditorViewState;
+  rightPanelView: RightPanelView;
 }
 
 const DEFAULT_TASK_VIEW_STATE: TaskViewState = {
   view: 'agents',
-  agentsView: {},
+  agentsView: {
+    rightPanelView: 'changes',
+  },
   terminalsView: {},
+  editorView: {
+    tabs: [],
+    expandedPaths: [],
+  },
   rightPanelView: 'changes',
 };
 
@@ -46,6 +74,7 @@ export function TaskViewStateProvider({ children }: { children: ReactNode }) {
           ...update,
           agentsView: { ...current.agentsView, ...update.agentsView },
           terminalsView: { ...current.terminalsView, ...update.terminalsView },
+          editorView: { ...current.editorView, ...update.editorView },
         },
       };
     });

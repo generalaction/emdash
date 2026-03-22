@@ -4,11 +4,11 @@ import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
+import { useConversations } from '@renderer/core/conversations/use-conversations';
 import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
 import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
-import { useConversations } from '../../core/conversations/use-conversations';
 import { useTask, type TaskStatus } from './hooks/use-task';
 import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';
 
