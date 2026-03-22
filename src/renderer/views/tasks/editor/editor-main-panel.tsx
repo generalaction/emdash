@@ -13,10 +13,10 @@ import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
 import { addMonacoKeyboardShortcuts } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
+import { PooledCodeEditor } from '@renderer/core/monaco/pooled-code-editor';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
 import { useEditorContext } from './editor-provider';
 import { useEditorViewContext } from './editor-view-provider';
-import { PooledCodeEditor } from './pooled-code-editor';
 
 export function EditorMainPanel() {
   const {

@@ -6,6 +6,7 @@ import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
+import { usePtySession } from '@renderer/core/pty/pty-session-context';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { useTaskViewContext } from '../task-view-context';
 import { ConversationsTabs } from './conversation-tabs';
@@ -13,6 +14,7 @@ import { ConversationsTabs } from './conversation-tabs';
 export function ConversationsPanel() {
   const { params } = useParams('task');
   const { conversations, activeConversationId, setActiveConversationId } = useTaskViewContext();
+  const { isSessionReady } = usePtySession();
 
   const showCreateConversationModal = useShowModal('createConversationModal');
 
@@ -60,7 +62,9 @@ export function ConversationsPanel() {
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         <PaneSizingProvider paneId="conversations" sessionIds={allSessionIds}>
-          {sessionId && <TerminalPane sessionId={sessionId} className="h-full w-full" />}
+          {sessionId && isSessionReady(sessionId) && (
+            <TerminalPane sessionId={sessionId} className="h-full w-full" />
+          )}
         </PaneSizingProvider>
       </div>
     </div>

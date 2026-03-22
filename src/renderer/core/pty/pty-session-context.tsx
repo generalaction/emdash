@@ -1,46 +1,49 @@
-import { createContext, useCallback, useContext, useRef, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { frontendPtyRegistry } from './pty';
 import { terminalPool } from './pty-pool';
 
 interface PtySessionContextValue {
-  /**
-   * Register a FrontendPty listener for the given session ID.
-   *
-   * Idempotent: returns `false` (and is a no-op) if the session has already
-   * been registered. Returns `true` when the session is newly registered —
-   * callers can gate side-effects (e.g. `rpc.conversations.startSession`) on
-   * this return value to avoid running them twice.
-   *
-   * Must be called BEFORE the RPC that spawns the PTY so no output is missed.
-   */
-  registerSession: (sessionId: string) => boolean;
-  /**
-   * Dispose the FrontendPty and xterm Terminal for the given session.
-   * Resets the idempotency guard so the session can be re-registered later.
-   */
+  registerSession: (sessionId: string, startFn?: () => Promise<void>) => void;
   unregisterSession: (sessionId: string) => void;
+  /** Returns true once the FrontendPty for sessionId has been registered and is safe to attach. */
+  isSessionReady: (sessionId: string) => boolean;
 }
 
 const PtySessionContext = createContext<PtySessionContextValue | null>(null);
 
 export function PtySessionProvider({ children }: { children: ReactNode }) {
+  // Ref for synchronous idempotency — safe in StrictMode (double-effect guard).
   const registeredRef = useRef<Set<string>>(new Set());
+  // State mirrors the ref purely for reactivity — lets components subscribe to readiness.
+  const [registeredSessions, setRegisteredSessions] = useState<ReadonlySet<string>>(new Set());
 
-  const registerSession = useCallback((sessionId: string): boolean => {
-    if (registeredRef.current.has(sessionId)) return false;
-    frontendPtyRegistry.register(sessionId);
+  const registerSession = useCallback((sessionId: string, startFn?: () => Promise<void>): void => {
+    if (registeredRef.current.has(sessionId)) return;
     registeredRef.current.add(sessionId);
-    return true;
+    frontendPtyRegistry.register(sessionId);
+    startFn?.().catch(() => {});
+    setRegisteredSessions((prev) => new Set([...prev, sessionId]));
   }, []);
 
   const unregisterSession = useCallback((sessionId: string) => {
     frontendPtyRegistry.unregister(sessionId);
     terminalPool.dispose(sessionId);
     registeredRef.current.delete(sessionId);
+    setRegisteredSessions((prev) => {
+      if (!prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(sessionId);
+      return next;
+    });
   }, []);
 
+  const isSessionReady = useCallback(
+    (sessionId: string) => registeredSessions.has(sessionId),
+    [registeredSessions]
+  );
+
   return (
-    <PtySessionContext.Provider value={{ registerSession, unregisterSession }}>
+    <PtySessionContext.Provider value={{ registerSession, unregisterSession, isSessionReady }}>
       {children}
     </PtySessionContext.Provider>
   );

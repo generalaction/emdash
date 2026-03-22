@@ -115,8 +115,6 @@ export class LocalProjectProvider implements ProjectProvider {
     terminals: Terminal[]
   ): Promise<TaskProvider> {
     log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
-    // DEBUG: artificial delay to visualize the loading state — remove before merging
-    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     let workDir: string;
 

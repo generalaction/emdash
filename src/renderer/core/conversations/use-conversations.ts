@@ -50,18 +50,12 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
     [deleteConversation, projectId, taskId, unregisterSession]
   );
 
-  // Start sessions for all existing conversations whenever the list changes.
-  // registerSession() is idempotent — its boolean return value gates the RPC
-  // so startSession is only called once per conversation.
   useEffect(() => {
     if (conversations.length === 0) return;
     const initialSize = getConversationsPaneSize();
     for (const conv of conversations) {
       const sessionId = makePtySessionId(projectId, taskId, conv.id);
-      const isNew = registerSession(sessionId);
-      if (isNew) {
-        rpc.conversations.startSession(conv, initialSize).catch(() => {});
-      }
+      registerSession(sessionId, () => rpc.conversations.startSession(conv, initialSize));
     }
   }, [conversations, projectId, registerSession, taskId]);
 
