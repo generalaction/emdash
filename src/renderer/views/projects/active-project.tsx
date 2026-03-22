@@ -1,4 +1,6 @@
 import { Github, MoreHorizontal } from 'lucide-react';
+import { PullRequestList } from '@renderer/components/projects/pr-list';
+import { TaskList } from '@renderer/components/projects/task-list';
 import { Button } from '@renderer/components/ui/button';
 import {
   DropdownMenu,
@@ -18,8 +20,8 @@ export function ActiveProject() {
   const { deleteProject } = useProjectsDataContext();
 
   return (
-    <div className="max-w-5xl mx-auto p-8 w-full">
-      <Tabs className="flex flex-col">
+    <div className="max-w-5xl mx-auto p-8 w-full h-full flex flex-col overflow-hidden">
+      <Tabs className="flex flex-col min-h-0 flex-1">
         <div className="border-b border-border pb-4 flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
@@ -56,7 +58,9 @@ export function ActiveProject() {
         <TabsContent value="tasks">
           <TaskList />
         </TabsContent>
-        <TabsContent value="prs">Pull request list</TabsContent>
+        <TabsContent value="prs" className="flex flex-col min-h-0 flex-1">
+          <PullRequestList />
+        </TabsContent>
         <TabsContent value="settings">Settings</TabsContent>
       </Tabs>
     </div>
