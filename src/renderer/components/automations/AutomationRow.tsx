@@ -102,6 +102,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
         <button
           type="button"
           className="hidden text-xs text-muted-foreground/30 transition-colors hover:text-foreground/60 sm:inline"
+          aria-label={`View ${automation.runCount} run${automation.runCount !== 1 ? 's' : ''} for ${automation.name}`}
           onClick={(e) => {
             e.stopPropagation();
             onViewLogs(automation);

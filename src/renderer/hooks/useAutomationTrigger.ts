@@ -106,14 +106,6 @@ export function useAutomationTrigger(): void {
           useWorktree,
         });
 
-        // Report the taskId to the run log
-        void window.electronAPI.automationsCompleteRun({
-          runLogId,
-          automationId: automation.id,
-          taskId,
-          status: 'success',
-        });
-
         // Invalidate task cache so the sidebar picks it up
         void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
 
@@ -131,7 +123,14 @@ export function useAutomationTrigger(): void {
           initialPrompt: automation.prompt,
         });
 
-        // Agent started — clear the triggering state.
+        // Agent started — report success and clear the triggering state.
+        void window.electronAPI.automationsCompleteRun({
+          runLogId,
+          automationId: automation.id,
+          taskId,
+          status: 'success',
+        });
+
         clearAutomationRun(automation.id);
 
         toast({

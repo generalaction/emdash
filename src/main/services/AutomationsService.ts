@@ -481,25 +481,30 @@ class AutomationsService {
   /**
    * Create a run log for a manual trigger ("Run now").
    * Returns the run log ID so the caller can track it.
+   *
+   * Both the run log creation and automation state update are done
+   * atomically (under both mutexes) to prevent a window where the
+   * run log exists but the automation's runCount/lastRunAt is stale.
    */
   async createManualRunLog(automationId: string): Promise<string> {
     const runLogId = generateId();
     const now = new Date().toISOString();
 
-    await runLogMutex.run(async () => {
-      await this.createRunLogInternal({
-        id: runLogId,
-        automationId,
-        startedAt: now,
-        finishedAt: null,
-        status: 'running',
-        error: null,
-        taskId: null,
-      });
-    });
-
-    // Also update the automation's run count and lastRunAt
     await dataMutex.run(async () => {
+      // Create the run log
+      await runLogMutex.run(async () => {
+        await this.createRunLogInternal({
+          id: runLogId,
+          automationId,
+          startedAt: now,
+          finishedAt: null,
+          status: 'running',
+          error: null,
+          taskId: null,
+        });
+      });
+
+      // Update the automation's run count and lastRunAt while still holding the data lock
       const data = await readData();
       const automation = data.automations.find((a) => a.id === automationId);
       if (automation) {

@@ -51,13 +51,22 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
   const [showMore, setShowMore] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (prefill) {
+    if (prefill && !initializedRef.current) {
       setName(prefill.name);
       setPrompt(prefill.prompt);
+      initializedRef.current = true;
     }
   }, [prefill]);
+
+  // Reset when component unmounts so remounting re-initializes
+  useEffect(() => {
+    return () => {
+      initializedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -103,7 +112,7 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
       e.preventDefault();
       onCancel();
     }
-    if (e.key === 'Enter' && e.metaKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void handleSubmit();
     }

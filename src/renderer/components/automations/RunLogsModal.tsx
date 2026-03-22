@@ -12,6 +12,28 @@ interface RunLogsModalProps {
   getRunLogs: (automationId: string, limit?: number) => Promise<AutomationRunLog[]>;
 }
 
+const statusIcon = (status: AutomationRunLog['status']) => {
+  switch (status) {
+    case 'success':
+      return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
+    case 'failure':
+      return <XCircle className="h-3.5 w-3.5 text-red-500" />;
+    case 'running':
+      return <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />;
+  }
+};
+
+const statusLabel = (status: AutomationRunLog['status']) => {
+  switch (status) {
+    case 'success':
+      return 'text-emerald-600 dark:text-emerald-400';
+    case 'failure':
+      return 'text-red-600 dark:text-red-400';
+    case 'running':
+      return 'text-blue-600 dark:text-blue-400';
+  }
+};
+
 const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation, getRunLogs }) => {
   const [logs, setLogs] = useState<AutomationRunLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,28 +46,6 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
         .finally(() => setIsLoading(false));
     }
   }, [isOpen, automation, getRunLogs]);
-
-  const statusIcon = (status: AutomationRunLog['status']) => {
-    switch (status) {
-      case 'success':
-        return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
-      case 'failure':
-        return <XCircle className="h-3.5 w-3.5 text-red-500" />;
-      case 'running':
-        return <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />;
-    }
-  };
-
-  const statusLabel = (status: AutomationRunLog['status']) => {
-    switch (status) {
-      case 'success':
-        return 'text-emerald-600 dark:text-emerald-400';
-      case 'failure':
-        return 'text-red-600 dark:text-red-400';
-      case 'running':
-        return 'text-blue-600 dark:text-blue-400';
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
