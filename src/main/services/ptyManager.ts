@@ -19,6 +19,8 @@ import { errorTracking } from '../errorTracking';
  * swallow the error instead of throwing.
  */
 function suppressPtyPipeErrors(proc: IPty): void {
+  if (process.platform !== 'win32') return;
+
   // IPty doesn't expose .on() in its type, but the underlying Terminal
   // class extends EventEmitter and proxies to the socket.
   (proc as any).on?.('error', (err: NodeJS.ErrnoException) => {
