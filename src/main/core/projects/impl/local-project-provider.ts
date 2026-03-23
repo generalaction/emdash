@@ -155,6 +155,8 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskEnv: TaskProvider = {
       taskId: task.id,
       taskPath: workDir,
+      taskBranch: task.taskBranch,
+      sourceBranch: task.sourceBranch,
       fs: taskFs,
       git: taskGit,
       conversations: conversationProvider,

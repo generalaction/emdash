@@ -19,8 +19,12 @@ function serializePr(pr: Omit<PullRequest, 'id'>) {
 }
 
 function deserializePr(row: typeof pullRequests.$inferSelect): PullRequest {
+  const metadata = JSON.parse(row.metadata ?? '{}') as PullRequest['metadata'];
+  const identifier =
+    row.provider === 'github' && 'number' in metadata ? `#${metadata.number}` : row.url;
   return {
     id: row.id,
+    identifier,
     nameWithOwner: row.nameWithOwner,
     provider: row.provider as PullRequest['provider'],
     url: row.url,
@@ -28,7 +32,7 @@ function deserializePr(row: typeof pullRequests.$inferSelect): PullRequest {
     status: row.status as PullRequest['status'],
     author: row.author ? JSON.parse(row.author) : null,
     isDraft: Boolean(row.isDraft),
-    metadata: JSON.parse(row.metadata ?? '{}'),
+    metadata,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

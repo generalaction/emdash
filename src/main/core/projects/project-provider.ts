@@ -25,6 +25,8 @@ export type TeardownTaskError =
 export interface TaskProvider {
   readonly taskId: string;
   readonly taskPath: string;
+  readonly taskBranch: string | undefined;
+  readonly sourceBranch: string;
   readonly fs: FileSystemProvider;
   readonly git: GitProvider;
   readonly conversations: ConversationProvider;

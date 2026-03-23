@@ -7,6 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
 import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
 import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
@@ -55,7 +56,8 @@ export function ChangesPanel() {
 
   const { data } = useBranchStatus({ projectId, taskId });
 
-  const { pullRequests } = usePrContext();
+  const { pullRequests, nameWithOwner, taskBranch } = usePrContext();
+  const showCreatePrModal = useShowModal('createPrModal');
 
   const unstagedSelection = useSelection(unstagedFileChanges);
   const stagedSelection = useSelection(stagedFileChanges);
@@ -303,6 +305,23 @@ export function ChangesPanel() {
             count={pullRequests.length}
             collapsed={!expanded.pullRequests}
             onToggleCollapsed={() => toggleExpanded('pullRequests')}
+            onCreatePr={
+              taskBranch
+                ? () =>
+                    showCreatePrModal({
+                      nameWithOwner: nameWithOwner ?? '',
+                      branchName: taskBranch,
+                      draft: false,
+                      onSuccess: () => {
+                        setExpanded(() => ({
+                          unstaged: true,
+                          staged: false,
+                          pullRequests: true,
+                        }));
+                      },
+                    })
+                : undefined
+            }
           />
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {pullRequests.length === 0 && <PullRequestEmptyState />}

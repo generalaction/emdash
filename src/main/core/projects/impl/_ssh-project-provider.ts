@@ -123,6 +123,8 @@ export class SshProjectProvider implements ProjectProvider {
     const taskEnv: TaskProvider = {
       taskId,
       taskPath: workingDirectory,
+      taskBranch: task.taskBranch,
+      sourceBranch: task.sourceBranch,
       fs,
       git,
       agentProvider,

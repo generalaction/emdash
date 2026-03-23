@@ -42,4 +42,6 @@ export interface GitHubPullRequestService {
   getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]>;
 
   syncPullRequests(nameWithOwner: string, sinceUpdatedAt?: string): Promise<PullRequest[]>;
+
+  getPullRequestsByBranch(nameWithOwner: string, branchName: string): Promise<PullRequest[]>;
 }

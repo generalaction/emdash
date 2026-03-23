@@ -1,7 +1,18 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import type { PullRequest } from '@shared/pull-requests';
 import { prService } from '@main/core/github/services/pr-service';
+import { parseNameWithOwner } from '@main/core/github/services/utils';
+import { projectManager } from '@main/core/projects/project-manager';
+import { resolveTask } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
+import { err, ok } from '@main/lib/result';
 import { pullRequestProvider } from './pr-provider';
+
+type TaskPrsPayload = {
+  prs: PullRequest[];
+  nameWithOwner: string | null;
+  taskBranch: string | null;
+};
 
 export const pullRequestController = createRPCController({
   // ── Sync (GitHub → DB) ─────────────────────────────────────────────
@@ -149,6 +160,40 @@ export const pullRequestController = createRPCController({
         success: false,
         error: error instanceof Error ? error.message : 'Unable to get pull request files',
       };
+    }
+  },
+
+  getPullRequestsForTask: async (projectId: string, taskId: string) => {
+    try {
+      const project = projectManager.getProject(projectId);
+      const env = resolveTask(projectId, taskId);
+      if (!project || !env) return err({ type: 'not_found' as const });
+      if (!env.taskBranch)
+        return ok<TaskPrsPayload>({ prs: [], nameWithOwner: null, taskBranch: null });
+
+      const taskBranch = env.taskBranch;
+
+      const remoteName = await project.settings.getRemote();
+      const remotes = await env.git.getRemotes();
+      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
+      if (!nameWithOwner) {
+        // No parseable GitHub remote — still surface the branch so the UI can show the Create PR button
+        return ok<TaskPrsPayload>({ prs: [], nameWithOwner: null, taskBranch });
+      }
+
+      const prs = await prService.getPullRequestsByBranch(nameWithOwner, taskBranch);
+      if (prs.length > 0) await pullRequestProvider.upsertPullRequests(prs);
+      return ok<TaskPrsPayload>({ prs, nameWithOwner, taskBranch });
+    } catch (error) {
+      log.error('Failed to get pull requests for task:', error);
+      // Best-effort: re-resolve the task branch so the Create PR button stays visible
+      const env2 = resolveTask(projectId, taskId);
+      return ok<TaskPrsPayload>({
+        prs: [],
+        nameWithOwner: null,
+        taskBranch: env2?.taskBranch ?? null,
+      });
     }
   },
 });

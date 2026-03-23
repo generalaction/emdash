@@ -49,7 +49,6 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
         {leftSidebar}
       </ResizablePanel>
       <ResizableHandle
-        withHandle
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           handleDragging('left', true);
@@ -105,7 +104,6 @@ export function WorkspaceContentLayout({
         {hasRight && (
           <>
             <ResizableHandle
-              withHandle
               onPointerDown={(e) => {
                 e.currentTarget.setPointerCapture(e.pointerId);
                 handleDragging('right', true);

@@ -57,10 +57,12 @@ export function PullRequestSectionHeader({
   count,
   collapsed,
   onToggleCollapsed,
+  onCreatePr,
 }: {
   count: number;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  onCreatePr?: () => void;
 }) {
   return (
     <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
@@ -81,7 +83,7 @@ export function PullRequestSectionHeader({
             </span>
           </span>
         </button>
-        <Button variant="outline" size="xs">
+        <Button variant="outline" size="xs" onClick={onCreatePr}>
           <Plus className="size-3" />
           Create PR
         </Button>

@@ -43,10 +43,7 @@ function textSearch(prs: PullRequest[], query: string) {
 export function PullRequestList() {
   const project = useRequiredCurrentProject();
   const { user } = useGithubContext();
-  const projectRemote =
-    project?.gitInfo?.remote ??
-    ((project as unknown as Record<string, unknown> | null)?.gitRemote as string | undefined);
-  const nameWithOwner = projectRemote ? parseGithubNameWithOwner(projectRemote) : null;
+  const nameWithOwner = project.gitRemote ? parseGithubNameWithOwner(project.gitRemote) : null;
 
   const { prs, refresh } = usePullRequests(nameWithOwner ?? undefined);
 
@@ -91,7 +88,7 @@ export function PullRequestList() {
 
     result = textSearch(result, deferredQuery);
 
-    return result.toSorted(
+    return [...result].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }, [prs, status, addon, deferredQuery, user?.login]);
@@ -105,7 +102,8 @@ export function PullRequestList() {
     }
   };
 
-  const handleStatusChange = (value: string) => {
+  const handleStatusChange = (value: string | null) => {
+    if (!value) return;
     setStatus(value);
     setAddon(null);
   };
