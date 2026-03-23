@@ -13,6 +13,7 @@ interface NavigationState {
 
 const MAX_HISTORY = 50;
 
+/** Compare two navigation states for equality by projectId, taskId, and view kind. */
 function statesEqual(a: NavigationState, b: NavigationState): boolean {
   return a.projectId === b.projectId && a.taskId === b.taskId && a.view === b.view;
 }
