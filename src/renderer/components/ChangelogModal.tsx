@@ -55,9 +55,26 @@ function stripLeadingReleaseHeadings(content: string, entry: ChangelogEntry): st
   return lines.join('\n').trim();
 }
 
+const FOOTER_PATTERN =
+  /^(?:#{1,6}\s*new\s+contributors|[\s*-]*@\S+\s+made\s+their\s+first\s+contribution|\*{0,2}full\s+changelog\*{0,2}\s*:)/im;
+
+function splitContentFooter(content: string): { main: string; footer: string } {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (FOOTER_PATTERN.test(lines[i])) {
+      return {
+        main: lines.slice(0, i).join('\n').trim(),
+        footer: lines.slice(i).join('\n').trim(),
+      };
+    }
+  }
+  return { main: content, footer: '' };
+}
+
 function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
   const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
   const content = stripLeadingReleaseHeadings(entry.content, entry);
+  const { main, footer } = splitContentFooter(content);
 
   return (
     <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 focus:outline-none">
@@ -71,22 +88,41 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
         </button>
       </div>
 
-      <div className="max-h-[min(75vh,44rem)] overflow-y-auto px-6 py-5">
-        {publishedAt && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Badge variant="outline" className="h-5 px-2 text-[11px] font-medium">
-              {publishedAt}
-            </Badge>
+      <div className="max-h-[min(75vh,44rem)] overflow-y-auto">
+        <div className="px-6 py-5">
+          {publishedAt && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Badge variant="outline" className="h-5 px-2 text-[11px] font-medium">
+                {publishedAt}
+              </Badge>
+            </div>
+          )}
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+            {entry.title}
+          </h2>
+          {entry.image && (
+            <div className="mt-4 overflow-hidden rounded-lg">
+              <img
+                src={entry.image}
+                alt={`${entry.title} screenshot`}
+                className="h-auto w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          )}
+          {entry.summary && (
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+              {entry.summary}
+            </p>
+          )}
+          <div className="mt-6">
+            <MarkdownRenderer content={main} />
           </div>
-        )}
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-          {entry.title}
-        </h2>
-        {entry.summary && (
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">{entry.summary}</p>
-        )}
-        <div className="mt-6">
-          <MarkdownRenderer content={content} />
+          {footer && (
+            <div className="mt-6 border-t border-border pt-5">
+              <MarkdownRenderer content={footer} />
+            </div>
+          )}
         </div>
       </div>
     </DialogContent>

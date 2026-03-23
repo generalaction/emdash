@@ -79,6 +79,27 @@ describe('parseChangelogHtml', () => {
     expect(entry?.publishedAt).toBe('March 13, 2026');
   });
 
+  it('extracts a hero image from an img tag inside the article and strips it from content', () => {
+    const htmlWithImage = `
+      <main>
+        <article data-version="0.5.0">
+          <time datetime="2026-03-20">Mar 20, 2026</time>
+          <h2>Screenshot release</h2>
+          <p>A release with a screenshot.</p>
+          <img src="https://github.com/user-attachments/assets/abc123.png" alt="hero" />
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithImage, '0.5.0');
+
+    expect(entry?.version).toBe('0.5.0');
+    expect(entry?.image).toBe('https://github.com/user-attachments/assets/abc123.png');
+    expect(entry?.content).not.toContain(
+      '![hero](https://github.com/user-attachments/assets/abc123.png)'
+    );
+  });
+
   it('does not assign another release date when the requested version has no matching date text', () => {
     const htmlWithOtherDate = `
       <main>

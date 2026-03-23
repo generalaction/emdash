@@ -8,6 +8,8 @@ export interface ChangelogEntry {
   content: string;
   publishedAt?: string;
   url?: string;
+  /** Hero/banner image URL shown at the top of the changelog modal */
+  image?: string;
 }
 
 export function normalizeChangelogVersion(version: string | null | undefined): string | null {
