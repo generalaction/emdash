@@ -165,6 +165,13 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     indexRef.current = newIndex;
     syncCanFlags();
     restoreState(historyRef.current[newIndex]);
+    // Safety net: if restoreState resolved to the current view (no state change),
+    // the recording effect won't fire to clear isRestoringRef. Clear it here so
+    // future navigations are still recorded. The statesEqual guard in the effect
+    // prevents duplicate entries if the effect does fire.
+    queueMicrotask(() => {
+      isRestoringRef.current = false;
+    });
   }, [restoreState, syncCanFlags]);
 
   /** Navigate to the next entry in the history stack. */
@@ -174,6 +181,9 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     indexRef.current = newIndex;
     syncCanFlags();
     restoreState(historyRef.current[newIndex]);
+    queueMicrotask(() => {
+      isRestoringRef.current = false;
+    });
   }, [restoreState, syncCanFlags]);
 
   // Mouse back/forward buttons (buttons 3 and 4 on mice with extra buttons)
