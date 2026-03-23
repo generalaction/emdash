@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useToast } from './use-toast';
@@ -16,13 +16,17 @@ import { isValidProviderId } from '@shared/providers/registry';
  * Creates a task and starts the agent fully in the background —
  * no view switching, no navigation away from the current screen.
  *
- * Tracks the run log ID so the main process can update run logs
- * when the agent finishes (success/failure).
+ * Uses a pull-based model: the main process queues triggers and
+ * sends a hint event. This hook drains the queue when ready, avoiding
+ * lost triggers from startup races or React mount timing.
  */
 export function useAutomationTrigger(): void {
   const { projects } = useProjectManagementContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Track PTY exit unsubscribers so we can clean them up on unmount
+  const ptyExitUnsubs = useRef<Map<string, () => void>>(new Map());
 
   const runAutomationInBackground = useCallback(
     async (automation: Automation & { _runLogId: string }) => {
@@ -38,7 +42,6 @@ export function useAutomationTrigger(): void {
         setAutomationRunPhase(automation.id, automation.name, 'error', {
           error: 'Project not found',
         });
-        // Report failure back to main
         void window.electronAPI.automationsCompleteRun({
           runLogId,
           automationId: automation.id,
@@ -48,7 +51,6 @@ export function useAutomationTrigger(): void {
         return;
       }
 
-      // Phase 1: Preparing
       setAutomationRunPhase(automation.id, automation.name, 'preparing');
 
       const now = new Date();
@@ -56,9 +58,10 @@ export function useAutomationTrigger(): void {
       const taskName = `${automation.name} — ${timeStr}`;
       const useWorktree = automation.useWorktree ?? true;
 
-      let branch: string;
-      let taskPath: string;
-      let taskId: string;
+      let branch = '';
+      let taskPath = '';
+      let taskId = '';
+      let worktreeCreated = false;
 
       try {
         // ---------------------------------------------------------------
@@ -78,6 +81,7 @@ export function useAutomationTrigger(): void {
           branch = worktreeResult.worktree.branch;
           taskPath = worktreeResult.worktree.path;
           taskId = worktreeResult.worktree.id;
+          worktreeCreated = true;
         } else {
           branch = project.gitInfo?.branch || 'main';
           taskPath = project.path;
@@ -106,7 +110,6 @@ export function useAutomationTrigger(): void {
           useWorktree,
         });
 
-        // Invalidate task cache so the sidebar picks it up
         void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
 
         // ---------------------------------------------------------------
@@ -121,7 +124,7 @@ export function useAutomationTrigger(): void {
         }
 
         const ptyId = makePtyId(automation.agentId, 'main', taskId);
-        await window.electronAPI.ptyStartDirect({
+        const ptyResult = await window.electronAPI.ptyStartDirect({
           id: ptyId,
           providerId: automation.agentId,
           cwd: taskPath,
@@ -129,8 +132,15 @@ export function useAutomationTrigger(): void {
           initialPrompt: automation.prompt,
         });
 
+        // Check PTY start result — fail explicitly if it didn't start
+        if (ptyResult && !ptyResult.ok) {
+          throw new Error(ptyResult.error || 'PTY failed to start');
+        }
+
         // Listen for PTY exit to report the real outcome back to main.
+        // Track the unsubscriber so we can clean up on unmount
         const unsubExit = window.electronAPI.onPtyExit(ptyId, ({ exitCode }) => {
+          ptyExitUnsubs.current.delete(ptyId);
           unsubExit();
           void window.electronAPI.automationsCompleteRun({
             runLogId,
@@ -140,8 +150,8 @@ export function useAutomationTrigger(): void {
             error: exitCode !== 0 ? `Agent exited with code ${exitCode}` : undefined,
           });
         });
+        ptyExitUnsubs.current.set(ptyId, unsubExit);
 
-        // Clear the brief triggering-phase indicator now that the PTY is up.
         clearAutomationRun(automation.id);
 
         toast({
@@ -158,22 +168,60 @@ export function useAutomationTrigger(): void {
           description: errorMessage,
           variant: 'destructive',
         });
-        // Report failure back to main
         void window.electronAPI.automationsCompleteRun({
           runLogId,
           automationId: automation.id,
           status: 'failure',
           error: errorMessage,
         });
+
+        // Clean up the worktree if we created one before the error
+        if (worktreeCreated && taskId && taskPath) {
+          try {
+            await window.electronAPI.worktreeRemove({
+              projectPath: project.path,
+              worktreeId: taskId,
+              worktreePath: taskPath,
+            });
+          } catch {
+            // Best-effort cleanup — don't mask the original error
+          }
+        }
       }
     },
     [projects, toast, queryClient]
   );
 
-  useEffect(() => {
-    const unsub = window.electronAPI.onAutomationTrigger((automation) => {
-      void runAutomationInBackground(automation);
-    });
-    return unsub;
+  // Drain queued triggers from the main process
+  const drainTriggers = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.automationsDrainTriggers();
+      if (result.success && result.data) {
+        for (const automation of result.data) {
+          void runAutomationInBackground(automation);
+        }
+      }
+    } catch (err) {
+      console.error('[Automations] Failed to drain triggers:', err);
+    }
   }, [runAutomationInBackground]);
+
+  useEffect(() => {
+    // Listen for hint events from main process (new triggers available)
+    const unsub = window.electronAPI.onAutomationTriggerAvailable(() => {
+      void drainTriggers();
+    });
+
+    // Drain on mount — pick up anything queued before we were ready
+    void drainTriggers();
+
+    return () => {
+      unsub();
+      // Clean up any outstanding PTY exit listeners on unmount
+      for (const unsubFn of ptyExitUnsubs.current.values()) {
+        unsubFn();
+      }
+      ptyExitUnsubs.current.clear();
+    };
+  }, [drainTriggers]);
 }

@@ -884,6 +884,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       dayOfMonth?: number;
     };
     status?: string;
+    useWorktree?: boolean;
   }) => ipcRenderer.invoke('automations:update', args),
   automationsDelete: (args: { id: string }) => ipcRenderer.invoke('automations:delete', args),
   automationsToggle: (args: { id: string }) => ipcRenderer.invoke('automations:toggle', args),
@@ -898,20 +899,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     status: 'success' | 'failure';
     error?: string;
   }) => ipcRenderer.invoke('automations:completeRun', args),
-  onAutomationTrigger: (
-    listener: (automation: {
-      id: string;
-      name: string;
-      projectId: string;
-      prompt: string;
-      agentId: string;
-      _runLogId: string;
-    }) => void
-  ) => {
-    const handler = (_event: any, automation: any) => listener(automation);
-    ipcRenderer.on('automation:trigger', handler);
+  automationsDrainTriggers: () => ipcRenderer.invoke('automations:drainTriggers'),
+  onAutomationTriggerAvailable: (listener: () => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent) => listener();
+    ipcRenderer.on('automation:trigger-available', wrapped);
     return () => {
-      ipcRenderer.removeListener('automation:trigger', handler);
+      ipcRenderer.removeListener('automation:trigger-available', wrapped);
     };
   },
 });

@@ -61,7 +61,10 @@ function validateIdArg(args: unknown): asserts args is { id: string } {
 }
 
 // ---------------------------------------------------------------------------
-// Trigger queue — buffers triggers when no renderer window is available
+// Trigger queue — always buffers, renderer pulls when ready.
+// Triggers are queued and the renderer drains via automations:drainTriggers
+// when its listener is ready. A push hint via webContents.send() tells the
+// renderer to drain immediately.
 // ---------------------------------------------------------------------------
 interface QueuedTrigger {
   automation: Automation;
@@ -71,38 +74,21 @@ interface QueuedTrigger {
 const MAX_TRIGGER_QUEUE = 50;
 const triggerQueue: QueuedTrigger[] = [];
 
-/** Send an automation trigger event to a renderer window, or queue it */
+/** Queue a trigger and notify the renderer to drain */
 function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
+  // Always queue first
+  if (triggerQueue.length >= MAX_TRIGGER_QUEUE) {
+    const dropped = triggerQueue.shift()!;
+    log.warn(
+      `[Automations] Trigger queue full (${MAX_TRIGGER_QUEUE}) — dropping oldest: "${dropped.automation.name}"`
+    );
+  }
+  triggerQueue.push({ automation, runLogId });
+
+  // Best-effort push notification — if the renderer is listening, it'll drain immediately
   const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   if (target && !target.isDestroyed()) {
-    target.webContents.send('automation:trigger', { ...automation, _runLogId: runLogId });
-  } else {
-    if (triggerQueue.length >= MAX_TRIGGER_QUEUE) {
-      const dropped = triggerQueue.shift()!;
-      log.warn(
-        `[Automations] Trigger queue full (${MAX_TRIGGER_QUEUE}) — dropping oldest: "${dropped.automation.name}"`
-      );
-    }
-    log.warn(
-      `[Automations] No window available — queuing trigger for "${automation.name}" (runLog: ${runLogId})`
-    );
-    triggerQueue.push({ automation, runLogId });
-  }
-}
-
-/** Flush any queued triggers to the first available window */
-function flushTriggerQueue(): void {
-  if (triggerQueue.length === 0) return;
-  const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-  if (!target || target.isDestroyed()) return;
-
-  log.info(`[Automations] Flushing ${triggerQueue.length} queued trigger(s)`);
-  while (triggerQueue.length > 0) {
-    const item = triggerQueue.shift()!;
-    target.webContents.send('automation:trigger', {
-      ...item.automation,
-      _runLogId: item.runLogId,
-    });
+    target.webContents.send('automation:trigger-available');
   }
 }
 
@@ -123,11 +109,28 @@ export function registerAutomationsIpc(): void {
     automationsService.stop();
   });
 
-  // Flush queued triggers when a new window finishes loading
+  // Hint the renderer to drain when a new window is ready
   app.on('browser-window-created', (_, window) => {
     window.webContents.once('did-finish-load', () => {
-      flushTriggerQueue();
+      if (triggerQueue.length > 0) {
+        window.webContents.send('automation:trigger-available');
+      }
     });
+  });
+
+  // -----------------------------------------------------------------------
+  // Pull-based trigger drain — renderer calls this when listener is ready
+  // -----------------------------------------------------------------------
+  ipcMain.handle('automations:drainTriggers', () => {
+    if (triggerQueue.length === 0) return { success: true, data: [] };
+
+    log.info(`[Automations] Draining ${triggerQueue.length} queued trigger(s)`);
+    const items = triggerQueue.splice(0).map((item) => ({
+      ...item.automation,
+      _runLogId: item.runLogId,
+    }));
+
+    return { success: true, data: items };
   });
 
   // -----------------------------------------------------------------------

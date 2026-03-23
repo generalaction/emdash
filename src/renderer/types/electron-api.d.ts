@@ -1390,11 +1390,12 @@ declare global {
         success: boolean;
         error?: string;
       }>;
-      onAutomationTrigger: (
-        listener: (
-          automation: import('../../shared/automations/types').Automation & { _runLogId: string }
-        ) => void
-      ) => () => void;
+      automationsDrainTriggers: () => Promise<{
+        success: boolean;
+        data?: Array<import('../../shared/automations/types').Automation & { _runLogId: string }>;
+        error?: string;
+      }>;
+      onAutomationTriggerAvailable: (listener: () => void) => () => void;
     };
   }
 }
@@ -2131,11 +2132,12 @@ export interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
-  onAutomationTrigger: (
-    listener: (
-      automation: import('../../shared/automations/types').Automation & { _runLogId: string }
-    ) => void
-  ) => () => void;
+  automationsDrainTriggers: () => Promise<{
+    success: boolean;
+    data?: Array<import('../../shared/automations/types').Automation & { _runLogId: string }>;
+    error?: string;
+  }>;
+  onAutomationTriggerAvailable: (listener: () => void) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';
