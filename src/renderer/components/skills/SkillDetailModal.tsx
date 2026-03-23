@@ -11,13 +11,18 @@ import { skillIconMap, skillSourceIcons } from '../../lib/skillIcons';
 import { useTheme } from '../../hooks/useTheme';
 
 const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
+  const [iconUrlError, setIconUrlError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const letter = skill.displayName.charAt(0).toUpperCase();
-  const isMonochrome = useIsMonochrome(skill.iconUrl);
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
-  // 1. Bundled icon
+  // 1. Bundled icon by skill ID, then by source
   const iconDef = skillIconMap[skill.id] ?? skillSourceIcons[skill.source];
+
+  // Only probe monochrome for remote URLs we'll actually render
+  const remoteUrl = !iconDef ? skill.iconUrl : undefined;
+  const isMonochrome = useIsMonochrome(remoteUrl);
 
   if (iconDef) {
     let processed = iconDef.data;
@@ -41,7 +46,7 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   }
 
   // 2. Remote iconUrl (incl. GitHub avatars for skills.sh)
-  if (skill.iconUrl) {
+  if (skill.iconUrl && !iconUrlError) {
     const isAvatar = skill.iconUrl.includes('github.com/') && skill.iconUrl.includes('.png');
     return (
       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
@@ -49,22 +54,29 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
           src={skill.iconUrl}
           alt=""
           className={`h-full w-full object-contain ${isAvatar ? 'rounded-lg' : `rounded-lg ${isMonochrome !== false ? 'dark:invert' : ''}`}`.trim()}
+          onError={() => setIconUrlError(true)}
         />
       </div>
     );
   }
 
-  // 3. Owner avatar fallback for skills.sh
-  if (skill.source === 'skills-sh' && skill.owner) {
-    return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
-        <img
-          src={`https://github.com/${skill.owner}.png?size=80`}
-          alt=""
-          className="h-full w-full rounded-lg object-cover"
-        />
-      </div>
-    );
+  // 3. Owner GitHub avatar fallback (separate error state)
+  if (skill.source === 'skills-sh' && skill.owner && !avatarError) {
+    const avatarUrl = `https://github.com/${skill.owner}.png?size=80`;
+    if (skill.iconUrl === avatarUrl && iconUrlError) {
+      // iconUrl was already this avatar and it failed — skip
+    } else {
+      return (
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-full w-full rounded-lg object-cover"
+            onError={() => setAvatarError(true)}
+          />
+        </div>
+      );
+    }
   }
 
   // 4. Letter fallback
