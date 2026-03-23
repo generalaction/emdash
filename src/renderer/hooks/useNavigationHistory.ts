@@ -17,6 +17,11 @@ function statesEqual(a: NavigationState, b: NavigationState): boolean {
   return a.projectId === b.projectId && a.taskId === b.taskId && a.view === b.view;
 }
 
+/**
+ * Tracks a browser-style navigation history stack across views (home, project, task,
+ * skills, MCP). Provides goBack/goForward and listens for mouse buttons, keyboard
+ * shortcuts, and IPC events from the main process (trackpad swipe, app-command).
+ */
 export function useNavigationHistory(taskLookup?: (taskId: string) => Task | undefined) {
   const {
     selectedProject,

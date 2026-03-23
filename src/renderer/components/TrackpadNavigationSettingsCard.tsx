@@ -2,6 +2,7 @@ import React from 'react';
 import { Switch } from './ui/switch';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
+/** Settings toggle for enabling/disabling trackpad swipe navigation gestures. */
 export default function TrackpadNavigationSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
 

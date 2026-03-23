@@ -6,6 +6,7 @@ type NavigationHistoryContextValue = ReturnType<typeof useNavigationHistory>;
 
 const NavigationHistoryContext = createContext<NavigationHistoryContextValue | null>(null);
 
+/** Access the navigation history context (goBack, goForward, canGoBack, canGoForward). */
 export function useNavigationHistoryContext(): NavigationHistoryContextValue {
   const ctx = useContext(NavigationHistoryContext);
   if (!ctx) {
@@ -14,6 +15,7 @@ export function useNavigationHistoryContext(): NavigationHistoryContextValue {
   return ctx;
 }
 
+/** Provides navigation history to the component tree, wiring up task lookup from TaskManagementContext. */
 export function NavigationHistoryProvider({ children }: { children: React.ReactNode }) {
   const { allTasks } = useTaskManagementContext();
 
