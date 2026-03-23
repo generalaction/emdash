@@ -1,42 +1,26 @@
-import { app } from 'electron';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import { getDrizzleClient } from '../db/drizzleClient';
+import {
+  automationRunLogs as automationRunLogsTable,
+  automations as automationsTable,
+} from '../db/schema';
+import type { AutomationRow, AutomationRunLogRow } from '../db/schema';
 import { log } from '../lib/logger';
 import type {
   Automation,
   AutomationRunLog,
   AutomationSchedule,
   CreateAutomationInput,
-  UpdateAutomationInput,
   DayOfWeek,
   ScheduleType,
+  UpdateAutomationInput,
 } from '../../shared/automations/types';
 
 // ---------------------------------------------------------------------------
-// Persistence — flat JSON file in the app's userData directory
-// ---------------------------------------------------------------------------
-function getDataPath(): string {
-  return path.join(app.getPath('userData'), 'automations.json');
-}
-
-function getRunLogPath(): string {
-  return path.join(app.getPath('userData'), 'automation-runs.json');
-}
-
-interface AutomationsData {
-  automations: Automation[];
-}
-
-interface RunLogsData {
-  runs: AutomationRunLog[];
-}
-
-// ---------------------------------------------------------------------------
-// Async file I/O with serialized access to prevent race conditions
+// AsyncMutex — promise-chaining based mutex for serializing async operations
 // ---------------------------------------------------------------------------
 
-/** Simple async mutex — serializes read-modify-write cycles */
 class AsyncMutex {
   private chain: Promise<void> = Promise.resolve();
 
@@ -53,58 +37,26 @@ class AsyncMutex {
   }
 }
 
-/**
- * Lock ordering: dataMutex → runLogMutex. NEVER acquire runLogMutex
- * first when you also need dataMutex — that would risk a deadlock.
- */
-const dataMutex = new AsyncMutex(); // Level 1 (outer)
-const runLogMutex = new AsyncMutex(); // Level 2 (inner, or standalone)
-
-async function readData(): Promise<AutomationsData> {
-  try {
-    const raw = await fs.readFile(getDataPath(), 'utf-8');
-    return JSON.parse(raw) as AutomationsData;
-  } catch {
-    return { automations: [] };
-  }
-}
-
-async function writeData(data: AutomationsData): Promise<void> {
-  const filePath = getDataPath();
-  const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
-  // Atomic write: write to tmp then rename
-  const tmp = filePath + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
-  await fs.rename(tmp, filePath);
-}
-
-async function readRunLogs(): Promise<RunLogsData> {
-  try {
-    const raw = await fs.readFile(getRunLogPath(), 'utf-8');
-    return JSON.parse(raw) as RunLogsData;
-  } catch {
-    return { runs: [] };
-  }
-}
-
-async function writeRunLogs(data: RunLogsData): Promise<void> {
-  const filePath = getRunLogPath();
-  const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
-  const tmp = filePath + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
-  await fs.rename(tmp, filePath);
-}
+// Single mutex for all data operations — avoids fragile nested locking
+const dataMutex = new AsyncMutex();
 
 // ---------------------------------------------------------------------------
-// Schedule helpers
+// Constants
 // ---------------------------------------------------------------------------
+
 const DAY_ORDER: DayOfWeek[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const VALID_SCHEDULE_TYPES: ScheduleType[] = ['hourly', 'daily', 'weekly', 'monthly'];
-const VALID_DAYS: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const VALID_AUTOMATION_STATUS: Automation['status'][] = ['active', 'paused', 'error'];
+const VALID_RUN_STATUS: AutomationRunLog['status'][] = ['running', 'success', 'failure'];
 
-/** Validate schedule input and throw on invalid values */
+const MAX_RUNS_PER_AUTOMATION = 100;
+const MAX_TOTAL_RUNS = 2000;
+const DEFAULT_MAX_RUN_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+// ---------------------------------------------------------------------------
+// Validation & helpers
+// ---------------------------------------------------------------------------
+
 function validateSchedule(schedule: AutomationSchedule): void {
   if (!VALID_SCHEDULE_TYPES.includes(schedule.type)) {
     throw new Error(`Invalid schedule type: ${schedule.type}`);
@@ -115,11 +67,7 @@ function validateSchedule(schedule: AutomationSchedule): void {
   if (schedule.minute !== undefined && (schedule.minute < 0 || schedule.minute > 59)) {
     throw new Error(`Invalid minute: ${schedule.minute} (must be 0-59)`);
   }
-  if (
-    schedule.type === 'weekly' &&
-    schedule.dayOfWeek &&
-    !VALID_DAYS.includes(schedule.dayOfWeek)
-  ) {
+  if (schedule.type === 'weekly' && schedule.dayOfWeek && !DAY_ORDER.includes(schedule.dayOfWeek)) {
     throw new Error(`Invalid dayOfWeek: ${schedule.dayOfWeek}`);
   }
   if (schedule.type === 'monthly') {
@@ -171,13 +119,12 @@ function computeNextRun(schedule: AutomationSchedule, fromDate?: Date): string {
     }
     case 'monthly': {
       const desiredDom = schedule.dayOfMonth ?? 1;
-      // Clamp to the last day of the target month to avoid overflow
+      // Clamp to the last day of the current month
       const daysInCurrentMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
       const targetDom = Math.min(desiredDom, daysInCurrentMonth);
       next.setDate(targetDom);
       next.setHours(hour, minute, 0, 0);
       if (next <= now) {
-        // Move to next month, re-clamp
         next.setMonth(next.getMonth() + 1);
         const daysInNextMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
         next.setDate(Math.min(desiredDom, daysInNextMonth));
@@ -194,31 +141,115 @@ function generateId(): string {
   return `auto_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 }
 
+function normalizeAutomationStatus(value: unknown): Automation['status'] {
+  if (
+    typeof value === 'string' &&
+    VALID_AUTOMATION_STATUS.includes(value as Automation['status'])
+  ) {
+    return value as Automation['status'];
+  }
+  return 'active';
+}
+
+function normalizeRunStatus(value: unknown): AutomationRunLog['status'] {
+  if (typeof value === 'string' && VALID_RUN_STATUS.includes(value as AutomationRunLog['status'])) {
+    return value as AutomationRunLog['status'];
+  }
+  return 'running';
+}
+
 // ---------------------------------------------------------------------------
-// Scheduler — runs a timer to check for due automations
+// Row mapping
+// ---------------------------------------------------------------------------
+
+function serializeSchedule(schedule: AutomationSchedule): string {
+  return JSON.stringify(schedule);
+}
+
+function deserializeSchedule(serialized: string): AutomationSchedule {
+  const parsed = JSON.parse(serialized) as AutomationSchedule;
+  validateSchedule(parsed);
+  return parsed;
+}
+
+function mapAutomationRow(row: AutomationRow): Automation {
+  return {
+    id: row.id,
+    name: row.name,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    prompt: row.prompt,
+    agentId: row.agentId,
+    schedule: deserializeSchedule(row.schedule),
+    useWorktree: row.useWorktree === 1,
+    status: normalizeAutomationStatus(row.status),
+    lastRunAt: row.lastRunAt,
+    nextRunAt: row.nextRunAt,
+    runCount: row.runCount,
+    lastRunResult:
+      row.lastRunResult === 'success' || row.lastRunResult === 'failure' ? row.lastRunResult : null,
+    lastRunError: row.lastRunError,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function mapRunRow(row: AutomationRunLogRow): AutomationRunLog {
+  return {
+    id: row.id,
+    automationId: row.automationId,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    status: normalizeRunStatus(row.status),
+    error: row.error,
+    taskId: row.taskId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Service
 // ---------------------------------------------------------------------------
 
 type AutomationTriggerCallback = (automation: Automation, runLogId: string) => void;
-
-const MAX_RUNS_PER_AUTOMATION = 100;
-const MAX_TOTAL_RUNS = 2000;
 
 class AutomationsService {
   private timer: ReturnType<typeof setInterval> | null = null;
   private triggerCallbacks: AutomationTriggerCallback[] = [];
   private ticking = false;
+  private initialized = false;
 
-  /** Register a callback that gets called when an automation is due */
+  // -------------------------------------------------------------------
+  // Initialization — runs once to ensure DB client is ready.
+  // Tables are created by DatabaseService.ensureMigrations() in production
+  // via drizzle/0011_add_automations_tables.sql.
+  // -------------------------------------------------------------------
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) return;
+
+    await getDrizzleClient();
+    this.initialized = true;
+  }
+
+  /** Reset internal state — test-only, not part of the public API. */
+  _resetForTesting(): void {
+    this.initialized = false;
+    this.ticking = false;
+    this.stop();
+  }
+
+  // -------------------------------------------------------------------
+  // Scheduler
+  // -------------------------------------------------------------------
+
   onTrigger(cb: AutomationTriggerCallback): void {
     this.triggerCallbacks.push(cb);
   }
 
-  /** Start the scheduler — checks every 30 seconds */
   start(): void {
     if (this.timer) return;
     log.info('[Automations] Scheduler started');
     this.timer = setInterval(() => void this.tick(), 30_000);
-    // Run immediately on start (also handles missed runs)
     void this.tick();
   }
 
@@ -230,8 +261,8 @@ class AutomationsService {
     }
   }
 
+  // Prevent overlapping ticks — if the previous tick is still running, skip
   private async tick(): Promise<void> {
-    // Prevent overlapping ticks
     if (this.ticking) return;
     this.ticking = true;
     try {
@@ -244,52 +275,60 @@ class AutomationsService {
   }
 
   private async executeTick(): Promise<void> {
-    // Collect triggers to fire after releasing the data lock
     const triggers: Array<{ automation: Automation; runLogId: string }> = [];
 
     await dataMutex.run(async () => {
-      const data = await readData();
+      await this.ensureInitialized();
+      const { db } = await getDrizzleClient();
       const now = new Date();
+      const nowIso = now.toISOString();
 
-      let changed = false;
-      for (const automation of data.automations) {
-        if (automation.status !== 'active') continue;
+      const dueRows = await db
+        .select()
+        .from(automationsTable)
+        .where(and(eq(automationsTable.status, 'active'), lte(automationsTable.nextRunAt, nowIso)));
+
+      for (const row of dueRows) {
+        const automation = mapAutomationRow(row);
         if (!automation.nextRunAt) continue;
 
-        const nextRun = new Date(automation.nextRunAt);
-        if (nextRun <= now) {
-          log.info(`[Automations] Triggering automation: ${automation.name} (${automation.id})`);
+        const runLogId = generateId();
+        const nextRunAt = computeNextRun(automation.schedule, now);
+        const nextRunCount = automation.runCount + 1;
 
-          // Update run info
-          automation.lastRunAt = now.toISOString();
-          automation.runCount += 1;
-          automation.nextRunAt = computeNextRun(automation.schedule, now);
-          changed = true;
+        await db
+          .update(automationsTable)
+          .set({
+            lastRunAt: nowIso,
+            runCount: nextRunCount,
+            nextRunAt,
+            updatedAt: nowIso,
+          })
+          .where(eq(automationsTable.id, automation.id));
 
-          // Record run log
-          const runLogId = generateId();
-          await runLogMutex.run(async () => {
-            await this.createRunLogInternal({
-              id: runLogId,
-              automationId: automation.id,
-              startedAt: now.toISOString(),
-              finishedAt: null,
-              status: 'running',
-              error: null,
-              taskId: null,
-            });
-          });
+        await this.insertRunLog({
+          id: runLogId,
+          automationId: automation.id,
+          startedAt: nowIso,
+          finishedAt: null,
+          status: 'running',
+          error: null,
+          taskId: null,
+        });
 
-          triggers.push({ automation: { ...automation }, runLogId });
-        }
-      }
-
-      if (changed) {
-        await writeData(data);
+        triggers.push({
+          automation: {
+            ...automation,
+            lastRunAt: nowIso,
+            runCount: nextRunCount,
+            nextRunAt,
+            updatedAt: nowIso,
+          },
+          runLogId,
+        });
       }
     });
 
-    // Fire callbacks outside the lock to prevent deadlocks
     for (const { automation, runLogId } of triggers) {
       for (const cb of this.triggerCallbacks) {
         try {
@@ -306,74 +345,130 @@ class AutomationsService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Run log management
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------
+  // Run log internals — always called under dataMutex
+  // -------------------------------------------------------------------
 
-  /** Internal — must be called inside runLogMutex.run() */
-  private async createRunLogInternal(runLog: AutomationRunLog): Promise<void> {
-    const logs = await readRunLogs();
-    logs.runs.push(runLog);
+  /**
+   * Insert a run log and enforce per-automation and global retention limits.
+   * Must be called while dataMutex is held.
+   */
+  private async insertRunLog(runLog: AutomationRunLog): Promise<void> {
+    const { db } = await getDrizzleClient();
 
-    // Prune old runs for this automation
-    const automationRuns = logs.runs.filter((r) => r.automationId === runLog.automationId);
-    if (automationRuns.length > MAX_RUNS_PER_AUTOMATION) {
-      const idsToRemove = new Set(
-        automationRuns.slice(0, automationRuns.length - MAX_RUNS_PER_AUTOMATION).map((r) => r.id)
-      );
-      logs.runs = logs.runs.filter((r) => !idsToRemove.has(r.id));
+    await db
+      .insert(automationRunLogsTable)
+      .values({
+        id: runLog.id,
+        automationId: runLog.automationId,
+        startedAt: runLog.startedAt,
+        finishedAt: runLog.finishedAt,
+        status: runLog.status,
+        error: runLog.error,
+        taskId: runLog.taskId,
+      })
+      .onConflictDoNothing();
+
+    // Enforce per-automation limit
+    const perAutomationRows = await db
+      .select({ id: automationRunLogsTable.id })
+      .from(automationRunLogsTable)
+      .where(eq(automationRunLogsTable.automationId, runLog.automationId))
+      .orderBy(desc(automationRunLogsTable.startedAt), desc(automationRunLogsTable.id));
+
+    if (perAutomationRows.length > MAX_RUNS_PER_AUTOMATION) {
+      const idsToDelete = perAutomationRows.slice(MAX_RUNS_PER_AUTOMATION).map((row) => row.id);
+      await db
+        .delete(automationRunLogsTable)
+        .where(inArray(automationRunLogsTable.id, idsToDelete));
     }
 
-    // Global pruning — prevent unbounded growth across all automations
-    if (logs.runs.length > MAX_TOTAL_RUNS) {
-      logs.runs = logs.runs.slice(logs.runs.length - MAX_TOTAL_RUNS);
-    }
+    // Enforce global limit
+    const allRows = await db
+      .select({ id: automationRunLogsTable.id })
+      .from(automationRunLogsTable)
+      .orderBy(desc(automationRunLogsTable.startedAt), desc(automationRunLogsTable.id));
 
-    await writeRunLogs(logs);
+    if (allRows.length > MAX_TOTAL_RUNS) {
+      const idsToDelete = allRows.slice(MAX_TOTAL_RUNS).map((row) => row.id);
+      await db
+        .delete(automationRunLogsTable)
+        .where(inArray(automationRunLogsTable.id, idsToDelete));
+    }
   }
 
-  // ---------------------------------------------------------------------------
-  // CRUD
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------
+  // Public CRUD
+  // -------------------------------------------------------------------
 
   async list(): Promise<Automation[]> {
-    return (await readData()).automations;
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(automationsTable)
+      .orderBy(sql`rowid asc`);
+    return rows.map(mapAutomationRow);
   }
 
   async get(id: string): Promise<Automation | null> {
-    const data = await readData();
-    return data.automations.find((a) => a.id === id) ?? null;
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(automationsTable)
+      .where(eq(automationsTable.id, id))
+      .limit(1);
+    const row = rows[0];
+    return row ? mapAutomationRow(row) : null;
   }
 
   async create(input: CreateAutomationInput): Promise<Automation> {
     validateSchedule(input.schedule);
+    await this.ensureInitialized();
 
-    return dataMutex.run(async () => {
-      const data = await readData();
-      const now = new Date().toISOString();
-      const automation: Automation = {
-        id: generateId(),
-        name: input.name,
-        projectId: input.projectId,
-        projectName: input.projectName ?? '',
-        prompt: input.prompt,
-        agentId: input.agentId,
-        schedule: input.schedule,
-        useWorktree: input.useWorktree ?? true,
-        status: 'active',
-        lastRunAt: null,
-        nextRunAt: computeNextRun(input.schedule),
-        runCount: 0,
-        lastRunResult: null,
-        lastRunError: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      data.automations.push(automation);
-      await writeData(data);
-      log.info(`[Automations] Created automation: ${automation.name} (${automation.id})`);
-      return automation;
+    const now = new Date().toISOString();
+    const automation: Automation = {
+      id: generateId(),
+      name: input.name,
+      projectId: input.projectId,
+      projectName: input.projectName ?? '',
+      prompt: input.prompt,
+      agentId: input.agentId,
+      schedule: input.schedule,
+      useWorktree: input.useWorktree ?? true,
+      status: 'active',
+      lastRunAt: null,
+      nextRunAt: computeNextRun(input.schedule),
+      runCount: 0,
+      lastRunResult: null,
+      lastRunError: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const { db } = await getDrizzleClient();
+    await db.insert(automationsTable).values({
+      id: automation.id,
+      projectId: automation.projectId,
+      projectName: automation.projectName,
+      name: automation.name,
+      prompt: automation.prompt,
+      agentId: automation.agentId,
+      schedule: serializeSchedule(automation.schedule),
+      useWorktree: automation.useWorktree ? 1 : 0,
+      status: automation.status,
+      lastRunAt: automation.lastRunAt,
+      nextRunAt: automation.nextRunAt,
+      runCount: automation.runCount,
+      lastRunResult: automation.lastRunResult,
+      lastRunError: automation.lastRunError,
+      createdAt: automation.createdAt,
+      updatedAt: automation.updatedAt,
     });
+
+    log.info(`[Automations] Created automation: ${automation.name} (${automation.id})`);
+    return automation;
   }
 
   async update(input: UpdateAutomationInput): Promise<Automation | null> {
@@ -381,144 +476,194 @@ class AutomationsService {
       validateSchedule(input.schedule);
     }
 
-    return dataMutex.run(async () => {
-      const data = await readData();
-      const idx = data.automations.findIndex((a) => a.id === input.id);
-      if (idx === -1) return null;
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
 
-      const automation = data.automations[idx];
-      if (input.name !== undefined) automation.name = input.name;
-      if (input.prompt !== undefined) automation.prompt = input.prompt;
-      if (input.agentId !== undefined) automation.agentId = input.agentId;
-      if (input.status !== undefined) automation.status = input.status;
-      if (input.useWorktree !== undefined) automation.useWorktree = input.useWorktree;
-      if (input.schedule !== undefined) {
-        automation.schedule = input.schedule;
-        automation.nextRunAt = computeNextRun(input.schedule);
-      }
-      automation.updatedAt = new Date().toISOString();
+    const rows = await db
+      .select()
+      .from(automationsTable)
+      .where(eq(automationsTable.id, input.id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
 
-      data.automations[idx] = automation;
-      await writeData(data);
-      log.info(`[Automations] Updated automation: ${automation.name} (${automation.id})`);
-      return automation;
-    });
+    const current = mapAutomationRow(row);
+    const nextSchedule = input.schedule ?? current.schedule;
+    const nextUpdatedAt = new Date().toISOString();
+
+    const updated: Automation = {
+      ...current,
+      name: input.name ?? current.name,
+      prompt: input.prompt ?? current.prompt,
+      agentId: input.agentId ?? current.agentId,
+      status: input.status ?? current.status,
+      useWorktree: input.useWorktree ?? current.useWorktree,
+      schedule: nextSchedule,
+      nextRunAt: input.schedule ? computeNextRun(nextSchedule) : current.nextRunAt,
+      updatedAt: nextUpdatedAt,
+    };
+
+    await db
+      .update(automationsTable)
+      .set({
+        name: updated.name,
+        prompt: updated.prompt,
+        agentId: updated.agentId,
+        schedule: serializeSchedule(updated.schedule),
+        useWorktree: updated.useWorktree ? 1 : 0,
+        status: updated.status,
+        nextRunAt: updated.nextRunAt,
+        updatedAt: updated.updatedAt,
+      })
+      .where(eq(automationsTable.id, updated.id));
+
+    log.info(`[Automations] Updated automation: ${updated.name} (${updated.id})`);
+    return updated;
   }
 
   async delete(id: string): Promise<boolean> {
-    return dataMutex.run(async () => {
-      const data = await readData();
-      const before = data.automations.length;
-      data.automations = data.automations.filter((a) => a.id !== id);
-      if (data.automations.length === before) return false;
-      await writeData(data);
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
 
-      // Also clean up run logs
-      await runLogMutex.run(async () => {
-        const logs = await readRunLogs();
-        logs.runs = logs.runs.filter((r) => r.automationId !== id);
-        await writeRunLogs(logs);
-      });
+    const before = await db
+      .select({ id: automationsTable.id })
+      .from(automationsTable)
+      .where(eq(automationsTable.id, id))
+      .limit(1);
+    if (before.length === 0) return false;
 
-      log.info(`[Automations] Deleted automation: ${id}`);
-      return true;
-    });
+    await db.delete(automationRunLogsTable).where(eq(automationRunLogsTable.automationId, id));
+    await db.delete(automationsTable).where(eq(automationsTable.id, id));
+    log.info(`[Automations] Deleted automation: ${id}`);
+    return true;
   }
 
   async toggleStatus(id: string): Promise<Automation | null> {
-    return dataMutex.run(async () => {
-      const data = await readData();
-      const automation = data.automations.find((a) => a.id === id);
-      if (!automation) return null;
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
 
-      automation.status = automation.status === 'active' ? 'paused' : 'active';
-      if (automation.status === 'active') {
-        automation.nextRunAt = computeNextRun(automation.schedule);
-        // Clear any stale error state when re-activating
-        automation.lastRunError = null;
-      }
-      automation.updatedAt = new Date().toISOString();
-      await writeData(data);
-      return automation;
-    });
+    const rows = await db
+      .select()
+      .from(automationsTable)
+      .where(eq(automationsTable.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+
+    const automation = mapAutomationRow(row);
+    const nextStatus: Automation['status'] = automation.status === 'active' ? 'paused' : 'active';
+    const nowIso = new Date().toISOString();
+
+    const updated: Automation = {
+      ...automation,
+      status: nextStatus,
+      nextRunAt:
+        nextStatus === 'active' ? computeNextRun(automation.schedule) : automation.nextRunAt,
+      lastRunError: nextStatus === 'active' ? null : automation.lastRunError,
+      updatedAt: nowIso,
+    };
+
+    await db
+      .update(automationsTable)
+      .set({
+        status: updated.status,
+        nextRunAt: updated.nextRunAt,
+        lastRunError: updated.lastRunError,
+        updatedAt: updated.updatedAt,
+      })
+      .where(eq(automationsTable.id, id));
+
+    return updated;
   }
 
+  // -------------------------------------------------------------------
+  // Run logs — public API
+  // -------------------------------------------------------------------
+
   async getRunLogs(automationId: string, limit = 20): Promise<AutomationRunLog[]> {
-    return runLogMutex.run(async () => {
-      const logs = await readRunLogs();
-      return logs.runs
-        .filter((r) => r.automationId === automationId)
-        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-        .slice(0, limit);
-    });
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
+
+    const rows = await db
+      .select()
+      .from(automationRunLogsTable)
+      .where(eq(automationRunLogsTable.automationId, automationId))
+      .orderBy(desc(automationRunLogsTable.startedAt), desc(automationRunLogsTable.id))
+      .limit(limit);
+
+    return rows.map(mapRunRow);
   }
 
   async updateRunLog(
     runId: string,
     update: Partial<Pick<AutomationRunLog, 'status' | 'error' | 'finishedAt' | 'taskId'>>
   ): Promise<void> {
-    await runLogMutex.run(async () => {
-      const logs = await readRunLogs();
-      const run = logs.runs.find((r) => r.id === runId);
-      if (run) {
-        Object.assign(run, update);
-        await writeRunLogs(logs);
-      }
-    });
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
+
+    // Drizzle skips undefined values in .set() automatically
+    await db
+      .update(automationRunLogsTable)
+      .set({
+        status: update.status,
+        error: update.error,
+        finishedAt: update.finishedAt,
+        taskId: update.taskId,
+      })
+      .where(eq(automationRunLogsTable.id, runId));
   }
 
-  /** Update the last run result on the automation itself */
   async setLastRunResult(
     automationId: string,
     result: 'success' | 'failure',
     error?: string
   ): Promise<void> {
-    await dataMutex.run(async () => {
-      const data = await readData();
-      const automation = data.automations.find((a) => a.id === automationId);
-      if (automation) {
-        automation.lastRunResult = result;
-        automation.lastRunError = error ?? null;
-        automation.updatedAt = new Date().toISOString();
-        await writeData(data);
-      }
-    });
+    await this.ensureInitialized();
+    const { db } = await getDrizzleClient();
+
+    await db
+      .update(automationsTable)
+      .set({
+        lastRunResult: result,
+        lastRunError: error ?? null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(automationsTable.id, automationId));
   }
 
-  /**
-   * Create a run log for a manual trigger ("Run now").
-   * Returns the run log ID so the caller can track it.
-   *
-   * Both the run log creation and automation state update are done
-   * atomically (under both mutexes) to prevent a window where the
-   * run log exists but the automation's runCount/lastRunAt is stale.
-   */
   async createManualRunLog(automationId: string): Promise<string> {
     const runLogId = generateId();
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
 
     await dataMutex.run(async () => {
-      // Create the run log
-      await runLogMutex.run(async () => {
-        await this.createRunLogInternal({
-          id: runLogId,
-          automationId,
-          startedAt: now,
-          finishedAt: null,
-          status: 'running',
-          error: null,
-          taskId: null,
-        });
+      await this.ensureInitialized();
+      const { db } = await getDrizzleClient();
+
+      await this.insertRunLog({
+        id: runLogId,
+        automationId,
+        startedAt: nowIso,
+        finishedAt: null,
+        status: 'running',
+        error: null,
+        taskId: null,
       });
 
-      // Update the automation's run count and lastRunAt while still holding the data lock
-      const data = await readData();
-      const automation = data.automations.find((a) => a.id === automationId);
-      if (automation) {
-        automation.runCount += 1;
-        automation.lastRunAt = now;
-        automation.updatedAt = now;
-        await writeData(data);
+      const rows = await db
+        .select({ runCount: automationsTable.runCount })
+        .from(automationsTable)
+        .where(eq(automationsTable.id, automationId))
+        .limit(1);
+
+      if (rows[0]) {
+        await db
+          .update(automationsTable)
+          .set({
+            runCount: rows[0].runCount + 1,
+            lastRunAt: nowIso,
+            updatedAt: nowIso,
+          })
+          .where(eq(automationsTable.id, automationId));
       }
     });
 
@@ -526,34 +671,147 @@ class AutomationsService {
   }
 
   /**
-   * Check for automations whose nextRunAt is in the past (missed while app was closed).
-   * Recalculates nextRunAt to the next future occurrence without triggering missed runs.
+   * Reconcile state after an app restart:
+   * 1. Recalculate nextRunAt for any active automations whose scheduled time has passed.
+   * 2. Mark orphaned "running" run logs as failed (app was closed or run timed out).
+   *
+   * All operations are performed under a single dataMutex lock to prevent
+   * interleaving with concurrent ticks or manual triggers.
+   */
+  /**
+   * Reconcile state after an app restart:
+   * 1. Mark orphaned "running" run logs as failed (app was closed or timed out).
+   * 2. Catch-up: trigger missed automations exactly once each, regardless of
+   *    how many scheduled occurrences were skipped while the app was closed.
+   * 3. Recalculate nextRunAt to the next future occurrence.
+   *
+   * Triggers are collected under the mutex and fired afterwards so that
+   * callbacks never run while the lock is held.
    */
   async reconcileMissedRuns(): Promise<void> {
+    const triggers: Array<{ automation: Automation; runLogId: string }> = [];
+
     await dataMutex.run(async () => {
-      const data = await readData();
+      await this.ensureInitialized();
+      const { db } = await getDrizzleClient();
       const now = new Date();
-      let changed = false;
+      const nowIso = now.toISOString();
 
-      for (const automation of data.automations) {
-        if (automation.status !== 'active') continue;
-        if (!automation.nextRunAt) continue;
+      // Phase 1: Mark orphaned "running" run logs as interrupted/timed-out
+      const runningRows = await db
+        .select()
+        .from(automationRunLogsTable)
+        .where(eq(automationRunLogsTable.status, 'running'));
 
-        const nextRun = new Date(automation.nextRunAt);
-        if (nextRun < now) {
-          // The scheduled time is in the past — recalculate to next future occurrence
-          automation.nextRunAt = computeNextRun(automation.schedule, now);
-          changed = true;
-          log.info(
-            `[Automations] Reconciled missed run for "${automation.name}" — next run: ${automation.nextRunAt}`
-          );
+      const affectedAutomationErrors = new Map<string, string>();
+
+      for (const row of runningRows) {
+        const startedAt = new Date(row.startedAt);
+        const elapsed = now.getTime() - startedAt.getTime();
+
+        const nextError =
+          elapsed > DEFAULT_MAX_RUN_DURATION_MS
+            ? `Run timed out after ${Math.round(elapsed / 60_000)} minutes`
+            : 'Interrupted (app was closed or crashed)';
+
+        await db
+          .update(automationRunLogsTable)
+          .set({
+            status: 'failure',
+            error: nextError,
+            finishedAt: nowIso,
+          })
+          .where(eq(automationRunLogsTable.id, row.id));
+
+        const existingError = affectedAutomationErrors.get(row.automationId);
+        if (!existingError || nextError.startsWith('Run timed out after')) {
+          affectedAutomationErrors.set(row.automationId, nextError);
         }
       }
 
-      if (changed) {
-        await writeData(data);
+      // Phase 2: Update parent automations for interrupted runs
+      if (affectedAutomationErrors.size > 0) {
+        for (const [automationId, lastRunError] of affectedAutomationErrors) {
+          await db
+            .update(automationsTable)
+            .set({
+              lastRunResult: 'failure',
+              lastRunError,
+              updatedAt: nowIso,
+            })
+            .where(eq(automationsTable.id, automationId));
+        }
+      }
+
+      // Phase 3: Catch-up missed schedules — trigger each once, then advance nextRunAt
+      const dueRows = await db
+        .select()
+        .from(automationsTable)
+        .where(and(eq(automationsTable.status, 'active'), lte(automationsTable.nextRunAt, nowIso)));
+
+      for (const row of dueRows) {
+        const automation = mapAutomationRow(row);
+        if (!automation.nextRunAt) continue;
+
+        const nextRun = new Date(automation.nextRunAt);
+        if (nextRun >= now) continue;
+
+        const runLogId = generateId();
+        const recalculatedNextRun = computeNextRun(automation.schedule, now);
+        const nextRunCount = automation.runCount + 1;
+
+        await db
+          .update(automationsTable)
+          .set({
+            lastRunAt: nowIso,
+            runCount: nextRunCount,
+            nextRunAt: recalculatedNextRun,
+            updatedAt: nowIso,
+          })
+          .where(eq(automationsTable.id, automation.id));
+
+        await this.insertRunLog({
+          id: runLogId,
+          automationId: automation.id,
+          startedAt: nowIso,
+          finishedAt: null,
+          status: 'running',
+          error: null,
+          taskId: null,
+        });
+
+        triggers.push({
+          automation: {
+            ...automation,
+            lastRunAt: nowIso,
+            runCount: nextRunCount,
+            nextRunAt: recalculatedNextRun,
+            updatedAt: nowIso,
+          },
+          runLogId,
+        });
+
+        log.info(
+          `[Automations] Catch-up trigger for "${automation.name}" (missed while app was closed) — next run: ${recalculatedNextRun}`
+        );
       }
     });
+
+    // Fire trigger callbacks outside the mutex
+    for (const { automation, runLogId } of triggers) {
+      for (const cb of this.triggerCallbacks) {
+        try {
+          cb(automation, runLogId);
+        } catch (err) {
+          log.error(`[Automations] Catch-up trigger callback failed for ${automation.id}:`, err);
+          await this.setLastRunResult(
+            automation.id,
+            'failure',
+            err instanceof Error ? err.message : String(err)
+          );
+        }
+      }
+    }
   }
 }
 

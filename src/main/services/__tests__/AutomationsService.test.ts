@@ -22,17 +22,45 @@ vi.mock('../../lib/logger', () => ({
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { getDrizzleClient, resetDrizzleClient } from '../../db/drizzleClient';
 
 // We need to dynamically import the module AFTER mocks are set up.
 // The service file exports a singleton, so we import fresh for each test suite.
 let tmpDir: string;
 
+/**
+ * Create the automations tables in the test database by executing the
+ * migration SQL file directly. This mirrors what DatabaseService.ensureMigrations()
+ * does in production, keeping the migration file as the single source of truth.
+ */
+async function createAutomationsTables(): Promise<void> {
+  const migrationPath = path.join(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '..',
+    'drizzle',
+    '0011_add_automations_tables.sql'
+  );
+  const migrationSql = await fs.readFile(migrationPath, 'utf-8');
+  const { sqlite } = await getDrizzleClient();
+  await new Promise<void>((resolve, reject) => {
+    sqlite.exec(migrationSql, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
 beforeEach(async () => {
+  await resetDrizzleClient();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'automations-test-'));
   mockGetPath.mockReturnValue(tmpDir);
+  // Reset singleton state so each test starts with a fresh initialization cycle
+  automationsService?._resetForTesting();
+  await createAutomationsTables();
 });
 
 afterEach(async () => {
+  await resetDrizzleClient();
   vi.clearAllMocks();
   // Clean up temp files
   await fs.rm(tmpDir, { recursive: true, force: true });
@@ -667,7 +695,10 @@ describe('AutomationsService', () => {
       vi.useRealTimers();
     });
 
-    it('should recalculate nextRunAt for missed schedules', async () => {
+    it('should trigger a catch-up run and recalculate nextRunAt for missed schedules', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
       // Create an automation at 10:00
       vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
       const automation = await automationsService.create({
@@ -683,24 +714,238 @@ describe('AutomationsService', () => {
 
       await automationsService.reconcileMissedRuns();
 
+      // nextRunAt should advance to the next future occurrence
       const fetched = await automationsService.get(automation.id);
       const nextRun = new Date(fetched!.nextRunAt!);
-      // Should be June 19 at 14:00 (next future occurrence)
       expect(nextRun.getDate()).toBe(19);
       expect(nextRun.getHours()).toBe(14);
+
+      // Should have triggered the catch-up callback exactly once
+      expect(triggerCb).toHaveBeenCalledTimes(1);
+      expect(triggerCb).toHaveBeenCalledWith(
+        expect.objectContaining({ id: automation.id, name: 'Missed' }),
+        expect.stringMatching(/^auto_/)
+      );
+
+      // Should have created a run log for the catch-up
+      const logs = await automationsService.getRunLogs(automation.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('running');
+
+      // runCount should be incremented
+      expect(fetched!.runCount).toBe(1);
+      expect(fetched!.lastRunAt).toBeTruthy();
+    });
+
+    it('should trigger exactly once even when multiple schedule occurrences were missed', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
+      // Create an hourly automation
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      await automationsService.create({
+        name: 'Hourly Missed',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'hourly', minute: 0 },
+      });
+
+      // Jump forward 48 hours — many occurrences missed
+      vi.setSystemTime(new Date(2025, 5, 17, 10, 0, 0));
+
+      await automationsService.reconcileMissedRuns();
+
+      // Should only trigger once, not 48 times
+      expect(triggerCb).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not trigger catch-up for paused automations', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Paused',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      // Pause the automation
+      await automationsService.toggleStatus(automation.id);
+
+      // Jump forward
+      vi.setSystemTime(new Date(2025, 5, 18, 16, 0, 0));
+
+      await automationsService.reconcileMissedRuns();
+
+      // No trigger for paused automations
+      expect(triggerCb).not.toHaveBeenCalled();
+    });
+
+    it('should mark orphaned "running" run logs as interrupted', async () => {
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Orphan Test',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      // Simulate a run that started and was never completed (app crashed)
+      await automationsService.createManualRunLog(automation.id);
+
+      // Jump forward 30 minutes (within max duration, but app "restarted")
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRuns();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      // The orphaned run should be marked as failed
+      const failedLog = logs.find((l) => l.error === 'Interrupted (app was closed or crashed)');
+      expect(failedLog).toBeTruthy();
+      expect(failedLog!.status).toBe('failure');
+      expect(failedLog!.finishedAt).toBeTruthy();
+
+      // Automation itself should also reflect the failure
+      const fetched = await automationsService.get(automation.id);
+      expect(fetched!.lastRunResult).toBe('failure');
+      expect(fetched!.lastRunError).toBe('Interrupted (app was closed or crashed)');
+    });
+
+    it('should mark runs exceeding max duration as timed out', async () => {
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Timeout Test',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      await automationsService.createManualRunLog(automation.id);
+
+      // Jump forward 3 hours (exceeds 2h max duration)
+      vi.setSystemTime(new Date(2025, 5, 15, 13, 0, 0));
+      await automationsService.reconcileMissedRuns();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      const timedOutLog = logs.find((l) => l.error?.includes('timed out'));
+      expect(timedOutLog).toBeTruthy();
+      expect(timedOutLog!.status).toBe('failure');
+      expect(timedOutLog!.error).toMatch(/Run timed out after \d+ minutes/);
+    });
+
+    it('should not touch completed run logs during reconcile', async () => {
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Completed Test',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+      await automationsService.updateRunLog(runLogId, {
+        status: 'success',
+        finishedAt: new Date().toISOString(),
+      });
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRuns();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      const successLog = logs.find((l) => l.id === runLogId);
+      expect(successLog!.status).toBe('success'); // Untouched
+    });
+
+    it('should catch-up AND clean up orphaned runs for the same automation', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
+      // Create an hourly automation at 10:00 — nextRunAt will be 10:30
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Both Test',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'hourly', minute: 30 },
+      });
+
+      // Simulate a run that was in progress when app closed
+      await automationsService.createManualRunLog(automation.id);
+
+      // Jump forward 1 hour — orphaned run is within 2h window (→ "Interrupted"),
+      // and nextRunAt (10:30) is in the past (→ catch-up triggered)
+      vi.setSystemTime(new Date(2025, 5, 15, 11, 0, 0));
+
+      await automationsService.reconcileMissedRuns();
+
+      // Orphaned run should be marked as interrupted
+      const logs = await automationsService.getRunLogs(automation.id);
+      const failedLog = logs.find((l) => l.error?.includes('Interrupted'));
+      expect(failedLog).toBeTruthy();
+      expect(failedLog!.status).toBe('failure');
+
+      // Catch-up run should be triggered
+      expect(triggerCb).toHaveBeenCalledTimes(1);
+
+      // A new "running" log should exist for the catch-up
+      const runningLog = logs.find((l) => l.status === 'running');
+      expect(runningLog).toBeTruthy();
+    });
+  });
+
+  describe('legacy JSON compatibility', () => {
+    it('ignores legacy JSON files completely', async () => {
+      const now = new Date().toISOString();
+
+      await fs.writeFile(path.join(tmpDir, 'automations.json'), '{ broken json', 'utf-8');
+      await fs.writeFile(
+        path.join(tmpDir, 'automation-runs.json'),
+        JSON.stringify(
+          {
+            runs: [
+              {
+                id: 'auto_run_legacy_1',
+                automationId: 'auto_legacy_1',
+                startedAt: now,
+                finishedAt: now,
+                status: 'success',
+                error: null,
+                taskId: 'task-legacy',
+              },
+            ],
+          },
+          null,
+          2
+        ),
+        'utf-8'
+      );
+
+      const list = await automationsService.list();
+      expect(list).toEqual([]);
     });
   });
 
   describe('scheduler', () => {
-    it('should start and stop without errors', () => {
+    it('should start and stop without errors', async () => {
       // Starting the scheduler should not throw
       automationsService.start();
       // Starting again should be a no-op (idempotent)
       automationsService.start();
+      // Allow the immediate startup tick to complete
+      await new Promise((resolve) => setTimeout(resolve, 25));
       // Stopping should work
       automationsService.stop();
       // Stopping again should be safe
       automationsService.stop();
+      // Ensure no cached sqlite handle is left open for tmpDir cleanup
+      await resetDrizzleClient();
     });
 
     it('should register trigger callbacks', () => {
