@@ -6,15 +6,6 @@ import { log } from '@main/lib/logger';
 import { appSettingsService } from '../settings/settings-service';
 import { provisionTask } from './provisionTask';
 
-function toSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .slice(0, 64);
-}
-
 export async function renameTask(
   projectId: string,
   taskId: string,
@@ -37,8 +28,7 @@ export async function renameTask(
 
     const suffix = Math.random().toString(36).slice(2, 7);
     const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
-    const slug = toSlug(newName);
-    newBranch = branchPrefix ? `${branchPrefix}/${slug}-${suffix}` : `${slug}-${suffix}`;
+    newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
 
     await project.git.renameBranch(oldBranch, newBranch);
     await project.moveTaskWorktree(oldBranch, newBranch);
