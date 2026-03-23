@@ -280,13 +280,57 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
   );
 }
 
-export function getAgentTabSelectionIndex(
+/**
+ * Get task selection index for Ctrl/Cmd+1-9 shortcuts.
+ * Returns 0-8 for keys 1-9 if the task modifier is pressed, null otherwise.
+ */
+export function getTaskSelectionIndex(
   event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  useCmdForTasks: boolean,
   isMac = isMacPlatform
 ): number | null {
-  const hasCommandModifier =
-    (isMac ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey;
-  if (!hasCommandModifier || event.altKey) {
+  // Determine which modifier to check based on setting
+  let hasTaskModifier: boolean;
+  if (useCmdForTasks) {
+    // User wants Cmd/Meta for tasks (on non-Mac, Ctrl acts as Command equivalent)
+    hasTaskModifier = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  } else {
+    // Default: Ctrl for tasks (not Meta)
+    hasTaskModifier = event.ctrlKey && !event.metaKey;
+  }
+
+  if (!hasTaskModifier || event.altKey || event.shiftKey) {
+    return null;
+  }
+
+  const key = normalizeShortcutKey(event.key);
+  if (!/^[1-9]$/.test(key)) {
+    return null;
+  }
+
+  return Number(key) - 1;
+}
+
+/**
+ * Get agent tab selection index for Cmd/Ctrl+1-9 shortcuts.
+ * Returns 0-8 for keys 1-9 if the agent modifier is pressed, null otherwise.
+ */
+export function getAgentTabSelectionIndex(
+  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  useCtrlForAgents: boolean,
+  isMac = isMacPlatform
+): number | null {
+  // Determine which modifier to check based on setting (inverse of tasks)
+  let hasAgentModifier: boolean;
+  if (useCtrlForAgents) {
+    // When tasks use Cmd, agents use Ctrl
+    hasAgentModifier = event.ctrlKey && !event.metaKey;
+  } else {
+    // Default: agents use Cmd/Meta (or Ctrl on non-Mac when Meta not available)
+    hasAgentModifier = isMac ? event.metaKey && !event.ctrlKey : event.metaKey || event.ctrlKey;
+  }
+
+  if (!hasAgentModifier || event.altKey || event.shiftKey) {
     return null;
   }
 
@@ -574,7 +618,30 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         }
       }
 
-      const agentTabIndex = getAgentTabSelectionIndex(event);
+      // Skip number shortcuts when typing in editable fields
+      if (isEditableTarget) return;
+
+      // Handle number key shortcuts (1-9) for task/agent selection
+      const useCmdForTasks =
+        handlers.customKeyboardSettings?.numberShortcutBehavior === 'cmd-tasks';
+
+      // Check for task selection first (Ctrl+1-9 by default, or Cmd+1-9 if configured)
+      const taskIndex = getTaskSelectionIndex(event, useCmdForTasks);
+      if (taskIndex !== null) {
+        const isCommandPaletteOpen = Boolean(handlers.isCommandPaletteOpen);
+        if (isCommandPaletteOpen) {
+          event.preventDefault();
+          handlers.onCloseModal?.();
+          setTimeout(() => handlers.onSelectTask?.(taskIndex), 100);
+          return;
+        }
+        event.preventDefault();
+        handlers.onSelectTask?.(taskIndex);
+        return;
+      }
+
+      // Check for agent tab selection (Cmd+1-9 by default, or Ctrl+1-9 if tasks use Cmd)
+      const agentTabIndex = getAgentTabSelectionIndex(event, useCmdForTasks);
       if (agentTabIndex === null) {
         return;
       }
