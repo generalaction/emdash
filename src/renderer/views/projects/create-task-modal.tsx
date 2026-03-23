@@ -18,22 +18,12 @@ import { Textarea } from '@renderer/components/ui/textarea';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
+import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
 import { useTaskLifecycleContext } from '../../core/tasks/task-lifecycle-provider';
 import { BranchSelector } from './branch-selector';
 
-function liveTransformTaskName(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .slice(0, 64);
-}
-
 export function CreateTaskModal({
   projectId,
-  projectPath,
   onClose,
 }: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
