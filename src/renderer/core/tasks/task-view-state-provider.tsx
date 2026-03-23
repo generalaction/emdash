@@ -12,14 +12,24 @@ export type TerminalsViewState = {
   activeTerminalId?: string;
 };
 
-export type EditorTab = {
+export type FileRendererData =
+  | { kind: 'text'; previewMode?: boolean }
+  | { kind: 'svg'; previewMode?: boolean }
+  | { kind: 'image' }
+  | { kind: 'binary' }
+  | { kind: 'too-large' };
+
+export type OpenedFile = {
+  /** Stable UUID assigned once on first open — used as React key. */
   tabId: string;
   /** Worktree-relative file path (e.g. `src/components/App.tsx`). Not a Monaco URI. */
-  uri: string;
+  path: string;
+  /** Renderer kind and its display state (e.g. previewMode for text/svg). */
+  renderer: FileRendererData;
 };
 
 export type EditorViewState = {
-  tabs: EditorTab[];
+  openedFiles: OpenedFile[];
   activeTabId?: string;
   previewTabId?: string;
   expandedPaths: string[];
@@ -40,7 +50,7 @@ const DEFAULT_TASK_VIEW_STATE: TaskViewState = {
   },
   terminalsView: {},
   editorView: {
-    tabs: [],
+    openedFiles: [],
     expandedPaths: [],
   },
   rightPanelView: 'changes',

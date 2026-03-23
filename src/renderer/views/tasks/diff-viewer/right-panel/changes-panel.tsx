@@ -48,9 +48,8 @@ export function ChangesPanel() {
     discardFilesChanges,
     commitChanges,
   } = useGitChangesContext();
-  const { projectId, taskId } = useTaskViewContext();
+  const { projectId, taskId, view, setView } = useTaskViewContext();
   const { activeFile, setActiveFile } = useGitViewContext();
-  const { setView } = useTaskViewContext();
   const prefetchUnstagedDiff = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
   const prefetchStagedDiff = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');
 
@@ -211,7 +210,9 @@ export function ChangesPanel() {
                 changes={unstagedFileChanges}
                 isSelected={unstagedSelection.isSelected}
                 onToggleSelect={unstagedSelection.toggleItem}
-                activePath={activeFile?.type === 'disk' ? activeFile.path : undefined}
+                activePath={
+                  view === 'diff' && activeFile?.type === 'disk' ? activeFile.path : undefined
+                }
                 onSelectChange={(change) => handleSelectChange(change.path, 'disk')}
                 onPrefetch={(change) => prefetchUnstagedDiff(change.path)}
               />
@@ -273,7 +274,9 @@ export function ChangesPanel() {
                 changes={stagedFileChanges}
                 isSelected={stagedSelection.isSelected}
                 onToggleSelect={stagedSelection.toggleItem}
-                activePath={activeFile?.type === 'staged' ? activeFile.path : undefined}
+                activePath={
+                  view === 'diff' && activeFile?.type === 'staged' ? activeFile.path : undefined
+                }
                 onSelectChange={(change) => handleSelectChange(change.path, 'staged')}
                 onPrefetch={(change) => prefetchStagedDiff(change.path)}
               />

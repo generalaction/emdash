@@ -2,6 +2,7 @@ import { Eye, Pencil, X } from 'lucide-react';
 import React from 'react';
 import { FileIcon } from '@renderer/components/FileExplorer/FileIcons';
 import type { ManagedFile } from '@renderer/core/editor/types';
+import { useOpenedFile } from '@renderer/core/editor/use-opened-file';
 import { isMarkdownFile } from '@renderer/core/editor/utils';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useIsDirty } from '@renderer/core/monaco/use-model';
@@ -16,8 +17,6 @@ interface FileTabsProps {
   onTabClick: (filePath: string) => void;
   onTabClose: (filePath: string) => void;
   onPinTab: (filePath: string) => void;
-  previewMode: Map<string, boolean>;
-  onTogglePreview: (filePath: string) => void;
 }
 
 export const FileTabs: React.FC<FileTabsProps> = ({
@@ -29,8 +28,6 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   onTabClick,
   onTabClose,
   onPinTab,
-  previewMode,
-  onTogglePreview,
 }) => {
   if (tabs.length === 0) {
     return null;
@@ -48,19 +45,11 @@ export const FileTabs: React.FC<FileTabsProps> = ({
             modelRootPath={modelRootPath}
             isActive={activeFilePath === filePath}
             isUnstable={previewFilePath === filePath}
-            isPreviewable={isMarkdownFile(filePath) || file.kind === 'svg'}
-            isPreview={
-              previewMode.get(filePath) ?? (isMarkdownFile(filePath) || file.kind === 'svg')
-            }
             onClick={() => onTabClick(filePath)}
             onDoubleClick={() => onPinTab(filePath)}
             onClose={(e) => {
               e.stopPropagation();
               onTabClose(filePath);
-            }}
-            onTogglePreview={(e) => {
-              e.stopPropagation();
-              onTogglePreview(filePath);
             }}
           />
         );
@@ -74,13 +63,9 @@ interface FileTabProps {
   modelRootPath: string;
   isActive: boolean;
   isUnstable: boolean;
-  /** Whether this file supports a rendered preview toggle (markdown, SVG). */
-  isPreviewable: boolean;
-  isPreview: boolean;
   onClick: () => void;
   onDoubleClick: () => void;
   onClose: (e: React.MouseEvent) => void;
-  onTogglePreview: (e: React.MouseEvent) => void;
 }
 
 const FileTab: React.FC<FileTabProps> = ({
@@ -88,16 +73,41 @@ const FileTab: React.FC<FileTabProps> = ({
   modelRootPath,
   isActive,
   isUnstable,
-  isPreviewable,
-  isPreview,
   onClick,
   onDoubleClick,
   onClose,
-  onTogglePreview,
 }) => {
   const fileName = path.split('/').pop() || 'Untitled';
   const bufferUri = buildMonacoModelPath(modelRootPath, path);
   const isDirty = useIsDirty(bufferUri);
+
+  const { openedFile, updateRenderer } = useOpenedFile(path);
+
+  const rendererKind = openedFile?.renderer.kind;
+  const isPreviewable = rendererKind === 'text' ? isMarkdownFile(path) : rendererKind === 'svg';
+
+  const isPreview = (() => {
+    if (!openedFile) return false;
+    if (openedFile.renderer.kind === 'text') {
+      return openedFile.renderer.previewMode ?? isMarkdownFile(path);
+    }
+    if (openedFile.renderer.kind === 'svg') {
+      return openedFile.renderer.previewMode ?? true;
+    }
+    return false;
+  })();
+
+  const handleTogglePreview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!openedFile) return;
+    if (openedFile.renderer.kind !== 'text' && openedFile.renderer.kind !== 'svg') return;
+    updateRenderer((prev) => {
+      if (prev.kind !== 'text' && prev.kind !== 'svg') return prev;
+      const defaultPreview = prev.kind === 'svg' || isMarkdownFile(path);
+      const current = prev.previewMode ?? defaultPreview;
+      return { ...prev, previewMode: !current };
+    });
+  };
 
   return (
     <div
@@ -123,7 +133,7 @@ const FileTab: React.FC<FileTabProps> = ({
       {isPreviewable && (
         <button
           className="ml-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={onTogglePreview}
+          onClick={handleTogglePreview}
           aria-label={isPreview ? 'Edit source' : 'Show preview'}
           title={isPreview ? 'Edit source' : 'Show preview'}
         >

@@ -6,7 +6,6 @@ import { GitChangesProvider } from './diff-viewer/state/git-changes-provider';
 import { GitViewProvider } from './diff-viewer/state/git-view-provider';
 import { PrProvider } from './diff-viewer/state/pr-provider';
 import { EditorProvider } from './editor/editor-provider';
-import { EditorViewProvider } from './editor/editor-view-provider';
 import { EditorFiletreeProvider } from './editor/file-tree/filetree-provider';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';
@@ -27,13 +26,11 @@ function TaskViewWrapperWithProviders({
         <GitChangesProvider projectId={projectId} taskId={taskId}>
           <PrProvider projectId={projectId} taskId={taskId}>
             <ActiveFileSync />
-            <EditorViewProvider>
-              <EditorProvider>
-                <EditorFiletreeProvider projectId={projectId} taskId={taskId}>
-                  {children}
-                </EditorFiletreeProvider>
-              </EditorProvider>
-            </EditorViewProvider>
+            <EditorProvider>
+              <EditorFiletreeProvider projectId={projectId} taskId={taskId}>
+                {children}
+              </EditorFiletreeProvider>
+            </EditorProvider>
           </PrProvider>
         </GitChangesProvider>
       </GitViewProvider>

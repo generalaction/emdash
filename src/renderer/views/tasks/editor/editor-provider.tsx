@@ -8,15 +8,18 @@ import {
   useState,
 } from 'react';
 import { getFileKind } from '@renderer/core/editor/fileKind';
-import type { ManagedFile } from '@renderer/core/editor/types';
+import type { ManagedFile, ManagedFileKind } from '@renderer/core/editor/types';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
+import {
+  useTaskViewState,
+  type FileRendererData,
+  type OpenedFile,
+} from '@renderer/core/tasks/task-view-state-provider';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { useTaskViewContext } from '../task-view-context';
-import { useEditorViewContext } from './editor-view-provider';
 
 interface EditorContextValue {
   projectId: string;
@@ -70,8 +73,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const { getTaskViewState, setTaskViewState } = useTaskViewState();
 
-  const { clearPreviewMode } = useEditorViewContext();
-
   const [openFiles, setOpenFiles] = useState<Map<string, ManagedFile>>(new Map());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [previewFilePath, setPreviewFilePath] = useState<string | null>(null);
@@ -82,14 +83,37 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   // Persist open tabs / active and preview pointers to view state.
   useEffect(() => {
     if (restoringRef.current) return;
-    const tabs = Array.from(openFiles.keys()).map((filePath) => ({
-      tabId: tabIdsRef.current.get(filePath) ?? filePath,
-      uri: filePath,
-    }));
+
+    // Preserve existing previewMode values while rebuilding the openedFiles list.
+    const currentOpenedFiles = getTaskViewState(taskId).editorView.openedFiles;
+    const prevByPath = new Map(currentOpenedFiles.map((f) => [f.path, f]));
+
+    const openedFiles: OpenedFile[] = Array.from(openFiles.keys()).map((filePath) => {
+      const file = openFiles.get(filePath)!;
+      const tabId = tabIdsRef.current.get(filePath) ?? filePath;
+      const prev = prevByPath.get(filePath);
+
+      let renderer: FileRendererData;
+      if (file.kind === 'text' || file.kind === 'svg') {
+        const prevPreview =
+          prev?.renderer.kind === file.kind
+            ? (prev.renderer as { kind: 'text' | 'svg'; previewMode?: boolean }).previewMode
+            : undefined;
+        renderer =
+          prevPreview !== undefined
+            ? { kind: file.kind, previewMode: prevPreview }
+            : { kind: file.kind };
+      } else {
+        renderer = { kind: file.kind as Exclude<ManagedFileKind, 'text' | 'svg'> };
+      }
+
+      return { tabId, path: filePath, renderer };
+    });
+
     setTaskViewState(taskId, {
       editorView: {
         ...getTaskViewState(taskId).editorView,
-        tabs,
+        openedFiles,
         activeTabId: activeFilePath ? tabIdsRef.current.get(activeFilePath) : undefined,
         previewTabId: previewFilePath ? tabIdsRef.current.get(previewFilePath) : undefined,
       },
@@ -228,27 +252,29 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const { editorView } = getTaskViewState(taskId);
 
     const restore = async () => {
-      if (editorView.tabs.length) {
-        for (const { tabId, uri: filePath } of editorView.tabs) {
+      if (editorView.openedFiles.length) {
+        for (const { tabId, path: filePath } of editorView.openedFiles) {
           tabIdsRef.current.set(filePath, tabId);
           await loadFileInternal(filePath).catch(() => {
             // Skip missing / deleted files silently.
           });
         }
 
-        const openPaths = new Set(editorView.tabs.map((t) => t.uri));
+        const openPaths = new Set(editorView.openedFiles.map((f) => f.path));
 
         if (editorView.activeTabId) {
-          const activeTab = editorView.tabs.find((t) => t.tabId === editorView.activeTabId);
-          if (activeTab && openPaths.has(activeTab.uri)) {
-            setActiveFilePath(activeTab.uri);
+          const activeFile = editorView.openedFiles.find((f) => f.tabId === editorView.activeTabId);
+          if (activeFile && openPaths.has(activeFile.path)) {
+            setActiveFilePath(activeFile.path);
           }
         }
 
         if (editorView.previewTabId) {
-          const previewTab = editorView.tabs.find((t) => t.tabId === editorView.previewTabId);
-          if (previewTab && openPaths.has(previewTab.uri)) {
-            setPreviewFilePath(previewTab.uri);
+          const previewFile = editorView.openedFiles.find(
+            (f) => f.tabId === editorView.previewTabId
+          );
+          if (previewFile && openPaths.has(previewFile.path)) {
+            setPreviewFilePath(previewFile.path);
           }
         }
       }
@@ -406,10 +432,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
-      clearPreviewMode(filePath);
+      // previewMode cleanup is implicit: the sync effect rebuilds openedFiles
+      // from openFiles, so the closed file's renderer data is naturally dropped.
       setPreviewFilePath((prev) => (prev === filePath ? null : prev));
     },
-    [closeFile, clearPreviewMode, projectId, taskId, modelRootPath]
+    [closeFile, projectId, taskId, modelRootPath]
   );
 
   /**
@@ -450,7 +477,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           modelRegistry.unregisterModel(outgoingUri);
           modelRegistry.unregisterModel(modelRegistry.toDiskUri(outgoingUri));
           void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
-          clearPreviewMode(outgoingPreview);
+          // previewMode cleanup is implicit via the sync effect.
 
           const next = new Map(prev);
           next.delete(outgoingPreview);
@@ -459,15 +486,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setPreviewFilePath(filePath);
       }
     },
-    [
-      openFiles,
-      previewFilePath,
-      loadFileInternal,
-      modelRootPath,
-      projectId,
-      taskId,
-      clearPreviewMode,
-    ]
+    [openFiles, previewFilePath, loadFileInternal, modelRootPath, projectId, taskId]
   );
 
   /** Promotes the preview tab to a stable tab (double-click on tab). */

@@ -128,6 +128,7 @@ const FileTreeRow = React.memo(function FileTreeRow({
 export function EditorFileTree() {
   const { activeFilePath, loadFile, openFilePreview, fileChanges } = useEditorContext();
   const { visibleRows, expandedPaths, toggleExpand, isLoading, error } = useFileTreeContext();
+  const { view } = useTaskViewContext();
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -180,7 +181,7 @@ export function EditorFileTree() {
                   height: `${vItem.size}px`,
                 }}
                 isExpanded={expandedPaths.has(node.path)}
-                isSelected={activeFilePath === node.path}
+                isSelected={view === 'editor' && activeFilePath === node.path}
                 onToggle={() => toggleExpand(node.path)}
                 onSelect={() => void openFilePreview(node.path)}
                 onOpen={() => void loadFile(node.path)}

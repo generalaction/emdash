@@ -1,6 +1,5 @@
 import { Github, MoreHorizontal } from 'lucide-react';
 import { PullRequestList } from '@renderer/components/projects/pr-list';
-import { TaskList } from '@renderer/components/projects/task-list';
 import { Button } from '@renderer/components/ui/button';
 import {
   DropdownMenu,
@@ -11,8 +10,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
-import { TaskList } from '@renderer/views/projects/task-list/task-list';
 import { useRequiredCurrentProject } from './project-view-wrapper';
+import { TaskList } from './task-list/task-list';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();

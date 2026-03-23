@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/components/ui/select';
-import { useGithubContext } from '@renderer/contexts/GithubContextProvider';
+import { useGithubContext } from '@renderer/core/github-context-provider';
 import { usePullRequests } from '@renderer/hooks/usePullRequests';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
