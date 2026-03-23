@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm';
+import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { conversations, tasks, terminals } from '@main/db/schema';
 import { mapTaskRowToTask } from './core';
 
 export async function provisionTask(taskId: string): Promise<void> {
@@ -14,6 +16,19 @@ export async function provisionTask(taskId: string): Promise<void> {
 
   if (project.getTask(taskId)) return;
 
-  const result = await project.provisionTask(task, [], []);
+  const [existingTerminals, existingConversations] = await Promise.all([
+    db
+      .select()
+      .from(terminals)
+      .where(eq(terminals.taskId, taskId))
+      .then((rows) => rows.map(mapTerminalRowToTerminal)),
+    db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.taskId, taskId))
+      .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
+  ]);
+
+  const result = await project.provisionTask(task, existingConversations, existingTerminals);
   if (!result.success) throw new Error(`Failed to provision task: ${result.error.message}`);
 }
