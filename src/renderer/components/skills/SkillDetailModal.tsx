@@ -7,7 +7,7 @@ import { Check, FolderOpen, Trash2 } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
-import { skillIconMap, skillSourceIcons } from '../../lib/skillIcons';
+import { resolveSkillIcon, skillSourceIcons } from '../../lib/skillIcons';
 import { useTheme } from '../../hooks/useTheme';
 
 const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
@@ -17,8 +17,8 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
-  // 1. Bundled icon by skill ID, then by source
-  const iconDef = skillIconMap[skill.id] ?? skillSourceIcons[skill.source];
+  // 1. Bundled icon by skill ID, keyword match, then by source
+  const iconDef = resolveSkillIcon(skill.id, skill.source);
 
   // Only probe monochrome for remote URLs we'll actually render
   const remoteUrl = !iconDef ? skill.iconUrl : undefined;
