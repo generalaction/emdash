@@ -2,7 +2,7 @@ import { Archive, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react
 import type { ComponentProps } from 'react';
 import type { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
+import { useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
 import { Button } from './ui/button';
 import {
   DropdownMenu,
@@ -28,7 +28,7 @@ export function TaskActionsMenu({
   triggerProps,
   align = 'end',
 }: TaskActionsMenuProps) {
-  const { archiveTask, restoreTask, deleteTask } = useTasksDataContext();
+  const { archiveTask, restoreTask, deleteTask } = useTaskLifecycleContext();
   const showConfirm = useShowModal('confirmActionModal');
   const showRename = useShowModal('renameTaskModal');
 
@@ -57,14 +57,19 @@ export function TaskActionsMenu({
           </DropdownMenuItem>
         )}
         {showRestore ? (
-          <DropdownMenuItem onClick={() => restoreTask(task.id)}>
+          <DropdownMenuItem
+            onClick={() => {
+              restoreTask(task.id);
+            }}
+          >
             <RotateCcw className="size-4" />
             Restore
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
             onClick={() => {
-              archiveTask(task.projectId, task.id).then(() => onArchived?.());
+              archiveTask(task.projectId, task.id);
+              onArchived?.();
             }}
           >
             <Archive className="size-4" />
@@ -79,7 +84,8 @@ export function TaskActionsMenu({
               description: `"${task.name}" will be permanently deleted. This action cannot be undone.`,
               confirmLabel: 'Delete',
               onSuccess: () => {
-                deleteTask(task.projectId, task.id).then(() => onDeleted?.());
+                deleteTask(task.id);
+                onDeleted?.();
               },
             })
           }
