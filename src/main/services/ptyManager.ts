@@ -8,6 +8,26 @@ import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
+
+/**
+ * Suppress EPIPE/EIO errors on a PTY's underlying socket.
+ *
+ * On Windows, ConPTY emits EPIPE (not EIO) when the pipe breaks during
+ * process shutdown. node-pty's built-in error handler only suppresses EIO,
+ * so EPIPE becomes an uncaught exception. Registering an additional error
+ * listener bumps the listener count to >= 2, which causes node-pty to
+ * swallow the error instead of throwing.
+ */
+function suppressPtyPipeErrors(proc: IPty): void {
+  if (process.platform !== 'win32') return;
+
+  // IPty doesn't expose .on() in its type, but the underlying Terminal
+  // class extends EventEmitter and proxies to the socket.
+  (proc as any).on?.('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE' || err.code === 'EIO') return;
+    log.warn('ptyManager: unexpected PTY error', { code: err.code, message: err.message });
+  });
+}
 import { getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
 import { OpenCodeHookService } from './OpenCodeHookService';
@@ -1052,6 +1072,7 @@ export function startSshPty(options: {
     cwd: process.env.HOME || os.homedir(),
     env: useEnv,
   });
+  suppressPtyPipeErrors(proc);
 
   ptys.set(id, { id, proc, kind: 'ssh', cols, rows });
   return proc;
@@ -1229,6 +1250,7 @@ export function startDirectPty(options: {
     cwd,
     env: useEnv,
   });
+  suppressPtyPipeErrors(proc);
 
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local', cols, rows });
@@ -1509,6 +1531,7 @@ export async function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
+    suppressPtyPipeErrors(proc);
   } catch (err: any) {
     // Track initial spawn error
     const provider = args.find((arg) => PROVIDERS.some((p) => p.cli === arg));
@@ -1527,6 +1550,7 @@ export async function startPty(options: {
         cwd: useCwd,
         env: useEnv,
       });
+      suppressPtyPipeErrors(proc);
     } catch (err2: any) {
       // Track the fallback spawn error as critical
       await errorTracking.captureCriticalError(err2, {
@@ -1730,6 +1754,7 @@ export function startLifecyclePty(options: {
     cwd: cwd || os.homedir(),
     env: useEnv,
   });
+  suppressPtyPipeErrors(proc);
 
   const dataCallbacks: Array<(data: string) => void> = [];
   const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
