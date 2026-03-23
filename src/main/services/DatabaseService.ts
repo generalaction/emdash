@@ -271,6 +271,25 @@ export class DatabaseService {
     return this.mapDrizzleProjectRow(rows[0]);
   }
 
+  async getProjectByPath(projectPath: string): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectPath) {
+      throw new Error('projectPath is required');
+    }
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.path, projectPath))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return this.mapDrizzleProjectRow(rows[0]);
+  }
+
   async updateProjectBaseRef(projectId: string, nextBaseRef: string): Promise<Project | null> {
     if (this.disabled) return null;
     if (!projectId) {
