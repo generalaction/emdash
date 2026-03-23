@@ -1,12 +1,31 @@
-import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import { db } from '../../db/client';
-import { projects, tasks } from '../../db/schema';
-import { log } from '../../lib/logger';
+import { projectManager } from '@main/core/projects/project-manager';
+import { db } from '@main/db/client';
+import { tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 
-export async function deleteTask(id: string): Promise<void> {
-  // Read task before deleting so we can clean up its worktree.
-  const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+export async function deleteTask(projectId: string, taskId: string): Promise<void> {
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (!task) return;
 
-  await db.delete(tasks).where(eq(tasks.id, id));
+  const project = projectManager.getProject(projectId);
+
+  if (project) {
+    const teardownResult = await project.teadownTask(taskId);
+    if (!teardownResult.success) {
+      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
+    }
+
+    if (task.taskBranch) {
+      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
+        log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
+      });
+
+      await project.git.deleteBranch(task.taskBranch).catch((e) => {
+        log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
+      });
+    }
+  }
+
+  await db.delete(tasks).where(eq(tasks.id, taskId));
 }
