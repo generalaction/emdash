@@ -4,7 +4,7 @@ import { GitChange, GitChangeStatus } from '@shared/git';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import { cn } from '@renderer/lib/utils';
 import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
-import { FileIcon } from './file-icon';
+import { FileIcon } from '../../../../core/editor/file-icon';
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;

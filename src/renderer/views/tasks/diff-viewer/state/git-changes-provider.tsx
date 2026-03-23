@@ -34,6 +34,7 @@ export function GitChangesProvider({
   taskId: string;
 }) {
   const queryClient = useQueryClient();
+
   const statusQuery = useQuery({
     queryKey: ['git', 'changes', projectId, taskId],
     queryFn: async () => {
