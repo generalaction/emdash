@@ -45,33 +45,31 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
 
   return (
     <div
-      className={`group flex items-center gap-3 py-3 transition-colors ${
+      className={`group flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 transition-all hover:bg-muted/40 ${
         !isActive && !isTriggering ? 'opacity-45' : ''
       }`}
     >
       {/* Agent icon */}
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/40">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40">
         {agent?.logo ? (
           <AgentLogo
             logo={agent.logo}
             alt={agent.name}
             isSvg={agent.isSvg}
             invertInDark={agent.invertInDark}
-            className="h-4 w-4"
+            className="h-5 w-5"
           />
         ) : (
-          <span className="text-[9px] font-semibold text-muted-foreground">
+          <span className="text-[10px] font-semibold text-muted-foreground">
             {automation.agentId.slice(0, 2).toUpperCase()}
           </span>
         )}
       </div>
 
       {/* Name + project */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-sm font-medium text-foreground">{automation.name}</span>
-        <span className="hidden truncate text-xs text-muted-foreground/50 sm:inline">
-          {projectLabel}
-        </span>
+      <div className="min-w-0 flex-1">
+        <span className="truncate text-sm font-semibold text-foreground">{automation.name}</span>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{projectLabel}</p>
       </div>
 
       {/* Running indicator */}
@@ -125,7 +123,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
 
       {/* Actions — visible on hover */}
       <TooltipProvider delayDuration={200}>
-        <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -136,10 +134,10 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
                   onTriggerNow(automation.id);
                 }}
                 aria-label="Run now"
-                className="h-6 w-6 text-muted-foreground"
+                className="h-7 w-7 text-muted-foreground"
                 disabled={isTriggering}
               >
-                <Zap className="h-3 w-3" />
+                <Zap className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Run now</TooltipContent>
@@ -154,10 +152,10 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
                   onToggle(automation.id);
                 }}
                 aria-label={isActive ? 'Pause' : 'Resume'}
-                className="h-6 w-6 text-muted-foreground"
+                className="h-7 w-7 text-muted-foreground"
                 disabled={isTriggering}
               >
-                {isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{isActive ? 'Pause' : 'Resume'}</TooltipContent>
@@ -172,10 +170,10 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
                   onEdit(automation);
                 }}
                 aria-label="Edit"
-                className="h-6 w-6 text-muted-foreground"
+                className="h-7 w-7 text-muted-foreground"
                 disabled={isTriggering}
               >
-                <Pencil className="h-3 w-3" />
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Edit</TooltipContent>
@@ -190,10 +188,10 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
                   onDelete(automation.id);
                 }}
                 aria-label="Delete"
-                className="h-6 w-6 text-destructive/60"
+                className="h-7 w-7 text-destructive/60"
                 disabled={isTriggering}
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Delete</TooltipContent>

@@ -83,8 +83,13 @@ const AutomationsView: React.FC = () => {
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Automations</h1>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Automations</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Schedule recurring tasks to run automatically on your projects
+            </p>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -170,10 +175,8 @@ const AutomationsView: React.FC = () => {
         {/* Active automations */}
         {activeAutomations.length > 0 && (
           <div className="mb-6">
-            <div className="mb-1 border-b border-border/40 pb-2">
-              <h2 className="text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
-            </div>
-            <div className="divide-y divide-border/30">
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
+            <div className="grid grid-cols-1 gap-3">
               {activeAutomations.map((automation) => (
                 <AutomationRow
                   key={automation.id}
@@ -193,10 +196,8 @@ const AutomationsView: React.FC = () => {
         {/* Paused automations */}
         {pausedAutomations.length > 0 && (
           <div className="mb-6">
-            <div className="mb-1 border-b border-border/40 pb-2">
-              <h2 className="text-xs font-medium tracking-wide text-muted-foreground">Paused</h2>
-            </div>
-            <div className="divide-y divide-border/30">
+            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Paused</h2>
+            <div className="grid grid-cols-1 gap-3">
               {pausedAutomations.map((automation) => (
                 <AutomationRow
                   key={automation.id}
