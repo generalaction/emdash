@@ -46,6 +46,7 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
 
+  /** Sync the canGoBack/canGoForward state flags from the current ref values. */
   const syncCanFlags = useCallback(() => {
     setCanGoBack(indexRef.current > 0);
     setCanGoForward(indexRef.current < historyRef.current.length - 1);
@@ -60,7 +61,7 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     taskLookupRef.current = taskLookup;
   }, [taskLookup]);
 
-  // Derive the current navigation state from app state
+  /** Derive the current navigation state from the active project/task/view flags. */
   const deriveState = useCallback((): NavigationState => {
     if (showHomeView) return { projectId: null, taskId: null, view: 'home' };
     if (showSkillsView) return { projectId: null, taskId: null, view: 'skills' };
@@ -109,6 +110,7 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     syncCanFlags();
   }, [deriveState, syncCanFlags]);
 
+  /** Restore the app to a given navigation state (navigate to the correct view/project/task). */
   const restoreState = useCallback(
     (state: NavigationState) => {
       isRestoringRef.current = true;
@@ -156,6 +158,7 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     [handleGoHome, handleGoToSkills, handleGoToMcp, activateProjectView, projects, handleSelectTask]
   );
 
+  /** Navigate to the previous entry in the history stack. */
   const goBack = useCallback(() => {
     if (indexRef.current <= 0) return;
     const newIndex = indexRef.current - 1;
@@ -164,6 +167,7 @@ export function useNavigationHistory(taskLookup?: (taskId: string) => Task | und
     restoreState(historyRef.current[newIndex]);
   }, [restoreState, syncCanFlags]);
 
+  /** Navigate to the next entry in the history stack. */
   const goForward = useCallback(() => {
     if (indexRef.current >= historyRef.current.length - 1) return;
     const newIndex = indexRef.current + 1;

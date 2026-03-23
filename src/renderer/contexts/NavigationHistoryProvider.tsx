@@ -19,6 +19,7 @@ export function useNavigationHistoryContext(): NavigationHistoryContextValue {
 export function NavigationHistoryProvider({ children }: { children: React.ReactNode }) {
   const { allTasks } = useTaskManagementContext();
 
+  /** Find a Task object by ID across all projects for history restoration. */
   const taskLookup = useCallback(
     (taskId: string) => allTasks.find((t) => t.task.id === taskId)?.task,
     [allTasks]
