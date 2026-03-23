@@ -6,27 +6,69 @@ import { Separator } from '../ui/separator';
 import { Check, FolderOpen, Trash2 } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
-import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import { skillSourceIcons } from '../../lib/skillIcons';
+import { useTheme } from '../../hooks/useTheme';
+import SkillIconRenderer from './SkillIconRenderer';
 
-const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
-  const letter = skill.displayName.charAt(0).toUpperCase();
-  const isMonochrome = useIsMonochrome(skill.iconUrl);
+function processSourceSvg(raw: string, fillColor: string): string {
+  return raw
+    .replace(/\bwidth="[^"]*"/g, '')
+    .replace(/\bheight="[^"]*"/g, '')
+    .replace('<svg ', `<svg fill="${fillColor}" class="h-full w-full" `);
+}
 
-  if (skill.iconUrl) {
+function getSourceLabel(source: string): string {
+  if (source === 'openai') return 'OpenAI';
+  if (source === 'anthropic') return 'Anthropic';
+  return source;
+}
+
+const SkillSourceBadge: React.FC<{ skill: CatalogSkill; isDark: boolean }> = ({
+  skill,
+  isDark,
+}) => {
+  if (skill.source === 'local') return null;
+
+  if (skill.source === 'skills-sh') {
     return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40">
-        <img
-          src={skill.iconUrl}
-          alt=""
-          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
-        />
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-900 text-[10px] font-bold text-white dark:bg-white dark:text-neutral-900">
+          S
+        </span>
+        <span>
+          From{' '}
+          <a
+            href={
+              skill.owner && skill.repo
+                ? `https://skills.sh/${skill.owner}/${skill.repo}/${skill.id}`
+                : 'https://skills.sh'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+          >
+            skills.sh
+          </a>
+          {skill.owner && <span className="text-muted-foreground/60"> · {skill.owner}</span>}
+        </span>
       </div>
     );
   }
 
+  const srcIcon = skillSourceIcons[skill.source];
+  const label = getSourceLabel(skill.source);
+
   return (
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white">
-      {letter}
+    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      {srcIcon && (
+        <div
+          className="flex h-5 w-5 items-center justify-center rounded-sm bg-muted/60 p-0.5"
+          dangerouslySetInnerHTML={{
+            __html: processSourceSvg(srcIcon.data, isDark ? '#ffffff' : `#${srcIcon.color}`),
+          }}
+        />
+      )}
+      <span>From {label} skill library</span>
     </div>
   );
 };
@@ -50,8 +92,9 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
-  // Reset justInstalled when the modal opens with a different skill
   useEffect(() => {
     if (isOpen) setJustInstalled(false);
   }, [isOpen, skill?.id]);
@@ -97,55 +140,14 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <ModalSkillIcon skill={skill} />
+            <SkillIconRenderer skill={skill} size="md" />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base">{skill.displayName}</DialogTitle>
             </div>
           </div>
         </DialogHeader>
 
-        {skill.source !== 'local' && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            {skill.source === 'skills-sh' ? (
-              <>
-                <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-neutral-900 text-[10px] font-bold text-white dark:bg-white dark:text-neutral-900">
-                  S
-                </span>
-                <span>
-                  From{' '}
-                  <a
-                    href={
-                      skill.owner && skill.repo
-                        ? `https://skills.sh/${skill.owner}/${skill.repo}/${skill.id}`
-                        : 'https://skills.sh'
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-                  >
-                    skills.sh
-                  </a>
-                  {skill.owner && (
-                    <span className="text-muted-foreground/60"> · {skill.owner}</span>
-                  )}
-                </span>
-              </>
-            ) : (
-              <>
-                <img
-                  src={
-                    skill.source === 'openai'
-                      ? 'https://github.com/openai.png'
-                      : 'https://github.com/anthropics.png'
-                  }
-                  alt=""
-                  className="h-5 w-5 rounded-sm"
-                />
-                <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
-              </>
-            )}
-          </div>
-        )}
+        <SkillSourceBadge skill={skill} isDark={isDark} />
 
         <Separator />
 
