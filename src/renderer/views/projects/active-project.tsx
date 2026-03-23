@@ -1,4 +1,5 @@
 import { Github, MoreHorizontal } from 'lucide-react';
+import { gitRemoteToUrl } from '@shared/git-remote-url';
 import { PullRequestList } from '@renderer/components/projects/pr-list';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -8,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
+import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import { useRequiredCurrentProject } from './project-view-wrapper';
@@ -17,6 +19,7 @@ export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
   const { deleteProject } = useProjectsDataContext();
+  const githubUrl = project.gitRemote ? gitRemoteToUrl(project.gitRemote) : undefined;
 
   return (
     <div className="max-w-5xl mx-auto p-8 w-full h-full flex flex-col overflow-hidden">
@@ -33,7 +36,11 @@ export function ActiveProject() {
             >
               Project settings
             </Button>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              disabled={!githubUrl}
+              onClick={() => githubUrl && rpc.app.openExternal(githubUrl)}
+            >
               <Github className="size-4" />
               View on Github
             </Button>
