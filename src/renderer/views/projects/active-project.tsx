@@ -1,4 +1,4 @@
-import { Github, MoreHorizontal } from 'lucide-react';
+import { Github, MoreHorizontal, Pencil, Trash } from 'lucide-react';
 import { gitRemoteToUrl } from '@shared/git-remote-url';
 import { PullRequestList } from '@renderer/components/projects/pr-list';
 import { Button } from '@renderer/components/ui/button';
@@ -18,6 +18,7 @@ import { TaskList } from './task-list';
 export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
+  const showConfirmation = useShowModal('confirmActionModal');
   const { deleteProject } = useProjectsDataContext();
   const githubUrl = project.gitRemote ? gitRemoteToUrl(project.gitRemote) : undefined;
 
@@ -52,9 +53,24 @@ export function ActiveProject() {
                   </Button>
                 }
               />
-              <DropdownMenuContent>
-                <DropdownMenuItem>Rename project</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => deleteProject(project.id)}>
+              <DropdownMenuContent className="min-w-fit">
+                <DropdownMenuItem>
+                  <Pencil />
+                  Rename project
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    showConfirmation({
+                      title: 'Delete project?',
+                      description:
+                        'This will remove the project from Emdash. Your files and repository will not be affected.',
+                      confirmLabel: 'Delete',
+                      onSuccess: () => deleteProject(project.id),
+                    })
+                  }
+                  variant="destructive"
+                >
+                  <Trash />
                   Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>
