@@ -23,6 +23,7 @@ import PerformanceChip from './PerformanceChip';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 const isMacOS = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -112,6 +113,8 @@ const Titlebar: React.FC<TitlebarProps> = ({
     tasksByProjectId,
   } = useTaskManagementContext();
   const { user: githubUser } = useGithubContext();
+  const { settings } = useAppSettings();
+  const showResourceMonitor = settings?.interface?.showResourceMonitor ?? false;
 
   const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
   const currentPath = isTaskMultiAgent
@@ -221,7 +224,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
             paddingLeft: isMacOS ? 'env(titlebar-area-x, 80px)' : '0.5rem',
           }}
         >
-          <PerformanceChip />
+          {showResourceMonitor ? <PerformanceChip /> : null}
         </div>
         {/* Center: project/task context (grows to fill) */}
         <div

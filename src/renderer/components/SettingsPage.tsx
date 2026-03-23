@@ -27,6 +27,7 @@ import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
@@ -259,6 +260,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           title: 'Workspace',
           component: (
             <div className="flex flex-col gap-8 rounded-xl border border-muted p-4">
+              <ResourceMonitorSettingsCard />
               <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
               <TaskHoverActionCard />
