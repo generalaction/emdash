@@ -772,6 +772,8 @@ export class SkillsService {
           description: '',
           source: 'skills-sh' as const,
           brandColor: '#171717',
+          // Use the GitHub org/user avatar as the skill icon
+          iconUrl: owner ? `https://github.com/${owner}.png?size=80` : undefined,
           frontmatter: { name: s.skillId, description: '' },
           installed: isInstalled,
           localPath: localSkill?.localPath,

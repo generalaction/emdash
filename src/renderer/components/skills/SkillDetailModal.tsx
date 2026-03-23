@@ -40,20 +40,34 @@ const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
     );
   }
 
-  // 2. Remote iconUrl fallback
+  // 2. Remote iconUrl (incl. GitHub avatars for skills.sh)
   if (skill.iconUrl) {
+    const isAvatar = skill.iconUrl.includes('github.com/') && skill.iconUrl.includes('.png');
     return (
       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-full w-full rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
+          className={`h-full w-full object-contain ${isAvatar ? 'rounded-lg' : `rounded-lg ${isMonochrome !== false ? 'dark:invert' : ''}`}`.trim()}
         />
       </div>
     );
   }
 
-  // 3. Letter fallback
+  // 3. Owner avatar fallback for skills.sh
+  if (skill.source === 'skills-sh' && skill.owner) {
+    return (
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
+        <img
+          src={`https://github.com/${skill.owner}.png?size=80`}
+          alt=""
+          className="h-full w-full rounded-lg object-cover"
+        />
+      </div>
+    );
+  }
+
+  // 4. Letter fallback
   return (
     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60">
       {letter}

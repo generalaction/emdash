@@ -50,14 +50,16 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
     );
   }
 
-  // 2. Fallback to remote iconUrl (skills.sh skills)
+  // 2. Remote iconUrl (OpenAI skill assets)
   if (skill.iconUrl && !imgError) {
+    // GitHub avatars are photos — never invert. Other remote icons may be monochrome.
+    const isAvatar = skill.iconUrl.includes('github.com/') && skill.iconUrl.includes('.png');
     return (
       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5">
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-full w-full rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
+          className={`h-full w-full object-contain ${isAvatar ? 'rounded-lg' : `rounded-lg ${isMonochrome !== false ? 'dark:invert' : ''}`}`.trim()}
           onError={() => setImgError(true)}
           loading="lazy"
         />
@@ -65,7 +67,22 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
     );
   }
 
-  // 3. Letter fallback
+  // 3. Owner avatar fallback for skills.sh skills
+  if (skill.source === 'skills-sh' && skill.owner && !imgError) {
+    return (
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5">
+        <img
+          src={`https://github.com/${skill.owner}.png?size=80`}
+          alt=""
+          className="h-full w-full rounded-lg object-cover"
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  // 4. Letter fallback
   return (
     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-sm font-semibold text-foreground/60">
       {letter}
