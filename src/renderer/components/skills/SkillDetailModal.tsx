@@ -7,25 +7,55 @@ import { Check, FolderOpen, Trash2 } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import { skillIconMap, skillSourceIcons } from '../../lib/skillIcons';
+import { useTheme } from '../../hooks/useTheme';
 
 const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const letter = skill.displayName.charAt(0).toUpperCase();
   const isMonochrome = useIsMonochrome(skill.iconUrl);
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
+  // 1. Bundled icon
+  const iconDef = skillIconMap[skill.id] ?? skillSourceIcons[skill.source];
+
+  if (iconDef) {
+    let processed = iconDef.data;
+    if (iconDef.preserveColors) {
+      processed = processed.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
+    } else {
+      const fillColor = isDark ? '#ffffff' : `#${iconDef.color}`;
+      processed = processed
+        .replace(/\bwidth="[^"]*"/g, '')
+        .replace(/\bheight="[^"]*"/g, '')
+        .replace('<svg ', `<svg fill="${fillColor}" `);
+    }
+    processed = processed.replace('<svg ', '<svg class="h-full w-full" ');
+
+    return (
+      <div
+        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 p-2.5"
+        dangerouslySetInnerHTML={{ __html: processed }}
+      />
+    );
+  }
+
+  // 2. Remote iconUrl fallback
   if (skill.iconUrl) {
     return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40">
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
+          className={`h-full w-full rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
         />
       </div>
     );
   }
 
+  // 3. Letter fallback
   return (
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white">
+    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60">
       {letter}
     </div>
   );
@@ -50,6 +80,8 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
   // Reset justInstalled when the modal opens with a different skill
   useEffect(() => {
@@ -131,18 +163,32 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                 </span>
               </>
             ) : (
-              <>
-                <img
-                  src={
-                    skill.source === 'openai'
-                      ? 'https://github.com/openai.png'
-                      : 'https://github.com/anthropics.png'
-                  }
-                  alt=""
-                  className="h-5 w-5 rounded-sm"
-                />
-                <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
-              </>
+              (() => {
+                const srcIcon = skillSourceIcons[skill.source];
+                if (srcIcon) {
+                  let svg = srcIcon.data
+                    .replace(/\bwidth="[^"]*"/g, '')
+                    .replace(/\bheight="[^"]*"/g, '');
+                  const fc = isDark ? '#ffffff' : `#${srcIcon.color}`;
+                  svg = svg.replace('<svg ', `<svg fill="${fc}" class="h-full w-full" `);
+                  return (
+                    <>
+                      <div
+                        className="flex h-5 w-5 items-center justify-center rounded-sm bg-muted/60 p-0.5"
+                        dangerouslySetInnerHTML={{ __html: svg }}
+                      />
+                      <span>
+                        From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
+                      </span>
+                    </>
+                  );
+                }
+                return (
+                  <span>
+                    From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
+                  </span>
+                );
+              })()
             )}
           </div>
         )}

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Plus, Pencil, Download } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import { skillIconMap, skillSourceIcons } from '../../lib/skillIcons';
+import { useTheme } from '../../hooks/useTheme';
 
 function formatInstalls(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -20,14 +22,42 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
   const letter = skill.displayName.charAt(0).toUpperCase();
   const isMonochrome = useIsMonochrome(skill.iconUrl);
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
 
+  // 1. Check bundled icon by skill ID
+  const iconDef = skillIconMap[skill.id] ?? skillSourceIcons[skill.source];
+
+  if (iconDef) {
+    let processed = iconDef.data;
+    if (iconDef.preserveColors) {
+      processed = processed.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
+    } else {
+      const fillColor = isDark ? '#ffffff' : `#${iconDef.color}`;
+      processed = processed
+        .replace(/\bwidth="[^"]*"/g, '')
+        .replace(/\bheight="[^"]*"/g, '')
+        .replace('<svg ', `<svg fill="${fillColor}" `);
+    }
+    processed = processed.replace('<svg ', '<svg class="h-full w-full" ');
+
+    return (
+      <div
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 p-2"
+        // Safe to use: SVGs are from bundled, trusted icon definitions (not user input)
+        dangerouslySetInnerHTML={{ __html: processed }}
+      />
+    );
+  }
+
+  // 2. Fallback to remote iconUrl (skills.sh skills)
   if (skill.iconUrl && !imgError) {
     return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5">
         <img
           src={skill.iconUrl}
           alt=""
-          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
+          className={`h-full w-full rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
           onError={() => setImgError(true)}
           loading="lazy"
         />
@@ -35,8 +65,9 @@ const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
     );
   }
 
+  // 3. Letter fallback
   return (
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white">
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-sm font-semibold text-foreground/60">
       {letter}
     </div>
   );
