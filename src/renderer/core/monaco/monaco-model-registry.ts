@@ -87,7 +87,7 @@ class MonacoModelRegistry {
 
   /**
    * fsWatchEventChannel subscriptions, keyed by taskId.
-   * Kept alive while any disk paths or git-head dirs are being watched for the task.
+   * Kept alive while any model for the task has active React subscribers.
    */
   private fsEventSubs = new Map<string, () => void>();
 
@@ -101,14 +101,11 @@ class MonacoModelRegistry {
   private pendingFetches = new Map<string, Promise<string | null>>();
 
   // ---------------------------------------------------------------------------
-  // Subscription groups (mirror of FS controller's labeledPaths)
+  // Per-task watcher ref-count
   // ---------------------------------------------------------------------------
 
-  /** taskId → Set<filePath> currently in the 'disk' file-watch group */
-  private diskSubscribedByTask = new Map<string, Set<string>>();
-
-  /** Tasks whose .git dir is currently in the 'git-head' dir-watch group */
-  private gitHeadWatchedTasks = new Set<string>();
+  /** Number of active useSyncExternalStore subscribers per task (across all URIs). */
+  private taskSubscriberCt = new Map<string, number>();
 
   // ---------------------------------------------------------------------------
   // Per-task polling fallback
@@ -256,70 +253,38 @@ class MonacoModelRegistry {
   private activateUriWatch(uri: string): void {
     const entry = this.modelMap.get(uri);
     if (!entry) return; // model still loading; registerDisk/registerGit will call this after creation
+    if (entry.type === 'buffer') return; // buffer: no FS watching side effect
 
-    if (entry.type === 'disk') {
-      const set = this.diskSubscribedByTask.get(entry.taskId) ?? new Set<string>();
-      if (!set.has(entry.filePath)) {
-        set.add(entry.filePath);
-        this.diskSubscribedByTask.set(entry.taskId, set);
-        this.ensureFsEventSub(entry.projectId, entry.taskId);
-        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
-      }
-      this.startPoller(entry.projectId, entry.taskId);
-    } else if (entry.type === 'git' && entry.ref === 'HEAD') {
-      if (!this.gitHeadWatchedTasks.has(entry.taskId)) {
-        void rpc.fs.watchSetPaths(entry.projectId, entry.taskId, ['.git'], 'git-head', 'dirs');
-        this.gitHeadWatchedTasks.add(entry.taskId);
-        this.ensureFsEventSub(entry.projectId, entry.taskId);
-      }
+    const prev = this.taskSubscriberCt.get(entry.taskId) ?? 0;
+    this.taskSubscriberCt.set(entry.taskId, prev + 1);
+
+    if (prev === 0) {
+      // First subscriber for this task — start the watcher and event sub.
+      void rpc.fs.watchSetPaths(entry.projectId, entry.taskId, ['.git'], 'monaco');
+      this.ensureFsEventSub(entry.projectId, entry.taskId);
       this.startPoller(entry.projectId, entry.taskId);
     }
-    // buffer: no FS watching side effect
   }
 
   private deactivateUriWatch(uri: string): void {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
+    if (entry.type === 'buffer') return;
 
-    if (entry.type === 'disk') {
-      this.diskSubscribedByTask.get(entry.taskId)?.delete(entry.filePath);
-      const set = this.diskSubscribedByTask.get(entry.taskId);
-      if (!set?.size) {
-        this.diskSubscribedByTask.delete(entry.taskId);
-        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'disk', 'files');
-      } else {
-        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
-      }
+    const prev = this.taskSubscriberCt.get(entry.taskId) ?? 0;
+    const next = Math.max(0, prev - 1);
+    if (next === 0) {
+      this.taskSubscriberCt.delete(entry.taskId);
+      void rpc.fs.watchStop(entry.projectId, entry.taskId, 'monaco');
       this.maybeCleanupFsEventSub(entry.taskId);
       this.maybeStopPoller(entry.taskId);
-    } else if (entry.type === 'git' && entry.ref === 'HEAD') {
-      if (
-        !this.taskHasGitHeadSubscribers(entry.taskId) &&
-        this.gitHeadWatchedTasks.has(entry.taskId)
-      ) {
-        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'git-head', 'dirs');
-        this.gitHeadWatchedTasks.delete(entry.taskId);
-        this.maybeCleanupFsEventSub(entry.taskId);
-      }
-      this.maybeStopPoller(entry.taskId);
+    } else {
+      this.taskSubscriberCt.set(entry.taskId, next);
     }
-    // buffer: no-op
   }
 
   private taskHasSubscribers(taskId: string): boolean {
-    for (const [uri, entry] of this.modelMap) {
-      if (entry.taskId === taskId && (this.subscriberCt.get(uri) ?? 0) > 0) return true;
-    }
-    return false;
-  }
-
-  private taskHasGitHeadSubscribers(taskId: string): boolean {
-    for (const [gitUri, entry] of this.modelMap) {
-      if (entry.type === 'git' && entry.taskId === taskId && entry.ref === 'HEAD') {
-        if ((this.subscriberCt.get(gitUri) ?? 0) > 0) return true;
-      }
-    }
-    return false;
+    return (this.taskSubscriberCt.get(taskId) ?? 0) > 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -601,24 +566,8 @@ class MonacoModelRegistry {
     this.modelMap.delete(uri);
     this.modelStatus.delete(uri);
 
-    if (entry.type === 'disk') {
-      // Remove from subscription group unconditionally (model is gone).
-      this.diskSubscribedByTask.get(entry.taskId)?.delete(entry.filePath);
-      const set = this.diskSubscribedByTask.get(entry.taskId);
-      if (!set?.size) {
-        this.diskSubscribedByTask.delete(entry.taskId);
-        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'disk', 'files');
-      } else {
-        this.syncDiskWatchedPaths(entry.projectId, entry.taskId);
-      }
+    if (entry.type === 'disk' || entry.type === 'git') {
       this.maybeCleanupFsEventSub(entry.taskId);
-    } else if (entry.type === 'git') {
-      const remaining = this.gitEntriesForTask(entry.taskId);
-      if (remaining.length === 0 && this.gitHeadWatchedTasks.has(entry.taskId)) {
-        void rpc.fs.watchStop(entry.projectId, entry.taskId, 'git-head', 'dirs');
-        this.gitHeadWatchedTasks.delete(entry.taskId);
-        this.maybeCleanupFsEventSub(entry.taskId);
-      }
     } else {
       // buffer
       this.bufferContentDisposables.get(uri)?.dispose();
@@ -870,15 +819,6 @@ class MonacoModelRegistry {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // File watcher sync
-  // ---------------------------------------------------------------------------
-
-  private syncDiskWatchedPaths(projectId: string, taskId: string): void {
-    const paths = [...(this.diskSubscribedByTask.get(taskId) ?? [])];
-    rpc.fs.watchSetPaths(projectId, taskId, paths, 'disk', 'files').catch(() => {});
-  }
-
   private async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {
     // Route .git dir events → git model refresh.
     const hasGitEvent = fsEvents.some((e) => e.path.startsWith('.git'));
@@ -960,31 +900,9 @@ class MonacoModelRegistry {
   }
 
   private maybeCleanupFsEventSub(taskId: string): void {
-    const hasDiskSub = (this.diskSubscribedByTask.get(taskId)?.size ?? 0) > 0;
-    if (hasDiskSub) return;
-    if (this.gitHeadWatchedTasks.has(taskId)) return;
+    if (this.taskHasSubscribers(taskId)) return;
     this.fsEventSubs.get(taskId)?.();
     this.fsEventSubs.delete(taskId);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  private diskEntriesForTask(taskId: string): DiskModelEntry[] {
-    const result: DiskModelEntry[] = [];
-    for (const entry of this.modelMap.values()) {
-      if (entry.type === 'disk' && entry.taskId === taskId) result.push(entry);
-    }
-    return result;
-  }
-
-  private gitEntriesForTask(taskId: string): GitModelEntry[] {
-    const result: GitModelEntry[] = [];
-    for (const entry of this.modelMap.values()) {
-      if (entry.type === 'git' && entry.taskId === taskId) result.push(entry);
-    }
-    return result;
   }
 
   private findDiskEntryByTaskAndPath(

@@ -34,19 +34,6 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Expose a stable snapshot of loadedPaths for the watchSetPaths effect.
-  const [loadedPathsSnapshot, setLoadedPathsSnapshot] = useState<Set<string>>(new Set());
-
-  // Debounced watch-sync — collapses rapid loadedPathsSnapshot updates (one per
-  // speculative prefetch dir) into a single watchSetPaths IPC call.
-  const watchSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleWatchSync = useCallback(() => {
-    if (watchSyncTimerRef.current) clearTimeout(watchSyncTimerRef.current);
-    watchSyncTimerRef.current = setTimeout(() => {
-      setLoadedPathsSnapshot(new Set(loadedPathsRef.current));
-    }, 200);
-  }, []);
-
   const addNode = useCallback((node: FileNode) => {
     nodesRef.current.set(node.path, node);
     const parent = node.parentPath;
@@ -111,9 +98,8 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
       }
 
       loadedPathsRef.current.add(dirPath);
-      scheduleWatchSync();
     },
-    [scheduleWatchSync]
+    []
   );
 
   const loadDir = useCallback(
@@ -172,12 +158,6 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
       clearTimeout(bumpTimerRef.current);
       bumpTimerRef.current = null;
     }
-    if (watchSyncTimerRef.current) {
-      clearTimeout(watchSyncTimerRef.current);
-      watchSyncTimerRef.current = null;
-    }
-
-    setLoadedPathsSnapshot(new Set());
     setIsLoading(true);
     setError(null);
 
@@ -290,16 +270,10 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
 
   useEffect(() => {
     if (!projectId || !taskId) return;
-    rpc.fs
-      .watchSetPaths(projectId, taskId, ['', ...loadedPathsSnapshot], 'filetree')
-      .catch(() => {});
-  }, [projectId, taskId, loadedPathsSnapshot]);
-
-  useEffect(() => {
+    rpc.fs.watchSetPaths(projectId, taskId, [''], 'filetree').catch(() => {});
     return () => {
       rpc.fs.watchStop(projectId, taskId, 'filetree').catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, taskId]);
 
   const visibleRows = useMemo(

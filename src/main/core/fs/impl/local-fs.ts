@@ -1,7 +1,7 @@
-import { createReadStream, promises as fs, type Stats } from 'node:fs';
+import { createReadStream, promises as fs, statSync, type Stats } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import chokidar from 'chokidar';
+import parcelWatcher from '@parcel/watcher';
 import ignore from 'ignore';
 import type { FileWatchEvent } from '@shared/fs';
 import {
@@ -82,9 +82,10 @@ const SEARCH_IGNORES = new Set([
   '.parcel-cache',
 ]);
 
-// Directory names to exclude from the filesystem watcher (matched as path segments)
-const WATCH_IGNORED_NAMES = new Set([
-  '.git',
+// Directory names to exclude from the filesystem watcher.
+// Note: .git is intentionally omitted so that index/HEAD change events
+// reach monaco-model-registry for git model refreshes.
+const WATCH_IGNORED_NAMES = [
   '.svn',
   '.hg',
   'node_modules',
@@ -111,7 +112,10 @@ const WATCH_IGNORED_NAMES = new Set([
   '.continue',
   '.cody',
   '.windsurf',
-]);
+];
+
+// Glob patterns for parcel/watcher ignore option, derived from WATCH_IGNORED_NAMES.
+const WATCH_IGNORE_GLOBS = WATCH_IGNORED_NAMES.map((n) => `**/${n}/**`);
 
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
@@ -736,13 +740,14 @@ export class LocalFileSystem implements FileSystemProvider {
 
   watch(
     callback: (events: FileWatchEvent[]) => void,
-    options: { debounceMs?: number; mode?: 'dirs' | 'files' } = {}
+    options: { debounceMs?: number } = {}
   ): FileWatcher {
     const stabilityMs = options.debounceMs ?? 200;
-    const mode = options.mode ?? 'dirs';
-    let currentAbsPaths: string[] = [];
     let pending: FileWatchEvent[] = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    // Set when the async subscribe resolves; used by close() if it resolves after close() is called.
+    let resolvedSub: parcelWatcher.AsyncSubscription | null = null;
+    let closed = false;
 
     const flush = () => {
       if (pending.length) {
@@ -759,57 +764,48 @@ export class LocalFileSystem implements FileSystemProvider {
 
     const toRel = (absPath: string) => relative(this.projectPath, absPath).replace(/\\/g, '/');
 
-    // Only ignore based on path segments *relative* to the project root.
-    // Using the absolute path would cause the entire worktree to be ignored
-    // when the project lives inside a directory named 'worktrees'.
-    const ignored = (absPath: string) => {
-      const rel = relative(this.projectPath, absPath);
-      if (!rel || rel.startsWith('..')) return false;
-      return rel.split(/[/\\]/).some((seg) => WATCH_IGNORED_NAMES.has(seg));
-    };
+    void parcelWatcher
+      .subscribe(
+        this.projectPath,
+        (err, events) => {
+          if (err) return;
+          for (const e of events) {
+            const rel = toRel(e.path);
+            // Skip paths outside the project root (shouldn't happen, but guard anyway).
+            if (rel.startsWith('..')) continue;
 
-    const watcher =
-      mode === 'dirs'
-        ? // depth: 0 watches only immediate contents of each added directory,
-          // keeping OS file-handle count O(expanded-dirs) instead of O(all-files).
-          // The file-tree supplies every expanded directory explicitly so depth-0
-          // is sufficient for structural change detection without EMFILE risk.
-          chokidar.watch([], { ignoreInitial: true, depth: 0, ignored, persistent: false })
-        : // Files mode: paths are individual files added explicitly by the editor.
-          // No depth restriction needed — chokidar watches each file directly.
-          // Only 'change' events are relevant here; structural changes are handled
-          // by the separate dirs watcher.
-          chokidar.watch([], { ignoreInitial: true, ignored, persistent: false });
-
-    if (mode === 'dirs') {
-      watcher
-        .on('add', (p) => enqueue({ type: 'create', entryType: 'file', path: toRel(p) }))
-        .on('addDir', (p) => enqueue({ type: 'create', entryType: 'directory', path: toRel(p) }))
-        .on('unlink', (p) => enqueue({ type: 'delete', entryType: 'file', path: toRel(p) }))
-        .on('unlinkDir', (p) => enqueue({ type: 'delete', entryType: 'directory', path: toRel(p) }))
-        .on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
-    } else {
-      watcher.on('change', (p) => enqueue({ type: 'modify', entryType: 'file', path: toRel(p) }));
-    }
-
-    const projectPath = this.projectPath;
+            let entryType: 'file' | 'directory' = 'file';
+            if (e.type !== 'delete') {
+              try {
+                entryType = statSync(e.path).isDirectory() ? 'directory' : 'file';
+              } catch {
+                // File removed between the event and the stat — treat as file.
+              }
+            }
+            const type = e.type === 'update' ? ('modify' as const) : e.type;
+            enqueue({ type, entryType, path: rel });
+          }
+        },
+        { ignore: WATCH_IGNORE_GLOBS }
+      )
+      .then((sub) => {
+        if (closed) {
+          void sub.unsubscribe();
+        } else {
+          resolvedSub = sub;
+        }
+      })
+      .catch(() => {
+        // Subscription failed (e.g. project path removed before watch started).
+      });
 
     return {
-      update(paths: string[]) {
-        const absPaths = paths.filter((p) => p !== '').map((p) => join(projectPath, p));
-        // In dirs mode, the empty-string path means "watch the project root itself".
-        const allPaths =
-          mode === 'dirs' && paths.includes('') ? [projectPath, ...absPaths] : absPaths;
-
-        const toRemove = currentAbsPaths.filter((p) => !allPaths.includes(p));
-        const toAdd = allPaths.filter((p) => !currentAbsPaths.includes(p));
-        if (toRemove.length) watcher.unwatch(toRemove);
-        if (toAdd.length) watcher.add(toAdd);
-        currentAbsPaths = allPaths;
-      },
+      // No-op: the recursive subscription already covers the entire worktree.
+      update(_paths: string[]) {},
       close() {
+        closed = true;
         if (flushTimer) clearTimeout(flushTimer);
-        void watcher.close();
+        if (resolvedSub) void resolvedSub.unsubscribe();
       },
     };
   }

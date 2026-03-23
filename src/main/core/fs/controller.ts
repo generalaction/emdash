@@ -11,14 +11,13 @@ import {
   type SearchOptions,
 } from './types';
 
-// Separate registries for directory watchers (depth:0, structural changes) and
-// file watchers (explicit file paths, change events only). Both emit through
-// the same fsWatchEventChannel so consumers see a unified stream.
-const dirWatcherRegistry = new Map<string, FileWatcher>();
-const fileWatcherRegistry = new Map<string, FileWatcher>();
-// Per-label path groups, keyed by mode then `${projectId}::${taskId}`
-const dirLabeledPaths = new Map<string, Map<string, string[]>>();
-const fileLabeledPaths = new Map<string, Map<string, string[]>>();
+// One watcher per (projectId, taskId) pair, shared across all consumers via labels.
+// Local: single recursive @parcel/watcher subscription — update() is a no-op.
+// SSH:   poll-based — update() receives the union of all labels' paths to poll.
+const watcherRegistry = new Map<string, FileWatcher>();
+// Per-label path groups, keyed by `${projectId}::${taskId}` → label → paths.
+// Paths are forwarded to update() for SSH compatibility; local ignores them.
+const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
@@ -226,13 +225,7 @@ export const filesController = createRPCController({
     }
   },
 
-  watchSetPaths: async (
-    projectId: string,
-    taskId: string,
-    paths: string[],
-    label = 'default',
-    watchType: 'dirs' | 'files' = 'dirs'
-  ) => {
+  watchSetPaths: async (projectId: string, taskId: string, paths: string[], label = 'default') => {
     const env = resolveTask(projectId, taskId);
     if (!env) {
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
@@ -243,49 +236,37 @@ export const filesController = createRPCController({
     }
 
     const key = `${projectId}::${taskId}`;
-    const registry = watchType === 'files' ? fileWatcherRegistry : dirWatcherRegistry;
-    const labeledPaths = watchType === 'files' ? fileLabeledPaths : dirLabeledPaths;
-
-    const groups = labeledPaths.get(key) ?? new Map<string, string[]>();
+    const groups = watcherLabeledPaths.get(key) ?? new Map<string, string[]>();
     groups.set(label, paths);
-    labeledPaths.set(key, groups);
+    watcherLabeledPaths.set(key, groups);
     const union = [...new Set([...groups.values()].flat())];
 
-    const existing = registry.get(key);
+    const existing = watcherRegistry.get(key);
     if (existing) {
+      // For SSH: update the union of watched paths across all labels.
+      // For local: update() is a no-op since the recursive watcher covers everything.
       existing.update(union);
     } else {
-      const watcher = env.fs.watch(
-        (evts) => {
-          events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
-        },
-        { mode: watchType }
-      );
+      const watcher = env.fs.watch((evts) => {
+        events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
+      });
       watcher.update(union);
-      registry.set(key, watcher);
+      watcherRegistry.set(key, watcher);
     }
     return ok({ supported: true as const });
   },
 
-  watchStop: async (
-    projectId: string,
-    taskId: string,
-    label = 'default',
-    watchType: 'dirs' | 'files' = 'dirs'
-  ) => {
+  watchStop: async (projectId: string, taskId: string, label = 'default') => {
     const key = `${projectId}::${taskId}`;
-    const registry = watchType === 'files' ? fileWatcherRegistry : dirWatcherRegistry;
-    const labeledPaths = watchType === 'files' ? fileLabeledPaths : dirLabeledPaths;
-
-    const groups = labeledPaths.get(key);
+    const groups = watcherLabeledPaths.get(key);
     groups?.delete(label);
     if (!groups?.size) {
-      labeledPaths.delete(key);
-      registry.get(key)?.close();
-      registry.delete(key);
+      watcherLabeledPaths.delete(key);
+      watcherRegistry.get(key)?.close();
+      watcherRegistry.delete(key);
     } else {
       const union = [...new Set([...groups.values()].flat())];
-      registry.get(key)?.update(union);
+      watcherRegistry.get(key)?.update(union);
     }
     return ok({});
   },

@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, ReactNode, useCallback, useContext, useMemo } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo } from 'react';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { GitChange } from '@shared/git';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { extractErrorMessage } from '../utils';
 
@@ -45,6 +46,27 @@ export function GitChangesProvider({
     refetchInterval: 10000,
     staleTime: 5000,
   });
+
+  // Eagerly invalidate git status on any FS event so the list updates without
+  // waiting for the 10 s poll. Debounced to collapse bursts (e.g. agent writes).
+  // The poll remains as a safety net for SSH where the watcher is poll-based.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = events.on(
+      fsWatchEventChannel,
+      () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          void queryClient.invalidateQueries({ queryKey: ['git', 'changes', projectId, taskId] });
+        }, 400);
+      },
+      taskId
+    );
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
+  }, [projectId, taskId, queryClient]);
 
   const showConfirmActionModal = useShowModal('confirmActionModal');
 

@@ -243,19 +243,17 @@ export interface FileSystemProvider {
   mkdir(diPath: string, options?: { recursive?: boolean }): Promise<void>;
 
   /**
-   * Watch a set of paths for filesystem changes.
-   * Returns a FileWatcher handle; call update() to change watched paths, close() to stop.
-   * Batches events and delivers them via callback.
-   * Optional — not all implementations support watching (e.g., SSH may fall back to polling).
+   * Watch the worktree for filesystem changes. Returns a FileWatcher handle;
+   * call update() to hint which paths matter (SSH uses this for polling),
+   * call close() to stop. Batches events and delivers them via callback.
+   * Optional — not all implementations support watching.
    *
-   * mode: 'dirs' (default) — watches directory structure with depth:0 to prevent EMFILE;
-   *       fires add/addDir/unlink/unlinkDir/change for immediate directory contents.
-   * mode: 'files' — watches explicitly-added individual files for content changes only;
-   *       no depth restriction, fires change events only.
+   * Local: uses @parcel/watcher for a single recursive native-OS subscription.
+   * SSH:   polls directories passed to update() at a fixed interval.
    */
   watch?(
     callback: (events: FileWatchEvent[]) => void,
-    options?: { debounceMs?: number; mode?: 'dirs' | 'files' }
+    options?: { debounceMs?: number }
   ): FileWatcher;
 }
 
