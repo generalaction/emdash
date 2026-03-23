@@ -29,7 +29,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
 
   return (
     <div className="flex gap-2 justify-between p-2">
-      <div className="flex gap-1">
+      <div className="flex gap-1 overflow-x-auto">
         {conversations.map((conversation) => {
           const config = agentConfig[conversation.providerId];
           return (

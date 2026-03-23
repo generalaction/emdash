@@ -34,6 +34,12 @@ const gqlPrNode = {
   headRefName: 'feat/widget',
   headRefOid: 'abc123',
   baseRefName: 'main',
+  body: 'PR description',
+  additions: 10,
+  deletions: 5,
+  changedFiles: 3,
+  mergeable: 'MERGEABLE' as const,
+  mergeStateStatus: 'CLEAN' as const,
   author: { login: 'dev' },
   headRepository: {
     nameWithOwner: 'acme/my-repo',
@@ -45,16 +51,6 @@ const gqlPrNode = {
   reviewDecision: null,
   latestReviews: { nodes: [{ author: { login: 'reviewer' }, state: 'APPROVED' }] },
   reviewRequests: { nodes: [{ requestedReviewer: { login: 'pending-reviewer' } }] },
-};
-
-const gqlPrDetailNode = {
-  ...gqlPrNode,
-  body: 'PR description',
-  additions: 10,
-  deletions: 5,
-  changedFiles: 3,
-  mergeable: 'MERGEABLE' as const,
-  mergeStateStatus: 'CLEAN' as const,
 };
 
 const expectedUnified = {
@@ -85,12 +81,12 @@ const expectedUnified = {
       { login: 'pending-reviewer', state: 'PENDING' },
       { login: 'reviewer', state: 'APPROVED' },
     ],
-    additions: 0,
-    deletions: 0,
-    changedFiles: 0,
-    mergeable: 'UNKNOWN',
-    mergeStateStatus: 'UNKNOWN',
-    body: null,
+    body: 'PR description',
+    additions: 10,
+    deletions: 5,
+    changedFiles: 3,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
   },
 };
 
@@ -199,9 +195,9 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
     svc = new GitHubPullRequestServiceImpl(makeOctokitFactory(graphqlMock));
   });
 
-  it('returns full detail with merge status', async () => {
+  it('fetches a single PR by number and returns unified model', async () => {
     graphqlMock.mockResolvedValue({
-      repository: { pullRequest: gqlPrDetailNode },
+      repository: { pullRequest: gqlPrNode },
     });
 
     const result = await svc.getPullRequestDetails(NAME_WITH_OWNER, 42);
@@ -211,18 +207,7 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
       repo: 'my-repo',
       number: 42,
     });
-    expect(result).toEqual({
-      ...expectedUnified,
-      metadata: {
-        ...expectedUnified.metadata,
-        body: 'PR description',
-        additions: 10,
-        deletions: 5,
-        changedFiles: 3,
-        mergeable: 'MERGEABLE',
-        mergeStateStatus: 'CLEAN',
-      },
-    });
+    expect(result).toEqual(expectedUnified);
   });
 
   it('returns null when PR not found', async () => {
@@ -235,6 +220,40 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
     graphqlMock.mockRejectedValue(new Error('not found'));
 
     await expect(svc.getPullRequestDetails(NAME_WITH_OWNER, 999)).rejects.toThrow('not found');
+  });
+});
+
+describe('GitHubPullRequestServiceImpl.getPullRequestsByBranch', () => {
+  let graphqlMock: ReturnType<typeof vi.fn>;
+  let svc: GitHubPullRequestServiceImpl;
+
+  beforeEach(() => {
+    graphqlMock = vi.fn();
+    svc = new GitHubPullRequestServiceImpl(makeOctokitFactory(graphqlMock));
+  });
+
+  it('searches by head branch and returns unified model with full metadata', async () => {
+    graphqlMock.mockResolvedValue({
+      search: { nodes: [gqlPrNode] },
+    });
+
+    const result = await svc.getPullRequestsByBranch(NAME_WITH_OWNER, 'feat/widget');
+
+    expect(graphqlMock).toHaveBeenCalledWith(
+      expect.stringContaining('searchPullRequests'),
+      expect.objectContaining({ query: `repo:${NAME_WITH_OWNER} is:pr head:feat/widget` })
+    );
+    expect(result).toEqual([expectedUnified]);
+    expect(result[0].metadata.mergeStateStatus).toBe('CLEAN');
+    expect(result[0].metadata.mergeable).toBe('MERGEABLE');
+  });
+
+  it('returns empty array when no PRs found', async () => {
+    graphqlMock.mockResolvedValue({ search: { nodes: [] } });
+
+    const result = await svc.getPullRequestsByBranch(NAME_WITH_OWNER, 'feat/no-pr');
+
+    expect(result).toEqual([]);
   });
 });
 

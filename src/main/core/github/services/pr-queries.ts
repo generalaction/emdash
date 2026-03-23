@@ -10,6 +10,12 @@ export const PR_SUMMARY_FRAGMENT = `
     headRefName
     headRefOid
     baseRefName
+    body
+    additions
+    deletions
+    changedFiles
+    mergeable
+    mergeStateStatus
     author { login }
     headRepository {
       nameWithOwner
@@ -65,12 +71,6 @@ export const GET_PR_DETAIL_QUERY = `
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
         ...PrSummaryFields
-        body
-        additions
-        deletions
-        changedFiles
-        mergeable
-        mergeStateStatus
       }
     }
   }

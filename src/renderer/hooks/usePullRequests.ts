@@ -3,8 +3,6 @@ import { useCallback } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { rpc } from '../core/ipc';
 
-export type { PullRequestSummary } from '@renderer/lib/github';
-
 export interface UsePullRequestsOptions {
   limit?: number;
   enabled?: boolean;

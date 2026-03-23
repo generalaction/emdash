@@ -34,19 +34,12 @@ interface GqlPrNode {
   headRefName: string;
   headRefOid: string;
   baseRefName: string;
-  body?: string | null;
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
-  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-  mergeStateStatus?:
-    | 'CLEAN'
-    | 'DIRTY'
-    | 'BEHIND'
-    | 'BLOCKED'
-    | 'HAS_HOOKS'
-    | 'UNSTABLE'
-    | 'UNKNOWN';
+  body: string | null;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
   author: { login: string } | null;
   headRepository: {
     nameWithOwner: string;
@@ -149,10 +142,6 @@ function mapStatusContextBucket(state: string): CheckRunBucket {
       return 'pending';
   }
 }
-
-// ---------------------------------------------------------------------------
-// Implementation
-// ---------------------------------------------------------------------------
 
 export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
@@ -423,62 +412,14 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
   }
 
   async getPullRequestsByBranch(nameWithOwner: string, branchName: string): Promise<PullRequest[]> {
-    const { owner, repo } = splitRepo(nameWithOwner);
     const octokit = await this.getOctokit();
-    const response = await octokit.rest.pulls.list({
-      owner,
-      repo,
-      head: `${owner}:${branchName}`,
-      state: 'all',
-      per_page: 25,
+    const response = await octokit.graphql<{
+      search: { nodes: GqlPrNode[] };
+    }>(SEARCH_PRS_QUERY, {
+      query: `repo:${nameWithOwner} is:pr head:${branchName}`,
+      limit: 25,
     });
-    return response.data.map((pr) => {
-      const isMerged = pr.merged_at != null;
-      const status: PullRequestStatus = isMerged
-        ? 'merged'
-        : pr.state === 'closed'
-          ? 'closed'
-          : 'open';
-      return {
-        id: pr.html_url,
-        identifier: `#${pr.number}`,
-        nameWithOwner,
-        provider: 'github' as const,
-        url: pr.html_url,
-        title: pr.title,
-        status,
-        author: pr.user ? { userName: pr.user.login, displayName: pr.user.login } : null,
-        isDraft: pr.draft ?? false,
-        createdAt: pr.created_at,
-        updatedAt: pr.updated_at,
-        metadata: {
-          number: pr.number,
-          headRefName: pr.head.ref,
-          headRefOid: pr.head.sha,
-          baseRefName: pr.base.ref,
-          headRepository: pr.head.repo
-            ? {
-                nameWithOwner: pr.head.repo.full_name,
-                url: pr.head.repo.html_url,
-                owner: { login: pr.head.repo.owner.login },
-              }
-            : null,
-          labels: (pr.labels ?? []).map((l) => ({ name: l.name, color: l.color })),
-          assignees: (pr.assignees ?? []).map((a) => ({
-            login: a.login,
-            avatarUrl: a.avatar_url,
-          })),
-          reviewDecision: null,
-          reviewers: [],
-          additions: 0,
-          deletions: 0,
-          changedFiles: 0,
-          mergeable: 'UNKNOWN' as const,
-          mergeStateStatus: 'UNKNOWN' as const,
-          body: pr.body ?? null,
-        },
-      };
-    });
+    return response.search.nodes.map((n) => this.mapToUnified(n, nameWithOwner));
   }
 
   private mapToUnified(node: GqlPrNode, nameWithOwner: string): PullRequest {
@@ -507,12 +448,12 @@ export class GitHubPullRequestServiceImpl implements GitHubPullRequestService {
         assignees: node.assignees.nodes,
         reviewDecision: node.reviewDecision,
         reviewers: this.buildReviewers(node),
-        additions: node.additions ?? 0,
-        deletions: node.deletions ?? 0,
-        changedFiles: node.changedFiles ?? 0,
-        mergeable: node.mergeable ?? 'UNKNOWN',
-        mergeStateStatus: node.mergeStateStatus ?? 'UNKNOWN',
-        body: node.body ?? null,
+        additions: node.additions,
+        deletions: node.deletions,
+        changedFiles: node.changedFiles,
+        mergeable: node.mergeable,
+        mergeStateStatus: node.mergeStateStatus,
+        body: node.body,
       },
     };
   }

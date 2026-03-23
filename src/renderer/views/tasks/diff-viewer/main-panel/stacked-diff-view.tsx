@@ -10,6 +10,7 @@ import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
 import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
+import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
@@ -22,33 +23,39 @@ const MAX_STACKED_FILES = 75;
 
 export function StackedDiffView() {
   const { activeFile } = useGitViewContext();
-  const isStaged = activeFile?.type === 'staged';
-
-  return <StackedDiffPanel isStaged={isStaged} />;
-}
-
-interface StackedDiffPanelProps {
-  isStaged: boolean;
-}
-
-function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
-  const { projectId, taskId } = useTaskViewContext();
   const { stagedFileChanges, unstagedFileChanges } = useGitChangesContext();
-  const { activeFile, setActiveFile, viewMode, diffStyle } = useGitViewContext();
+  const { pullRequests, prFilesMap } = usePrContext();
 
+  if (activeFile?.type === 'git') {
+    const originalRef = activeFile.originalRef;
+    const pr = pullRequests.find((p) => p.metadata.baseRefName === originalRef);
+    const files = pr ? (prFilesMap[pr.id] ?? []) : [];
+    return <StackedDiffPanel files={files} diffType="git" originalRef={originalRef} />;
+  }
+
+  const isStaged = activeFile?.type === 'staged';
   const files = isStaged ? stagedFileChanges : unstagedFileChanges;
-
-  // For staged panel: both sides are git models ('staged' index vs HEAD).
-  // For unstaged panel: right side is disk, left side is git//HEAD.
   const diffType = isStaged ? ('staged' as const) : ('disk' as const);
-  const originalRef = 'HEAD';
+
+  return <StackedDiffPanel files={files} diffType={diffType} originalRef="HEAD" />;
+}
+
+export interface StackedDiffPanelProps {
+  files: GitChange[];
+  diffType: 'disk' | 'staged' | 'git';
+  /** Git ref for the left (original/before) side. Ignored for 'staged'. */
+  originalRef: string;
+}
+
+export function StackedDiffPanel({ files, diffType, originalRef }: StackedDiffPanelProps) {
+  const { projectId, taskId } = useTaskViewContext();
+  const { activeFile, setActiveFile, viewMode, diffStyle } = useGitViewContext();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressObserver = useRef(false);
 
   const scrollSyncRef = useRef({
     files,
-    isStaged,
     diffType,
     originalRef,
     setActiveFile,
@@ -56,7 +63,6 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
   });
   scrollSyncRef.current = {
     files,
-    isStaged,
     diffType,
     originalRef,
     setActiveFile,
@@ -129,6 +135,25 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
               'git',
               'staged'
             );
+          } else if (diffType === 'git') {
+            await modelRegistry.registerModel(
+              projectId,
+              taskId,
+              root,
+              file.path,
+              language,
+              'git',
+              originalRef
+            );
+            await modelRegistry.registerModel(
+              projectId,
+              taskId,
+              root,
+              file.path,
+              language,
+              'git',
+              'HEAD'
+            );
           } else {
             await modelRegistry.registerModel(projectId, taskId, root, file.path, language, 'disk');
             await modelRegistry.registerModel(
@@ -143,11 +168,16 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
           }
           const uri = buildMonacoModelPath(root, file.path);
           registered.push({
-            originalUri: modelRegistry.toGitUri(uri, 'HEAD'),
+            originalUri:
+              diffType === 'git'
+                ? modelRegistry.toGitUri(uri, originalRef)
+                : modelRegistry.toGitUri(uri, 'HEAD'),
             modifiedUri:
               diffType === 'staged'
                 ? modelRegistry.toGitUri(uri, 'staged')
-                : modelRegistry.toDiskUri(uri),
+                : diffType === 'git'
+                  ? modelRegistry.toGitUri(uri, 'HEAD')
+                  : modelRegistry.toDiskUri(uri),
           });
         } catch {
           // Ignore individual file registration errors
@@ -185,12 +215,12 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
     return () => clearTimeout(timer);
     // scrollBehavior is intentionally omitted — see comment in original
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile?.path, activeFile?.type, viewMode, files, isStaged, virtualizer]);
+  }, [activeFile?.path, activeFile?.type, viewMode, files, diffType, virtualizer]);
 
   if (files.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No {isStaged ? 'staged changes' : 'changes'}
+        No {diffType === 'staged' ? 'staged changes' : 'changes'}
       </div>
     );
   }
@@ -227,6 +257,7 @@ function StackedDiffPanel({ isStaged }: StackedDiffPanelProps) {
                 taskId={taskId}
                 diffStyle={diffStyle}
                 diffType={diffType}
+                originalRef={originalRef}
               />
             </div>
           );
@@ -240,12 +271,20 @@ interface StackedFileSectionProps {
   file: GitChange;
   taskId: string;
   diffStyle: 'unified' | 'split';
-  diffType: 'disk' | 'staged';
+  diffType: 'disk' | 'staged' | 'git';
+  /** Git ref for the left (original/before) side. Used when diffType is 'disk' or 'git'. */
+  originalRef: string;
 }
 
 const MIN_EDITOR_HEIGHT = 100;
 
-function StackedFileSection({ file, taskId, diffStyle, diffType }: StackedFileSectionProps) {
+function StackedFileSection({
+  file,
+  taskId,
+  diffStyle,
+  diffType,
+  originalRef,
+}: StackedFileSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [forceLoad, setForceLoad] = useState(false);
   const [contentHeight, setContentHeight] = useState<number | null>(null);
@@ -254,9 +293,19 @@ function StackedFileSection({ file, taskId, diffStyle, diffType }: StackedFileSe
   const language = getLanguageFromPath(file.path);
   const isBinary = isBinaryForDiff(file.path);
 
-  const originalUri = modelRegistry.toGitUri(uri, 'HEAD');
+  // 'disk':   original = git://HEAD,        modified = disk://
+  // 'staged': original = git://HEAD,        modified = git://staged
+  // 'git':    original = git://originalRef, modified = git://HEAD
+  const originalUri =
+    diffType === 'git'
+      ? modelRegistry.toGitUri(uri, originalRef)
+      : modelRegistry.toGitUri(uri, 'HEAD');
   const modifiedUri =
-    diffType === 'staged' ? modelRegistry.toGitUri(uri, 'staged') : modelRegistry.toDiskUri(uri);
+    diffType === 'staged'
+      ? modelRegistry.toGitUri(uri, 'staged')
+      : diffType === 'git'
+        ? modelRegistry.toGitUri(uri, 'HEAD')
+        : modelRegistry.toDiskUri(uri);
 
   // Subscribe to model status — drives FS watching while this section is visible.
   // Mount of this component signals that the section is in the virtualizer viewport.
