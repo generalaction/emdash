@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Download } from 'lucide-react';
 import type { CatalogSkill } from '@shared/skills/types';
-import { useIsMonochrome } from '../../hooks/useIsMonochrome';
-import { resolveSkillIcon } from '../../lib/skillIcons';
-import { useTheme } from '../../hooks/useTheme';
+import SkillIconRenderer from './SkillIconRenderer';
 
 function formatInstalls(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -17,87 +15,6 @@ interface SkillCardProps {
   onSelect: (skill: CatalogSkill) => void;
   onInstall: (skillId: string, source?: { owner: string; repo: string }) => void;
 }
-
-const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
-  const [iconUrlError, setIconUrlError] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
-  const letter = skill.displayName.charAt(0).toUpperCase();
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
-
-  // 1. Check bundled icon by skill ID, keyword match, then by source
-  const iconDef = resolveSkillIcon(skill.id, skill.source);
-
-  // Only probe monochrome for remote URLs we'll actually render
-  const remoteUrl = !iconDef ? skill.iconUrl : undefined;
-  const isMonochrome = useIsMonochrome(remoteUrl);
-
-  if (iconDef) {
-    let processed = iconDef.data;
-    if (iconDef.preserveColors) {
-      processed = processed.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
-    } else {
-      const fillColor = isDark ? '#ffffff' : `#${iconDef.color}`;
-      processed = processed
-        .replace(/\bwidth="[^"]*"/g, '')
-        .replace(/\bheight="[^"]*"/g, '')
-        .replace('<svg ', `<svg fill="${fillColor}" `);
-    }
-    processed = processed.replace('<svg ', '<svg class="h-full w-full" ');
-
-    return (
-      <div
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 p-2"
-        // Safe to use: SVGs are from bundled, trusted icon definitions (not user input)
-        dangerouslySetInnerHTML={{ __html: processed }}
-      />
-    );
-  }
-
-  // 2. Remote iconUrl (OpenAI skill assets or GitHub avatars)
-  if (skill.iconUrl && !iconUrlError) {
-    const isAvatar = skill.iconUrl.includes('github.com/') && skill.iconUrl.includes('.png');
-    return (
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5">
-        <img
-          src={skill.iconUrl}
-          alt=""
-          className={`h-full w-full object-contain ${isAvatar ? 'rounded-lg' : `rounded-lg ${isMonochrome !== false ? 'dark:invert' : ''}`}`.trim()}
-          onError={() => setIconUrlError(true)}
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-
-  // 3. Owner GitHub avatar fallback (separate error state from iconUrl)
-  if (skill.source === 'skills-sh' && skill.owner && !avatarError) {
-    const avatarUrl = `https://github.com/${skill.owner}.png?size=80`;
-    // Skip if the iconUrl we just failed was already this avatar
-    if (skill.iconUrl === avatarUrl && iconUrlError) {
-      // Fall through to letter
-    } else {
-      return (
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5">
-          <img
-            src={avatarUrl}
-            alt=""
-            className="h-full w-full rounded-lg object-cover"
-            onError={() => setAvatarError(true)}
-            loading="lazy"
-          />
-        </div>
-      );
-    }
-  }
-
-  // 4. Letter fallback
-  return (
-    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-sm font-semibold text-foreground/60">
-      {letter}
-    </div>
-  );
-};
 
 const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => {
   return (
@@ -115,7 +32,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
       }}
       className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md"
     >
-      <SkillIcon skill={skill} />
+      <SkillIconRenderer skill={skill} />
 
       {/* Content */}
       <div className="min-w-0 flex-1">
