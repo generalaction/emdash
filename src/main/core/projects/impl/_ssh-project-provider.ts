@@ -181,6 +181,10 @@ export class SshProjectProvider implements ProjectProvider {
     return this.teadownTask(taskId);
   }
 
+  async removeTaskWorktree(_taskBranch: string): Promise<void> {
+    // Not implemented for SSH providers
+  }
+
   async cleanup(): Promise<void> {
     sshConnectionManager.off('connection-event', this.handleConnectionEvent);
     await Promise.all(Array.from(this.environments.keys()).map((id) => this.teadownTask(id)));

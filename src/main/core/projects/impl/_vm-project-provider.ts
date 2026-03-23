@@ -47,6 +47,10 @@ export class VmEnvironmentProvider implements ProjectProvider {
     return ok();
   }
 
+  async removeTaskWorktree(_taskBranch: string): Promise<void> {
+    // Not implemented for VM providers
+  }
+
   async cleanup(): Promise<void> {
     // No-op until implemented.
   }

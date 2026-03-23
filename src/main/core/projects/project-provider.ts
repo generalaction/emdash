@@ -46,5 +46,7 @@ export interface ProjectProvider {
   getTask(taskId: string): TaskProvider | undefined;
   getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus;
   teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>>;
+  removeTaskWorktree(taskBranch: string): Promise<void>;
+  moveTaskWorktree(oldBranch: string, newBranch: string): Promise<void>;
   cleanup(): Promise<void>;
 }

@@ -248,6 +248,21 @@ export class LocalProjectProvider implements ProjectProvider {
     await task.terminals.destroyAll();
   }
 
+  async removeTaskWorktree(taskBranch: string): Promise<void> {
+    const worktreePath = await this.worktreeService.getWorktree(taskBranch);
+    if (worktreePath) {
+      await this.worktreeService.removeWorktree(worktreePath);
+    }
+  }
+
+  async moveTaskWorktree(oldBranch: string, newBranch: string): Promise<void> {
+    const oldPath = await this.worktreeService.getWorktree(oldBranch);
+    if (oldPath) {
+      const newPath = oldPath.replace(oldBranch, newBranch);
+      await this.worktreeService.moveWorktree(oldPath, newPath);
+    }
+  }
+
   async cleanup(): Promise<void> {
     await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teadownTask(id)));
   }
