@@ -7,6 +7,8 @@ import {
 } from '@shared/changelog';
 import { log } from '../lib/logger';
 
+const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/generalaction/emdash/releases';
+
 type ChangelogCandidate = {
   version?: string | null;
   title?: string | null;
@@ -21,6 +23,9 @@ type ChangelogCandidate = {
   date?: string | null;
   url?: string | null;
   href?: string | null;
+  image?: string | null;
+  image_url?: string | null;
+  screenshot?: string | null;
 };
 
 function firstString(...values: Array<unknown>): string | undefined {
@@ -142,7 +147,16 @@ function htmlToMarkdown(html: string): string {
     .replace(/<\/(ul|ol)>/gi, '\n')
     .replace(/<(ul|ol)\b[^>]*>/gi, '\n');
 
-  const withParagraphs = withLists
+  const withImages = withLists.replace(
+    /<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>/gi,
+    (_match, _quote, src: string) => {
+      const altMatch = _match.match(/\balt=(["'])(.*?)\1/i);
+      const alt = altMatch ? altMatch[2] : '';
+      return `![${alt}](${src.trim()})`;
+    }
+  );
+
+  const withParagraphs = withImages
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
     .replace(/<p\b[^>]*>/gi, '')
@@ -154,6 +168,42 @@ function htmlToMarkdown(html: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .replace(/ {2,}/g, ' ')
     .trim();
+}
+
+function extractFirstImageUrl(content: string): string | undefined {
+  const match = content.match(/!\[[^\]]*\]\((\s*https?:\/\/[^)]+)\)/);
+  return match?.[1]?.trim();
+}
+
+function extractFirstImageUrlFromHtml(html: string): string | undefined {
+  const match = html.match(/<img\b[^>]*\bsrc=(["'])(https?:\/\/[^"']+)\1/i);
+  return match?.[2]?.trim();
+}
+
+function stripImageFromContent(content: string, imageUrl: string): string {
+  const escaped = escapeRegex(imageUrl);
+  const stripped = content
+    .replace(new RegExp(`!\\[[^\\]]*\\]\\(\\s*${escaped}\\s*\\)\\s*\\n?`), '')
+    .trim();
+  return stripped || content;
+}
+
+function stripHtmlImageFromContent(content: string, imageUrl: string): string {
+  const escaped = escapeRegex(imageUrl);
+  const stripped = content
+    .replace(new RegExp(`<img\\b[^>]*\\bsrc=["']${escaped}["'][^>]*/?>\\s*\\n?`, 'i'), '')
+    .trim();
+  return stripped || content;
+}
+
+function mapGitHubRelease(release: Record<string, unknown>): ChangelogCandidate {
+  return {
+    version: typeof release.tag_name === 'string' ? release.tag_name : null,
+    title: typeof release.name === 'string' ? release.name : null,
+    body: typeof release.body === 'string' ? release.body : null,
+    published_at: typeof release.published_at === 'string' ? release.published_at : null,
+    url: typeof release.html_url === 'string' ? release.html_url : null,
+  };
 }
 
 function extractSummaryFromContent(content: string): string {
@@ -213,7 +263,22 @@ function normalizeEntry(
     extractSummaryFromContent(dedupedContent) ??
     `See what changed in Emdash v${version}.`;
 
-  const content = dedupedContent || summary || `See what changed in Emdash v${version}.`;
+  const explicitImage = firstString(candidate.image, candidate.image_url, candidate.screenshot);
+  const contentImageUrl = !explicitImage
+    ? (extractFirstImageUrl(contentSource) ?? extractFirstImageUrlFromHtml(contentSource))
+    : undefined;
+  const htmlImageUrl =
+    !explicitImage && !contentImageUrl
+      ? firstString(candidate.contentHtml, candidate.html)
+        ? extractFirstImageUrlFromHtml(firstString(candidate.contentHtml, candidate.html)!)
+        : undefined
+      : undefined;
+  const image = explicitImage ?? contentImageUrl ?? htmlImageUrl;
+
+  const rawContent = dedupedContent || summary || `See what changed in Emdash v${version}.`;
+  const content = contentImageUrl
+    ? stripHtmlImageFromContent(stripImageFromContent(rawContent, contentImageUrl), contentImageUrl)
+    : rawContent;
 
   return {
     version,
@@ -222,6 +287,7 @@ function normalizeEntry(
     content,
     publishedAt: firstString(candidate.publishedAt, candidate.published_at, candidate.date),
     url: firstString(candidate.url, candidate.href),
+    image,
   };
 }
 
@@ -401,6 +467,35 @@ class ChangelogService {
     }
   }
 
+  private async getGitHubReleaseEntry(requestedVersion?: string): Promise<ChangelogEntry | null> {
+    try {
+      const version = normalizeChangelogVersion(requestedVersion);
+      const url = version
+        ? `${GITHUB_RELEASES_API_URL}/tags/v${version}`
+        : `${GITHUB_RELEASES_API_URL}/latest`;
+
+      const payload = await fetchJson(url);
+      if (!payload || typeof payload !== 'object') return null;
+
+      return normalizeEntry(
+        mapGitHubRelease(payload as Record<string, unknown>),
+        version ?? undefined
+      );
+    } catch (error) {
+      log.debug('GitHub releases fetch failed', { error });
+      return null;
+    }
+  }
+
+  private async supplementWithGitHubImage(entry: ChangelogEntry): Promise<ChangelogEntry> {
+    if (entry.image) return entry;
+
+    const ghEntry = await this.getGitHubReleaseEntry(entry.version);
+    if (ghEntry?.image) return { ...entry, image: ghEntry.image };
+
+    return entry;
+  }
+
   async getLatestEntry(requestedVersion?: string): Promise<ChangelogEntry | null> {
     const version = normalizeChangelogVersion(requestedVersion);
     const apiUrls = [
@@ -422,23 +517,28 @@ class ChangelogService {
           .filter((candidate): candidate is ChangelogEntry => candidate !== null);
         const match = pickBestCandidate(entries, version ?? undefined);
         if (match) {
-          if (match.publishedAt) return match;
-
-          const htmlEntry = await this.getHtmlEntry(match.version);
-          if (!htmlEntry) return match;
-
-          return {
-            ...match,
-            publishedAt: htmlEntry.publishedAt ?? match.publishedAt,
-            url: match.url ?? htmlEntry.url,
-          };
+          let result = match;
+          if (!match.publishedAt) {
+            const htmlEntry = await this.getHtmlEntry(match.version);
+            if (htmlEntry) {
+              result = {
+                ...match,
+                publishedAt: htmlEntry.publishedAt ?? match.publishedAt,
+                url: match.url ?? htmlEntry.url,
+              };
+            }
+          }
+          return this.supplementWithGitHubImage(result);
         }
       } catch (error) {
         log.debug('Changelog JSON fetch failed', { url, error });
       }
     }
 
-    return this.getHtmlEntry(version ?? undefined);
+    const htmlEntry = await this.getHtmlEntry(version ?? undefined);
+    if (htmlEntry) return this.supplementWithGitHubImage(htmlEntry);
+
+    return this.getGitHubReleaseEntry(version ?? undefined);
   }
 }
 
