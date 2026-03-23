@@ -4,6 +4,7 @@ import type { AgentEvent } from '../../shared/agentEvents';
 import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
+import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -352,7 +353,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (taskPath: string) => Promise<{
+      getGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -391,13 +392,13 @@ declare global {
         >;
         error?: string;
       }>;
-      watchGitStatus: (taskPath: string) => Promise<{
+      watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         watchId?: string;
         error?: string;
       }>;
       unwatchGitStatus: (
-        taskPath: string,
+        arg: string | { taskPath: string; taskId?: string },
         watchId?: string
       ) => Promise<{
         success: boolean;
@@ -408,6 +409,7 @@ declare global {
       ) => () => void;
       getFileDiff: (args: {
         taskPath: string;
+        taskId?: string;
         filePath: string;
         baseRef?: string;
         forceLarge?: boolean;
@@ -416,11 +418,11 @@ declare global {
         diff?: DiffPayload;
         error?: string;
       }>;
-      updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+      updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) => Promise<{
         success: boolean;
         error?: string;
       }>;
-      revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+      revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) => Promise<{
         success: boolean;
         action?: 'reverted';
         error?: string;
@@ -498,6 +500,7 @@ declare global {
       }>;
       gitCommitAndPush: (args: {
         taskPath: string;
+        taskId?: string;
         commitMessage?: string;
         createBranchIfOnDefault?: boolean;
         branchPrefix?: string;
@@ -528,7 +531,7 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      mergeToMain: (args: { taskPath: string }) => Promise<{
+      mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         output?: string;
         prUrl?: string;
@@ -612,7 +615,7 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      getBranchStatus: (args: { taskPath: string }) => Promise<{
+      getBranchStatus: (args: { taskPath: string; taskId?: string }) => Promise<{
         success: boolean;
         branch?: string;
         defaultBranch?: string;
@@ -660,6 +663,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;
@@ -671,6 +676,8 @@ declare global {
           userOptOut: boolean;
           hasKeyAndHost: boolean;
           onboardingSeen?: boolean;
+          posthogKey?: string;
+          posthogHost?: string;
         };
         error?: string;
       }>;
@@ -789,12 +796,42 @@ declare global {
         projectPath: string,
         content: string
       ) => Promise<{ success: boolean; path?: string; error?: string }>;
+      ensureGitignore: (
+        projectPath: string,
+        patterns: string[]
+      ) => Promise<{ success: boolean; error?: string }>;
       // Attachments
       saveAttachment: (args: { taskPath: string; srcPath: string; subdir?: string }) => Promise<{
         success: boolean;
         absPath?: string;
         relPath?: string;
         fileName?: string;
+        error?: string;
+      }>;
+
+      // Emdash Account
+      accountGetSession: () => Promise<{
+        success: boolean;
+        data?: {
+          user: { userId: string; username: string; avatarUrl: string; email: string } | null;
+          isSignedIn: boolean;
+          hasAccount: boolean;
+        };
+        error?: string;
+      }>;
+      accountSignIn: () => Promise<{
+        success: boolean;
+        data?: { user: { userId: string; username: string; avatarUrl: string; email: string } };
+        error?: string;
+      }>;
+      accountSignOut: () => Promise<{ success: boolean; error?: string }>;
+      accountCheckServerHealth: () => Promise<{
+        success: boolean;
+        data?: { available: boolean };
+      }>;
+      accountValidateSession: () => Promise<{
+        success: boolean;
+        data?: { valid: boolean };
         error?: string;
       }>;
 
@@ -808,6 +845,12 @@ declare global {
         verification_uri?: string;
         expires_in?: number;
         interval?: number;
+        error?: string;
+      }>;
+      githubAuthOAuth: () => Promise<{
+        success: boolean;
+        token?: string;
+        user?: any;
         error?: string;
       }>;
       githubCancelAuth: () => Promise<{ success: boolean; error?: string }>;
@@ -1187,7 +1230,10 @@ declare global {
         data?: import('@shared/skills/types').CatalogIndex;
         error?: string;
       }>;
-      skillsInstall: (args: { skillId: string }) => Promise<{
+      skillsInstall: (args: {
+        skillId: string;
+        source?: { owner: string; repo: string };
+      }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
@@ -1196,7 +1242,10 @@ declare global {
         success: boolean;
         error?: string;
       }>;
-      skillsGetDetail: (args: { skillId: string }) => Promise<{
+      skillsGetDetail: (args: {
+        skillId: string;
+        source?: { owner: string; repo: string };
+      }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
@@ -1206,11 +1255,61 @@ declare global {
         data?: import('@shared/skills/types').DetectedAgent[];
         error?: string;
       }>;
+      skillsSearch: (args: { query: string }) => Promise<{
+        success: boolean;
+        data?: import('@shared/skills/types').CatalogSkill[];
+        error?: string;
+      }>;
       skillsCreate: (args: { name: string; description: string; content?: string }) => Promise<{
         success: boolean;
         data?: import('@shared/skills/types').CatalogSkill;
         error?: string;
       }>;
+
+      // Workspace provisioning
+      workspaceProvision: (args: {
+        taskId: string;
+        repoUrl: string;
+        branch: string;
+        baseRef: string;
+        provisionCommand: string;
+        projectPath: string;
+      }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+      workspaceCancel: (args: {
+        instanceId: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceTerminate: (args: {
+        instanceId: string;
+        terminateCommand: string;
+        projectPath: string;
+        env?: Record<string, string>;
+      }) => Promise<{ success: boolean; error?: string }>;
+      workspaceStatus: (args: { taskId: string }) => Promise<{
+        success: boolean;
+        data?: {
+          id: string;
+          taskId: string;
+          externalId: string | null;
+          host: string;
+          port: number;
+          username: string | null;
+          worktreePath: string | null;
+          status: string;
+          connectionId: string | null;
+          createdAt: number;
+          terminatedAt: number | null;
+        } | null;
+        error?: string;
+      }>;
+      onWorkspaceProvisionProgress: (
+        listener: (data: { instanceId: string; line: string }) => void
+      ) => () => void;
+      onWorkspaceProvisionTimeoutWarning: (
+        listener: (data: { instanceId: string; timeoutMs: number }) => void
+      ) => () => void;
+      onWorkspaceProvisionComplete: (
+        listener: (data: { instanceId: string; status: string; error?: string }) => void
+      ) => () => void;
 
       // MCP
       mcpLoadAll: () => Promise<{
@@ -1236,6 +1335,19 @@ declare global {
         data?: import('../../shared/mcp/types').McpProvidersResponse[];
         error?: string;
       }>;
+
+      // Performance Monitor
+      perfSubscribe: () => Promise<{
+        success: boolean;
+        data?: ResourceMetricsSnapshot;
+      }>;
+      perfUnsubscribe: () => Promise<{ success: boolean }>;
+      perfGetSnapshot: (mode?: 'interactive' | 'idle') => Promise<{
+        success: boolean;
+        data?: ResourceMetricsSnapshot;
+        error?: string;
+      }>;
+      onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
     };
   }
 }
@@ -1533,7 +1645,7 @@ export interface ElectronAPI {
     output?: string;
     error?: string;
   }>;
-  mergeToMain: (args: { taskPath: string }) => Promise<{
+  mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
     success: boolean;
     output?: string;
     prUrl?: string;
@@ -1816,7 +1928,7 @@ export interface ElectronAPI {
     data?: import('@shared/skills/types').CatalogIndex;
     error?: string;
   }>;
-  skillsInstall: (args: { skillId: string }) => Promise<{
+  skillsInstall: (args: { skillId: string; source?: { owner: string; repo: string } }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
@@ -1825,7 +1937,10 @@ export interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
-  skillsGetDetail: (args: { skillId: string }) => Promise<{
+  skillsGetDetail: (args: {
+    skillId: string;
+    source?: { owner: string; repo: string };
+  }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
@@ -1835,11 +1950,59 @@ export interface ElectronAPI {
     data?: import('@shared/skills/types').DetectedAgent[];
     error?: string;
   }>;
+  skillsSearch: (args: { query: string }) => Promise<{
+    success: boolean;
+    data?: import('@shared/skills/types').CatalogSkill[];
+    error?: string;
+  }>;
   skillsCreate: (args: { name: string; description: string }) => Promise<{
     success: boolean;
     data?: import('@shared/skills/types').CatalogSkill;
     error?: string;
   }>;
+
+  // Workspace provisioning
+  workspaceProvision: (args: {
+    taskId: string;
+    repoUrl: string;
+    branch: string;
+    baseRef: string;
+    provisionCommand: string;
+    projectPath: string;
+  }) => Promise<{ success: boolean; data?: { instanceId: string }; error?: string }>;
+  workspaceCancel: (args: { instanceId: string }) => Promise<{ success: boolean; error?: string }>;
+  workspaceTerminate: (args: {
+    instanceId: string;
+    terminateCommand: string;
+    projectPath: string;
+    env?: Record<string, string>;
+  }) => Promise<{ success: boolean; error?: string }>;
+  workspaceStatus: (args: { taskId: string }) => Promise<{
+    success: boolean;
+    data?: {
+      id: string;
+      taskId: string;
+      externalId: string | null;
+      host: string;
+      port: number;
+      username: string | null;
+      worktreePath: string | null;
+      status: string;
+      connectionId: string | null;
+      createdAt: number;
+      terminatedAt: number | null;
+    } | null;
+    error?: string;
+  }>;
+  onWorkspaceProvisionProgress: (
+    listener: (data: { instanceId: string; line: string }) => void
+  ) => () => void;
+  onWorkspaceProvisionTimeoutWarning: (
+    listener: (data: { instanceId: string; timeoutMs: number }) => void
+  ) => () => void;
+  onWorkspaceProvisionComplete: (
+    listener: (data: { instanceId: string; status: string; error?: string }) => void
+  ) => () => void;
 
   // MCP
   mcpLoadAll: () => Promise<{
@@ -1865,6 +2028,19 @@ export interface ElectronAPI {
     data?: import('../../shared/mcp/types').McpProvidersResponse[];
     error?: string;
   }>;
+
+  // Performance Monitor
+  perfSubscribe: () => Promise<{
+    success: boolean;
+    data?: ResourceMetricsSnapshot;
+  }>;
+  perfUnsubscribe: () => Promise<{ success: boolean }>;
+  perfGetSnapshot: (mode?: 'interactive' | 'idle') => Promise<{
+    success: boolean;
+    data?: ResourceMetricsSnapshot;
+    error?: string;
+  }>;
+  onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

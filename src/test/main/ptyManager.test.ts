@@ -383,6 +383,63 @@ describe('ptyManager provider command resolution', () => {
       })
     );
   });
+
+  it('attaches PTY pipe error suppression on Windows only', async () => {
+    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    const onWin32 = vi.fn();
+    const onDarwin = vi.fn();
+
+    try {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+      });
+
+      nodePtySpawnMock.mockReturnValueOnce({
+        on: onWin32,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      });
+
+      const { startPty } = await import('../../main/services/ptyManager');
+      await startPty({
+        id: 'codex-main-task-win32',
+        cwd: '/tmp/task',
+        shell: '/bin/zsh',
+      });
+
+      expect(onWin32).toHaveBeenCalledWith('error', expect.any(Function));
+
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+      });
+
+      nodePtySpawnMock.mockReturnValueOnce({
+        on: onDarwin,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      });
+
+      await startPty({
+        id: 'codex-main-task-darwin',
+        cwd: '/tmp/task',
+        shell: '/bin/zsh',
+      });
+
+      expect(onDarwin).not.toHaveBeenCalledWith('error', expect.any(Function));
+    } finally {
+      if (originalPlatformDescriptor) {
+        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+      }
+    }
+  });
 });
 
 describe('stale Claude session detection', () => {

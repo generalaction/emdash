@@ -224,7 +224,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath);
+  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath, {
+    taskId: resolvedTaskId,
+  });
   const { toast } = useToast();
   const hasChanges = fileChanges.length > 0;
   const stagedCount = fileChanges.filter((change) => change.isStaged).length;
@@ -284,7 +286,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
 
       setBranchStatusLoading(true);
       try {
-        const res = await window.electronAPI.getBranchStatus({ taskPath: safeTaskPath });
+        const res = await window.electronAPI.getBranchStatus({
+          taskPath: safeTaskPath,
+          taskId: resolvedTaskId,
+        });
         if (!cancelled) {
           setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
         }
@@ -308,6 +313,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     try {
       await window.electronAPI.updateIndex({
         taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
         action: stage ? 'stage' : 'unstage',
         scope: 'paths',
         filePaths: [filePath],
@@ -335,6 +341,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     try {
       await window.electronAPI.updateIndex({
         taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
         action: 'stage',
         scope: 'all',
       });
@@ -357,7 +364,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setRestoreTarget(null);
     setRevertingFiles((prev) => new Set(prev).add(filePath));
     try {
-      await window.electronAPI.revertFile({ taskPath: safeTaskPath, filePath });
+      await window.electronAPI.revertFile({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+        filePath,
+      });
       dispatchFileChangeEvent(safeTaskPath, filePath);
     } catch (err) {
       console.error('Restore failed:', err);
@@ -400,6 +411,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     try {
       const result = await window.electronAPI.gitCommitAndPush({
         taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
         commitMessage: trimmedMessage,
         createBranchIfOnDefault: true,
       });
@@ -423,7 +435,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         // Reload branch status so the Create PR button appears immediately
         try {
           setBranchStatusLoading(true);
-          const bs = await window.electronAPI.getBranchStatus({ taskPath: taskPathAtCommit });
+          const bs = await window.electronAPI.getBranchStatus({
+            taskPath: taskPathAtCommit,
+            taskId: resolvedTaskId,
+          });
           if (taskPathRef.current !== taskPathAtCommit) return;
           setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
         } catch {
@@ -453,7 +468,10 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const handleMergeToMain = async () => {
     setIsMergingToMain(true);
     try {
-      const result = await window.electronAPI.mergeToMain({ taskPath: safeTaskPath });
+      const result = await window.electronAPI.mergeToMain({
+        taskPath: safeTaskPath,
+        taskId: resolvedTaskId,
+      });
       if (result.success) {
         toast({
           title: 'Merged to Main',

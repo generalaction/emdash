@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
 import { agentStatusStore } from '../lib/agentStatusStore';
@@ -22,6 +22,7 @@ import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
@@ -32,6 +33,7 @@ import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useTerminalSearch } from '../hooks/useTerminalSearch';
 import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 import { getReviewConversationMetadata, parseConversationMetadata } from '@shared/reviewPreset';
@@ -163,6 +165,10 @@ const ChatInterface: React.FC<Props> = ({
   const currentAgentStatus = agentStatuses[agent];
   const [cliStartError, setCliStartError] = useState<string | null>(null);
 
+  // Workspace-provisioned remote connection overrides
+  const { connectionId: workspaceConnectionId, remotePath: workspaceRemotePath } =
+    useWorkspaceConnection(task);
+
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -227,6 +233,28 @@ const ChatInterface: React.FC<Props> = ({
   const terminalCwd = useMemo(() => {
     return task.path;
   }, [task.path]);
+
+  // Whether this is a workspace-provisioned task (may still be provisioning).
+  const isWorkspaceTask = !!task.metadata?.workspace;
+
+  // For workspace tasks, use workspace connection; otherwise use project-level connection
+  const effectiveRemote = useMemo(() => {
+    if (workspaceConnectionId) {
+      return { connectionId: workspaceConnectionId };
+    }
+    if (projectRemoteConnectionId) {
+      return { connectionId: projectRemoteConnectionId };
+    }
+    return undefined;
+  }, [workspaceConnectionId, projectRemoteConnectionId]);
+
+  // For workspace tasks, use the remote worktree path for cd on the remote machine
+  const effectiveCwd = useMemo(() => {
+    if (workspaceConnectionId && workspaceRemotePath) {
+      return workspaceRemotePath;
+    }
+    return terminalCwd;
+  }, [workspaceConnectionId, workspaceRemotePath, terminalCwd]);
 
   const taskEnv = useMemo(() => {
     if (!projectPath) return undefined;
@@ -431,8 +459,9 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [activeConversationId, conversations, task.id]);
 
-  // Ref to control terminal focus imperatively if needed
-  const terminalRef = useRef<{ focus: () => void }>(null);
+  // Ref to control terminal focus and viewport scrolling imperatively.
+  const terminalRef = useRef<TerminalPaneHandle>(null);
+  const handleTerminalViewportWheelForwarding = useTerminalViewportWheelForwarding(terminalRef);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const {
     isSearchOpen,
@@ -1206,7 +1235,10 @@ const ChatInterface: React.FC<Props> = ({
               })()}
             </div>
           </div>
-          <div className="mt-4 min-h-0 flex-1 px-6">
+          <div
+            className="mt-4 min-h-0 flex-1 px-6"
+            onWheelCapture={handleTerminalViewportWheelForwarding}
+          >
             <div
               ref={terminalPanelRef}
               className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
@@ -1235,17 +1267,15 @@ const ChatInterface: React.FC<Props> = ({
                 onStep={stepSearch}
                 onClose={closeSearch}
               />
-              {/* Wait for conversations to load to ensure stable terminalId */}
-              {conversationsLoaded && (
+              {/* Wait for conversations to load to ensure stable terminalId.
+                  For workspace tasks, also wait until the workspace connection is
+                  resolved so the PTY starts on the remote host, not locally. */}
+              {conversationsLoaded && (!isWorkspaceTask || workspaceConnectionId) && (
                 <TerminalPane
                   ref={terminalRef}
                   id={terminalId}
-                  cwd={terminalCwd}
-                  remote={
-                    projectRemoteConnectionId
-                      ? { connectionId: projectRemoteConnectionId }
-                      : undefined
-                  }
+                  cwd={effectiveCwd}
+                  remote={effectiveRemote}
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={taskEnv}

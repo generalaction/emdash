@@ -12,7 +12,9 @@ import {
 } from '@shared/reviewPreset';
 
 export type DeepPartial<T> = {
-  [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
+  [K in keyof T]?: NonNullable<T[K]> extends object
+    ? DeepPartial<NonNullable<T[K]>> | Extract<T[K], null>
+    : T[K];
 };
 
 export type AppSettingsUpdate = DeepPartial<AppSettings>;
@@ -23,6 +25,7 @@ const IS_MAC = process.platform === 'darwin';
 export interface RepositorySettings {
   branchPrefix: string; // e.g., 'emdash'
   pushOnCreate: boolean;
+  autoCloseLinkedIssuesOnPrCreate: boolean;
 }
 
 export type ShortcutModifier =
@@ -39,24 +42,28 @@ export interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
+export type KeyboardShortcutBinding = ShortcutBinding | null;
+
 export interface KeyboardSettings {
-  commandPalette?: ShortcutBinding;
-  settings?: ShortcutBinding;
-  toggleLeftSidebar?: ShortcutBinding;
-  toggleRightSidebar?: ShortcutBinding;
-  toggleTheme?: ShortcutBinding;
-  toggleKanban?: ShortcutBinding;
-  toggleEditor?: ShortcutBinding;
-  closeModal?: ShortcutBinding;
-  nextProject?: ShortcutBinding;
-  prevProject?: ShortcutBinding;
-  newTask?: ShortcutBinding;
-  nextAgent?: ShortcutBinding;
-  prevAgent?: ShortcutBinding;
+  commandPalette?: KeyboardShortcutBinding;
+  settings?: KeyboardShortcutBinding;
+  toggleLeftSidebar?: KeyboardShortcutBinding;
+  toggleRightSidebar?: KeyboardShortcutBinding;
+  toggleTheme?: KeyboardShortcutBinding;
+  toggleKanban?: KeyboardShortcutBinding;
+  toggleEditor?: KeyboardShortcutBinding;
+  closeModal?: KeyboardShortcutBinding;
+  nextProject?: KeyboardShortcutBinding;
+  prevProject?: KeyboardShortcutBinding;
+  newTask?: KeyboardShortcutBinding;
+  nextAgent?: KeyboardShortcutBinding;
+  prevAgent?: KeyboardShortcutBinding;
+  openInEditor?: KeyboardShortcutBinding;
 }
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  showResourceMonitor?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
   taskHoverAction?: 'delete' | 'archive';
 }
@@ -140,6 +147,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    autoCloseLinkedIssuesOnPrCreate: true,
   },
   projectPrep: {
     autoInstallOnOpenInEditor: true,
@@ -183,9 +191,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
+    openInEditor: { key: 'o', modifier: 'cmd' },
   },
   interface: {
     autoRightSidebarBehavior: false,
+    showResourceMonitor: false,
     theme: 'system',
     taskHoverAction: 'delete',
   },
@@ -272,8 +282,12 @@ function normalizeShortcutModifier(value: unknown, fallback: ShortcutModifier): 
   return aliases[normalized] ?? fallback;
 }
 
-function isBinding(binding: ShortcutBinding, modifier: ShortcutModifier, key: string): boolean {
-  return binding.modifier === modifier && binding.key === key;
+function isBinding(
+  binding: KeyboardShortcutBinding | undefined,
+  modifier: ShortcutModifier,
+  key: string
+): boolean {
+  return binding?.modifier === modifier && binding?.key === key;
 }
 
 function assertNoKeyboardShortcutConflicts(keyboard?: KeyboardSettings): void {
@@ -350,6 +364,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
+      autoCloseLinkedIssuesOnPrCreate: DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate,
     },
     projectPrep: {
       autoInstallOnOpenInEditor: DEFAULT_SETTINGS.projectPrep.autoInstallOnOpenInEditor,
@@ -373,9 +388,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
+  const autoCloseLinkedIssuesOnPrCreate = Boolean(
+    repo?.autoCloseLinkedIssuesOnPrCreate ??
+      DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate
+  );
 
   out.repository.branchPrefix = prefix;
   out.repository.pushOnCreate = push;
+  out.repository.autoCloseLinkedIssuesOnPrCreate = autoCloseLinkedIssuesOnPrCreate;
   // Project prep
   const prep = (input as any)?.projectPrep || {};
   out.projectPrep.autoInstallOnOpenInEditor = Boolean(
@@ -458,7 +478,11 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   // Keyboard
   const keyboard = (input as any)?.keyboard || {};
-  const normalizeBinding = (binding: any, defaultBinding: ShortcutBinding): ShortcutBinding => {
+  const normalizeBinding = (
+    binding: any,
+    defaultBinding: ShortcutBinding
+  ): KeyboardShortcutBinding => {
+    if (binding === null) return null;
     if (!binding || typeof binding !== 'object') return defaultBinding;
     const key = normalizeShortcutKey(binding.key) ?? defaultBinding.key;
     const modifier = normalizeShortcutModifier(binding.modifier, defaultBinding.modifier);
@@ -486,6 +510,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
+    openInEditor: normalizeBinding(keyboard.openInEditor, DEFAULT_SETTINGS.keyboard!.openInEditor!),
   };
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();
   const isLegacyArrowPair =
@@ -504,6 +529,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   out.interface = {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
+    showResourceMonitor: Boolean(
+      iface?.showResourceMonitor ?? DEFAULT_SETTINGS.interface!.showResourceMonitor
     ),
     theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
       ? iface.theme
@@ -621,19 +649,29 @@ export function updateProviderCustomConfig(
   config: ProviderCustomConfig | undefined
 ): void {
   const settings = getAppSettings();
-  const currentConfigs = settings.providerConfigs ?? {};
+  const currentConfigs = { ...(settings.providerConfigs ?? {}) };
 
   if (config === undefined) {
-    // Remove the config
-    const { [providerId]: _, ...rest } = currentConfigs;
-    updateAppSettings({ providerConfigs: rest });
+    delete currentConfigs[providerId];
   } else {
-    // Update/add the config
-    updateAppSettings({
-      providerConfigs: {
-        ...currentConfigs,
-        [providerId]: config,
-      },
-    });
+    // Strip undefined values so removed fields (e.g. env after
+    // deleting all env vars) don't linger from a previous save.
+    const cleaned: ProviderCustomConfig = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (v !== undefined) {
+        cleaned[k as keyof ProviderCustomConfig] = v;
+      }
+    }
+    if (Object.keys(cleaned).length > 0) {
+      currentConfigs[providerId] = cleaned;
+    } else {
+      delete currentConfigs[providerId];
+    }
   }
+
+  // Write the full providerConfigs map directly to avoid deepMerge
+  // preserving stale nested keys from the old config.
+  const next = normalizeSettings({ ...settings, providerConfigs: currentConfigs });
+  persistSettings(next);
+  cached = next;
 }

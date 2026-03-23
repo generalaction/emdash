@@ -15,21 +15,24 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useToast } from '../hooks/use-toast';
+import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import {
   ArrowUpRight,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Github,
   Loader2,
   MessageSquare,
   Search,
+  XCircle,
 } from 'lucide-react';
 import type { Task } from '../types/app';
 
 interface OpenPrsSectionProps {
   projectPath: string;
   projectId: string;
-  onReviewPr: (task: Task) => void;
 }
 
 const DEFAULT_VISIBLE = 10;
@@ -122,6 +125,50 @@ function getReviewStateMeta(state?: PullRequestReviewer['state']): {
   }
 }
 
+function CheckStatusIcon({
+  status,
+}: {
+  status: 'pass' | 'fail' | 'pending' | 'none' | null | undefined;
+}) {
+  if (!status || status === 'none') return null;
+
+  if (status === 'pass') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">All checks passed</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (status === 'fail') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0">
+            <XCircle className="h-4 w-4 text-red-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">Some checks failed</TooltipContent>
+      </Tooltip>
+    );
+  }
+  // pending
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="shrink-0">
+          <Clock className="h-4 w-4 text-amber-500" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">Checks in progress</TooltipContent>
+    </Tooltip>
+  );
+}
+
 const ReviewerBadge: React.FC<{ reviewer: PullRequestReviewer }> = ({ reviewer }) => {
   const meta = getReviewStateMeta(reviewer.state);
 
@@ -183,8 +230,9 @@ const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewe
   );
 };
 
-const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, onReviewPr }) => {
+const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId }) => {
   const { toast } = useToast();
+  const { handleOpenExternalTask } = useTaskManagementContext();
   const [collapsed, setCollapsed] = useState(false);
   const [creatingForPr, setCreatingForPr] = useState<number | null>(null);
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -239,7 +287,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: result.task.metadata,
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else if (result.success && result.worktree) {
         const task: Task = {
           id: result.worktree.id || crypto.randomUUID(),
@@ -251,7 +299,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
           useWorktree: true,
           metadata: { prNumber: pr.number, prTitle: pr.title },
         };
-        onReviewPr(task);
+        handleOpenExternalTask(task);
       } else {
         toast({
           title: 'Failed to create review task',
@@ -386,6 +434,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                           <span className={`${prBadgeClass} shrink-0`}>#{pr.number}</span>
+                          <CheckStatusIcon status={pr.checksStatus} />
                           <span className="truncate text-sm font-medium">{pr.title}</span>
                           {pr.isDraft ? (
                             <span className={`${prBadgeClass} shrink-0`}>Draft</span>
@@ -429,6 +478,23 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId,
                               <span>{pr.authorLogin}</span>
                             </>
                           ) : null}
+                          {(pr.additions != null || pr.deletions != null) && (
+                            <>
+                              <span>&middot;</span>
+                              <span className="inline-flex items-center gap-1 font-medium">
+                                {pr.additions != null && (
+                                  <span className="text-green-600 dark:text-green-400">
+                                    +{pr.additions.toLocaleString()}
+                                  </span>
+                                )}
+                                {pr.deletions != null && (
+                                  <span className="text-red-600 dark:text-red-400">
+                                    -{pr.deletions.toLocaleString()}
+                                  </span>
+                                )}
+                              </span>
+                            </>
+                          )}
                         </div>
                         {pr.reviewers && pr.reviewers.length > 0 && (
                           <div className="mt-1">

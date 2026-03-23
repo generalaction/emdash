@@ -5,9 +5,9 @@ import { Info, ExternalLink } from 'lucide-react';
 import { type Agent } from '../types';
 import { type AgentRun } from '../types/chat';
 import { agentConfig } from '../lib/agentConfig';
-import { AgentInfoCard } from './AgentInfoCard';
 import AgentLogo from './AgentLogo';
 import type { UiAgent } from '@/providers/meta';
+import AgentTooltipRow from './AgentTooltipRow';
 
 const MAX_RUNS = 4;
 
@@ -121,13 +121,16 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                 <AgentTooltipRow
                   key={key}
                   id={agent as UiAgent}
-                  isHovered={hoveredAgent === agent || runsSelectOpenFor === agent}
-                  onHover={() => setHoveredAgent(agent)}
-                  onLeave={() => {
-                    if (runsSelectOpenFor !== agent) {
+                  open={hoveredAgent === agent || runsSelectOpenFor === agent}
+                  onOpenChange={(nextOpen) => {
+                    if (nextOpen) {
+                      setHoveredAgent(agent);
+                    } else if (runsSelectOpenFor !== agent) {
                       setHoveredAgent(null);
                     }
                   }}
+                  side="left"
+                  contentClassName="z-[1000] border-foreground/20 bg-background p-0 text-foreground"
                 >
                   <div
                     className="flex h-8 cursor-pointer items-center justify-between rounded-sm px-2 hover:bg-accent"
@@ -243,38 +246,6 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
         </SelectContent>
       </Select>
     </TooltipProvider>
-  );
-};
-
-const AgentTooltipRow: React.FC<{
-  id: UiAgent;
-  children: React.ReactElement;
-  isHovered: boolean;
-  onHover: () => void;
-  onLeave: () => void;
-}> = ({ id, children, isHovered, onHover, onLeave }) => {
-  return (
-    <Tooltip open={isHovered}>
-      <TooltipTrigger asChild>
-        {React.cloneElement(children, {
-          onMouseEnter: onHover,
-          onMouseLeave: onLeave,
-          onPointerEnter: onHover,
-          onPointerLeave: onLeave,
-        })}
-      </TooltipTrigger>
-      <TooltipContent
-        side="left"
-        align="start"
-        className="z-[1000] border-foreground/20 bg-background p-0 text-foreground"
-        onMouseEnter={onHover}
-        onMouseLeave={onLeave}
-        onPointerEnter={onHover}
-        onPointerLeave={onLeave}
-      >
-        <AgentInfoCard id={id} />
-      </TooltipContent>
-    </Tooltip>
   );
 };
 

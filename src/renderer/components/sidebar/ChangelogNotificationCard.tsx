@@ -4,10 +4,13 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import type { ChangelogEntry } from '@shared/changelog';
 import { ArrowRight, X } from 'lucide-react';
+import { useEmdashAccount } from '@/contexts/EmdashAccountProvider';
+import { Button } from '@/components/ui/button';
 
 interface ChangelogNotificationCardProps {
   entry: ChangelogEntry;
   onOpen: () => void;
+  onCreateAccount: () => void;
   onDismiss: () => void;
   className?: string;
 }
@@ -15,10 +18,12 @@ interface ChangelogNotificationCardProps {
 export function ChangelogNotificationCard({
   entry,
   onOpen,
+  onCreateAccount,
   onDismiss,
   className,
 }: ChangelogNotificationCardProps) {
   const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
+  const { hasAccount } = useEmdashAccount();
 
   return (
     <motion.div
@@ -49,6 +54,24 @@ export function ChangelogNotificationCard({
           <ArrowRight className="h-3.5 w-3.5" />
         </div>
       </button>
+
+      {!hasAccount && (
+        <div className="border-t border-border/60 px-3 pb-3 pt-2">
+          <p className="text-xs text-muted-foreground">Emdash now offers accounts.</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCreateAccount();
+            }}
+            className="mt-1.5 h-auto px-0 py-0 text-xs font-medium text-primary hover:bg-transparent hover:underline"
+          >
+            Create account
+            <ArrowRight className="ml-1 h-3 w-3" />
+          </Button>
+        </div>
+      )}
 
       <button
         type="button"

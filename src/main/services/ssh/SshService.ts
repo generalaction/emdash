@@ -5,10 +5,18 @@ import { Connection, ConnectionPool } from './types';
 import { SshCredentialService } from './SshCredentialService';
 import { quoteShellArg } from '../../utils/shellEscape';
 import { readFile } from 'fs/promises';
+import { execFile as execFileCb } from 'child_process';
+import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { spawn, ChildProcess } from 'child_process';
-import { resolveIdentityAgent, resolveProxyCommand } from '../../utils/sshConfigParser';
+
+const execFileAsync = promisify(execFileCb);
+import {
+  resolveIdentityAgent,
+  resolveSshConfigHost,
+  resolveProxyCommand,
+} from '../../utils/sshConfigParser';
 
 /** Maximum number of concurrent SSH connections allowed in the pool. */
 const MAX_CONNECTIONS = 10;
@@ -169,16 +177,25 @@ export class SshService extends EventEmitter {
   }
 
   /**
-   * Builds the ssh2 ConnectConfig from our SshConfig
+   * Builds the ssh2 ConnectConfig from our SshConfig.
+   *
+   * ssh2 does not read ~/.ssh/config, so we resolve the host through
+   * sshConfigParser first. This enables SSH aliases (e.g.
+   * "my-remote-host") to resolve to their actual HostName, Port,
+   * User, and IdentityFile as defined in the user's SSH config.
    */
   private async buildConnectConfig(
     connectionId: string,
     config: SshConfig
   ): Promise<ConnectConfig> {
+    // Resolve SSH config overrides for this host/alias
+    const sshConfigEntry = await resolveSshConfigHost(config.host);
+
     const connectConfig: ConnectConfig = {
-      host: config.host,
-      port: config.port,
-      username: config.username,
+      // Use resolved HostName if available, otherwise the original host
+      host: sshConfigEntry?.hostname ?? config.host,
+      port: config.port ?? sshConfigEntry?.port ?? 22,
+      username: config.username ?? sshConfigEntry?.user,
       readyTimeout: 20000,
       keepaliveInterval: 60000,
       keepaliveCountMax: 3,
@@ -251,7 +268,9 @@ export class SshService extends EventEmitter {
       }
 
       case 'agent': {
-        const identityAgent = await resolveIdentityAgent(config.host);
+        // Prefer the already-resolved config entry to avoid re-parsing ~/.ssh/config
+        const identityAgent =
+          sshConfigEntry?.identityAgent ?? (await resolveIdentityAgent(config.host));
         const agentSocket = identityAgent || process.env.SSH_AUTH_SOCK;
         if (!agentSocket) {
           throw new Error(
@@ -338,7 +357,9 @@ export class SshService extends EventEmitter {
   async executeCommand(connectionId: string, command: string, cwd?: string): Promise<ExecResult> {
     const connection = this.connections[connectionId];
     if (!connection) {
-      throw new Error(`Connection ${connectionId} not found`);
+      // Fallback: execute via SSH CLI binary for connections not in the ssh2 pool
+      // (e.g. workspace-provisioned connections that were never ssh2-connected).
+      return this.executeCommandViaCli(connectionId, command, cwd);
     }
 
     // Update last activity
@@ -383,6 +404,64 @@ export class SshService extends EventEmitter {
         });
       });
     });
+  }
+
+  /**
+   * Fallback: execute a command via the system SSH CLI binary.
+   * Used for connections that exist in the DB but aren't in the ssh2 pool
+   * (e.g. workspace-provisioned connections).
+   */
+  private async executeCommandViaCli(
+    connectionId: string,
+    command: string,
+    cwd?: string
+  ): Promise<ExecResult> {
+    const { getDrizzleClient } = await import('../../db/drizzleClient');
+    const { sshConnections } = await import('../../db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({
+        host: sshConnections.host,
+        port: sshConnections.port,
+        username: sshConnections.username,
+        privateKeyPath: sshConnections.privateKeyPath,
+      })
+      .from(sshConnections)
+      .where(eq(sshConnections.id, connectionId))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) {
+      throw new Error(`Connection ${connectionId} not found`);
+    }
+
+    const sshArgs: string[] = ['-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes'];
+    if (row.port && row.port !== 22) {
+      sshArgs.push('-p', String(row.port));
+    }
+    if (row.privateKeyPath) {
+      sshArgs.push('-i', row.privateKeyPath);
+    }
+
+    const target = row.username ? `${row.username}@${row.host}` : row.host;
+    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+    const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
+
+    try {
+      const { stdout, stderr } = await execFileAsync('ssh', [...sshArgs, target, fullCommand], {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 30000,
+      });
+      return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 };
+    } catch (err: any) {
+      return {
+        stdout: (err.stdout ?? '').trim(),
+        stderr: (err.stderr ?? '').trim(),
+        exitCode: err.code ?? 1,
+      };
+    }
   }
 
   /**

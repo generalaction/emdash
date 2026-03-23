@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { useModalContext } from './ModalProvider';
 import { useAppContext } from './AppContextProvider';
+import { useEmdashAccount } from './EmdashAccountProvider';
 
 type GithubUser = any;
 
@@ -38,6 +39,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const { showModal } = useModalContext();
   const { toast } = useToast();
   const { platform } = useAppContext();
+  const { hasAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const queryClient = useQueryClient();
 
   const [githubLoading, setGithubLoading] = useState(false);
@@ -169,6 +171,23 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         void checkStatus();
       }
 
+      if (hasAccount && (await checkServerHealth())) {
+        setGithubStatusMessage('Authenticating via Emdash account...');
+        try {
+          const result = await window.electronAPI.githubAuthOAuth();
+          if (result.success) {
+            setGithubLoading(false);
+            setGithubStatusMessage(undefined);
+            await refreshSession();
+            await checkStatus();
+            return;
+          }
+          console.warn('OAuth auth failed, falling back to Device Flow:', result.error);
+        } catch (err) {
+          console.warn('OAuth auth error, falling back to Device Flow:', err);
+        }
+      }
+
       setGithubStatusMessage('Starting authentication...');
       const result = await login();
 
@@ -198,6 +217,9 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       });
     }
   }, [
+    hasAccount,
+    checkServerHealth,
+    refreshSession,
     platform,
     toast,
     checkStatus,

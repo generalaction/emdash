@@ -397,6 +397,7 @@ export function Workspace() {
                     <LeftSidebar
                       onSidebarContextChange={handleSidebarContextChange}
                       onCloseSettingsPage={handleCloseSettingsPage}
+                      onOpenAccountSettings={() => openSettingsPage('account')}
                     />
                   </ResizablePanel>
                   <ResizableHandle
