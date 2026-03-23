@@ -9,6 +9,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
 import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import {
   liveTransformTaskName,
@@ -25,7 +26,8 @@ export type RenameTaskModalArgs = {
 type Props = BaseModalProps<void> & RenameTaskModalArgs;
 
 export function RenameTaskModal({ projectId, taskId, currentName, onSuccess, onClose }: Props) {
-  const { tasks, renameTask } = useTasksDataContext();
+  const { tasks } = useTasksDataContext();
+  const { renameTask } = useTaskLifecycleContext();
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

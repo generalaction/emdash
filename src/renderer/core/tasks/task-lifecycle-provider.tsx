@@ -45,6 +45,7 @@ interface TaskLifecycleContextValue {
   archiveTask: (projectId: string, taskId: string) => void;
   restoreTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
+  renameTask: (projectId: string, taskId: string, newName: string) => Promise<void>;
 }
 
 const TaskLifecycleContext = createContext<TaskLifecycleContextValue | null>(null);
@@ -186,6 +187,14 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
     // TODO: implement delete task
   }, []);
 
+  const renameTask = useCallback(
+    async (projectId: string, taskId: string, newName: string) => {
+      await rpc.tasks.renameTask(projectId, taskId, newName);
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    [queryClient]
+  );
+
   return (
     <TaskLifecycleContext.Provider
       value={{
@@ -197,6 +206,7 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
         archiveTask,
         restoreTask,
         deleteTask,
+        renameTask,
       }}
     >
       {children}
