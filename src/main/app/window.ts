@@ -30,7 +30,15 @@ export function createMainWindow(): BrowserWindow {
       // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : { frame: false }),
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 16, y: 12 },
+          // Enable Window Controls Overlay API so the renderer can use
+          // env(titlebar-area-x) to position content after the traffic lights.
+          titleBarOverlay: { height: 36 },
+        }
+      : { frame: false }),
     show: false,
   });
 

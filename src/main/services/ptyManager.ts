@@ -1804,3 +1804,30 @@ export function startLifecyclePty(options: {
     },
   };
 }
+
+/**
+ * Return lightweight info about every active PTY for the performance monitor.
+ * Only reads from the in-memory map — no I/O.
+ */
+export function getActivePtyInfo(): Array<{
+  ptyId: string;
+  pid: number | null;
+  kind: 'local' | 'ssh';
+  cwd?: string;
+}> {
+  const result: Array<{
+    ptyId: string;
+    pid: number | null;
+    kind: 'local' | 'ssh';
+    cwd?: string;
+  }> = [];
+  for (const [id, rec] of ptys) {
+    result.push({
+      ptyId: id,
+      pid: typeof rec.proc.pid === 'number' ? rec.proc.pid : null,
+      kind: rec.kind ?? 'local',
+      cwd: rec.cwd,
+    });
+  }
+  return result;
+}
