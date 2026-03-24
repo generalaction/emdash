@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useTask } from '@renderer/core/tasks/task-lifecycle-provider';
 import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
 import { ActiveFileSync } from './diff-viewer/state/active-file-sync';
@@ -20,23 +21,28 @@ function TaskViewWrapperWithProviders({
   projectId: string;
   taskId: string;
 }) {
-  // TODO: Render active view only if the task is ready
-  return (
-    <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <GitViewProvider>
-        <GitChangesProvider projectId={projectId} taskId={taskId}>
-          <PrProvider projectId={projectId} taskId={taskId}>
-            <ActiveFileSync />
-            <EditorProvider>
-              <EditorFiletreeProvider projectId={projectId} taskId={taskId}>
-                {children}
-              </EditorFiletreeProvider>
-            </EditorProvider>
-          </PrProvider>
-        </GitChangesProvider>
-      </GitViewProvider>
-    </TaskViewWrapper>
-  );
+  const task = useTask({ projectId, taskId });
+
+  if (task.status !== 'ready') {
+    return <>{children}</>;
+  } else {
+    return (
+      <TaskViewWrapper projectId={projectId} taskId={taskId}>
+        <GitViewProvider>
+          <GitChangesProvider projectId={projectId} taskId={taskId}>
+            <PrProvider projectId={projectId} taskId={taskId}>
+              <ActiveFileSync />
+              <EditorProvider taskId={taskId} projectId={projectId}>
+                <EditorFiletreeProvider projectId={projectId} taskId={taskId}>
+                  {children}
+                </EditorFiletreeProvider>
+              </EditorProvider>
+            </PrProvider>
+          </GitChangesProvider>
+        </GitViewProvider>
+      </TaskViewWrapper>
+    );
+  }
 }
 
 export const taskView = {

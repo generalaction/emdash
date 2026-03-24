@@ -60,11 +60,15 @@ export function useEditorContext(): EditorContextValue {
   return ctx;
 }
 
-export function EditorProvider({ children }: { children: ReactNode }) {
-  const { task } = useTaskViewContext();
-
-  const projectId = task?.projectId ?? '';
-  const taskId = task?.id ?? '';
+export function EditorProvider({
+  children,
+  taskId,
+  projectId,
+}: {
+  children: ReactNode;
+  taskId: string;
+  projectId: string;
+}) {
   const modelRootPath = `task:${taskId}`;
 
   const restoringRef = useRef(false);
