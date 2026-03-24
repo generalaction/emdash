@@ -16,6 +16,7 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
     conversationsByTaskId,
     deleteConversation,
     createConversation: generalCreateConversation,
+    renameConversation,
   } = useConversationsContext();
 
   const conversations = useMemo(
@@ -59,5 +60,5 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
     }
   }, [conversations, projectId, taskId]);
 
-  return { conversations, createConversation, removeConversation };
+  return { conversations, createConversation, removeConversation, renameConversation };
 }

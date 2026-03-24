@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
-import type { Conversation, CreateConversationParams } from '@shared/conversations';
+import type {
+  Conversation,
+  CreateConversationParams,
+  RenameConversationParams,
+} from '@shared/conversations';
 import { rpc } from '@renderer/core/ipc';
 
 interface ConversationDataContextValue {
@@ -12,6 +16,7 @@ interface ConversationDataContextValue {
     conversationId: string;
   }) => void;
   createConversation: (params: CreateConversationParams) => Promise<Conversation>;
+  renameConversation: (params: RenameConversationParams) => void;
 }
 
 const ConversationDataContext = createContext<ConversationDataContextValue | null>(null);
@@ -56,6 +61,27 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
     },
   });
 
+  const renameConversationMutation = useMutation({
+    mutationFn: ({ conversationId, newTitle }: RenameConversationParams) =>
+      rpc.conversations.renameConversation(conversationId, newTitle),
+    onMutate: async ({ conversationId, newTitle }) => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      const previous = queryClient.getQueryData<Conversation[]>(['conversations']);
+      queryClient.setQueryData<Conversation[]>(['conversations'], (old) =>
+        old?.map((c) => (c.id === conversationId ? { ...c, title: newTitle.trim() } : c))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['conversations'], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+
   const deleteConversation = useCallback(
     ({
       projectId,
@@ -78,6 +104,13 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
     [createConversationMutation]
   );
 
+  const renameConversation = useCallback(
+    ({ conversationId, newTitle }: RenameConversationParams) => {
+      renameConversationMutation.mutate({ conversationId, newTitle });
+    },
+    [renameConversationMutation]
+  );
+
   return (
     <ConversationDataContext.Provider
       value={{
@@ -85,6 +118,7 @@ export function ConversationDataProvider({ children }: { children: React.ReactNo
         conversationsByTaskId,
         deleteConversation,
         createConversation,
+        renameConversation,
       }}
     >
       {children}
