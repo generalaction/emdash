@@ -47,10 +47,11 @@ This means you can safely modify environment files in a worktree without worryin
 
 ## Script fields
 
-Project config has three script fields:
+Project config has four script fields:
 
 - `Setup script`: runs once right after task creation (good for installs/bootstrap)
 - `Run script`: long-running command you start/stop from the task terminal (good for dev servers)
+- `Stop script`: runs when the run script is stopped, before the process is killed (good for graceful shutdown)
 - `Teardown script`: runs when a task is deleted or archived
 
 The setup script runs as soon as the worktree is ready, in parallel with the agent.

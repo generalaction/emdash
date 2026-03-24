@@ -21,6 +21,7 @@ Current supported keys:
 - `preservePatterns`
 - `scripts.setup`
 - `scripts.run`
+- `scripts.stop`
 - `scripts.teardown`
 - `shellSetup`
 - `tmux`
