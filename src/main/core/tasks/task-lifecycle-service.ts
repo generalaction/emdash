@@ -56,7 +56,6 @@ export class TaskLifecycleService {
       process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
     if (shouldRespawn) {
-      console.log('respawning');
       this.terminals.spawnTerminal(
         { id, projectId: this.projectId, taskId: this.taskId, name: script.type },
         initialSize,
@@ -69,8 +68,6 @@ export class TaskLifecycleService {
     }
 
     const sessionId = makePtySessionId(this.projectId, this.taskId, id);
-
-    console.log('breaking');
 
     const pty = spawnLocalPty({
       id: sessionId,
