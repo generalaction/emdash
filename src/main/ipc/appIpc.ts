@@ -7,6 +7,7 @@ import { getAppSettings } from '../settings';
 import {
   getAppById,
   getResolvedLabel,
+  isOpenInAppSupportedForWorkspace,
   OPEN_IN_APPS,
   type OpenInAppId,
   type PlatformKey,
@@ -298,8 +299,22 @@ export function registerAppIpc() {
           return { success: false, error: `${label} is not available on this platform.` };
         }
 
+        if (!isOpenInAppSupportedForWorkspace(appConfig, isRemote)) {
+          return {
+            success: false,
+            error: `${label} is not available for remote SSH workspaces.`,
+          };
+        }
+
         // Handle remote SSH connections for supported editors and terminals
-        if (isRemote && sshConnectionId) {
+        if (isRemote) {
+          if (!sshConnectionId) {
+            return {
+              success: false,
+              error: `Missing SSH connection for remote ${label} launch.`,
+            };
+          }
+
           try {
             const connection = await databaseService.getSshConnection(sshConnectionId);
             if (!connection) {

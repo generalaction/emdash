@@ -409,6 +409,13 @@ export function isValidOpenInAppId(value: unknown): value is OpenInAppId {
   return typeof value === 'string' && OPEN_IN_APPS.some((app) => app.id === value);
 }
 
+export function isOpenInAppSupportedForWorkspace(
+  app: Pick<OpenInAppConfigShape, 'supportsRemote'>,
+  isRemote: boolean
+): boolean {
+  return !isRemote || app.supportsRemote === true;
+}
+
 export function getResolvedLabel(app: OpenInAppConfigShape, platform: PlatformKey): string {
   return app.platforms[platform]?.label || app.label;
 }

@@ -3,6 +3,7 @@ import {
   OPEN_IN_APPS,
   getResolvedIconPath,
   getResolvedLabel,
+  isOpenInAppSupportedForWorkspace,
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
@@ -16,7 +17,9 @@ export interface UseOpenInAppsResult {
   loading: boolean;
 }
 
-export function useOpenInApps(): UseOpenInAppsResult {
+export function useOpenInApps({
+  isRemote = false,
+}: { isRemote?: boolean } = {}): UseOpenInAppsResult {
   const { settings, isLoading: settingsLoading } = useAppSettings();
   const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
   const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
@@ -68,9 +71,14 @@ export function useOpenInApps(): UseOpenInAppsResult {
   // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
     const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
-    if (loading) return OPEN_IN_APPS;
-    return OPEN_IN_APPS.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
-  }, [availability, loading, settings?.hiddenOpenInApps]);
+    const workspaceApps = OPEN_IN_APPS.filter((app) =>
+      isOpenInAppSupportedForWorkspace(app, isRemote)
+    );
+
+    if (loading) return workspaceApps;
+
+    return workspaceApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
+  }, [availability, isRemote, loading, settings?.hiddenOpenInApps]);
 
   return { icons, labels, availability, installedApps, loading };
 }
