@@ -1,14 +1,10 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect } from 'react';
+import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
 import { useConversations } from '@renderer/core/conversations/use-conversations';
-import {
-  LifecycleTask,
-  useTask,
-  useTaskLifecycleContext,
-} from '@renderer/core/tasks/task-lifecycle-provider';
+import { LifecycleTask, useTask } from '@renderer/core/tasks/task-lifecycle-provider';
 import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';

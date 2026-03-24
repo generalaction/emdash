@@ -44,6 +44,7 @@ interface TaskLifecycleContextValue {
   provisionTask: (taskId: string) => void;
   archiveTask: (projectId: string, taskId: string) => void;
   restoreTask: (taskId: string) => void;
+  deleteTask: (taskId: string) => void;
 }
 
 const TaskLifecycleContext = createContext<TaskLifecycleContextValue | null>(null);
@@ -181,6 +182,10 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
     [queryClient]
   );
 
+  const deleteTask = useCallback((taskId: string) => {
+    // TODO: implement delete task
+  }, []);
+
   return (
     <TaskLifecycleContext.Provider
       value={{
@@ -191,6 +196,7 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
         provisionTask,
         archiveTask,
         restoreTask,
+        deleteTask,
       }}
     >
       {children}

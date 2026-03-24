@@ -20,6 +20,7 @@ function TaskViewWrapperWithProviders({
   projectId: string;
   taskId: string;
 }) {
+  // TODO: Render active view only if the task is ready
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
       <GitViewProvider>
