@@ -10,7 +10,7 @@ import {
   taskViewStateStore,
   type MainPanelView,
   type RightPanelView,
-} from '@renderer/core/tasks/task-view-store';
+} from '@renderer/core/tasks/view/task-view-store';
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';

@@ -22,12 +22,21 @@ export const ptyController = createRPCController({
   },
 
   /**
-   * Return and flush the accumulated ring buffer for a session.
-   * The renderer calls this once on FrontendPty construction to catch up on
-   * output that was emitted before the renderer subscribed.
+   * Atomically return the ring buffer and register the renderer as a consumer
+   * for future IPC delivery. Non-destructive — the ring buffer is kept intact.
+   * Called once by the renderer when connecting a FrontendPty to a session.
    */
-  getBuffer: (sessionId: string) => {
-    return ok({ buffer: ptySessionRegistry.getBuffer(sessionId) });
+  subscribe: (sessionId: string) => {
+    return ok({ buffer: ptySessionRegistry.subscribe(sessionId) });
+  },
+
+  /**
+   * Remove the renderer's consumer registration for a session.
+   * Called when the renderer disposes its FrontendPty.
+   */
+  unsubscribe: (sessionId: string) => {
+    ptySessionRegistry.unsubscribe(sessionId);
+    return ok();
   },
 
   /** Kill a PTY session and clean it up immediately. */

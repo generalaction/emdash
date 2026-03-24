@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo } from 'react';
 import type { CreateConversationParams } from '@shared/conversations';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { useConversationsContext } from '@renderer/core/conversations/conversation-data-provider';
-import { rpc } from '@renderer/core/ipc';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
+import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
-import { usePtySession } from '@renderer/core/pty/pty-session-context';
 
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
@@ -19,8 +18,6 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
     createConversation: generalCreateConversation,
   } = useConversationsContext();
 
-  const { registerSession, unregisterSession } = usePtySession();
-
   const conversations = useMemo(
     () => conversationsByTaskId[taskId] ?? [],
     [conversationsByTaskId, taskId]
@@ -29,8 +26,9 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
   const createConversation = useCallback(
     async (params: Omit<CreateConversationParams, 'projectId' | 'taskId'>) => {
       const sessionId = makePtySessionId(projectId, taskId, params.id);
-      // Register frontend listener BEFORE the RPC to avoid losing PTY output.
-      registerSession(sessionId);
+      // The main process starts the PTY inside createConversation before returning;
+      // register the frontend PTY concurrently so it is ready to receive output.
+      void frontendPtyRegistry.register(sessionId);
       const conversation = await generalCreateConversation({
         projectId,
         taskId,
@@ -39,25 +37,27 @@ export function useConversations({ taskId, projectId }: { projectId: string; tas
       });
       return conversation;
     },
-    [generalCreateConversation, projectId, registerSession, taskId]
+    [generalCreateConversation, projectId, taskId]
   );
 
   const removeConversation = useCallback(
     (conversationId: string) => {
-      unregisterSession(makePtySessionId(projectId, taskId, conversationId));
+      frontendPtyRegistry.unregister(makePtySessionId(projectId, taskId, conversationId));
       deleteConversation({ projectId, taskId, conversationId });
     },
-    [deleteConversation, projectId, taskId, unregisterSession]
+    [deleteConversation, projectId, taskId]
   );
 
+  // Connect a FrontendPty for each existing conversation. The main process
+  // already started their PTY sessions during provisionTask; the renderer
+  // just connects to receive output. Crashes respawn internally on the main
+  // process reusing the same sessionId, so no re-registration is ever needed.
   useEffect(() => {
     if (conversations.length === 0) return;
-    const initialSize = getConversationsPaneSize();
     for (const conv of conversations) {
-      const sessionId = makePtySessionId(projectId, taskId, conv.id);
-      registerSession(sessionId, () => rpc.conversations.startSession(conv, initialSize));
+      void frontendPtyRegistry.register(makePtySessionId(projectId, taskId, conv.id));
     }
-  }, [conversations, projectId, registerSession, taskId]);
+  }, [conversations, projectId, taskId]);
 
   return { conversations, createConversation, removeConversation };
 }

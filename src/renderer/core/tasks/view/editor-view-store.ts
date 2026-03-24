@@ -1,33 +1,8 @@
 import { makeAutoObservable, observable } from 'mobx';
-import type { ManagedFile } from '@renderer/core/editor/types';
+import { ManagedFile } from '../../editor/types';
+import { FileRendererData, ManagedFileInput, OpenedFile } from '../types';
 
-export type MainPanelView = 'agents' | 'editor' | 'diff';
-export type RightPanelView = 'changes' | 'files' | 'terminals';
-
-export type FileRendererData =
-  | { kind: 'text' }
-  | { kind: 'markdown' }
-  | { kind: 'markdown-source' }
-  | { kind: 'svg' }
-  | { kind: 'svg-source' }
-  | { kind: 'image' }
-  | { kind: 'binary' }
-  | { kind: 'too-large' };
-
-export type OpenedFile = {
-  /** Stable UUID assigned once on first open — used as React key. */
-  tabId: string;
-  /** Worktree-relative file path (e.g. `src/components/App.tsx`). Not a Monaco URI. */
-  path: string;
-  /** Renderer kind — determines which component renders this file. */
-  renderer: FileRendererData;
-};
-
-/** Input shape for EditorViewState.setFile — tabId is managed by the store. */
-export type ManagedFileInput = Omit<ManagedFile, 'tabId'>;
-
-export class EditorViewState {
-  // Transient runtime state
+export class EditorViewStore {
   openFiles = observable.map<string, ManagedFile>();
   activeFilePath: string | null = null;
   previewFilePath: string | null = null;
@@ -148,64 +123,3 @@ export class EditorViewState {
     if (f) this.openFiles.set(path, { ...f, renderer: updater(f.renderer) });
   }
 }
-
-export class AgentsViewState {
-  activeConversationId: string | undefined = undefined;
-
-  constructor() {
-    makeAutoObservable(this);
-  }
-
-  setActiveConversationId(id: string): void {
-    this.activeConversationId = id;
-  }
-}
-
-export class TerminalsViewState {
-  activeTerminalId: string | undefined = undefined;
-
-  constructor() {
-    makeAutoObservable(this);
-  }
-
-  setActiveTerminalId(id: string | undefined): void {
-    this.activeTerminalId = id;
-  }
-}
-
-export class TaskViewState {
-  view: MainPanelView = 'agents';
-  rightPanelView: RightPanelView = 'changes';
-  agentsView = new AgentsViewState();
-  terminalsView = new TerminalsViewState();
-  editorView = new EditorViewState();
-
-  constructor() {
-    makeAutoObservable(this);
-  }
-
-  setView(v: MainPanelView): void {
-    this.view = v;
-  }
-
-  setRightPanelView(v: RightPanelView): void {
-    this.rightPanelView = v;
-  }
-}
-
-class TaskViewStateStore {
-  private readonly map = observable.map<string, TaskViewState>();
-
-  getOrCreate(taskId: string): TaskViewState {
-    if (!this.map.has(taskId)) {
-      this.map.set(taskId, new TaskViewState());
-    }
-    return this.map.get(taskId)!;
-  }
-
-  delete(taskId: string): void {
-    this.map.delete(taskId);
-  }
-}
-
-export const taskViewStateStore = new TaskViewStateStore();

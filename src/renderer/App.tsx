@@ -18,7 +18,6 @@ import { diffEditorPool } from './core/monaco/monaco-diff-pool';
 import { ProjectBootstrapProvider } from './core/projects/project-bootstrap-provider';
 import { ProjectsDataProvider } from './core/projects/projects-data-provider';
 import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
-import { PtySessionProvider } from './core/pty/pty-session-context';
 import { SshConnectionProvider } from './core/ssh/ssh-connection-provider';
 import { TaskLifecycleProvider } from './core/tasks/task-lifecycle-provider';
 import { TasksDataProvider } from './core/tasks/tasks-data-provider';
@@ -58,37 +57,35 @@ export function App() {
               <AppContextProvider>
                 <AppSettingsProvider>
                   <TerminalPoolProvider>
-                    <PtySessionProvider>
-                      <SshConnectionProvider>
-                        <GithubContextProvider>
-                          <IntegrationsProvider>
-                            <WorkspaceViewProvider>
-                              <ProjectsDataProvider>
-                                <PendingProjectsProvider>
-                                  <ProjectBootstrapProvider>
-                                    <TasksDataProvider>
-                                      <TaskLifecycleProvider>
-                                        <ConversationDataProvider>
-                                          <TerminalDataProvider>
-                                            <AgentProvider>
-                                              <RightSidebarProvider>
-                                                <ThemeProvider>
-                                                  <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                                </ThemeProvider>
-                                              </RightSidebarProvider>
-                                            </AgentProvider>
-                                          </TerminalDataProvider>
-                                        </ConversationDataProvider>
-                                      </TaskLifecycleProvider>
-                                    </TasksDataProvider>
-                                  </ProjectBootstrapProvider>
-                                </PendingProjectsProvider>
-                              </ProjectsDataProvider>
-                            </WorkspaceViewProvider>
-                          </IntegrationsProvider>
-                        </GithubContextProvider>
-                      </SshConnectionProvider>
-                    </PtySessionProvider>
+                    <SshConnectionProvider>
+                      <GithubContextProvider>
+                        <IntegrationsProvider>
+                          <WorkspaceViewProvider>
+                            <ProjectsDataProvider>
+                              <PendingProjectsProvider>
+                                <ProjectBootstrapProvider>
+                                  <TasksDataProvider>
+                                    <TaskLifecycleProvider>
+                                      <ConversationDataProvider>
+                                        <TerminalDataProvider>
+                                          <AgentProvider>
+                                            <RightSidebarProvider>
+                                              <ThemeProvider>
+                                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                                              </ThemeProvider>
+                                            </RightSidebarProvider>
+                                          </AgentProvider>
+                                        </TerminalDataProvider>
+                                      </ConversationDataProvider>
+                                    </TaskLifecycleProvider>
+                                  </TasksDataProvider>
+                                </ProjectBootstrapProvider>
+                              </PendingProjectsProvider>
+                            </ProjectsDataProvider>
+                          </WorkspaceViewProvider>
+                        </IntegrationsProvider>
+                      </GithubContextProvider>
+                    </SshConnectionProvider>
                   </TerminalPoolProvider>
                 </AppSettingsProvider>
               </AppContextProvider>

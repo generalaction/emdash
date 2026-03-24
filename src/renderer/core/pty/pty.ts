@@ -1,10 +1,11 @@
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
-import { cssVar } from '../../lib/cssVars';
-import { log } from '../../lib/logger';
-import { events, rpc } from '../ipc';
+import { events, rpc } from '@renderer/core/ipc';
+import { cssVar } from '@renderer/lib/cssVars';
+import { log } from '@renderer/lib/logger';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -37,29 +38,32 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
  * Frontend counterpart to the main-process Pty interface.
  *
  * Owns the xterm Terminal instance for the full lifetime of the session.
- * The terminal is created synchronously during construction, opened into a
- * pool-owned off-screen container, and subscribes to the PTY data IPC channel
- * immediately.  All live data is buffered in-memory until flushBuffer() is
- * called (after the historical ring-buffer fetch completes), which ensures
- * historical output always appears before live output.
+ * The terminal is created synchronously during construction and opened into
+ * an off-screen container. Call connect() to subscribe to the main-process
+ * ring buffer and live IPC events — this writes historical output directly
+ * to xterm and sets up ongoing data delivery without any renderer-side buffer.
  *
  * DOM management is handled via mount() / unmount():
  *  - mount()   → appends ownedContainer to the visible mount target
  *  - unmount() → moves ownedContainer back to the off-screen host
  *
- * Lifecycle: created once per conversation session in FrontendPtyRegistry.
- * Survives React component unmounts (e.g. navigating away from a task), and
- * is disposed only when the conversation is explicitly deleted.
+ * Lifecycle: created once per session in FrontendPtyRegistry. Survives React
+ * component unmounts (e.g. navigating away from a task), and is disposed only
+ * when the entity (terminal or conversation) is explicitly deleted.
  */
 export class FrontendPty {
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
-  private _buffer: string | null = ''; // null = flushed, writes go direct
-  private offData: () => void;
+  /** MobX observable — flips to 'ready' once subscribe() resolves and historical buffer is written. */
+  readonly status = observable.box<'connecting' | 'ready'>('connecting');
+  private offData: (() => void) | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
 
-  constructor(sessionId: string, theme?: SessionTheme) {
+  constructor(
+    readonly sessionId: string,
+    theme?: SessionTheme
+  ) {
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
       width: '100%',
@@ -104,33 +108,29 @@ export class FrontendPty {
     }
 
     ensureXtermHost().appendChild(this.ownedContainer);
-
-    // Subscribe to live PTY data immediately. Buffer until flushBuffer() is
-    // called so historical output can be prepended in the correct order.
-    this.offData = events.on(
-      ptyDataChannel,
-      (data) => {
-        if (typeof data !== 'string') return;
-        if (this._buffer !== null) {
-          this._buffer += data;
-        } else {
-          this.terminal.write(data);
-        }
-      },
-      sessionId
-    );
   }
 
   /**
-   * Write historical output first, then any buffered live data that arrived
-   * during the async getBuffer() fetch, then switch to direct writes.
-   * Called once by FrontendPtyRegistry.register() after getBuffer() resolves.
+   * Subscribe to the session: fetches the ring buffer from the main process,
+   * writes it directly to xterm, then sets up a live IPC listener for future
+   * data. Marks status as 'ready' once complete.
+   *
+   * The main process guarantees atomicity: subscribe() snapshots the ring
+   * buffer and registers the consumer in one synchronous tick, so no data
+   * can slip between the snapshot and the first live IPC event.
    */
-  flushBuffer(historical?: string): void {
-    const pending = this._buffer ?? '';
-    this._buffer = null;
+  async connect(): Promise<void> {
+    const result = await rpc.pty.subscribe(this.sessionId);
+    const historical = result.success ? result.data.buffer : '';
     if (historical) this.terminal.write(historical);
-    if (pending) this.terminal.write(pending);
+    this.offData = events.on(
+      ptyDataChannel,
+      (data: string) => {
+        this.terminal.write(data);
+      },
+      this.sessionId
+    );
+    runInAction(() => this.status.set('ready'));
   }
 
   /**
@@ -166,13 +166,14 @@ export class FrontendPty {
   }
 
   /**
-   * Permanently dispose this session (conversation deleted).
-   * Unsubscribes from the IPC data channel, disposes the terminal, and
-   * removes the owned container from the DOM.
+   * Permanently dispose this session (terminal or conversation deleted).
+   * Unsubscribes from the main process, tears down the IPC data listener,
+   * disposes the xterm Terminal, and removes the owned container from the DOM.
    */
   dispose(): void {
-    this.offData();
-    this._buffer = null;
+    this.offData?.();
+    this.offData = null;
+    rpc.pty.unsubscribe(this.sessionId).catch(() => {});
     try {
       this.terminal.dispose();
     } catch {}
@@ -185,35 +186,53 @@ export class FrontendPty {
 // ── FrontendPtyRegistry ───────────────────────────────────────────────────────
 
 /**
- * Module-level registry of FrontendPty instances, one per live conversation
- * session.  Lives outside React's lifecycle so terminals persist across
- * component unmounts (e.g. navigating away from a task and back).
+ * Module-level registry of FrontendPty instances, one per live session.
+ * Lives outside React's lifecycle so terminals persist across component
+ * unmounts (e.g. navigating away from a task and back).
  *
- * register() is async: it creates the FrontendPty (which immediately begins
- * buffering live IPC data), then awaits the historical ring-buffer fetch from
- * the main process, and calls flushBuffer() so historical output is written
- * before any live data.  By the time register() resolves, the terminal is
- * fully ready to mount.
+ * register() is async: it creates the FrontendPty, calls connect() which
+ * subscribes to the main-process ring buffer and sets up the live IPC
+ * listener. By the time register() resolves, status is 'ready' and the
+ * terminal is safe to mount.
  */
 class FrontendPtyRegistry {
-  private ptys = new Map<string, FrontendPty>();
+  /**
+   * Observable map so that observer components track both the presence of an
+   * entry (re-render when a pty is added) and its status (re-render when
+   * status flips to 'ready'). Using a plain Map would break the reactivity
+   * chain: when a component renders before the pty is registered (e.g. during
+   * the useEffect hydration cycle), `ptys.get(id)` returns undefined and no
+   * MobX observable is accessed — so the component would never learn that the
+   * pty was eventually added and became ready.
+   */
+  ptys = observable.map<string, FrontendPty>();
+
+  constructor() {
+    makeAutoObservable(this, {
+      // ptys is already declared as observable.map above; skip re-wrapping
+      ptys: false,
+    });
+  }
 
   /**
-   * Create and register a FrontendPty for the given session.  Returns
+   * Create and register a FrontendPty for the given session. Returns
    * immediately if already registered (idempotent — safe in StrictMode).
    *
    * On first registration:
-   *  1. Constructs FrontendPty (terminal created, IPC subscription active, buffering)
-   *  2. Awaits rpc.pty.getBuffer() for any historical output
-   *  3. Calls flushBuffer(historical) to write historical → live buffer → direct
+   *  1. Constructs FrontendPty (xterm Terminal created, off-screen container ready)
+   *  2. Calls connect(): subscribes to the main process, writes ring buffer to
+   *     xterm, sets up live IPC listener, marks status as 'ready'
    */
   async register(sessionId: string): Promise<void> {
     if (this.ptys.has(sessionId)) return;
     const pty = new FrontendPty(sessionId);
-    this.ptys.set(sessionId, pty);
+    runInAction(() => this.ptys.set(sessionId, pty));
+    await pty.connect();
+  }
 
-    const result = await rpc.pty.getBuffer(sessionId);
-    pty.flushBuffer(result.success ? result.data.buffer : undefined);
+  /** Returns true once the FrontendPty for sessionId has connected and is safe to mount. */
+  isReady(sessionId: string): boolean {
+    return this.ptys.get(sessionId)?.status.get() === 'ready';
   }
 
   /** Return the FrontendPty for the given session, or undefined. */
@@ -224,7 +243,7 @@ class FrontendPtyRegistry {
   /** Dispose and remove the FrontendPty.  Called when a conversation is deleted. */
   unregister(sessionId: string): void {
     this.ptys.get(sessionId)?.dispose();
-    this.ptys.delete(sessionId);
+    runInAction(() => this.ptys.delete(sessionId));
   }
 
   /** Dispose all registered sessions (called on app teardown). */
@@ -232,7 +251,7 @@ class FrontendPtyRegistry {
     for (const pty of this.ptys.values()) {
       pty.dispose();
     }
-    this.ptys.clear();
+    runInAction(() => this.ptys.clear());
   }
 
   /** Apply a theme to all registered terminals. Called on app-level theme change. */
