@@ -8,7 +8,7 @@ import { pendingInjectionManager } from '../../lib/PendingInjectionManager';
 import { events, rpc } from '../ipc';
 import { panelDragStore } from '../view/panel-drag-store';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { frontendPtyRegistry } from './pty';
+import { buildTheme, frontendPtyRegistry, type SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import {
   CTRL_J_ASCII,
@@ -18,8 +18,6 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
-import { buildTheme, type SessionTheme } from './pty-pool';
-import { useTerminalPool } from './pty-pool-provider';
 
 // xterm's proposed API and internal fields are not in the public TypeScript
 // types. Both code paths are necessary: the proposed `dimensions` API works in
@@ -76,16 +74,15 @@ export interface UseTerminalReturn {
  * React hook that manages a full xterm.js terminal instance attached to
  * `containerRef`, wired to a PTY session via the deterministic `sessionId`.
  *
- * Terminal instances are leased from the global TerminalPool (max 16 WebGL
- * contexts).  On unmount the terminal is returned to the pool's off-screen
- * host rather than disposed, so scrollback is preserved across tab switches.
+ * Each session owns a persistent FrontendPty (terminal + Canvas2D renderer)
+ * for its full lifetime.  On unmount the terminal's ownedContainer is
+ * reparented to the off-screen xterm host rather than disposed, so scrollback
+ * is preserved across tab switches.
  *
- * Data routing depends on whether a FrontendPty is registered for the session:
- *  - Conversation sessions: FrontendPty buffers output from the moment
- *    startSession is called, and drains the buffer synchronously into the
- *    xterm terminal on attach — no data is ever lost between tab switches.
- *  - Standalone terminals (task panel, etc.): direct `events.on(ptyDataChannel)`
- *    subscription, same as before.
+ * For sessions pre-registered via PtySessionProvider the mount is effectively
+ * synchronous (no await needed).  Standalone sessions (not pre-registered)
+ * are auto-registered inside an async IIFE, awaiting the historical buffer
+ * fetch before mounting.
  *
  * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
  * current dimensions BEFORE being appended to the visible DOM, eliminating
@@ -96,8 +93,6 @@ export function usePty(
   containerRef: React.RefObject<HTMLElement | null>
 ): UseTerminalReturn {
   const { sessionId, theme, mapShiftEnterToCtrlJ, onActivity, onExit, onFirstMessage } = options;
-
-  const pool = useTerminalPool();
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
@@ -170,8 +165,8 @@ export function usePty(
 
   // measureAndResize is the single entry point for all DOM measurement + PTY
   // resize work.  Mirrors xterm's FitAddon.proposeDimensions() by measuring
-  // terminal.element.parentElement (the pool's ownedContainer) — the exact
-  // space the terminal occupies — rather than a distant ancestor div.
+  // terminal.element.parentElement (the FrontendPty's ownedContainer) — the
+  // exact space the terminal occupies — rather than a distant ancestor div.
   // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
   // or directly via queuePtyResize for standalone terminals.
   const measureAndResize = useCallback(
@@ -193,7 +188,7 @@ export function usePty(
             return;
           }
 
-          // Measure the terminal's immediate parent (the pool's ownedContainer),
+          // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
           // matching FitAddon.proposeDimensions().  Fall back to the mount-target
           // container for standalone terminals not using the pool.
           const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
@@ -259,17 +254,17 @@ export function usePty(
       .catch(() => {});
   }, [sessionId]);
 
-  // ─── Main effect: lease terminal once per sessionId ────────────────────────
+  // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // ── Compute targetDims for flash-free mounting ────────────────────────────
-    // Preferred: direct DOM measurement of the pane container + prior
-    // terminal's cell metrics (available on all tab switches after first mount).
-    // Falls back to cached cols/rows when cell metrics are unavailable (very
-    // first mount in a fresh session).
+    // ── Compute targetDims synchronously ─────────────────────────────────────
+    // Must happen before the async IIFE since it reads termRef.current (the
+    // previous session's terminal cell metrics) before we overwrite it.
+    // PaneSizingContext.containerRef and measureCurrentDimensions() are also
+    // read here so the pre-resize happens against the live pane dimensions.
     const pane = paneSizingRef.current;
     const prevCell = termRef.current ? getCellMetrics(termRef.current) : null;
     let targetDims: { cols: number; rows: number } | undefined;
@@ -287,273 +282,273 @@ export function usePty(
       targetDims = pane.getCurrentDimensions() ?? undefined;
     }
 
-    // ── Lease terminal from pool (creates or reparents) ───────────────────────
-    // targetDims causes the pool to pre-resize the terminal BEFORE appendChild,
-    // so the canvas is never visible at the wrong size.
-    const { terminal } = pool.lease(sessionId, container as HTMLElement, {
-      theme: themeRef.current,
-      targetDims,
-    });
-    termRef.current = terminal;
-
-    // ── Attach FrontendPty (drains buffer before first WebGL paint) ───────────
-    // For conversation sessions the FrontendPty has been accumulating output
-    // since startSession was called, even while this tab was inactive.
-    // attach() drains that buffer synchronously — the pool's rAF repaint hasn't
-    // fired yet, so the buffered content is in xterm before the first frame.
-    const frontendPty = frontendPtyRegistry.get(sessionId);
-    if (frontendPty) {
-      frontendPty.attach(terminal, () => {
-        ptyStartedRef.current = true;
-      });
-    }
-
-    // Always sync after mounting — targetDims may be stale if the pane was
-    // resized while this session was off-screen.  measureAndResize defers to
-    // rAF so it reads the live DOM and only calls term.resize() when needed.
-    measureAndResize();
-
-    // ── Load settings ────────────────────────────────────────────────────────
-    let customFontFamily = '';
-    void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
-      (terminalSettings) => {
-        if (terminalSettings?.fontFamily) {
-          customFontFamily = terminalSettings.fontFamily.trim();
-          if (customFontFamily) terminal.options.fontFamily = customFontFamily;
-        }
-        autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
-      }
-    );
-
-    // ── DECRQM xterm.js 6.0 bug workaround ──────────────────────────────────
+    // ── Async mount ───────────────────────────────────────────────────────────
+    let cancelled = false;
     const cleanups: (() => void)[] = [];
 
-    try {
-      const parser = (
-        terminal as unknown as {
-          parser?: { registerCsiHandler?: (...args: unknown[]) => { dispose(): void } };
+    void (async () => {
+      // For sessions not pre-registered by PtySessionProvider (standalone
+      // terminals), register() creates the terminal and awaits getBuffer()
+      // before returning.  For already-registered sessions this is a no-op
+      // and resolves in the same microtask.
+      if (!frontendPtyRegistry.get(sessionId)) {
+        await frontendPtyRegistry.register(sessionId);
+      }
+      if (cancelled) return;
+
+      const frontendPty = frontendPtyRegistry.get(sessionId)!;
+      termRef.current = frontendPty.terminal;
+
+      // Apply current theme before mounting (in case it differs from the
+      // theme the terminal was constructed with).
+      frontendPty.terminal.options.theme = buildTheme(themeRef.current);
+
+      // Mount: pre-resize then appendChild (flash-free).
+      frontendPty.mount(container as HTMLElement, targetDims);
+
+      // Always sync after mounting — targetDims may be stale if the pane was
+      // resized while this session was off-screen.  measureAndResize defers to
+      // rAF so it reads the live DOM and only calls term.resize() when needed.
+      measureAndResize();
+
+      // ── Load settings ──────────────────────────────────────────────────────
+      let customFontFamily = '';
+      void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
+        (terminalSettings) => {
+          if (terminalSettings?.fontFamily) {
+            customFontFamily = terminalSettings.fontFamily.trim();
+            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+          }
+          autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
         }
-      ).parser;
-      if (parser?.registerCsiHandler) {
-        const ansiDisp = parser.registerCsiHandler(
-          { intermediates: '$', final: 'p' },
-          (params: (number | number[])[]) => {
-            const mode = (params[0] as number) ?? 0;
-            rpc.pty.sendInput(sessionId, `\x1b[${mode};0$y`);
-            return true;
+      );
+
+      // ── DECRQM xterm.js 6.0 bug workaround ────────────────────────────────
+      const terminal = frontendPty.terminal;
+      try {
+        const parser = (
+          terminal as unknown as {
+            parser?: { registerCsiHandler?: (...args: unknown[]) => { dispose(): void } };
           }
-        );
-        const decDisp = parser.registerCsiHandler(
-          { prefix: '?', intermediates: '$', final: 'p' },
-          (params: (number | number[])[]) => {
-            const mode = (params[0] as number) ?? 0;
-            rpc.pty.sendInput(sessionId, `\x1b[?${mode};0$y`);
-            return true;
-          }
-        );
-        cleanups.push(
-          () => ansiDisp.dispose(),
-          () => decDisp.dispose()
-        );
-      }
-    } catch (err) {
-      log.warn('useTerminal: failed to register DECRQM workaround', { error: err });
-    }
-
-    // ── Keyboard shortcuts ────────────────────────────────────────────────────
-    terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      if (document.querySelector('[role="dialog"]')) return false;
-
-      if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, terminal.hasSelection())) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        copySelectionToClipboard();
-        return false;
+        ).parser;
+        if (parser?.registerCsiHandler) {
+          const ansiDisp = parser.registerCsiHandler(
+            { intermediates: '$', final: 'p' },
+            (params: (number | number[])[]) => {
+              const mode = (params[0] as number) ?? 0;
+              rpc.pty.sendInput(sessionId, `\x1b[${mode};0$y`);
+              return true;
+            }
+          );
+          const decDisp = parser.registerCsiHandler(
+            { prefix: '?', intermediates: '$', final: 'p' },
+            (params: (number | number[])[]) => {
+              const mode = (params[0] as number) ?? 0;
+              rpc.pty.sendInput(sessionId, `\x1b[?${mode};0$y`);
+              return true;
+            }
+          );
+          cleanups.push(
+            () => ansiDisp.dispose(),
+            () => decDisp.dispose()
+          );
+        }
+      } catch (err) {
+        log.warn('useTerminal: failed to register DECRQM workaround', { error: err });
       }
 
-      if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        pasteFromClipboard();
-        return false;
-      }
+      // ── Keyboard shortcuts ─────────────────────────────────────────────────
+      terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (document.querySelector('[role="dialog"]')) return false;
 
-      if (mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        rpc.pty.sendInput(sessionId, CTRL_J_ASCII);
-        return false;
-      }
-
-      if (shouldKillLineFromTerminal(event, IS_MAC_PLATFORM)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        rpc.pty.sendInput(sessionId, CTRL_U_ASCII);
-        return false;
-      }
-
-      if (IS_MAC_PLATFORM && event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-        if (event.key === 'ArrowLeft') {
+        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, terminal.hasSelection())) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          rpc.pty.sendInput(sessionId, '\x01');
+          copySelectionToClipboard();
           return false;
         }
-        if (event.key === 'ArrowRight') {
+
+        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          rpc.pty.sendInput(sessionId, '\x05');
+          pasteFromClipboard();
           return false;
         }
-      }
 
-      return true;
-    });
-
-    // ── Handle terminal input ─────────────────────────────────────────────────
-    const handleTerminalInput = (data: string, isNewlineInsert = false) => {
-      onActivityRef.current?.();
-
-      let filtered = data;
-      if (!ptyStartedRef.current) {
-        filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-      }
-      if (!filtered) return;
-
-      // First-message capture
-      if (!firstMessageSentRef.current && onFirstMessageRef.current) {
-        inputBufferRef.current += filtered;
-        const newlineIndex = inputBufferRef.current.indexOf('\r');
-        if (newlineIndex !== -1) {
-          const message = inputBufferRef.current.slice(0, newlineIndex);
-          onFirstMessageRef.current(message);
-          firstMessageSentRef.current = true;
+        if (mapShiftEnterToCtrlJ && shouldMapShiftEnterToCtrlJ(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          rpc.pty.sendInput(sessionId, CTRL_J_ASCII);
+          return false;
         }
-      }
 
-      const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-      const pendingText = pendingInjectionManager.getPending();
-      if (pendingText && isEnterPress && !isNewlineInsert) {
-        const stripped = filtered.replace(/[\r\n]+$/g, '');
-        const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-        const injectedData = stripped + pendingText + enterSequence + enterSequence;
-        rpc.pty.sendInput(sessionId, injectedData);
-        pendingInjectionManager.markUsed();
-        return;
-      }
+        if (shouldKillLineFromTerminal(event, IS_MAC_PLATFORM)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          rpc.pty.sendInput(sessionId, CTRL_U_ASCII);
+          return false;
+        }
 
-      rpc.pty.sendInput(sessionId, filtered);
-    };
+        if (
+          IS_MAC_PLATFORM &&
+          event.metaKey &&
+          !event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey
+        ) {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+            rpc.pty.sendInput(sessionId, '\x01');
+            return false;
+          }
+          if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+            rpc.pty.sendInput(sessionId, '\x05');
+            return false;
+          }
+        }
 
-    const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
-    cleanups.push(() => inputDisposable.dispose());
+        return true;
+      });
 
-    // ── Auto-copy on selection ────────────────────────────────────────────────
-    let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const selectionDisposable = terminal.onSelectionChange(() => {
-      if (!autoCopyOnSelectionRef.current) return;
-      if (!terminal.hasSelection()) return;
-      if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
-      selectionDebounceTimer = setTimeout(() => {
-        if (terminal.hasSelection()) copySelectionToClipboard();
-      }, 150);
-    });
-    cleanups.push(() => {
-      selectionDisposable.dispose();
-      if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
-    });
+      // ── Handle terminal input ──────────────────────────────────────────────
+      const handleTerminalInput = (data: string, isNewlineInsert = false) => {
+        onActivityRef.current?.();
 
-    // ── Paste from app menu ───────────────────────────────────────────────────
-    const offPaste = events.on(appPasteChannel, () => {
-      pasteFromClipboard();
-    });
-    cleanups.push(offPaste);
+        let filtered = data;
+        if (!ptyStartedRef.current) {
+          filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
+        }
+        if (!filtered) return;
 
-    // ── PTY data subscription ─────────────────────────────────────────────────
-    // Conversation sessions use FrontendPty (attached above) — it handles data
-    // routing, buffering, and the ptyStartedRef callback.
-    // Standalone terminals (task terminal panel etc.) fall back to a direct
-    // events.on subscription since they are not in the FrontendPtyRegistry.
-    if (!frontendPty) {
-      const offData = events.on(
+        // First-message capture
+        if (!firstMessageSentRef.current && onFirstMessageRef.current) {
+          inputBufferRef.current += filtered;
+          const newlineIndex = inputBufferRef.current.indexOf('\r');
+          if (newlineIndex !== -1) {
+            const message = inputBufferRef.current.slice(0, newlineIndex);
+            onFirstMessageRef.current(message);
+            firstMessageSentRef.current = true;
+          }
+        }
+
+        const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
+        const pendingText = pendingInjectionManager.getPending();
+        if (pendingText && isEnterPress && !isNewlineInsert) {
+          const stripped = filtered.replace(/[\r\n]+$/g, '');
+          const enterSequence = filtered.includes('\r') ? '\r' : '\n';
+          const injectedData = stripped + pendingText + enterSequence + enterSequence;
+          rpc.pty.sendInput(sessionId, injectedData);
+          pendingInjectionManager.markUsed();
+          return;
+        }
+
+        rpc.pty.sendInput(sessionId, filtered);
+      };
+
+      const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
+      cleanups.push(() => inputDisposable.dispose());
+
+      // ── ptyStartedRef — detect first PTY output ────────────────────────────
+      // FrontendPty owns the data subscription and writes directly to the
+      // terminal.  We add a lightweight IPC listener here solely to flip the
+      // ptyStartedRef flag, which is used to suppress focus-reporting escape
+      // sequences before the PTY shell has initialised.
+      const offPtyData = events.on(
         ptyDataChannel,
-        (data) => {
-          if (typeof data !== 'string') return;
+        () => {
           ptyStartedRef.current = true;
-          try {
-            terminal.write(data);
-          } catch (e) {
-            log.warn('useTerminal: terminal.write failed', { sessionId, error: e });
-          }
         },
         sessionId
       );
-      cleanups.push(offData);
-    }
+      cleanups.push(offPtyData);
 
-    // ── PTY exit subscription ─────────────────────────────────────────────────
-    const offExit = events.on(
-      ptyExitChannel,
-      (info) => {
-        onExitRef.current?.(info as { exitCode: number | undefined; signal?: number });
-      },
-      sessionId
-    );
-    cleanups.push(offExit);
+      // ── Auto-copy on selection ─────────────────────────────────────────────
+      let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+      const selectionDisposable = terminal.onSelectionChange(() => {
+        if (!autoCopyOnSelectionRef.current) return;
+        if (!terminal.hasSelection()) return;
+        if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
+        selectionDebounceTimer = setTimeout(() => {
+          if (terminal.hasSelection()) copySelectionToClipboard();
+        }, 150);
+      });
+      cleanups.push(() => {
+        selectionDisposable.dispose();
+        if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
+      });
 
-    // ── Font / setting change events ──────────────────────────────────────────
-    const handleFontChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
-      customFontFamily = detail?.fontFamily?.trim() ?? '';
-      terminal.options.fontFamily = customFontFamily || undefined;
-      measureAndResize();
-    };
-    const handleAutoCopyChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
-      autoCopyOnSelectionRef.current = detail?.autoCopyOnSelection ?? false;
-    };
-    window.addEventListener('terminal-font-changed', handleFontChange);
-    window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
-    cleanups.push(
-      () => window.removeEventListener('terminal-font-changed', handleFontChange),
-      () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
-    );
+      // ── Paste from app menu ────────────────────────────────────────────────
+      const offPaste = events.on(appPasteChannel, () => {
+        pasteFromClipboard();
+      });
+      cleanups.push(offPaste);
 
-    // ── ResizeObserver (observes the mount-target, not the pool-owned div) ────
-    // Skips measuring while a panel drag is in progress; the drag-end effect
-    // below fires one measure once the drag completes.
-    const resizeObserver = new ResizeObserver(() => {
-      if (!isPanelDraggingRef.current) measureAndResize();
-    });
-    resizeObserver.observe(container);
-    cleanups.push(() => resizeObserver.disconnect());
+      // ── PTY exit subscription ──────────────────────────────────────────────
+      const offExit = events.on(
+        ptyExitChannel,
+        (info) => {
+          onExitRef.current?.(info as { exitCode: number | undefined; signal?: number });
+        },
+        sessionId
+      );
+      cleanups.push(offExit);
+
+      // ── Font / setting change events ───────────────────────────────────────
+      const handleFontChange = (e: Event) => {
+        const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
+        customFontFamily = detail?.fontFamily?.trim() ?? '';
+        terminal.options.fontFamily = customFontFamily || undefined;
+        measureAndResize();
+      };
+      const handleAutoCopyChange = (e: Event) => {
+        const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
+        autoCopyOnSelectionRef.current = detail?.autoCopyOnSelection ?? false;
+      };
+      window.addEventListener('terminal-font-changed', handleFontChange);
+      window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
+      cleanups.push(
+        () => window.removeEventListener('terminal-font-changed', handleFontChange),
+        () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+      );
+
+      // ── ResizeObserver (observes the mount-target, not the owned container) ─
+      // Skips measuring while a panel drag is in progress; the drag-end effect
+      // below fires one measure once the drag completes.
+      const resizeObserver = new ResizeObserver(() => {
+        if (!isPanelDraggingRef.current) measureAndResize();
+      });
+      resizeObserver.observe(container);
+      cleanups.push(() => resizeObserver.disconnect());
+    })();
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
+      cancelled = true;
       if (pendingResizeTimerRef.current) {
         clearTimeout(pendingResizeTimerRef.current);
         pendingResizeTimerRef.current = null;
       }
-      // Reset dedup so the next session always gets a resize on mount
-      // (guards the fallback path used by standalone terminals).
+      // Reset dedup so the next session always gets a resize on mount.
       lastSentResizeRef.current = null;
+      // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
+      // preserving the invariant that the ResizeObserver is torn down before
+      // the ownedContainer is reparented off-screen.
       for (const fn of cleanups) {
         try {
           fn();
         } catch {}
       }
-      // Detach FrontendPty so future PTY output resumes buffering while the
-      // terminal is parked off-screen.  Must happen before pool.release() so
-      // data never goes to a reparented (off-screen) terminal.
-      frontendPty?.detach();
-      // Return terminal to the pool's off-screen host (keeps it alive).
-      pool.release(sessionId);
+      // Return terminal's ownedContainer to the off-screen host.
+      frontendPtyRegistry.get(sessionId)?.unmount();
       termRef.current = null;
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;

@@ -1,11 +1,10 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { frontendPtyRegistry } from './pty';
-import { terminalPool } from './pty-pool';
 
 interface PtySessionContextValue {
-  registerSession: (sessionId: string, startFn?: () => Promise<void>) => void;
+  registerSession: (sessionId: string, startFn?: () => Promise<void>) => Promise<void>;
   unregisterSession: (sessionId: string) => void;
-  /** Returns true once the FrontendPty for sessionId has been registered and is safe to attach. */
+  /** Returns true once the FrontendPty for sessionId has been registered and is safe to mount. */
   isSessionReady: (sessionId: string) => boolean;
 }
 
@@ -17,17 +16,23 @@ export function PtySessionProvider({ children }: { children: ReactNode }) {
   // State mirrors the ref purely for reactivity — lets components subscribe to readiness.
   const [registeredSessions, setRegisteredSessions] = useState<ReadonlySet<string>>(new Set());
 
-  const registerSession = useCallback((sessionId: string, startFn?: () => Promise<void>): void => {
-    if (registeredRef.current.has(sessionId)) return;
-    registeredRef.current.add(sessionId);
-    frontendPtyRegistry.register(sessionId);
-    startFn?.().catch(() => {});
-    setRegisteredSessions((prev) => new Set([...prev, sessionId]));
-  }, []);
+  const registerSession = useCallback(
+    async (sessionId: string, startFn?: () => Promise<void>): Promise<void> => {
+      if (registeredRef.current.has(sessionId)) return;
+      registeredRef.current.add(sessionId);
+      // Awaiting register() ensures the terminal is fully ready (historical
+      // output written, direct writes active) before isSessionReady flips.
+      await frontendPtyRegistry.register(sessionId);
+      startFn?.().catch(() => {});
+      setRegisteredSessions((prev) => new Set([...prev, sessionId]));
+    },
+    []
+  );
 
   const unregisterSession = useCallback((sessionId: string) => {
+    // frontendPtyRegistry.unregister() disposes the FrontendPty, which in turn
+    // disposes the Terminal and removes the owned container from the DOM.
     frontendPtyRegistry.unregister(sessionId);
-    terminalPool.dispose(sessionId);
     registeredRef.current.delete(sessionId);
     setRegisteredSessions((prev) => {
       if (!prev.has(sessionId)) return prev;

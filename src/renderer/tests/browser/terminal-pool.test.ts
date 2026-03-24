@@ -1,36 +1,34 @@
 /**
- * Browser-mode tests for TerminalPool.
+ * Browser-mode tests for FrontendPtyRegistry.
  *
  * Runs in real Chromium via Playwright so xterm Terminal instances are fully
  * initialised (real canvas, real ResizeObserver).  Only `@renderer/core/ipc`
- * is mocked — it accesses window.electronAPI at module load time, which does
- * not exist outside Electron.  All other dependencies (cssVars, logger,
- * terminalHost) run normally.
+ * and `@shared/events/ptyEvents` are mocked — they access window.electronAPI
+ * at module load time, which does not exist outside Electron.  All other
+ * dependencies (cssVars, logger, terminalHost) run normally.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MAX_POOL_SIZE, terminalPool } from '../../core/pty/pty-pool';
+import { frontendPtyRegistry } from '../../core/pty/pty';
 import { ensureXtermHost } from '../../core/pty/xterm-host';
 
 vi.mock('@renderer/core/ipc', () => ({
   rpc: {
     app: { openExternal: vi.fn().mockResolvedValue(undefined) },
-    pty: { resize: vi.fn().mockResolvedValue(undefined) },
+    pty: {
+      resize: vi.fn().mockResolvedValue(undefined),
+      getBuffer: vi.fn().mockResolvedValue({ success: true, data: { buffer: '' } }),
+    },
   },
   events: {
     emit: vi.fn(),
-    on: vi.fn(() => ({ dispose: vi.fn() })),
-    once: vi.fn(() => ({ dispose: vi.fn() })),
+    on: vi.fn(() => vi.fn()),
+    once: vi.fn(() => vi.fn()),
   },
 }));
 
-// WebGL2 is not available in Chrome Headless Shell.  We are testing pool
-// bookkeeping and DOM management, not GPU rendering, so stub the addon.
-// This also prevents xterm's global error handler from firing an unhandled
-// exception that would cause Vitest to exit with code 1.
-vi.mock('@xterm/addon-webgl', () => ({
-  WebglAddon: vi.fn().mockImplementation(() => ({
-    onContextLoss: vi.fn(),
+vi.mock('@xterm/addon-canvas', () => ({
+  CanvasAddon: vi.fn().mockImplementation(() => ({
     activate: vi.fn(),
     dispose: vi.fn(),
   })),
@@ -59,139 +57,140 @@ afterEach(async () => {
   // scheduled rAF fires after terminal.dispose() and throws from xterm's global
   // error handler, causing Vitest to report unhandled errors.
   await new Promise<void>((r) => requestAnimationFrame(() => r()));
-  terminalPool.disposeAll();
+  frontendPtyRegistry.disposeAll();
   // Remove any mount-target divs left over from this test.
   document.querySelectorAll('div[data-test-mount]').forEach((el) => (el as HTMLElement).remove());
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('TerminalPool.lease — cold path', () => {
-  it('appends the terminal container to the mount target on first lease', () => {
-    const el = makeMountTarget();
-    el.dataset['testMount'] = '1';
+describe('FrontendPtyRegistry.register — creates terminal', () => {
+  it('creates a terminal accessible via get() after register()', async () => {
+    await frontendPtyRegistry.register('reg-a');
 
-    const { terminal } = terminalPool.lease('cold-a', el);
-
-    expect(terminal).toBeDefined();
-    // The pool-owned ownedContainer should be a child of el.
-    expect(hasTerminalChild(el)).toBe(true);
+    const pty = frontendPtyRegistry.get('reg-a');
+    expect(pty).toBeDefined();
+    expect(pty!.terminal).toBeDefined();
   });
 
-  it('creates distinct terminals for different session IDs', () => {
-    const el1 = makeMountTarget();
-    el1.dataset['testMount'] = '2';
-    const el2 = makeMountTarget();
-    el2.dataset['testMount'] = '3';
+  it('is idempotent — second register() for same sessionId is a no-op', async () => {
+    await frontendPtyRegistry.register('idem-a');
+    const first = frontendPtyRegistry.get('idem-a');
 
-    const { terminal: t1 } = terminalPool.lease('distinct-a', el1);
-    terminalPool.release('distinct-a');
-    const { terminal: t2 } = terminalPool.lease('distinct-b', el2);
+    await frontendPtyRegistry.register('idem-a');
+    const second = frontendPtyRegistry.get('idem-a');
 
-    expect(t1).not.toBe(t2);
-  });
-});
-
-describe('TerminalPool.lease — re-lease path', () => {
-  it('reparents the same terminal to a new mount target on re-lease', () => {
-    const el1 = makeMountTarget();
-    el1.dataset['testMount'] = '4';
-    const el2 = makeMountTarget();
-    el2.dataset['testMount'] = '5';
-
-    const { terminal: first } = terminalPool.lease('relase-a', el1);
-    expect(hasTerminalChild(el1)).toBe(true);
-
-    // Simulate tab switch: release then re-lease to a different mount target.
-    terminalPool.release('relase-a');
-    const { terminal: second } = terminalPool.lease('relase-a', el2);
-
-    // Same terminal object is returned.
     expect(second).toBe(first);
-    // Container moved to new mount target.
-    expect(hasTerminalChild(el2)).toBe(true);
-
-    el1.remove();
-    el2.remove();
   });
 
-  it('returns the terminal already at the correct mount target on re-lease', () => {
+  it('creates distinct FrontendPty instances for different session IDs', async () => {
+    await frontendPtyRegistry.register('distinct-a');
+    await frontendPtyRegistry.register('distinct-b');
+
+    const a = frontendPtyRegistry.get('distinct-a');
+    const b = frontendPtyRegistry.get('distinct-b');
+    expect(a).not.toBe(b);
+    expect(a!.terminal).not.toBe(b!.terminal);
+  });
+});
+
+describe('FrontendPty.mount', () => {
+  it('appends ownedContainer to the mount target', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '6';
+    el.dataset['testMount'] = 'mount-1';
 
-    terminalPool.lease('same-target', el);
-    const { terminal } = terminalPool.lease('same-target', el);
+    await frontendPtyRegistry.register('mount-a');
+    frontendPtyRegistry.get('mount-a')!.mount(el);
 
-    expect(terminal).toBeDefined();
     expect(hasTerminalChild(el)).toBe(true);
 
     el.remove();
   });
-});
 
-describe('TerminalPool.lease — targetDims pre-resize', () => {
-  it('resizes the terminal to targetDims before appending to the DOM', () => {
+  it('resizes terminal to targetDims before appending to the DOM', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '7';
+    el.dataset['testMount'] = 'dims-1';
 
+    await frontendPtyRegistry.register('dims-a');
+    const pty = frontendPtyRegistry.get('dims-a')!;
     const targetDims = { cols: 100, rows: 40 };
-    const { terminal } = terminalPool.lease('dims-a', el, { targetDims });
+    pty.mount(el, targetDims);
 
-    // The resize happens synchronously before appendChild in lease().
-    expect(terminal.cols).toBe(targetDims.cols);
-    expect(terminal.rows).toBe(targetDims.rows);
+    expect(pty.terminal.cols).toBe(targetDims.cols);
+    expect(pty.terminal.rows).toBe(targetDims.rows);
 
     el.remove();
   });
 
-  it('does not call resize when terminal already has the target dims', () => {
+  it('does not resize when terminal already has the target dims', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '8';
+    el.dataset['testMount'] = 'dims-2';
 
-    // First lease sets initial dims.
-    const { terminal } = terminalPool.lease('dims-b', el, {
-      targetDims: { cols: 80, rows: 24 },
-    });
-    expect(terminal.cols).toBe(80);
-    expect(terminal.rows).toBe(24);
+    await frontendPtyRegistry.register('dims-b');
+    const pty = frontendPtyRegistry.get('dims-b')!;
+    pty.mount(el, { cols: 80, rows: 24 });
 
-    terminalPool.release('dims-b');
+    expect(pty.terminal.cols).toBe(80);
+    expect(pty.terminal.rows).toBe(24);
 
-    // Re-lease with the same dims should be a no-op for resize.
-    const resizeSpy = vi.spyOn(terminal, 'resize');
-    terminalPool.lease('dims-b', el, { targetDims: { cols: 80, rows: 24 } });
+    frontendPtyRegistry.get('dims-b')!.unmount();
+
+    const resizeSpy = vi.spyOn(pty.terminal, 'resize');
+    pty.mount(el, { cols: 80, rows: 24 });
     expect(resizeSpy).not.toHaveBeenCalled();
 
     el.remove();
   });
 
-  it('resizes on re-lease when dims have changed', () => {
+  it('resizes on re-mount when dims have changed', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '9';
+    el.dataset['testMount'] = 'dims-3';
 
-    const { terminal } = terminalPool.lease('dims-c', el, {
-      targetDims: { cols: 80, rows: 24 },
-    });
-    terminalPool.release('dims-c');
+    await frontendPtyRegistry.register('dims-c');
+    const pty = frontendPtyRegistry.get('dims-c')!;
+    pty.mount(el, { cols: 80, rows: 24 });
+    pty.unmount();
 
-    // Re-lease with different dims — should resize.
-    terminalPool.lease('dims-c', el, { targetDims: { cols: 120, rows: 40 } });
-    expect(terminal.cols).toBe(120);
-    expect(terminal.rows).toBe(40);
+    pty.mount(el, { cols: 120, rows: 40 });
+    expect(pty.terminal.cols).toBe(120);
+    expect(pty.terminal.rows).toBe(40);
 
     el.remove();
   });
+
+  it('reparents to a new mount target on re-mount', async () => {
+    const el1 = makeMountTarget();
+    el1.dataset['testMount'] = 'reparent-1';
+    const el2 = makeMountTarget();
+    el2.dataset['testMount'] = 'reparent-2';
+
+    await frontendPtyRegistry.register('reparent-a');
+    const pty = frontendPtyRegistry.get('reparent-a')!;
+
+    pty.mount(el1);
+    expect(hasTerminalChild(el1)).toBe(true);
+
+    pty.unmount();
+    pty.mount(el2);
+
+    expect(hasTerminalChild(el2)).toBe(true);
+
+    el1.remove();
+    el2.remove();
+  });
 });
 
-describe('TerminalPool.release', () => {
-  it('moves the terminal container to the off-screen host on release', () => {
+describe('FrontendPty.unmount', () => {
+  it('moves ownedContainer to the off-screen host on unmount', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '10';
+    el.dataset['testMount'] = 'unmount-1';
 
-    terminalPool.lease('rel-a', el);
+    await frontendPtyRegistry.register('unmount-a');
+    const pty = frontendPtyRegistry.get('unmount-a')!;
+    pty.mount(el);
     expect(hasTerminalChild(el)).toBe(true);
 
-    terminalPool.release('rel-a');
+    pty.unmount();
 
     // Mount target is now empty.
     expect(hasTerminalChild(el)).toBe(false);
@@ -201,136 +200,56 @@ describe('TerminalPool.release', () => {
 
     el.remove();
   });
-
-  it('is a no-op for unknown session IDs', () => {
-    expect(() => terminalPool.release('unknown-session')).not.toThrow();
-  });
 });
 
-describe('TerminalPool.dispose', () => {
-  it('removes the entry so a subsequent lease creates a new terminal', () => {
+describe('FrontendPtyRegistry.unregister', () => {
+  it('removes the entry so get() returns undefined afterward', async () => {
+    await frontendPtyRegistry.register('unreg-a');
+    expect(frontendPtyRegistry.get('unreg-a')).toBeDefined();
+
+    frontendPtyRegistry.unregister('unreg-a');
+    expect(frontendPtyRegistry.get('unreg-a')).toBeUndefined();
+  });
+
+  it('is a no-op for unknown session IDs', () => {
+    expect(() => frontendPtyRegistry.unregister('unknown-session')).not.toThrow();
+  });
+
+  it('removes the container so a subsequent register() creates a new terminal', async () => {
     const el = makeMountTarget();
-    el.dataset['testMount'] = '11';
+    el.dataset['testMount'] = 'unreg-2';
 
-    const { terminal: first } = terminalPool.lease('disp-a', el);
-    terminalPool.dispose('disp-a');
+    await frontendPtyRegistry.register('unreg-b');
+    const first = frontendPtyRegistry.get('unreg-b')!.terminal;
+    frontendPtyRegistry.unregister('unreg-b');
 
-    // Re-lease after dispose → new terminal instance.
-    const { terminal: second } = terminalPool.lease('disp-a', el);
+    await frontendPtyRegistry.register('unreg-b');
+    const second = frontendPtyRegistry.get('unreg-b')!.terminal;
     expect(second).not.toBe(first);
 
     el.remove();
   });
-
-  it('is a no-op for unknown session IDs', () => {
-    expect(() => terminalPool.dispose('unknown-session')).not.toThrow();
-  });
 });
 
-describe('TerminalPool.disposeAll', () => {
-  it('clears all entries so subsequent leases start fresh', () => {
-    const el = makeMountTarget();
-    el.dataset['testMount'] = '12';
+describe('FrontendPtyRegistry.disposeAll', () => {
+  it('clears all entries so get() returns undefined for all sessions', async () => {
+    await frontendPtyRegistry.register('all-a');
+    await frontendPtyRegistry.register('all-b');
 
-    const { terminal: t1 } = terminalPool.lease('all-a', el);
-    const { terminal: t2 } = terminalPool.lease('all-b', el);
-    terminalPool.disposeAll();
+    frontendPtyRegistry.disposeAll();
 
-    // New leases after disposeAll should return new terminals.
-    const { terminal: t1b } = terminalPool.lease('all-a', el);
-    const { terminal: t2b } = terminalPool.lease('all-b', el);
-
-    expect(t1b).not.toBe(t1);
-    expect(t2b).not.toBe(t2);
-
-    el.remove();
-  });
-});
-
-describe('TerminalPool — LRU eviction at MAX_POOL_SIZE', () => {
-  it(
-    'evicts the LRU entry and succeeds when leasing beyond capacity',
-    { timeout: 30_000 },
-    async () => {
-      const mounts: HTMLDivElement[] = [];
-
-      // Fill the pool to max capacity.
-      for (let i = 0; i < MAX_POOL_SIZE; i++) {
-        const el = makeMountTarget();
-        el.dataset['testMount'] = `lru-${i}`;
-        mounts.push(el);
-        terminalPool.lease(`lru-session-${i}`, el);
-        // Small yield so the browser doesn't hang on rapid terminal creation.
-        await new Promise((r) => setTimeout(r, 5));
-      }
-
-      // One more lease — should trigger LRU eviction without throwing.
-      const extra = makeMountTarget();
-      extra.dataset['testMount'] = 'lru-extra';
-      mounts.push(extra);
-
-      expect(() => terminalPool.lease('lru-session-extra', extra)).not.toThrow();
-      expect(hasTerminalChild(extra)).toBe(true);
-
-      // Cleanup
-      mounts.forEach((el) => el.remove());
-    }
-  );
-});
-
-describe('TerminalPool — spare pool management', () => {
-  it('creates spares asynchronously after a new lease', async () => {
-    const el = makeMountTarget();
-    el.dataset['testMount'] = 'spare-1';
-
-    // After the first lease, ensureSpares schedules a setTimeout(0).
-    terminalPool.lease('spare-session-a', el);
-
-    // Wait for the spare creation timeout to fire.
-    await new Promise((r) => setTimeout(r, 50));
-
-    // We can't inspect the internal spares array directly, but we CAN verify
-    // that a second (different) lease still succeeds and produces a terminal,
-    // regardless of whether it hit a spare or the cold path.
-    const el2 = makeMountTarget();
-    el2.dataset['testMount'] = 'spare-2';
-    const { terminal } = terminalPool.lease('spare-session-b', el2);
-    expect(terminal).toBeDefined();
-    expect(hasTerminalChild(el2)).toBe(true);
-
-    el.remove();
-    el2.remove();
+    expect(frontendPtyRegistry.get('all-a')).toBeUndefined();
+    expect(frontendPtyRegistry.get('all-b')).toBeUndefined();
   });
 
-  it('trims excess spares when the active count drops after dispose', async () => {
-    const mounts: HTMLDivElement[] = [];
+  it('subsequent register() after disposeAll() creates new terminals', async () => {
+    await frontendPtyRegistry.register('all-c');
+    const t1 = frontendPtyRegistry.get('all-c')!.terminal;
 
-    // Create 4 active sessions.
-    for (let i = 0; i < 4; i++) {
-      const el = makeMountTarget();
-      el.dataset['testMount'] = `trim-${i}`;
-      mounts.push(el);
-      terminalPool.lease(`trim-session-${i}`, el);
-    }
+    frontendPtyRegistry.disposeAll();
+    await frontendPtyRegistry.register('all-c');
+    const t2 = frontendPtyRegistry.get('all-c')!.terminal;
 
-    // Wait for spares to be created.
-    await new Promise((r) => setTimeout(r, 100));
-
-    // Dispose all but one.  targetSpareCount = min(1, MAX-1) = 1.
-    // Excess spares should be trimmed.
-    for (let i = 1; i < 4; i++) {
-      terminalPool.dispose(`trim-session-${i}`);
-    }
-
-    // Pool state should be internally consistent — verify by leasing more
-    // sessions without error.
-    for (let i = 4; i < 8; i++) {
-      const el = makeMountTarget();
-      el.dataset['testMount'] = `trim-extra-${i}`;
-      mounts.push(el);
-      expect(() => terminalPool.lease(`trim-session-${i}`, el)).not.toThrow();
-    }
-
-    mounts.forEach((el) => el.remove());
+    expect(t2).not.toBe(t1);
   });
 });

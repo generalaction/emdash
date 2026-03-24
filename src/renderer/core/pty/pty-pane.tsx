@@ -2,7 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { log } from '../../lib/logger';
 import { rpc } from '../ipc';
-import type { SessionTheme } from './pty-pool';
+import type { SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
 type Props = {
