@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { and, asc, desc, eq, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, ne, or, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -51,6 +51,7 @@ export interface Task {
   metadata?: any;
   useWorktree?: boolean;
   archivedAt?: string | null;
+  lastActivityAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -325,18 +326,28 @@ export class DatabaseService {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
-    // Filter out archived tasks by default
-    const rows: TaskRow[] = projectId
+    const lastActivityAt = sql<string>`coalesce(max(${conversationsTable.updatedAt}), ${tasksTable.updatedAt}, ${tasksTable.createdAt})`;
+    const taskSelection = {
+      ...getTableColumns(tasksTable),
+      lastActivityAt: lastActivityAt.as('lastActivityAt'),
+    };
+
+    const rows = projectId
       ? await db
-          .select()
+          .select(taskSelection)
           .from(tasksTable)
+          .leftJoin(conversationsTable, eq(conversationsTable.taskId, tasksTable.id))
           .where(and(eq(tasksTable.projectId, projectId), isNull(tasksTable.archivedAt)))
-          .orderBy(desc(tasksTable.updatedAt))
+          .groupBy(tasksTable.id)
+          .orderBy(desc(lastActivityAt), desc(tasksTable.createdAt))
       : await db
-          .select()
+          .select(taskSelection)
           .from(tasksTable)
+          .leftJoin(conversationsTable, eq(conversationsTable.taskId, tasksTable.id))
           .where(isNull(tasksTable.archivedAt))
-          .orderBy(desc(tasksTable.updatedAt));
+          .groupBy(tasksTable.id)
+          .orderBy(desc(lastActivityAt), desc(tasksTable.createdAt));
+
     return rows.map((row) => this.mapDrizzleTaskRow(row));
   }
 
@@ -344,19 +355,30 @@ export class DatabaseService {
     if (this.disabled) return [];
     const { db } = await getDrizzleClient();
 
-    const rows: TaskRow[] = projectId
+    const lastActivityAt = sql<string>`coalesce(max(${conversationsTable.updatedAt}), ${tasksTable.updatedAt}, ${tasksTable.createdAt})`;
+    const taskSelection = {
+      ...getTableColumns(tasksTable),
+      lastActivityAt: lastActivityAt.as('lastActivityAt'),
+    };
+
+    const rows = projectId
       ? await db
-          .select()
+          .select(taskSelection)
           .from(tasksTable)
+          .leftJoin(conversationsTable, eq(conversationsTable.taskId, tasksTable.id))
           .where(
             and(eq(tasksTable.projectId, projectId), sql`${tasksTable.archivedAt} IS NOT NULL`)
           )
+          .groupBy(tasksTable.id)
           .orderBy(desc(tasksTable.archivedAt))
       : await db
-          .select()
+          .select(taskSelection)
           .from(tasksTable)
+          .leftJoin(conversationsTable, eq(conversationsTable.taskId, tasksTable.id))
           .where(sql`${tasksTable.archivedAt} IS NOT NULL`)
+          .groupBy(tasksTable.id)
           .orderBy(desc(tasksTable.archivedAt));
+
     return rows.map((row) => this.mapDrizzleTaskRow(row));
   }
 
@@ -852,7 +874,7 @@ export class DatabaseService {
     };
   }
 
-  private mapDrizzleTaskRow(row: TaskRow): Task {
+  private mapDrizzleTaskRow(row: TaskRow & { lastActivityAt?: string | null }): Task {
     return {
       id: row.id,
       projectId: row.projectId,
@@ -867,6 +889,7 @@ export class DatabaseService {
           : null,
       useWorktree: row.useWorktree === 1,
       archivedAt: row.archivedAt ?? null,
+      lastActivityAt: row.lastActivityAt ?? row.updatedAt ?? row.createdAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

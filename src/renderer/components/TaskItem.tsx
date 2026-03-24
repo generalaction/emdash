@@ -48,6 +48,7 @@ interface Task {
   status: 'active' | 'idle' | 'running';
   agentId?: string;
   useWorktree?: boolean;
+  lastActivityAt?: string | null;
   updatedAt?: string;
 }
 
@@ -154,7 +155,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [isEditing]);
 
   const hasChanges = !isLoading && (totalAdditions > 0 || totalDeletions > 0);
-  const compact = formatCompactDate(task.updatedAt);
+  const compact = formatCompactDate(task.lastActivityAt ?? task.updatedAt);
 
   // Right side: PR badge only, OR changes + date, OR just date
   const rightBadge = pr ? (

@@ -73,6 +73,7 @@ export interface Task {
   metadata?: TaskMetadata | null;
   useWorktree?: boolean;
   archivedAt?: string | null;
+  lastActivityAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   agentId?: string;

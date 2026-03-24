@@ -17,13 +17,23 @@ import type { PlainThreadSummary } from '../types/plain';
 import type { GitLabIssueSummary } from '../types/gitlab';
 import type { ForgejoIssueSummary } from '../types/forgejo';
 import { upsertTaskInList } from '../lib/taskListCache';
+import {
+  DEFAULT_TASK_SORT_MODE,
+  mergeManualTaskOrder,
+  sortTasks,
+  type TaskSortMode,
+} from '../lib/taskOrdering';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useToast } from './use-toast';
 import { useModalContext } from '../contexts/ModalProvider';
+import { useLocalStorage } from './useLocalStorage';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
+const TASK_SORT_MODE_STORAGE_KEY = 'emdash.sidebar.taskSortModeByProject';
+const TASK_MANUAL_ORDER_STORAGE_KEY = 'emdash.sidebar.taskManualOrderByProject';
+
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
 
 const getLifecycleTaskIds = (task: Task): string[] => {
@@ -201,6 +211,12 @@ export function useTaskManagement() {
   const { toast } = useToast();
   const { showModal } = useModalContext();
   const queryClient = useQueryClient();
+  const [taskSortModeByProjectId, setTaskSortModeByProjectId] = useLocalStorage<
+    Record<string, TaskSortMode>
+  >(TASK_SORT_MODE_STORAGE_KEY, {});
+  const [manualTaskOrderByProjectId, setManualTaskOrderByProjectId] = useLocalStorage<
+    Record<string, string[]>
+  >(TASK_MANUAL_ORDER_STORAGE_KEY, {});
 
   // ---------------------------------------------------------------------------
   // Task queries — one per project via useQueries
@@ -214,13 +230,26 @@ export function useTaskManagement() {
     })),
   });
 
-  const tasksByProjectId = useMemo(() => {
+  const queriedTasksByProjectId = useMemo(() => {
     const map: Record<string, Task[]> = {};
     projects.forEach((p, i) => {
       map[p.id] = taskResults[i]?.data ?? [];
     });
     return map;
   }, [projects, taskResults]);
+
+  const tasksByProjectId = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    projects.forEach((project) => {
+      const mode = taskSortModeByProjectId[project.id] ?? DEFAULT_TASK_SORT_MODE;
+      map[project.id] = sortTasks(
+        queriedTasksByProjectId[project.id] ?? [],
+        mode,
+        manualTaskOrderByProjectId[project.id] ?? []
+      );
+    });
+    return map;
+  }, [manualTaskOrderByProjectId, projects, queriedTasksByProjectId, taskSortModeByProjectId]);
 
   const archivedTaskResults = useQueries({
     queries: projects.map((project) => ({
@@ -267,6 +296,33 @@ export function useTaskManagement() {
     []
   );
 
+  useEffect(() => {
+    setManualTaskOrderByProjectId((previous) => {
+      let changed = false;
+      const next: Record<string, string[]> = { ...previous };
+
+      for (const project of projects) {
+        const storedOrder = previous[project.id];
+        if (!storedOrder) continue;
+
+        const mergedOrder = mergeManualTaskOrder(
+          (queriedTasksByProjectId[project.id] ?? []).map((task) => task.id),
+          storedOrder
+        );
+
+        if (
+          mergedOrder.length !== storedOrder.length ||
+          mergedOrder.some((taskId, index) => taskId !== storedOrder[index])
+        ) {
+          next[project.id] = mergedOrder;
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
+  }, [projects, queriedTasksByProjectId, setManualTaskOrderByProjectId]);
+
   // Reset active task when project management signals a navigation away
   useEffect(() => {
     if (resetTaskTrigger > 0) {
@@ -283,6 +339,42 @@ export function useTaskManagement() {
       queryClient.setQueryData<Task[]>(['tasks', projectId], (old = []) => updater(old));
     },
     [queryClient]
+  );
+
+  const handleTaskSortModeChange = useCallback(
+    (projectId: string, mode: TaskSortMode) => {
+      setTaskSortModeByProjectId((previous) => {
+        if ((previous[projectId] ?? DEFAULT_TASK_SORT_MODE) === mode) {
+          return previous;
+        }
+        return { ...previous, [projectId]: mode };
+      });
+
+      if (mode !== 'manual') return;
+
+      const currentVisibleTaskIds = (tasksByProjectId[projectId] ?? []).map((task) => task.id);
+      setManualTaskOrderByProjectId((previous) => ({
+        ...previous,
+        [projectId]: mergeManualTaskOrder(currentVisibleTaskIds, previous[projectId] ?? []),
+      }));
+    },
+    [setManualTaskOrderByProjectId, setTaskSortModeByProjectId, tasksByProjectId]
+  );
+
+  const handleReorderTasks = useCallback(
+    (projectId: string, orderedTasks: Task[]) => {
+      setTaskSortModeByProjectId((previous) => {
+        if ((previous[projectId] ?? DEFAULT_TASK_SORT_MODE) === 'manual') {
+          return previous;
+        }
+        return { ...previous, [projectId]: 'manual' };
+      });
+      setManualTaskOrderByProjectId((previous) => ({
+        ...previous,
+        [projectId]: orderedTasks.map((task) => task.id),
+      }));
+    },
+    [setManualTaskOrderByProjectId, setTaskSortModeByProjectId]
   );
 
   const removeTaskFromCache = useCallback(
@@ -1102,6 +1194,7 @@ export function useTaskManagement() {
     setActiveTaskAgent,
     allTasks,
     tasksByProjectId,
+    taskSortModeByProjectId,
     archivedTasksByProjectId,
     linkedGithubIssueMap,
     isCreatingTask,
@@ -1119,5 +1212,7 @@ export function useTaskManagement() {
     handleArchiveTask,
     handleRestoreTask,
     handlePinTask,
+    handleTaskSortModeChange,
+    handleReorderTasks,
   };
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion';
 import ReorderList from '../ReorderList';
 import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
   Sidebar,
   SidebarContent,
@@ -30,7 +31,7 @@ import { TaskItem } from '../TaskItem';
 import { TaskDeleteButton } from '../TaskDeleteButton';
 import { RemoteProjectIndicator } from '../ssh/RemoteProjectIndicator';
 import { useRemoteProject } from '../../hooks/useRemoteProject';
-import type { Project } from '../../types/app';
+import type { Project, Task } from '../../types/app';
 import type { ConnectionState } from '../ssh';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
@@ -39,9 +40,16 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import { useChangelogNotification } from '@/hooks/useChangelogNotification';
 import { useModalContext } from '@/contexts/ModalProvider';
+import { DEFAULT_TASK_SORT_MODE, type TaskSortMode } from '@/lib/taskOrdering';
 import { ChangelogNotificationCard } from './ChangelogNotificationCard';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
+const TASK_SORT_LABELS: Record<TaskSortMode, string> = {
+  'last-active': 'Last active',
+  created: 'Creation date',
+  alphabetical: 'Alphabetical',
+  manual: 'Manual order',
+};
 
 interface LeftSidebarProps {
   onSidebarContextChange?: (state: {
@@ -135,6 +143,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const {
     activeTask,
     tasksByProjectId,
+    taskSortModeByProjectId,
     archivedTasksByProjectId,
     handleSelectTask: onSelectTask,
     handleStartCreateTaskFromSidebar: onCreateTaskForProject,
@@ -143,6 +152,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     handleRestoreTask: onRestoreTask,
     handleDeleteTask,
     handlePinTask,
+    handleTaskSortModeChange,
+    handleReorderTasks,
   } = useTaskManagementContext();
 
   const { settings } = useAppSettings();
@@ -286,6 +297,38 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       const typedProject = project as Project;
                       const isProjectActive =
                         selectedProject?.id === typedProject.id && !activeTask;
+                      const projectTasks = tasksByProjectId[typedProject.id] ?? [];
+                      const taskSortMode =
+                        taskSortModeByProjectId[typedProject.id] ?? DEFAULT_TASK_SORT_MODE;
+                      const shouldShowTaskSortControl =
+                        projectTasks.length > 1 || taskSortMode !== DEFAULT_TASK_SORT_MODE;
+
+                      const renderTaskRow = (task: Task) => {
+                        const isActive = activeTask?.id === task.id;
+                        return (
+                          <motion.div
+                            key={task.id}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() =>
+                              handleNavigationWithCloseSettings(() => onSelectTask?.(task))
+                            }
+                            className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${taskSortMode === 'manual' ? 'cursor-grab active:cursor-grabbing' : ''} ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                          >
+                            <TaskItem
+                              task={task}
+                              showDelete={true}
+                              showDirectBadge={false}
+                              isPinned={!!task.metadata?.isPinned}
+                              onPin={() => handlePinTask(task)}
+                              onRename={(n) => onRenameTask?.(typedProject, task, n)}
+                              onDelete={() => handleDeleteTask(typedProject, task)}
+                              onArchive={() => onArchiveTask?.(typedProject, task)}
+                              primaryAction={taskHoverAction}
+                            />
+                          </motion.div>
+                        );
+                      };
+
                       return (
                         <SidebarMenuItem>
                           <Collapsible
@@ -346,40 +389,60 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                               className="mt-1 min-w-0 data-[state=closed]:hidden"
                             >
                               <div className="flex min-w-0 flex-col gap-1">
-                                {(tasksByProjectId[typedProject.id] ?? [])
-                                  .slice()
-                                  .sort(
-                                    (a, b) =>
-                                      (b.metadata?.isPinned ? 1 : 0) -
-                                      (a.metadata?.isPinned ? 1 : 0)
-                                  )
-                                  .map((task) => {
-                                    const isActive = activeTask?.id === task.id;
-                                    return (
-                                      <motion.div
-                                        key={task.id}
-                                        whileTap={{ scale: 0.97 }}
-                                        onClick={() =>
-                                          handleNavigationWithCloseSettings(() =>
-                                            onSelectTask?.(task)
-                                          )
-                                        }
-                                        className={`group/task min-w-0 rounded-md py-1.5 pl-1 pr-2 hover:bg-accent ${isActive ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                                {shouldShowTaskSortControl && (
+                                  <div className="flex items-center justify-end px-1 pb-1">
+                                    <Select
+                                      value={taskSortMode}
+                                      onValueChange={(value) =>
+                                        handleTaskSortModeChange(
+                                          typedProject.id,
+                                          value as TaskSortMode
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        aria-label={`Sort tasks in ${typedProject.name}`}
+                                        className="h-6 w-[132px] border-none bg-transparent px-2 text-[11px] font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                                       >
-                                        <TaskItem
-                                          task={task}
-                                          showDelete={true}
-                                          showDirectBadge={false}
-                                          isPinned={!!task.metadata?.isPinned}
-                                          onPin={() => handlePinTask(task)}
-                                          onRename={(n) => onRenameTask?.(typedProject, task, n)}
-                                          onDelete={() => handleDeleteTask(typedProject, task)}
-                                          onArchive={() => onArchiveTask?.(typedProject, task)}
-                                          primaryAction={taskHoverAction}
-                                        />
-                                      </motion.div>
-                                    );
-                                  })}
+                                        <SelectValue placeholder="Sort tasks" />
+                                      </SelectTrigger>
+                                      <SelectContent align="end" side="bottom">
+                                        {(
+                                          [
+                                            'last-active',
+                                            'created',
+                                            'alphabetical',
+                                            'manual',
+                                          ] as TaskSortMode[]
+                                        ).map((mode) => (
+                                          <SelectItem key={mode} value={mode}>
+                                            {TASK_SORT_LABELS[mode]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                                {taskSortMode === 'manual' && projectTasks.length > 1 ? (
+                                  <ReorderList
+                                    as="div"
+                                    axis="y"
+                                    items={projectTasks}
+                                    onReorder={(newOrder) =>
+                                      handleReorderTasks(typedProject.id, newOrder as Task[])
+                                    }
+                                    className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
+                                    itemClassName="relative min-w-0 list-none"
+                                    getKey={(task) => (task as Task).id}
+                                    getItemProps={() => ({
+                                      onPointerDown: (event) => event.stopPropagation(),
+                                    })}
+                                  >
+                                    {(task) => renderTaskRow(task as Task)}
+                                  </ReorderList>
+                                ) : (
+                                  projectTasks.map((task) => renderTaskRow(task))
+                                )}
                                 {(archivedTasksByProjectId[typedProject.id]?.length ?? 0) > 0 && (
                                   <Collapsible className="mt-1">
                                     <CollapsibleTrigger asChild>
