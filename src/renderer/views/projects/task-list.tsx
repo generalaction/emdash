@@ -9,7 +9,10 @@ import { Spinner } from '@renderer/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
+import {
+  useTasksDataContext,
+  useTearingDownTaskIds,
+} from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 
@@ -18,15 +21,18 @@ function TaskRow({
   isSelected,
   showRestore,
   onToggleSelect,
+  tearingDownTaskIds,
 }: {
   task: Task;
   isSelected: boolean;
   showRestore?: boolean;
   onToggleSelect: () => void;
+  tearingDownTaskIds?: Set<string>;
 }) {
   const { navigate } = useNavigate();
   const { provisionTask } = useTaskLifecycleContext();
   const lifecycleTask = useTask({ projectId: task.projectId, taskId: task.id });
+  const isTearingDown = tearingDownTaskIds?.has(task.id) ?? false;
 
   const handleProvision = () => provisionTask(task.id);
 
@@ -44,9 +50,11 @@ function TaskRow({
       >
         {task.name}
       </button>
-      {lifecycleTask.status !== 'ready' && (
+      {isTearingDown ? (
+        <span className="size-3 shrink-0 rounded-full bg-muted-foreground/50 animate-pulse" />
+      ) : !showRestore && lifecycleTask.status !== 'ready' ? (
         <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />
-      )}
+      ) : null}
       <TaskActionsMenu
         task={task}
         showRestore={showRestore}
@@ -64,11 +72,13 @@ function TaskRows({
   selectedIds,
   showRestore,
   onToggleSelect,
+  tearingDownTaskIds,
 }: {
   tasks: Task[];
   selectedIds: Set<string>;
   showRestore?: boolean;
   onToggleSelect: (id: string) => void;
+  tearingDownTaskIds?: Set<string>;
 }) {
   if (tasks.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No tasks</p>;
@@ -83,6 +93,7 @@ function TaskRows({
           isSelected={selectedIds.has(task.id)}
           showRestore={showRestore}
           onToggleSelect={() => onToggleSelect(task.id)}
+          tearingDownTaskIds={tearingDownTaskIds}
         />
       ))}
     </div>
@@ -99,6 +110,7 @@ export function TaskList() {
 
   const activeTasks = activeTasksByProjectId[project.id] ?? [];
   const archivedTasks = archivedTasksByProjectId[project.id] ?? [];
+  const tearingDownTaskIds = useTearingDownTaskIds(project.id);
 
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,6 +260,7 @@ export function TaskList() {
             selectedIds={selectedIds}
             showRestore
             onToggleSelect={toggleSelect}
+            tearingDownTaskIds={tearingDownTaskIds}
           />
         </TabsContent>
       </Tabs>

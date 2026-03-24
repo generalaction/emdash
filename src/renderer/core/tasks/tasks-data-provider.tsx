@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import React, { createContext, useContext, useMemo } from 'react';
-import { Task } from '@shared/tasks';
+import type { Task } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 
 interface TasksDataContextValue {
@@ -18,6 +18,15 @@ export function useTasksDataContext(): TasksDataContextValue {
     throw new Error('useTasksContext must be used within a TasksContext.Provider');
   }
   return ctx;
+}
+
+export function useTearingDownTaskIds(projectId: string) {
+  const { data } = useQuery({
+    queryKey: ['tearing-down-tasks', projectId],
+    queryFn: () => rpc.tasks.getTearingDownTaskIds(projectId),
+    refetchInterval: (query) => (query.state.data?.length ? 1000 : false),
+  });
+  return useMemo(() => new Set(data ?? []), [data]);
 }
 
 export function TasksDataProvider({ children }: { children: React.ReactNode }) {
