@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { runInAction } from 'mobx';
+import { useLocalObservable } from 'mobx-react-lite';
+import { useCallback, useEffect, useRef } from 'react';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileNode, FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
-import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
+import { taskViewStateStore } from '@renderer/core/tasks/task-view-store';
 import { buildVisibleRows, isExcluded, makeNode, sortedChildPaths } from './utils';
 
 export function useFileTree(projectId: string, taskId: string, isReady: boolean) {
-  const { getTaskViewState, setTaskViewState } = useTaskViewState();
-
   // Mutable refs for the flat state — updated imperatively to avoid excessive
   // re-renders during rapid mutations (watch events, speculative prefetch).
   const nodesRef = useRef<Map<string, FileNode>>(new Map());
@@ -15,24 +15,42 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
   const loadedPathsRef = useRef<Set<string>>(new Set());
   const pendingPathsRef = useRef<Set<string>>(new Set());
 
-  // React state that drives re-renders — incremented on each substantive mutation.
-  const [generation, setGeneration] = useState(0);
-  const bump = useCallback(() => setGeneration((g) => g + 1), []);
+  // Ref to the current task's EditorViewState — updated on taskId change.
+  const editorViewRef = useRef(taskViewStateStore.getOrCreate(taskId).editorView);
 
-  // Debounced bump for speculative subdirectory loads — collapses bursts of
-  // prefetch completions into a single re-render.
+  const local = useLocalObservable(() => ({
+    generation: 0,
+    isLoading: true,
+    error: null as string | null,
+    bump() {
+      this.generation++;
+    },
+    setLoading(v: boolean) {
+      this.isLoading = v;
+    },
+    setError(e: string | null) {
+      this.error = e;
+    },
+    get visibleRows(): FileNode[] {
+      // Declare a dependency on generation so bumping forces recompute
+      // even though nodesRef/childIndexRef are not observable.
+      void this.generation;
+      // ObservableSet accesses inside buildVisibleRows are tracked by MobX —
+      // toggling or adding a path automatically re-runs this computed.
+      return buildVisibleRows(
+        nodesRef.current,
+        childIndexRef.current,
+        editorViewRef.current.expandedPaths
+      );
+    },
+  }));
+
+  // Debounced bump for speculative subdirectory loads.
   const bumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bumpDebounced = useCallback(() => {
     if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
-    bumpTimerRef.current = setTimeout(bump, 50);
-  }, [bump]);
-
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
-    () => new Set(getTaskViewState(taskId).editorView.expandedPaths)
-  );
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    bumpTimerRef.current = setTimeout(() => local.bump(), 50);
+  }, [local]);
 
   const addNode = useCallback((node: FileNode) => {
     nodesRef.current.set(node.path, node);
@@ -50,14 +68,12 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
     const node = nodesRef.current.get(path);
     if (!node) return;
 
-    // Remove from childIndex
     const siblings = childIndexRef.current.get(node.parentPath) ?? [];
     childIndexRef.current.set(
       node.parentPath,
       siblings.filter((p) => p !== path)
     );
 
-    // Remove node and all descendants
     const toRemove: string[] = [path];
     while (toRemove.length) {
       const p = toRemove.pop()!;
@@ -89,7 +105,6 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
         affectedParents.add(parent);
       }
 
-      // Sort each affected parent's children once after all nodes are inserted.
       for (const parent of affectedParents) {
         const children = childIndexRef.current.get(parent);
         if (children) {
@@ -114,41 +129,42 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
         });
 
         if (!result.success) {
-          if (dirPath === '') setError('Failed to load files');
+          if (dirPath === '') local.setError('Failed to load files');
           return;
         }
 
         applyEntries(dirPath, result.data.entries);
 
-        // Clear any error left over from a previous failed attempt on this root dir.
-        if (dirPath === '') setError(null);
-
-        // Root dir triggers an immediate render; subdirs use a debounced bump
-        // to coalesce the burst of speculative prefetch completions.
         if (dirPath === '') {
-          bump();
+          local.setError(null);
+        }
+
+        if (dirPath === '') {
+          local.bump();
         } else {
           bumpDebounced();
         }
 
-        // Speculative prefetch: fire loadDir for every directory child (depth+1).
         for (const entry of result.data.entries) {
           if (entry.type === 'dir' && !isExcluded(entry.path)) {
             void loadDir(entry.path);
           }
         }
       } catch (e) {
-        if (dirPath === '') setError(e instanceof Error ? e.message : 'Failed to load files');
+        if (dirPath === '') local.setError(e instanceof Error ? e.message : 'Failed to load files');
       } finally {
         pendingPathsRef.current.delete(dirPath);
-        if (dirPath === '') setIsLoading(false);
+        if (dirPath === '') local.setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projectId, taskId, applyEntries, bump, bumpDebounced]
+    [projectId, taskId, applyEntries, local, bumpDebounced]
   );
 
+  // Reset state when projectId/taskId changes.
   useEffect(() => {
+    editorViewRef.current = taskViewStateStore.getOrCreate(taskId).editorView;
+
     nodesRef.current = new Map();
     childIndexRef.current = new Map();
     loadedPathsRef.current = new Set();
@@ -158,12 +174,12 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
       clearTimeout(bumpTimerRef.current);
       bumpTimerRef.current = null;
     }
-    setIsLoading(true);
-    setError(null);
 
-    setExpandedPaths(new Set(getTaskViewState(taskId).editorView.expandedPaths));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, taskId]);
+    local.setLoading(true);
+    local.setError(null);
+    // Bump so visibleRows picks up the new editorViewRef and clears stale rows.
+    local.bump();
+  }, [projectId, taskId, local]);
 
   useEffect(() => {
     if (!projectId || !taskId || !isReady) return;
@@ -172,24 +188,18 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
 
   const toggleExpand = useCallback(
     (path: string) => {
-      setExpandedPaths((prev) => {
-        const next = new Set(prev);
-        if (next.has(path)) {
-          next.delete(path);
-        } else {
-          next.add(path);
-          // Ensure the directory is loaded when expanded
-          if (!loadedPathsRef.current.has(path)) {
-            void loadDir(path);
-          }
+      const { expandedPaths } = editorViewRef.current;
+      if (expandedPaths.has(path)) {
+        expandedPaths.delete(path);
+        // MobX invalidates visibleRows computed automatically via ObservableSet tracking.
+      } else {
+        expandedPaths.add(path);
+        if (!loadedPathsRef.current.has(path)) {
+          void loadDir(path);
         }
-        setTaskViewState(taskId, {
-          editorView: { ...getTaskViewState(taskId).editorView, expandedPaths: [...next] },
-        });
-        return next;
-      });
+      }
     },
-    [taskId, loadDir, getTaskViewState, setTaskViewState]
+    [loadDir]
   );
 
   const revealFile = useCallback(
@@ -204,18 +214,13 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
         await loadDir(dir);
       }
 
-      setExpandedPaths((prev) => {
-        const next = new Set(prev);
-        for (const dir of dirs) next.add(dir);
-        setTaskViewState(taskId, {
-          editorView: { ...getTaskViewState(taskId).editorView, expandedPaths: [...next] },
-        });
-        return next;
+      runInAction(() => {
+        for (const dir of dirs) editorViewRef.current.expandedPaths.add(dir);
       });
-
-      bump();
+      // Bump for the newly loaded directory nodes.
+      local.bump();
     },
-    [taskId, loadDir, bump, getTaskViewState, setTaskViewState]
+    [loadDir, local]
   );
 
   const applyWatchEvents = useCallback(
@@ -226,7 +231,6 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
         if (isExcluded(evt.path)) continue;
 
         if (evt.type === 'create') {
-          // Only add if the parent directory has already been loaded
           const node = makeNode(evt.path, evt.entryType);
           const parentLoaded = loadedPathsRef.current.has(node.parentPath ?? '');
           if (parentLoaded && !nodesRef.current.has(evt.path)) {
@@ -258,9 +262,9 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
         }
       }
 
-      if (changed) bump();
+      if (changed) local.bump();
     },
-    [addNode, removeNode, bump]
+    [addNode, removeNode, local]
   );
 
   useEffect(() => {
@@ -276,20 +280,14 @@ export function useFileTree(projectId: string, taskId: string, isReady: boolean)
     };
   }, [projectId, taskId]);
 
-  const visibleRows = useMemo(
-    () => buildVisibleRows(nodesRef.current, childIndexRef.current, expandedPaths),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [generation, expandedPaths]
-  );
-
   return {
-    visibleRows,
-    expandedPaths,
+    visibleRows: local.visibleRows,
+    expandedPaths: editorViewRef.current.expandedPaths,
     loadedPaths: loadedPathsRef.current,
     toggleExpand,
     revealFile,
-    isLoading,
-    error,
+    isLoading: local.isLoading,
+    error: local.error,
   };
 }
 

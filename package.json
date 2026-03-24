@@ -140,6 +140,8 @@
     "keytar": "^7.9.0",
     "lucide-react": "^0.564.0",
     "minimatch": "^10.1.1",
+    "mobx": "^6.15.0",
+    "mobx-react-lite": "^4.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
     "nbranch": "^0.1.0",

@@ -1,42 +1,56 @@
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { reaction } from 'mobx';
+import { observer } from 'mobx-react-lite';
+import type * as monacoNS from 'monaco-editor';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { getFileKind } from '@renderer/core/editor/fileKind';
-import type { ManagedFile, ManagedFileKind } from '@renderer/core/editor/types';
-import { rpc } from '@renderer/core/ipc';
+import { useDiffDecorations } from '@renderer/core/editor/use-diff-decorations';
+import { events, rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { codeEditorPool, type CodePoolEntry } from '@renderer/core/monaco/monaco-code-pool';
+import {
+  addMonacoKeyboardShortcuts,
+  configureMonacoEditor,
+} from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
+import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import {
-  useTaskViewState,
+  taskViewStateStore,
   type FileRendererData,
+  type ManagedFileInput,
   type OpenedFile,
-} from '@renderer/core/tasks/task-view-state-provider';
+} from '@renderer/core/tasks/task-view-store';
+import { useTheme } from '@renderer/hooks/useTheme';
+import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
-import { useTaskViewContext } from '../task-view-context';
+
+/** Returns the default renderer for a given file kind. */
+function getDefaultRenderer(kind: ReturnType<typeof getFileKind>): FileRendererData {
+  switch (kind) {
+    case 'markdown':
+      return { kind: 'markdown' };
+    case 'svg':
+      return { kind: 'svg' };
+    default:
+      return { kind } as FileRendererData;
+  }
+}
 
 interface EditorContextValue {
   projectId: string;
   taskId: string;
   modelRootPath: string;
 
-  openFiles: Map<string, ManagedFile>;
   activeFilePath: string | null;
-  activeFile: ManagedFile | null;
   isSaving: boolean;
 
   /** Path of the current unstable/preview tab (italic in the tab bar). Null when all tabs are stable. */
   previewFilePath: string | null;
 
-  loadFile: (filePath: string) => Promise<void>;
+  loadFile: (filePath: string) => void;
   /** Opens a file as an unstable preview tab; replaces the existing preview tab if clean. */
-  openFilePreview: (filePath: string) => Promise<void>;
+  openFilePreview: (filePath: string) => void;
   /** Promotes the preview tab to a stable tab. */
   pinFile: (filePath: string) => void;
   saveFile: (filePath?: string) => Promise<void>;
@@ -50,6 +64,12 @@ interface EditorContextValue {
   fileChanges: { path: string; status: 'added' | 'modified' | 'deleted' | 'renamed' }[];
 
   handleCloseFile: (filePath: string) => void;
+
+  /**
+   * Ref callback that appends the task's stable Monaco editor container to the given DOM element.
+   * Called by EditorMainPanel to position the editor host.
+   */
+  setEditorHost: (el: HTMLElement | null) => void;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -60,7 +80,7 @@ export function useEditorContext(): EditorContextValue {
   return ctx;
 }
 
-export function EditorProvider({
+export const EditorProvider = observer(function EditorProvider({
   children,
   taskId,
   projectId,
@@ -70,216 +90,239 @@ export function EditorProvider({
   projectId: string;
 }) {
   const modelRootPath = `task:${taskId}`;
+  const editorView = taskViewStateStore.getOrCreate(taskId).editorView;
+  const { effectiveTheme } = useTheme();
 
-  const restoringRef = useRef(false);
-  /** Maps filePath → stable tabId for all currently open files. */
-  const tabIdsRef = useRef<Map<string, string>>(new Map());
+  // Conflict dialog — shown lazily from saveFile when a pending conflict is detected.
+  const showConflictModal = useShowModal('conflictDialog');
 
-  const { getTaskViewState, setTaskViewState } = useTaskViewState();
+  // Single Monaco editor per task — leased once on mount, released on unmount.
+  const leaseRef = useRef<CodePoolEntry | null>(null);
+  const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
 
-  const [openFiles, setOpenFiles] = useState<Map<string, ManagedFile>>(new Map());
-  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
-  const [previewFilePath, setPreviewFilePath] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  // Stable host element provided by EditorMainPanel via setEditorHost.
+  const hostRef = useRef<HTMLElement | null>(null);
 
-  const activeFile = activeFilePath ? (openFiles.get(activeFilePath) ?? null) : null;
+  // Stable refs so the Monaco keyboard commands (registered once at lease time)
+  // always call the latest version of each function without a stale closure.
+  const saveFileRef = useRef<(filePath?: string) => Promise<void>>(() => Promise.resolve());
+  const saveAllFilesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
-  // Persist open tabs / active and preview pointers to view state.
+  // ---------------------------------------------------------------------------
+  // Editor lifecycle — lease once on mount, release on unmount.
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (restoringRef.current) return;
-
-    // Preserve existing previewMode values while rebuilding the openedFiles list.
-    const currentOpenedFiles = getTaskViewState(taskId).editorView.openedFiles;
-    const prevByPath = new Map(currentOpenedFiles.map((f) => [f.path, f]));
-
-    const openedFiles: OpenedFile[] = Array.from(openFiles.keys()).map((filePath) => {
-      const file = openFiles.get(filePath)!;
-      const tabId = tabIdsRef.current.get(filePath) ?? filePath;
-      const prev = prevByPath.get(filePath);
-
-      let renderer: FileRendererData;
-      if (file.kind === 'text' || file.kind === 'svg') {
-        const prevPreview =
-          prev?.renderer.kind === file.kind
-            ? (prev.renderer as { kind: 'text' | 'svg'; previewMode?: boolean }).previewMode
-            : undefined;
-        renderer =
-          prevPreview !== undefined
-            ? { kind: file.kind, previewMode: prevPreview }
-            : { kind: file.kind };
-      } else {
-        renderer = { kind: file.kind as Exclude<ManagedFileKind, 'text' | 'svg'> };
-      }
-
-      return { tabId, path: filePath, renderer };
-    });
-
-    setTaskViewState(taskId, {
-      editorView: {
-        ...getTaskViewState(taskId).editorView,
-        openedFiles,
-        activeTabId: activeFilePath ? tabIdsRef.current.get(activeFilePath) : undefined,
-        previewTabId: previewFilePath ? tabIdsRef.current.get(previewFilePath) : undefined,
-      },
-    });
-    // getTaskViewState is intentionally excluded — used only to read current editorView for merge.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId, openFiles, activeFilePath, previewFilePath, setTaskViewState]);
-
-  /**
-   * Internal: load a file's content and register models in the registry.
-   *
-   * Three-phase approach to eliminate the "no file open" flash and show a
-   * loading state for slow (e.g. SSH) reads:
-   *
-   * 1. **Synchronous** — insert a `{ isLoading: true }` placeholder into
-   *    `openFiles` immediately so the tab bar is never empty.
-   * 2. **Async I/O** — read/fetch the file content via RPC.
-   * 3. **Settle** — replace the placeholder with the final `ManagedFile`.
-   */
-  const loadFileInternal = useCallback(
-    async (filePath: string) => {
-      // Assign a stable tabId the first time this file is opened.
-      if (!tabIdsRef.current.has(filePath)) {
-        tabIdsRef.current.set(filePath, crypto.randomUUID());
-      }
-
-      const kind = getFileKind(filePath);
-
-      // Phase 1 — synchronous placeholder (no await, no flash).
-      setOpenFiles((prev) =>
-        new Map(prev).set(filePath, {
-          path: filePath,
-          kind,
-          isLoading: kind !== 'binary', // binary needs no I/O
-          content: '',
-        })
-      );
-
-      // Phase 2+3 — async I/O, then replace placeholder.
-      if (kind === 'binary') {
-        // Nothing to load — placeholder already has isLoading: false.
+    let cancelled = false;
+    codeEditorPool.lease().then((lease) => {
+      if (cancelled) {
+        codeEditorPool.release(lease);
         return;
       }
+      leaseRef.current = lease;
+      editorRef.current = lease.editor;
+
+      lease.editor.updateOptions({ glyphMargin: true });
+      configureMonacoEditor(lease.editor);
+
+      const cleanupActive = registerActiveCodeEditor(lease.editor);
+      lease.disposables.push({ dispose: cleanupActive });
+
+      const monaco = codeEditorPool.getMonaco();
+      if (monaco) {
+        addMonacoKeyboardShortcuts(lease.editor, monaco as typeof monacoNS, {
+          onSave: () => {
+            saveFileRef.current().catch(console.error);
+          },
+          onSaveAll: () => {
+            saveAllFilesRef.current().catch(console.error);
+          },
+        });
+      }
+
+      // Append to the host element if it was already set before the lease arrived.
+      if (hostRef.current) {
+        hostRef.current.appendChild(lease.container);
+        lease.editor.layout();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      editorRef.current = null;
+      const lease = leaseRef.current;
+      leaseRef.current = null;
+      if (lease) codeEditorPool.release(lease);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Theme sync — update editor theme when app theme changes.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    codeEditorPool.setTheme(getMonacoTheme(effectiveTheme));
+  }, [effectiveTheme]);
+
+  // ---------------------------------------------------------------------------
+  // Model switching — MobX reaction drives attach when activeFilePath changes.
+  // ---------------------------------------------------------------------------
+  useEffect(
+    () =>
+      reaction(
+        () => editorView.activeFilePath,
+        (path, prevPath) => {
+          const editor = editorRef.current;
+          if (!editor) return;
+          const bufUri = path ? buildMonacoModelPath(modelRootPath, path) : null;
+          const prevBufUri = prevPath ? buildMonacoModelPath(modelRootPath, prevPath) : undefined;
+          if (bufUri) modelRegistry.attach(editor, bufUri, prevBufUri);
+          else editor.setModel(null);
+        }
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // ---------------------------------------------------------------------------
+  // Diff decorations — driven by active file path.
+  // ---------------------------------------------------------------------------
+  const bufferUri = editorView.activeFilePath
+    ? buildMonacoModelPath(modelRootPath, editorView.activeFilePath)
+    : '';
+  useDiffDecorations(editorRef, bufferUri);
+
+  // ---------------------------------------------------------------------------
+  // FS watcher — start for this task on mount, stop on unmount.
+  // EditorProvider owns the watcher lifecycle instead of MonacoModelRegistry.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    rpc.fs.watchSetPaths(projectId, taskId, [''], 'editor').catch(() => {});
+    const unsub = events.on(
+      fsWatchEventChannel,
+      (data) => void modelRegistry.handleFsEvents(data.taskId, data.events),
+      taskId
+    );
+    return () => {
+      rpc.fs.watchStop(projectId, taskId, 'editor').catch(() => {});
+      unsub();
+    };
+  }, [projectId, taskId]);
+
+  // ---------------------------------------------------------------------------
+  // setEditorHost — called by EditorMainPanel to give the editor a stable DOM node.
+  // ---------------------------------------------------------------------------
+  const setEditorHost = useCallback((el: HTMLElement | null) => {
+    hostRef.current = el;
+    if (el && leaseRef.current?.container) {
+      el.appendChild(leaseRef.current.container);
+      leaseRef.current.editor.layout();
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // openTab — fire-and-forget file opening (no phases, no isLoading for Monaco).
+  // ---------------------------------------------------------------------------
+  const openTab = useCallback(
+    (filePath: string) => {
+      const kind = getFileKind(filePath);
+      const existingRenderer = editorView.openFiles.get(filePath)?.renderer;
+      const defaultRenderer = getDefaultRenderer(kind);
+      // Preserve existing renderer if the kind matches (e.g. markdown-source stays open).
+      const renderer =
+        existingRenderer && existingRenderer.kind.startsWith(kind)
+          ? existingRenderer
+          : defaultRenderer;
 
       if (kind === 'image') {
-        const result = await rpc.fs.readImage(projectId, taskId, filePath);
-        const dataUrl = result.success ? (result.data?.dataUrl ?? '') : '';
-        setOpenFiles((prev) =>
-          new Map(prev).set(filePath, {
-            path: filePath,
-            kind: 'image',
-            isLoading: false,
-            content: dataUrl,
-          })
-        );
-        return;
-      }
-
-      // 'text' and 'svg': pre-read to detect truncation before registering Monaco models.
-      const readResult = await rpc.fs.readFile(projectId, taskId, filePath);
-
-      if (!readResult.success) {
-        setOpenFiles((prev) =>
-          new Map(prev).set(filePath, {
-            path: filePath,
-            kind: 'binary', // treat unreadable files as unsupported
-            isLoading: false,
-            content: '',
-          })
-        );
-        return;
-      }
-
-      if (readResult.data?.truncated) {
-        setOpenFiles((prev) =>
-          new Map(prev).set(filePath, {
-            path: filePath,
-            kind: 'too-large',
-            isLoading: false,
-            content: '',
-            totalSize: readResult.data?.totalSize,
-          })
-        );
-        return;
-      }
-
-      const language = getMonacoLanguageId(filePath);
-
-      // Register disk first (buffer seeds from it), then git baseline, then buffer.
-      // Awaiting all three before setting state guarantees models exist for PooledCodeEditor
-      // and useDiffDecorations.
-      await modelRegistry.registerModel(
-        projectId,
-        taskId,
-        modelRootPath,
-        filePath,
-        language,
-        'disk'
-      );
-      await modelRegistry.registerModel(
-        projectId,
-        taskId,
-        modelRootPath,
-        filePath,
-        language,
-        'git'
-      );
-      await modelRegistry.registerModel(
-        projectId,
-        taskId,
-        modelRootPath,
-        filePath,
-        language,
-        'buffer'
-      );
-
-      const diskValue =
-        modelRegistry.getDiskValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '';
-      setOpenFiles((prev) =>
-        new Map(prev).set(filePath, {
+        editorView.setFile({
           path: filePath,
-          kind, // 'text' or 'svg'
-          isLoading: false,
-          content: diskValue,
-        })
-      );
+          kind,
+          renderer: { kind: 'image' },
+          content: '',
+          isLoading: true,
+        });
+        void rpc.fs.readImage(projectId, taskId, filePath).then((result) => {
+          const dataUrl = result.success ? (result.data?.dataUrl ?? '') : '';
+          editorView.setFile({
+            path: filePath,
+            kind,
+            renderer: { kind: 'image' },
+            content: dataUrl,
+            isLoading: false,
+          });
+        });
+        return;
+      }
+
+      editorView.setFile({
+        path: filePath,
+        kind,
+        renderer,
+        content: '',
+        isLoading: false,
+      });
+
+      if (kind === 'text' || kind === 'markdown' || kind === 'svg') {
+        const language = getMonacoLanguageId(filePath);
+        // Fire-and-forget: registry deduplicates concurrent calls.
+        void modelRegistry
+          .registerModel(projectId, taskId, modelRootPath, filePath, language, 'disk')
+          .then(() =>
+            modelRegistry.registerModel(projectId, taskId, modelRootPath, filePath, language, 'git')
+          )
+          .then(() =>
+            modelRegistry.registerModel(
+              projectId,
+              taskId,
+              modelRootPath,
+              filePath,
+              language,
+              'buffer'
+            )
+          )
+          .then(() => {
+            // Once buffer is ready, attach if this is the active file.
+            const bufUri = buildMonacoModelPath(modelRootPath, filePath);
+            const editor = editorRef.current;
+            if (editor && editorView.activeFilePath === filePath) {
+              const prevPath = editorView.activeFilePath;
+              const prevBufUri =
+                prevPath && prevPath !== filePath
+                  ? buildMonacoModelPath(modelRootPath, prevPath)
+                  : undefined;
+              modelRegistry.attach(editor, bufUri, prevBufUri);
+            }
+          });
+      }
     },
-    [projectId, taskId, modelRootPath]
+    [editorView, projectId, taskId, modelRootPath]
   );
 
   // Restore open files from view state on mount, then apply any persisted unsaved buffers.
   useEffect(() => {
     if (!taskId) return;
-    restoringRef.current = true;
 
-    const { editorView } = getTaskViewState(taskId);
+    // Snapshot of openedFiles at mount time — computed from openFiles observable.
+    const openedFiles: OpenedFile[] = editorView.openedFiles;
 
     const restore = async () => {
-      if (editorView.openedFiles.length) {
-        for (const { tabId, path: filePath } of editorView.openedFiles) {
-          tabIdsRef.current.set(filePath, tabId);
-          await loadFileInternal(filePath).catch(() => {
-            // Skip missing / deleted files silently.
-          });
+      if (openedFiles.length) {
+        for (const { tabId, path: filePath } of openedFiles) {
+          // Pre-seed the tabId so setFile uses it (preserving stable keys).
+          editorView.tabIds.set(filePath, tabId);
+          openTab(filePath);
         }
 
-        const openPaths = new Set(editorView.openedFiles.map((f) => f.path));
+        const openPaths = new Set(openedFiles.map((f) => f.path));
 
-        if (editorView.activeTabId) {
-          const activeFile = editorView.openedFiles.find((f) => f.tabId === editorView.activeTabId);
-          if (activeFile && openPaths.has(activeFile.path)) {
-            setActiveFilePath(activeFile.path);
-          }
+        const activeEntry = openedFiles.find((f) => f.tabId === editorView.activeTabId);
+        if (activeEntry && openPaths.has(activeEntry.path)) {
+          editorView.setActiveFilePath(activeEntry.path);
         }
 
-        if (editorView.previewTabId) {
-          const previewFile = editorView.openedFiles.find(
-            (f) => f.tabId === editorView.previewTabId
-          );
-          if (previewFile && openPaths.has(previewFile.path)) {
-            setPreviewFilePath(previewFile.path);
-          }
+        const previewEntry = openedFiles.find((f) => f.tabId === editorView.previewTabId);
+        if (previewEntry && openPaths.has(previewEntry.path)) {
+          editorView.setPreviewFilePath(previewEntry.path);
         }
       }
 
@@ -298,72 +341,47 @@ export function EditorProvider({
           console.warn('[EditorProvider] Failed to restore buffers:', e);
         }
       }
-
-      restoringRef.current = false;
     };
 
     void restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
-  // Conflict dialog — shown lazily from saveFile when a pending conflict is detected.
-  const showConflictModal = useShowModal('conflictDialog');
-
   const loadFile = useCallback(
-    async (filePath: string) => {
-      await loadFileInternal(filePath);
+    (filePath: string) => {
+      openTab(filePath);
       // Promote to stable if it was the preview tab.
-      setPreviewFilePath((prev) => (prev === filePath ? null : prev));
-      setActiveFilePath(filePath);
+      if (editorView.previewFilePath === filePath) {
+        editorView.setPreviewFilePath(null);
+      }
+      editorView.setActiveFilePath(filePath);
     },
-    [loadFileInternal]
+    [editorView, openTab]
   );
 
   const saveFile = useCallback(
     async (filePath?: string) => {
-      const targetPath = filePath ?? activeFilePath;
+      const targetPath = filePath ?? editorView.activeFilePath;
       if (!targetPath) return;
 
       const uri = buildMonacoModelPath(modelRootPath, targetPath);
       if (!modelRegistry.isDirty(uri)) return;
 
-      // If the file was externally modified while the buffer had unsaved edits,
-      // show the conflict dialog before writing. The save completes inside onSuccess
-      // so the user's choice is applied atomically.
       if (modelRegistry.hasPendingConflict(uri)) {
         showConflictModal({
           filePath: targetPath,
           onSuccess: async (accept) => {
             if (accept) {
               // "Accept Incoming" — discard user edits, reload buffer from disk.
-              modelRegistry.reloadFromDisk(uri); // also clears pendingConflict
+              modelRegistry.reloadFromDisk(uri);
               void rpc.editorBuffer.clearBuffer(projectId, taskId, targetPath);
-              const content = modelRegistry.getDiskValue(uri) ?? '';
-              setOpenFiles((prev) => {
-                const next = new Map(prev);
-                const existing = next.get(targetPath);
-                if (existing) {
-                  next.set(targetPath, { ...existing, content });
-                }
-                return next;
-              });
             } else {
               // "Keep Mine" — write the user's buffer to disk.
-              setIsSaving(true);
+              editorView.setIsSaving(true);
               try {
-                const content = await modelRegistry.saveFileToDisk(uri); // also clears pendingConflict
-                if (content !== null) {
-                  setOpenFiles((prev) => {
-                    const next = new Map(prev);
-                    const updated = next.get(targetPath);
-                    if (updated) {
-                      next.set(targetPath, { ...updated, content });
-                    }
-                    return next;
-                  });
-                }
+                await modelRegistry.saveFileToDisk(uri);
               } finally {
-                setIsSaving(false);
+                editorView.setIsSaving(false);
               }
             }
           },
@@ -371,145 +389,148 @@ export function EditorProvider({
         return;
       }
 
-      setIsSaving(true);
+      editorView.setIsSaving(true);
       try {
-        const content = await modelRegistry.saveFileToDisk(uri);
-        if (content !== null) {
-          setOpenFiles((prev) => {
-            const next = new Map(prev);
-            const updated = next.get(targetPath);
-            if (updated) {
-              next.set(targetPath, { ...updated, content });
-            }
-            return next;
-          });
-        } else {
+        const result = await modelRegistry.saveFileToDisk(uri);
+        if (result === null) {
           console.error('Failed to save file:', targetPath);
         }
       } catch (error) {
         console.error('Error saving file:', error);
       } finally {
-        setIsSaving(false);
+        editorView.setIsSaving(false);
       }
     },
-    [activeFilePath, modelRootPath, projectId, taskId, showConflictModal]
+    [editorView, modelRootPath, projectId, taskId, showConflictModal]
   );
 
-  const saveAllFiles = useCallback(async () => {
-    const dirtyPaths = Array.from(openFiles.keys()).filter((p) =>
+  // Keep stable refs current so keyboard shortcuts registered once always call latest versions.
+  saveFileRef.current = saveFile;
+  saveAllFilesRef.current = async () => {
+    const dirtyPaths = Array.from(editorView.openFiles.keys()).filter((p) =>
       modelRegistry.isDirty(buildMonacoModelPath(modelRootPath, p))
     );
     for (const path of dirtyPaths) {
       await saveFile(path);
     }
-  }, [openFiles, modelRootPath, saveFile]);
+  };
+
+  const saveAllFiles = useCallback(async () => {
+    return saveAllFilesRef.current();
+  }, []);
 
   const closeFile = useCallback(
     (filePath: string) => {
-      setOpenFiles((prev) => {
-        const next = new Map(prev);
-        next.delete(filePath);
-        return next;
-      });
-      setActiveFilePath((prev) => {
-        if (prev !== filePath) return prev;
-        const keys = Array.from(openFiles.keys()).filter((k) => k !== filePath);
-        return keys[keys.length - 1] ?? null;
-      });
+      editorView.removeFile(filePath);
     },
-    [openFiles]
+    [editorView]
   );
 
-  const setActiveFile = useCallback((filePath: string | null) => {
-    setActiveFilePath(filePath);
-  }, []);
+  const setActiveFile = useCallback(
+    (filePath: string | null) => {
+      editorView.setActiveFilePath(filePath);
+    },
+    [editorView]
+  );
 
   const handleCloseFile = useCallback(
     (filePath: string) => {
-      tabIdsRef.current.delete(filePath);
-
       const uri = buildMonacoModelPath(modelRootPath, filePath);
-      // Decrement ref counts; models are disposed when counts reach 0.
+      // Decrement ref counts; models are evicted after 60s.
       modelRegistry.unregisterModel(uri);
       modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, 'HEAD'));
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
       closeFile(filePath);
-      // previewMode cleanup is implicit: the sync effect rebuilds openedFiles
-      // from openFiles, so the closed file's renderer data is naturally dropped.
-      setPreviewFilePath((prev) => (prev === filePath ? null : prev));
+      if (editorView.previewFilePath === filePath) {
+        editorView.setPreviewFilePath(null);
+      }
     },
-    [closeFile, projectId, taskId, modelRootPath]
+    [closeFile, editorView, projectId, taskId, modelRootPath]
   );
 
   /**
    * Opens a file as an unstable preview tab (single-click behaviour).
-   * If there is already a clean preview tab, it is closed and replaced.
+   * If there is already a clean preview tab, atomically swaps it with the
+   * incoming file's placeholder — preventing a flash of two tabs.
    * If the file is already open (stable or preview), it is simply activated.
-   *
-   * Load order is intentionally reversed vs the old approach:
-   *   NEW: load new file first → close old preview
-   * The synchronous loading placeholder added by `loadFileInternal` ensures
-   * `openFiles` is never empty during the transition, eliminating the flash.
    */
   const openFilePreview = useCallback(
-    async (filePath: string) => {
-      if (openFiles.has(filePath)) {
-        setActiveFilePath(filePath);
+    (filePath: string) => {
+      if (editorView.openFiles.has(filePath)) {
+        editorView.setActiveFilePath(filePath);
         return;
       }
 
-      // Capture the outgoing preview path before any awaits.
-      const outgoingPreview = previewFilePath;
+      const outgoingPreview = editorView.previewFilePath;
+      const outgoingUri = outgoingPreview
+        ? buildMonacoModelPath(modelRootPath, outgoingPreview)
+        : null;
+      const canSwap = outgoingPreview && outgoingUri && !modelRegistry.isDirty(outgoingUri);
 
-      // Load the new file first. The synchronous placeholder phase of
-      // loadFileInternal immediately adds the new entry to openFiles, so the
-      // tab bar is never empty while waiting for async I/O to complete.
-      await loadFileInternal(filePath);
-      setPreviewFilePath(filePath);
-      setActiveFilePath(filePath);
+      if (canSwap) {
+        const kind = getFileKind(filePath);
+        const defaultRenderer = getDefaultRenderer(kind);
+        const incomingInput: ManagedFileInput = {
+          path: filePath,
+          kind,
+          isLoading: kind === 'image',
+          content: '',
+          renderer: defaultRenderer,
+        };
 
-      // Now it is safe to remove the old preview — the new file is already present.
-      if (outgoingPreview && outgoingPreview !== filePath) {
-        const outgoingUri = buildMonacoModelPath(modelRootPath, outgoingPreview);
-        setOpenFiles((prev) => {
-          const previewFile = prev.get(outgoingPreview);
-          if (!previewFile || modelRegistry.isDirty(outgoingUri)) return prev;
+        // Atomic swap: remove outgoing and add incoming placeholder in one MobX action.
+        // React sees a single render with the tab mutated in place — no flash.
+        editorView.swapPreviewTab(outgoingPreview, incomingInput);
 
-          // Clean up Monaco models for the outgoing preview tab.
-          modelRegistry.unregisterModel(outgoingUri);
-          modelRegistry.unregisterModel(modelRegistry.toDiskUri(outgoingUri));
-          void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
-          // previewMode cleanup is implicit via the sync effect.
+        // Clean up outgoing models (safe to do after the state update).
+        modelRegistry.unregisterModel(outgoingUri);
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(outgoingUri));
+        void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
+        // Remove the outgoing path's stolen tabId entry from the non-observable map.
+        editorView.tabIds.delete(outgoingPreview);
 
-          const next = new Map(prev);
-          next.delete(outgoingPreview);
-          return next;
-        });
-        setPreviewFilePath(filePath);
+        // Now actually open the new file.
+        openTab(filePath);
+      } else {
+        openTab(filePath);
+        editorView.setPreviewFilePath(filePath);
+        editorView.setActiveFilePath(filePath);
+
+        // Remove the old preview if it was clean.
+        if (outgoingPreview && outgoingPreview !== filePath && outgoingUri) {
+          if (!modelRegistry.isDirty(outgoingUri)) {
+            modelRegistry.unregisterModel(outgoingUri);
+            modelRegistry.unregisterModel(modelRegistry.toDiskUri(outgoingUri));
+            void rpc.editorBuffer.clearBuffer(projectId, taskId, outgoingPreview);
+            editorView.removeFile(outgoingPreview);
+            editorView.setPreviewFilePath(filePath);
+          }
+        }
       }
     },
-    [openFiles, previewFilePath, loadFileInternal, modelRootPath, projectId, taskId]
+    [editorView, openTab, modelRootPath, projectId, taskId]
   );
 
   /** Promotes the preview tab to a stable tab (double-click on tab). */
-  const pinFile = useCallback((filePath: string) => {
-    setPreviewFilePath((prev) => (prev === filePath ? null : prev));
-  }, []);
-
-  const tabs = Array.from(openFiles.keys()).map((filePath) => ({
-    tabId: tabIdsRef.current.get(filePath) ?? filePath,
-    filePath,
-  }));
+  const pinFile = useCallback(
+    (filePath: string) => {
+      if (editorView.previewFilePath === filePath) {
+        editorView.setPreviewFilePath(null);
+      }
+    },
+    [editorView]
+  );
 
   // Cleanup: unregister all models for this task on unmount.
-  const openFilesRef = useRef(openFiles);
-  openFilesRef.current = openFiles;
+  // Use a ref so the cleanup closure sees the latest openFiles without re-running.
+  const editorViewRef = useRef(editorView);
+  editorViewRef.current = editorView;
   useEffect(() => {
     return () => {
       if (!projectId || !taskId) return;
-      for (const filePath of openFilesRef.current.keys()) {
+      for (const filePath of editorViewRef.current.openFiles.keys()) {
         const uri = buildMonacoModelPath(modelRootPath, filePath);
         modelRegistry.unregisterModel(uri);
         modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
@@ -525,12 +546,10 @@ export function EditorProvider({
         projectId,
         taskId,
         modelRootPath,
-        openFiles,
-        tabs,
-        activeFilePath,
-        activeFile,
-        isSaving,
-        previewFilePath,
+        tabs: editorView.tabs,
+        activeFilePath: editorView.activeFilePath,
+        isSaving: editorView.isSaving,
+        previewFilePath: editorView.previewFilePath,
         loadFile,
         openFilePreview,
         pinFile,
@@ -540,9 +559,10 @@ export function EditorProvider({
         setActiveFile,
         fileChanges: [],
         handleCloseFile,
+        setEditorHost,
       }}
     >
       {children}
     </EditorContext.Provider>
   );
-}
+});

@@ -59,6 +59,7 @@ Start here. Load only the linked `agents/` docs that are relevant to the task.
 - Renderer patterns (modals, views, PTY frontend, React Query contexts): `agents/conventions/renderer-patterns.md`
 - TypeScript and React norms: `agents/conventions/typescript.md`
 - Config files and repo rules: `agents/conventions/config-files.md`
+- Never do re exports always import from the original source
 
 ## Non-Negotiables
 
