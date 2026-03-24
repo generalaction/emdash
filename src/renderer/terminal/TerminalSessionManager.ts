@@ -12,6 +12,7 @@ import { log } from '../lib/logger';
 import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
+import type { PersistentSessionBackend } from '@shared/sessionBackend';
 import { consumeSubmittedInputChunk } from './submitCapture';
 import { isSlashCommandInput } from '../lib/slashCommand';
 import { buildCommentInjectionPayload } from '../lib/terminalInjection';
@@ -121,7 +122,7 @@ export class TerminalSessionManager {
   private ptyConnectPromise: Promise<{
     ok: boolean;
     reused?: boolean;
-    tmux?: boolean;
+    sessionBackend?: PersistentSessionBackend;
     error?: string;
   }> | null = null;
   private restartPromise: Promise<boolean> | null = null;
@@ -1166,16 +1167,16 @@ export class TerminalSessionManager {
     // Connect to PTY - pass resume flag if we have a previous session
     const result = await this.connectPty(hasSnapshot);
 
-    // When tmux is active, disable snapshots — tmux preserves terminal state natively.
-    if (result?.tmux) {
+    // Persistent session backends restore terminal state on their own.
+    if (result?.sessionBackend) {
       this.options.disableSnapshots = true;
       this.stopSnapshotTimer();
     }
 
     // Decide whether to restore snapshot based on PTY result
     try {
-      if (result?.tmux) {
-        // Tmux session: skip snapshot — tmux restores its own scrollback on reattach
+      if (result?.sessionBackend) {
+        // Persistent session backend: skip snapshot and let the backend restore state.
       } else if (result?.reused) {
         // Hot reload - PTY still running, restore snapshot for visual continuity
         if (snapshot) {
@@ -1226,9 +1227,12 @@ export class TerminalSessionManager {
     }
   }
 
-  private async connectPty(
-    hasExistingSession: boolean = false
-  ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
+  private async connectPty(hasExistingSession: boolean = false): Promise<{
+    ok: boolean;
+    reused?: boolean;
+    sessionBackend?: PersistentSessionBackend;
+    error?: string;
+  }> {
     if (this.ptyConnectPromise) {
       return this.ptyConnectPromise;
     }

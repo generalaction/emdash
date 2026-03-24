@@ -14,9 +14,8 @@ import {
   buildProviderCliArgs,
   getProviderRuntimeCliArgs,
   resolveProviderCommandConfig,
-  killTmuxSession,
-  getTmuxSessionName,
-  getPtyTmuxSessionName,
+  killPersistentSession,
+  getPtySessionBackend,
   clearStoredSession,
   getStoredResumeTarget,
   markCodexSessionBound,
@@ -44,6 +43,12 @@ import { quoteShellArg } from '../utils/shellEscape';
 import { agentEventService } from './AgentEventService';
 import { codexSessionService } from './CodexSessionService';
 import { waitForShellPrompt, type PromptWaitHandle } from '../utils/waitForShellPrompt';
+import {
+  getPersistentSessionName,
+  isPersistentSessionBackend,
+  type PersistentSessionBackend,
+  type SessionBackend,
+} from '@shared/sessionBackend';
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
@@ -288,9 +293,10 @@ function cleanupPtySession(id: string): void {
   // Ensure telemetry timers are cleared even on manual kill
   maybeMarkProviderFinish(id, null, undefined, 'manual_kill');
   sendPtyExitGlobal(id);
-  // Kill associated tmux session if this PTY was tmux-wrapped
-  if (getPtyTmuxSessionName(id)) {
-    killTmuxSession(id);
+  // Kill associated persistent session if this PTY was wrapped in one.
+  const sessionBackend = getPtySessionBackend(id);
+  if (sessionBackend) {
+    killPersistentSession(id, sessionBackend);
   }
   killPty(id);
   owners.delete(id);
@@ -382,7 +388,7 @@ async function writeRemoteOpenCodePlugin(
 function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
-  tmux?: { sessionName: string };
+  persistentSession?: { backend: PersistentSessionBackend; sessionName: string };
   preProviderCommands?: string[];
 }): string {
   const lines: string[] = [];
@@ -403,12 +409,15 @@ function buildRemoteInitKeystrokes(args: {
     const msg = `emdash: ${cli} not found on remote.${install}`;
     const providerCmd = args.provider.cmd;
 
-    if (args.tmux) {
-      // When tmux is enabled, wrap the provider command in a named tmux session.
-      // tmux new-session -As creates-or-attaches in one command.
-      // Falls back to running without tmux if tmux isn't installed on the remote.
-      const tmuxName = quoteShellArg(args.tmux.sessionName);
+    if (args.persistentSession?.backend === 'tmux') {
+      const tmuxName = quoteShellArg(args.persistentSession.sessionName);
       const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v tmux >/dev/null 2>&1; then exec tmux new-session -As ${tmuxName} -- sh -c ${quoteShellArg(providerCmd)}; else printf '%s\\n' 'emdash: tmux not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
+        msg
+      )}; fi`;
+      lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
+    } else if (args.persistentSession?.backend === 'zellij') {
+      const zellijConfigPath = buildRemoteZellijConfigPath(args.persistentSession.sessionName);
+      const shScript = `if command -v ${quoteShellArg(cli)} >/dev/null 2>&1; then if command -v zellij >/dev/null 2>&1; then exec zellij --config "${zellijConfigPath}"; else printf '%s\\n' 'emdash: zellij not found on remote, running without session persistence'; exec ${providerCmd}; fi; else printf '%s\\n' ${quoteShellArg(
         msg
       )}; fi`;
       lines.push(`sh -ilc ${quoteShellArg(shScript)}`);
@@ -544,6 +553,52 @@ function execFileAsync(cmd: string, args: string[]): Promise<{ stdout: string; s
   });
 }
 
+function buildRemoteZellijConfigPath(sessionName: string): string {
+  return `$HOME/.config/emdash/session-backends/zellij/${sessionName}/config.kdl`;
+}
+
+async function ensureRemoteZellijLauncher(args: {
+  sshArgs: string[];
+  sshTarget: string;
+  sessionName: string;
+  cwd: string;
+  providerCommand: string;
+  preProviderCommands?: string[];
+}): Promise<void> {
+  const { sshArgs, sshTarget, sessionName, cwd, providerCommand, preProviderCommands = [] } = args;
+  const wrapperCommand = [...preProviderCommands, providerCommand].join(' && ');
+  const wrapperScript = [
+    '#!/bin/sh',
+    `cd ${quoteShellArg(cwd)} || exit 1`,
+    `exec /bin/sh -ilc ${quoteShellArg(`${wrapperCommand}; exec /bin/sh -il`)}`,
+    '',
+  ].join('\n');
+
+  const script = [
+    'set -eu',
+    `base_dir="$HOME/.config/emdash/session-backends/zellij/${sessionName}"`,
+    'wrapper_path="$base_dir/launcher.sh"',
+    'config_path="$base_dir/config.kdl"',
+    'mkdir -p "$base_dir"',
+    `cat > "$wrapper_path" <<'EMDASH_ZELLIJ_WRAPPER'\n${wrapperScript}EMDASH_ZELLIJ_WRAPPER`,
+    'chmod 700 "$wrapper_path"',
+    'cat > "$config_path" <<EMDASH_ZELLIJ_CONFIG',
+    `session_name "${sessionName}"`,
+    'attach_to_session true',
+    'on_force_close "detach"',
+    'session_serialization true',
+    'pane_viewport_serialization true',
+    'scrollback_lines_to_serialize 0',
+    'serialization_interval 60',
+    'support_kitty_keyboard_protocol true',
+    `default_cwd "${cwd.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
+    'default_shell "$wrapper_path"',
+    'EMDASH_ZELLIJ_CONFIG',
+  ].join('\n');
+
+  await execFileAsync('ssh', [...sshArgs, sshTarget, `sh -ilc ${quoteShellArg(script)}`]);
+}
+
 async function resolveShellSetup(cwd: string): Promise<string | undefined> {
   // Committed .emdash.json lives in the worktree itself
   const fromCwd = lifecycleScriptsService.getShellSetup(cwd);
@@ -557,14 +612,29 @@ async function resolveShellSetup(cwd: string): Promise<string | undefined> {
   return undefined;
 }
 
-async function resolveTmuxEnabled(cwd: string): Promise<boolean> {
-  if (lifecycleScriptsService.getTmuxEnabled(cwd)) return true;
+async function resolveSessionBackend(
+  cwd: string,
+  options?: { defaultPersistentBackend?: PersistentSessionBackend }
+): Promise<SessionBackend> {
+  const configuredFromCwd = lifecycleScriptsService.getConfiguredSessionBackend(cwd);
+  if (configuredFromCwd) {
+    return configuredFromCwd;
+  }
+
   try {
     const task = await databaseService.getTaskByPath(cwd);
     const project = task ? await databaseService.getProjectById(task.projectId) : null;
-    if (project?.path) return lifecycleScriptsService.getTmuxEnabled(project.path);
+    if (project?.path) {
+      const configuredFromProject = lifecycleScriptsService.getConfiguredSessionBackend(
+        project.path
+      );
+      if (configuredFromProject) {
+        return configuredFromProject;
+      }
+    }
   } catch {}
-  return false;
+
+  return options?.defaultPersistentBackend ?? 'none';
 }
 
 export function registerPtyIpc(): void {
@@ -693,26 +763,12 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings.
-          // Workspace-provisioned connections always use tmux for session persistence.
-          const isWorkspaceConnection = remote.connectionId.startsWith('workspace-');
-          const remoteTmux = isWorkspaceConnection || (cwd ? await resolveTmuxEnabled(cwd) : false);
-          const remoteTmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
-
-          const remoteInit = buildRemoteInitKeystrokes({
-            cwd: undefined,
-            tmux: remoteTmuxOpt,
-          });
-          if (remoteInit) {
-            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:start');
-          }
-
           try {
             const windows = BrowserWindow.getAllWindows();
             windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
           } catch {}
 
-          return { ok: true, tmux: remoteTmux };
+          return { ok: true };
         }
 
         // Determine if we should skip resume
@@ -805,7 +861,10 @@ export function registerPtyIpc(): void {
         if (parsedPty) maybeAutoTrustForClaude(parsedPty.providerId, cwd);
 
         const shellSetup = cwd ? await resolveShellSetup(cwd) : undefined;
-        const tmux = cwd ? await resolveTmuxEnabled(cwd) : false;
+        const sessionBackend = cwd ? await resolveSessionBackend(cwd) : 'none';
+        const persistentSessionBackend = isPersistentSessionBackend(sessionBackend)
+          ? sessionBackend
+          : undefined;
 
         const proc =
           existing ??
@@ -820,7 +879,7 @@ export function registerPtyIpc(): void {
             initialPrompt,
             skipResume: shouldSkipResume,
             shellSetup,
-            tmux,
+            sessionBackend: persistentSessionBackend,
           }));
         const wc = event.sender;
         owners.set(id, wc);
@@ -895,7 +954,7 @@ export function registerPtyIpc(): void {
           });
         } catch {}
 
-        return { ok: true, tmux };
+        return { ok: true, sessionBackend: persistentSessionBackend };
       } catch (err: any) {
         log.error('pty:start FAIL', {
           id: args.id,
@@ -1010,10 +1069,21 @@ export function registerPtyIpc(): void {
     }
   );
 
-  // Kill a tmux session by PTY ID (used during task deletion cleanup)
+  // Kill a persistent session backend by PTY ID (used during task deletion cleanup).
+  ipcMain.handle('pty:killPersistentSession', async (_event, args: { id: string }) => {
+    try {
+      killPersistentSession(args.id);
+      return { ok: true };
+    } catch (e) {
+      log.error('pty:killPersistentSession error', { id: args.id, error: e });
+      return { ok: false, error: String(e) };
+    }
+  });
+
+  // Backward-compatible tmux-specific alias.
   ipcMain.handle('pty:killTmux', async (_event, args: { id: string }) => {
     try {
-      killTmuxSession(args.id);
+      killPersistentSession(args.id, 'tmux');
       return { ok: true };
     } catch (e) {
       log.error('pty:killTmux error', { id: args.id, error: e });
@@ -1196,6 +1266,30 @@ export function registerPtyIpc(): void {
             );
           }
 
+          const isWorkspaceConn = remote.connectionId.startsWith('workspace-');
+          let remoteSessionBackend: SessionBackend = await resolveSessionBackend(cwd, {
+            defaultPersistentBackend: isWorkspaceConn ? 'tmux' : undefined,
+          });
+
+          if (remoteSessionBackend === 'zellij') {
+            try {
+              await ensureRemoteZellijLauncher({
+                sshArgs: ssh.args,
+                sshTarget: ssh.target,
+                sessionName: getPersistentSessionName(id),
+                cwd,
+                providerCommand: remoteProvider.cmd,
+                preProviderCommands,
+              });
+            } catch (err: any) {
+              log.warn('ptyIpc:startDirect failed to prepare remote zellij launcher', {
+                id,
+                error: err?.message || String(err),
+              });
+              remoteSessionBackend = 'none';
+            }
+          }
+
           const remoteInitCommand = cwd
             ? `cd ${quoteShellArg(cwd)} && exec \${SHELL:-/bin/sh} -il`
             : undefined;
@@ -1228,16 +1322,17 @@ export function registerPtyIpc(): void {
             listeners.add(id);
           }
 
-          // Resolve tmux config from local project settings.
-          // Workspace-provisioned connections always use tmux for session persistence.
-          const isWorkspaceConn = remote.connectionId.startsWith('workspace-');
-          const remoteTmux = isWorkspaceConn || (cwd ? await resolveTmuxEnabled(cwd) : false);
-          const tmuxOpt = remoteTmux ? { sessionName: getTmuxSessionName(id) } : undefined;
+          const persistentRemoteSession = isPersistentSessionBackend(remoteSessionBackend)
+            ? {
+                backend: remoteSessionBackend,
+                sessionName: getPersistentSessionName(id),
+              }
+            : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
             cwd: undefined,
             provider: remoteProvider,
-            tmux: tmuxOpt,
+            persistentSession: persistentRemoteSession,
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
           });
           if (remoteInit) {
@@ -1250,7 +1345,7 @@ export function registerPtyIpc(): void {
             windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
           } catch {}
 
-          return { ok: true, tmux: remoteTmux };
+          return { ok: true, sessionBackend: persistentRemoteSession?.backend };
         }
 
         if (existing) {
@@ -1278,7 +1373,10 @@ export function registerPtyIpc(): void {
         maybeAutoTrustForClaude(providerId, cwd);
 
         const shellSetup = await resolveShellSetup(cwd);
-        const tmux = await resolveTmuxEnabled(cwd);
+        const sessionBackend = await resolveSessionBackend(cwd);
+        const persistentSessionBackend = isPersistentSessionBackend(sessionBackend)
+          ? sessionBackend
+          : undefined;
         const codexBindingStartedAt = providerId === 'codex' ? Date.now() : 0;
 
         // Write Claude Code hook config so it calls back to Emdash on events
@@ -1292,9 +1390,10 @@ export function registerPtyIpc(): void {
           }
         }
 
-        // Try direct spawn first; skip if shellSetup or tmux requires a shell wrapper
+        // Try direct spawn first; skip if shell setup or a persistent session backend requires
+        // a shell wrapper.
         const directProc =
-          shellSetup || tmux
+          shellSetup || persistentSessionBackend
             ? null
             : startDirectPty({
                 id,
@@ -1306,10 +1405,10 @@ export function registerPtyIpc(): void {
                 initialPrompt,
                 env,
                 resume: effectiveResume,
-                tmux,
+                sessionBackend: persistentSessionBackend,
               });
 
-        // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup/tmux is set
+        // Fall back to shell-based spawn when direct spawn is unavailable or a wrapper is required.
         let usedFallback = false;
         let proc: import('node-pty').IPty;
         if (directProc) {
@@ -1319,7 +1418,7 @@ export function registerPtyIpc(): void {
           if (!provider?.cli) {
             return { ok: false, error: `CLI path not found for provider: ${providerId}` };
           }
-          if (!shellSetup && !tmux)
+          if (!shellSetup && !persistentSessionBackend)
             log.info('pty:startDirect - falling back to shell spawn', { id, providerId });
           proc = await startPty({
             id,
@@ -1332,7 +1431,7 @@ export function registerPtyIpc(): void {
             env,
             skipResume: !resume,
             shellSetup,
-            tmux,
+            sessionBackend: persistentSessionBackend,
           });
           usedFallback = true;
         }
@@ -1408,7 +1507,7 @@ export function registerPtyIpc(): void {
           windows.forEach((w: any) => w.webContents.send('pty:started', { id }));
         } catch {}
 
-        return { ok: true, tmux };
+        return { ok: true, sessionBackend: persistentSessionBackend };
       } catch (err: any) {
         log.error('pty:startDirect FAIL', { id: args.id, error: err?.message || err });
         return { ok: false, error: String(err?.message || err) };

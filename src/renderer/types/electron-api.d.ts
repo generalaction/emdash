@@ -4,6 +4,7 @@ import type { AgentEvent } from '../../shared/agentEvents';
 import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
+import type { PersistentSessionBackend, SessionBackend } from '../../shared/sessionBackend';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -23,6 +24,8 @@ export type ProviderCustomConfig = {
   extraArgs?: string;
   env?: Record<string, string>;
 };
+
+export type ProjectSessionBackend = SessionBackend;
 
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
 
@@ -80,7 +83,7 @@ declare global {
         autoApprove?: boolean;
         initialPrompt?: string;
         skipResume?: boolean;
-      }) => Promise<{ ok: boolean; tmux?: boolean; error?: string }>;
+      }) => Promise<{ ok: boolean; sessionBackend?: PersistentSessionBackend; error?: string }>;
       ptyStartDirect: (opts: {
         id: string;
         providerId: string;
@@ -92,7 +95,12 @@ declare global {
         initialPrompt?: string;
         env?: Record<string, string>;
         resume?: boolean;
-      }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
+      }) => Promise<{
+        ok: boolean;
+        reused?: boolean;
+        sessionBackend?: PersistentSessionBackend;
+        error?: string;
+      }>;
       ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
         success: boolean;
         remotePaths?: string[];
@@ -101,6 +109,7 @@ declare global {
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
+      ptyKillPersistentSession: (id: string) => Promise<{ ok: boolean; error?: string }>;
       ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
       onPtyData: (id: string, listener: (data: string) => void) => () => void;
       ptyGetSnapshot: (args: { id: string }) => Promise<{
@@ -1363,7 +1372,7 @@ export interface ElectronAPI {
     autoApprove?: boolean;
     initialPrompt?: string;
     skipResume?: boolean;
-  }) => Promise<{ ok: boolean; tmux?: boolean; error?: string }>;
+  }) => Promise<{ ok: boolean; sessionBackend?: PersistentSessionBackend; error?: string }>;
   ptyStartDirect: (opts: {
     id: string;
     providerId: string;
@@ -1374,7 +1383,12 @@ export interface ElectronAPI {
     initialPrompt?: string;
     env?: Record<string, string>;
     resume?: boolean;
-  }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
+  }) => Promise<{
+    ok: boolean;
+    reused?: boolean;
+    sessionBackend?: PersistentSessionBackend;
+    error?: string;
+  }>;
   ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
     success: boolean;
     remotePaths?: string[];
@@ -1383,6 +1397,7 @@ export interface ElectronAPI {
   ptyInput: (args: { id: string; data: string }) => void;
   ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
   ptyKill: (id: string) => void;
+  ptyKillPersistentSession: (id: string) => Promise<{ ok: boolean; error?: string }>;
   ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onPtyData: (id: string, listener: (data: string) => void) => () => void;
   ptyGetSnapshot: (args: { id: string }) => Promise<{
