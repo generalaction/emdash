@@ -20,15 +20,6 @@ export function useTasksDataContext(): TasksDataContextValue {
   return ctx;
 }
 
-export function useTearingDownTaskIds(projectId: string) {
-  const { data } = useQuery({
-    queryKey: ['tearing-down-tasks', projectId],
-    queryFn: () => rpc.tasks.getTearingDownTaskIds(projectId),
-    refetchInterval: (query) => (query.state.data?.length ? 1000 : false),
-  });
-  return useMemo(() => new Set(data ?? []), [data]);
-}
-
 export function TasksDataProvider({ children }: { children: React.ReactNode }) {
   const { data: tasks } = useQuery({
     queryKey: ['tasks'],

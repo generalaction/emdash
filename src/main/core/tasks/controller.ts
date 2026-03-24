@@ -4,7 +4,6 @@ import { createTask } from './createTask';
 import { deleteTask } from './deleteTask';
 import { getBootstrapStatus } from './getBootstrapStatus';
 import { getTasks } from './getTasks';
-import { getTearingDownTaskIds } from './getTeardownStatus';
 import { provisionTask } from './provisionTask';
 import { renameTask } from './renameTask';
 import { restoreTask } from './restoreTask';
@@ -22,5 +21,4 @@ export const taskController = createRPCController({
   retryProvisionTask,
   retryTeardownTask,
   getBootstrapStatus,
-  getTearingDownTaskIds,
 });

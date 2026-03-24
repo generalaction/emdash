@@ -13,7 +13,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   await db.delete(tasks).where(eq(tasks.id, taskId));
 
   if (project) {
-    project.teadownTask(taskId).catch((e) => {
+    project.teardownTask(taskId).catch((e) => {
       log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
     });
 

@@ -168,7 +168,7 @@ export class SshProjectProvider implements ProjectProvider {
     return { status: 'not-started' };
   }
 
-  async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
+  async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     this.agentProviders.get(taskId)?.destroyAll();
     this.terminalProviders.get(taskId)?.destroyAll();
     this.agentProviders.delete(taskId);
@@ -178,7 +178,7 @@ export class SshProjectProvider implements ProjectProvider {
   }
 
   async retryTaskTeardown(taskId: string): Promise<Result<void, TeardownTaskError>> {
-    return this.teadownTask(taskId);
+    return this.teardownTask(taskId);
   }
 
   async removeTaskWorktree(_taskBranch: string): Promise<void> {
@@ -187,7 +187,7 @@ export class SshProjectProvider implements ProjectProvider {
 
   async cleanup(): Promise<void> {
     sshConnectionManager.off('connection-event', this.handleConnectionEvent);
-    await Promise.all(Array.from(this.environments.keys()).map((id) => this.teadownTask(id)));
+    await Promise.all(Array.from(this.environments.keys()).map((id) => this.teardownTask(id)));
   }
 
   /**
