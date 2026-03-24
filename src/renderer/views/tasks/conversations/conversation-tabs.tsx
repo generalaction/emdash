@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AgentLogo from '@renderer/components/agent-logo';
 import { Button } from '@renderer/components/ui/button';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
@@ -7,12 +7,20 @@ import { agentConfig } from '@renderer/lib/agentConfig';
 import { cn } from '@renderer/lib/utils';
 import { useTaskViewContext } from '../task-view-context';
 
+const MAX_TITLE_LENGTH = 64;
+
 export function ConversationsTabs({ projectId, taskId }: { projectId: string; taskId: string }) {
-  const { conversations, activeConversationId, setActiveConversationId, removeConversation } =
-    useTaskViewContext();
+  const {
+    conversations,
+    activeConversationId,
+    setActiveConversationId,
+    removeConversation,
+    renameConversation,
+  } = useTaskViewContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
 
   const activeId = activeConversationId ?? conversations[0]?.id ?? '';
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const handleRemoveConversation = useCallback(
     (conversationId: string) => {
@@ -23,7 +31,6 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
         setActiveConversationId(nextId);
       }
     },
-
     [activeConversationId, conversations, removeConversation, setActiveConversationId]
   );
 
@@ -36,6 +43,7 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
             <button
               key={conversation.id}
               onClick={() => setActiveConversationId(conversation.id)}
+              onDoubleClick={() => setEditingId(conversation.id)}
               className={cn(
                 'group px-2.5 text-xs border border-border rounded-md hover:bg-muted flex items-center gap-1.5 relative',
                 activeId === conversation.id && 'bg-muted'
@@ -50,7 +58,21 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
                   className="h-3 w-3"
                 />
               )}
-              <span className="max-w-16 truncate">{conversation.title}</span>
+              {editingId === conversation.id ? (
+                <InlineEditInput
+                  initialValue={conversation.title}
+                  onConfirm={(newTitle) => {
+                    setEditingId(null);
+                    const trimmed = newTitle.trim();
+                    if (trimmed && trimmed !== conversation.title) {
+                      renameConversation({ conversationId: conversation.id, newTitle: trimmed });
+                    }
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <span className="max-w-16 truncate">{conversation.title}</span>
+              )}
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -81,5 +103,46 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
         Create
       </Button>
     </div>
+  );
+}
+
+function InlineEditInput({
+  initialValue,
+  onConfirm,
+  onCancel,
+}: {
+  initialValue: string;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onConfirm(e.currentTarget.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      autoFocus
+      type="text"
+      defaultValue={initialValue}
+      maxLength={MAX_TITLE_LENGTH}
+      className="bg-transparent outline-none border-none text-xs w-16 p-0"
+      onBlur={(e) => onConfirm(e.currentTarget.value)}
+      onKeyDown={handleKeyDown}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
   );
 }
