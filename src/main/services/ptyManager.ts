@@ -2,12 +2,14 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { StringDecoder } from 'string_decoder';
 import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
+import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from '../utils/locale';
 
 /**
  * Suppress EPIPE/EIO errors on a PTY's underlying socket.
@@ -103,6 +105,27 @@ type PtyRecord = {
 const ptys = new Map<string, PtyRecord>();
 const MIN_PTY_COLS = 2;
 const MIN_PTY_ROWS = 1;
+export function getLocaleEnv(): Record<string, string> {
+  if (process.platform === 'win32') {
+    const localeEnv: Record<string, string> = {};
+    for (const key of LOCALE_ENV_VARS) {
+      const value = process.env[key];
+      if (value && isUtf8Locale(value)) {
+        localeEnv[key] = value;
+      }
+    }
+    return localeEnv;
+  }
+
+  // On non-Windows, ensure every locale var is UTF-8.
+  // Use the existing value if it's UTF-8, otherwise fall back to C.UTF-8.
+  const localeEnv: Record<string, string> = {};
+  for (const key of LOCALE_ENV_VARS) {
+    const value = process.env[key];
+    localeEnv[key] = value && isUtf8Locale(value) ? value : DEFAULT_UTF8_LOCALE;
+  }
+  return localeEnv;
+}
 
 function applyAgentEventHookEnv(env: Record<string, string>, ptyId: string): void {
   const hookPort = agentEventService.getPort();
@@ -1036,7 +1059,7 @@ export function startSshPty(options: {
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     PATH: process.env.PATH || process.env.Path || '',
-    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
@@ -1201,7 +1224,7 @@ export function startDirectPty(options: {
     USER: process.env.USER || os.userInfo().username,
     // Include PATH so CLI can find its dependencies
     PATH: process.env.PATH || process.env.Path || '',
-    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
@@ -1331,7 +1354,7 @@ export async function startPty(options: {
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
-    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...getDisplayEnv(),
@@ -1651,6 +1674,36 @@ export interface LifecyclePtyHandle {
   kill: (signal?: string) => void;
 }
 
+export function createUtf8StreamForwarder(emitData: (data: string) => void): {
+  pushStdout: (buf: Buffer) => void;
+  pushStderr: (buf: Buffer) => void;
+  flush: () => void;
+} {
+  const stdoutDecoder = new StringDecoder('utf8');
+  const stderrDecoder = new StringDecoder('utf8');
+  let flushed = false;
+
+  const emitIfPresent = (data: string) => {
+    if (!data) return;
+    emitData(data);
+  };
+
+  return {
+    pushStdout: (buf: Buffer) => {
+      emitIfPresent(stdoutDecoder.write(buf));
+    },
+    pushStderr: (buf: Buffer) => {
+      emitIfPresent(stderrDecoder.write(buf));
+    },
+    flush: () => {
+      if (flushed) return;
+      flushed = true;
+      emitIfPresent(stdoutDecoder.end());
+      emitIfPresent(stderrDecoder.end());
+    },
+  };
+}
+
 function startLifecycleSpawnFallback(options: {
   id: string;
   command: string;
@@ -1670,19 +1723,24 @@ function startLifecycleSpawnFallback(options: {
   const dataCallbacks: Array<(data: string) => void> = [];
   const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
   const errorCallbacks: Array<(error: Error) => void> = [];
+  const forwarder = createUtf8StreamForwarder((data) => {
+    for (const cb of dataCallbacks) cb(data);
+  });
 
-  const onData = (buf: Buffer) => {
-    const str = buf.toString();
-    for (const cb of dataCallbacks) cb(str);
-  };
-  child.stdout?.on('data', onData);
-  child.stderr?.on('data', onData);
+  child.stdout?.on('data', (buf: Buffer) => {
+    forwarder.pushStdout(buf);
+  });
+  child.stderr?.on('data', (buf: Buffer) => {
+    forwarder.pushStderr(buf);
+  });
 
   child.on('error', (error: Error) => {
+    forwarder.flush();
     for (const cb of errorCallbacks) cb(error);
   });
 
   child.on('exit', (code, signal) => {
+    forwarder.flush();
     for (const cb of exitCallbacks) cb(code, signal ?? null);
   });
 
@@ -1739,7 +1797,7 @@ export function startLifecyclePty(options: {
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
-    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...getDisplayEnv(),

@@ -428,6 +428,26 @@ describe('ptyIpc notification lifecycle', () => {
     expect(notificationShow).not.toHaveBeenCalled();
   });
 
+  it('forwards non-ASCII PTY data to the renderer unchanged', async () => {
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const start = ipcHandleHandlers.get('pty:start');
+    expect(start).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-unicode');
+    const sender = createSender();
+    await start!({ sender }, { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 });
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('Marko Ranđelović');
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).toHaveBeenCalledWith(`pty:data:${id}`, 'Marko Ranđelović');
+  });
+
   it('keeps replacement PTY writable after direct CLI exit triggers shell respawn', async () => {
     const { registerPtyIpc } = await import('../../main/services/ptyIpc');
     registerPtyIpc();

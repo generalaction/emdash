@@ -21,6 +21,17 @@ const mockedReaddirSync = vi.mocked(readdirSync);
 
 describe('shellEnv', () => {
   const originalEnv = process.env;
+  const shellLookup = (values: Partial<Record<string, string>>) => (command: string) => {
+    // Batched locale call: returns values separated by ---
+    if (command.includes('echo "---"')) {
+      const keys = [...command.matchAll(/printenv ([A-Z0-9_]+)/g)].map((m) => m[1]!);
+      return keys.map((k) => values[k] ?? '').join('\n---\n');
+    }
+    // Single var call
+    const match = command.match(/printenv ([A-Z0-9_]+)/);
+    if (!match) throw new Error('Command failed');
+    return values[match[1]!] ?? '';
+  };
 
   beforeEach(() => {
     // Reset process.env
@@ -142,11 +153,24 @@ describe('shellEnv', () => {
   describe('initializeShellEnvironment', () => {
     it('should set process.env.SSH_AUTH_SOCK when socket is detected', () => {
       delete process.env.SSH_AUTH_SOCK;
-      mockedExecSync.mockReturnValue('/detected/socket');
+      delete process.env.LANG;
+      delete process.env.LC_CTYPE;
+      delete process.env.LC_ALL;
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: 'C.UTF-8',
+          LC_CTYPE: 'C.UTF-8',
+          LC_ALL: 'C.UTF-8',
+        })
+      );
 
       initializeShellEnvironment();
 
       expect(process.env.SSH_AUTH_SOCK).toBe('/detected/socket');
+      expect(process.env.LANG).toBe('C.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBe('C.UTF-8');
     });
 
     it('should fall back to existing SSH_AUTH_SOCK when launchctl fails', () => {
@@ -159,6 +183,86 @@ describe('shellEnv', () => {
       initializeShellEnvironment();
 
       expect(process.env.SSH_AUTH_SOCK).toBe('/existing/socket');
+    });
+
+    it('should not overwrite explicit locale env values', () => {
+      process.env.LANG = 'en_US.UTF-8';
+      process.env.LC_CTYPE = 'sr_RS.UTF-8';
+      process.env.LC_ALL = 'C.UTF-8';
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: 'ignored.UTF-8',
+          LC_CTYPE: 'ignored.UTF-8',
+          LC_ALL: 'ignored.UTF-8',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.LANG).toBe('en_US.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('sr_RS.UTF-8');
+      expect(process.env.LC_ALL).toBe('C.UTF-8');
+    });
+
+    it('should replace inherited non-UTF-8 locale values with shell UTF-8 values', () => {
+      process.env.LANG = 'C';
+      process.env.LC_CTYPE = 'POSIX';
+      process.env.LC_ALL = 'C';
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: 'en_US.UTF-8',
+          LC_CTYPE: 'en_US.UTF-8',
+          LC_ALL: 'en_US.UTF-8',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.LANG).toBe('en_US.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('en_US.UTF-8');
+      expect(process.env.LC_ALL).toBe('en_US.UTF-8');
+    });
+
+    it('should fall back to C.UTF-8 when shell exposes no locale values', () => {
+      delete process.env.LANG;
+      delete process.env.LC_CTYPE;
+      delete process.env.LC_ALL;
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: '',
+          LC_CTYPE: '',
+          LC_ALL: '',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.LANG).toBe('C.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBe('C.UTF-8');
+    });
+
+    it('should fall back to C.UTF-8 when shell exposes only non-UTF-8 locale values', () => {
+      process.env.LANG = 'C';
+      process.env.LC_CTYPE = 'C';
+      process.env.LC_ALL = 'C';
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: 'C',
+          LC_CTYPE: 'POSIX',
+          LC_ALL: 'C',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.LANG).toBe('C.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBe('C.UTF-8');
     });
   });
 });

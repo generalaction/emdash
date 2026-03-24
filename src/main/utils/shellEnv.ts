@@ -7,6 +7,11 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from './locale';
+
+function getFallbackUtf8Locale(): string | undefined {
+  return process.platform === 'win32' ? undefined : DEFAULT_UTF8_LOCALE;
+}
 
 /**
  * Gets an environment variable from the user's login shell.
@@ -24,7 +29,7 @@ export function getShellEnvVar(varName: string): string | undefined {
     const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
     // -i = interactive, -l = login shell (sources .zshrc/.bash_profile)
-    const result = execSync(`${shell} -ilc 'printenv ${varName} || true'`, {
+    const result = execSync(`${shell} -ilc 'printenv ${varName}; exit 0'`, {
       encoding: 'utf8',
       timeout: 5000,
       env: {
@@ -179,6 +184,78 @@ export function detectSshAuthSock(): string | undefined {
   return undefined;
 }
 
+function getShellLocaleVars(): Partial<Record<string, string>> {
+  try {
+    const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    const printCommands = LOCALE_ENV_VARS.map((v) => `printenv ${v} || echo`).join(
+      '; echo "---"; '
+    );
+    const result = execSync(`${shell} -ilc '${printCommands}; exit 0'`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: {
+        ...process.env,
+        DISABLE_AUTO_UPDATE: 'true',
+        ZSH_TMUX_AUTOSTART: 'false',
+        ZSH_TMUX_AUTOSTARTED: 'true',
+      },
+    });
+    const parts = result.split('---').map((s) => s.trim());
+    const vars: Partial<Record<string, string>> = {};
+    for (let i = 0; i < LOCALE_ENV_VARS.length; i++) {
+      const value = parts[i]?.trim();
+      if (value) vars[LOCALE_ENV_VARS[i]] = value;
+    }
+    return vars;
+  } catch {
+    return {};
+  }
+}
+
+function initializeLocaleEnvironment(): void {
+  // Check which vars need a shell lookup
+  const needsLookup: string[] = [];
+  for (const key of LOCALE_ENV_VARS) {
+    const currentValue = process.env[key]?.trim();
+    if (!currentValue || !isUtf8Locale(currentValue)) {
+      needsLookup.push(key);
+    }
+  }
+
+  // If all locale vars are already UTF-8, nothing to do
+  if (needsLookup.length === 0) return;
+
+  // Single batched shell call for all missing/non-UTF-8 locale vars
+  const shellVars = needsLookup.length > 0 ? getShellLocaleVars() : {};
+  let foundUtf8Locale = false;
+
+  for (const key of LOCALE_ENV_VARS) {
+    const currentValue = process.env[key]?.trim();
+    if (currentValue && isUtf8Locale(currentValue)) {
+      foundUtf8Locale = true;
+      continue;
+    }
+
+    const shellValue = shellVars[key];
+    if (shellValue && isUtf8Locale(shellValue)) {
+      process.env[key] = shellValue;
+      foundUtf8Locale = true;
+    }
+  }
+
+  if (foundUtf8Locale) return;
+
+  const fallbackLocale = getFallbackUtf8Locale();
+  if (!fallbackLocale) return;
+
+  for (const key of LOCALE_ENV_VARS) {
+    const currentValue = process.env[key]?.trim();
+    if (!currentValue || !isUtf8Locale(currentValue)) {
+      process.env[key] = fallbackLocale;
+    }
+  }
+}
+
 /**
  * Initializes shell environment detection and sets process.env variables.
  * Should be called early in the main process before app is ready.
@@ -191,4 +268,6 @@ export function initializeShellEnvironment(): void {
   } else {
     console.log('[shellEnv] SSH_AUTH_SOCK not detected');
   }
+
+  initializeLocaleEnvironment();
 }
