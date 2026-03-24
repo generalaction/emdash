@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
-import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
+import type { LifecycleScriptConfig } from '@shared/lifecycle';
 
 export interface WorkspaceProviderConfig {
   type: 'script';
@@ -42,7 +42,7 @@ class LifecycleScriptsService {
   /**
    * Get a specific lifecycle script command if configured.
    */
-  getScript(projectPath: string, phase: LifecyclePhase): string | null {
+  getScript(projectPath: string, phase: keyof LifecycleScriptConfig): string | null {
     const config = this.readConfig(projectPath);
     const scripts = config?.scripts;
     const script = scripts?.[phase];
