@@ -175,7 +175,7 @@ export function TaskList() {
       confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
       onSuccess: () => {
         const ids = [...selectedIds];
-        ids.forEach((id) => deleteTask(id));
+        ids.forEach((id) => deleteTask(project.id, id));
         clearSelection();
       },
     });

@@ -44,7 +44,7 @@ interface TaskLifecycleContextValue {
   provisionTask: (taskId: string) => void;
   archiveTask: (projectId: string, taskId: string) => void;
   restoreTask: (taskId: string) => void;
-  deleteTask: (taskId: string) => void;
+  deleteTask: (projectId: string, taskId: string) => void;
   renameTask: (projectId: string, taskId: string, newName: string) => Promise<void>;
 }
 
@@ -184,9 +184,32 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
     [queryClient]
   );
 
-  const deleteTask = useCallback((taskId: string) => {
-    // TODO: implement delete task
-  }, []);
+  const deleteTask = useCallback(
+    (projectId: string, taskId: string) => {
+      rpc.tasks
+        .deleteTask(projectId, taskId)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          setTaskStatus((prev) => {
+            const next = { ...prev };
+            delete next[taskId];
+            return next;
+          });
+          setTaskErrors((prev) => {
+            const next = { ...prev };
+            delete next[taskId];
+            return next;
+          });
+        })
+        .catch((e: unknown) => {
+          setTaskErrors((prev) => ({
+            ...prev,
+            [taskId]: { kind: 'teardown', type: 'error', message: String(e) },
+          }));
+        });
+    },
+    [queryClient]
+  );
 
   const renameTask = useCallback(
     async (projectId: string, taskId: string, newName: string) => {

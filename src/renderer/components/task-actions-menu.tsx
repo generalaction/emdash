@@ -84,7 +84,7 @@ export function TaskActionsMenu({
               description: `"${task.name}" will be permanently deleted. This action cannot be undone.`,
               confirmLabel: 'Delete',
               onSuccess: () => {
-                deleteTask(task.id);
+                deleteTask(task.projectId, task.id);
                 onDeleted?.();
               },
             })

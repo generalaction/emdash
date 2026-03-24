@@ -10,22 +10,17 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
   const project = projectManager.getProject(projectId);
 
+  await db.delete(tasks).where(eq(tasks.id, taskId));
+
   if (project) {
-    const teardownResult = await project.teadownTask(taskId);
-    if (!teardownResult.success) {
-      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
-    }
+    project.teadownTask(taskId).catch((e) => {
+      log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
+    });
 
     if (task.taskBranch) {
-      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
-        log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
-      });
-
-      await project.git.deleteBranch(task.taskBranch).catch((e) => {
+      project.git.deleteBranch(task.taskBranch).catch((e) => {
         log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
       });
     }
   }
-
-  await db.delete(tasks).where(eq(tasks.id, taskId));
 }
