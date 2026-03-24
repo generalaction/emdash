@@ -135,11 +135,18 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
+      queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+        old?.map((t) =>
+          t.id === taskId
+            ? { ...t, archivedAt: new Date().toISOString(), status: 'archived' as const }
+            : t
+        )
+      );
+
       rpc.tasks
         .archiveTask(projectId, taskId)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['tasks'] });
-          queryClient.invalidateQueries({ queryKey: ['tearing-down-tasks'] });
+        .then(async () => {
+          await queryClient.invalidateQueries({ queryKey: ['tasks'] });
           setTaskStatus((prev) => {
             const next = { ...prev };
             delete next[taskId];
@@ -186,27 +193,21 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
 
   const deleteTask = useCallback(
     (projectId: string, taskId: string) => {
-      rpc.tasks
-        .deleteTask(projectId, taskId)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['tasks'] });
-          setTaskStatus((prev) => {
-            const next = { ...prev };
-            delete next[taskId];
-            return next;
-          });
-          setTaskErrors((prev) => {
-            const next = { ...prev };
-            delete next[taskId];
-            return next;
-          });
-        })
-        .catch((e: unknown) => {
-          setTaskErrors((prev) => ({
-            ...prev,
-            [taskId]: { kind: 'teardown', type: 'error', message: String(e) },
-          }));
-        });
+      queryClient.setQueryData<Task[]>(['tasks'], (old) => old?.filter((t) => t.id !== taskId));
+      setTaskStatus((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+      setTaskErrors((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+
+      rpc.tasks.deleteTask(projectId, taskId).catch((e: unknown) => {
+        console.warn('deleteTask failed', taskId, e);
+      });
     },
     [queryClient]
   );

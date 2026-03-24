@@ -1,9 +1,8 @@
-import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -12,6 +11,9 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { buildTerminalEnv } from '@main/core/pty/pty-env';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getLocalExec } from '@main/core/utils/exec';
@@ -29,7 +31,6 @@ import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
-const execAsync = promisify(exec);
 
 function toProvisionError(e: unknown): ProvisionTaskError {
   if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
@@ -223,7 +224,7 @@ export class LocalProjectProvider implements ProjectProvider {
     return { status: 'not-started' };
   }
 
-  async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
+  async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     if (this.tearingDownTasks.has(taskId)) return this.tearingDownTasks.get(taskId)!;
     const task = this.tasks.get(taskId);
     if (!task) return ok();
@@ -247,13 +248,9 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const script = (await this.settings.get())?.scripts?.teardown;
-    if (script) {
-      const userShell =
-        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-      await execAsync(`${userShell} -c ${JSON.stringify(script)}`, {
-        cwd: task.taskPath,
-      }).catch((e) => {
+    const scripts = (await this.settings.get())?.scripts;
+    if (scripts?.teardown) {
+      await this.runTeardownScript(task.taskId, task.taskPath, scripts.teardown).catch((e) => {
         log.warn('LocalProjectProvider: teardown script failed', {
           taskId: task.taskId,
           error: String(e),
@@ -274,8 +271,35 @@ export class LocalProjectProvider implements ProjectProvider {
     }
   }
 
-  getTearingDownTaskIds(): string[] {
-    return Array.from(this.tearingDownTasks.keys());
+  private async runTeardownScript(taskId: string, taskPath: string, script: string): Promise<void> {
+    const terminalId = await createScriptTerminalId({
+      projectId: this.project.id,
+      taskId,
+      type: 'teardown',
+      script,
+    });
+    const sessionId = makePtySessionId(this.project.id, taskId, terminalId);
+    const userShell =
+      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+
+    const pty = spawnLocalPty({
+      id: sessionId,
+      command: userShell,
+      args: ['-c', script],
+      cwd: taskPath,
+      env: buildTerminalEnv(),
+      cols: 80,
+      rows: 24,
+    });
+
+    ptySessionRegistry.register(sessionId, pty);
+
+    return new Promise<void>((resolve) => {
+      pty.onExit(() => {
+        ptySessionRegistry.unregister(sessionId);
+        resolve();
+      });
+    });
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
@@ -286,6 +310,6 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
-    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teadownTask(id)));
+    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
   }
 }
