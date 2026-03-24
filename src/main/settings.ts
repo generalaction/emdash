@@ -10,6 +10,12 @@ import {
   DEFAULT_REVIEW_PROMPT,
   type ReviewSettings,
 } from '@shared/reviewPreset';
+import {
+  DEFAULT_VOICE_INPUT_SETTINGS,
+  isVoiceInputModelId,
+  isVoiceInputProvider,
+  type VoiceInputSettings,
+} from '@shared/voiceInput';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object
@@ -125,6 +131,7 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
+  voiceInput?: VoiceInputSettings;
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -210,6 +217,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   changelog: {
     dismissedVersions: [],
   },
+  voiceInput: DEFAULT_VOICE_INPUT_SETTINGS,
 };
 
 function getSettingsPath(): string {
@@ -614,6 +622,16 @@ export function normalizeSettings(input: AppSettings): AppSettings {
           ),
         ]
       : [],
+  };
+
+  const rawVoiceInput = (input as any)?.voiceInput || {};
+  out.voiceInput = {
+    provider: isVoiceInputProvider(rawVoiceInput?.provider)
+      ? rawVoiceInput.provider
+      : DEFAULT_VOICE_INPUT_SETTINGS.provider,
+    modelId: isVoiceInputModelId(rawVoiceInput?.modelId)
+      ? rawVoiceInput.modelId
+      : DEFAULT_VOICE_INPUT_SETTINGS.modelId,
   };
 
   return out;

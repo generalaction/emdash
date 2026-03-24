@@ -24,6 +24,14 @@ const MIME_MAP: Record<string, string> = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
+};
+
+// Required for SharedArrayBuffer access — the ONNX WASM runtime needs these
+// headers on every response served to the renderer.
+const CROSS_ORIGIN_HEADERS = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'credentialless',
 };
 
 function getMime(filePath: string) {
@@ -49,21 +57,18 @@ async function listenWithFallback(server: ReturnType<typeof createServer>): Prom
   for (const port of candidates) {
     try {
       const addr = await new Promise<AddressInfo>((resolve, reject) => {
-        let onError: (error: unknown) => void;
-        let onListening: () => void;
+        const onError = (error: unknown) => {
+          cleanup();
+          reject(error);
+        };
+        const onListening = () => {
+          cleanup();
+          resolve(server.address() as AddressInfo);
+        };
 
         const cleanup = () => {
           server.removeListener('error', onError);
           server.removeListener('listening', onListening);
-        };
-
-        onError = (error: unknown) => {
-          cleanup();
-          reject(error);
-        };
-        onListening = () => {
-          cleanup();
-          resolve(server.address() as AddressInfo);
         };
 
         server.once('error', onError);
@@ -76,7 +81,10 @@ async function listenWithFallback(server: ReturnType<typeof createServer>): Prom
       }
       return addr;
     } catch (error) {
-      const code = (error as any)?.code;
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code?: unknown }).code)
+          : undefined;
       if (code === 'EADDRINUSE') {
         if (server.listening) {
           await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -139,6 +147,7 @@ export async function ensureRendererServer(root: string): Promise<string> {
       res.writeHead(200, {
         'Content-Type': getMime(filePath),
         'Cache-Control': 'no-cache, no-store, must-revalidate',
+        ...CROSS_ORIGIN_HEADERS,
       });
       if (!isHead) res.write(data);
       res.end();

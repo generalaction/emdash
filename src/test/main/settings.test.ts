@@ -228,3 +228,45 @@ describe('normalizeSettings - review preset', () => {
     });
   });
 });
+
+describe('normalizeSettings - voiceInput', () => {
+  it('defaults to RunAnywhere tiny when missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.voiceInput).toEqual({
+      provider: 'runanywhere',
+      modelId: 'whisper-tiny-en',
+    });
+  });
+
+  it('preserves a valid configured model', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        voiceInput: {
+          provider: 'runanywhere',
+          modelId: 'whisper-small-en-int8',
+        },
+      })
+    );
+
+    expect(result.voiceInput).toEqual({
+      provider: 'runanywhere',
+      modelId: 'whisper-small-en-int8',
+    });
+  });
+
+  it('falls back when the provider or model is invalid', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        voiceInput: {
+          provider: 'invalid' as any,
+          modelId: 'invalid-model' as any,
+        },
+      })
+    );
+
+    expect(result.voiceInput).toEqual({
+      provider: 'runanywhere',
+      modelId: 'whisper-tiny-en',
+    });
+  });
+});

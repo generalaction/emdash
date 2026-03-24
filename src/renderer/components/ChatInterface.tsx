@@ -41,6 +41,12 @@ import {
   getConversationTabLabel,
   planConversationTitleUpdates,
 } from '../lib/conversationTabTitles';
+import { TaskPromptBar } from './TaskPromptBar';
+import {
+  consumePromptComments,
+  injectPromptViaPty,
+  preparePromptSubmission,
+} from '@/lib/promptSubmission';
 
 declare const window: Window & {
   electronAPI: {
@@ -164,6 +170,7 @@ const ChatInterface: React.FC<Props> = ({
   const [agent, setAgent] = useState<Agent>(initialAgent || 'claude');
   const currentAgentStatus = agentStatuses[agent];
   const [cliStartError, setCliStartError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
 
   // Workspace-provisioned remote connection overrides
   const { connectionId: workspaceConnectionId, remotePath: workspaceRemotePath } =
@@ -573,6 +580,10 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     setCliStartError(null);
   }, [task.id]);
+
+  useEffect(() => {
+    setPrompt('');
+  }, [task.id, activeConversationId]);
 
   const runInstallCommand = useCallback(
     (cmd: string) => {
@@ -1135,6 +1146,25 @@ const ChatInterface: React.FC<Props> = ({
     });
   }, [activeConversation, activeReviewMetadata]);
 
+  const handlePromptSubmit = useCallback(async () => {
+    const prepared = preparePromptSubmission({
+      prompt,
+      taskId: task.id,
+      taskPath: task.path,
+    });
+    if (!prepared.text) return;
+
+    const injected = await injectPromptViaPty({
+      ptyId: terminalId,
+      agent,
+      text: prepared.text,
+    });
+    consumePromptComments(prepared.commentScopeKey, injected);
+    if (injected) {
+      setPrompt('');
+    }
+  }, [agent, prompt, task.id, task.path, terminalId]);
+
   if (!isTerminal) {
     return null;
   }
@@ -1361,6 +1391,15 @@ const ChatInterface: React.FC<Props> = ({
                 />
               )}
             </div>
+          </div>
+          <div className="px-6 pb-6 pt-4">
+            <TaskPromptBar
+              value={prompt}
+              onChange={setPrompt}
+              onSubmit={handlePromptSubmit}
+              disabled={!conversationsLoaded || isAgentInstalled === false || !!cliStartError}
+              placeholder={`Tell ${agentMeta[agent]?.label ?? 'the agent'} what to do...`}
+            />
           </div>
         </div>
       </div>

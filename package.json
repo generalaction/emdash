@@ -95,6 +95,8 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@runanywhere/web": "0.1.0-beta.10",
+    "@runanywhere/web-onnx": "0.1.0-beta.10",
     "@tanstack/react-query": "^5.90.21",
     "@types/react-window": "^1.8.8",
     "@types/sqlite3": "^3.1.11",
@@ -172,6 +174,9 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Emdash uses the microphone for on-device voice dictation into agent prompts."
+      },
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
