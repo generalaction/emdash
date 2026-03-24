@@ -6,6 +6,7 @@ const fsReadFileSyncMock = vi.fn();
 const fsExistsSyncMock = vi.fn();
 const fsWriteFileSyncMock = vi.fn();
 const fsMkdirSyncMock = vi.fn();
+const fsChmodSyncMock = vi.fn();
 const fsStatSyncMock = vi.fn();
 const fsAccessSyncMock = vi.fn();
 const fsReaddirSyncMock = vi.fn();
@@ -45,6 +46,7 @@ vi.mock('fs', () => {
     existsSync: (...args: any[]) => fsExistsSyncMock(...args),
     writeFileSync: (...args: any[]) => fsWriteFileSyncMock(...args),
     mkdirSync: (...args: any[]) => fsMkdirSyncMock(...args),
+    chmodSync: (...args: any[]) => fsChmodSyncMock(...args),
     statSync: (...args: any[]) => fsStatSyncMock(...args),
     accessSync: (...args: any[]) => fsAccessSyncMock(...args),
     readdirSync: (...args: any[]) => fsReaddirSyncMock(...args),
@@ -83,6 +85,7 @@ describe('ptyManager provider command resolution', () => {
     agentEventGetTokenMock.mockReturnValue('');
     fsMkdirSyncMock.mockImplementation(() => undefined);
     fsWriteFileSyncMock.mockImplementation(() => undefined);
+    fsChmodSyncMock.mockImplementation(() => undefined);
     fsStatSyncMock.mockImplementation(() => {
       throw new Error('ENOENT');
     });
@@ -381,6 +384,60 @@ describe('ptyManager provider command resolution', () => {
           PATH: expect.anything(),
         }),
       })
+    );
+  });
+
+  it('spawns zellij with a generated config when zellij backend is enabled', async () => {
+    const origPath = process.env.PATH;
+    process.env.PATH = `/opt/homebrew/bin${origPath ? ':' + origPath : ''}`;
+
+    fsStatSyncMock.mockImplementation((candidate: string) => {
+      if (candidate === '/opt/homebrew/bin/zellij') {
+        return { isFile: () => true };
+      }
+      throw new Error('ENOENT');
+    });
+
+    const mockProc = {
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    };
+    nodePtySpawnMock.mockReturnValue(mockProc);
+
+    const { startPty } = await import('../../main/services/ptyManager');
+    await startPty({
+      id: 'codex-main-task-zellij',
+      cwd: '/tmp/task',
+      shell: '/bin/zsh',
+      sessionBackend: 'zellij',
+    });
+
+    process.env.PATH = origPath;
+
+    expect(nodePtySpawnMock).toHaveBeenCalledWith(
+      '/opt/homebrew/bin/zellij',
+      ['/opt/homebrew/bin/zellij', '--config', expect.any(String)].slice(1),
+      expect.objectContaining({
+        cwd: '/tmp/task',
+      })
+    );
+
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('/session-backends/zellij/emdash-codex-main-task-zellij/launcher.sh'),
+      expect.stringContaining("exec '/bin/zsh' '-il'"),
+      'utf8'
+    );
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('/session-backends/zellij/emdash-codex-main-task-zellij/config.kdl'),
+      expect.stringContaining('session_name "emdash-codex-main-task-zellij"'),
+      'utf8'
+    );
+    expect(fsChmodSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('/session-backends/zellij/emdash-codex-main-task-zellij/launcher.sh'),
+      0o700
     );
   });
 });

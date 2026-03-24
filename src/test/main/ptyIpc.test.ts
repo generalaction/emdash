@@ -32,6 +32,8 @@ const openCodeGetPluginSourceMock = vi.fn(
 const clearStoredSessionMock = vi.fn();
 const getStoredResumeTargetMock = vi.fn(() => null);
 const markCodexSessionBoundMock = vi.fn();
+const lifecycleGetShellSetupMock = vi.fn(() => undefined);
+const lifecycleGetConfiguredSessionBackendMock = vi.fn(() => null);
 const codexThreadExistsForCwdMock = vi.fn(async () => true);
 const codexFindLatestRecentThreadForCwdMock = vi.fn(async () => null);
 const codexFindLatestThreadForCwdMock = vi.fn(async () => null);
@@ -191,9 +193,8 @@ vi.mock('../../main/services/ptyManager', () => ({
   buildProviderCliArgs: buildProviderCliArgsMock,
   getProviderRuntimeCliArgs: getProviderRuntimeCliArgsMock,
   resolveProviderCommandConfig: resolveProviderCommandConfigMock,
-  killTmuxSession: vi.fn(),
-  getTmuxSessionName: vi.fn(() => ''),
-  getPtyTmuxSessionName: vi.fn(() => ''),
+  killPersistentSession: vi.fn(),
+  getPtySessionBackend: vi.fn(() => undefined),
   clearStoredSession: clearStoredSessionMock,
   getStoredResumeTarget: getStoredResumeTargetMock,
   markCodexSessionBound: markCodexSessionBoundMock,
@@ -290,8 +291,8 @@ vi.mock('../../main/services/OpenCodeHookService', () => ({
 
 vi.mock('../../main/services/LifecycleScriptsService', () => ({
   lifecycleScriptsService: {
-    getShellSetup: vi.fn(() => undefined),
-    getTmuxEnabled: vi.fn(() => false),
+    getShellSetup: lifecycleGetShellSetupMock,
+    getConfiguredSessionBackend: lifecycleGetConfiguredSessionBackendMock,
   },
 }));
 
@@ -310,6 +311,8 @@ describe('ptyIpc notification lifecycle', () => {
     onDirectCliExitCallback = null;
     lastSshPtyStartOpts = null;
     resolveProviderCommandConfigMock.mockReturnValue(null);
+    lifecycleGetShellSetupMock.mockReturnValue(undefined);
+    lifecycleGetConfiguredSessionBackendMock.mockReturnValue(null);
     getProviderRuntimeCliArgsMock.mockClear();
     getStoredResumeTargetMock.mockReturnValue(null);
     codexThreadExistsForCwdMock.mockResolvedValue(true);
@@ -395,6 +398,51 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).toContain('sh -ilc');
     expect(written).toContain('command -v');
     expect(written).toContain('claude');
+  });
+
+  it('uses zellij as the remote persistent session backend when configured', async () => {
+    lifecycleGetConfiguredSessionBackendMock.mockReturnValue('zellij');
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-remote-zellij');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'codex',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:devbox' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(result?.sessionBackend).toBe('zellij');
+
+    const remoteSetupCall = execFileMock.mock.calls.find(
+      (call: any[]) =>
+        call[0] === 'ssh' &&
+        Array.isArray(call[1]) &&
+        typeof call[1][call[1].length - 1] === 'string' &&
+        call[1][call[1].length - 1].includes('session-backends/zellij')
+    );
+    expect(remoteSetupCall).toBeDefined();
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+    proc!.emitData('user@host:~$ ');
+
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain(
+      'exec zellij --config "$HOME/.config/emdash/session-backends/zellij/'
+    );
+    expect(written).toContain('config.kdl');
   });
 
   it('does not show completion notification on process exit (moved to AgentEventService)', async () => {
