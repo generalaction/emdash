@@ -255,14 +255,6 @@ export class LocalProjectProvider implements ProjectProvider {
     }
   }
 
-  async moveTaskWorktree(oldBranch: string, newBranch: string): Promise<void> {
-    const oldPath = await this.worktreeService.getWorktree(oldBranch);
-    if (oldPath) {
-      const newPath = oldPath.replace(oldBranch, newBranch);
-      await this.worktreeService.moveWorktree(oldPath, newPath);
-    }
-  }
-
   async cleanup(): Promise<void> {
     await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teadownTask(id)));
   }
