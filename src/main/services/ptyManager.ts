@@ -6,6 +6,7 @@ import type { IPty } from 'node-pty';
 import { log } from '../lib/logger';
 import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
+import { getPersistentSessionName, type PersistentSessionBackend } from '@shared/sessionBackend';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { getProviderCustomConfig } from '../settings';
@@ -77,7 +78,8 @@ type PtyRecord = {
   kind?: 'local' | 'ssh';
   cols?: number;
   rows?: number;
-  tmuxSessionName?: string; // Set when session is wrapped in tmux
+  sessionBackend?: PersistentSessionBackend;
+  persistentSessionName?: string;
 };
 
 const ptys = new Map<string, PtyRecord>();
@@ -173,21 +175,75 @@ function getDisplayEnv(): Record<string, string> {
   return env;
 }
 
-// --- Tmux session helpers ---
+// --- Persistent session backend helpers ---
 
 /**
- * Derive a deterministic tmux session name from a PTY ID.
- * Sanitizes to characters allowed by tmux (alphanumeric, `-`, `_`, `.`).
+ * @deprecated Use getPersistentSessionName() instead.
  */
 export function getTmuxSessionName(ptyId: string): string {
-  // PTY ID format: {providerId}-main-{taskId} or {providerId}-chat-{conversationId}
-  // Prefix with "emdash-" and sanitize
-  const sanitized = ptyId.replace(/[^a-zA-Z0-9._-]/g, '-');
-  return `emdash-${sanitized}`;
+  return getPersistentSessionName(ptyId);
 }
 
 function resolveTmuxPath(): string | null {
   return resolveCommandPathCached('tmux');
+}
+
+function resolveZellijPath(): string | null {
+  return resolveCommandPathCached('zellij');
+}
+
+function getPersistentSessionStateDir(backend: PersistentSessionBackend): string {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { app } = require('electron');
+  return path.join(app.getPath('userData'), 'session-backends', backend);
+}
+
+function escapeKdlString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function buildExecScript(command: string, args: string[]): string {
+  return `exec ${[command, ...args].map(escapeShSingleQuoted).join(' ')}`;
+}
+
+function ensureLocalZellijLaunchConfig(options: {
+  id: string;
+  cwd: string;
+  command: string;
+  args: string[];
+}): { configPath: string; sessionName: string } {
+  const sessionName = getPersistentSessionName(options.id);
+  const baseDir = path.join(getPersistentSessionStateDir('zellij'), sessionName);
+  const wrapperPath = path.join(baseDir, 'launcher.sh');
+  const configPath = path.join(baseDir, 'config.kdl');
+
+  const wrapperScript = [
+    '#!/bin/sh',
+    `cd ${escapeShSingleQuoted(options.cwd)} || exit 1`,
+    buildExecScript(options.command, options.args),
+    '',
+  ].join('\n');
+
+  const configContent = [
+    `session_name ${escapeKdlString(sessionName)}`,
+    'attach_to_session true',
+    'on_force_close "detach"',
+    'session_serialization true',
+    'pane_viewport_serialization true',
+    'scrollback_lines_to_serialize 0',
+    'serialization_interval 60',
+    'support_kitty_keyboard_protocol true',
+    `default_cwd ${escapeKdlString(options.cwd)}`,
+    `default_shell ${escapeKdlString(wrapperPath)}`,
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(baseDir, { recursive: true });
+  fs.writeFileSync(wrapperPath, wrapperScript, 'utf8');
+  fs.chmodSync(wrapperPath, 0o700);
+  fs.writeFileSync(configPath, configContent, 'utf8');
+
+  return { configPath, sessionName };
 }
 
 /**
@@ -195,28 +251,48 @@ function resolveTmuxPath(): string | null {
  * for non-existent sessions (e.g., tmux not installed or session already dead).
  */
 export function killTmuxSession(ptyId: string): void {
-  const sessionName = getTmuxSessionName(ptyId);
-  const tmuxPath = resolveTmuxPath();
-  if (!tmuxPath) {
+  killPersistentSession(ptyId, 'tmux');
+}
+
+export function killPersistentSession(ptyId: string, backend?: PersistentSessionBackend): void {
+  const sessionBackend = backend ?? ptys.get(ptyId)?.sessionBackend;
+  if (!sessionBackend) {
+    killPersistentSession(ptyId, 'tmux');
+    killPersistentSession(ptyId, 'zellij');
     return;
   }
+
+  const sessionName = getPersistentSessionName(ptyId);
+  const commandPath = sessionBackend === 'tmux' ? resolveTmuxPath() : resolveZellijPath();
+  if (!commandPath) {
+    return;
+  }
+
+  const commandArgs =
+    sessionBackend === 'tmux'
+      ? ['kill-session', '-t', sessionName]
+      : ['kill-sessions', sessionName];
+
   try {
     const { execFile } = require('child_process');
-    execFile(tmuxPath, ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+    execFile(commandPath, commandArgs, { timeout: 5000 }, (err: any) => {
       if (!err) {
-        log.info('ptyManager:tmux - killed session', { sessionName });
+        log.info('ptyManager:sessionBackend - killed session', {
+          backend: sessionBackend,
+          sessionName,
+        });
       }
-      // Ignore errors — session may not exist or tmux not installed
+      // Ignore errors — session may not exist or the backend may not be installed
     });
   } catch {
     // Ignore
   }
 }
 
-// TODO: Remote tmux cleanup will be handled by the workspace provider teardown script.
+// TODO: Remote persistent session cleanup will be handled by the workspace provider teardown script.
 // The PTY record doesn't currently store SSH target/args, so we can't shell out
-// `ssh <target> tmux kill-session` from here. When workspace providers land, the
-// teardown script is the right place for this.
+// `ssh <target> <backend-specific kill command>` from here. When workspace providers land,
+// the teardown script is the right place for this.
 
 function resolveWindowsPtySpawn(
   command: string,
@@ -1074,16 +1150,20 @@ export function startDirectPty(options: {
   initialPrompt?: string;
   env?: Record<string, string>;
   resume?: boolean;
+  sessionBackend?: PersistentSessionBackend;
   tmux?: boolean;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
   }
 
-  // Tmux wrapping requires a shell — fall back to startPty() which handles tmux.
-  if (options.tmux) {
-    log.info('ptyManager:directSpawn - tmux enabled, falling back to shell spawn', {
+  const persistentSessionBackend = options.sessionBackend ?? (options.tmux ? 'tmux' : undefined);
+
+  // Persistent session backends require a shell wrapper.
+  if (persistentSessionBackend) {
+    log.info('ptyManager:directSpawn - persistent session backend enabled, falling back', {
       id: options.id,
+      backend: persistentSessionBackend,
     });
     return null;
   }
@@ -1264,6 +1344,7 @@ export async function startPty(options: {
   initialPrompt?: string;
   skipResume?: boolean;
   shellSetup?: string;
+  sessionBackend?: PersistentSessionBackend;
   tmux?: boolean;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
@@ -1280,8 +1361,10 @@ export async function startPty(options: {
     initialPrompt,
     skipResume,
     shellSetup,
+    sessionBackend,
     tmux,
   } = options;
+  const persistentSessionBackend = sessionBackend ?? (tmux ? 'tmux' : undefined);
 
   const defaultShell = getDefaultShell();
   let useShell = shell || defaultShell;
@@ -1479,23 +1562,57 @@ export async function startPty(options: {
     } catch {}
   }
 
-  // When tmux is enabled, wrap the spawn in a tmux session.
-  // tmux new-session -As <name> creates or attaches to a named session.
-  // The inner shell command (with the agent CLI) runs inside tmux.
-  let tmuxSessionName: string | undefined;
+  // When a persistent session backend is enabled, wrap the spawn in it so the
+  // terminal session can outlive the Electron PTY client connection.
+  let activeSessionBackend: PersistentSessionBackend | undefined;
+  let persistentSessionName: string | undefined;
   let spawnCommand = useShell;
   let spawnArgs = args;
 
-  if (tmux && process.platform !== 'win32') {
-    const tmuxPath = resolveTmuxPath();
-    if (!tmuxPath) {
-      log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
-    } else {
-      tmuxSessionName = getTmuxSessionName(id);
-      // Build: tmux new-session -As <name> -- <shell> <args...>
-      spawnCommand = tmuxPath;
-      spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
-      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName, tmuxPath });
+  if (persistentSessionBackend && process.platform !== 'win32') {
+    if (persistentSessionBackend === 'tmux') {
+      const tmuxPath = resolveTmuxPath();
+      if (!tmuxPath) {
+        log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
+      } else {
+        persistentSessionName = getPersistentSessionName(id);
+        activeSessionBackend = 'tmux';
+        spawnCommand = tmuxPath;
+        spawnArgs = ['new-session', '-As', persistentSessionName, '--', useShell, ...args];
+        log.info('ptyManager:tmux - wrapping in tmux session', {
+          id,
+          sessionName: persistentSessionName,
+          tmuxPath,
+        });
+      }
+    } else if (persistentSessionBackend === 'zellij') {
+      const zellijPath = resolveZellijPath();
+      if (!zellijPath) {
+        log.warn('ptyManager:zellij - zellij not found, falling back to unwrapped spawn', { id });
+      } else {
+        try {
+          const launchConfig = ensureLocalZellijLaunchConfig({
+            id,
+            cwd: useCwd,
+            command: useShell,
+            args,
+          });
+          persistentSessionName = launchConfig.sessionName;
+          activeSessionBackend = 'zellij';
+          spawnCommand = zellijPath;
+          spawnArgs = ['--config', launchConfig.configPath];
+          log.info('ptyManager:zellij - attaching to persistent zellij session', {
+            id,
+            sessionName: persistentSessionName,
+            configPath: launchConfig.configPath,
+          });
+        } catch (error) {
+          log.warn('ptyManager:zellij - failed to prepare launcher, falling back', {
+            id,
+            error: String(error),
+          });
+        }
+      }
     }
   }
 
@@ -1540,7 +1657,15 @@ export async function startPty(options: {
     }
   }
 
-  ptys.set(id, { id, proc, kind: 'local', cols, rows, tmuxSessionName });
+  ptys.set(id, {
+    id,
+    proc,
+    kind: 'local',
+    cols,
+    rows,
+    sessionBackend: activeSessionBackend,
+    persistentSessionName,
+  });
   return proc;
 }
 
@@ -1615,8 +1740,8 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
   return ptys.get(id)?.kind;
 }
 
-export function getPtyTmuxSessionName(id: string): string | undefined {
-  return ptys.get(id)?.tmuxSessionName;
+export function getPtySessionBackend(id: string): PersistentSessionBackend | undefined {
+  return ptys.get(id)?.sessionBackend;
 }
 
 export interface LifecyclePtyHandle {
