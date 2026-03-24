@@ -380,6 +380,15 @@ async function writeRemoteOpenCodePlugin(
   return configDir;
 }
 
+/**
+ * Builds a remote init command wrapped in `/bin/sh -c` so it works regardless
+ * of the remote login shell (fish, csh, etc. can't parse POSIX `${VAR:-…}`).
+ */
+function buildRemoteInitShellCommand(cwd: string): string {
+  const posixPayload = `cd ${quoteShellArg(cwd)} && exec "\${SHELL:-/bin/sh}" -il`;
+  return `/bin/sh -c ${quoteShellArg(posixPayload)}`;
+}
+
 function buildRemoteInitKeystrokes(args: {
   cwd?: string;
   provider?: { cli: string; cmd: string; installCommand?: string };
@@ -704,9 +713,7 @@ export function registerPtyIpc(): void {
 
           const ssh = await resolveSshInvocation(remote.connectionId);
 
-          const remoteInitCommand = cwd
-            ? `cd ${quoteShellArg(cwd)} && exec \${SHELL:-/bin/sh} -il`
-            : undefined;
+          const remoteInitCommand = cwd ? buildRemoteInitShellCommand(cwd) : undefined;
 
           const proc = startSshPty({
             id,
@@ -1247,9 +1254,7 @@ export function registerPtyIpc(): void {
             );
           }
 
-          const remoteInitCommand = cwd
-            ? `cd ${quoteShellArg(cwd)} && exec \${SHELL:-/bin/sh} -il`
-            : undefined;
+          const remoteInitCommand = cwd ? buildRemoteInitShellCommand(cwd) : undefined;
 
           const proc = startSshPty({
             id,

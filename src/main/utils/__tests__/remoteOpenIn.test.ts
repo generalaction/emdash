@@ -36,10 +36,13 @@ describe('buildRemoteEditorUrl', () => {
 });
 
 describe('buildGhosttyRemoteExecArgs', () => {
-  const expectedRemoteShellCommand =
-    `cd '/home/azureuser/pro/smv/.emdash/worktrees/task one' && ` +
+  const posixPayload =
+    "cd '/home/azureuser/pro/smv/.emdash/worktrees/task one' && " +
     '(if command -v infocmp >/dev/null 2>&1 && [ -n "${TERM:-}" ] && infocmp "${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && ' +
     '(exec "${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)';
+
+  // quoteShellArg wraps in single quotes and escapes embedded single quotes with '\''
+  const expectedRemoteShellCommand = "/bin/sh -c '" + posixPayload.replace(/'/g, "'\\''") + "'";
 
   it('builds shared remote shell bootstrap command', () => {
     expect(
@@ -87,7 +90,7 @@ describe('buildGhosttyRemoteExecArgs', () => {
       '-p',
       '2202',
       '-t',
-      `cd '/tmp/x' && (if command -v infocmp >/dev/null 2>&1 && [ -n "\${TERM:-}" ] && infocmp "\${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && (exec "\${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)`,
+      buildRemoteTerminalShellCommand('/tmp/x'),
     ]);
   });
 
