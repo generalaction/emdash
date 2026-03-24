@@ -81,15 +81,31 @@ export function registerLifecycleIpc(): void {
     }
   );
 
-  ipcMain.handle('lifecycle:run:stop', async (_event, args: { taskId: string }) => {
-    try {
-      const result = taskLifecycleService.stopRun(args.taskId);
-      return { success: result.ok, ...result };
-    } catch (error) {
-      log.error('Failed to stop run lifecycle phase:', error);
-      return { success: false, error: (error as Error).message };
+  ipcMain.handle(
+    'lifecycle:run:stop',
+    async (
+      _event,
+      args: {
+        taskId: string;
+        taskPath?: string;
+        projectPath?: string;
+        taskName?: string;
+      }
+    ) => {
+      try {
+        const result = await taskLifecycleService.stopRun(
+          args.taskId,
+          args.taskPath,
+          args.projectPath,
+          args.taskName
+        );
+        return { success: result.ok, ...result };
+      } catch (error) {
+        log.error('Failed to stop run lifecycle phase:', error);
+        return { success: false, error: (error as Error).message };
+      }
     }
-  });
+  );
 
   ipcMain.handle(
     'lifecycle:teardown',

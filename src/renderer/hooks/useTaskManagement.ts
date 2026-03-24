@@ -315,7 +315,12 @@ export function useTaskManagement() {
 
     await Promise.allSettled(
       lifecycleTargets.map((target) =>
-        window.electronAPI.lifecycleRunStop({ taskId: target.taskId })
+        window.electronAPI.lifecycleRunStop({
+          taskId: target.taskId,
+          taskPath: target.taskPath,
+          projectPath: targetProject.path,
+          taskName: target.label,
+        })
       )
     );
 
