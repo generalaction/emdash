@@ -2,6 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { log } from '../lib/logger';
 import type { LifecyclePhase, LifecycleScriptConfig } from '@shared/lifecycle';
+import {
+  normalizeSessionBackend,
+  resolveConfiguredSessionBackend,
+  type SessionBackend,
+} from '@shared/sessionBackend';
 
 export interface WorkspaceProviderConfig {
   type: 'script';
@@ -13,6 +18,7 @@ export interface EmdashConfig {
   preservePatterns?: string[];
   scripts?: LifecycleScriptConfig;
   shellSetup?: string;
+  sessionBackend?: SessionBackend;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
 }
@@ -67,8 +73,17 @@ class LifecycleScriptsService {
    * for persistence and resumability.
    */
   getTmuxEnabled(projectPath: string): boolean {
+    return this.getSessionBackend(projectPath) === 'tmux';
+  }
+
+  getConfiguredSessionBackend(projectPath: string): SessionBackend | null {
     const config = this.readConfig(projectPath);
-    return config?.tmux === true;
+    return resolveConfiguredSessionBackend(config);
+  }
+
+  getSessionBackend(projectPath: string): SessionBackend {
+    const config = this.readConfig(projectPath);
+    return normalizeSessionBackend(config);
   }
 }
 

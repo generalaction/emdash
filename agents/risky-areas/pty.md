@@ -14,7 +14,7 @@
 - PTY cleanup and exit handling
 - resize behavior
 - shell quoting and Windows command wrapping
-- tmux lifecycle
+- persistent session backend lifecycle (`tmux`, `zellij`)
 - provider-specific resume/session behavior
 - env passthrough safety
 

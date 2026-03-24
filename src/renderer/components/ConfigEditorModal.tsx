@@ -4,9 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
-import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { normalizeSessionBackend, type SessionBackend } from '@shared/sessionBackend';
 
 type LifecycleScripts = {
   setup: string;
@@ -24,6 +25,7 @@ type ConfigShape = Record<string, unknown> & {
   preservePatterns?: string[];
   scripts?: Partial<LifecycleScripts>;
   shellSetup?: string;
+  sessionBackend?: SessionBackend;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
 };
@@ -109,10 +111,10 @@ function applyShellSetup(config: ConfigShape, shellSetup: string): ConfigShape {
   return { ...rest, shellSetup: trimmed };
 }
 
-function applyTmux(config: ConfigShape, tmux: boolean): ConfigShape {
-  const { tmux: _tmux, ...rest } = config;
-  if (!tmux) return rest;
-  return { ...rest, tmux: true };
+function applySessionBackend(config: ConfigShape, sessionBackend: SessionBackend): ConfigShape {
+  const { tmux: _tmux, sessionBackend: _sessionBackend, ...rest } = config;
+  if (sessionBackend === 'none') return rest;
+  return { ...rest, sessionBackend };
 }
 
 function applyWorkspaceProvider(
@@ -149,8 +151,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalPreservePatternsInput, setOriginalPreservePatternsInput] = useState('');
   const [shellSetup, setShellSetup] = useState('');
   const [originalShellSetup, setOriginalShellSetup] = useState('');
-  const [tmux, setTmux] = useState(false);
-  const [originalTmux, setOriginalTmux] = useState(false);
+  const [sessionBackend, setSessionBackend] = useState<SessionBackend>('none');
+  const [originalSessionBackend, setOriginalSessionBackend] = useState<SessionBackend>('none');
   const [wpProvisionCommand, setWpProvisionCommand] = useState('');
   const [originalWpProvisionCommand, setOriginalWpProvisionCommand] = useState('');
   const [wpTerminateCommand, setWpTerminateCommand] = useState('');
@@ -173,11 +175,23 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const normalizedConfigContent = useMemo(() => {
     const withPatterns = applyPreservePatterns(config, preservePatterns);
     const withShellSetup = applyShellSetup(withPatterns, shellSetup);
-    const withTmux = applyTmux(withShellSetup, tmux);
-    const withWp = applyWorkspaceProvider(withTmux, wpProvisionCommand, wpTerminateCommand);
+    const withSessionBackend = applySessionBackend(withShellSetup, sessionBackend);
+    const withWp = applyWorkspaceProvider(
+      withSessionBackend,
+      wpProvisionCommand,
+      wpTerminateCommand
+    );
     const withScripts = applyScripts(withWp, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, shellSetup, tmux, wpProvisionCommand, wpTerminateCommand, scripts]);
+  }, [
+    config,
+    preservePatterns,
+    shellSetup,
+    sessionBackend,
+    wpProvisionCommand,
+    wpTerminateCommand,
+    scripts,
+  ]);
 
   const scriptsDirty = useMemo(
     () =>
@@ -186,7 +200,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       scripts.teardown !== originalScripts.teardown ||
       preservePatternsInput !== originalPreservePatternsInput ||
       shellSetup !== originalShellSetup ||
-      tmux !== originalTmux ||
+      sessionBackend !== originalSessionBackend ||
       wpProvisionCommand !== originalWpProvisionCommand ||
       wpTerminateCommand !== originalWpTerminateCommand,
     [
@@ -195,7 +209,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       originalScripts.run,
       originalScripts.setup,
       originalScripts.teardown,
-      originalTmux,
+      originalSessionBackend,
       originalWpProvisionCommand,
       originalWpTerminateCommand,
       shellSetup,
@@ -203,7 +217,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       scripts.run,
       scripts.setup,
       scripts.teardown,
-      tmux,
+      sessionBackend,
       wpProvisionCommand,
       wpTerminateCommand,
     ]
@@ -238,7 +252,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const nextScripts = scriptsFromConfig(parsed);
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
       const nextShellSetup = typeof parsed.shellSetup === 'string' ? parsed.shellSetup : '';
-      const nextTmux = parsed.tmux === true;
+      const nextSessionBackend = normalizeSessionBackend(parsed);
       const wp = parsed.workspaceProvider;
       const nextWpProvision =
         wp && typeof wp === 'object' && typeof wp.provisionCommand === 'string'
@@ -255,8 +269,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalPreservePatternsInput(nextPreservePatterns.join('\n'));
       setShellSetup(nextShellSetup);
       setOriginalShellSetup(nextShellSetup);
-      setTmux(nextTmux);
-      setOriginalTmux(nextTmux);
+      setSessionBackend(nextSessionBackend);
+      setOriginalSessionBackend(nextSessionBackend);
       setWpProvisionCommand(nextWpProvision);
       setOriginalWpProvisionCommand(nextWpProvision);
       setWpTerminateCommand(nextWpTerminate);
@@ -269,8 +283,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalPreservePatternsInput('');
       setShellSetup('');
       setOriginalShellSetup('');
-      setTmux(false);
-      setOriginalTmux(false);
+      setSessionBackend('none');
+      setOriginalSessionBackend('none');
       setWpProvisionCommand('');
       setOriginalWpProvisionCommand('');
       setWpTerminateCommand('');
@@ -328,9 +342,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
 
       const nextConfig = applyScripts(
         applyWorkspaceProvider(
-          applyTmux(
+          applySessionBackend(
             applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
-            tmux
+            sessionBackend
           ),
           wpProvisionCommand,
           wpTerminateCommand
@@ -341,7 +355,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalScripts(scripts);
       setOriginalPreservePatternsInput(preservePatternsInput);
       setOriginalShellSetup(shellSetup);
-      setOriginalTmux(tmux);
+      setOriginalSessionBackend(sessionBackend);
       setOriginalWpProvisionCommand(wpProvisionCommand);
       setOriginalWpTerminateCommand(wpTerminateCommand);
 
@@ -371,7 +385,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     preservePatterns,
     projectPath,
     scripts,
-    tmux,
+    sessionBackend,
     wpProvisionCommand,
     wpTerminateCommand,
   ]);
@@ -436,22 +450,29 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="config-tmux">tmux session persistence</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Wrap agent sessions in tmux so they survive disconnects and restarts.
-                  </p>
-                </div>
-                <Switch
-                  id="config-tmux"
-                  checked={tmux}
-                  onCheckedChange={(checked) => {
-                    setTmux(checked);
+              <div className="space-y-2">
+                <Label htmlFor="config-session-backend">Persistent session backend</Label>
+                <Select
+                  value={sessionBackend}
+                  onValueChange={(value) => {
+                    setSessionBackend(value as SessionBackend);
                     setError(null);
                   }}
                   disabled={isSaving}
-                />
+                >
+                  <SelectTrigger id="config-session-backend" className="font-mono text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">none</SelectItem>
+                    <SelectItem value="tmux">tmux</SelectItem>
+                    <SelectItem value="zellij">zellij</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Keep agent sessions alive across reconnects and restarts. `zellij` adds built-in
+                  resurrection; `tmux` matches the existing workflow.
+                </p>
               </div>
 
               {workspaceProviderEnabled && (

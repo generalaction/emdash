@@ -23,6 +23,7 @@ Current supported keys:
 - `scripts.run`
 - `scripts.teardown`
 - `shellSetup`
+- `sessionBackend`
 - `tmux`
 
 ## Rules
@@ -30,4 +31,4 @@ Current supported keys:
 - do not hardcode worktree paths; use service helpers
 - use lifecycle config for repo-specific bootstrap and teardown behavior
 - `shellSetup` runs inside each PTY before the interactive shell starts
-- tmux wrapping is project-configurable and affects PTY lifecycle behavior
+- persistent session backends are project-configurable and affect PTY lifecycle behavior
