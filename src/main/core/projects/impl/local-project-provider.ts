@@ -1,5 +1,7 @@
+import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
@@ -27,6 +29,7 @@ import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
+const execAsync = promisify(exec);
 
 function toProvisionError(e: unknown): ProvisionTaskError {
   if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
@@ -244,8 +247,35 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const script = (await this.settings.get())?.scripts?.teardown;
+    if (script) {
+      const userShell =
+        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+      await execAsync(`${userShell} -c ${JSON.stringify(script)}`, {
+        cwd: task.taskPath,
+      }).catch((e) => {
+        log.warn('LocalProjectProvider: teardown script failed', {
+          taskId: task.taskId,
+          error: String(e),
+        });
+      });
+    }
+
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
+
+    if (task.taskBranch) {
+      await this.removeTaskWorktree(task.taskBranch).catch((e) => {
+        log.warn('LocalProjectProvider: worktree removal failed', {
+          taskId: task.taskId,
+          error: String(e),
+        });
+      });
+    }
+  }
+
+  getTearingDownTaskIds(): string[] {
+    return Array.from(this.tearingDownTasks.keys());
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
