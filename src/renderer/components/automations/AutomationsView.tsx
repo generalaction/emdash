@@ -51,8 +51,10 @@ const AutomationsView: React.FC = () => {
   };
 
   const handleUpdate = async (input: UpdateAutomationInput) => {
-    await update(input);
-    setEditingAutomation(null);
+    const result = await update(input);
+    if (result) {
+      setEditingAutomation(null);
+    }
   };
 
   const handleDelete = async () => {
@@ -134,9 +136,11 @@ const AutomationsView: React.FC = () => {
                 projects={projects}
                 prefill={prefill}
                 onSave={async (input) => {
-                  await create(input);
-                  setShowCreate(false);
-                  setPrefill(null);
+                  const result = await create(input);
+                  if (result) {
+                    setShowCreate(false);
+                    setPrefill(null);
+                  }
                 }}
                 onCancel={() => {
                   setShowCreate(false);

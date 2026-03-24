@@ -83,6 +83,14 @@ function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
     log.warn(
       `[Automations] Trigger queue full (${MAX_TRIGGER_QUEUE}) — dropping oldest: "${dropped.automation.name}"`
     );
+    // Mark the dropped run log as failed so it doesn't stay orphaned
+    void automationsService
+      .updateRunLog(dropped.runLogId, {
+        status: 'failure',
+        finishedAt: new Date().toISOString(),
+        error: 'Dropped due to trigger queue overflow',
+      })
+      .catch((err) => log.error('[Automations] Failed to mark dropped run log as failed:', err));
   }
   triggerQueue.push({ automation, runLogId });
 
@@ -101,9 +109,14 @@ export function registerAutomationsIpc(): void {
   });
 
   // Reconcile missed runs (app was closed during scheduled time) then start
-  void automationsService.reconcileMissedRuns().then(() => {
-    automationsService.start();
-  });
+  void automationsService
+    .reconcileMissedRuns()
+    .catch((error) => {
+      log.error('Failed to reconcile missed automation runs:', error);
+    })
+    .finally(() => {
+      automationsService.start();
+    });
 
   // Stop scheduler on app quit
   app.on('before-quit', () => {

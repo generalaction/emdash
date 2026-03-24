@@ -871,6 +871,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       dayOfWeek?: string;
       dayOfMonth?: number;
     };
+    useWorktree?: boolean;
   }) => ipcRenderer.invoke('automations:create', args),
   automationsUpdate: (args: {
     id: string;
