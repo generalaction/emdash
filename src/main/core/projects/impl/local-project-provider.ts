@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -11,10 +10,8 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
-import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { buildTerminalEnv } from '@main/core/pty/pty-env';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
@@ -248,13 +245,19 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const taskLifecycleService = new TaskLifecycleService({
+      projectId: this.project.id,
+      taskId: task.taskId,
+      taskPath: task.taskPath,
+      terminals: task.terminals,
+    });
+
     const scripts = (await this.settings.get())?.scripts;
+
     if (scripts?.teardown) {
-      await this.runTeardownScript(task.taskId, task.taskPath, scripts.teardown).catch((e) => {
-        log.warn('LocalProjectProvider: teardown script failed', {
-          taskId: task.taskId,
-          error: String(e),
-        });
+      taskLifecycleService.runLifecycleScript({
+        type: 'teardown',
+        script: scripts?.teardown,
       });
     }
 
@@ -269,37 +272,6 @@ export class LocalProjectProvider implements ProjectProvider {
         });
       });
     }
-  }
-
-  private async runTeardownScript(taskId: string, taskPath: string, script: string): Promise<void> {
-    const terminalId = await createScriptTerminalId({
-      projectId: this.project.id,
-      taskId,
-      type: 'teardown',
-      script,
-    });
-    const sessionId = makePtySessionId(this.project.id, taskId, terminalId);
-    const userShell =
-      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
-    const pty = spawnLocalPty({
-      id: sessionId,
-      command: userShell,
-      args: ['-c', script],
-      cwd: taskPath,
-      env: buildTerminalEnv(),
-      cols: 80,
-      rows: 24,
-    });
-
-    ptySessionRegistry.register(sessionId, pty);
-
-    return new Promise<void>((resolve) => {
-      pty.onExit(() => {
-        ptySessionRegistry.unregister(sessionId);
-        resolve();
-      });
-    });
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
