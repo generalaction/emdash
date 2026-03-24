@@ -21,7 +21,7 @@ import { isValidProviderId } from '@shared/providers/registry';
  * lost triggers from startup races or React mount timing.
  */
 export function useAutomationTrigger(): void {
-  const { projects } = useProjectManagementContext();
+  const { projects, isInitialLoadComplete } = useProjectManagementContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -207,6 +207,11 @@ export function useAutomationTrigger(): void {
   }, [runAutomationInBackground]);
 
   useEffect(() => {
+    // Don't drain triggers until projects are loaded — otherwise we'll get
+    // "Project not found" errors because the projects array is still empty.
+    // The triggers stay safely queued in the main process until we're ready.
+    if (!isInitialLoadComplete) return;
+
     // Listen for hint events from main process (new triggers available)
     const unsub = window.electronAPI.onAutomationTriggerAvailable(() => {
       void drainTriggers();
@@ -223,5 +228,5 @@ export function useAutomationTrigger(): void {
       }
       ptyExitUnsubs.current.clear();
     };
-  }, [drainTriggers]);
+  }, [drainTriggers, isInitialLoadComplete]);
 }
