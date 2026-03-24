@@ -1,39 +1,26 @@
 import { useCallback } from 'react';
-import {
-  useTaskViewState,
-  type FileRendererData,
-} from '@renderer/core/tasks/task-view-state-provider';
+import { taskViewStateStore, type FileRendererData } from '@renderer/core/tasks/task-view-store';
 import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
 
 /**
- * Gives any component direct read+write access to its `OpenedFile` entry in
- * `TaskViewStateProvider`.
+ * Gives any component direct read+write access to its `ManagedFile` entry in
+ * the task view store.
  *
- * - `openedFile` — the current persisted entry (renderer kind + display state).
+ * - `openedFile` — the current file entry (renderer kind + display state).
  * - `updateRenderer` — functional updater that patches the renderer data for
- *   this file and writes it back to `TaskViewStateProvider`.
+ *   this file directly via an observable action.
  */
 export function useOpenedFile(filePath: string) {
   const { taskId } = useEditorContext();
-  const { getTaskViewState, setTaskViewState } = useTaskViewState();
+  const editorView = taskViewStateStore.getOrCreate(taskId).editorView;
 
-  const openedFile = getTaskViewState(taskId).editorView.openedFiles.find(
-    (f) => f.path === filePath
-  );
+  const openedFile = editorView.openFiles.get(filePath);
 
   const updateRenderer = useCallback(
     (updater: (prev: FileRendererData) => FileRendererData) => {
-      const { editorView } = getTaskViewState(taskId);
-      setTaskViewState(taskId, {
-        editorView: {
-          ...editorView,
-          openedFiles: editorView.openedFiles.map((f) =>
-            f.path === filePath ? { ...f, renderer: updater(f.renderer) } : f
-          ),
-        },
-      });
+      editorView.updateRenderer(filePath, updater);
     },
-    [taskId, filePath, getTaskViewState, setTaskViewState]
+    [editorView, filePath]
   );
 
   return { openedFile, updateRenderer };

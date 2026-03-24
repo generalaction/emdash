@@ -57,13 +57,14 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
   if (RASTER_EXTS.has(ext)) return 'image';
   if (ext === 'svg') return 'svg';
+  if (ext === 'md' || ext === 'mdx') return 'markdown';
   if (BINARY_EXTS.has(ext)) return 'binary';
   return 'text';
 }
 
-/** True for file kinds that default to rendered/preview mode (like markdown). */
+/** True for file kinds that default to rendered/preview mode. */
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
-  return kind === 'svg';
+  return kind === 'svg' || kind === 'markdown';
 }
 
 /**

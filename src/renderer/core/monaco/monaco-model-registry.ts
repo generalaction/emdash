@@ -1,7 +1,7 @@
+import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileWatchEvent } from '@shared/fs';
-import { events, rpc } from '@renderer/core/ipc';
+import { rpc } from '@renderer/core/ipc';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -56,15 +56,11 @@ export type ModelStatus = 'loading' | 'ready' | 'error';
  *   disk    (disk://)  — read-only mirror of the current on-disk content; updated by watcher
  *   git     (git://)   — read-only snapshot of a git ref (HEAD or arbitrary ref)
  *
- * ### Two-layer lifecycle
+ * ### Lifecycle
  *
- * **Registration** (`registerModel` / `unregisterModel`): purely loads and caches content.
- * Ref-counted. No FS watching or polling until a React subscriber appears.
- *
- * **Subscription** (`subscribeToUri`): the React integration point for `useSyncExternalStore`.
- * When subscriber count goes 0→1 for a URI, FS watching and polling start for that task.
- * When count goes 1→0, watching stops and a 60 s TTL eviction timer starts.
- * This means only models currently visible in the UI consume FS resources.
+ * **Registration** (`registerModel` / `unregisterModel`): ref-counted. Models are kept in memory
+ * for 60 s after the last `unregisterModel` call, then evicted. Re-registering before the timer
+ * fires cancels the eviction. FS watching is owned by `EditorProvider` (task-scoped), not the registry.
  *
  * Binary files must be filtered by callers before registering (use `getFileKind` from fileKind.ts).
  */
@@ -74,6 +70,8 @@ class MonacoModelRegistry {
    *   file://  → BufferModelEntry
    *   disk://  → DiskModelEntry
    *   git://   → GitModelEntry
+   *
+   * Plain Map — Monaco ITextModel instances are imperative/mutable; not observable.
    */
   private modelMap = new Map<string, ModelEntry>();
 
@@ -82,14 +80,9 @@ class MonacoModelRegistry {
   /**
    * URIs where the file was externally modified while the buffer had unsaved edits.
    * The conflict dialog is deferred until the user attempts to save the file.
+   * Observable so future UI can react to conflict state if needed.
    */
-  private pendingConflicts = new Set<string>();
-
-  /**
-   * fsWatchEventChannel subscriptions, keyed by taskId.
-   * Kept alive while any model for the task has active React subscribers.
-   */
-  private fsEventSubs = new Map<string, () => void>();
+  readonly pendingConflicts = observable.set<string>();
 
   private bufferReadyCallbacks = new Map<string, Array<() => void>>();
 
@@ -101,35 +94,23 @@ class MonacoModelRegistry {
   private pendingFetches = new Map<string, Promise<string | null>>();
 
   // ---------------------------------------------------------------------------
-  // Per-task watcher ref-count
+  // MobX reactive state
   // ---------------------------------------------------------------------------
-
-  /** Number of active useSyncExternalStore subscribers per task (across all URIs). */
-  private taskSubscriberCt = new Map<string, number>();
-
-  // ---------------------------------------------------------------------------
-  // Per-task polling fallback
-  // ---------------------------------------------------------------------------
-
-  private taskPollers = new Map<string, ReturnType<typeof setInterval>>();
-
-  // ---------------------------------------------------------------------------
-  // React subscription (SWR layer)
-  // ---------------------------------------------------------------------------
-
-  /** useSyncExternalStore listeners keyed by typed URI */
-  private listeners = new Map<string, Set<() => void>>();
-
-  /** Number of active useSyncExternalStore subscribers per typed URI */
-  private subscriberCt = new Map<string, number>();
-
-  /** Model loading status — driven by registerDisk/registerGit */
-  private modelStatus = new Map<string, ModelStatus>();
 
   /**
-   * 60 s TTL timers. Started when subscriber count drops to 0.
-   * When fired, orphaned models (refs ≤ 0) are cleaned up.
-   * Cancelled when a new subscriber arrives or when unregisterModel disposes the model.
+   * Model loading status — observable. Drives useModelStatus() in observer() components.
+   */
+  readonly modelStatus = observable.map<string, ModelStatus>();
+
+  /**
+   * Set of buffer URIs (file://) that have unsaved changes relative to disk.
+   * Drives useIsDirty() in observer() components.
+   */
+  readonly dirtyUris = observable.set<string>();
+
+  /**
+   * 60 s TTL timers. Started in unregisterModel when refs drop to 0.
+   * Cancelled if the model is re-registered before the timer fires.
    */
   private evictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -162,132 +143,6 @@ class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // React subscription API (used by useSyncExternalStore hooks in use-model.ts)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Subscribe to change notifications for a typed URI. Drives FS watching:
-   * count 0→1 starts watching; count 1→0 stops watching and starts 60 s TTL.
-   *
-   * Use via `useSyncExternalStore` hooks in `use-model.ts`, not directly.
-   * Returns a cleanup function for the subscription.
-   */
-  subscribeToUri(uri: string, cb: () => void): () => void {
-    // Register listener.
-    let listenerSet = this.listeners.get(uri);
-    if (!listenerSet) {
-      listenerSet = new Set();
-      this.listeners.set(uri, listenerSet);
-    }
-    listenerSet.add(cb);
-
-    const prev = this.subscriberCt.get(uri) ?? 0;
-    this.subscriberCt.set(uri, prev + 1);
-
-    if (prev === 0) {
-      // Cancel any pending eviction timer.
-      const timer = this.evictionTimers.get(uri);
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        this.evictionTimers.delete(uri);
-      }
-      // Activate FS watching if model already exists; otherwise it activates
-      // from registerDisk/registerGit once the model entry is created.
-      this.activateUriWatch(uri);
-    }
-
-    return () => {
-      const curr = this.subscriberCt.get(uri) ?? 0;
-      const next = Math.max(0, curr - 1);
-
-      const currentListeners = this.listeners.get(uri);
-      currentListeners?.delete(cb);
-      if (currentListeners && !currentListeners.size) {
-        this.listeners.delete(uri);
-      }
-
-      if (next === 0) {
-        this.subscriberCt.delete(uri);
-        // Stop FS watching immediately.
-        this.deactivateUriWatch(uri);
-        // Start 60 s TTL — cleans up orphaned prefetch models (refs ≤ 0).
-        const t = setTimeout(() => {
-          this.evictionTimers.delete(uri);
-          const entry = this.modelMap.get(uri);
-          if (!entry || entry.refs > 0) return;
-          if (!entry.model.isDisposed()) entry.model.dispose();
-          this.modelMap.delete(uri);
-          this.modelStatus.delete(uri);
-        }, 60_000);
-        this.evictionTimers.set(uri, t);
-      } else {
-        this.subscriberCt.set(uri, next);
-      }
-    };
-  }
-
-  /** Snapshot of the model's load status — used as the `getSnapshot` arg to useSyncExternalStore. */
-  getStatus(uri: string): ModelStatus {
-    return this.modelStatus.get(uri) ?? 'loading';
-  }
-
-  /** Returns core metadata for a registered model — used by PooledCodeEditor to read projectId/taskId/filePath. */
-  getEntryMeta(uri: string): { projectId: string; taskId: string; filePath: string } | undefined {
-    const entry = this.modelMap.get(uri);
-    if (!entry) return undefined;
-    return { projectId: entry.projectId, taskId: entry.taskId, filePath: entry.filePath };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internal notification
-  // ---------------------------------------------------------------------------
-
-  private notify(uri: string): void {
-    this.listeners.get(uri)?.forEach((cb) => cb());
-  }
-
-  // ---------------------------------------------------------------------------
-  // FS watch activation / deactivation (driven by subscribeToUri)
-  // ---------------------------------------------------------------------------
-
-  private activateUriWatch(uri: string): void {
-    const entry = this.modelMap.get(uri);
-    if (!entry) return; // model still loading; registerDisk/registerGit will call this after creation
-    if (entry.type === 'buffer') return; // buffer: no FS watching side effect
-
-    const prev = this.taskSubscriberCt.get(entry.taskId) ?? 0;
-    this.taskSubscriberCt.set(entry.taskId, prev + 1);
-
-    if (prev === 0) {
-      // First subscriber for this task — start the watcher and event sub.
-      void rpc.fs.watchSetPaths(entry.projectId, entry.taskId, ['.git'], 'monaco');
-      this.ensureFsEventSub(entry.projectId, entry.taskId);
-      this.startPoller(entry.projectId, entry.taskId);
-    }
-  }
-
-  private deactivateUriWatch(uri: string): void {
-    const entry = this.modelMap.get(uri);
-    if (!entry) return;
-    if (entry.type === 'buffer') return;
-
-    const prev = this.taskSubscriberCt.get(entry.taskId) ?? 0;
-    const next = Math.max(0, prev - 1);
-    if (next === 0) {
-      this.taskSubscriberCt.delete(entry.taskId);
-      void rpc.fs.watchStop(entry.projectId, entry.taskId, 'monaco');
-      this.maybeCleanupFsEventSub(entry.taskId);
-      this.maybeStopPoller(entry.taskId);
-    } else {
-      this.taskSubscriberCt.set(entry.taskId, next);
-    }
-  }
-
-  private taskHasSubscribers(taskId: string): boolean {
-    return (this.taskSubscriberCt.get(taskId) ?? 0) > 0;
-  }
-
-  // ---------------------------------------------------------------------------
   // Dedup fetch
   // ---------------------------------------------------------------------------
 
@@ -308,9 +163,9 @@ class MonacoModelRegistry {
    *
    * - `'disk'`          — fetches disk content via RPC, creates `disk://` model.
    *                       FS watching is NOT started here; it starts only when a React
-   *                       component subscribes via `subscribeToUri` (useModelStatus).
+   *                       component observes via `useModelStatus` (in an `observer()` component).
    * - `'gitBase'`/`'git'` — fetches git content via RPC; creates `git://` model.
-   *                       .git dir watch starts only when subscribed to.
+   *                       .git dir watch starts only when observed.
    * - `'buffer'`        — seeds from the existing disk model (disk must be registered first).
    *                       Creates `file://` model, fires any queued `onceBufferReady` callbacks.
    *
@@ -352,12 +207,15 @@ class MonacoModelRegistry {
 
     if (existing?.type === 'disk') {
       existing.refs += 1;
+      const timer = this.evictionTimers.get(diskUri);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        this.evictionTimers.delete(diskUri);
+      }
       return uri;
     }
 
-    // Mark as loading before the async RPC.
     this.modelStatus.set(diskUri, 'loading');
-    this.notify(diskUri);
 
     let content: string;
     try {
@@ -372,7 +230,6 @@ class MonacoModelRegistry {
       content = result;
     } catch (err) {
       this.modelStatus.set(diskUri, 'error');
-      this.notify(diskUri);
       throw err;
     }
 
@@ -394,12 +251,6 @@ class MonacoModelRegistry {
     }
 
     this.modelStatus.set(diskUri, 'ready');
-    this.notify(diskUri);
-
-    // If React components subscribed while model was loading, activate FS watching now.
-    if ((this.subscriberCt.get(diskUri) ?? 0) > 0) {
-      this.activateUriWatch(diskUri);
-    }
 
     return uri;
   }
@@ -417,11 +268,15 @@ class MonacoModelRegistry {
 
     if (existing?.type === 'git') {
       existing.refs += 1;
+      const timer = this.evictionTimers.get(gitUri);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        this.evictionTimers.delete(gitUri);
+      }
       return uri;
     }
 
     this.modelStatus.set(gitUri, 'loading');
-    this.notify(gitUri);
 
     const fetchKey = `${projectId}:${taskId}:${filePath}:git:${ref}`;
     const content = await this.dedupFetch(fetchKey, async () => {
@@ -452,12 +307,6 @@ class MonacoModelRegistry {
     }
 
     this.modelStatus.set(gitUri, 'ready');
-    this.notify(gitUri);
-
-    // If React components subscribed while model was loading, activate watching now.
-    if ((this.subscriberCt.get(gitUri) ?? 0) > 0) {
-      this.activateUriWatch(gitUri);
-    }
 
     return uri;
   }
@@ -467,6 +316,11 @@ class MonacoModelRegistry {
 
     if (existing?.type === 'buffer') {
       existing.refs += 1;
+      const timer = this.evictionTimers.get(uri);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        this.evictionTimers.delete(uri);
+      }
       return uri;
     }
 
@@ -497,12 +351,15 @@ class MonacoModelRegistry {
       const disposable = model.onDidChangeContent(() => {
         if (this.reloadingFromDisk.has(uri)) return;
 
-        // Notify React subscribers so useIsDirty re-evaluates.
-        this.notify(uri);
+        // Update reactive dirty set so observer() components re-render.
+        runInAction(() => {
+          if (this.computeIsDirtyRaw(uri)) this.dirtyUris.add(uri);
+          else this.dirtyUris.delete(uri);
+        });
 
         // Debounced crash-recovery save — persists unsaved edits across app restarts.
-        const existing = this.bufferAutosaveTimers.get(uri);
-        if (existing) clearTimeout(existing);
+        const existingTimer = this.bufferAutosaveTimers.get(uri);
+        if (existingTimer) clearTimeout(existingTimer);
         this.bufferAutosaveTimers.set(
           uri,
           setTimeout(() => {
@@ -524,7 +381,6 @@ class MonacoModelRegistry {
     }
 
     this.modelStatus.set(uri, 'ready');
-    this.notify(uri);
 
     const callbacks = this.bufferReadyCallbacks.get(uri);
     if (callbacks?.length) {
@@ -549,27 +405,41 @@ class MonacoModelRegistry {
    *   git    → toGitUri(bufferUri, ref)
    */
   unregisterModel(uri: string): void {
-    // Cancel any pending TTL eviction — we're explicitly disposing.
-    const timer = this.evictionTimers.get(uri);
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      this.evictionTimers.delete(uri);
-    }
-
     const entry = this.modelMap.get(uri);
     if (!entry) return;
 
     entry.refs -= 1;
     if (entry.refs > 0) return;
 
-    if (!entry.model.isDisposed()) entry.model.dispose();
-    this.modelMap.delete(uri);
-    this.modelStatus.delete(uri);
+    // refs === 0 — start 60 s cleanup timer. If the model is re-registered before
+    // the timer fires, the timer is cancelled in the register* methods above.
+    const t = setTimeout(() => {
+      this.evictionTimers.delete(uri);
+      const e = this.modelMap.get(uri);
+      if (!e || e.refs > 0) return;
+      if (!e.model.isDisposed()) e.model.dispose();
+      this.modelMap.delete(uri);
+      this.modelStatus.delete(uri);
+      if (e.type === 'buffer') {
+        this.bufferContentDisposables.get(uri)?.dispose();
+        this.bufferContentDisposables.delete(uri);
+        const autosaveTimer = this.bufferAutosaveTimers.get(uri);
+        if (autosaveTimer !== undefined) {
+          clearTimeout(autosaveTimer);
+          this.bufferAutosaveTimers.delete(uri);
+        }
+        this.bufferReadyCallbacks.delete(uri);
+        this.pendingConflicts.delete(uri);
+        runInAction(() => {
+          this.dirtyUris.delete(uri);
+        });
+      }
+    }, 60_000);
+    this.evictionTimers.set(uri, t);
 
-    if (entry.type === 'disk' || entry.type === 'git') {
-      this.maybeCleanupFsEventSub(entry.taskId);
-    } else {
-      // buffer
+    // Eagerly clean up buffer-specific in-memory state immediately (content disposables,
+    // autosave timers) so that edits made in a closing tab don't fire after close.
+    if (entry.type === 'buffer') {
       this.bufferContentDisposables.get(uri)?.dispose();
       this.bufferContentDisposables.delete(uri);
       const autosaveTimer = this.bufferAutosaveTimers.get(uri);
@@ -577,12 +447,7 @@ class MonacoModelRegistry {
         clearTimeout(autosaveTimer);
         this.bufferAutosaveTimers.delete(uri);
       }
-      this.bufferReadyCallbacks.delete(uri);
-      this.pendingConflicts.delete(uri);
-      this.notify(uri);
     }
-
-    this.maybeStopPoller(entry.taskId);
   }
 
   // ---------------------------------------------------------------------------
@@ -639,6 +504,11 @@ class MonacoModelRegistry {
 
   /** Returns true if the buffer has unsaved changes relative to on-disk content. */
   isDirty(uri: string): boolean {
+    return this.dirtyUris.has(uri);
+  }
+
+  /** Computes actual dirty state by comparing model values. Used internally to populate dirtyUris. */
+  private computeIsDirtyRaw(uri: string): boolean {
     const buf = this.modelMap.get(uri);
     const disk = this.modelMap.get(this.toDiskUri(uri));
     if (!buf || buf.type !== 'buffer' || !disk || disk.type !== 'disk') return false;
@@ -654,7 +524,9 @@ class MonacoModelRegistry {
     const disk = this.modelMap.get(this.toDiskUri(uri));
     if (buf?.type === 'buffer' && disk?.type === 'disk') {
       disk.model.setValue(buf.model.getValue());
-      this.notify(uri);
+      runInAction(() => {
+        this.dirtyUris.delete(uri);
+      });
     }
   }
 
@@ -693,6 +565,14 @@ class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
+  // Conflict state
+  // ---------------------------------------------------------------------------
+
+  hasPendingConflict(uri: string): boolean {
+    return this.pendingConflicts.has(uri);
+  }
+
+  // ---------------------------------------------------------------------------
   // Reload from disk (called after "Accept Incoming" in conflict dialog)
   // ---------------------------------------------------------------------------
 
@@ -708,7 +588,9 @@ class MonacoModelRegistry {
       this.reloadingFromDisk.add(uri);
       buf.model.setValue(disk.model.getValue());
       this.reloadingFromDisk.delete(uri);
-      this.notify(uri);
+      runInAction(() => {
+        this.dirtyUris.delete(uri);
+      });
     }
     this.pendingConflicts.delete(uri);
   }
@@ -734,14 +616,6 @@ class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Conflict state
-  // ---------------------------------------------------------------------------
-
-  hasPendingConflict(uri: string): boolean {
-    return this.pendingConflicts.has(uri);
-  }
-
-  // ---------------------------------------------------------------------------
   // Manual invalidation
   // ---------------------------------------------------------------------------
 
@@ -762,7 +636,6 @@ class MonacoModelRegistry {
           : await rpc.git.getFileAtRef(entry.projectId, entry.taskId, entry.filePath, entry.ref);
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);
-        this.notify(uri);
       }
     }
   }
@@ -776,13 +649,12 @@ class MonacoModelRegistry {
       ([uri, e]) => e.type === 'git' && e.taskId === taskId && uri.startsWith('git://')
     ) as [string, GitModelEntry][];
 
-    for (const [gitUri, entry] of gitEntries) {
+    for (const [_gitUri, entry] of gitEntries) {
       if (entry.ref !== 'HEAD') continue;
       const result = await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, 'HEAD');
       if (!result.success || result.data.content === null) continue;
       if (entry.model.getValue() !== result.data.content) {
         entry.model.setValue(result.data.content);
-        this.notify(gitUri);
       }
     }
   }
@@ -793,33 +665,31 @@ class MonacoModelRegistry {
 
   private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
     const bufferUri = diskUri.replace(/^disk:\/\//, 'file://');
-    const wasDirty = this.isDirty(bufferUri);
     const bufEntry = this.modelMap.get(bufferUri);
     const bufValue = bufEntry?.type === 'buffer' ? bufEntry.model.getValue() : undefined;
+    const wasDirty = this.dirtyUris.has(bufferUri);
     const newMatchesBuffer = bufValue === newContent;
 
     entry.model.setValue(newContent);
-    this.notify(diskUri);
 
     if (!wasDirty || newMatchesBuffer) {
-      // Only reload the buffer when content actually differs — skipping a no-op
-      // setValue avoids the post-save FS-echo cursor reset.
-      // applyEdits(ops, false) is used instead of setValue so that:
-      //   1. Cursor, selection, and scroll position are preserved.
-      //   2. The reload is invisible to Ctrl+Z (second arg suppresses undo tracking).
       if (bufEntry?.type === 'buffer' && !newMatchesBuffer) {
         this.reloadingFromDisk.add(bufferUri);
         const fullRange = bufEntry.model.getFullModelRange();
         bufEntry.model.applyEdits([{ range: fullRange, text: newContent }], false);
         this.reloadingFromDisk.delete(bufferUri);
-        this.notify(bufferUri);
       }
+      // Clear dirty state — disk now matches buffer (either buffer was synced to disk, or
+      // new disk content already matched existing buffer edits).
+      runInAction(() => {
+        this.dirtyUris.delete(bufferUri);
+      });
     } else {
       this.pendingConflicts.add(bufferUri);
     }
   }
 
-  private async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {
+  async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {
     // Route .git dir events → git model refresh.
     const hasGitEvent = fsEvents.some((e) => e.path.startsWith('.git'));
     if (hasGitEvent) {
@@ -838,71 +708,6 @@ class MonacoModelRegistry {
       if (!result.success) continue;
       this.applyDiskUpdate(diskUri, entry, result.data.content);
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Per-task polling fallback (10 s)
-  // ---------------------------------------------------------------------------
-
-  private startPoller(projectId: string, taskId: string): void {
-    if (this.taskPollers.has(taskId)) return;
-    const id = setInterval(() => void this.pollTask(projectId, taskId), 10_000);
-    this.taskPollers.set(taskId, id);
-  }
-
-  private maybeStopPoller(taskId: string): void {
-    // Keep poller alive while any model for this task has subscribers.
-    if (this.taskHasSubscribers(taskId)) return;
-    const id = this.taskPollers.get(taskId);
-    if (id !== undefined) {
-      clearInterval(id);
-      this.taskPollers.delete(taskId);
-    }
-  }
-
-  private async pollTask(projectId: string, taskId: string): Promise<void> {
-    for (const [uri, entry] of this.modelMap) {
-      if (entry.taskId !== taskId) continue;
-      if (entry.type === 'disk') {
-        const res = await rpc.fs.readFile(projectId, taskId, entry.filePath);
-        if (res.success && res.data.content !== entry.model.getValue()) {
-          this.applyDiskUpdate(uri, entry, res.data.content);
-        }
-      } else if (entry.type === 'git') {
-        // Skip polling staged/index content — it only changes through explicit staging operations,
-        // not over time. Those paths invalidate models directly.
-        if (entry.ref === 'staged') continue;
-        const res = await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, entry.ref);
-        if (
-          res.success &&
-          res.data.content !== null &&
-          res.data.content !== entry.model.getValue()
-        ) {
-          entry.model.setValue(res.data.content);
-          this.notify(uri);
-        }
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // FS event subscription management
-  // ---------------------------------------------------------------------------
-
-  private ensureFsEventSub(projectId: string, taskId: string): void {
-    if (this.fsEventSubs.has(taskId)) return;
-    const unsub = events.on(
-      fsWatchEventChannel,
-      (data) => void this.handleFsEvents(data.taskId, data.events),
-      taskId
-    );
-    this.fsEventSubs.set(taskId, unsub);
-  }
-
-  private maybeCleanupFsEventSub(taskId: string): void {
-    if (this.taskHasSubscribers(taskId)) return;
-    this.fsEventSubs.get(taskId)?.();
-    this.fsEventSubs.delete(taskId);
   }
 
   private findDiskEntryByTaskAndPath(

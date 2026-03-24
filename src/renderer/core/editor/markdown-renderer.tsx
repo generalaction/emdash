@@ -1,43 +1,34 @@
 import { Pencil } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
+import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
 import { useOpenedFile } from './use-opened-file';
 
-interface SvgRendererProps {
+interface MarkdownEditorRendererProps {
   filePath: string;
 }
 
 /**
- * Renders an SVG file as an image.
+ * Renders a markdown file as a formatted preview.
  * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
  */
-export function SvgRenderer({ filePath }: SvgRendererProps) {
+export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
+  filePath,
+}: MarkdownEditorRendererProps) {
   const { modelRootPath } = useEditorContext();
   const { updateRenderer } = useOpenedFile(filePath);
-
-  const content = modelRegistry.getValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '';
-
-  const svgUrl = useMemo(
-    () => (content ? URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' })) : ''),
-    [content]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (svgUrl) URL.revokeObjectURL(svgUrl);
-    };
-  }, [svgUrl]);
-
-  const fileName = filePath.split('/').pop() ?? filePath;
+  const bufferUri = buildMonacoModelPath(modelRootPath, filePath);
+  const content = modelRegistry.getValue(bufferUri) ?? '';
+  const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 
   return (
-    <div className="relative flex h-full items-center justify-center overflow-auto p-4">
-      <img src={svgUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
+    <div className="relative h-full">
+      <MarkdownPreview content={content} rootPath={modelRootPath} fileDir={fileDir} />
       <button
         className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-        onClick={() => updateRenderer(() => ({ kind: 'svg-source' }))}
+        onClick={() => updateRenderer(() => ({ kind: 'markdown-source' }))}
         title="Edit source"
         aria-label="Edit source"
       >
@@ -45,4 +36,4 @@ export function SvgRenderer({ filePath }: SvgRendererProps) {
       </button>
     </div>
   );
-}
+});

@@ -1,7 +1,6 @@
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef, type RefObject } from 'react';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { computeLineDiff } from './utils';
 
 /**
@@ -11,13 +10,13 @@ import { computeLineDiff } from './utils';
  * Rather than polling `rpc.git.getFileDiff`, this hook compares the two Monaco
  * `ITextModel` instances that `MonacoModelRegistry` already manages:
  *   - `file://`  (buffer) — the user's current edits
- *   - `git://HEAD` — the last-committed baseline, kept fresh by the registry's
- *                    `.git` dir watcher
+ *   - `git://HEAD` — the last-committed baseline, kept fresh by the FS watcher
+ *                    managed by EditorProvider
  *
  * Decorations are recomputed reactively via `onDidChangeModelContent` on both
  * models — no polling, no TTL cache, no RPC call.
  *
- * @param editorRef - ref to the leased Monaco IStandaloneCodeEditor instance
+ * @param editorRef - ref to the Monaco IStandaloneCodeEditor instance
  * @param bufferUri - `file://` URI of the buffer model for the active file
  */
 export function useDiffDecorations(
@@ -25,11 +24,6 @@ export function useDiffDecorations(
   bufferUri: string
 ): void {
   const gitUri = bufferUri ? modelRegistry.toGitUri(bufferUri, 'HEAD') : '';
-
-  // Subscribing via useModelStatus activates the registry's .git dir watcher for
-  // this task while the component is mounted (same pattern as PooledCodeEditor uses
-  // for the disk model).
-  useModelStatus(gitUri);
 
   const decorationIdsRef = useRef<string[]>([]);
 

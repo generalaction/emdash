@@ -3,9 +3,10 @@ import { TaskActionsMenu } from '@renderer/components/task-actions-menu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { type RightPanelView } from '@renderer/core/tasks/task-view-store';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
-import { RightPanelView, useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
+import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
 export function TaskTitlebar() {
   const { lifecycleTask } = useTaskViewContext();

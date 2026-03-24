@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
@@ -278,7 +279,7 @@ interface StackedFileSectionProps {
 
 const MIN_EDITOR_HEIGHT = 100;
 
-function StackedFileSection({
+const StackedFileSection = observer(function StackedFileSection({
   file,
   taskId,
   diffStyle,
@@ -378,4 +379,4 @@ function StackedFileSection({
       )}
     </div>
   );
-}
+});

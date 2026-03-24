@@ -1,3 +1,4 @@
+import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Terminal } from '@shared/terminals';
@@ -5,13 +6,14 @@ import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
 import { useConversations } from '@renderer/core/conversations/use-conversations';
 import { LifecycleTask, useTask } from '@renderer/core/tasks/task-lifecycle-provider';
-import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
+import {
+  taskViewStateStore,
+  type MainPanelView,
+  type RightPanelView,
+} from '@renderer/core/tasks/task-view-store';
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';
-
-export type RightPanelView = 'changes' | 'files' | 'terminals';
-export type MainPanelView = 'agents' | 'editor' | 'diff';
 
 interface TaskViewContext {
   projectId: string;
@@ -39,7 +41,7 @@ interface TaskViewContext {
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
 
-export function TaskViewWrapper({
+export const TaskViewWrapper = observer(function TaskViewWrapper({
   children,
   projectId,
   taskId,
@@ -48,7 +50,7 @@ export function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const { getTaskViewState, setTaskViewState } = useTaskViewState();
+  const taskState = taskViewStateStore.getOrCreate(taskId);
   const lifecycleTask = useTask({ projectId, taskId });
 
   const { conversations, createConversation, removeConversation } = useConversations({
@@ -64,36 +66,26 @@ export function TaskViewWrapper({
     projectSettings,
   });
 
-  const { view, agentsView, terminalsView, rightPanelView } = getTaskViewState(taskId);
-
-  const setView = useCallback(
-    (v: MainPanelView) => {
-      setTaskViewState(taskId, { view: v });
-    },
-    [setTaskViewState, taskId]
-  );
+  // taskState is a stable object reference for a given taskId —
+  // these callbacks remain stable across renders.
+  const setView = useCallback((v: MainPanelView) => taskState.setView(v), [taskState]);
 
   const setActiveConversationId = useCallback(
-    (conversationId: string) => {
-      setTaskViewState(taskId, {
-        agentsView: { activeConversationId: conversationId, rightPanelView: 'changes' },
-      });
+    (id: string) => {
+      taskState.agentsView.setActiveConversationId(id);
+      taskState.setRightPanelView('changes');
     },
-    [setTaskViewState, taskId]
+    [taskState]
   );
 
   const setActiveTerminalId = useCallback(
-    (terminalId: string | undefined) => {
-      setTaskViewState(taskId, { terminalsView: { activeTerminalId: terminalId } });
-    },
-    [setTaskViewState, taskId]
+    (id: string | undefined) => taskState.terminalsView.setActiveTerminalId(id),
+    [taskState]
   );
 
   const setRightPanelView = useCallback(
-    (view: RightPanelView) => {
-      setTaskViewState(taskId, { rightPanelView: view });
-    },
-    [setTaskViewState, taskId]
+    (v: RightPanelView) => taskState.setRightPanelView(v),
+    [taskState]
   );
 
   const s = lifecycleTask.status;
@@ -106,15 +98,15 @@ export function TaskViewWrapper({
         <TaskViewContext.Provider
           value={{
             lifecycleTask,
-            view,
+            view: taskState.view,
             setView,
             projectId,
             taskId,
-            activeConversationId: agentsView.activeConversationId,
+            activeConversationId: taskState.agentsView.activeConversationId,
             setActiveConversationId,
-            activeTerminalId: terminalsView.activeTerminalId,
+            activeTerminalId: taskState.terminalsView.activeTerminalId,
             setActiveTerminalId,
-            rightPanelView,
+            rightPanelView: taskState.rightPanelView,
             setRightPanelView,
             conversations,
             createConversation,
@@ -131,7 +123,7 @@ export function TaskViewWrapper({
       </ProjectViewWrapper>
     </ViewLayoutOverrideContext.Provider>
   );
-}
+});
 
 export function useTaskViewContext() {
   const context = useContext(TaskViewContext);
