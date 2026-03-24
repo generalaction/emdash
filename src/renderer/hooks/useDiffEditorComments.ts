@@ -6,13 +6,21 @@ import { useLineComments } from './useLineComments';
 interface UseDiffEditorCommentsOptions {
   editor: monaco.editor.IStandaloneDiffEditor | null;
   taskId: string;
+  taskPath?: string;
   filePath: string;
 }
 
-export function useDiffEditorComments({ editor, taskId, filePath }: UseDiffEditorCommentsOptions) {
-  const { comments, addComment, updateComment, deleteComment } = useLineComments(taskId, filePath, {
-    includeSent: false,
-  });
+export function useDiffEditorComments({
+  editor,
+  taskId,
+  taskPath,
+  filePath,
+}: UseDiffEditorCommentsOptions) {
+  const { comments, addComment, updateComment, deleteComment } = useLineComments(
+    taskId,
+    filePath,
+    taskPath
+  );
   const managerRef = useRef<MonacoCommentManager | null>(null);
 
   // Memoize callbacks to pass to manager

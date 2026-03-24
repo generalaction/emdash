@@ -13,6 +13,7 @@ import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
+  AutoInferTaskNamesRow,
   CreateWorktreeByDefaultRow,
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
@@ -25,6 +26,10 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
+import { AccountTab } from './settings/AccountTab';
+import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
 
 export type SettingsPageTab =
@@ -33,7 +38,8 @@ export type SettingsPageTab =
   | 'integrations'
   | 'repository'
   | 'interface'
-  | 'docs';
+  | 'docs'
+  | 'account';
 
 // Helper functions from SettingsModal
 const createDefaultCliAgents = (): CliAgentStatus[] =>
@@ -146,10 +152,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     };
   }, []);
 
-  // Handle Escape key to close
+  // Handle Escape key to close (skip when a nested modal already handled the event)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
         onClose();
       }
     };
@@ -171,6 +177,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     { id: 'integrations', label: 'Integrations' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'account', label: 'Account' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -198,6 +205,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <AutoGenerateTaskNamesRow taskSettings={taskSettings} />,
         },
         {
+          component: <AutoInferTaskNamesRow taskSettings={taskSettings} />,
+        },
+        {
           component: <AutoApproveByDefaultRow taskSettings={taskSettings} />,
         },
         {
@@ -219,6 +229,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
+        { component: <ReviewAgentSettingsCard /> },
         {
           title: 'CLI agents',
           component: (
@@ -232,7 +243,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
+      sections: [
+        { title: 'Integrations', component: <IntegrationsCard /> },
+        { component: <WorkspaceProviderInfoCard /> },
+      ],
     },
     repository: {
       title: 'Repository',
@@ -250,6 +264,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           title: 'Workspace',
           component: (
             <div className="flex flex-col gap-8 rounded-xl border border-muted p-4">
+              <ResourceMonitorSettingsCard />
               <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
               <TaskHoverActionCard />
@@ -261,6 +276,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <HiddenToolsSettingsCard />,
         },
       ],
+    },
+    account: {
+      title: 'Account',
+      description: 'Manage your Emdash account.',
+      sections: [{ component: <AccountTab /> }],
     },
   };
 

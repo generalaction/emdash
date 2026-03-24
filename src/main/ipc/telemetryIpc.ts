@@ -95,6 +95,9 @@ const RENDERER_ALLOWED_EVENTS = new Set([
   'forgejo_issue_selected',
   // Task with issue
   'task_created_with_issue',
+  // Workspace provider
+  'workspace_provisioning_task_created',
+  'workspace_provider_config_saved',
   // Settings & Preferences
   'settings_tab_viewed',
   'theme_changed',

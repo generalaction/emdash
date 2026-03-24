@@ -31,6 +31,11 @@ export interface TaskMetadata {
   nameGenerated?: boolean | null;
   /** Set to true after the initial injection (prompt/issue) has been sent to the agent */
   initialInjectionSent?: boolean | null;
+  // When present, the task was created with a remote workspace provider
+  workspace?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null;
   /** Whether this task is pinned to the top of the sidebar */
   isPinned?: boolean | null;
   /** PR number when this task is a PR review task */

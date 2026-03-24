@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCachedGitStatus } from '@/lib/gitStatusCache';
+import { filterVisibleGitStatusChanges } from '@/lib/gitStatusFilters';
+import { useGitStatusAutoRefresh } from '@/hooks/internal/useGitStatusAutoRefresh';
 
 export interface TaskChange {
   path: string;
   status: string;
-  additions: number;
-  deletions: number;
+  additions: number | null;
+  deletions: number | null;
   diff?: string;
 }
 
@@ -48,9 +50,6 @@ export function useTaskChanges(
   const taskPathRef = useRef(taskPath);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
-  const shouldPollRef = useRef(false);
-  const idleHandleRef = useRef<number | null>(null);
-  const idleHandleModeRef = useRef<'idle' | 'timeout' | null>(null);
   const mountedRef = useRef(true);
   const pendingRefreshRef = useRef(false);
   const pendingInitialLoadRef = useRef(false);
@@ -126,11 +125,9 @@ export function useTaskChanges(
         }
 
         if (result?.success && result.changes) {
-          const filtered = result.changes.filter(
-            (c) => !c.path.startsWith('.emdash/') && c.path !== 'PLANNING.md'
-          );
-          const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions || 0), 0);
-          const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions || 0), 0);
+          const filtered = filterVisibleGitStatusChanges(result.changes);
+          const totalAdditions = filtered.reduce((sum, change) => sum + (change.additions ?? 0), 0);
+          const totalDeletions = filtered.reduce((sum, change) => sum + (change.deletions ?? 0), 0);
 
           setChanges({
             taskId,
@@ -181,106 +178,14 @@ export function useTaskChanges(
     [taskId, queueRefresh]
   );
 
-  const clearIdleHandle = useCallback(() => {
-    if (idleHandleRef.current === null) return;
-    if (idleHandleModeRef.current === 'idle') {
-      const cancelIdle = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
-      cancelIdle?.(idleHandleRef.current);
-    } else {
-      clearTimeout(idleHandleRef.current);
-    }
-    idleHandleRef.current = null;
-    idleHandleModeRef.current = null;
-  }, []);
-
-  const scheduleIdleRefresh = useCallback(() => {
-    if (!shouldPollRef.current) return;
-    clearIdleHandle();
-
-    const run = () => {
-      if (!shouldPollRef.current) return;
-      void fetchChanges(false);
-      scheduleIdleRefresh();
-    };
-
-    const requestIdle = (window as any).requestIdleCallback as
-      | ((cb: () => void, options?: { timeout: number }) => number)
-      | undefined;
-
-    if (requestIdle) {
-      idleHandleModeRef.current = 'idle';
-      idleHandleRef.current = requestIdle(run, { timeout: idleIntervalMs });
-    } else {
-      idleHandleModeRef.current = 'timeout';
-      idleHandleRef.current = window.setTimeout(run, idleIntervalMs);
-    }
-  }, [clearIdleHandle, fetchChanges, idleIntervalMs]);
-
   const shouldPoll = Boolean(taskPath) && isActive && isDocumentVisible && isWindowFocused;
-
-  useEffect(() => {
-    shouldPollRef.current = shouldPoll;
-  }, [shouldPoll]);
-
-  useEffect(() => {
-    if (!taskPath || !shouldPoll) {
-      clearIdleHandle();
-      return;
-    }
-
-    void fetchChanges(!hasLoadedRef.current);
-    scheduleIdleRefresh();
-
-    return () => {
-      clearIdleHandle();
-    };
-  }, [taskPath, shouldPoll, fetchChanges, scheduleIdleRefresh, clearIdleHandle]);
-
-  useEffect(() => {
-    if (!taskPath) return;
-    const api = window.electronAPI;
-    let off: (() => void) | undefined;
-    let watchId: string | undefined;
-    let disposed = false;
-
-    const watchPromise = api.watchGitStatus
-      ? api.watchGitStatus(taskPath)
-      : Promise.resolve({ success: false });
-
-    watchPromise
-      .then((res: { success?: boolean; watchId?: string }) => {
-        if (disposed) {
-          if (res?.success && res.watchId && api.unwatchGitStatus) {
-            api.unwatchGitStatus(taskPath, res.watchId).catch(() => {});
-          }
-          return;
-        }
-        if (!res?.success) {
-          return;
-        }
-        watchId = res.watchId;
-        if (api.onGitStatusChanged) {
-          off = api.onGitStatusChanged((event) => {
-            if (event?.taskPath !== taskPath) return;
-            if (!shouldPollRef.current) return;
-            if (event?.error === 'watcher-error') {
-              void fetchChanges(false, { force: true });
-              return;
-            }
-            void fetchChanges(false, { force: true });
-          });
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      disposed = true;
-      off?.();
-      if (api.unwatchGitStatus && watchId) {
-        api.unwatchGitStatus(taskPath, watchId).catch(() => {});
-      }
-    };
-  }, [taskPath, fetchChanges]);
+  useGitStatusAutoRefresh({
+    taskPath,
+    shouldPoll,
+    idleIntervalMs,
+    hasLoadedRef,
+    fetchChanges,
+  });
 
   return {
     ...changes,

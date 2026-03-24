@@ -31,9 +31,11 @@ import {
 } from '../lib/taskNames';
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
+import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -51,10 +53,18 @@ export interface CreateTaskResult {
   useWorktree?: boolean;
   baseRef?: string;
   nameGenerated?: boolean;
+  /** When true, provision a remote workspace instead of creating a local worktree. */
+  useRemoteWorkspace?: boolean;
+  /** Workspace provider commands — required when useRemoteWorkspace is true. */
+  workspaceProvider?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  };
 }
 
 interface TaskModalProps {
   onClose: () => void;
+  initialProject?: Project;
   onCreateTask: (
     name: string,
     initialPrompt?: string,
@@ -68,18 +78,23 @@ interface TaskModalProps {
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
-    nameGenerated?: boolean
+    nameGenerated?: boolean,
+    useRemoteWorkspace?: boolean,
+    workspaceProvider?: { provisionCommand: string; terminateCommand: string }
   ) => Promise<void>;
 }
 
-export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult>;
+export type TaskModalOverlayProps = BaseModalProps<CreateTaskResult> & {
+  initialProject?: Project;
+};
 
-export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
+export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayProps) {
   const { handleCreateTask } = useTaskManagementContext();
 
   return (
     <TaskModal
       onClose={onClose}
+      initialProject={initialProject}
       onCreateTask={async (
         name,
         initialPrompt,
@@ -93,7 +108,9 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
         autoApprove,
         useWorktree,
         baseRef,
-        nameGenerated
+        nameGenerated,
+        useRemoteWorkspace,
+        workspaceProvider
       ) => {
         await handleCreateTask(
           name,
@@ -108,14 +125,17 @@ export function TaskModalOverlay({ onClose }: TaskModalOverlayProps) {
           autoApprove,
           useWorktree,
           baseRef,
-          nameGenerated
+          nameGenerated,
+          useRemoteWorkspace,
+          workspaceProvider,
+          initialProject ?? undefined
         );
       }}
     />
   );
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreateTask }) => {
   const {
     selectedProject,
     projectDefaultBranch: defaultBranch,
@@ -125,9 +145,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   } = useProjectManagementContext();
   const { linkedGithubIssueMap } = useTaskManagementContext();
 
-  const projectName = selectedProject?.name || '';
-  const existingNames = (selectedProject?.tasks || []).map((w) => w.name);
-  const projectPath = selectedProject?.path;
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  const project = initialProject ?? selectedProject;
+  const projectName = project?.name || '';
+  const existingNames = (project?.tasks || []).map((w) => w.name);
+  const projectPath = project?.path;
   // Form state
   const [taskName, setTaskName] = useState('');
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([{ agent: DEFAULT_AGENT, runs: 1 }]);
@@ -148,6 +170,36 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [useRemoteWorkspace, setUseRemoteWorkspace] = useState(false);
+  const [workspaceProviderConfig, setWorkspaceProviderConfig] = useState<{
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null>(null);
+
+  // Load workspace provider config from .emdash.json (only when feature flag is on)
+  useEffect(() => {
+    if (!projectPath || !workspaceProviderEnabled) return;
+    void (async () => {
+      try {
+        const result = await window.electronAPI.getProjectConfig(projectPath);
+        if (result.success && result.content) {
+          const parsed = JSON.parse(result.content);
+          if (
+            parsed?.workspaceProvider?.type === 'script' &&
+            typeof parsed.workspaceProvider.provisionCommand === 'string' &&
+            typeof parsed.workspaceProvider.terminateCommand === 'string'
+          ) {
+            setWorkspaceProviderConfig({
+              provisionCommand: parsed.workspaceProvider.provisionCommand,
+              terminateCommand: parsed.workspaceProvider.terminateCommand,
+            });
+          }
+        }
+      } catch {
+        // Config not found or invalid — no workspace provider available
+      }
+    })();
+  }, [projectPath, workspaceProviderEnabled]);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -168,6 +220,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
   // Auto-name tracking
   const [autoGeneratedName, setAutoGeneratedName] = useState('');
   const [autoGenerateName, setAutoGenerateName] = useState(true);
+  const [autoInferTaskNames, setAutoInferTaskNames] = useState(false);
   const userHasTypedRef = useRef(false);
   const autoNameInitializedRef = useRef(false);
   const customNameTrackedRef = useRef(false);
@@ -277,6 +330,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         setTaskName('');
         setError(null);
       }
+
+      // Handle auto-infer setting
+      setAutoInferTaskNames(settings?.tasks?.autoInferTaskNames === true);
     });
 
     return () => {
@@ -284,9 +340,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     };
   }, []);
 
-  // Auto-generate name from context (prompt / linked issue) with debounce
+  // Auto-generate name from context (prompt / linked issue) with debounce.
+  // Only active when both auto-generate and auto-infer settings are enabled.
   useEffect(() => {
-    if (!autoGenerateName || userHasTypedRef.current) return;
+    if (!autoGenerateName || !autoInferTaskNames || userHasTypedRef.current) return;
 
     // Immediate for issue linking, debounced for typed prompts
     const hasIssue = !!(
@@ -321,6 +378,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
     return () => clearTimeout(timer);
   }, [
     autoGenerateName,
+    autoInferTaskNames,
     initialPrompt,
     selectedLinearIssue,
     selectedGithubIssue,
@@ -363,17 +421,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
 
     // Determine the final task name and whether it should be eligible for
     // post-creation auto-rename (nameGenerated flag).
+    // Only mark for post-creation rename when autoInferTaskNames is enabled.
     let finalName = normalizeTaskName(taskName);
     let isNameGenerated = false;
     if (!finalName) {
       // No name at all — use a random fallback; mark for post-creation rename
       finalName = generateFriendlyTaskName(normalizedExisting);
-      isNameGenerated = true;
+      isNameGenerated = autoGenerateName && autoInferTaskNames;
     } else if (!userHasTypedRef.current && !nameFromContextRef.current) {
       // User never touched the name field AND the name wasn't derived from
       // context (prompt/issue) — it's still a random fallback name.
       // Mark for post-creation rename so the first terminal message can improve it.
-      isNameGenerated = true;
+      isNameGenerated = autoGenerateName && autoInferTaskNames;
     }
     // When the name was auto-generated from context (prompt/issue),
     // it's already descriptive — don't mark it for post-creation rename.
@@ -392,9 +451,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
         selectedGitlabIssue,
         selectedForgejoIssue,
         hasAutoApproveSupport ? autoApprove : false,
-        useWorktree,
+        useRemoteWorkspace ? false : useWorktree,
         selectedBranch,
-        isNameGenerated
+        isNameGenerated,
+        useRemoteWorkspace,
+        useRemoteWorkspace && workspaceProviderConfig ? workspaceProviderConfig : undefined
       );
       onClose();
     } catch (error) {
@@ -478,6 +539,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onCreateTask }) => {
             projectPath={projectPath}
             useWorktree={useWorktree}
             onUseWorktreeChange={setUseWorktree}
+            useRemoteWorkspace={useRemoteWorkspace}
+            onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
+            hasWorkspaceProvider={!!workspaceProviderConfig}
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}

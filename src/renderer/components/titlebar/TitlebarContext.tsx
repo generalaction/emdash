@@ -5,6 +5,7 @@ import type { Project, Task } from '../../types/app';
 interface TitlebarContextProps {
   projects: Project[];
   selectedProject: Project | null;
+  tasks: Task[];
   activeTask: Task | null;
   onSelectProject: (project: Project) => void;
   onSelectTask: (task: Task) => void;
@@ -13,6 +14,7 @@ interface TitlebarContextProps {
 const TitlebarContext: React.FC<TitlebarContextProps> = ({
   projects,
   selectedProject,
+  tasks,
   activeTask,
   onSelectProject,
   onSelectTask,
@@ -20,8 +22,6 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
   if (!selectedProject) {
     return <div />;
   }
-
-  const tasks = selectedProject?.tasks ?? [];
   const projectValue = selectedProject.id;
   const noTaskValue = '__no_task_selected__';
   const taskValue = activeTask?.id ?? noTaskValue;

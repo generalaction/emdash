@@ -13,6 +13,8 @@ import { TERMINAL_SNAPSHOT_VERSION, type TerminalSnapshotPayload } from '#types/
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { consumeSubmittedInputChunk } from './submitCapture';
+import { isSlashCommandInput } from '../lib/slashCommand';
+import { buildCommentInjectionPayload } from '../lib/terminalInjection';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -21,7 +23,15 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './terminalKeybindings';
+import {
+  collectTerminalSearchMatches,
+  getNextTerminalSearchIndex,
+  type TerminalSearchBufferLike,
+  type TerminalSearchMatch,
+} from './terminalSearch';
+import { scheduleTerminalWriteDrain } from './writeDrainScheduler';
 import { rpc } from '@/lib/rpc';
+import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
 const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DATA_WINDOW_BYTES = 128 * 1024 * 1024; // 128 MB soft guardrail
@@ -38,6 +48,20 @@ const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+// Keys registered as global app shortcuts (Cmd on macOS, Ctrl on Linux/Windows).
+// Used to let these combos pass through xterm to the window-level shortcut handler
+// instead of being consumed by the terminal.
+const APP_CMD_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd')
+    .map((s) => normalizeShortcutKey(s.key))
+);
+const APP_CMD_SHIFT_KEYS = new Set(
+  Object.values(APP_SHORTCUTS)
+    .filter((s) => s.modifier === 'cmd+shift')
+    .map((s) => normalizeShortcutKey(s.key))
+);
 
 // Store viewport positions per terminal ID to preserve scroll position across detach/attach cycles
 const viewportPositions = new Map<string, number>();
@@ -94,6 +118,14 @@ export class TerminalSessionManager {
   private readonly exitListeners = new Set<
     (info: { exitCode: number | undefined; signal?: number }) => void
   >();
+  private ptyListenerDisposables: CleanupFn[] = [];
+  private ptyConnectPromise: Promise<{
+    ok: boolean;
+    reused?: boolean;
+    tmux?: boolean;
+    error?: string;
+  }> | null = null;
+  private restartPromise: Promise<boolean> | null = null;
   private firstFrameRendered = false;
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
@@ -114,11 +146,15 @@ export class TerminalSessionManager {
   private readonly pendingWriteQueue: string[] = [];
   private queuedWriteChars = 0;
   private writeDrainScheduled = false;
+  private cancelPendingWriteDrain: CleanupFn | null = null;
   private writeInFlight = false;
   private shouldScrollToBottomAfterWrites = false;
   private lastSlowInputLogAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private wheelLineRemainder = 0;
+  private activeSearchQuery = '';
+  private activeSearchMatch: TerminalSearchMatch | null = null;
 
   // Timing for startup performance measurement
   private initStartTime: number = 0;
@@ -381,6 +417,16 @@ export class TerminalSessionManager {
         }
       }
 
+      // Let registered app shortcuts propagate to the global handler.
+      const hasPlatformMod = IS_MAC_PLATFORM
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey;
+      if (hasPlatformMod) {
+        const key = normalizeShortcutKey(event.key);
+        if (!event.shiftKey && APP_CMD_KEYS.has(key)) return false;
+        if (event.shiftKey && APP_CMD_SHIFT_KEYS.has(key)) return false;
+      }
+
       return true; // Let xterm handle all other keys normally
     });
 
@@ -519,6 +565,8 @@ export class TerminalSessionManager {
     this.pendingWriteQueue.length = 0;
     this.queuedWriteChars = 0;
     this.writeDrainScheduled = false;
+    this.cancelPendingWriteDrain?.();
+    this.cancelPendingWriteDrain = null;
     this.writeInFlight = false;
     this.shouldScrollToBottomAfterWrites = false;
     this.detach();
@@ -536,6 +584,7 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to kill PTY during dispose', { id: this.id, error });
     }
+    this.cleanupPtyListeners();
     for (const dispose of this.disposables.splice(0)) {
       try {
         dispose();
@@ -578,6 +627,101 @@ export class TerminalSessionManager {
     }
   }
 
+  forwardWheelInput(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    if (this.dispatchWheelEventToTerminal(input)) {
+      return true;
+    }
+
+    return this.scrollViewportFromWheelDelta(input.deltaY, input.deltaMode);
+  }
+
+  scrollViewportFromWheelDelta(deltaY: number, deltaMode: number): boolean {
+    const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
+    if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
+
+    const totalDelta = this.wheelLineRemainder + lineDelta;
+    const wholeLines = totalDelta > 0 ? Math.floor(totalDelta) : Math.ceil(totalDelta);
+    this.wheelLineRemainder = totalDelta - wholeLines;
+
+    if (wholeLines === 0) return false;
+    return this.scrollViewportByLineDelta(wholeLines);
+  }
+
+  search(
+    query: string,
+    options: { direction?: 'next' | 'prev'; reset?: boolean } = {}
+  ): {
+    found: boolean;
+    currentIndex: number;
+    total: number;
+  } {
+    const normalizedQuery = query;
+    if (!normalizedQuery) {
+      this.clearSearch();
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const buffer = this.terminal.buffer?.active as TerminalSearchBufferLike | undefined;
+    if (!buffer) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const matches = collectTerminalSearchMatches(buffer, normalizedQuery);
+    if (matches.length === 0) {
+      this.activeSearchQuery = normalizedQuery;
+      this.activeSearchMatch = null;
+      try {
+        this.terminal.clearSelection();
+      } catch {}
+      return { found: false, currentIndex: 0, total: 0 };
+    }
+
+    const direction = options.direction ?? 'next';
+    const currentMatch =
+      !options.reset && this.activeSearchQuery === normalizedQuery ? this.activeSearchMatch : null;
+    const matchIndex = getNextTerminalSearchIndex(matches, currentMatch, direction);
+    const match = matches[matchIndex];
+
+    this.activeSearchQuery = normalizedQuery;
+    this.activeSearchMatch = match;
+
+    try {
+      this.terminal.select(match.col, match.row, match.length);
+      const contextRows = Math.max(0, Math.floor(this.terminal.rows / 2));
+      this.terminal.scrollToLine(Math.max(0, match.row - contextRows));
+    } catch (error) {
+      log.warn('Failed to apply terminal search match', {
+        id: this.id,
+        query: normalizedQuery,
+        error,
+      });
+    }
+
+    return {
+      found: true,
+      currentIndex: matchIndex + 1,
+      total: matches.length,
+    };
+  }
+
+  clearSearch() {
+    this.activeSearchQuery = '';
+    this.activeSearchMatch = null;
+    try {
+      this.terminal.clearSelection();
+    } catch {}
+  }
+
   registerActivityListener(listener: () => void): () => void {
     this.activityListeners.add(listener);
     return () => {
@@ -606,6 +750,29 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
+  }
+
+  isPtyActive(): boolean {
+    return this.ptyStarted;
+  }
+
+  async restart(): Promise<boolean> {
+    if (this.disposed || this.ptyStarted) return false;
+    if (this.restartPromise) return this.restartPromise;
+
+    this.restartPromise = (async () => {
+      this.clearQueuedResize();
+      this.cleanupPtyListeners();
+
+      const result = await this.connectPty(true);
+      return Boolean(result?.ok);
+    })();
+
+    try {
+      return await this.restartPromise;
+    } finally {
+      this.restartPromise = null;
+    }
   }
 
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
@@ -645,20 +812,38 @@ export class TerminalSessionManager {
       })();
     }
 
-    // Check for pending injection text when Enter is pressed (but not for newline inserts)
+    // Inject pending comments when the user submits a real message.
+    // Guards:
+    //  - Bare Enter presses (TUI confirmations, menu selections) pass through
+    //    because submittedText is empty.
+    //  - Slash commands pass through so comments are preserved for the next
+    //    regular message. We also support one-char TUI mode prefixes like
+    //    "i/model" when classifying slash-command-like input.
     const pendingText = pendingInjectionManager.getPending();
-    if (pendingText && isEnterPress && !isNewlineInsert) {
-      // Append pending text to the existing input and keep the prior working behavior.
-      const stripped = filtered.replace(/[\r\n]+$/g, '');
-      const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-      const injectedData = stripped + pendingText + enterSequence + enterSequence;
-      if (submittedText || pendingText.trim()) {
+    const hasUserMessage = submittedText != null && submittedText.trim().length > 0;
+    if (
+      this.options.providerId &&
+      pendingText &&
+      isEnterPress &&
+      !isNewlineInsert &&
+      hasUserMessage
+    ) {
+      const isSlashCommand = isSlashCommandInput(submittedText);
+      if (!isSlashCommand) {
+        const { payload: injectedData, submitDelayMs } = buildCommentInjectionPayload({
+          providerId: this.options.providerId,
+          inputData: filtered,
+          pendingText,
+        });
         agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
+        window.electronAPI.ptyInput({ id: this.id, data: injectedData });
+        setTimeout(() => {
+          window.electronAPI.ptyInput({ id: this.id, data: '\r' });
+        }, submitDelayMs);
+        pendingInjectionManager.markUsed();
+        this.logSlowInputHandler(startedAt);
+        return;
       }
-      window.electronAPI.ptyInput({ id: this.id, data: injectedData });
-      pendingInjectionManager.markUsed();
-      this.logSlowInputHandler(startedAt);
-      return;
     }
 
     if (isEnterPress && !isNewlineInsert && submittedText) {
@@ -830,6 +1015,98 @@ export class TerminalSessionManager {
   private applyEffectiveFont() {
     const selected = this.customFontFamily || this.themeFontFamily;
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+  }
+
+  private scrollViewportByLineDelta(lines: number): boolean {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      if (
+        !buffer ||
+        typeof buffer.baseY !== 'number' ||
+        typeof buffer.viewportY !== 'number' ||
+        lines === 0
+      ) {
+        return false;
+      }
+
+      const targetLine = Math.max(0, Math.min(buffer.baseY, buffer.viewportY + lines));
+      if (targetLine === buffer.viewportY) return false;
+
+      this.terminal.scrollToLine(targetLine);
+      return true;
+    } catch (error) {
+      log.warn('Failed to scroll terminal viewport', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private normalizeWheelDeltaToLines(deltaY: number, deltaMode: number): number {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      return deltaY;
+    }
+
+    if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return deltaY * this.terminal.rows;
+    }
+
+    return deltaY / this.getApproximateRowHeightPx();
+  }
+
+  private dispatchWheelEventToTerminal(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    try {
+      const terminalElement = (this.terminal as any).element as HTMLElement | null;
+      if (!terminalElement) return false;
+
+      const rect = terminalElement.getBoundingClientRect();
+      const didPreventDefault = !terminalElement.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaX: input.deltaX,
+          deltaY: input.deltaY,
+          deltaMode: input.deltaMode,
+          altKey: input.altKey,
+          ctrlKey: input.ctrlKey,
+          metaKey: input.metaKey,
+          shiftKey: input.shiftKey,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
+      return didPreventDefault;
+    } catch (error) {
+      log.warn('Failed to forward wheel input to terminal', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private getApproximateRowHeightPx(): number {
+    const rowElement = this.container.querySelector('.xterm-rows > div');
+    if (rowElement instanceof HTMLElement) {
+      const { height } = rowElement.getBoundingClientRect();
+      if (height > 0) return height;
+    }
+
+    const fontSize =
+      typeof this.terminal.options.fontSize === 'number'
+        ? this.terminal.options.fontSize
+        : DEFAULT_FONT_SIZE;
+    const lineHeight =
+      typeof this.terminal.options.lineHeight === 'number' ? this.terminal.options.lineHeight : 1.2;
+
+    return Math.max(fontSize * lineHeight, 1);
   }
 
   private scheduleFit() {
@@ -1077,85 +1354,99 @@ export class TerminalSessionManager {
   private async connectPty(
     hasExistingSession: boolean = false
   ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
-    this.ptyConnectStartTime = performance.now();
-    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
-      this.options;
-    const id = taskId;
-
-    // Provider CLIs use direct spawn (bypasses shell config loading)
-    // Regular shell terminals use shell-based spawn
-    const ptyPromise =
-      providerId && cwd
-        ? window.electronAPI.ptyStartDirect({
-            id,
-            providerId,
-            cwd,
-            remote: this.options.remote,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-            env,
-            resume: hasExistingSession,
-          })
-        : window.electronAPI.ptyStart({
-            id,
-            cwd,
-            remote: this.options.remote,
-            shell,
-            env,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-          });
-
-    const result = await ptyPromise.catch((error: any) => {
-      const message = error?.message || String(error);
-      log.error('terminalSession:ptyStartError', { id, error });
-      this.emitError(message);
-      return { ok: false, error: message };
-    });
-
-    if (result?.ok) {
-      this.ptyStarted = true;
-      this.lastSentResize = null;
-      this.sendSizeIfStarted();
-      this.emitReady();
-      try {
-        let offStarted: (() => void) | undefined;
-        const removeOffStartedFromDisposables = () => {
-          if (!offStarted) return;
-          const idx = this.disposables.indexOf(offStarted);
-          if (idx >= 0) this.disposables.splice(idx, 1);
-        };
-        offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
-          if (payload?.id === id) {
-            this.ptyStarted = true;
-            this.lastSentResize = null;
-            this.sendSizeIfStarted();
-            try {
-              offStarted?.();
-            } catch {}
-            removeOffStartedFromDisposables();
-            offStarted = undefined;
-          }
-        });
-        if (offStarted) this.disposables.push(offStarted);
-      } catch {}
-    } else {
-      const message = result?.error || 'Failed to start PTY';
-      log.warn('terminalSession:ptyStartFailed', { id, error: message });
-      this.emitError(message);
+    if (this.ptyConnectPromise) {
+      return this.ptyConnectPromise;
     }
 
-    // Set up data listener (runs regardless of success for potential reuse)
-    this.setupPtyDataListener(id);
+    this.ptyConnectPromise = (async () => {
+      this.ptyConnectStartTime = performance.now();
+      const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
+        this.options;
+      const id = taskId;
 
-    return result || { ok: false, error: 'Unknown error' };
+      // Provider CLIs use direct spawn (bypasses shell config loading)
+      // Regular shell terminals use shell-based spawn
+      const ptyPromise =
+        providerId && cwd
+          ? window.electronAPI.ptyStartDirect({
+              id,
+              providerId,
+              cwd,
+              remote: this.options.remote,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+              env,
+              resume: hasExistingSession,
+            })
+          : window.electronAPI.ptyStart({
+              id,
+              cwd,
+              remote: this.options.remote,
+              shell,
+              env,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+            });
+
+      const result = await ptyPromise.catch((error: any) => {
+        const message = error?.message || String(error);
+        log.error('terminalSession:ptyStartError', { id, error });
+        this.emitError(message);
+        return { ok: false, error: message };
+      });
+
+      if (result?.ok) {
+        this.ptyStarted = true;
+        this.lastSentResize = null;
+        this.sendSizeIfStarted();
+        this.emitReady();
+        try {
+          let offStarted: (() => void) | undefined;
+          const removeOffStartedFromDisposables = () => {
+            if (!offStarted) return;
+            const idx = this.disposables.indexOf(offStarted);
+            if (idx >= 0) this.disposables.splice(idx, 1);
+          };
+          offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+            if (payload?.id === id) {
+              this.ptyStarted = true;
+              this.lastSentResize = null;
+              this.sendSizeIfStarted();
+              try {
+                offStarted?.();
+              } catch {}
+              removeOffStartedFromDisposables();
+              offStarted = undefined;
+            }
+          });
+          if (offStarted) this.disposables.push(offStarted);
+        } catch {}
+      } else {
+        const message = result?.error || 'Failed to start PTY';
+        log.warn('terminalSession:ptyStartFailed', { id, error: message });
+        this.emitError(message);
+      }
+
+      // Set up data listener (runs regardless of success for potential reuse)
+      this.setupPtyDataListener(id);
+
+      return result || { ok: false, error: 'Unknown error' };
+    })();
+
+    try {
+      return await this.ptyConnectPromise;
+    } finally {
+      this.ptyConnectPromise = null;
+    }
   }
 
   private setupPtyDataListener(id: string): void {
+    this.cleanupPtyListeners();
+
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
@@ -1184,7 +1475,17 @@ export class TerminalSessionManager {
       this.emitExit(info);
     });
 
-    this.disposables.push(offData, offExit);
+    this.ptyListenerDisposables = [offData, offExit];
+  }
+
+  private cleanupPtyListeners(): void {
+    for (const dispose of this.ptyListenerDisposables.splice(0)) {
+      try {
+        dispose();
+      } catch (error) {
+        log.warn('Terminal PTY listener cleanup failed', { id: this.id, error });
+      }
+    }
   }
 
   private enqueueTerminalWrite(chunk: string) {
@@ -1197,8 +1498,9 @@ export class TerminalSessionManager {
   private scheduleWriteDrain() {
     if (this.writeDrainScheduled || this.disposed) return;
     this.writeDrainScheduled = true;
-    requestAnimationFrame(() => {
+    this.cancelPendingWriteDrain = scheduleTerminalWriteDrain(() => {
       this.writeDrainScheduled = false;
+      this.cancelPendingWriteDrain = null;
       this.drainQueuedWrites();
     });
   }

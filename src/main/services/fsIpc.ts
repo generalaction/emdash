@@ -880,6 +880,41 @@ export function registerFsIpc(): void {
     }
   );
 
+  // Ensure entries exist in .gitignore (idempotent)
+  ipcMain.handle(
+    'fs:ensureGitignore',
+    async (_event, args: { projectPath: string; patterns: string[] }) => {
+      try {
+        const { projectPath, patterns } = args;
+        if (!projectPath || !fs.existsSync(projectPath) || patterns.length === 0) {
+          return { success: true };
+        }
+
+        const gitignorePath = path.join(projectPath, '.gitignore');
+        let content = '';
+        if (fs.existsSync(gitignorePath)) {
+          content = fs.readFileSync(gitignorePath, 'utf8');
+        }
+
+        const existingLines = new Set(content.split('\n').map((line) => line.trim()));
+        const toAdd = patterns.filter((p) => !existingLines.has(p));
+        if (toAdd.length === 0) return { success: true };
+
+        const suffix =
+          (content.length > 0 && !content.endsWith('\n') ? '\n' : '') +
+          '\n# Workspace provider scripts (added by Emdash)\n' +
+          toAdd.join('\n') +
+          '\n';
+
+        fs.writeFileSync(gitignorePath, content + suffix, 'utf8');
+        return { success: true };
+      } catch (error) {
+        console.error('fs:ensureGitignore failed:', error);
+        return { success: false, error: 'Failed to update .gitignore' };
+      }
+    }
+  );
+
   // rename a file or directory
 
   ipcMain.handle(

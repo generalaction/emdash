@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
 import InstallBanner from './InstallBanner';
 import { cn } from '@/lib/utils';
 import { agentStatusStore } from '../lib/agentStatusStore';
@@ -14,7 +14,7 @@ import TaskContextBadges from './TaskContextBadges';
 import { useConversationStatus } from '../hooks/useConversationStatus';
 import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
-import { useTaskComments } from '../hooks/useLineComments';
+import { useCommentInjection } from '../hooks/useCommentInjection';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -22,6 +22,7 @@ import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
 import { getInstallCommandForProvider } from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
+import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { TaskScopeProvider } from './TaskScopeContext';
 import { CreateChatModal } from './CreateChatModal';
 import { type Conversation } from '../../main/services/DatabaseService';
@@ -30,7 +31,16 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import { makePtyId } from '@shared/ptyId';
 import { generateTaskName } from '../lib/branchNameGenerator';
 import { ensureUniqueTaskName } from '../lib/taskNames';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import type { Project } from '../types/app';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
+import { useTerminalSearch } from '../hooks/useTerminalSearch';
+import { TerminalSearchOverlay } from './TerminalSearchOverlay';
+import { getReviewConversationMetadata, parseConversationMetadata } from '@shared/reviewPreset';
+import {
+  getConversationTabLabel,
+  planConversationTitleUpdates,
+} from '../lib/conversationTabTitles';
 
 declare const window: Window & {
   electronAPI: {
@@ -58,8 +68,6 @@ function ConversationTabButton({
   onSwitchChat,
   onCloseChat,
   totalConversationCount,
-  sameAgentCount,
-  showNumber,
   fallbackBusy,
   taskId,
 }: {
@@ -68,15 +76,13 @@ function ConversationTabButton({
   onSwitchChat: (conversationId: string) => void;
   onCloseChat: (conversationId: string) => void;
   totalConversationCount: number;
-  sameAgentCount: number;
-  showNumber: boolean;
   fallbackBusy: boolean;
   taskId: string;
 }) {
   const isActive = conversation.id === activeConversationId;
   const convAgent = conversation.provider ?? 'claude';
   const config = agentConfig[convAgent as Agent];
-  const agentName = config?.name || convAgent;
+  const tabLabel = getConversationTabLabel(conversation);
   const semanticStatus = useConversationStatus({
     statusId: conversation.isMain ? taskId : conversation.id,
     ptySuffix: conversation.isMain ? taskId : conversation.id,
@@ -96,7 +102,7 @@ function ConversationTabButton({
           ? 'bg-background text-foreground shadow-sm'
           : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
       )}
-      title={`${agentName}${showNumber ? ` (${sameAgentCount})` : ''}`}
+      title={tabLabel}
     >
       {config?.logo && (
         <AgentLogo
@@ -107,10 +113,7 @@ function ConversationTabButton({
           className="h-3.5 w-3.5 flex-shrink-0"
         />
       )}
-      <span className="max-w-[10rem] truncate">
-        {agentName}
-        {showNumber && <span className="ml-1 opacity-60">{sameAgentCount}</span>}
-      </span>
+      <span className="max-w-[10rem] truncate">{tabLabel}</span>
       {totalConversationCount > 1 ? (
         <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
       ) : null}
@@ -162,6 +165,10 @@ const ChatInterface: React.FC<Props> = ({
   const currentAgentStatus = agentStatuses[agent];
   const [cliStartError, setCliStartError] = useState<string | null>(null);
 
+  // Workspace-provisioned remote connection overrides
+  const { connectionId: workspaceConnectionId, remotePath: workspaceRemotePath } =
+    useWorkspaceConnection(task);
+
   // Multi-chat state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -171,17 +178,45 @@ const ChatInterface: React.FC<Props> = ({
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
+  const fallbackAgentRef = useRef<Agent>(initialAgent || 'claude');
+  fallbackAgentRef.current = agent;
+
+  const applyStableConversationTitles = useCallback(async (loadedConversations: Conversation[]) => {
+    const updates = planConversationTitleUpdates(loadedConversations);
+    if (updates.length === 0) return loadedConversations;
+
+    await Promise.all(
+      updates.map((update) =>
+        rpc.db.updateConversationTitle({
+          conversationId: update.id,
+          title: update.title,
+        })
+      )
+    );
+
+    const titleById = new Map(updates.map((update) => [update.id, update.title]));
+    return loadedConversations.map((conversation) =>
+      titleById.has(conversation.id)
+        ? { ...conversation, title: titleById.get(conversation.id)! }
+        : conversation
+    );
+  }, []);
 
   const mainConversationId = useMemo(
     () => conversations.find((c) => c.isMain)?.id ?? null,
     [conversations]
   );
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId) ?? null,
+    [activeConversationId, conversations]
+  );
+  const activeReviewMetadata = useMemo(
+    () => getReviewConversationMetadata(activeConversation?.metadata),
+    [activeConversation?.metadata]
+  );
 
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
-    // Find the active conversation to check if it's the main one
-    const activeConversation = conversations.find((c) => c.id === activeConversationId);
-
     if (activeConversation?.isMain) {
       // Main conversations use task-based ID for backward compatibility
       // This ensures terminal sessions persist correctly
@@ -192,12 +227,34 @@ const ChatInterface: React.FC<Props> = ({
     }
     // Fallback to main format if no active conversation
     return makePtyId(agent, 'main', task.id);
-  }, [activeConversationId, agent, task.id, conversations]);
+  }, [activeConversation, activeConversationId, agent, task.id]);
 
   // Claude needs consistent working directory to maintain session state
   const terminalCwd = useMemo(() => {
     return task.path;
   }, [task.path]);
+
+  // Whether this is a workspace-provisioned task (may still be provisioning).
+  const isWorkspaceTask = !!task.metadata?.workspace;
+
+  // For workspace tasks, use workspace connection; otherwise use project-level connection
+  const effectiveRemote = useMemo(() => {
+    if (workspaceConnectionId) {
+      return { connectionId: workspaceConnectionId };
+    }
+    if (projectRemoteConnectionId) {
+      return { connectionId: projectRemoteConnectionId };
+    }
+    return undefined;
+  }, [workspaceConnectionId, projectRemoteConnectionId]);
+
+  // For workspace tasks, use the remote worktree path for cd on the remote machine
+  const effectiveCwd = useMemo(() => {
+    if (workspaceConnectionId && workspaceRemotePath) {
+      return workspaceRemotePath;
+    }
+    return terminalCwd;
+  }, [workspaceConnectionId, workspaceRemotePath, terminalCwd]);
 
   const taskEnv = useMemo(() => {
     if (!projectPath) return undefined;
@@ -231,8 +288,8 @@ const ChatInterface: React.FC<Props> = ({
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
 
-  // Line comments for agent context injection
-  const { formatted: commentsContext } = useTaskComments(task.id);
+  // Wire comment injection to pendingInjectionManager
+  useCommentInjection(task.id, task.path);
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);
@@ -255,71 +312,75 @@ const ChatInterface: React.FC<Props> = ({
     onTaskInterfaceReady();
   }, [task.id, onTaskInterfaceReady]);
 
+  const syncConversations = useCallback(async () => {
+    setConversationsLoaded(false);
+    const loadedConversations = await rpc.db.getConversations(task.id);
+    const normalizedConversations = await applyStableConversationTitles(loadedConversations);
+
+    if (normalizedConversations.length > 0) {
+      setConversations(normalizedConversations);
+
+      const active =
+        normalizedConversations.find((c: Conversation) => c.isActive) ?? normalizedConversations[0];
+      setActiveConversationId(active.id);
+      if (active.provider) {
+        setAgent(active.provider as Agent);
+      }
+
+      if (!normalizedConversations.some((c: Conversation) => c.isActive)) {
+        await rpc.db.setActiveConversation({
+          taskId: task.id,
+          conversationId: active.id,
+        });
+      }
+
+      setConversationsLoaded(true);
+      return;
+    }
+
+    // No conversations exist - create default for backward compatibility
+    // (preserves pre-multi-chat behavior for existing tasks)
+    const taskAgent = (task.agentId || fallbackAgentRef.current) as string;
+    const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
+      taskId: task.id,
+      provider: taskAgent,
+    });
+
+    const normalizedDefaultConversations = await applyStableConversationTitles([
+      {
+        ...defaultConversation,
+        isMain: true,
+        isActive: true,
+      },
+    ]);
+    setConversations(normalizedDefaultConversations);
+    setActiveConversationId(defaultConversation.id);
+    setAgent((defaultConversation.provider || taskAgent) as Agent);
+    setConversationsLoaded(true);
+  }, [applyStableConversationTitles, task.id, task.agentId]);
+
   // Load conversations when task changes
   useEffect(() => {
-    let cancelled = false;
-
-    const loadConversations = async () => {
-      setConversationsLoaded(false);
-      const loadedConversations = await rpc.db.getConversations(task.id);
-      if (cancelled) return;
-
-      if (loadedConversations.length > 0) {
-        setConversations(loadedConversations);
-
-        // Set active conversation
-        const active = loadedConversations.find((c: Conversation) => c.isActive);
-        if (active) {
-          setActiveConversationId(active.id);
-          // Update agent to match the active conversation
-          if (active.provider) {
-            setAgent(active.provider as Agent);
-          }
-        } else {
-          // Fallback to first conversation
-          const firstConv = loadedConversations[0];
-          setActiveConversationId(firstConv.id);
-          // Update agent to match the first conversation
-          if (firstConv.provider) {
-            setAgent(firstConv.provider as Agent);
-          }
-          await rpc.db.setActiveConversation({
-            taskId: task.id,
-            conversationId: firstConv.id,
-          });
-        }
-        if (!cancelled) setConversationsLoaded(true);
-      } else {
-        // No conversations exist - create default for backward compatibility
-        // This ensures existing tasks always have at least one conversation
-        // (preserves pre-multi-chat behavior)
-        const taskAgent = (task.agentId || agent) as string;
-        const defaultConversation = await rpc.db.getOrCreateDefaultConversation({
-          taskId: task.id,
-          provider: taskAgent,
-        });
-        if (cancelled) return;
-        if (defaultConversation) {
-          // Provider is guaranteed by getOrCreateDefaultConversation (saves atomically)
-          setConversations([
-            {
-              ...defaultConversation,
-              isMain: true,
-              isActive: true,
-            },
-          ]);
-          setActiveConversationId(defaultConversation.id);
-          setAgent((defaultConversation.provider || taskAgent) as Agent);
-          if (!cancelled) setConversationsLoaded(true);
-        }
-      }
+    void syncConversations();
+  }, [syncConversations]);
+  useEffect(() => {
+    const handleConversationsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ taskId?: string }>).detail;
+      if (detail?.taskId !== task.id) return;
+      void syncConversations();
     };
 
-    loadConversations();
+    window.addEventListener(
+      'emdash:conversations-changed',
+      handleConversationsChanged as EventListener
+    );
     return () => {
-      cancelled = true;
+      window.removeEventListener(
+        'emdash:conversations-changed',
+        handleConversationsChanged as EventListener
+      );
     };
-  }, [task.id, task.agentId]); // agent is intentionally not included as a dependency
+  }, [task.id, syncConversations]);
 
   // Activity indicators per conversation tab (main PTY uses `task.id`, chat PTYs use `conversation.id`).
   useEffect(() => {
@@ -398,8 +459,24 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [activeConversationId, conversations, task.id]);
 
-  // Ref to control terminal focus imperatively if needed
-  const terminalRef = useRef<{ focus: () => void }>(null);
+  // Ref to control terminal focus and viewport scrolling imperatively.
+  const terminalRef = useRef<TerminalPaneHandle>(null);
+  const handleTerminalViewportWheelForwarding = useTerminalViewportWheelForwarding(terminalRef);
+  const terminalPanelRef = useRef<HTMLDivElement | null>(null);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminalId,
+    containerRef: terminalPanelRef,
+    enabled: true,
+    onCloseFocus: () => terminalRef.current?.focus(),
+  });
 
   const handleTerminalActivity = useCallback(() => {
     const storageKey = `agent:locked:${task.id}`;
@@ -555,6 +632,7 @@ const ChatInterface: React.FC<Props> = ({
           'copilot',
           'amp',
           'opencode',
+          'hermes',
           'charm',
           'auggie',
           'goose',
@@ -580,7 +658,15 @@ const ChatInterface: React.FC<Props> = ({
 
   // Chat management handlers
   const handleCreateChat = useCallback(
-    async (title: string, newAgent: string) => {
+    async ({
+      title,
+      agent: newAgent,
+      metadata,
+    }: {
+      title: string;
+      agent: string;
+      metadata?: string | null;
+    }) => {
       try {
         // Don't dispose the current terminal - each chat has its own independent session
 
@@ -589,29 +675,14 @@ const ChatInterface: React.FC<Props> = ({
           title,
           provider: newAgent,
           isMain: false, // Additional chats are never main
+          metadata,
         });
-
-        // Reload conversations from DB
-        const dbConversations = await rpc.db.getConversations(task.id);
-        const dbIds = new Set(dbConversations.map((c: Conversation) => c.id));
-        const missingFromDb = conversations.filter((c) => !dbIds.has(c.id));
-        if (missingFromDb.length > 0) {
-          // Re-persist conversations that only existed in React state
-          for (const missing of missingFromDb) {
-            await rpc.db.saveConversation({ ...missing, isActive: false });
-          }
-          const retryConversations = await rpc.db.getConversations(task.id);
-          setConversations(retryConversations);
-        } else {
-          setConversations(dbConversations);
-        }
         setActiveConversationId(newConversation.id);
         setAgent(newAgent as Agent);
-        try {
-          window.dispatchEvent(
-            new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-          );
-        } catch {}
+        await syncConversations();
+        window.dispatchEvent(
+          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        );
       } catch (error) {
         console.error('Exception creating conversation:', error);
         toast({
@@ -621,7 +692,7 @@ const ChatInterface: React.FC<Props> = ({
         });
       }
     },
-    [task.id, toast, conversations]
+    [syncConversations, task.id, toast]
   );
 
   const handleCreateNewChat = useCallback(() => {
@@ -668,7 +739,9 @@ const ChatInterface: React.FC<Props> = ({
       await rpc.db.deleteConversation(conversationId);
 
       // Reload conversations
-      const updatedConversations = await rpc.db.getConversations(task.id);
+      const updatedConversations = await applyStableConversationTitles(
+        await rpc.db.getConversations(task.id)
+      );
       setConversations(updatedConversations);
       // Switch to another chat if we deleted the active one
       if (conversationId === activeConversationId && updatedConversations.length > 0) {
@@ -690,7 +763,7 @@ const ChatInterface: React.FC<Props> = ({
         );
       } catch {}
     },
-    [conversations, agent, task.id, activeConversationId, toast]
+    [conversations, task.id, activeConversationId, toast, applyStableConversationTitles]
   );
 
   // Persist last-selected agent per task (including Droid)
@@ -891,12 +964,7 @@ const ChatInterface: React.FC<Props> = ({
         const body = trimmed.length > max ? trimmed.slice(0, max) + '\n…' : trimmed;
         parts.push('', 'Issue Description:', body);
       }
-      const linearContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${linearContent}`;
-      }
-      return linearContent;
+      return parts.join('\n');
     }
 
     const gh = (md as any)?.githubIssue as
@@ -942,12 +1010,7 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = body.length > max ? body.slice(0, max) + '\n…' : body;
         parts.push('', 'Issue Description:', clipped);
       }
-      const ghContent = parts.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${ghContent}`;
-      }
-      return ghContent;
+      return parts.join('\n');
     }
 
     const j = md?.jiraIssue as any;
@@ -968,31 +1031,40 @@ const ChatInterface: React.FC<Props> = ({
         const clipped = desc.length > max ? desc.slice(0, max) + '\n…' : desc;
         lines.push('', 'Issue Description:', clipped);
       }
-      const jiraContent = lines.join('\n');
-      // Prepend comments if any
-      if (commentsContext) {
-        return `The user has left the following comments on the code changes:\n\n${commentsContext}\n\n${jiraContent}`;
-      }
-      return jiraContent;
-    }
-
-    // If we have comments but no other context, return just the comments
-    if (commentsContext) {
-      return `The user has left the following comments on the code changes:\n\n${commentsContext}`;
+      return lines.join('\n');
     }
 
     return null;
-  }, [isTerminal, isMainConversation, task.metadata, commentsContext]);
+  }, [isTerminal, isMainConversation, task.metadata]);
+  const reviewPrompt = !activeConversation?.isMain
+    ? (activeReviewMetadata?.initialPrompt ?? null)
+    : null;
+  const reviewPromptSent =
+    !activeConversation?.isMain && activeReviewMetadata?.initialPromptSent === true;
 
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
   // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead.
   useInitialPromptInjection({
-    taskId: task.id,
+    scopeId: task.id,
     providerId: agent,
     prompt: initialInjection,
     enabled:
+      isMainConversation &&
       isTerminal &&
+      (agentMeta[agent]?.initialPromptFlag === undefined ||
+        agentMeta[agent]?.useKeystrokeInjection === true),
+  });
+  useInitialPromptInjection({
+    scopeId: activeConversation?.id ?? '',
+    ptyKind: 'chat',
+    providerId: agent,
+    prompt: reviewPrompt,
+    enabled:
+      !isMainConversation &&
+      isTerminal &&
+      !!activeConversation?.id &&
+      !reviewPromptSent &&
       (agentMeta[agent]?.initialPromptFlag === undefined ||
         agentMeta[agent]?.useKeystrokeInjection === true),
   });
@@ -1004,12 +1076,18 @@ const ChatInterface: React.FC<Props> = ({
     } catch {}
   }, [agent, task.id]);
 
-  // Auto-rename task from first terminal message (only if name was auto-generated)
+  // Auto-rename task from first terminal message (only if name was auto-generated
+  // and the auto-infer setting is enabled)
+  const { settings: appSettings } = useAppSettings();
+  const autoInferTaskNames = appSettings?.tasks?.autoInferTaskNames ?? false;
+
   const handleFirstMessage = useCallback(
     (message: string) => {
       if (!project || !onRenameTask) return;
       // Only rename if this task's name was auto-generated
       if (!task.metadata?.nameGenerated) return;
+      // Only rename if auto-infer is enabled
+      if (!autoInferTaskNames) return;
       // Skip multi-agent tasks
       if (task.metadata?.multiAgent?.enabled) return;
 
@@ -1020,16 +1098,42 @@ const ChatInterface: React.FC<Props> = ({
       const uniqueName = ensureUniqueTaskName(generated, existingNames);
       void onRenameTask(project, task, uniqueName);
     },
-    [project, task, onRenameTask]
+    [project, task, onRenameTask, autoInferTaskNames]
   );
 
   // Whether to enable first-message capture for this task
   const shouldCaptureFirstMessage = !!(
+    autoInferTaskNames &&
     task.metadata?.nameGenerated &&
     !task.metadata?.multiAgent?.enabled &&
     project &&
     onRenameTask
   );
+
+  const markActiveReviewPromptSent = useCallback(() => {
+    if (!activeConversation || activeConversation.isMain || !activeReviewMetadata) return;
+    if (activeReviewMetadata.initialPromptSent) return;
+
+    const nextMetadata = JSON.stringify({
+      ...(parseConversationMetadata(activeConversation.metadata) ?? {}),
+      mode: 'review',
+      initialPrompt: activeReviewMetadata.initialPrompt,
+      initialPromptSent: true,
+    });
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === activeConversation.id
+          ? { ...conversation, metadata: nextMetadata }
+          : conversation
+      )
+    );
+
+    void rpc.db.saveConversation({
+      ...activeConversation,
+      metadata: nextMetadata,
+    });
+  }, [activeConversation, activeReviewMetadata]);
 
   if (!isTerminal) {
     return null;
@@ -1059,17 +1163,8 @@ const ChatInterface: React.FC<Props> = ({
                       '[mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
                   )}
                 >
-                  {sortedConversations.map((conv, index) => {
-                    const convAgent = conv.provider ?? 'claude';
+                  {sortedConversations.map((conv) => {
                     const isBusy = busyByConversationId[conv.id] === true;
-
-                    // Count how many chats use the same agent up to this point
-                    const sameAgentCount = sortedConversations
-                      .slice(0, index + 1)
-                      .filter((c) => (c.provider ?? 'claude') === convAgent).length;
-                    const showNumber =
-                      sortedConversations.filter((c) => (c.provider ?? 'claude') === convAgent)
-                        .length > 1;
 
                     return (
                       <ConversationTabButton
@@ -1079,8 +1174,6 @@ const ChatInterface: React.FC<Props> = ({
                         onSwitchChat={handleSwitchChat}
                         onCloseChat={handleCloseChat}
                         totalConversationCount={conversations.length}
-                        sameAgentCount={sameAgentCount}
-                        showNumber={showNumber}
                         fallbackBusy={isBusy}
                         taskId={task.id}
                       />
@@ -1095,16 +1188,12 @@ const ChatInterface: React.FC<Props> = ({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <div className="ml-auto flex flex-shrink-0 items-center gap-2">
-                  {(task.metadata?.linearIssue ||
-                    task.metadata?.githubIssue ||
-                    task.metadata?.jiraIssue) && (
-                    <TaskContextBadges
-                      taskId={task.id}
-                      linearIssue={task.metadata?.linearIssue || null}
-                      githubIssue={task.metadata?.githubIssue || null}
-                      jiraIssue={task.metadata?.jiraIssue || null}
-                    />
-                  )}
+                  <TaskContextBadges
+                    taskId={task.id}
+                    linearIssue={task.metadata?.linearIssue || null}
+                    githubIssue={task.metadata?.githubIssue || null}
+                    jiraIssue={task.metadata?.jiraIssue || null}
+                  />
                   {autoApproveEnabled && (
                     <span
                       className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
@@ -1146,9 +1235,13 @@ const ChatInterface: React.FC<Props> = ({
               })()}
             </div>
           </div>
-          <div className="mt-4 min-h-0 flex-1 px-6">
+          <div
+            className="mt-4 min-h-0 flex-1 px-6"
+            onWheelCapture={handleTerminalViewportWheelForwarding}
+          >
             <div
-              className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              ref={terminalPanelRef}
+              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
                 agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
@@ -1164,17 +1257,25 @@ const ChatInterface: React.FC<Props> = ({
                     : ''
               }`}
             >
-              {/* Wait for conversations to load to ensure stable terminalId */}
-              {conversationsLoaded && (
+              <TerminalSearchOverlay
+                isOpen={isSearchOpen}
+                fullWidth
+                searchQuery={searchQuery}
+                searchStatus={searchStatus}
+                searchInputRef={searchInputRef}
+                onQueryChange={handleSearchQueryChange}
+                onStep={stepSearch}
+                onClose={closeSearch}
+              />
+              {/* Wait for conversations to load to ensure stable terminalId.
+                  For workspace tasks, also wait until the workspace connection is
+                  resolved so the PTY starts on the remote host, not locally. */}
+              {conversationsLoaded && (!isWorkspaceTask || workspaceConnectionId) && (
                 <TerminalPane
                   ref={terminalRef}
                   id={terminalId}
-                  cwd={terminalCwd}
-                  remote={
-                    projectRemoteConnectionId
-                      ? { connectionId: projectRemoteConnectionId }
-                      : undefined
-                  }
+                  cwd={effectiveCwd}
+                  remote={effectiveRemote}
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
                   env={taskEnv}
@@ -1187,8 +1288,11 @@ const ChatInterface: React.FC<Props> = ({
                   }}
                   onStartSuccess={() => {
                     setCliStartError(null);
-                    // Mark initial injection as sent so it won't re-run on restart
-                    if (initialInjection && !task.metadata?.initialInjectionSent) {
+                    if (
+                      isMainConversation &&
+                      initialInjection &&
+                      !task.metadata?.initialInjectionSent
+                    ) {
                       void rpc.db.saveTask({
                         ...task,
                         metadata: {
@@ -1196,6 +1300,9 @@ const ChatInterface: React.FC<Props> = ({
                           initialInjectionSent: true,
                         },
                       });
+                    }
+                    if (!isMainConversation && reviewPrompt && !reviewPromptSent) {
+                      markActiveReviewPromptSent();
                     }
                   }}
                   variant={
@@ -1242,8 +1349,11 @@ const ChatInterface: React.FC<Props> = ({
                   initialPrompt={
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
                     !agentMeta[agent]?.useKeystrokeInjection &&
-                    !task.metadata?.initialInjectionSent
-                      ? (initialInjection ?? undefined)
+                    ((isMainConversation && !task.metadata?.initialInjectionSent) ||
+                      (!isMainConversation && !reviewPromptSent))
+                      ? isMainConversation
+                        ? (initialInjection ?? undefined)
+                        : (reviewPrompt ?? undefined)
                       : undefined
                   }
                   onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}

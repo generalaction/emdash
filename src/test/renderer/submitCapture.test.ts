@@ -23,4 +23,37 @@ describe('submit capture', () => {
     expect(result.submittedText).toBeNull();
     expect(result.currentInput).toBe('hello\n');
   });
+
+  it('strips CSI with private params while capturing submitted text', () => {
+    const result = consumeSubmittedInputChunk({
+      currentInput: 'fix',
+      data: '\x1b[?1;2c bug\r',
+      isNewlineInsert: false,
+    });
+
+    expect(result.submittedText).toBe('fix bug');
+    expect(result.currentInput).toBe('');
+  });
+
+  it('strips OSC ST while capturing submitted text', () => {
+    const result = consumeSubmittedInputChunk({
+      currentInput: 'fix',
+      data: '\x1b]0;title\x1b\\ bug\r',
+      isNewlineInsert: false,
+    });
+
+    expect(result.submittedText).toBe('fix bug');
+    expect(result.currentInput).toBe('');
+  });
+
+  it('strips bracketed-paste CSI wrappers while capturing submitted text', () => {
+    const result = consumeSubmittedInputChunk({
+      currentInput: 'fix',
+      data: '\x1b[200~ bug\x1b[201~\r',
+      isNewlineInsert: false,
+    });
+
+    expect(result.submittedText).toBe('fix bug');
+    expect(result.currentInput).toBe('');
+  });
 });

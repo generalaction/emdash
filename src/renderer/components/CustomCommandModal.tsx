@@ -48,7 +48,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Handle Escape key to close modal
+  // Close on Escape in capture phase.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -59,9 +59,9 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [isOpen, onClose]);
 

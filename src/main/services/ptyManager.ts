@@ -8,6 +8,26 @@ import { PROVIDERS, type ProviderDefinition } from '@shared/providers/registry';
 import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
+
+/**
+ * Suppress EPIPE/EIO errors on a PTY's underlying socket.
+ *
+ * On Windows, ConPTY emits EPIPE (not EIO) when the pipe breaks during
+ * process shutdown. node-pty's built-in error handler only suppresses EIO,
+ * so EPIPE becomes an uncaught exception. Registering an additional error
+ * listener bumps the listener count to >= 2, which causes node-pty to
+ * swallow the error instead of throwing.
+ */
+function suppressPtyPipeErrors(proc: IPty): void {
+  if (process.platform !== 'win32') return;
+
+  // IPty doesn't expose .on() in its type, but the underlying Terminal
+  // class extends EventEmitter and proxies to the socket.
+  (proc as any).on?.('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE' || err.code === 'EIO') return;
+    log.warn('ptyManager: unexpected PTY error', { code: err.code, message: err.message });
+  });
+}
 import { getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
 import { OpenCodeHookService } from './OpenCodeHookService';
@@ -42,14 +62,31 @@ const AGENT_ENV_VARS = [
   'GOOGLE_APPLICATION_CREDENTIALS',
   'GOOGLE_CLOUD_LOCATION',
   'GOOGLE_CLOUD_PROJECT',
+  'GLM_API_KEY',
+  'GLM_BASE_URL',
+  'BROWSERBASE_API_KEY',
+  'BROWSERBASE_PROJECT_ID',
+  'ELEVENLABS_API_KEY',
+  'FAL_KEY',
+  'FIRECRAWL_API_KEY',
   'HTTP_PROXY',
   'HTTPS_PROXY',
+  'HONCHO_API_KEY',
   'KIMI_API_KEY',
+  'KIMI_BASE_URL',
   'MISTRAL_API_KEY',
+  'MINIMAX_API_KEY',
+  'MINIMAX_BASE_URL',
+  'MINIMAX_CN_API_KEY',
+  'MINIMAX_CN_BASE_URL',
   'MOONSHOT_API_KEY',
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
+  'OPENROUTER_API_KEY',
+  'TINKER_API_KEY',
+  'VOICE_TOOLS_OPENAI_KEY',
+  'WANDB_API_KEY',
 ];
 
 type PtyRecord = {
@@ -169,15 +206,23 @@ export function getTmuxSessionName(ptyId: string): string {
   return `emdash-${sanitized}`;
 }
 
+function resolveTmuxPath(): string | null {
+  return resolveCommandPathCached('tmux');
+}
+
 /**
  * Kill a tmux session by PTY ID. Fire-and-forget — ignores errors
  * for non-existent sessions (e.g., tmux not installed or session already dead).
  */
 export function killTmuxSession(ptyId: string): void {
   const sessionName = getTmuxSessionName(ptyId);
+  const tmuxPath = resolveTmuxPath();
+  if (!tmuxPath) {
+    return;
+  }
   try {
     const { execFile } = require('child_process');
-    execFile('tmux', ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
+    execFile(tmuxPath, ['kill-session', '-t', sessionName], { timeout: 5000 }, (err: any) => {
       if (!err) {
         log.info('ptyManager:tmux - killed session', { sessionName });
       }
@@ -525,7 +570,7 @@ export function applySessionIsolation(
     return true;
   }
 
-  if (hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
+  if (isResume && hasOtherSameProviderSessions(id, parsed.providerId, cwd)) {
     // Main chat transitioning to multi-chat mode. Try to discover its
     // existing session from Claude's local storage and adopt it.
     const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
@@ -1027,6 +1072,7 @@ export function startSshPty(options: {
     cwd: process.env.HOME || os.homedir(),
     env: useEnv,
   });
+  suppressPtyPipeErrors(proc);
 
   ptys.set(id, { id, proc, kind: 'ssh', cols, rows });
   return proc;
@@ -1204,6 +1250,7 @@ export function startDirectPty(options: {
     cwd,
     env: useEnv,
   });
+  suppressPtyPipeErrors(proc);
 
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local', cols, rows });
@@ -1341,10 +1388,9 @@ export async function startPty(options: {
   }
 
   // Lazy load native module at call time to prevent startup crashes
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   let pty: typeof import('node-pty');
   try {
-    pty = require('node-pty');
+    pty = await import('node-pty');
   } catch (e: any) {
     throw new Error(`PTY unavailable: ${e?.message || String(e)}`);
   }
@@ -1463,21 +1509,15 @@ export async function startPty(options: {
   let spawnArgs = args;
 
   if (tmux && process.platform !== 'win32') {
-    let tmuxAvailable = false;
-    try {
-      const { execFileSync } = require('child_process');
-      execFileSync('tmux', ['-V'], { timeout: 3000, stdio: 'ignore' });
-      tmuxAvailable = true;
-    } catch {
+    const tmuxPath = resolveTmuxPath();
+    if (!tmuxPath) {
       log.warn('ptyManager:tmux - tmux not found, falling back to unwrapped spawn', { id });
-    }
-
-    if (tmuxAvailable) {
+    } else {
       tmuxSessionName = getTmuxSessionName(id);
       // Build: tmux new-session -As <name> -- <shell> <args...>
-      spawnCommand = 'tmux';
+      spawnCommand = tmuxPath;
       spawnArgs = ['new-session', '-As', tmuxSessionName, '--', useShell, ...args];
-      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName });
+      log.info('ptyManager:tmux - wrapping in tmux session', { id, tmuxSessionName, tmuxPath });
     }
   }
 
@@ -1491,6 +1531,7 @@ export async function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
+    suppressPtyPipeErrors(proc);
   } catch (err: any) {
     // Track initial spawn error
     const provider = args.find((arg) => PROVIDERS.some((p) => p.cli === arg));
@@ -1509,6 +1550,7 @@ export async function startPty(options: {
         cwd: useCwd,
         env: useEnv,
       });
+      suppressPtyPipeErrors(proc);
     } catch (err2: any) {
       // Track the fallback spawn error as critical
       await errorTracking.captureCriticalError(err2, {
@@ -1599,4 +1641,193 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
 
 export function getPtyTmuxSessionName(id: string): string | undefined {
   return ptys.get(id)?.tmuxSessionName;
+}
+
+export interface LifecyclePtyHandle {
+  pid: number | null;
+  onData: (callback: (data: string) => void) => void;
+  onExit: (callback: (exitCode: number | null, signal: string | null) => void) => void;
+  onError: (callback: (error: Error) => void) => void;
+  kill: (signal?: string) => void;
+}
+
+function startLifecycleSpawnFallback(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  const { spawn } = require('node:child_process') as typeof import('node:child_process');
+  const { command, cwd, env } = options;
+
+  const child = spawn(command, {
+    cwd: cwd || os.homedir(),
+    shell: true,
+    detached: true,
+    env: { ...process.env, ...(env || {}) },
+  });
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  const onData = (buf: Buffer) => {
+    const str = buf.toString();
+    for (const cb of dataCallbacks) cb(str);
+  };
+  child.stdout?.on('data', onData);
+  child.stderr?.on('data', onData);
+
+  child.on('error', (error: Error) => {
+    for (const cb of errorCallbacks) cb(error);
+  });
+
+  child.on('exit', (code, signal) => {
+    for (const cb of exitCallbacks) cb(code, signal ?? null);
+  });
+
+  return {
+    pid: child.pid ?? null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: (signal?: string) => {
+      const pid = child.pid;
+      if (!pid) return;
+      try {
+        if (process.platform === 'win32') {
+          const args = ['/PID', String(pid), '/T'];
+          if (signal === 'SIGKILL') args.push('/F');
+          spawn('taskkill', args, { stdio: 'ignore' }).unref();
+        } else {
+          process.kill(-pid, (signal as NodeJS.Signals) || 'SIGTERM');
+        }
+      } catch {
+        try {
+          child.kill((signal as NodeJS.Signals) || 'SIGTERM');
+        } catch {}
+      }
+    },
+  };
+}
+
+export function startLifecyclePty(options: {
+  id: string;
+  command: string;
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+}): LifecyclePtyHandle {
+  if (process.env.EMDASH_DISABLE_PTY === '1') {
+    return startLifecycleSpawnFallback(options);
+  }
+
+  let pty: typeof import('node-pty');
+  try {
+    pty = require('node-pty');
+  } catch {
+    return startLifecycleSpawnFallback(options);
+  }
+
+  const { id, command, cwd, env } = options;
+  const defaultShell = getDefaultShell();
+
+  const useEnv: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    SHELL: process.env.SHELL || defaultShell,
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
+    ...(process.env.LANG && { LANG: process.env.LANG }),
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
+    ...getDisplayEnv(),
+    ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
+    ...(env || {}),
+  };
+
+  const proc = pty.spawn(defaultShell, ['-ilc', command], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 32,
+    cwd: cwd || os.homedir(),
+    env: useEnv,
+  });
+  suppressPtyPipeErrors(proc);
+
+  const dataCallbacks: Array<(data: string) => void> = [];
+  const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
+  const errorCallbacks: Array<(error: Error) => void> = [];
+
+  proc.onData((data: string) => {
+    for (const cb of dataCallbacks) {
+      cb(data);
+    }
+  });
+
+  proc.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+    ptys.delete(id);
+    for (const cb of exitCallbacks) {
+      cb(exitCode, signal != null ? String(signal) : null);
+    }
+  });
+
+  // node-pty generally throws on startup failures instead of emitting an error event,
+  // but keep the same interface as the child_process fallback.
+  const emitError = (error: unknown) => {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    for (const cb of errorCallbacks) {
+      cb(normalized);
+    }
+  };
+
+  try {
+    const maybeProc = proc as IPty & {
+      on?: (event: string, listener: (error: unknown) => void) => void;
+    };
+    maybeProc.on?.('error', emitError);
+  } catch {}
+
+  ptys.set(id, { id, proc, cwd, kind: 'local', cols: 120, rows: 32 });
+
+  return {
+    pid: typeof proc.pid === 'number' ? proc.pid : null,
+    onData: (cb) => dataCallbacks.push(cb),
+    onExit: (cb) => exitCallbacks.push(cb),
+    onError: (cb) => errorCallbacks.push(cb),
+    kill: (signal?: string) => {
+      ptys.delete(id);
+      try {
+        proc.kill(signal);
+      } catch {}
+    },
+  };
+}
+
+/**
+ * Return lightweight info about every active PTY for the performance monitor.
+ * Only reads from the in-memory map — no I/O.
+ */
+export function getActivePtyInfo(): Array<{
+  ptyId: string;
+  pid: number | null;
+  kind: 'local' | 'ssh';
+  cwd?: string;
+}> {
+  const result: Array<{
+    ptyId: string;
+    pid: number | null;
+    kind: 'local' | 'ssh';
+    cwd?: string;
+  }> = [];
+  for (const [id, rec] of ptys) {
+    result.push({
+      ptyId: id,
+      pid: typeof rec.proc.pid === 'number' ? rec.proc.pid : null,
+      kind: rec.kind ?? 'local',
+      cwd: rec.cwd,
+    });
+  }
+  return result;
 }

@@ -1,5 +1,5 @@
 import type sqlite3Type from 'sqlite3';
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { resolveDatabasePath, resolveMigrationsPath } from '../db/path';
 import { getDrizzleClient } from '../db/drizzleClient';
@@ -9,14 +9,11 @@ import {
   tasks as tasksTable,
   conversations as conversationsTable,
   messages as messagesTable,
-  lineComments as lineCommentsTable,
   sshConnections as sshConnectionsTable,
   type ProjectRow,
   type TaskRow,
   type ConversationRow,
   type MessageRow,
-  type LineCommentRow,
-  type LineCommentInsert,
   type SshConnectionRow,
   type SshConnectionInsert,
 } from '../db/schema';
@@ -100,6 +97,27 @@ export class DatabaseSchemaMismatchError extends Error {
   }
 }
 
+export class ProjectConflictError extends Error {
+  readonly code = 'PROJECT_CONFLICT';
+  readonly existingProjectId: string;
+  readonly existingProjectName: string;
+  readonly projectPath: string;
+
+  constructor(args: {
+    existingProjectId: string;
+    existingProjectName: string;
+    projectPath: string;
+  }) {
+    super(
+      `A project already exists for "${args.existingProjectName}" at ${args.projectPath}. Emdash kept the existing project and its tasks unchanged.`
+    );
+    this.name = 'ProjectConflictError';
+    this.existingProjectId = args.existingProjectId;
+    this.existingProjectName = args.existingProjectName;
+    this.projectPath = args.projectPath;
+  }
+}
+
 export class DatabaseService {
   private static migrationsApplied = false;
   private db: sqlite3Type.Database | null = null;
@@ -175,49 +193,56 @@ export class DatabaseService {
     );
     const githubRepository = project.githubInfo?.repository ?? null;
     const githubConnected = project.githubInfo?.connected ? 1 : 0;
-
-    // Clean up stale rows that would conflict on id or path but not both.
-    // This prevents unique constraint errors when re-adding a deleted project.
-    await db
-      .delete(projectsTable)
-      .where(
-        or(
-          and(eq(projectsTable.id, project.id), ne(projectsTable.path, project.path)),
-          and(eq(projectsTable.path, project.path), ne(projectsTable.id, project.id))
-        )
-      );
-
-    await db
-      .insert(projectsTable)
-      .values({
-        id: project.id,
-        name: project.name,
-        path: project.path,
-        gitRemote,
-        gitBranch,
-        baseRef: baseRef ?? null,
-        githubRepository,
-        githubConnected,
-        sshConnectionId: project.sshConnectionId ?? null,
-        isRemote: project.isRemote ? 1 : 0,
-        remotePath: project.remotePath ?? null,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
+    const existingByIdRows = await db
+      .select({
+        id: projectsTable.id,
+        path: projectsTable.path,
       })
-      .onConflictDoUpdate({
-        target: projectsTable.path,
-        set: {
-          name: project.name,
-          gitRemote,
-          gitBranch,
-          baseRef: baseRef ?? null,
-          githubRepository,
-          githubConnected,
-          sshConnectionId: project.sshConnectionId ?? null,
-          isRemote: project.isRemote ? 1 : 0,
-          remotePath: project.remotePath ?? null,
-          updatedAt: sql`CURRENT_TIMESTAMP`,
-        },
+      .from(projectsTable)
+      .where(eq(projectsTable.id, project.id))
+      .limit(1);
+    const existingById = existingByIdRows[0] ?? null;
+
+    const existingByPathRows = await db
+      .select({
+        id: projectsTable.id,
+        name: projectsTable.name,
+        path: projectsTable.path,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.path, project.path))
+      .limit(1);
+    const existingByPath = existingByPathRows[0] ?? null;
+
+    if (existingByPath && existingByPath.id !== project.id) {
+      throw new ProjectConflictError({
+        existingProjectId: existingByPath.id,
+        existingProjectName: existingByPath.name,
+        projectPath: existingByPath.path,
       });
+    }
+
+    const values = {
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      gitRemote,
+      gitBranch,
+      baseRef: baseRef ?? null,
+      githubRepository,
+      githubConnected,
+      sshConnectionId: project.sshConnectionId ?? null,
+      isRemote: project.isRemote ? 1 : 0,
+      remotePath: project.remotePath ?? null,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    } as const;
+
+    if (existingById) {
+      await db.update(projectsTable).set(values).where(eq(projectsTable.id, project.id));
+      return;
+    }
+
+    await db.insert(projectsTable).values(values);
   }
 
   async getProjects(): Promise<Project[]> {
@@ -580,7 +605,8 @@ export class DatabaseService {
     taskId: string,
     title: string,
     provider?: string,
-    isMain?: boolean
+    isMain?: boolean,
+    metadata?: string | null
   ): Promise<Conversation> {
     if (this.disabled) {
       return {
@@ -635,6 +661,7 @@ export class DatabaseService {
       isActive: true,
       isMain: isMain ?? false,
       displayOrder: maxOrder + 1,
+      metadata: metadata ?? null,
     };
 
     await this.saveConversation(newConversation);
@@ -703,87 +730,6 @@ export class DatabaseService {
       .update(conversationsTable)
       .set({ title, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(conversationsTable.id, conversationId));
-  }
-
-  // Line comment management methods
-  async saveLineComment(
-    input: Omit<LineCommentInsert, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<string> {
-    if (this.disabled) return '';
-    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const { db } = await getDrizzleClient();
-    await db.insert(lineCommentsTable).values({
-      id,
-      taskId: input.taskId,
-      filePath: input.filePath,
-      lineNumber: input.lineNumber,
-      lineContent: input.lineContent ?? null,
-      content: input.content,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    });
-    return id;
-  }
-
-  async getLineComments(taskId: string, filePath?: string): Promise<LineCommentRow[]> {
-    if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
-
-    if (filePath) {
-      const rows = await db
-        .select()
-        .from(lineCommentsTable)
-        .where(
-          sql`${lineCommentsTable.taskId} = ${taskId} AND ${lineCommentsTable.filePath} = ${filePath}`
-        )
-        .orderBy(asc(lineCommentsTable.lineNumber));
-      return rows;
-    }
-
-    const rows = await db
-      .select()
-      .from(lineCommentsTable)
-      .where(eq(lineCommentsTable.taskId, taskId))
-      .orderBy(asc(lineCommentsTable.lineNumber));
-    return rows;
-  }
-
-  async updateLineComment(id: string, content: string): Promise<void> {
-    if (this.disabled) return;
-    const { db } = await getDrizzleClient();
-    await db
-      .update(lineCommentsTable)
-      .set({
-        content,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .where(eq(lineCommentsTable.id, id));
-  }
-
-  async deleteLineComment(id: string): Promise<void> {
-    if (this.disabled) return;
-    const { db } = await getDrizzleClient();
-    await db.delete(lineCommentsTable).where(eq(lineCommentsTable.id, id));
-  }
-
-  async markCommentsSent(commentIds: string[]): Promise<void> {
-    if (this.disabled || commentIds.length === 0) return;
-    const { db } = await getDrizzleClient();
-    const now = new Date().toISOString();
-    await db
-      .update(lineCommentsTable)
-      .set({ sentAt: now })
-      .where(inArray(lineCommentsTable.id, commentIds));
-  }
-
-  async getUnsentComments(taskId: string): Promise<LineCommentRow[]> {
-    if (this.disabled) return [];
-    const { db } = await getDrizzleClient();
-    const rows = await db
-      .select()
-      .from(lineCommentsTable)
-      .where(and(eq(lineCommentsTable.taskId, taskId), isNull(lineCommentsTable.sentAt)))
-      .orderBy(asc(lineCommentsTable.filePath), asc(lineCommentsTable.lineNumber));
-    return rows;
   }
 
   // SSH connection management methods

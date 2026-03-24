@@ -19,19 +19,23 @@ import { appSettingsController } from './settingsIpc';
 import { registerHostPreviewIpc } from './hostPreviewIpc';
 import { registerBrowserIpc } from './browserIpc';
 import { registerNetIpc } from './netIpc';
-import { registerLineCommentsIpc } from './lineCommentsIpc';
 import { registerSshIpc } from './sshIpc';
 import { registerSkillsIpc } from './skillsIpc';
+import { registerWorkspaceIpc } from './workspaceIpc';
 import { registerMcpIpc } from './mcpIpc';
 import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
 import { registerPlainIpc } from './plainIpc';
 import { registerForgejoIpc } from './forgejoIpc';
+import { registerAccountIpc } from './accountIpc';
+import { changelogController } from './changelogIpc';
+import { registerPerformanceIpc } from './performanceIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
   appSettings: appSettingsController,
+  changelog: changelogController,
 });
 
 export type RpcRouter = typeof rpcRouter;
@@ -50,12 +54,11 @@ export function registerAllIpc() {
   registerProjectIpc();
   registerProjectSettingsIpc();
   registerGithubIpc();
+  registerAccountIpc();
   registerGitIpc();
   registerHostPreviewIpc();
   registerBrowserIpc();
   registerNetIpc();
-  registerLineCommentsIpc();
-
   // Existing modules
   registerPtyIpc();
   registerWorktreeIpc();
@@ -67,8 +70,10 @@ export function registerAllIpc() {
   registerPlanLockIpc();
   registerSshIpc();
   registerSkillsIpc();
+  registerWorkspaceIpc();
   registerMcpIpc();
   registerGitlabIpc();
   registerPlainIpc();
   registerForgejoIpc();
+  registerPerformanceIpc();
 }

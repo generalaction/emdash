@@ -16,6 +16,7 @@ import type { JiraIssueSummary } from '../types/jira';
 import type { PlainThreadSummary } from '../types/plain';
 import type { GitLabIssueSummary } from '../types/gitlab';
 import type { ForgejoIssueSummary } from '../types/forgejo';
+import { upsertTaskInList } from '../lib/taskListCache';
 import { rpc } from '../lib/rpc';
 import { createTask } from '../lib/taskCreationService';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -81,6 +82,47 @@ const buildLinkedGithubIssueMap = (tasks?: Task[] | null): Map<number, GitHubIss
     });
   }
   return linked;
+};
+
+/**
+ * If the task has a workspace provider, terminate the remote workspace instance.
+ * Best-effort — logs warnings but does not throw.
+ */
+const terminateWorkspaceIfNeeded = async (
+  project: Project,
+  task: Task,
+  toastFn?: (opts: { title: string; description: string }) => void
+): Promise<void> => {
+  const workspaceConfig = task.metadata?.workspace;
+  if (!workspaceConfig?.terminateCommand) return;
+
+  try {
+    const statusResult = await window.electronAPI.workspaceStatus({ taskId: task.id });
+    if (!statusResult.success || !statusResult.data) return;
+
+    const instance = statusResult.data;
+    if (instance.status === 'terminated') return;
+
+    const terminateResult = await window.electronAPI.workspaceTerminate({
+      instanceId: instance.id,
+      terminateCommand: workspaceConfig.terminateCommand,
+      projectPath: project.path,
+    });
+    if (terminateResult.success) {
+      toastFn?.({
+        title: 'Workspace terminated',
+        description: 'Remote workspace has been shut down.',
+      });
+    } else {
+      toastFn?.({
+        title: 'Workspace teardown failed',
+        description: terminateResult.error || 'Terminate script failed.',
+      });
+    }
+  } catch (err) {
+    const { log } = await import('../lib/logger');
+    log.warn('Workspace termination failed during task cleanup:', err as any);
+  }
 };
 
 const cleanupPtyResources = async (task: Task): Promise<void> => {
@@ -217,9 +259,13 @@ export function useTaskManagement() {
   const deletingTaskIdsRef = useRef<Set<string>>(new Set());
   const restoringTaskIdsRef = useRef<Set<string>>(new Set());
   const archivingTaskIdsRef = useRef<Set<string>>(new Set());
-  const openTaskModalImplRef = useRef<() => void>(() => {});
+  const openTaskModalImplRef = useRef<(project?: Project) => void>(() => {});
   const pendingTaskProjectRef = useRef<Project | null>(null);
-  const openTaskModal = useCallback(() => openTaskModalImplRef.current(), []);
+  const preflightPromiseRef = useRef<Promise<unknown> | undefined>(undefined);
+  const openTaskModal = useCallback(
+    (project?: Project) => openTaskModalImplRef.current(project),
+    []
+  );
 
   // Reset active task when project management signals a navigation away
   useEffect(() => {
@@ -317,23 +363,44 @@ export function useTaskManagement() {
   // ---------------------------------------------------------------------------
   // Navigation helpers
   // ---------------------------------------------------------------------------
-  const handleSelectTask = (task: Task) => {
-    const taskProject = projects.find((project) => project.id === task.projectId);
-    const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
-    if (isProjectSwitch) {
-      setShowEditorMode(false);
-    }
-    if (taskProject && selectedProject?.id !== taskProject.id) {
-      setSelectedProject(taskProject);
-    }
-    setShowHomeView(false);
-    setShowSkillsView(false);
-    setShowMcpView(false);
-    setShowKanban(false);
-    setActiveTask(task);
-    setActiveTaskAgent(getAgentForTask(task));
-    saveActiveIds(task.projectId, task.id);
-  };
+  const handleSelectTask = useCallback(
+    (task: Task) => {
+      const taskProject = projects.find((project) => project.id === task.projectId);
+      const isProjectSwitch = !selectedProject || selectedProject.id !== task.projectId;
+      if (isProjectSwitch) {
+        setShowEditorMode(false);
+      }
+      if (taskProject && selectedProject?.id !== taskProject.id) {
+        setSelectedProject(taskProject);
+      }
+      setShowHomeView(false);
+      setShowSkillsView(false);
+      setShowMcpView(false);
+      setShowKanban(false);
+      setActiveTask(task);
+      setActiveTaskAgent(getAgentForTask(task));
+      saveActiveIds(task.projectId, task.id);
+    },
+    [
+      projects,
+      selectedProject,
+      setSelectedProject,
+      setShowEditorMode,
+      setShowHomeView,
+      setShowSkillsView,
+      setShowMcpView,
+      setShowKanban,
+    ]
+  );
+
+  const handleOpenExternalTask = useCallback(
+    (task: Task) => {
+      updateTaskCache(task.projectId, (old) => upsertTaskInList(old, task));
+      handleSelectTask(task);
+      void queryClient.invalidateQueries({ queryKey: ['tasks', task.projectId] });
+    },
+    [handleSelectTask, queryClient, updateTaskCache]
+  );
 
   const handleNextTask = useCallback(() => {
     if (allTasks.length === 0) return;
@@ -384,9 +451,8 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      pendingTaskProjectRef.current = targetProject;
       activateProjectView(targetProject);
-      openTaskModal();
+      openTaskModal(targetProject);
     },
     [activateProjectView, projects, openTaskModal]
   );
@@ -405,6 +471,9 @@ export function useTaskManagement() {
       options?: { silent?: boolean };
     }) => {
       await runLifecycleTeardownBestEffort(project, task, 'delete', options);
+
+      // Terminate remote workspace if this task used workspace provisioning
+      await terminateWorkspaceIfNeeded(project, task, toast);
 
       try {
         const { initialPromptSentKey } = await import('../lib/keys');
@@ -594,6 +663,10 @@ export function useTaskManagement() {
       void cleanupPtyResources(task);
 
       await runLifecycleTeardownBestEffort(project, task, 'archive', options);
+
+      // Terminate remote workspace if this task used workspace provisioning
+      await terminateWorkspaceIfNeeded(project, task, toast);
+
       await rpc.db.archiveTask(task.id);
 
       for (const lifecycleTaskId of getLifecycleTaskIds(task)) {
@@ -919,12 +992,17 @@ export function useTaskManagement() {
       autoApprove?: boolean,
       useWorktree: boolean = true,
       baseRef?: string,
-      nameGenerated?: boolean
+      nameGenerated?: boolean,
+      useRemoteWorkspace?: boolean,
+      workspaceProvider?: { provisionCommand: string; terminateCommand: string },
+      overrideProject?: Project
     ) => {
-      const targetProject = pendingTaskProjectRef.current || selectedProject;
+      const targetProject = overrideProject ?? pendingTaskProjectRef.current ?? selectedProject;
       pendingTaskProjectRef.current = null;
       if (!targetProject) return;
       setIsCreatingTask(true);
+      const preflight = preflightPromiseRef.current;
+      preflightPromiseRef.current = undefined;
       await createTaskMutation.mutateAsync({
         project: targetProject,
         taskName,
@@ -940,6 +1018,9 @@ export function useTaskManagement() {
         nameGenerated,
         useWorktree,
         baseRef,
+        useRemoteWorkspace,
+        workspaceProvider,
+        preflightPromise: preflight,
       });
     },
     [selectedProject, createTaskMutation]
@@ -961,10 +1042,27 @@ export function useTaskManagement() {
   }, [isCreatingTask]);
 
   // Wire up openTaskModal — TaskModalOverlay calls handleCreateTask via context
-  openTaskModalImplRef.current = () => {
+  openTaskModalImplRef.current = (project?: Project) => {
+    if (project === undefined) pendingTaskProjectRef.current = null;
+
+    // Fire preflight reserve freshness check while the user fills in the form.
+    const targetProject = project ?? pendingTaskProjectRef.current ?? selectedProject;
+    if (targetProject) {
+      preflightPromiseRef.current = window.electronAPI
+        .worktreePreflightReserve({
+          projectId: targetProject.id,
+          projectPath: targetProject.path,
+        })
+        .catch((err) => {
+          console.warn('[preflight] failed', err);
+        });
+    }
+
     showModal('taskModal', {
+      initialProject: project,
       onClose: () => {
         pendingTaskProjectRef.current = null;
+        preflightPromiseRef.current = undefined;
       },
     });
   };
@@ -1011,6 +1109,7 @@ export function useTaskManagement() {
     handleTaskInterfaceReady,
     openTaskModal,
     handleSelectTask,
+    handleOpenExternalTask,
     handleNextTask,
     handlePrevTask,
     handleNewTask,

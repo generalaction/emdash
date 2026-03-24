@@ -11,17 +11,28 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { AgentDropdown } from './AgentDropdown';
+import { CreateChatReviewSection } from './CreateChatReviewSection';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
 import type { Agent } from '../types';
 import { rpc } from '@/lib/rpc';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { getReviewSettings } from '@/lib/reviewChat';
+import { agentMeta } from '@/providers/meta';
+import { buildReviewConversationMetadata } from '@shared/reviewPreset';
 
 const DEFAULT_AGENT: Agent = 'claude';
+
+interface CreateChatRequest {
+  title: string;
+  agent: string;
+  metadata?: string | null;
+}
 
 interface CreateChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateChat: (title: string, agent: string) => void;
+  onCreateChat: (request: CreateChatRequest) => void;
   installedAgents: string[];
 }
 
@@ -31,16 +42,30 @@ export function CreateChatModal({
   onCreateChat,
   installedAgents,
 }: CreateChatModalProps) {
+  const { settings } = useAppSettings();
   const [selectedAgent, setSelectedAgent] = useState<Agent>(DEFAULT_AGENT);
+  const [reviewEnabled, setReviewEnabled] = useState(false);
+  const [reviewAgent, setReviewAgent] = useState<Agent>(DEFAULT_AGENT);
+  const [reviewPrompt, setReviewPrompt] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const installedSet = useMemo(() => new Set(installedAgents), [installedAgents]);
+  const reviewSettings = useMemo(() => getReviewSettings(settings), [settings]);
+  const reviewAgentInstalled = installedSet.has(reviewAgent);
+  const reviewSupportsPrompt =
+    agentMeta[reviewAgent]?.initialPromptFlag !== undefined ||
+    agentMeta[reviewAgent]?.useKeystrokeInjection === true;
+  const reviewAvailable =
+    reviewSettings.enabled && !!reviewPrompt.trim() && reviewAgentInstalled && reviewSupportsPrompt;
 
   // Load default agent from settings and reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      setReviewEnabled(false);
+      setReviewAgent(reviewSettings.agent as Agent);
+      setReviewPrompt(reviewSettings.prompt);
 
       let cancel = false;
       rpc.appSettings.get().then((settings) => {
@@ -72,20 +97,49 @@ export function CreateChatModal({
         cancel = true;
       };
     }
-  }, [isOpen, installedSet]);
+  }, [isOpen, installedSet, reviewSettings.agent, reviewSettings.prompt]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!installedSet.has(selectedAgent)) {
+    if (reviewEnabled) {
+      if (!reviewSettings.enabled) {
+        setError('Review preset is disabled');
+        return;
+      }
+      if (!reviewPrompt.trim()) {
+        setError('Review prompt is empty');
+        return;
+      }
+      if (!reviewAgentInstalled) {
+        setError('Configured review agent is not installed');
+        return;
+      }
+      if (!reviewSupportsPrompt) {
+        setError('Configured review agent does not support automatic prompts');
+        return;
+      }
+    }
+
+    if (!reviewEnabled && !installedSet.has(selectedAgent)) {
       setError('Please select an installed agent');
       return;
     }
 
     setIsCreating(true);
     try {
-      const chatTitle = `Chat ${Date.now()}`;
-      onCreateChat(chatTitle, selectedAgent);
+      if (reviewEnabled) {
+        onCreateChat({
+          title: 'Review',
+          agent: reviewAgent,
+          metadata: buildReviewConversationMetadata(reviewPrompt.trim()),
+        });
+      } else {
+        onCreateChat({
+          title: `Chat ${Date.now()}`,
+          agent: selectedAgent,
+        });
+      }
       onClose();
       setError(null);
     } catch (err) {
@@ -110,18 +164,43 @@ export function CreateChatModal({
         <Separator />
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Label className="shrink-0">Agent</Label>
-            <AgentDropdown
-              value={selectedAgent}
-              onChange={setSelectedAgent}
+          {!reviewEnabled ? (
+            <div className="flex items-center gap-4">
+              <Label className="shrink-0">Agent</Label>
+              <AgentDropdown
+                value={selectedAgent}
+                onChange={setSelectedAgent}
+                installedAgents={installedAgents}
+              />
+            </div>
+          ) : null}
+
+          {reviewSettings.enabled ? (
+            <CreateChatReviewSection
+              reviewEnabled={reviewEnabled}
+              onReviewEnabledChange={(checked) => {
+                setReviewEnabled(checked);
+                setError(null);
+              }}
+              reviewAgent={reviewAgent}
+              onReviewAgentChange={setReviewAgent}
+              reviewPrompt={reviewPrompt}
+              onReviewPromptChange={setReviewPrompt}
               installedAgents={installedAgents}
             />
-          </div>
+          ) : null}
           {error && <p className="text-xs text-destructive">{error}</p>}
+          {reviewEnabled && !error && !reviewAvailable ? (
+            <p className="text-xs text-muted-foreground">
+              Finish configuring the review preset in Settings to enable this option.
+            </p>
+          ) : null}
 
           <DialogFooter>
-            <Button type="submit" disabled={!!error || isCreating}>
+            <Button
+              type="submit"
+              disabled={!!error || isCreating || (reviewEnabled && !reviewAvailable)}
+            >
               {isCreating ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>

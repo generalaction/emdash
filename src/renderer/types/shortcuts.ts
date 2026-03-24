@@ -12,22 +12,23 @@ export interface ShortcutBinding {
   modifier: ShortcutModifier;
 }
 
+export type KeyboardShortcutBinding = ShortcutBinding | null;
+
 export interface KeyboardSettings {
-  commandPalette?: ShortcutBinding;
-  settings?: ShortcutBinding;
-  toggleLeftSidebar?: ShortcutBinding;
-  toggleRightSidebar?: ShortcutBinding;
-  toggleTheme?: ShortcutBinding;
-  toggleKanban?: ShortcutBinding;
-  toggleEditor?: ShortcutBinding;
-  closeModal?: ShortcutBinding;
-  nextProject?: ShortcutBinding;
-  prevProject?: ShortcutBinding;
-  newTask?: ShortcutBinding;
-  nextAgent?: ShortcutBinding;
-  prevAgent?: ShortcutBinding;
-  openInEditor?: ShortcutBinding;
-  fileSearch?: ShortcutBinding;
+  commandPalette?: KeyboardShortcutBinding;
+  settings?: KeyboardShortcutBinding;
+  toggleLeftSidebar?: KeyboardShortcutBinding;
+  toggleRightSidebar?: KeyboardShortcutBinding;
+  toggleTheme?: KeyboardShortcutBinding;
+  toggleKanban?: KeyboardShortcutBinding;
+  toggleEditor?: KeyboardShortcutBinding;
+  closeModal?: KeyboardShortcutBinding;
+  nextProject?: KeyboardShortcutBinding;
+  prevProject?: KeyboardShortcutBinding;
+  newTask?: KeyboardShortcutBinding;
+  nextAgent?: KeyboardShortcutBinding;
+  prevAgent?: KeyboardShortcutBinding;
+  openInEditor?: KeyboardShortcutBinding;
 }
 
 export interface ShortcutConfig {

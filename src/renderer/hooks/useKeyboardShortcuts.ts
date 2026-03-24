@@ -355,8 +355,11 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
 function getEffectiveConfig(
   shortcut: AppShortcut,
   customSettings?: KeyboardSettings
-): ShortcutConfig {
+): ShortcutConfig | null {
   const custom = customSettings?.[shortcut.settingsKey];
+  if (custom === null) {
+    return null;
+  }
   if (custom) {
     return {
       key: custom.key,
@@ -402,89 +405,89 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
   useEffect(() => {
     // Build dynamic shortcut mappings from config
-    const shortcuts: ShortcutMapping[] = [
-      {
+    const maybeShortcuts: Array<ShortcutMapping | null> = [
+      effectiveShortcuts.commandPalette && {
         config: effectiveShortcuts.commandPalette,
         handler: () => handlers.onToggleCommandPalette?.(),
         priority: 'global',
         isCommandPalette: true,
       },
-      {
+      effectiveShortcuts.settings && {
         config: effectiveShortcuts.settings,
         handler: () => handlers.onOpenSettings?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.toggleLeftSidebar && {
         config: effectiveShortcuts.toggleLeftSidebar,
         handler: () => handlers.onToggleLeftSidebar?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.toggleRightSidebar && {
         config: effectiveShortcuts.toggleRightSidebar,
         handler: () => handlers.onToggleRightSidebar?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.toggleTheme && {
         config: effectiveShortcuts.toggleTheme,
         handler: () => handlers.onToggleTheme?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.toggleKanban && {
         config: effectiveShortcuts.toggleKanban,
         handler: () => handlers.onToggleKanban?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.toggleEditor && {
         config: effectiveShortcuts.toggleEditor,
         handler: () => handlers.onToggleEditor?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.closeModal && {
         config: effectiveShortcuts.closeModal,
         handler: () => handlers.onCloseModal?.(),
         priority: 'modal',
       },
-      {
+      effectiveShortcuts.nextProject && {
         config: effectiveShortcuts.nextProject,
         handler: () => handlers.onNextProject?.(),
         priority: 'global',
         requiresClosed: true,
         allowInInput: true,
       },
-      {
+      effectiveShortcuts.prevProject && {
         config: effectiveShortcuts.prevProject,
         handler: () => handlers.onPrevProject?.(),
         priority: 'global',
         requiresClosed: true,
         allowInInput: true,
       },
-      {
+      effectiveShortcuts.newTask && {
         config: effectiveShortcuts.newTask,
         handler: () => handlers.onNewTask?.(),
         priority: 'global',
         requiresClosed: true,
       },
-      {
+      effectiveShortcuts.nextAgent && {
         config: effectiveShortcuts.nextAgent,
         handler: () => handlers.onNextAgent?.(),
         priority: 'global',
         requiresClosed: true,
         allowInInput: true,
       },
-      {
+      effectiveShortcuts.prevAgent && {
         config: effectiveShortcuts.prevAgent,
         handler: () => handlers.onPrevAgent?.(),
         priority: 'global',
         requiresClosed: true,
         allowInInput: true,
       },
-      {
+      effectiveShortcuts.openInEditor && {
         config: effectiveShortcuts.openInEditor,
         handler: () => handlers.onOpenInEditor?.(),
         priority: 'global',
@@ -499,6 +502,9 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         isCommandPalette: true,
       },
     ];
+    const shortcuts: ShortcutMapping[] = maybeShortcuts.filter(
+      (shortcut): shortcut is ShortcutMapping => shortcut !== null
+    );
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = normalizeShortcutKey(event.key);
@@ -511,8 +517,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       // The command palette toggle is exempt so it remains reachable from
       // any context.
       const target = event.target as HTMLElement;
+      // Exclude xterm's hidden textarea from the editable-target check —
+      // it captures keyboard input but is not a user-editable field.
+      const isXtermTextarea = target?.classList?.contains('xterm-helper-textarea');
       const isEditableTarget =
-        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+        !isXtermTextarea &&
+        (target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.isContentEditable);
 
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
@@ -569,6 +581,11 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         // Execute modal shortcuts
         if (shortcut.priority === 'modal') {
+          // If a nested dialog/modal (e.g. agent execution settings) is open,
+          // let it handle Escape instead of closing the parent view (settings page).
+          const nestedDialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
+          if (nestedDialog) continue;
+
           event.preventDefault();
           shortcut.handler();
           return;

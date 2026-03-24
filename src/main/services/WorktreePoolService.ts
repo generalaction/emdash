@@ -15,6 +15,8 @@ interface ReserveWorktree {
   projectId: string;
   projectPath: string;
   baseRef: string;
+  resolvedRef: string;
+  commitHash: string;
   createdAt: string;
 }
 
@@ -36,10 +38,16 @@ export class WorktreePoolService {
   // Keyed by `${projectId}::${baseRef}` to keep reserves base-ref specific.
   private reserves = new Map<string, ReserveWorktree>();
   private creationInProgress = new Set<string>();
+  private creationPromises = new Map<string, Promise<void>>();
+  private preflightPromises = new Map<string, Promise<void>>();
   private readonly RESERVE_PREFIX = '_reserve';
   // Reserves older than this are considered stale and will be recreated
   // 30 minutes is reasonable since users don't create tasks that frequently
   private readonly MAX_RESERVE_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+  private pollTimer: ReturnType<typeof setTimeout> | undefined;
+  private isPolling = false;
+  private readonly FRESHNESS_POLL_INTERVAL_MS = 60_000;
 
   /** Generate a unique hash for reserve identification */
   private generateReserveHash(): string {
@@ -57,9 +65,36 @@ export class WorktreePoolService {
     return `${this.RESERVE_PREFIX}/${hash}`;
   }
 
+  /** Strip "origin/" prefix from a remote tracking ref */
+  private stripRemotePrefix(ref: string): string {
+    return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref;
+  }
+
   private normalizeBaseRef(baseRef?: string): string {
     const trimmed = (baseRef || '').trim();
     return trimmed.length > 0 ? trimmed : 'HEAD';
+  }
+
+  /**
+   * Resolve baseRef to a canonical branch name for consistent reserve keys.
+   * - `HEAD` → resolved to actual branch name (e.g. `main`)
+   * - `origin/main` → stripped to `main`
+   * - `main` → kept as-is
+   * Falls back to the normalized baseRef if resolution fails.
+   */
+  private async resolveCanonicalBaseRef(projectPath: string, baseRef?: string): Promise<string> {
+    const normalized = this.normalizeBaseRef(baseRef);
+    try {
+      if (normalized === 'HEAD') {
+        const { stdout } = await execFileAsync('git', ['symbolic-ref', '--short', 'HEAD'], {
+          cwd: projectPath,
+        });
+        return stdout.trim() || normalized;
+      }
+      return this.stripRemotePrefix(normalized);
+    } catch {
+      return this.stripRemotePrefix(normalized);
+    }
   }
 
   private getReserveKey(projectId: string, baseRef?: string): string {
@@ -159,11 +194,13 @@ export class WorktreePoolService {
    * Creates one in the background if not present.
    */
   async ensureReserve(projectId: string, projectPath: string, baseRef?: string): Promise<void> {
-    const reserveKey = this.getReserveKey(projectId, baseRef);
+    const canonical = await this.resolveCanonicalBaseRef(projectPath, baseRef);
+    const reserveKey = this.getReserveKey(projectId, canonical);
 
-    // Creation already in progress
-    if (this.creationInProgress.has(reserveKey)) {
-      return;
+    // Creation already in progress — return the existing promise so callers can await it
+    const existing$ = this.creationPromises.get(reserveKey);
+    if (existing$) {
+      return existing$;
     }
 
     // Check existing reserve
@@ -177,16 +214,20 @@ export class WorktreePoolService {
       this.cleanupReserve(existing).catch(() => {});
     }
 
-    // Start background creation
+    // Start creation and store the promise so others can join
     this.creationInProgress.add(reserveKey);
 
-    try {
-      await this.createReserve(projectId, projectPath, this.normalizeBaseRef(baseRef));
-    } catch (error) {
-      log.warn('WorktreePool: Failed to create reserve', { projectId, baseRef, error });
-    } finally {
-      this.creationInProgress.delete(reserveKey);
-    }
+    const creation$ = this.createReserve(projectId, projectPath, canonical)
+      .catch((error) => {
+        log.warn('WorktreePool: Failed to create reserve', { projectId, baseRef, error });
+      })
+      .finally(() => {
+        this.creationInProgress.delete(reserveKey);
+        this.creationPromises.delete(reserveKey);
+      });
+
+    this.creationPromises.set(reserveKey, creation$);
+    return creation$;
   }
 
   /**
@@ -224,6 +265,12 @@ export class WorktreePoolService {
       }
     );
 
+    // Capture the commit hash the reserve was created from
+    const { stdout: hashOut } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+      cwd: reservePath,
+    });
+    const commitHash = hashOut.trim();
+
     const reserveId = this.stableIdFromPath(reservePath);
     const reserve: ReserveWorktree = {
       id: reserveId,
@@ -232,10 +279,13 @@ export class WorktreePoolService {
       projectId,
       projectPath,
       baseRef,
+      resolvedRef,
+      commitHash,
       createdAt: new Date().toISOString(),
     };
 
     this.reserves.set(this.getReserveKey(projectId, baseRef), reserve);
+    this.startFreshnessPoll();
   }
 
   /**
@@ -248,7 +298,7 @@ export class WorktreePoolService {
     taskName: string,
     requestedBaseRef?: string
   ): Promise<ClaimResult | null> {
-    const resolvedBaseRef = this.normalizeBaseRef(requestedBaseRef);
+    const resolvedBaseRef = await this.resolveCanonicalBaseRef(projectPath, requestedBaseRef);
     const reserveKey = this.getReserveKey(projectId, resolvedBaseRef);
     const reserve = this.reserves.get(reserveKey);
     if (!reserve) {
@@ -282,6 +332,58 @@ export class WorktreePoolService {
       this.cleanupReserve(reserve).catch(() => {});
       return null;
     }
+  }
+
+  /**
+   * Preflight freshness check for a specific project's reserve.
+   * Called when the create-task UI opens so the ls-remote cost is paid while
+   * the user fills in the form. If the reserve is stale it is recreated.
+   * Returns a promise that resolves when the check (and potential recreation)
+   * is complete — the renderer should await this before claiming.
+   */
+  async preflightCheck(projectId: string, projectPath: string): Promise<void> {
+    // Deduplicate: if a preflight is already running for this project, join it
+    const existing$ = this.preflightPromises.get(projectId);
+    if (existing$) {
+      return existing$;
+    }
+
+    const preflight$ = this.runPreflightCheck(projectId, projectPath).finally(() => {
+      this.preflightPromises.delete(projectId);
+    });
+    this.preflightPromises.set(projectId, preflight$);
+    return preflight$;
+  }
+
+  private async runPreflightCheck(projectId: string, projectPath: string): Promise<void> {
+    const prefix = `${projectId}::`;
+
+    // Wait for any in-progress reserve creations for this project (in parallel)
+    const creationWaits: Promise<void>[] = [];
+    for (const [key, promise] of this.creationPromises) {
+      if (key.startsWith(prefix)) {
+        log.info('WorktreePool: preflight — waiting for in-progress reserve creation', {
+          projectId,
+          key,
+        });
+        creationWaits.push(promise);
+      }
+    }
+    if (creationWaits.length > 0) {
+      await Promise.all(creationWaits);
+    }
+
+    // Collect all reserves for this project
+    const entries = Array.from(this.reserves.entries()).filter(([key]) => key.startsWith(prefix));
+
+    if (entries.length === 0) {
+      log.info('WorktreePool: preflight — no reserves found for project', { projectId });
+      // Create a reserve so the claim has something to work with
+      await this.ensureReserve(projectId, projectPath, 'HEAD');
+      return;
+    }
+
+    await Promise.all(entries.map(([key, reserve]) => this.refreshReserveIfStale(key, reserve)));
   }
 
   /**
@@ -551,13 +653,97 @@ export class WorktreePoolService {
     }
   }
 
+  /** Start polling reserves for freshness (idempotent) */
+  private startFreshnessPoll(): void {
+    if (this.isPolling) return;
+    this.isPolling = true;
+    this.schedulePollTick();
+  }
+
+  /** Schedule the next poll tick after POLL_INTERVAL_MS */
+  private schedulePollTick(): void {
+    this.pollTimer = setTimeout(async () => {
+      this.pollTimer = undefined;
+      await this.checkAndRefreshReserves().catch(() => {});
+      if (this.isPolling) {
+        this.schedulePollTick();
+      }
+    }, this.FRESHNESS_POLL_INTERVAL_MS);
+  }
+
+  /** Stop freshness polling */
+  private stopFreshnessPoll(): void {
+    this.isPolling = false;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = undefined;
+    }
+  }
+
+  /**
+   * Check a single reserve against its current ref (remote or local) and
+   * recreate it if the ref has advanced past the reserve's commit.
+   */
+  private async refreshReserveIfStale(key: string, reserve: ReserveWorktree): Promise<void> {
+    try {
+      let currentHash: string | undefined;
+
+      if (reserve.resolvedRef.startsWith('origin/')) {
+        // Remote-tracking: use ls-remote (no full fetch needed)
+        const branchName = this.stripRemotePrefix(reserve.resolvedRef);
+        const { stdout: lsOut } = await execFileAsync('git', ['ls-remote', 'origin', branchName], {
+          cwd: reserve.projectPath,
+          timeout: 10000,
+        });
+        currentHash = lsOut.split(/\s/)[0]?.trim();
+      } else {
+        // Local-only: resolve the branch ref directly (instant, no network)
+        const { stdout } = await execFileAsync('git', ['rev-parse', reserve.resolvedRef], {
+          cwd: reserve.projectPath,
+        });
+        currentHash = stdout.trim();
+      }
+
+      const stale = !!currentHash && currentHash !== reserve.commitHash;
+
+      log.info('WorktreePool: freshness check', {
+        key,
+        resolvedRef: reserve.resolvedRef,
+        reserveHash: reserve.commitHash,
+        currentHash: currentHash || '(empty)',
+        stale,
+      });
+
+      if (!stale) return;
+
+      this.reserves.delete(key);
+      await this.cleanupReserve(reserve);
+      await this.ensureReserve(reserve.projectId, reserve.projectPath, reserve.baseRef);
+      log.info('WorktreePool: reserve recreated', { key });
+    } catch {
+      // Failures are non-critical — skip this reserve
+    }
+  }
+
+  /** Check all reserves against their remote refs and recreate stale ones */
+  private async checkAndRefreshReserves(): Promise<void> {
+    const reserves = Array.from(this.reserves.entries());
+    if (reserves.length === 0) {
+      this.stopFreshnessPoll();
+      return;
+    }
+
+    await Promise.all(reserves.map(([key, reserve]) => this.refreshReserveIfStale(key, reserve)));
+  }
+
   /** Cleanup all reserves (e.g., on app shutdown) */
   async cleanup(): Promise<void> {
-    for (const [projectId, reserve] of this.reserves) {
+    this.stopFreshnessPoll();
+    for (const [key, reserve] of this.reserves) {
       try {
         await this.cleanupReserve(reserve);
       } catch (error) {
-        log.warn('WorktreePool: Failed to cleanup reserve on shutdown', { projectId, error });
+        log.warn('WorktreePool: Failed to cleanup reserve on shutdown', { key, error });
       }
     }
     this.reserves.clear();

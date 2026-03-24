@@ -63,6 +63,17 @@ describe('TerminalInputBuffer', () => {
     expect(buffer.isComplete).toBe(false);
   });
 
+  it('skips TUI-prefixed slash commands', () => {
+    const onCapture = vi.fn();
+    const buffer = new TerminalInputBuffer(onCapture);
+
+    buffer.feed('i/model\r');
+    buffer.confirmSubmit();
+
+    expect(onCapture).not.toHaveBeenCalled();
+    expect(buffer.isComplete).toBe(false);
+  });
+
   it('skips single-character confirmations', () => {
     const onCapture = vi.fn();
     const buffer = new TerminalInputBuffer(onCapture);

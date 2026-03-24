@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 type LifecycleScripts = {
   setup: string;
@@ -13,11 +14,18 @@ type LifecycleScripts = {
   teardown: string;
 };
 
+type WorkspaceProviderConfig = {
+  type: 'script';
+  provisionCommand: string;
+  terminateCommand: string;
+};
+
 type ConfigShape = Record<string, unknown> & {
   preservePatterns?: string[];
   scripts?: Partial<LifecycleScripts>;
   shellSetup?: string;
   tmux?: boolean;
+  workspaceProvider?: WorkspaceProviderConfig;
 };
 
 interface ConfigEditorModalProps {
@@ -107,6 +115,25 @@ function applyTmux(config: ConfigShape, tmux: boolean): ConfigShape {
   return { ...rest, tmux: true };
 }
 
+function applyWorkspaceProvider(
+  config: ConfigShape,
+  provisionCommand: string,
+  terminateCommand: string
+): ConfigShape {
+  const { workspaceProvider: _wp, ...rest } = config;
+  const provision = provisionCommand.trim();
+  const terminate = terminateCommand.trim();
+  if (!provision && !terminate) return rest;
+  return {
+    ...rest,
+    workspaceProvider: {
+      type: 'script' as const,
+      provisionCommand: provision,
+      terminateCommand: terminate,
+    },
+  };
+}
+
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
@@ -114,6 +141,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isRemote,
   sshConnectionId,
 }) => {
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [config, setConfig] = useState<ConfigShape>({});
   const [scripts, setScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
   const [originalScripts, setOriginalScripts] = useState<LifecycleScripts>({ ...EMPTY_SCRIPTS });
@@ -123,6 +151,11 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalShellSetup, setOriginalShellSetup] = useState('');
   const [tmux, setTmux] = useState(false);
   const [originalTmux, setOriginalTmux] = useState(false);
+  const [wpProvisionCommand, setWpProvisionCommand] = useState('');
+  const [originalWpProvisionCommand, setOriginalWpProvisionCommand] = useState('');
+  const [wpTerminateCommand, setWpTerminateCommand] = useState('');
+  const [originalWpTerminateCommand, setOriginalWpTerminateCommand] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,9 +174,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     const withPatterns = applyPreservePatterns(config, preservePatterns);
     const withShellSetup = applyShellSetup(withPatterns, shellSetup);
     const withTmux = applyTmux(withShellSetup, tmux);
-    const withScripts = applyScripts(withTmux, scripts);
+    const withWp = applyWorkspaceProvider(withTmux, wpProvisionCommand, wpTerminateCommand);
+    const withScripts = applyScripts(withWp, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, shellSetup, tmux, scripts]);
+  }, [config, preservePatterns, shellSetup, tmux, wpProvisionCommand, wpTerminateCommand, scripts]);
 
   const scriptsDirty = useMemo(
     () =>
@@ -152,7 +186,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       scripts.teardown !== originalScripts.teardown ||
       preservePatternsInput !== originalPreservePatternsInput ||
       shellSetup !== originalShellSetup ||
-      tmux !== originalTmux,
+      tmux !== originalTmux ||
+      wpProvisionCommand !== originalWpProvisionCommand ||
+      wpTerminateCommand !== originalWpTerminateCommand,
     [
       originalShellSetup,
       originalPreservePatternsInput,
@@ -160,12 +196,16 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       originalScripts.setup,
       originalScripts.teardown,
       originalTmux,
+      originalWpProvisionCommand,
+      originalWpTerminateCommand,
       shellSetup,
       preservePatternsInput,
       scripts.run,
       scripts.setup,
       scripts.teardown,
       tmux,
+      wpProvisionCommand,
+      wpTerminateCommand,
     ]
   );
 
@@ -199,6 +239,15 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       const nextPreservePatterns = preservePatternsFromConfig(parsed);
       const nextShellSetup = typeof parsed.shellSetup === 'string' ? parsed.shellSetup : '';
       const nextTmux = parsed.tmux === true;
+      const wp = parsed.workspaceProvider;
+      const nextWpProvision =
+        wp && typeof wp === 'object' && typeof wp.provisionCommand === 'string'
+          ? wp.provisionCommand
+          : '';
+      const nextWpTerminate =
+        wp && typeof wp === 'object' && typeof wp.terminateCommand === 'string'
+          ? wp.terminateCommand
+          : '';
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);
@@ -208,6 +257,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalShellSetup(nextShellSetup);
       setTmux(nextTmux);
       setOriginalTmux(nextTmux);
+      setWpProvisionCommand(nextWpProvision);
+      setOriginalWpProvisionCommand(nextWpProvision);
+      setWpTerminateCommand(nextWpTerminate);
+      setOriginalWpTerminateCommand(nextWpTerminate);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
@@ -218,6 +271,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalShellSetup('');
       setTmux(false);
       setOriginalTmux(false);
+      setWpProvisionCommand('');
+      setOriginalWpProvisionCommand('');
+      setWpTerminateCommand('');
+      setOriginalWpTerminateCommand('');
       setError(err instanceof Error ? err.message : 'Failed to load config');
       setLoadFailed(true);
     } finally {
@@ -259,10 +316,24 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         }
       }
 
+      // Gitignore workspace provider script paths (best-effort, local only)
+      if (!isRemote) {
+        const scriptPaths = [wpProvisionCommand.trim(), wpTerminateCommand.trim()].filter(
+          (cmd) => cmd && (cmd.startsWith('./') || (cmd.includes('/') && !cmd.includes(' ')))
+        );
+        if (scriptPaths.length > 0) {
+          void window.electronAPI.ensureGitignore(projectPath, scriptPaths);
+        }
+      }
+
       const nextConfig = applyScripts(
-        applyTmux(
-          applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
-          tmux
+        applyWorkspaceProvider(
+          applyTmux(
+            applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
+            tmux
+          ),
+          wpProvisionCommand,
+          wpTerminateCommand
         ),
         scripts
       );
@@ -271,6 +342,18 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalPreservePatternsInput(preservePatternsInput);
       setOriginalShellSetup(shellSetup);
       setOriginalTmux(tmux);
+      setOriginalWpProvisionCommand(wpProvisionCommand);
+      setOriginalWpTerminateCommand(wpTerminateCommand);
+
+      if (
+        wpProvisionCommand !== originalWpProvisionCommand ||
+        wpTerminateCommand !== originalWpTerminateCommand
+      ) {
+        void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
+          captureTelemetry('workspace_provider_config_saved');
+        });
+      }
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save config');
@@ -289,6 +372,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     projectPath,
     scripts,
     tmux,
+    wpProvisionCommand,
+    wpTerminateCommand,
   ]);
 
   return (
@@ -368,6 +453,67 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                   disabled={isSaving}
                 />
               </div>
+
+              {workspaceProviderEnabled && (
+                <div className="space-y-2">
+                  <Label>Workspace provider</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Shell commands to provision and tear down remote workspaces. When configured,
+                    tasks can choose between a local worktree and a remote workspace.{' '}
+                    <a
+                      href="https://docs.emdash.sh/bring-your-own-infrastructure"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      View docs
+                    </a>
+                  </p>
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="config-wp-provision" className="text-xs">
+                        Provision command
+                      </Label>
+                      <Input
+                        id="config-wp-provision"
+                        value={wpProvisionCommand}
+                        onChange={(event) => {
+                          setWpProvisionCommand(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="./scripts/create-workspace.sh"
+                        className="font-mono text-xs"
+                        disabled={isSaving}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Script that creates a workspace and outputs SSH connection details as JSON
+                        to stdout. Receives EMDASH_TASK_ID, EMDASH_REPO_URL, EMDASH_BRANCH,
+                        EMDASH_BASE_REF as env vars.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="config-wp-terminate" className="text-xs">
+                        Terminate command
+                      </Label>
+                      <Input
+                        id="config-wp-terminate"
+                        value={wpTerminateCommand}
+                        onChange={(event) => {
+                          setWpTerminateCommand(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="./scripts/destroy-workspace.sh"
+                        className="font-mono text-xs"
+                        disabled={isSaving}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Script that destroys the workspace when the task is deleted. Receives
+                        EMDASH_INSTANCE_ID and EMDASH_TASK_ID as env vars.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="config-scripts-setup">Setup script</Label>

@@ -48,6 +48,12 @@ export const agentTargets: AgentSyncTarget[] = [
     getSkillDir: (skillId: string) => path.join(home, '.gemini', 'skills', skillId),
   },
   {
+    id: 'hermes',
+    name: 'Hermes Agent',
+    configDir: path.join(home, '.hermes'),
+    getSkillDir: (skillId: string) => path.join(home, '.hermes', 'skills', skillId),
+  },
+  {
     id: 'roo-code',
     name: 'Roo Code',
     configDir: path.join(home, '.roo'),
@@ -58,6 +64,18 @@ export const agentTargets: AgentSyncTarget[] = [
     name: 'Mistral Vibe',
     configDir: path.join(home, '.vibe'),
     getSkillDir: (skillId: string) => path.join(home, '.vibe', 'skills', skillId),
+  },
+  {
+    id: 'pi',
+    name: 'Pi',
+    configDir: path.join(home, '.pi', 'agent'),
+    getSkillDir: (skillId: string) => path.join(home, '.pi', 'agent', 'skills', skillId),
+  },
+  {
+    id: 'amp',
+    name: 'Amp',
+    configDir: path.join(home, '.amp'),
+    getSkillDir: (skillId: string) => path.join(home, '.amp', 'skills', skillId),
   },
 ];
 

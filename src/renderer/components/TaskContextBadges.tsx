@@ -26,14 +26,12 @@ export const TaskContextBadges: React.FC<Props> = ({
   githubIssue,
   jiraIssue,
 }) => {
-  const { taskId: scopedTaskId } = useTaskScope();
+  const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
-  const { unsentCount } = useTaskComments(resolvedTaskId);
-  const [selectedCount, setSelectedCount] = React.useState(0);
+  const { count: unsentCount } = useTaskComments(resolvedTaskId, scopedTaskPath);
 
-  React.useEffect(() => {
-    setSelectedCount(0);
-  }, [resolvedTaskId]);
+  const hasAnything = !!linearIssue || !!githubIssue || !!jiraIssue || unsentCount > 0;
+  if (!hasAnything) return null;
 
   const handleIssueClick = (url?: string) => {
     if (!url) return;
@@ -193,33 +191,21 @@ export const TaskContextBadges: React.FC<Props> = ({
 
       {resolvedTaskId && unsentCount > 0 && (
         <CommentsPopover
-          tooltipContent="Selected comments are appended to your next agent message."
+          tooltipContent="These comments will be appended to your next agent message."
           tooltipDelay={300}
-          onSelectedCountChange={setSelectedCount}
         >
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className={[
-              'relative h-7 gap-1.5 px-2 text-xs',
-              selectedCount > 0
-                ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/15'
-                : 'border-border bg-muted hover:bg-muted/80 dark:border-border dark:bg-muted',
-            ].join(' ')}
-            title={
-              selectedCount > 0
-                ? `${selectedCount} selected comment${selectedCount === 1 ? '' : 's'} ready to append`
-                : 'Review or select comments to append'
-            }
+            className="relative h-7 gap-1.5 border-border bg-muted px-2 text-xs hover:bg-muted/80 dark:border-border dark:bg-muted"
+            title={`${unsentCount} comment${unsentCount === 1 ? '' : 's'} will be sent`}
           >
             <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="font-medium">Comments</span>
-            {selectedCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
-                {selectedCount}
-              </span>
-            )}
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
+              {unsentCount}
+            </span>
           </Button>
         </CommentsPopover>
       )}

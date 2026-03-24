@@ -128,6 +128,7 @@ export const messages = sqliteTable(
   })
 );
 
+// TODO: remove after refactor (resolves migration issues)
 export const lineComments = sqliteTable(
   'line_comments',
   {
@@ -152,8 +153,37 @@ export const lineComments = sqliteTable(
   })
 );
 
+export const workspaceInstances = sqliteTable(
+  'workspace_instances',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'), // "id" from script output (e.g. workspace name); nullable
+    host: text('host').notNull(),
+    port: integer('port').notNull().default(22),
+    username: text('username'),
+    worktreePath: text('worktree_path'),
+    status: text('status').notNull().default('provisioning'), // provisioning | ready | terminated | error
+    connectionId: text('connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: integer('created_at').notNull(),
+    terminatedAt: integer('terminated_at'),
+  },
+  (table) => ({
+    taskIdIdx: index('idx_workspace_instances_task_id').on(table.taskId),
+    statusIdx: index('idx_workspace_instances_status').on(table.status),
+  })
+);
+
+export type WorkspaceInstanceRow = typeof workspaceInstances.$inferSelect;
+export type WorkspaceInstanceInsert = typeof workspaceInstances.$inferInsert;
+
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
+  workspaceInstances: many(workspaceInstances),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -171,6 +201,18 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   conversations: many(conversations),
   lineComments: many(lineComments),
+  workspaceInstances: many(workspaceInstances),
+}));
+
+export const workspaceInstancesRelations = relations(workspaceInstances, ({ one }) => ({
+  task: one(tasks, {
+    fields: [workspaceInstances.taskId],
+    references: [tasks.id],
+  }),
+  sshConnection: one(sshConnections, {
+    fields: [workspaceInstances.connectionId],
+    references: [sshConnections.id],
+  }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
