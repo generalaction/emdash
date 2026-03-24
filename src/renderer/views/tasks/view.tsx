@@ -24,7 +24,11 @@ function TaskViewWrapperWithProviders({
   const task = useTask({ projectId, taskId });
 
   if (task.status !== 'ready') {
-    return <>{children}</>;
+    return (
+      <TaskViewWrapper projectId={projectId} taskId={taskId}>
+        {children}
+      </TaskViewWrapper>
+    );
   } else {
     return (
       <TaskViewWrapper projectId={projectId} taskId={taskId}>
