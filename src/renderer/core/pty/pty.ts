@@ -56,6 +56,8 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private _buffer: string | null = ''; // null = flushed, writes go direct
   private offData: () => void;
+  /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
+  lastSentDims: { cols: number; rows: number } | null = null;
 
   constructor(sessionId: string, theme?: SessionTheme) {
     this.ownedContainer = document.createElement('div');
@@ -231,6 +233,14 @@ class FrontendPtyRegistry {
       pty.dispose();
     }
     this.ptys.clear();
+  }
+
+  /** Apply a theme to all registered terminals. Called on app-level theme change. */
+  applyThemeToAll(theme?: SessionTheme): void {
+    const xTermTheme = buildTheme(theme);
+    for (const pty of this.ptys.values()) {
+      pty.terminal.options.theme = xTermTheme;
+    }
   }
 }
 
