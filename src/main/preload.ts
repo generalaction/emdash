@@ -5,6 +5,7 @@ import type { AgentEvent } from '../shared/agentEvents';
 import type { McpServer } from '../shared/mcp/types';
 import type { DiffPayload } from '../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../shared/git/types';
+import type { ResourceMetricsSnapshot } from '../shared/performanceTypes';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -907,6 +908,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('automation:trigger-available', wrapped);
     };
+  },
+
+  // Performance Monitor
+  perfSubscribe: () => ipcRenderer.invoke('perf:subscribe'),
+  perfUnsubscribe: () => ipcRenderer.invoke('perf:unsubscribe'),
+  perfGetSnapshot: (mode?: 'interactive' | 'idle') => ipcRenderer.invoke('perf:getSnapshot', mode),
+  onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => {
+    const channel = 'perf:snapshot';
+    const wrapped = (_: Electron.IpcRendererEvent, data: ResourceMetricsSnapshot) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
   },
 });
 

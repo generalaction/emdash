@@ -63,6 +63,7 @@ export interface KeyboardSettings {
 
 export interface InterfaceSettings {
   autoRightSidebarBehavior?: boolean;
+  showResourceMonitor?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
   taskHoverAction?: 'delete' | 'archive';
 }
@@ -194,6 +195,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   interface: {
     autoRightSidebarBehavior: false,
+    showResourceMonitor: false,
     theme: 'system',
     taskHoverAction: 'delete',
   },
@@ -527,6 +529,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   out.interface = {
     autoRightSidebarBehavior: Boolean(
       iface?.autoRightSidebarBehavior ?? DEFAULT_SETTINGS.interface!.autoRightSidebarBehavior
+    ),
+    showResourceMonitor: Boolean(
+      iface?.showResourceMonitor ?? DEFAULT_SETTINGS.interface!.showResourceMonitor
     ),
     theme: ['light', 'dark', 'dark-black', 'system'].includes(iface?.theme)
       ? iface.theme

@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.39",
+  "version": "0.4.40",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -47,6 +47,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "@types/node": "^20.10.0",
+    "@types/pidusage": "^2.0.5",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
     "@types/react-syntax-highlighter": "^15.5.13",
@@ -121,6 +122,7 @@
     "motion": "^12.23.12",
     "nbranch": "^0.1.0",
     "node-pty": "1.0.0",
+    "pidusage": "^4.0.1",
     "posthog-js": "^1.297.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

@@ -81,6 +81,28 @@ describe('normalizeSettings – taskHoverAction', () => {
   });
 });
 
+describe('normalizeSettings – showResourceMonitor', () => {
+  it('defaults to false when interface section is missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.interface?.showResourceMonitor).toBe(false);
+  });
+
+  it('preserves false when explicitly set', () => {
+    const result = normalizeSettings(makeSettings({ interface: { showResourceMonitor: false } }));
+    expect(result.interface?.showResourceMonitor).toBe(false);
+  });
+
+  it('preserves true when explicitly set', () => {
+    const result = normalizeSettings(makeSettings({ interface: { showResourceMonitor: true } }));
+    expect(result.interface?.showResourceMonitor).toBe(true);
+  });
+
+  it('coerces missing value inside interface to false', () => {
+    const result = normalizeSettings(makeSettings({ interface: {} }));
+    expect(result.interface?.showResourceMonitor).toBe(false);
+  });
+});
+
 describe('normalizeSettings – autoInferTaskNames', () => {
   it('defaults to true when tasks section is missing', () => {
     const result = normalizeSettings(makeSettings());
