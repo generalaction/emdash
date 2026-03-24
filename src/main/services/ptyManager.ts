@@ -1626,6 +1626,13 @@ export async function startPty(options: {
       cwd: useCwd,
       env: useEnv,
     });
+
+    if (process.platform === 'win32') {
+      (proc as IPty & { on?: (event: string, listener: (error: Error) => void) => void }).on?.(
+        'error',
+        () => {}
+      );
+    }
   } catch (err: any) {
     // Track initial spawn error
     const provider = args.find((arg) => PROVIDERS.some((p) => p.cli === arg));

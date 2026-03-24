@@ -1330,7 +1330,7 @@ export function registerPtyIpc(): void {
             : undefined;
 
           const remoteInit = buildRemoteInitKeystrokes({
-            cwd: undefined,
+            cwd: remoteSessionBackend === 'zellij' ? undefined : cwd,
             provider: remoteProvider,
             persistentSession: persistentRemoteSession,
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
