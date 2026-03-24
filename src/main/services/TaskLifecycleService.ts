@@ -468,6 +468,7 @@ class TaskLifecycleService extends EventEmitter {
           );
           const untrack = this.trackFinitePty(taskId, stopPty);
           stopPty.onData((line) => {
+            if (!this.finitePtys.get(taskId)?.has(stopPty)) return;
             this.emitLifecycleEvent(taskId, 'run', 'line', { line });
           });
           await new Promise<void>((resolve) => {
