@@ -450,4 +450,14 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://cognition.ai/blog/deepwiki-mcp-server',
     credentialKeys: [],
   },
+  excalidraw: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.excalidraw.com',
+    },
+    name: 'Excalidraw',
+    description: 'Stream hand-drawn Excalidraw diagrams with interactive fullscreen editing',
+    docsUrl: 'https://github.com/excalidraw/excalidraw-mcp',
+    credentialKeys: [],
+  },
 };
