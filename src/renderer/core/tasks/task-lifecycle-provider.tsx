@@ -139,6 +139,7 @@ export function TaskLifecycleProvider({ children }: { children: ReactNode }) {
         .archiveTask(projectId, taskId)
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['tearing-down-tasks'] });
           setTaskStatus((prev) => {
             const next = { ...prev };
             delete next[taskId];
