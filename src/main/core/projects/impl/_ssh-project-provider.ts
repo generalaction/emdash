@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
-import { Task } from 'vitest';
 import { Conversation } from '@shared/conversations';
 import { SshProject } from '@shared/projects';
-import type { TaskBootstrapStatus } from '@shared/tasks';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -21,17 +20,12 @@ import { log } from '@main/lib/logger';
 import { ok, type Result } from '@main/lib/result';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type {
-  BaseTaskProvisionArgs,
   ProjectProvider,
   ProvisionTaskError,
   TaskProvider,
   TeardownTaskError,
 } from '../project-provider';
 import { ProjectSettingsProvider } from '../settings/schema';
-
-interface SshProvisionArgs extends BaseTaskProvisionArgs {
-  workingDirectory: string;
-}
 
 export async function createSshProvider(project: SshProject): Promise<SshProjectProvider> {
   try {
@@ -156,6 +150,15 @@ export class SshProjectProvider implements ProjectProvider {
     return ok(taskEnv);
   }
 
+  async retryTaskProvision(
+    task: Task,
+    conversations: Conversation[],
+    terminals: Terminal[]
+  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
+    this.environments.delete(task.id);
+    return this.provisionTask(task, conversations, terminals);
+  }
+
   getTask(taskId: string): TaskProvider | undefined {
     return this.environments.get(taskId);
   }
@@ -172,6 +175,10 @@ export class SshProjectProvider implements ProjectProvider {
     this.terminalProviders.delete(taskId);
     this.environments.delete(taskId);
     return ok();
+  }
+
+  async retryTaskTeardown(taskId: string): Promise<Result<void, TeardownTaskError>> {
+    return this.teadownTask(taskId);
   }
 
   async cleanup(): Promise<void> {

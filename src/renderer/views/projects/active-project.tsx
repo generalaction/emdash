@@ -13,7 +13,7 @@ import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
 import { useRequiredCurrentProject } from './project-view-wrapper';
-import { TaskList } from './task-list/task-list';
+import { TaskList } from './task-list';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();

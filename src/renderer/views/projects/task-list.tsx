@@ -1,41 +1,39 @@
-import { Archive, MoreHorizontal, Pencil, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Archive, MoreHorizontal, Pencil, RotateCcw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Task } from '@shared/tasks';
-import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
-import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
-import { Button } from '../../../components/ui/button';
-import { Checkbox } from '../../../components/ui/checkbox';
+import { Button } from '@renderer/components/ui/button';
+import { Checkbox } from '@renderer/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../../../components/ui/dropdown-menu';
-import { Input } from '../../../components/ui/input';
-import { Spinner } from '../../../components/ui/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
+} from '@renderer/components/ui/dropdown-menu';
+import { Input } from '@renderer/components/ui/input';
+import { Spinner } from '@renderer/components/ui/spinner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
+import { useTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
+import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 
 function TaskRow({
   task,
-  isBootstrapping,
   isSelected,
   onToggleSelect,
-  onArchive,
-  onRestore,
-  onDelete,
 }: {
   task: Task;
-  isBootstrapping: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
-  onArchive?: () => void;
-  onRestore?: () => void;
-  onDelete: () => void;
 }) {
   const { navigate } = useNavigate();
+  const { archiveTask, restoreTask, provisionTask } = useTaskLifecycleContext();
+  const lifecycleTask = useTask({ projectId: task.projectId, taskId: task.id });
+
+  const handleArchive = () => archiveTask(task.projectId, task.id);
+  const handleRestore = () => restoreTask(task.id);
+
+  const handleProvision = () => provisionTask(task.id);
 
   return (
     <div className="group flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-muted/50">
@@ -43,11 +41,17 @@ function TaskRow({
       <button
         type="button"
         className="flex-1 min-w-0 text-left text-sm truncate hover:underline"
-        onClick={() => navigate('task', { projectId: task.projectId, taskId: task.id })}
+        onClick={() => {
+          handleProvision();
+          navigate('task', { projectId: task.projectId, taskId: task.id });
+        }}
+        onPointerEnter={handleProvision}
       >
         {task.name}
       </button>
-      {isBootstrapping && <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />}
+      {lifecycleTask.status !== 'ready' && (
+        <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -62,25 +66,18 @@ function TaskRow({
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {onArchive && (
-            <DropdownMenuItem onClick={onArchive}>
-              <Archive className="size-4" />
-              Archive
-            </DropdownMenuItem>
-          )}
-          {onRestore && (
-            <DropdownMenuItem onClick={onRestore}>
-              <RotateCcw className="size-4" />
-              Restore
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={handleArchive}>
+            <Archive className="size-4" />
+            Archive
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleRestore}>
+            <RotateCcw className="size-4" />
+            Restore
+          </DropdownMenuItem>
+
           <DropdownMenuItem>
             <Pencil className="size-4" />
             Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            <Trash2 className="size-4" />
-            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -90,20 +87,12 @@ function TaskRow({
 
 function TaskRows({
   tasks,
-  bootstrappingIds,
   selectedIds,
   onToggleSelect,
-  onArchive,
-  onRestore,
-  onDelete,
 }: {
   tasks: Task[];
-  bootstrappingIds: Set<string>;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
-  onArchive?: (task: Task) => void;
-  onRestore?: (task: Task) => void;
-  onDelete: (task: Task) => void;
 }) {
   if (tasks.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No tasks</p>;
@@ -115,12 +104,8 @@ function TaskRows({
         <TaskRow
           key={task.id}
           task={task}
-          isBootstrapping={bootstrappingIds.has(task.id)}
           isSelected={selectedIds.has(task.id)}
           onToggleSelect={() => onToggleSelect(task.id)}
-          onArchive={onArchive ? () => onArchive(task) : undefined}
-          onRestore={onRestore ? () => onRestore(task) : undefined}
-          onDelete={() => onDelete(task)}
         />
       ))}
     </div>
@@ -129,30 +114,15 @@ function TaskRows({
 
 export function TaskList() {
   const project = useRequiredCurrentProject();
-  const { tasksByProjectId, activeTasksByProjectId, archiveTask, restoreTask, deleteTask } =
-    useTasksDataContext();
-  const { entries: bootstrapEntries } = useTaskBootstrapContext();
-  const showConfirm = useShowModal('confirmActionModal');
+  const { activeTasksByProjectId, archivedTasksByProjectId } = useTasksDataContext();
+  const { archiveTask, restoreTask } = useTaskLifecycleContext();
 
   const activeTasks = activeTasksByProjectId[project.id] ?? [];
-  const archivedTasks = useMemo(() => {
-    const all = tasksByProjectId[project.id] ?? [];
-    return all.filter((t) => Boolean(t.archivedAt));
-  }, [tasksByProjectId, project.id]);
+  const archivedTasks = archivedTasksByProjectId[project.id] ?? [];
 
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  const bootstrappingIds = useMemo(
-    () =>
-      new Set(
-        Object.entries(bootstrapEntries)
-          .filter(([, entry]) => entry.status === 'bootstrapping')
-          .map(([id]) => id)
-      ),
-    [bootstrapEntries]
-  );
 
   const displayTasks = activeTab === 'active' ? activeTasks : archivedTasks;
 
@@ -180,51 +150,16 @@ export function TaskList() {
     clearSelection();
   };
 
-  // Single-task actions
-  const handleArchive = (task: Task) => {
-    archiveTask(task.projectId, task.id);
-  };
-
-  const handleRestore = (task: Task) => {
-    restoreTask(task.id);
-  };
-
-  const handleDelete = (task: Task) => {
-    showConfirm({
-      title: 'Delete task',
-      description: `"${task.name}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => deleteTask(task.id),
-    });
-  };
-
-  // Bulk actions
   const bulkArchive = () => {
     const ids = [...selectedIds];
-    Promise.all(
-      ids.map((id) => {
-        const task = activeTasks.find((t) => t.id === id);
-        return task ? archiveTask(task.projectId, task.id) : Promise.resolve();
-      })
-    ).then(clearSelection);
+    ids.forEach((id) => archiveTask(project.id, id));
+    clearSelection();
   };
 
   const bulkRestore = () => {
     const ids = [...selectedIds];
-    Promise.all(ids.map((id) => restoreTask(id))).then(clearSelection);
-  };
-
-  const bulkDelete = () => {
-    const count = selectedIds.size;
-    showConfirm({
-      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
-      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      onSuccess: () => {
-        const ids = [...selectedIds];
-        Promise.all(ids.map((id) => deleteTask(id))).then(clearSelection);
-      },
-    });
+    ids.forEach((id) => restoreTask(id));
+    clearSelection();
   };
 
   return (
@@ -273,10 +208,6 @@ export function TaskList() {
                       Restore
                     </Button>
                   )}
-                  <Button variant="destructive" size="sm" onClick={bulkDelete}>
-                    <Trash2 className="size-3.5" />
-                    Delete
-                  </Button>
                 </div>
               </>
             ) : (
@@ -288,24 +219,10 @@ export function TaskList() {
         )}
 
         <TabsContent value="active">
-          <TaskRows
-            tasks={filteredTasks}
-            bootstrappingIds={bootstrappingIds}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onArchive={handleArchive}
-            onDelete={handleDelete}
-          />
+          <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
         <TabsContent value="archived">
-          <TaskRows
-            tasks={filteredTasks}
-            bootstrappingIds={bootstrappingIds}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onRestore={handleRestore}
-            onDelete={handleDelete}
-          />
+          <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
       </Tabs>
     </div>

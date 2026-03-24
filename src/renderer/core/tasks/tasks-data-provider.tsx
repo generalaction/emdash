@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import React, { createContext, useContext, useMemo } from 'react';
 import { Task } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 
@@ -7,9 +7,7 @@ interface TasksDataContextValue {
   tasks: Task[];
   tasksByProjectId: Record<string, Task[]>;
   activeTasksByProjectId: Record<string, Task[]>;
-  archiveTask: (projectId: string, taskId: string) => Promise<void>;
-  restoreTask: (taskId: string) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<void>;
+  archivedTasksByProjectId: Record<string, Task[]>;
 }
 
 const TasksDataContext = createContext<TasksDataContextValue | null>(null);
@@ -23,8 +21,6 @@ export function useTasksDataContext(): TasksDataContextValue {
 }
 
 export function TasksDataProvider({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
-
   const { data: tasks } = useQuery({
     queryKey: ['tasks'],
     queryFn: () => rpc.tasks.getTasks(),
@@ -53,40 +49,17 @@ export function TasksDataProvider({ children }: { children: React.ReactNode }) {
       );
   }, [tasks]);
 
-  const invalidateTasks = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['tasks'] });
-  }, [queryClient]);
-
-  const archiveTaskMutation = useMutation({
-    mutationFn: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
-      rpc.tasks.archiveTask(projectId, taskId),
-    onSuccess: invalidateTasks,
-  });
-
-  const restoreTaskMutation = useMutation({
-    mutationFn: (taskId: string) => rpc.tasks.restoreTask(taskId),
-    onSuccess: invalidateTasks,
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: (taskId: string) => rpc.tasks.deleteTask(taskId),
-    onSuccess: invalidateTasks,
-  });
-
-  const archiveTask = useCallback(
-    (projectId: string, taskId: string) => archiveTaskMutation.mutateAsync({ projectId, taskId }),
-    [archiveTaskMutation]
-  );
-
-  const restoreTask = useCallback(
-    (taskId: string) => restoreTaskMutation.mutateAsync(taskId),
-    [restoreTaskMutation]
-  );
-
-  const deleteTask = useCallback(
-    (taskId: string) => deleteTaskMutation.mutateAsync(taskId),
-    [deleteTaskMutation]
-  );
+  const archivedTasksByProjectId = useMemo(() => {
+    return (tasks ?? [])
+      .filter((t) => Boolean(t.archivedAt))
+      .reduce(
+        (acc, t) => {
+          acc[t.projectId] = [...(acc[t.projectId] ?? []), t];
+          return acc;
+        },
+        {} as Record<string, Task[]>
+      );
+  }, [tasks]);
 
   return (
     <TasksDataContext.Provider
@@ -94,9 +67,7 @@ export function TasksDataProvider({ children }: { children: React.ReactNode }) {
         tasks: tasks ?? [],
         tasksByProjectId,
         activeTasksByProjectId,
-        archiveTask,
-        restoreTask,
-        deleteTask,
+        archivedTasksByProjectId,
       }}
     >
       {children}

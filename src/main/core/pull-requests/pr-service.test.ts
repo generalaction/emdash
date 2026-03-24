@@ -1,10 +1,50 @@
 import type { Octokit } from '@octokit/rest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GitHubPullRequestServiceImpl } from './pr-service';
+// Retrieve the exposed mock handles after the module is set up
+import { _mocks as dbMocks } from '@main/db/client';
+import { PrService } from './pr-service';
 
-vi.mock('./octokit-provider', () => ({
+vi.mock('@main/core/github/services/octokit-provider', () => ({
   getOctokit: vi.fn(),
 }));
+
+vi.mock('@main/core/projects/project-manager', () => ({
+  projectManager: { getProject: vi.fn() },
+}));
+
+vi.mock('@main/core/projects/utils', () => ({
+  resolveTask: vi.fn(),
+}));
+
+// ---------------------------------------------------------------------------
+// DB mock — makes upsert a transparent passthrough during unit tests.
+// The db module is mocked with a chainable builder. mockReturning and
+// mockOrderBy are exposed so individual tests can control return values.
+// ---------------------------------------------------------------------------
+
+vi.mock('@main/db/client', () => {
+  const mockReturning = vi.fn().mockResolvedValue([]);
+  const mockOnConflict = vi.fn().mockReturnValue({ returning: mockReturning });
+  const mockValues = vi.fn().mockReturnValue({ onConflictDoUpdate: mockOnConflict });
+  const mockInsert = vi.fn().mockReturnValue({ values: mockValues });
+
+  const mockOrderBy = vi.fn().mockResolvedValue([]);
+  const mockLimit = vi.fn().mockResolvedValue([]);
+  const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy, limit: mockLimit });
+  const mockFrom = vi.fn().mockReturnValue({ where: mockWhere, orderBy: mockOrderBy });
+  const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
+
+  // Expose via module so tests can access them via import
+  return {
+    db: { insert: mockInsert, select: mockSelect },
+    _mocks: { mockReturning, mockOrderBy },
+  };
+});
+
+const { mockReturning, mockOrderBy } = dbMocks as {
+  mockReturning: ReturnType<typeof vi.fn>;
+  mockOrderBy: ReturnType<typeof vi.fn>;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +59,35 @@ function makeOctokitFactory(
     rest: restMock ?? {},
   } as unknown as Octokit;
   return async () => octokit;
+}
+
+/** Produce a fake DB row that round-trips through dbRowToUnified → expectedUnified. */
+function makeFakeDbRow(pr: {
+  url: string;
+  provider: string;
+  nameWithOwner: string;
+  title: string;
+  status: string;
+  author: unknown;
+  isDraft: boolean;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}) {
+  return {
+    id: pr.url,
+    provider: pr.provider,
+    nameWithOwner: pr.nameWithOwner,
+    url: pr.url,
+    title: pr.title,
+    status: pr.status,
+    author: JSON.stringify(pr.author),
+    isDraft: Number(pr.isDraft),
+    metadata: JSON.stringify(pr.metadata),
+    createdAt: pr.createdAt,
+    updatedAt: pr.updatedAt,
+    fetchedAt: '2024-01-02T00:00:00Z',
+  };
 }
 
 const NAME_WITH_OWNER = 'acme/my-repo';
@@ -55,6 +124,7 @@ const gqlPrNode = {
 
 const expectedUnified = {
   id: 'https://github.com/acme/my-repo/pull/42',
+  identifier: '#42',
   nameWithOwner: 'acme/my-repo',
   provider: 'github',
   url: 'https://github.com/acme/my-repo/pull/42',
@@ -94,13 +164,15 @@ const expectedUnified = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
+describe('PrService.listPullRequests (invalidate=true)', () => {
   let graphqlMock: ReturnType<typeof vi.fn>;
-  let svc: GitHubPullRequestServiceImpl;
+  let svc: PrService;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     graphqlMock = vi.fn();
-    svc = new GitHubPullRequestServiceImpl(makeOctokitFactory(graphqlMock));
+    svc = new PrService(makeOctokitFactory(graphqlMock));
+    mockReturning.mockResolvedValue([makeFakeDbRow(expectedUnified)]);
   });
 
   it('uses repository query when no search', async () => {
@@ -108,51 +180,47 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
       repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
     });
 
-    const result = await svc.listPullRequests(NAME_WITH_OWNER, { limit: 10 });
+    const result = await svc.listPullRequests(NAME_WITH_OWNER, { limit: 10 }, true);
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('listPullRequests'), {
       owner: 'acme',
       repo: 'my-repo',
       limit: 10,
     });
-    expect(result.prs).toEqual([expectedUnified]);
-    expect(result.totalCount).toBe(1);
+    expect(result).toEqual([expectedUnified]);
   });
 
   it('uses search query when searchQuery provided', async () => {
     graphqlMock.mockResolvedValue({
-      search: { issueCount: 99, nodes: [gqlPrNode] },
+      search: { nodes: [gqlPrNode] },
     });
 
-    const result = await svc.listPullRequests(NAME_WITH_OWNER, { searchQuery: 'widget', limit: 5 });
+    const result = await svc.listPullRequests(
+      NAME_WITH_OWNER,
+      { searchQuery: 'widget', limit: 5 },
+      true
+    );
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('searchPullRequests'), {
       query: `widget repo:${NAME_WITH_OWNER} is:pr is:open`,
       limit: 5,
     });
-    expect(result.totalCount).toBe(99);
-    expect(result.prs).toHaveLength(1);
-  });
-
-  it('throws on error', async () => {
-    graphqlMock.mockRejectedValue(new Error('network error'));
-
-    await expect(svc.listPullRequests(NAME_WITH_OWNER)).rejects.toThrow('network error');
+    expect(result).toHaveLength(1);
   });
 
   it('clamps limit to [1, 100]', async () => {
     graphqlMock.mockResolvedValue({
-      repository: { pullRequests: { totalCount: 0, nodes: [] } },
+      repository: { pullRequests: { nodes: [] } },
     });
 
-    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 999 });
+    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 999 }, true);
     expect(graphqlMock).toHaveBeenCalledWith(
       expect.stringContaining('listPullRequests'),
       expect.objectContaining({ limit: 100 })
     );
 
     graphqlMock.mockClear();
-    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 0 });
+    await svc.listPullRequests(NAME_WITH_OWNER, { limit: 0 }, true);
     expect(graphqlMock).toHaveBeenCalledWith(
       expect.stringContaining('listPullRequests'),
       expect.objectContaining({ limit: 1 })
@@ -161,38 +229,36 @@ describe('GitHubPullRequestServiceImpl.listPullRequests', () => {
 
   it('builds reviewer list from reviewRequests and latestReviews', async () => {
     graphqlMock.mockResolvedValue({
-      repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
+      repository: { pullRequests: { nodes: [gqlPrNode] } },
     });
 
-    const result = await svc.listPullRequests(NAME_WITH_OWNER);
+    const result = await svc.listPullRequests(NAME_WITH_OWNER, {}, true);
 
-    expect(result.prs[0].metadata.reviewers).toEqual([
+    expect(result[0].metadata.reviewers).toEqual([
       { login: 'pending-reviewer', state: 'PENDING' },
       { login: 'reviewer', state: 'APPROVED' },
     ]);
   });
 
-  it('flattens labels and assignees from GraphQL nodes', async () => {
-    graphqlMock.mockResolvedValue({
-      repository: { pullRequests: { totalCount: 1, nodes: [gqlPrNode] } },
-    });
+  it('returns data from DB without fetching GitHub when invalidate=false', async () => {
+    mockOrderBy.mockResolvedValue([makeFakeDbRow(expectedUnified)]);
 
     const result = await svc.listPullRequests(NAME_WITH_OWNER);
 
-    expect(result.prs[0].metadata.labels).toEqual([{ name: 'enhancement', color: '84b6eb' }]);
-    expect(result.prs[0].metadata.assignees).toEqual([
-      { login: 'dev', avatarUrl: 'https://avatar.test/dev' },
-    ]);
+    expect(graphqlMock).not.toHaveBeenCalled();
+    expect(result).toEqual([expectedUnified]);
   });
 });
 
-describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
+describe('PrService.getPullRequest (invalidate=true)', () => {
   let graphqlMock: ReturnType<typeof vi.fn>;
-  let svc: GitHubPullRequestServiceImpl;
+  let svc: PrService;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     graphqlMock = vi.fn();
-    svc = new GitHubPullRequestServiceImpl(makeOctokitFactory(graphqlMock));
+    svc = new PrService(makeOctokitFactory(graphqlMock));
+    mockReturning.mockResolvedValue([makeFakeDbRow(expectedUnified)]);
   });
 
   it('fetches a single PR by number and returns unified model', async () => {
@@ -200,7 +266,7 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
       repository: { pullRequest: gqlPrNode },
     });
 
-    const result = await svc.getPullRequestDetails(NAME_WITH_OWNER, 42);
+    const result = await svc.getPullRequest(NAME_WITH_OWNER, 42, true);
 
     expect(graphqlMock).toHaveBeenCalledWith(expect.stringContaining('getPullRequest'), {
       owner: 'acme',
@@ -213,51 +279,17 @@ describe('GitHubPullRequestServiceImpl.getPullRequestDetails', () => {
   it('returns null when PR not found', async () => {
     graphqlMock.mockResolvedValue({ repository: { pullRequest: null } });
 
-    expect(await svc.getPullRequestDetails(NAME_WITH_OWNER, 999)).toBeNull();
+    expect(await svc.getPullRequest(NAME_WITH_OWNER, 999, true)).toBeNull();
   });
 
   it('throws on error', async () => {
     graphqlMock.mockRejectedValue(new Error('not found'));
 
-    await expect(svc.getPullRequestDetails(NAME_WITH_OWNER, 999)).rejects.toThrow('not found');
+    await expect(svc.getPullRequest(NAME_WITH_OWNER, 999, true)).rejects.toThrow('not found');
   });
 });
 
-describe('GitHubPullRequestServiceImpl.getPullRequestsByBranch', () => {
-  let graphqlMock: ReturnType<typeof vi.fn>;
-  let svc: GitHubPullRequestServiceImpl;
-
-  beforeEach(() => {
-    graphqlMock = vi.fn();
-    svc = new GitHubPullRequestServiceImpl(makeOctokitFactory(graphqlMock));
-  });
-
-  it('searches by head branch and returns unified model with full metadata', async () => {
-    graphqlMock.mockResolvedValue({
-      search: { nodes: [gqlPrNode] },
-    });
-
-    const result = await svc.getPullRequestsByBranch(NAME_WITH_OWNER, 'feat/widget');
-
-    expect(graphqlMock).toHaveBeenCalledWith(
-      expect.stringContaining('searchPullRequests'),
-      expect.objectContaining({ query: `repo:${NAME_WITH_OWNER} is:pr head:feat/widget` })
-    );
-    expect(result).toEqual([expectedUnified]);
-    expect(result[0].metadata.mergeStateStatus).toBe('CLEAN');
-    expect(result[0].metadata.mergeable).toBe('MERGEABLE');
-  });
-
-  it('returns empty array when no PRs found', async () => {
-    graphqlMock.mockResolvedValue({ search: { nodes: [] } });
-
-    const result = await svc.getPullRequestsByBranch(NAME_WITH_OWNER, 'feat/no-pr');
-
-    expect(result).toEqual([]);
-  });
-});
-
-describe('GitHubPullRequestServiceImpl (REST-backed methods)', () => {
+describe('PrService (REST-backed methods)', () => {
   const mockCreate = vi.fn();
   const mockMerge = vi.fn();
   const mockListFiles = vi.fn();
@@ -285,17 +317,20 @@ describe('GitHubPullRequestServiceImpl (REST-backed methods)', () => {
   } as unknown as Octokit;
 
   const getOctokit = vi.fn().mockResolvedValue(mockOctokit);
-  let service: GitHubPullRequestServiceImpl;
+  let service: PrService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new GitHubPullRequestServiceImpl(getOctokit);
+    service = new PrService(getOctokit);
+    mockReturning.mockResolvedValue([makeFakeDbRow(expectedUnified)]);
   });
 
   it('createPullRequest returns URL and number', async () => {
     mockCreate.mockResolvedValue({
       data: { html_url: 'https://github.com/owner/repo/pull/1', number: 1 },
     });
+    // Subsequent getPullRequest(invalidate=true) call
+    mockGraphql.mockResolvedValue({ repository: { pullRequest: gqlPrNode } });
 
     const result = await service.createPullRequest({
       nameWithOwner: 'owner/repo',
@@ -324,6 +359,8 @@ describe('GitHubPullRequestServiceImpl (REST-backed methods)', () => {
     mockMerge.mockResolvedValue({
       data: { sha: 'abc123', merged: true, message: 'Pull Request successfully merged' },
     });
+    // Subsequent getPullRequest(invalidate=true) call
+    mockGraphql.mockResolvedValue({ repository: { pullRequest: gqlPrNode } });
 
     const result = await service.mergePullRequest('owner/repo', 42, {
       strategy: 'squash',

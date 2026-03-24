@@ -129,8 +129,10 @@ export function PrProvider({
 
   const refreshPullRequest = useCallback(
     (_id: string) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['pullRequests', 'task', projectId, taskId],
+      void rpc.pullRequests.getPullRequestsForTask(projectId, taskId, true).then(() => {
+        void queryClient.invalidateQueries({
+          queryKey: ['pullRequests', 'task', projectId, taskId],
+        });
       });
     },
     [projectId, taskId, queryClient]

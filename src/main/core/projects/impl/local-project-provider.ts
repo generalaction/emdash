@@ -4,17 +4,17 @@ import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
-import { LocalConversationProvider } from '../../conversations/impl/local-conversation';
-import { appSettingsService } from '../../settings/settings-service';
-import { LocalTerminalProvider } from '../../terminals/impl/local-terminal-provider';
 import type {
   ProjectProvider,
   ProvisionTaskError,

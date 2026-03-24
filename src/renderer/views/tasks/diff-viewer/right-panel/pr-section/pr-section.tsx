@@ -291,10 +291,16 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
       </div>
       <div className="min-h-0">
         <Tabs defaultValue="files" className="flex flex-col min-h-0 flex-1">
-          <TabsList>
-            <TabsTrigger value="files">Files</TabsTrigger>
-            <TabsTrigger value="commits">Commits</TabsTrigger>
-            <TabsTrigger value="checks">Checks</TabsTrigger>
+          <TabsList className="w-full">
+            <TabsTrigger className="text-xs font-normal" value="files">
+              Files
+            </TabsTrigger>
+            <TabsTrigger className="text-xs font-normal" value="commits">
+              Commits
+            </TabsTrigger>
+            <TabsTrigger className="text-xs font-normal" value="checks">
+              Checks
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="files">
             <PrFilesList pr={pr} />

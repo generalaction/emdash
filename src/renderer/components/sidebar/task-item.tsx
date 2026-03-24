@@ -1,6 +1,5 @@
 import React from 'react';
-import { rpc } from '@renderer/core/ipc';
-import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
+import { useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { TaskItem } from './project-item';
@@ -13,15 +12,14 @@ interface SidebarTaskItemProps {
 
 export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActive }) => {
   const { navigate } = useNavigate();
-  const { entries } = useTaskBootstrapContext();
+  const { taskStatus, provisionTask } = useTaskLifecycleContext();
 
+  const status = taskStatus[task.data.id];
   const isBootstrapping =
-    task.status === 'pending' || entries[task.data.id]?.status === 'bootstrapping';
+    task.status === 'pending' || status === 'creating' || status === 'provisioning';
 
   const handleProvision = () => {
-    if (task.status === 'ready') {
-      rpc.tasks.provisionTask(task.data.id).catch(console.error);
-    }
+    provisionTask(task.data.id);
   };
 
   return (

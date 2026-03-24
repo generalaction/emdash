@@ -19,8 +19,8 @@ import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
+import { useTaskLifecycleContext } from '../../core/tasks/task-lifecycle-provider';
 import { BranchSelector } from './branch-selector';
-import { usePendingTasksContext } from './pending-tasks-provider';
 
 function liveTransformTaskName(name: string) {
   return name
@@ -37,7 +37,7 @@ export function CreateTaskModal({
   onClose,
 }: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
-  const { createTask } = usePendingTasksContext();
+  const { createTask } = useTaskLifecycleContext();
   const { navigate } = useNavigate();
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
     defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined

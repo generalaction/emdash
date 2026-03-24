@@ -6,11 +6,15 @@ import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { RightPanelView, useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
 
 export function TaskTitlebar() {
-  const { taskStatus } = useTaskViewContext();
-  if (taskStatus.status === 'pending') {
-    return <PendingTaskTitlebar name={taskStatus.pendingTask?.name} />;
+  const { lifecycleTask } = useTaskViewContext();
+  if (lifecycleTask.status === 'creating') {
+    return <PendingTaskTitlebar name={lifecycleTask.task.name} />;
   }
-  if (taskStatus.status === 'bootstrapping' || taskStatus.status === 'error') {
+  if (
+    lifecycleTask.status === 'create-error' ||
+    lifecycleTask.status === 'provisioning' ||
+    lifecycleTask.status === 'provision-error'
+  ) {
     return <PendingTaskTitlebar />;
   }
   return <ActiveTaskTitlebar />;
@@ -29,7 +33,7 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 }
 
 function ActiveTaskTitlebar() {
-  const { view, task, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
+  const { view, lifecycleTask, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
 
   const delayedIsPending = useDelayedBoolean(isPending, 200);
@@ -38,7 +42,7 @@ function ActiveTaskTitlebar() {
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
-          <span className="text-sm text-muted-foreground">{task.name}</span>
+          <span className="text-sm text-muted-foreground">{lifecycleTask.task.name}</span>
           {/* <OpenInMenu path={'/'} align="right" /> */}
         </div>
       }

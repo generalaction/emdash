@@ -16,6 +16,18 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       : `${params.taskBranch}-${suffix}`
     : undefined;
 
+  const project = projectManager.getProject(params.projectId);
+  if (!project) {
+    throw new Error('Project not found');
+  }
+
+  if (taskBranch) {
+    await project.git.createBranch(taskBranch, params.sourceBranch);
+    if (params.pushBranch) {
+      await project.git.publishBranch(taskBranch);
+    }
+  }
+
   const [taskRow] = await db
     .insert(tasks)
     .values({
@@ -41,18 +53,6 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     createdAt: taskRow.createdAt,
     updatedAt: taskRow.updatedAt,
   };
-
-  const project = projectManager.getProject(params.projectId);
-  if (!project) {
-    throw new Error('Project not found');
-  }
-
-  if (taskBranch) {
-    await project.git.createBranch(taskBranch, params.sourceBranch);
-    if (params.pushBranch) {
-      await project.git.publishBranch(taskBranch);
-    }
-  }
 
   const provisionResult = await project.provisionTask(task, [], []);
   if (!provisionResult.success) {

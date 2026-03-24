@@ -1,41 +1,42 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect } from 'react';
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
-import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
 import { useConversations } from '@renderer/core/conversations/use-conversations';
-import { useTaskBootstrapContext } from '@renderer/core/tasks/task-bootstrap-provider';
+import {
+  LifecycleTask,
+  useTask,
+  useTaskLifecycleContext,
+} from '@renderer/core/tasks/task-lifecycle-provider';
 import { useTaskViewState } from '@renderer/core/tasks/task-view-state-provider';
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
-import { useTask, type TaskStatus } from './hooks/use-task';
 import { LifecycleScriptType, TerminalTabItem, useTerminals } from './hooks/use-terminals';
 
 export type RightPanelView = 'changes' | 'files' | 'terminals';
 export type MainPanelView = 'agents' | 'editor' | 'diff';
 
 interface TaskViewContext {
-  view: MainPanelView;
-  setView: (view: MainPanelView) => void;
   projectId: string;
   taskId: string;
-  activeConversationId?: string;
-  setActiveConversationId: (conversationId: string) => void;
-  activeTerminalId?: string;
-  setActiveTerminalId: (terminalId: string | undefined) => void;
+  lifecycleTask: LifecycleTask;
+  view: MainPanelView;
+  setView: (view: MainPanelView) => void;
   rightPanelView: RightPanelView;
   setRightPanelView: (view: RightPanelView) => void;
-  taskStatus: TaskStatus;
-  task?: Task;
+  activeTerminalId?: string;
+  setActiveTerminalId: (terminalId: string | undefined) => void;
+  terminalTabItems: TerminalTabItem[];
+  createTerminal: () => Promise<Terminal>;
+  removeTerminal: (terminalId: string) => void;
+  activeConversationId?: string;
+  setActiveConversationId: (conversationId: string) => void;
   conversations: Conversation[];
   createConversation: (
     params: Omit<CreateConversationParams, 'projectId' | 'taskId'>
   ) => Promise<Conversation>;
   removeConversation: (conversationId: string) => void;
-  terminalTabItems: TerminalTabItem[];
-  createTerminal: () => Promise<Terminal>;
-  removeTerminal: (terminalId: string) => void;
   projectSettings?: ProjectSettings;
   runLifecycleScript: (type: LifecycleScriptType) => Promise<void>;
 }
@@ -52,12 +53,8 @@ export function TaskViewWrapper({
   taskId: string;
 }) {
   const { getTaskViewState, setTaskViewState } = useTaskViewState();
-  const { taskStatus, task } = useTask({ projectId, taskId });
-  const { entries, startTracking } = useTaskBootstrapContext();
+  const lifecycleTask = useTask({ projectId, taskId });
 
-  useEffect(() => {
-    startTracking(projectId, taskId);
-  }, [projectId, taskId, startTracking]);
   const { conversations, createConversation, removeConversation } = useConversations({
     projectId,
     taskId,
@@ -82,7 +79,9 @@ export function TaskViewWrapper({
 
   const setActiveConversationId = useCallback(
     (conversationId: string) => {
-      setTaskViewState(taskId, { agentsView: { activeConversationId: conversationId } });
+      setTaskViewState(taskId, {
+        agentsView: { activeConversationId: conversationId, rightPanelView: 'changes' },
+      });
     },
     [setTaskViewState, taskId]
   );
@@ -101,28 +100,20 @@ export function TaskViewWrapper({
     [setTaskViewState, taskId]
   );
 
-  const bootstrapEntry = entries[taskId];
-  const isBootstrapping =
-    bootstrapEntry?.status === 'bootstrapping' || taskStatus.status === 'pending';
-
-  console.log('[TaskViewWrapper] render', {
-    taskId,
-    taskStatus: taskStatus.status,
-    bootstrapEntryStatus: bootstrapEntry?.status,
-    isBootstrapping,
-  });
+  const s = lifecycleTask.status;
+  const hideRightPanel =
+    s === 'creating' || s === 'create-error' || s === 'provisioning' || s === 'provision-error';
 
   return (
-    <ViewLayoutOverrideContext.Provider value={{ hideRightPanel: isBootstrapping }}>
+    <ViewLayoutOverrideContext.Provider value={{ hideRightPanel }}>
       <ProjectViewWrapper projectId={projectId}>
         <TaskViewContext.Provider
           value={{
+            lifecycleTask,
             view,
             setView,
-            taskStatus,
             projectId,
             taskId,
-            task: task ?? undefined,
             activeConversationId: agentsView.activeConversationId,
             setActiveConversationId,
             activeTerminalId: terminalsView.activeTerminalId,
@@ -154,10 +145,15 @@ export function useTaskViewContext() {
   return context;
 }
 
-export function useReadyTaskViewContext(): TaskViewContext & { task: Task } {
+/** Asserts the task is fully provisioned and ready. */
+export function useReadyTaskViewContext(): TaskViewContext & {
+  lifecycleTask: Extract<LifecycleTask, { status: 'ready' }>;
+} {
   const context = useTaskViewContext();
-  if (!context.task) {
+  if (context.lifecycleTask.status !== 'ready') {
     throw new Error('useReadyTaskViewContext must be used within a ready task');
   }
-  return { ...context, task: context.task as Task };
+  return context as TaskViewContext & {
+    lifecycleTask: Extract<LifecycleTask, { status: 'ready' }>;
+  };
 }

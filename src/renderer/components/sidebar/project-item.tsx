@@ -5,13 +5,10 @@ import { Task } from '@shared/tasks';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
 import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
+import { PendingTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
 import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import {
-  PendingTask,
-  usePendingTasksContext,
-} from '@renderer/views/projects/pending-tasks-provider';
 import { PendingProject } from '../add-project-modal/pending-projects-provider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -41,7 +38,15 @@ export type TaskItem =
 export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   const { forceOpenIds, setForceOpenIds } = useSidebarContext();
   const { activeTasksByProjectId: tasksByProjectId } = useTasksDataContext();
-  const { pendingTasksByProjectId } = usePendingTasksContext();
+  const { pendingTasks } = useTaskLifecycleContext();
+  const pendingTasksByProjectId = useMemo(
+    () =>
+      Object.values(pendingTasks).reduce<Record<string, PendingTask[]>>((acc, t) => {
+        acc[t.projectId] = [...(acc[t.projectId] ?? []), t];
+        return acc;
+      }, {}),
+    [pendingTasks]
+  );
   const { entries: bootstrapEntries } = useProjectBootstrapContext();
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();

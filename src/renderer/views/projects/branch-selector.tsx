@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react';
-import { forwardRef, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Branch } from '@shared/git';
 import {
   Combobox,
@@ -90,42 +90,3 @@ export function BranchSelector({
     </Combobox>
   );
 }
-
-const BranchSelectorContent = forwardRef<
-  HTMLDivElement,
-  { remoteOnly: boolean; tab: 'local' | 'remote'; setTab: (tab: 'local' | 'remote') => void }
->(({ remoteOnly, tab, setTab }, ref) => {
-  return (
-    <div ref={ref} className="min-w-(--anchor-width)">
-      <div className="flex border-b px-1 pt-1">
-        <button
-          className={cn(
-            'px-3 py-1 text-sm',
-            tab === 'local' && 'border-b-2 border-primary font-medium disabled:opacity-50'
-          )}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setTab('local');
-          }}
-          disabled={remoteOnly}
-        >
-          Local
-        </button>
-        <button
-          className={cn(
-            'px-3 py-1 text-sm',
-            tab === 'remote' && 'border-b-2 border-primary font-medium'
-          )}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setTab('remote');
-          }}
-        >
-          Remote
-        </button>
-      </div>
-      <ComboboxInput />
-      <ComboboxList>{(item) => <ComboboxItem>{item.label}</ComboboxItem>}</ComboboxList>
-    </div>
-  );
-});

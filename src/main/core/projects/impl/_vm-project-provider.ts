@@ -1,24 +1,38 @@
+import { Conversation } from '@shared/conversations';
+import { Task } from '@shared/tasks';
+import { Terminal } from '@shared/terminals';
 import { err, ok, type Result } from '@main/lib/result';
 import type {
-  BaseTaskProvisionArgs,
   ProjectProvider,
   ProvisionTaskError,
   TaskProvider,
   TeardownTaskError,
 } from '../project-provider';
 
+const VM_NOT_IMPLEMENTED: ProvisionTaskError = {
+  type: 'error',
+  message:
+    'VmEnvironmentProvider is not yet implemented. ' +
+    'Set project.environmentProvider to "local" or "ssh" for now.',
+};
+
 export class VmEnvironmentProvider implements ProjectProvider {
   readonly type = 'vm';
 
   async provisionTask(
-    _args: BaseTaskProvisionArgs
+    _task: Task,
+    _conversations: Conversation[],
+    _terminals: Terminal[]
   ): Promise<Result<TaskProvider, ProvisionTaskError>> {
-    return err<ProvisionTaskError>({
-      type: 'error',
-      message:
-        'VmEnvironmentProvider is not yet implemented. ' +
-        'Set project.environmentProvider to "local" or "ssh" for now.',
-    });
+    return err<ProvisionTaskError>(VM_NOT_IMPLEMENTED);
+  }
+
+  async retryTaskProvision(
+    _task: Task,
+    _conversations: Conversation[],
+    _terminals: Terminal[]
+  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
+    return err<ProvisionTaskError>(VM_NOT_IMPLEMENTED);
   }
 
   getTask(_taskId: string): TaskProvider | undefined {
@@ -26,6 +40,10 @@ export class VmEnvironmentProvider implements ProjectProvider {
   }
 
   async teadownTask(_taskId: string): Promise<Result<void, TeardownTaskError>> {
+    return ok();
+  }
+
+  async retryTaskTeardown(_taskId: string): Promise<Result<void, TeardownTaskError>> {
     return ok();
   }
 
