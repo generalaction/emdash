@@ -1,6 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useCallback, useContext } from 'react';
-import type { Conversation, CreateConversationParams } from '@shared/conversations';
+import type {
+  Conversation,
+  CreateConversationParams,
+  RenameConversationParams,
+} from '@shared/conversations';
 import type { Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
@@ -35,6 +39,7 @@ interface TaskViewContext {
     params: Omit<CreateConversationParams, 'projectId' | 'taskId'>
   ) => Promise<Conversation>;
   removeConversation: (conversationId: string) => void;
+  renameConversation: (params: RenameConversationParams) => void;
   projectSettings?: ProjectSettings;
   runLifecycleScript: (type: LifecycleScriptType) => Promise<void>;
 }
@@ -53,10 +58,11 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   const taskState = taskViewStateStore.getOrCreate(taskId);
   const lifecycleTask = useTask({ projectId, taskId });
 
-  const { conversations, createConversation, removeConversation } = useConversations({
-    projectId,
-    taskId,
-  });
+  const { conversations, createConversation, removeConversation, renameConversation } =
+    useConversations({
+      projectId,
+      taskId,
+    });
 
   const { settings: projectSettings } = useProjectSettings(projectId);
 
@@ -111,6 +117,7 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
             conversations,
             createConversation,
             removeConversation,
+            renameConversation,
             terminalTabItems,
             createTerminal,
             removeTerminal,
