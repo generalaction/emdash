@@ -137,6 +137,20 @@ export class WorktreeService {
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePath = path.join(this.worktreePoolPath, branchName);
     if (fs.existsSync(worktreePath)) return worktreePath;
+
+    try {
+      const realPoolPath = fs.realpathSync(this.worktreePoolPath);
+      const { stdout } = await this.exec('git', ['worktree', 'list', '--porcelain'], {
+        cwd: this.repoPath,
+      });
+      const branchLine = `branch refs/heads/${branchName}`;
+      for (const block of stdout.split('\n\n')) {
+        if (block.split('\n').some((line) => line === branchLine)) {
+          const match = /^worktree (.+)$/m.exec(block);
+          if (match?.[1]?.startsWith(realPoolPath)) return match[1];
+        }
+      }
+    } catch {}
     return undefined;
   }
 
