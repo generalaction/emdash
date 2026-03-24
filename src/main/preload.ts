@@ -874,6 +874,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   automationsUpdate: (args: {
     id: string;
     name?: string;
+    projectId?: string;
     prompt?: string;
     agentId?: string;
     schedule?: {

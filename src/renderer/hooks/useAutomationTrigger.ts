@@ -130,6 +130,10 @@ export function useAutomationTrigger(): void {
           cwd: taskPath,
           autoApprove: true,
           initialPrompt: automation.prompt,
+          remote:
+            project.isRemote && project.sshConnectionId
+              ? { connectionId: project.sshConnectionId }
+              : undefined,
         });
 
         // Check PTY start result — fail explicitly if it didn't start

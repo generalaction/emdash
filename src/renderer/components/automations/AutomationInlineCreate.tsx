@@ -144,6 +144,7 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
         await onUpdate({
           id: editingAutomation.id,
           name: name.trim(),
+          projectId,
           prompt: prompt.trim(),
           agentId,
           schedule: currentSchedule,
@@ -296,49 +297,36 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
             </SelectContent>
           </Select>
 
-          {/* Project select (read-only in edit mode) */}
-          {isEditing ? (
-            <div className="flex h-7 items-center gap-1.5 px-2 text-xs text-muted-foreground">
+          {/* Project select */}
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="h-7 w-auto gap-1.5 border-0 bg-transparent text-xs text-muted-foreground shadow-none hover:bg-muted/60">
               {hasGithub ? (
                 <Github className="h-3 w-3 shrink-0" />
               ) : (
                 <FolderGit2 className="h-3 w-3 shrink-0" />
               )}
               <span className="max-w-[120px] truncate">
-                {selectedProject?.name ?? 'Unknown project'}
+                {selectedProject?.name ?? 'Select project'}
               </span>
-            </div>
-          ) : (
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-7 w-auto gap-1.5 border-0 bg-transparent text-xs text-muted-foreground shadow-none hover:bg-muted/60">
-                {hasGithub ? (
-                  <Github className="h-3 w-3 shrink-0" />
-                ) : (
-                  <FolderGit2 className="h-3 w-3 shrink-0" />
-                )}
-                <span className="max-w-[120px] truncate">
-                  {selectedProject?.name ?? 'Select project'}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => {
-                  const pGh = p.githubInfo?.connected && p.githubInfo?.repository;
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        {pGh ? (
-                          <Github className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FolderGit2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        )}
-                        <span>{p.name}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          )}
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((p) => {
+                const pGh = p.githubInfo?.connected && p.githubInfo?.repository;
+                return (
+                  <SelectItem key={p.id} value={p.id}>
+                    <div className="flex items-center gap-2">
+                      {pGh ? (
+                        <Github className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <FolderGit2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      )}
+                      <span>{p.name}</span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
 
           {/* Schedule */}
           <Popover>

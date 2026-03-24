@@ -45,6 +45,7 @@ function validateUpdateInput(args: unknown): asserts args is UpdateAutomationInp
   const a = args as Record<string, unknown>;
   assertString(a.id, 'id');
   assertOptionalString(a.name, 'name');
+  assertOptionalString(a.projectId, 'projectId');
   assertOptionalString(a.prompt, 'prompt');
   assertOptionalString(a.agentId, 'agentId');
   if (a.schedule !== undefined && (typeof a.schedule !== 'object' || a.schedule === null)) {
@@ -184,6 +185,17 @@ export function registerAutomationsIpc(): void {
   ipcMain.handle('automations:update', async (_, args: unknown) => {
     try {
       validateUpdateInput(args);
+
+      // If projectId is being changed, resolve and validate the new project
+      if (args.projectId) {
+        const projects = await databaseService.getProjects();
+        const project = projects.find((p) => p.id === args.projectId);
+        if (!project) {
+          return { success: false, error: `Unknown projectId: ${args.projectId}` };
+        }
+        (args as unknown as Record<string, unknown>).projectName = project.name;
+      }
+
       const automation = await automationsService.update(args);
       return { success: true, data: automation };
     } catch (error) {

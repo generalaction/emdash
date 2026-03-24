@@ -494,6 +494,8 @@ class AutomationsService {
     const updated: Automation = {
       ...current,
       name: input.name ?? current.name,
+      projectId: input.projectId ?? current.projectId,
+      projectName: input.projectName ?? current.projectName,
       prompt: input.prompt ?? current.prompt,
       agentId: input.agentId ?? current.agentId,
       status: input.status ?? current.status,
@@ -507,6 +509,8 @@ class AutomationsService {
       .update(automationsTable)
       .set({
         name: updated.name,
+        projectId: updated.projectId,
+        projectName: updated.projectName,
         prompt: updated.prompt,
         agentId: updated.agentId,
         schedule: serializeSchedule(updated.schedule),

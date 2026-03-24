@@ -69,6 +69,9 @@ export interface CreateAutomationInput {
 export interface UpdateAutomationInput {
   id: string;
   name?: string;
+  projectId?: string;
+  /** Resolved project name — set by the backend from projectId */
+  projectName?: string;
   prompt?: string;
   agentId?: string;
   schedule?: AutomationSchedule;
