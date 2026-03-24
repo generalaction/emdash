@@ -136,7 +136,7 @@ describe('TaskLifecycleService', () => {
     const started = await taskLifecycleService.startRun(taskId, taskPath, projectPath);
     expect(started.ok).toBe(true);
 
-    const stopResult = taskLifecycleService.stopRun(taskId);
+    const stopResult = await taskLifecycleService.stopRun(taskId);
     expect(stopResult.ok).toBe(false);
 
     handle.emitExit(143);
@@ -160,7 +160,7 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-    taskLifecycleService.stopRun(taskId);
+    await taskLifecycleService.stopRun(taskId);
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
     first.emitExit(143);
@@ -184,7 +184,7 @@ describe('TaskLifecycleService', () => {
     const projectPath = '/tmp/project';
 
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
-    taskLifecycleService.stopRun(taskId);
+    await taskLifecycleService.stopRun(taskId);
     await taskLifecycleService.startRun(taskId, taskPath, projectPath);
 
     first.emitError(new Error('stale PTY error'));
@@ -309,6 +309,180 @@ describe('TaskLifecycleService', () => {
     expect(setupResult.ok).toBe(false);
     expect(state.setup.status).toBe('failed');
     expect(state.setup.error).toBe('pty failed');
+  });
+
+  it('runs stop script before killing the run process', async () => {
+    vi.resetModules();
+
+    const runHandle = createLifecyclePty(3001);
+    const stopHandle = createLifecyclePty(3002);
+    startLifecyclePtyMock.mockReturnValueOnce(runHandle).mockReturnValueOnce(stopHandle);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      if (phase === 'stop') return 'echo stopping';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-stop-1';
+    const taskPath = '/tmp/wt-stop-1';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    expect(runHandle.killed).toBe(false);
+
+    const stopPromise = taskLifecycleService.stopRun(taskId, taskPath, projectPath);
+
+    // Wait for buildLifecycleEnv (async) to resolve so the stop PTY is spawned
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    // Stop script PTY was spawned
+    expect(startLifecyclePtyMock).toHaveBeenCalledTimes(2);
+    expect(startLifecyclePtyMock.mock.calls[1][0]).toMatchObject({
+      id: expect.stringContaining('lifecycle-stop-'),
+      command: 'echo stopping',
+    });
+
+    // Run process should NOT be killed yet (stop script still running)
+    expect(runHandle.killed).toBe(false);
+
+    // Stop script finishes
+    stopHandle.emitExit(0);
+    await stopPromise;
+
+    // Now the run process should be killed
+    expect(runHandle.killed).toBe(true);
+  });
+
+  it('skips stop script when none is configured', async () => {
+    vi.resetModules();
+
+    const runHandle = createLifecyclePty(3101);
+    startLifecyclePtyMock.mockReturnValue(runHandle);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      return null; // no stop script
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-stop-2';
+    const taskPath = '/tmp/wt-stop-2';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+    await taskLifecycleService.stopRun(taskId, taskPath, projectPath);
+
+    // Only one PTY spawned (the run), no stop PTY
+    expect(startLifecyclePtyMock).toHaveBeenCalledTimes(1);
+    expect(runHandle.killed).toBe(true);
+  });
+
+  it('kills run process even if stop script fails', async () => {
+    vi.resetModules();
+
+    const runHandle = createLifecyclePty(3201);
+    const stopHandle = createLifecyclePty(3202);
+    startLifecyclePtyMock.mockReturnValueOnce(runHandle).mockReturnValueOnce(stopHandle);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      if (phase === 'stop') return 'exit 1';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-stop-3';
+    const taskPath = '/tmp/wt-stop-3';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    const stopPromise = taskLifecycleService.stopRun(taskId, taskPath, projectPath);
+    // Wait for buildLifecycleEnv to resolve so the stop PTY is spawned
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    stopHandle.emitError(new Error('stop script crashed'));
+    await stopPromise;
+
+    // Run process should still be killed despite stop script failure
+    expect(runHandle.killed).toBe(true);
+  });
+
+  it('does not kill run process if stop script already shut it down', async () => {
+    vi.resetModules();
+
+    let killCount = 0;
+    const runHandle = createLifecyclePty(3301);
+    const originalKill = runHandle.kill.bind(runHandle);
+    runHandle.kill = () => {
+      killCount++;
+      originalKill();
+    };
+    const stopHandle = createLifecyclePty(3302);
+    startLifecyclePtyMock.mockReturnValueOnce(runHandle).mockReturnValueOnce(stopHandle);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      if (phase === 'stop') return 'kill $SERVER_PID';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-stop-4';
+    const taskPath = '/tmp/wt-stop-4';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    const stopPromise = taskLifecycleService.stopRun(taskId, taskPath, projectPath);
+    // Wait for buildLifecycleEnv to resolve so the stop PTY is spawned
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    // Simulate: stop script shuts down the run process before exiting
+    runHandle.emitExit(0);
+    stopHandle.emitExit(0);
+    await stopPromise;
+
+    // Run process exited on its own, so kill should not have been called
+    expect(killCount).toBe(0);
+  });
+
+  it('emits stop script output as run phase line events', async () => {
+    vi.resetModules();
+
+    const runHandle = createLifecyclePty(3401);
+    const stopHandle = createLifecyclePty(3402);
+    startLifecyclePtyMock.mockReturnValueOnce(runHandle).mockReturnValueOnce(stopHandle);
+    getScriptMock.mockImplementation((_: string, phase: string) => {
+      if (phase === 'run') return 'npm run dev';
+      if (phase === 'stop') return 'echo bye';
+      return null;
+    });
+
+    const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+    const taskId = 'wt-stop-5';
+    const taskPath = '/tmp/wt-stop-5';
+    const projectPath = '/tmp/project';
+
+    await taskLifecycleService.startRun(taskId, taskPath, projectPath);
+
+    const events: any[] = [];
+    taskLifecycleService.onEvent((evt) => {
+      if (evt.taskId === taskId) events.push(evt);
+    });
+
+    const stopPromise = taskLifecycleService.stopRun(taskId, taskPath, projectPath);
+    // Wait for buildLifecycleEnv to resolve so the stop PTY is spawned
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    stopHandle.emitData('shutting down...\r\n');
+    stopHandle.emitExit(0);
+    await stopPromise;
+
+    const lineEvents = events.filter((e) => e.phase === 'run' && e.status === 'line');
+    expect(lineEvents).toHaveLength(1);
+    expect(lineEvents[0].line).toBe('shutting down...\r\n');
   });
 
   it('clearTask stops in-flight setup/teardown PTYs', async () => {
