@@ -283,3 +283,139 @@ describe('normalizeSettings – terminal settings', () => {
     expect(result.terminal?.macOptionIsMeta).toBe(true);
   });
 });
+
+describe('normalizeSettings - customOpenInApps', () => {
+  it('accepts valid custom tool entries', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [
+          { id: 'my-term', label: 'My Term', openCommand: 'my-term {{path}}' },
+          {
+            id: 'my-editor',
+            label: 'My Editor',
+            openCommand: 'my-editor {{path}}',
+            checkCommand: 'my-editor',
+            iconPath: '/usr/share/icons/my-editor.png',
+          },
+        ],
+      })
+    );
+
+    expect(result.customOpenInApps).toHaveLength(2);
+    expect(result.customOpenInApps![0]).toEqual({
+      id: 'my-term',
+      label: 'My Term',
+      openCommand: 'my-term {{path}}',
+    });
+    expect(result.customOpenInApps![1]).toEqual({
+      id: 'my-editor',
+      label: 'My Editor',
+      openCommand: 'my-editor {{path}}',
+      checkCommand: 'my-editor',
+      iconPath: '/usr/share/icons/my-editor.png',
+    });
+  });
+
+  it('strips entries with missing required fields', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [
+          { id: '', label: 'No ID', openCommand: 'cmd' } as any,
+          { id: 'x', label: '', openCommand: 'cmd' } as any,
+          { id: 'y', label: 'Y', openCommand: '' } as any,
+          { id: 'z', label: 'Z' } as any, // missing openCommand entirely
+          null as any,
+          42 as any,
+        ],
+      })
+    );
+
+    expect(result.customOpenInApps).toEqual([]);
+  });
+
+  it('trims whitespace from all fields', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [
+          {
+            id: '  my-term  ',
+            label: '  My Term  ',
+            openCommand: '  my-term {{path}}  ',
+            checkCommand: '  my-term  ',
+            iconPath: '  /icon.png  ',
+          },
+        ],
+      })
+    );
+
+    const app = result.customOpenInApps![0];
+    expect(app.id).toBe('my-term');
+    expect(app.label).toBe('My Term');
+    expect(app.openCommand).toBe('my-term {{path}}');
+    expect(app.checkCommand).toBe('my-term');
+    expect(app.iconPath).toBe('/icon.png');
+  });
+
+  it('defaults to empty array when not provided', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.customOpenInApps).toEqual([]);
+  });
+
+  it('allows custom tool ID as defaultOpenInApp', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [{ id: 'my-tool', label: 'Tool', openCommand: 'tool {{path}}' }],
+        defaultOpenInApp: 'my-tool',
+      })
+    );
+
+    expect(result.defaultOpenInApp).toBe('my-tool');
+  });
+
+  it('rejects unknown defaultOpenInApp that is not a custom ID', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [],
+        defaultOpenInApp: 'nonexistent' as any,
+      })
+    );
+
+    expect(result.defaultOpenInApp).toBe('terminal');
+  });
+
+  it('allows custom tool ID in hiddenOpenInApps', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [{ id: 'my-tool', label: 'Tool', openCommand: 'tool {{path}}' }],
+        hiddenOpenInApps: ['my-tool', 'terminal'],
+      })
+    );
+
+    expect(result.hiddenOpenInApps).toContain('my-tool');
+    expect(result.hiddenOpenInApps).toContain('terminal');
+  });
+
+  it('strips checkCommand with shell metacharacters', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [
+          {
+            id: 'safe',
+            label: 'Safe',
+            openCommand: 'safe {{path}}',
+            checkCommand: 'safe-cmd',
+          },
+          {
+            id: 'unsafe',
+            label: 'Unsafe',
+            openCommand: 'unsafe {{path}}',
+            checkCommand: 'foo; rm -rf ~',
+          },
+        ],
+      })
+    );
+
+    expect(result.customOpenInApps![0].checkCommand).toBe('safe-cmd');
+    expect(result.customOpenInApps![1].checkCommand).toBeUndefined();
+  });
+});

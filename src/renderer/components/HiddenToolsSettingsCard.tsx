@@ -1,11 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  OPEN_IN_APPS,
-  getResolvedIconPath,
-  getResolvedLabel,
-  type OpenInAppId,
-  type PlatformKey,
-} from '@shared/openInApps';
+import type { ResolvedOpenInApp } from '@shared/openInApps';
 import IntegrationRow from './IntegrationRow';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -13,28 +7,39 @@ import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export default function HiddenToolsSettingsCard() {
   const { settings, updateSettings, isLoading, isSaving } = useAppSettings();
-  const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
+  const [allApps, setAllApps] = useState<ResolvedOpenInApp[]>([]);
+  const [icons, setIcons] = useState<Record<string, string>>({});
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
 
-  const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
+  const hiddenApps: string[] = settings?.hiddenOpenInApps ?? [];
 
   useEffect(() => {
     const init = async () => {
-      let platform: PlatformKey = 'darwin';
-      try {
-        platform = ((await window.electronAPI?.getPlatform?.()) as PlatformKey) || 'darwin';
-      } catch {}
+      const apps: ResolvedOpenInApp[] = (await window.electronAPI?.getResolvedOpenInApps?.()) ?? [];
+      setAllApps(apps);
 
-      const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
-      const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of OPEN_IN_APPS) {
-        const iconPath = getResolvedIconPath(app, platform);
-        loadedLabels[app.id] = getResolvedLabel(app, platform);
-        try {
-          loadedIcons[app.id] = new URL(`../../assets/images/${iconPath}`, import.meta.url).href;
-        } catch {}
+      const loadedIcons: Record<string, string> = {};
+      const loadedLabels: Record<string, string> = {};
+
+      for (const app of apps) {
+        loadedLabels[app.id] = app.label;
+
+        if (app.iconIsCustomPath && app.iconPath) {
+          try {
+            const dataUri = await window.electronAPI?.getCustomToolIcon?.(app.iconPath);
+            if (dataUri) loadedIcons[app.id] = dataUri;
+          } catch {}
+        } else if (app.iconPath) {
+          try {
+            loadedIcons[app.id] = new URL(
+              `../../assets/images/${app.iconPath}`,
+              import.meta.url
+            ).href;
+          } catch {}
+        }
       }
+
       setIcons(loadedIcons);
       setLabels(loadedLabels);
 
@@ -46,7 +51,7 @@ export default function HiddenToolsSettingsCard() {
     void init();
   }, []);
 
-  const toggle = (appId: OpenInAppId, visible: boolean) => {
+  const toggle = (appId: string, visible: boolean) => {
     const next = visible ? hiddenApps.filter((id) => id !== appId) : [...hiddenApps, appId];
     updateSettings({ hiddenOpenInApps: next });
     window.dispatchEvent(new Event('hiddenOpenInAppsChanged'));
@@ -54,14 +59,14 @@ export default function HiddenToolsSettingsCard() {
 
   // Sort: detected first, then alphabetically by label
   const sortedApps = useMemo(() => {
-    return [...OPEN_IN_APPS].sort((a, b) => {
+    return [...allApps].sort((a, b) => {
       const aDetected = availability[a.id] ?? a.alwaysAvailable ?? false;
       const bDetected = availability[b.id] ?? b.alwaysAvailable ?? false;
       if (aDetected && !bDetected) return -1;
       if (!aDetected && bDetected) return 1;
       return (labels[a.id] ?? a.label).localeCompare(labels[b.id] ?? b.label);
     });
-  }, [availability, labels]);
+  }, [allApps, availability, labels]);
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-2">

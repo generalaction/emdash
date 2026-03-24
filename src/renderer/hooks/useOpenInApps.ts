@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  OPEN_IN_APPS,
-  getResolvedIconPath,
-  getResolvedLabel,
-  isOpenInAppSupportedForWorkspace,
-  type OpenInAppId,
-  type PlatformKey,
-} from '@shared/openInApps';
+import type { ResolvedOpenInApp } from '@shared/openInApps';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 export interface UseOpenInAppsResult {
-  icons: Partial<Record<OpenInAppId, string>>;
-  labels: Partial<Record<OpenInAppId, string>>;
+  icons: Record<string, string>;
+  labels: Record<string, string>;
   availability: Record<string, boolean>;
-  installedApps: typeof OPEN_IN_APPS;
+  installedApps: ResolvedOpenInApp[];
   loading: boolean;
 }
 
@@ -21,34 +14,51 @@ export function useOpenInApps({
   isRemote = false,
 }: { isRemote?: boolean } = {}): UseOpenInAppsResult {
   const { settings, isLoading: settingsLoading } = useAppSettings();
-  const [icons, setIcons] = useState<Partial<Record<OpenInAppId, string>>>({});
-  const [labels, setLabels] = useState<Partial<Record<OpenInAppId, string>>>({});
+  const [allApps, setAllApps] = useState<ResolvedOpenInApp[]>([]);
+  const [icons, setIcons] = useState<Record<string, string>>({});
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
+  const [appsListLoading, setAppsListLoading] = useState(true);
   const [availabilityLoading, setAvailabilityLoading] = useState(true);
 
-  const loading = settingsLoading || availabilityLoading;
+  const loading = settingsLoading || appsListLoading || availabilityLoading;
 
-  // Load platform-resolved icons and labels
+  // Load resolved apps, icons, and labels
   useEffect(() => {
     const load = async () => {
-      let platform: PlatformKey = 'darwin';
       try {
-        platform = ((await window.electronAPI?.getPlatform?.()) as PlatformKey) || 'darwin';
-      } catch {}
+        const apps: ResolvedOpenInApp[] =
+          (await window.electronAPI?.getResolvedOpenInApps?.()) ?? [];
+        setAllApps(apps);
 
-      const loadedIcons: Partial<Record<OpenInAppId, string>> = {};
-      const loadedLabels: Partial<Record<OpenInAppId, string>> = {};
-      for (const app of OPEN_IN_APPS) {
-        const iconPath = getResolvedIconPath(app, platform);
-        loadedLabels[app.id] = getResolvedLabel(app, platform);
-        try {
-          loadedIcons[app.id] = new URL(`../../assets/images/${iconPath}`, import.meta.url).href;
-        } catch (e) {
-          console.error(`Failed to load icon for ${app.id}:`, e);
+        const loadedIcons: Record<string, string> = {};
+        const loadedLabels: Record<string, string> = {};
+
+        for (const app of apps) {
+          loadedLabels[app.id] = app.label;
+
+          if (app.iconIsCustomPath && app.iconPath) {
+            try {
+              const dataUri = await window.electronAPI?.getCustomToolIcon?.(app.iconPath);
+              if (dataUri) loadedIcons[app.id] = dataUri;
+            } catch {}
+          } else if (app.iconPath) {
+            try {
+              loadedIcons[app.id] = new URL(
+                `../../assets/images/${app.iconPath}`,
+                import.meta.url
+              ).href;
+            } catch {}
+          }
         }
+
+        setIcons(loadedIcons);
+        setLabels(loadedLabels);
+      } catch (e) {
+        console.error('Failed to load resolved open-in apps:', e);
+      } finally {
+        setAppsListLoading(false);
       }
-      setIcons(loadedIcons);
-      setLabels(loadedLabels);
     };
     void load();
   }, []);
@@ -70,15 +80,11 @@ export function useOpenInApps({
 
   // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
-    const hiddenApps: OpenInAppId[] = settings?.hiddenOpenInApps ?? [];
-    const workspaceApps = OPEN_IN_APPS.filter((app) =>
-      isOpenInAppSupportedForWorkspace(app, isRemote)
-    );
-
+    const hiddenApps: string[] = settings?.hiddenOpenInApps ?? [];
+    const workspaceApps = allApps.filter((app) => !isRemote || app.supportsRemote);
     if (loading) return workspaceApps;
-
     return workspaceApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
-  }, [availability, isRemote, loading, settings?.hiddenOpenInApps]);
+  }, [allApps, availability, isRemote, loading, settings?.hiddenOpenInApps]);
 
   return { icons, labels, availability, installedApps, loading };
 }

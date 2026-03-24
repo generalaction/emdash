@@ -643,12 +643,14 @@ declare global {
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
       paste: () => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: OpenInAppId;
+        app: string;
         path: string;
         isRemote?: boolean;
         sshConnectionId?: string | null;
       }) => Promise<{ success: boolean; error?: string }>;
-      checkInstalledApps: () => Promise<Record<OpenInAppId, boolean>>;
+      checkInstalledApps: () => Promise<Record<string, boolean>>;
+      getResolvedOpenInApps: () => Promise<ResolvedOpenInApp[]>;
+      getCustomToolIcon: (iconPath: string) => Promise<string>;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
@@ -2253,4 +2255,4 @@ export interface ElectronAPI {
   onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
-import type { OpenInAppId } from '#shared/openInApps';
+import type { OpenInAppId, ResolvedOpenInApp } from '#shared/openInApps';
