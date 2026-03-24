@@ -382,14 +382,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   ]);
 
   const handleStop = useCallback(async () => {
-    if (!task || !projectPath) return;
+    if (!task) return;
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
       await api.lifecycleRunStop?.({
         taskId: task.id,
         taskPath: task.path,
-        projectPath,
+        ...(projectPath ? { projectPath } : {}),
         taskName: task.name,
       });
     } catch (error) {
