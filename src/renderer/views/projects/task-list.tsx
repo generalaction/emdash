@@ -1,17 +1,13 @@
-import { Archive, MoreHorizontal, Pencil, RotateCcw, Search } from 'lucide-react';
+import { Archive, Pencil, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Task } from '@shared/tasks';
+import { TaskActionsMenu } from '@renderer/components/task-actions-menu';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@renderer/components/ui/dropdown-menu';
 import { Input } from '@renderer/components/ui/input';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
 import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
@@ -20,18 +16,18 @@ import { useRequiredCurrentProject } from '@renderer/views/projects/project-view
 function TaskRow({
   task,
   isSelected,
+  showRestore,
   onToggleSelect,
 }: {
   task: Task;
   isSelected: boolean;
+  showRestore?: boolean;
   onToggleSelect: () => void;
 }) {
   const { navigate } = useNavigate();
-  const { archiveTask, restoreTask, provisionTask } = useTaskLifecycleContext();
+  const { provisionTask } = useTaskLifecycleContext();
   const lifecycleTask = useTask({ projectId: task.projectId, taskId: task.id });
-
-  const handleArchive = () => archiveTask(task.projectId, task.id);
-  const handleRestore = () => restoreTask(task.id);
+  const isTearingDown = lifecycleTask.status === 'teardown';
 
   const handleProvision = () => provisionTask(task.id);
 
@@ -49,38 +45,19 @@ function TaskRow({
       >
         {task.name}
       </button>
-      {lifecycleTask.status !== 'ready' && (
+      {isTearingDown ? (
+        <span className="size-3 shrink-0 rounded-full bg-muted-foreground/50 animate-pulse" />
+      ) : !showRestore && lifecycleTask.status !== 'ready' ? (
         <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="opacity-0 group-hover:opacity-100 shrink-0"
-              aria-label="Task actions"
-            />
-          }
-        >
-          <MoreHorizontal className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={handleArchive}>
-            <Archive className="size-4" />
-            Archive
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleRestore}>
-            <RotateCcw className="size-4" />
-            Restore
-          </DropdownMenuItem>
-
-          <DropdownMenuItem>
-            <Pencil className="size-4" />
-            Rename
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      ) : null}
+      <TaskActionsMenu
+        task={task}
+        showRestore={showRestore}
+        triggerProps={{
+          className: 'opacity-0 group-hover:opacity-100 shrink-0',
+          'aria-label': 'Task actions',
+        }}
+      />
     </div>
   );
 }
@@ -88,10 +65,12 @@ function TaskRow({
 function TaskRows({
   tasks,
   selectedIds,
+  showRestore,
   onToggleSelect,
 }: {
   tasks: Task[];
   selectedIds: Set<string>;
+  showRestore?: boolean;
   onToggleSelect: (id: string) => void;
 }) {
   if (tasks.length === 0) {
@@ -105,6 +84,7 @@ function TaskRows({
           key={task.id}
           task={task}
           isSelected={selectedIds.has(task.id)}
+          showRestore={showRestore}
           onToggleSelect={() => onToggleSelect(task.id)}
         />
       ))}
@@ -114,8 +94,11 @@ function TaskRows({
 
 export function TaskList() {
   const project = useRequiredCurrentProject();
-  const { activeTasksByProjectId, archivedTasksByProjectId } = useTasksDataContext();
-  const { archiveTask, restoreTask } = useTaskLifecycleContext();
+  const { tasksByProjectId, activeTasksByProjectId, archivedTasksByProjectId } =
+    useTasksDataContext();
+  const { archiveTask, restoreTask, deleteTask } = useTaskLifecycleContext();
+  const showConfirm = useShowModal('confirmActionModal');
+  const showRename = useShowModal('renameTaskModal');
 
   const activeTasks = activeTasksByProjectId[project.id] ?? [];
   const archivedTasks = archivedTasksByProjectId[project.id] ?? [];
@@ -144,12 +127,25 @@ export function TaskList() {
 
   const allSelected = filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
+  const singleSelectedTask =
+    selectedIds.size === 1
+      ? (tasksByProjectId[project.id] ?? []).find((t) => selectedIds.has(t.id))
+      : undefined;
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as 'active' | 'archived');
     clearSelection();
   };
 
+  const handleRename = (task: Task) => {
+    showRename({
+      projectId: task.projectId,
+      taskId: task.id,
+      currentName: task.name,
+    });
+  };
+
+  // Bulk actions
   const bulkArchive = () => {
     const ids = [...selectedIds];
     ids.forEach((id) => archiveTask(project.id, id));
@@ -160,6 +156,20 @@ export function TaskList() {
     const ids = [...selectedIds];
     ids.forEach((id) => restoreTask(id));
     clearSelection();
+  };
+
+  const bulkDelete = () => {
+    const count = selectedIds.size;
+    showConfirm({
+      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
+      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
+      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
+      onSuccess: () => {
+        const ids = [...selectedIds];
+        ids.forEach((id) => deleteTask(project.id, id));
+        clearSelection();
+      },
+    });
   };
 
   return (
@@ -208,6 +218,20 @@ export function TaskList() {
                       Restore
                     </Button>
                   )}
+                  {singleSelectedTask && activeTab === 'active' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRename(singleSelectedTask)}
+                    >
+                      <Pencil className="size-3.5" />
+                      Rename
+                    </Button>
+                  )}
+                  <Button variant="destructive" size="sm" onClick={bulkDelete}>
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </Button>
                 </div>
               </>
             ) : (
@@ -222,7 +246,12 @@ export function TaskList() {
           <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
         <TabsContent value="archived">
-          <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
+          <TaskRows
+            tasks={filteredTasks}
+            selectedIds={selectedIds}
+            showRestore
+            onToggleSelect={toggleSelect}
+          />
         </TabsContent>
       </Tabs>
     </div>

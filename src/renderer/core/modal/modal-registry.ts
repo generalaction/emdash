@@ -11,6 +11,7 @@ import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/views/projects/create-task-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/right-panel/pr-section/create-pr-modal';
 import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
+import { RenameTaskModal } from '@renderer/views/tasks/rename-task-modal';
 import { ModalComponent } from './modal-provider';
 
 // Define overlays here so we can use them in the showOverlay function
@@ -28,5 +29,6 @@ export const modalRegistry = {
   mcpServerModal: McpModal,
   conflictDialog: ConflictDialog,
   createPrModal: CreatePrModal,
+  renameTaskModal: RenameTaskModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;

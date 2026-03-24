@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import React, { createContext, useContext, useMemo } from 'react';
-import { Task } from '@shared/tasks';
+import type { Task } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 
 interface TasksDataContextValue {

@@ -1,7 +1,9 @@
 import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
+import { TaskActionsMenu } from '@renderer/components/task-actions-menu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { type RightPanelView } from '@renderer/core/tasks/view/task-view-store';
+import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
@@ -35,16 +37,25 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 
 function ActiveTaskTitlebar() {
   const { view, lifecycleTask, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
+  const { navigate } = useNavigate();
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
 
   const delayedIsPending = useDelayedBoolean(isPending, 200);
+
+  const task = lifecycleTask.task;
+  const navigateToProject = () => navigate('project', { projectId: task.projectId });
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
-          <span className="text-sm text-muted-foreground">{lifecycleTask.task.name}</span>
-          {/* <OpenInMenu path={'/'} align="right" /> */}
+          <span className="text-sm text-muted-foreground">{task.name}</span>
+          <TaskActionsMenu
+            task={task}
+            onArchived={navigateToProject}
+            onDeleted={navigateToProject}
+            triggerProps={{ variant: 'ghost', size: 'default' }}
+          />
         </div>
       }
       rightSlot={

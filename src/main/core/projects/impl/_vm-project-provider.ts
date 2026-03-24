@@ -39,12 +39,16 @@ export class VmEnvironmentProvider implements ProjectProvider {
     return undefined;
   }
 
-  async teadownTask(_taskId: string): Promise<Result<void, TeardownTaskError>> {
+  async teardownTask(_taskId: string): Promise<Result<void, TeardownTaskError>> {
     return ok();
   }
 
   async retryTaskTeardown(_taskId: string): Promise<Result<void, TeardownTaskError>> {
     return ok();
+  }
+
+  async removeTaskWorktree(_taskBranch: string): Promise<void> {
+    // Not implemented for VM providers
   }
 
   async cleanup(): Promise<void> {

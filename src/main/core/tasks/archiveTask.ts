@@ -15,5 +15,5 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
     })
     .where(eq(tasks.id, taskId));
 
-  project?.teadownTask(taskId);
+  await project?.teardownTask(taskId);
 }
