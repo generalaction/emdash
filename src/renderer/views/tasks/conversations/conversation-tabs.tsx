@@ -73,17 +73,19 @@ export function ConversationsTabs({ projectId, taskId }: { projectId: string; ta
               ) : (
                 <span className="max-w-16 truncate">{conversation.title}</span>
               )}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="absolute opacity-0 group-hover:opacity-100 bg-muted right-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveConversation(conversation.id);
-                }}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              {editingId !== conversation.id && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="absolute opacity-0 group-hover:opacity-100 bg-muted right-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveConversation(conversation.id);
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </button>
           );
         })}
