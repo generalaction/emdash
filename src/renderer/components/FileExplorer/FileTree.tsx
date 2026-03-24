@@ -900,15 +900,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div>
-        <SearchInput
-          value={searchQuery}
-          onChange={handleSearchChange}
-          onClear={clearSearch}
-          placeholder="Search..."
-        />
-      </div>
-
       <FileExplorerToolbar
         projectName={projectName || 'Files'}
         onSearch={handleFileSearch}

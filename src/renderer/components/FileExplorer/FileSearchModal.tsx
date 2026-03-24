@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, File, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { FileIcon } from './FileIcons';
 interface FileSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -117,7 +118,7 @@ export const FileSearchModal: React.FC<FileSearchModalProps> = ({
                   index === selectedIndex ? 'bg-accent' : 'hover:bg-accent'
                 }`}
               >
-                <File className="h-4 w-4 text-muted-foreground" />
+                <FileIcon filename={file.name} isDirectory={file.type === 'directory'} size={16} />
                 <span className="text-sm">{file.name}</span>
                 <span className="ml-auto text-xs text-muted-foreground">{file.path}</span>
               </div>
