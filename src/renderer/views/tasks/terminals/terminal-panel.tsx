@@ -1,20 +1,20 @@
 import { Terminal } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
+import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
-import { usePtySession } from '@renderer/core/pty/pty-session-context';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { useTaskViewContext } from '../task-view-context';
 import { TerminalsTabs } from './terminal-tabs';
 
-export function TerminalsPanel() {
+export const TerminalsPanel = observer(function TerminalsPanel() {
   const { params } = useParams('task');
   const { terminalTabItems, activeTerminalId, setActiveTerminalId, createTerminal } =
     useTaskViewContext();
-  const { isSessionReady } = usePtySession();
 
   const activeId = activeTerminalId ?? terminalTabItems[0]?.id ?? null;
 
@@ -57,11 +57,11 @@ export function TerminalsPanel() {
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         <PaneSizingProvider paneId="terminals" sessionIds={allSessionIds}>
-          {sessionId && isSessionReady(sessionId) && (
+          {sessionId && frontendPtyRegistry.isReady(sessionId) && (
             <TerminalPane sessionId={sessionId} className="h-full w-full" />
           )}
         </PaneSizingProvider>
       </div>
     </div>
   );
-}
+});

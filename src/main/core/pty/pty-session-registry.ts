@@ -9,10 +9,12 @@ export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
+  private activeConsumers: Set<string> = new Set();
 
   register(sessionId: string, pty: Pty): void {
-    // Clear any stale ring buffer from a previous PTY at this sessionId (respawn)
+    // Clear any stale ring buffer and consumer from a previous PTY at this sessionId (respawn)
     this.ringBuffers.delete(sessionId);
+    this.activeConsumers.delete(sessionId);
 
     this.ptyMap.set(sessionId, pty);
 
@@ -63,6 +65,8 @@ export class PtySessionRegistry {
     this.ptyMap.delete(sessionId);
     this.ptyInputSubscriptions.get(sessionId)?.();
     this.ptyInputSubscriptions.delete(sessionId);
+    this.ringBuffers.delete(sessionId);
+    this.activeConsumers.delete(sessionId);
   }
 
   get(sessionId: string): Pty | undefined {
@@ -70,14 +74,23 @@ export class PtySessionRegistry {
   }
 
   /**
-   * Return and delete the accumulated ring buffer for a session.
-   * Called once by the renderer on FrontendPty construction to catch up on
-   * output that was emitted before the renderer subscribed.
+   * Atomically snapshot the ring buffer and register a consumer for future
+   * IPC delivery. Returns the current ring buffer without deleting it.
+   * Safe: runs in one synchronous tick — no PTY data can arrive between
+   * snapshot and consumer registration.
    */
-  getBuffer(sessionId: string): string {
+  subscribe(sessionId: string): string {
     const buf = this.ringBuffers.get(sessionId) ?? '';
-    this.ringBuffers.delete(sessionId);
+    this.activeConsumers.add(sessionId);
     return buf;
+  }
+
+  /**
+   * Remove the consumer registration for a session.
+   * Called when the renderer disposes its FrontendPty.
+   */
+  unsubscribe(sessionId: string): void {
+    this.activeConsumers.delete(sessionId);
   }
 }
 

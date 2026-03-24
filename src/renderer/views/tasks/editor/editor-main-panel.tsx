@@ -7,7 +7,7 @@ import { SvgRenderer } from '@renderer/core/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/core/editor/too-large-renderer';
 import type { ManagedFile } from '@renderer/core/editor/types';
 import { useOpenedFile } from '@renderer/core/editor/use-opened-file';
-import { taskViewStateStore } from '@renderer/core/tasks/task-view-store';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
 import { useEditorContext } from './editor-provider';
 

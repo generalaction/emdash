@@ -4,8 +4,8 @@ import { createScriptTerminalId, type Terminal } from '@shared/terminals';
 import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { rpc } from '@renderer/core/ipc';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
+import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
-import { usePtySession } from '@renderer/core/pty/pty-session-context';
 import { useTerminalsContext } from '@renderer/core/terminals/terminal-data-provider';
 
 /** Measure the terminals pane using a typical monospace cell size (13px font). */
@@ -57,14 +57,13 @@ export function useTerminals({
     createTerminal: generalCreateTerminal,
   } = useTerminalsContext();
 
-  const { registerSession, unregisterSession } = usePtySession();
-
   const terminals = useMemo(() => terminalsByTaskId[taskId] ?? [], [terminalsByTaskId, taskId]);
 
   const [lifecycleScripts, setLifecycleScripts] = useState<LifecycleScripts>({});
 
-  // Register session IDs for all defined lifecycle scripts and store the ID
-  // mapping. Uses the type as key so re-runs of the effect never duplicate.
+  // Register frontend PTY sessions for all defined lifecycle scripts and store
+  // the ID mapping. The main process spawns lifecycle PTYs during provisionTask;
+  // the renderer just connects a FrontendPty to receive their output.
   useEffect(() => {
     if (!projectSettings?.scripts) return;
     for (const type of scriptTypes) {
@@ -72,15 +71,15 @@ export function useTerminals({
       if (!script) continue;
       const run = async () => {
         const id = await createScriptTerminalId({ projectId, taskId, type, script });
-        registerSession(makePtySessionId(projectId, taskId, id));
+        void frontendPtyRegistry.register(makePtySessionId(projectId, taskId, id));
         setLifecycleScripts((prev) => (prev[type] === id ? prev : { ...prev, [type]: id }));
       };
       void run();
     }
-  }, [projectId, taskId, registerSession, projectSettings]);
+  }, [projectId, taskId, projectSettings]);
 
-  // Trigger a lifecycle script re-run on the main process. The session is
-  // already registered from the effect above so no re-registration needed.
+  // Trigger a lifecycle script re-run on the main process. The existing
+  // FrontendPty subscription auto-handles new output on the same sessionId.
   const runLifecycleScript = useCallback(
     async (type: LifecycleScriptType) => {
       await rpc.terminals.runLifecycleScript({ projectId, taskId, type });
@@ -93,7 +92,9 @@ export function useTerminals({
     const sessionId = makePtySessionId(projectId, taskId, id);
     const name = nextTerminalName(terminals);
 
-    registerSession(sessionId);
+    // The main process spawns the PTY inside createTerminal before returning;
+    // register the frontend PTY concurrently so it is ready to receive output.
+    void frontendPtyRegistry.register(sessionId);
 
     const terminal = await generalCreateTerminal({
       id,
@@ -104,22 +105,24 @@ export function useTerminals({
     });
 
     return terminal;
-  }, [generalCreateTerminal, projectId, registerSession, taskId, terminals]);
+  }, [generalCreateTerminal, projectId, taskId, terminals]);
 
   const removeTerminal = useCallback(
     (terminalId: string) => {
-      unregisterSession(makePtySessionId(projectId, taskId, terminalId));
+      frontendPtyRegistry.unregister(makePtySessionId(projectId, taskId, terminalId));
       generalDeleteTerminal({ projectId, taskId, terminalId });
     },
-    [generalDeleteTerminal, projectId, taskId, unregisterSession]
+    [generalDeleteTerminal, projectId, taskId]
   );
 
+  // Connect a FrontendPty for each existing terminal. The main process already
+  // spawned their PTY sessions during provisionTask.
   useEffect(() => {
     if (terminals.length === 0) return;
     for (const terminal of terminals) {
-      registerSession(makePtySessionId(projectId, taskId, terminal.id));
+      void frontendPtyRegistry.register(makePtySessionId(projectId, taskId, terminal.id));
     }
-  }, [terminals, projectId, registerSession, taskId]);
+  }, [terminals, projectId, taskId]);
 
   const terminalTabItems = useMemo((): TerminalTabItem[] => {
     const lifecycle = (Object.entries(lifecycleScripts) as [LifecycleScriptType, string][])

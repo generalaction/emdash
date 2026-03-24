@@ -1,7 +1,7 @@
 import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { type RightPanelView } from '@renderer/core/tasks/task-view-store';
+import { type RightPanelView } from '@renderer/core/tasks/view/task-view-store';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';

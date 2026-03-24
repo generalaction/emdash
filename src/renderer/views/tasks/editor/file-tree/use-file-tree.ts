@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileNode, FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
-import { taskViewStateStore } from '@renderer/core/tasks/task-view-store';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { buildVisibleRows, isExcluded, makeNode, sortedChildPaths } from './utils';
 
 export function useFileTree(projectId: string, taskId: string, isReady: boolean) {

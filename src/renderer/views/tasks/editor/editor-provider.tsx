@@ -20,7 +20,7 @@ import {
   type FileRendererData,
   type ManagedFileInput,
   type OpenedFile,
-} from '@renderer/core/tasks/task-view-store';
+} from '@renderer/core/tasks/view/task-view-store';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';

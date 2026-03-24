@@ -1,5 +1,8 @@
 import { useCallback } from 'react';
-import { taskViewStateStore, type FileRendererData } from '@renderer/core/tasks/task-view-store';
+import {
+  taskViewStateStore,
+  type FileRendererData,
+} from '@renderer/core/tasks/view/task-view-store';
 import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
 
 /**
