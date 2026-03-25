@@ -912,6 +912,11 @@ export class GitService implements GitProvider {
     return { remotePushed };
   }
 
+  async deleteBranch(branch: string, force = true): Promise<void> {
+    const flag = force ? '-D' : '-d';
+    await this.exec('git', ['branch', flag, branch], { cwd: this.path });
+  }
+
   // ---------------------------------------------------------------------------
   // Repo info
   // ---------------------------------------------------------------------------

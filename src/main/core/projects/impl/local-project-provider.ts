@@ -11,6 +11,7 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
@@ -220,7 +221,7 @@ export class LocalProjectProvider implements ProjectProvider {
     return { status: 'not-started' };
   }
 
-  async teadownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
+  async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     if (this.tearingDownTasks.has(taskId)) return this.tearingDownTasks.get(taskId)!;
     const task = this.tasks.get(taskId);
     if (!task) return ok();
@@ -244,11 +245,43 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const taskLifecycleService = new TaskLifecycleService({
+      projectId: this.project.id,
+      taskId: task.taskId,
+      taskPath: task.taskPath,
+      terminals: task.terminals,
+    });
+
+    const scripts = (await this.settings.get())?.scripts;
+
+    if (scripts?.teardown) {
+      taskLifecycleService.runLifecycleScript({
+        type: 'teardown',
+        script: scripts?.teardown,
+      });
+    }
+
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
+
+    if (task.taskBranch) {
+      await this.removeTaskWorktree(task.taskBranch).catch((e) => {
+        log.warn('LocalProjectProvider: worktree removal failed', {
+          taskId: task.taskId,
+          error: String(e),
+        });
+      });
+    }
+  }
+
+  async removeTaskWorktree(taskBranch: string): Promise<void> {
+    const worktreePath = await this.worktreeService.getWorktree(taskBranch);
+    if (worktreePath) {
+      await this.worktreeService.removeWorktree(worktreePath);
+    }
   }
 
   async cleanup(): Promise<void> {
-    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teadownTask(id)));
+    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
   }
 }

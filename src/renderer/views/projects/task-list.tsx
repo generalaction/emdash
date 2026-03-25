@@ -28,10 +28,12 @@ function getTaskManager(projectId: string) {
 const TaskRow = observer(function TaskRow({
   task,
   isSelected,
+  showRestore,
   onToggleSelect,
 }: {
   task: ReadyTask;
   isSelected: boolean;
+  showRestore?: boolean;
   onToggleSelect: () => void;
 }) {
   const { navigate } = useNavigate();
@@ -97,10 +99,12 @@ const TaskRow = observer(function TaskRow({
 function TaskRows({
   tasks,
   selectedIds,
+  showRestore,
   onToggleSelect,
 }: {
   tasks: ReadyTask[];
   selectedIds: Set<string>;
+  showRestore?: boolean;
   onToggleSelect: (id: string) => void;
 }) {
   if (tasks.length === 0) {
@@ -163,12 +167,25 @@ export const TaskList = observer(function TaskList() {
   const allSelected =
     filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.data.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
+  const singleSelectedTask =
+    selectedIds.size === 1
+      ? (tasksByProjectId[project.id] ?? []).find((t) => selectedIds.has(t.id))
+      : undefined;
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as 'active' | 'archived');
     clearSelection();
   };
 
+  const handleRename = (task: Task) => {
+    showRename({
+      projectId: task.projectId,
+      taskId: task.id,
+      currentName: task.name,
+    });
+  };
+
+  // Bulk actions
   const bulkArchive = () => {
     const ids = [...selectedIds];
     ids.forEach((id) => void taskManager?.archiveTask(id));
@@ -179,6 +196,20 @@ export const TaskList = observer(function TaskList() {
     const ids = [...selectedIds];
     ids.forEach((id) => void taskManager?.restoreTask(id));
     clearSelection();
+  };
+
+  const bulkDelete = () => {
+    const count = selectedIds.size;
+    showConfirm({
+      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
+      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
+      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
+      onSuccess: () => {
+        const ids = [...selectedIds];
+        ids.forEach((id) => deleteTask(project.id, id));
+        clearSelection();
+      },
+    });
   };
 
   return (
@@ -225,6 +256,20 @@ export const TaskList = observer(function TaskList() {
                       Restore
                     </Button>
                   )}
+                  {singleSelectedTask && activeTab === 'active' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRename(singleSelectedTask)}
+                    >
+                      <Pencil className="size-3.5" />
+                      Rename
+                    </Button>
+                  )}
+                  <Button variant="destructive" size="sm" onClick={bulkDelete}>
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </Button>
                 </div>
               </>
             ) : (
@@ -239,7 +284,12 @@ export const TaskList = observer(function TaskList() {
           <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
         <TabsContent value="archived">
-          <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
+          <TaskRows
+            tasks={filteredTasks}
+            selectedIds={selectedIds}
+            showRestore
+            onToggleSelect={toggleSelect}
+          />
         </TabsContent>
       </Tabs>
     </div>

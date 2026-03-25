@@ -56,6 +56,7 @@ export interface GitProvider {
   getRemotes(): Promise<{ name: string; url: string }[]>;
   createBranch(name: string, from: string, syncWithRemote?: boolean): Promise<void>;
   renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }>;
+  deleteBranch(branch: string, force?: boolean): Promise<void>;
 
   detectInfo(): Promise<GitInfo>;
 }

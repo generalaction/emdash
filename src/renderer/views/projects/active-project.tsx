@@ -1,4 +1,4 @@
-import { Github, MoreHorizontal } from 'lucide-react';
+import { Github, MoreHorizontal, Pencil, Trash } from 'lucide-react';
 import { gitRemoteToUrl } from '@shared/git-remote-url';
 import { PullRequestList } from '@renderer/components/projects/pr-list';
 import { Button } from '@renderer/components/ui/button';

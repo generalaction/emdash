@@ -45,7 +45,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
   const taskState = taskViewStateStore.getOrCreate(taskId);
   const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
-
   const delayedIsPending = useDelayedBoolean(isPending, 200);
 
   return (

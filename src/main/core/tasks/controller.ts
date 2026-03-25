@@ -5,6 +5,7 @@ import { deleteTask } from './deleteTask';
 import { getBootstrapStatus } from './getBootstrapStatus';
 import { getTasks } from './getTasks';
 import { provisionTask } from './provisionTask';
+import { renameTask } from './renameTask';
 import { restoreTask } from './restoreTask';
 import { retryProvisionTask } from './retryProvisionTask';
 import { retryTeardownTask } from './retryTeardownTask';
@@ -16,6 +17,7 @@ export const taskController = createRPCController({
   deleteTask,
   archiveTask,
   restoreTask,
+  renameTask,
   provisionTask,
   retryProvisionTask,
   retryTeardownTask,

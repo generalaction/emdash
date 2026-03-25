@@ -20,21 +20,11 @@ import { useRepository } from '@renderer/core/projects/use-repository';
 import { MountedProjectStore } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { generateFriendlyTaskName } from '@renderer/lib/taskNames';
+import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
 import { BranchSelector } from './branch-selector';
-
-function liveTransformTaskName(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .slice(0, 64);
-}
 
 export function CreateTaskModal({
   projectId,
-  projectPath,
   onClose,
 }: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
