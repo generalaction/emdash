@@ -880,6 +880,42 @@ export function registerFsIpc(): void {
     }
   );
 
+  // Resolve the previewUrl from .emdash.json, expanding $VAR references using
+  // process.env merged with EMDASH task-specific vars supplied by the caller.
+  ipcMain.handle(
+    'fs:resolvePreviewUrl',
+    async (_event, args: { projectPath: string; taskEnvVars?: Record<string, string> }) => {
+      try {
+        const { projectPath, taskEnvVars } = args;
+        if (!projectPath) return { success: false, error: 'Missing projectPath' };
+        const configPath = path.join(projectPath, '.emdash.json');
+        if (!fs.existsSync(configPath)) return { success: true, url: null };
+        const raw = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(raw);
+        const template: string | undefined = config?.previewUrl;
+        if (!template || typeof template !== 'string' || !template.trim()) {
+          return { success: true, url: null };
+        }
+        // Expand $VAR and ${VAR} references: EMDASH vars take priority, then process.env
+        const env: Record<string, string> = {
+          ...(process.env as Record<string, string>),
+          ...(taskEnvVars || {}),
+        };
+        const resolved = template.replace(
+          /\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+          (_m, braced, bare) => {
+            const key = braced || bare;
+            return Object.prototype.hasOwnProperty.call(env, key) ? env[key] : _m;
+          }
+        );
+        return { success: true, url: resolved.trim() };
+      } catch (error) {
+        console.error('fs:resolvePreviewUrl failed:', error);
+        return { success: false, error: 'Failed to resolve preview URL' };
+      }
+    }
+  );
+
   // Ensure entries exist in .gitignore (idempotent)
   ipcMain.handle(
     'fs:ensureGitignore',

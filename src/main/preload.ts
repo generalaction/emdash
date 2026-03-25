@@ -356,6 +356,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:getProjectConfig', { projectPath }),
   saveProjectConfig: (projectPath: string, content: string) =>
     ipcRenderer.invoke('fs:saveProjectConfig', { projectPath, content }),
+  resolvePreviewUrl: (projectPath: string, taskEnvVars?: Record<string, string>) =>
+    ipcRenderer.invoke('fs:resolvePreviewUrl', { projectPath, taskEnvVars }),
   ensureGitignore: (projectPath: string, patterns: string[]) =>
     ipcRenderer.invoke('fs:ensureGitignore', { projectPath, patterns }),
   // Attachments

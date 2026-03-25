@@ -796,6 +796,10 @@ declare global {
         projectPath: string,
         content: string
       ) => Promise<{ success: boolean; path?: string; error?: string }>;
+      resolvePreviewUrl: (
+        projectPath: string,
+        taskEnvVars?: Record<string, string>
+      ) => Promise<{ success: boolean; url?: string | null; error?: string }>;
       ensureGitignore: (
         projectPath: string,
         patterns: string[]
