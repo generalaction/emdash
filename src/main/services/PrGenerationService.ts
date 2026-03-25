@@ -84,21 +84,21 @@ export class PrGenerationService {
     let changedFiles: string[] = [];
 
     try {
-      // Fetch remote to ensure we have latest state (prevents comparing against stale local branches)
-      // This is critical: if local main is behind remote, we'd incorrectly include others' commits
-      // Only fetch if remote exists
-      try {
-        await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: taskPath });
-        // Remote exists, try to fetch
+      // Fetch remote in parallel with checking if the base branch ref exists locally.
+      // The fetch ensures we compare against the latest remote state; the parallel
+      // rev-parse lets us fall back immediately if the ref is already available.
+      const fetchPromise = (async () => {
         try {
-          await execFileAsync('git', ['fetch', 'origin', '--quiet'], { cwd: taskPath });
-        } catch (fetchError) {
-          log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
+          await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: taskPath });
+          try {
+            await execFileAsync('git', ['fetch', 'origin', '--quiet'], { cwd: taskPath });
+          } catch (fetchError) {
+            log.debug('Failed to fetch remote, continuing with existing refs', { fetchError });
+          }
+        } catch {
+          log.debug('Remote origin not found, skipping fetch');
         }
-      } catch {
-        // Remote doesn't exist, skip fetch
-        log.debug('Remote origin not found, skipping fetch');
-      }
+      })();
 
       // Always prefer remote branch to avoid stale local branch issues
       let baseBranchRef = baseBranch;
@@ -121,6 +121,9 @@ export class PrGenerationService {
           // Base branch doesn't exist, will use working directory diff
         }
       }
+
+      // Wait for fetch to complete before computing diffs (ensures up-to-date refs)
+      await fetchPromise;
 
       if (baseBranchExists) {
         // Get diff between base branch and current HEAD (committed changes)
