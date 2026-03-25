@@ -33,6 +33,10 @@ import microsoftLearnSvg from '../../assets/images/mcp/microsoft_learn.svg?raw';
 import canvaSvg from '../../assets/images/mcp/canva.svg?raw';
 import devrevSvg from '../../assets/images/mcp/devrev.svg?raw';
 import context7Svg from '../../assets/images/Context7.svg?raw';
+import excalidrawSvg from '../../assets/images/mcp/excalidraw.svg?raw';
+import githubSvg from '../../assets/images/mcp/github.svg?raw';
+import stitchSvg from '../../assets/images/mcp/stitch.svg?raw';
+import paperSvg from '../../assets/images/mcp/paper.svg?raw';
 
 // PNG icons (imported as URLs)
 import amplitudePng from '../../assets/images/mcp/amplitude.png';
@@ -100,4 +104,8 @@ export const mcpIconMap: Record<string, McpIconDef> = {
   exa: { type: 'png', data: exaPng, color: '4F46E5' },
   deepwiki: { type: 'png', data: deepwikiPng, color: '0D0D0D' },
   dev_manager: { type: 'svg', data: '', color: '6B7280' },
+  excalidraw: { type: 'svg', data: excalidrawSvg, color: '000000' },
+  github: { type: 'svg', data: githubSvg, color: '181717' },
+  stitch: { type: 'svg', data: stitchSvg, color: '4285F4' },
+  paper: { type: 'svg', data: paperSvg, color: 'FF6B35' },
 };
