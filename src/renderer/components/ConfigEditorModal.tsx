@@ -26,6 +26,7 @@ type ConfigShape = Record<string, unknown> & {
   shellSetup?: string;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
+  previewUrl?: string;
 };
 
 interface ConfigEditorModalProps {
@@ -134,6 +135,13 @@ function applyWorkspaceProvider(
   };
 }
 
+function applyPreviewUrl(config: ConfigShape, previewUrl: string): ConfigShape {
+  const { previewUrl: _previewUrl, ...rest } = config;
+  const trimmed = previewUrl.trim();
+  if (!trimmed) return rest;
+  return { ...rest, previewUrl: trimmed };
+}
+
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
@@ -155,6 +163,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalWpProvisionCommand, setOriginalWpProvisionCommand] = useState('');
   const [wpTerminateCommand, setWpTerminateCommand] = useState('');
   const [originalWpTerminateCommand, setOriginalWpTerminateCommand] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -175,9 +185,19 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     const withShellSetup = applyShellSetup(withPatterns, shellSetup);
     const withTmux = applyTmux(withShellSetup, tmux);
     const withWp = applyWorkspaceProvider(withTmux, wpProvisionCommand, wpTerminateCommand);
-    const withScripts = applyScripts(withWp, scripts);
+    const withPreviewUrl = applyPreviewUrl(withWp, previewUrl);
+    const withScripts = applyScripts(withPreviewUrl, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, shellSetup, tmux, wpProvisionCommand, wpTerminateCommand, scripts]);
+  }, [
+    config,
+    preservePatterns,
+    shellSetup,
+    tmux,
+    wpProvisionCommand,
+    wpTerminateCommand,
+    previewUrl,
+    scripts,
+  ]);
 
   const scriptsDirty = useMemo(
     () =>
@@ -188,7 +208,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       shellSetup !== originalShellSetup ||
       tmux !== originalTmux ||
       wpProvisionCommand !== originalWpProvisionCommand ||
-      wpTerminateCommand !== originalWpTerminateCommand,
+      wpTerminateCommand !== originalWpTerminateCommand ||
+      previewUrl !== originalPreviewUrl,
     [
       originalShellSetup,
       originalPreservePatternsInput,
@@ -198,6 +219,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       originalTmux,
       originalWpProvisionCommand,
       originalWpTerminateCommand,
+      originalPreviewUrl,
       shellSetup,
       preservePatternsInput,
       scripts.run,
@@ -206,6 +228,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       tmux,
       wpProvisionCommand,
       wpTerminateCommand,
+      previewUrl,
     ]
   );
 
@@ -248,6 +271,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         wp && typeof wp === 'object' && typeof wp.terminateCommand === 'string'
           ? wp.terminateCommand
           : '';
+      const nextPreviewUrl = typeof parsed.previewUrl === 'string' ? parsed.previewUrl : '';
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);
@@ -261,6 +285,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalWpProvisionCommand(nextWpProvision);
       setWpTerminateCommand(nextWpTerminate);
       setOriginalWpTerminateCommand(nextWpTerminate);
+      setPreviewUrl(nextPreviewUrl);
+      setOriginalPreviewUrl(nextPreviewUrl);
     } catch (err) {
       setConfig({});
       setScripts({ ...EMPTY_SCRIPTS });
@@ -275,6 +301,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalWpProvisionCommand('');
       setWpTerminateCommand('');
       setOriginalWpTerminateCommand('');
+      setPreviewUrl('');
+      setOriginalPreviewUrl('');
       setError(err instanceof Error ? err.message : 'Failed to load config');
       setLoadFailed(true);
     } finally {
@@ -327,13 +355,16 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       }
 
       const nextConfig = applyScripts(
-        applyWorkspaceProvider(
-          applyTmux(
-            applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
-            tmux
+        applyPreviewUrl(
+          applyWorkspaceProvider(
+            applyTmux(
+              applyShellSetup(applyPreservePatterns(config, preservePatterns), shellSetup),
+              tmux
+            ),
+            wpProvisionCommand,
+            wpTerminateCommand
           ),
-          wpProvisionCommand,
-          wpTerminateCommand
+          previewUrl
         ),
         scripts
       );
@@ -344,6 +375,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalTmux(tmux);
       setOriginalWpProvisionCommand(wpProvisionCommand);
       setOriginalWpTerminateCommand(wpTerminateCommand);
+      setOriginalPreviewUrl(previewUrl);
 
       if (
         wpProvisionCommand !== originalWpProvisionCommand ||
@@ -374,6 +406,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     tmux,
     wpProvisionCommand,
     wpTerminateCommand,
+    previewUrl,
   ]);
 
   return (
@@ -433,6 +466,25 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   Runs in every terminal before the shell starts.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-preview-url">Open Browser URL</Label>
+                <Input
+                  id="config-preview-url"
+                  value={previewUrl}
+                  onChange={(event) => {
+                    setPreviewUrl(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="http://localhost:$EMDASH_PORT"
+                  className="font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Overrides the browser toggle URL. Supports env var expansion. Leave blank to
+                  auto-detect from output.
                 </p>
               </div>
 

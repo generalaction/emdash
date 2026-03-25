@@ -15,6 +15,7 @@ export interface EmdashConfig {
   shellSetup?: string;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
+  previewUrl?: string;
 }
 
 /**
