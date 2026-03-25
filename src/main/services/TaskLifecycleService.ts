@@ -443,11 +443,67 @@ class TaskLifecycleService extends EventEmitter {
     }
   }
 
-  stopRun(taskId: string): LifecycleResult {
+  async stopRun(
+    taskId: string,
+    taskPath?: string,
+    projectPath?: string,
+    taskName?: string
+  ): Promise<LifecycleResult> {
     const pty = this.runPtys.get(taskId);
     if (!pty) return { ok: true, skipped: true };
 
     this.stopIntents.add(taskId);
+
+    // Run a configured stop script before killing the process.
+    if (projectPath && taskPath) {
+      const stopScript = lifecycleScriptsService.getScript(projectPath, 'stop');
+      if (stopScript) {
+        try {
+          const env = await this.buildLifecycleEnv(taskId, taskPath, projectPath, taskName);
+          const stopPty = this.createLifecyclePty(
+            `lifecycle-stop-${taskId}`,
+            stopScript,
+            taskPath,
+            env
+          );
+          const untrack = this.trackFinitePty(taskId, stopPty);
+          stopPty.onData((line) => {
+            if (!this.finitePtys.get(taskId)?.has(stopPty)) return;
+            this.emitLifecycleEvent(taskId, 'run', 'line', { line });
+          });
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(() => {
+              log.warn('Stop script timed out, proceeding to kill', { taskId });
+              try {
+                stopPty.kill();
+              } catch {}
+              resolve();
+            }, 30_000);
+            stopPty.onExit(() => {
+              clearTimeout(timer);
+              resolve();
+            });
+            stopPty.onError(() => {
+              clearTimeout(timer);
+              resolve();
+            });
+          });
+          untrack();
+        } catch (error) {
+          log.warn('Failed to run stop script, proceeding to kill', {
+            taskId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+
+    // If the run process already exited (e.g. the stop script shut it down), we're done.
+    const currentPty = this.runPtys.get(taskId);
+    if (!currentPty || currentPty !== pty) {
+      return { ok: true };
+    }
+
     try {
       pty.kill();
       setTimeout(() => {
@@ -499,7 +555,7 @@ class TaskLifecycleService extends EventEmitter {
           10_000,
           'Timed out waiting for run process to exit before teardown'
         );
-        this.stopRun(taskId);
+        await this.stopRun(taskId, taskPath, projectPath, taskName);
         await waitForExit;
       }
       return this.runFinite(taskId, taskPath, projectPath, 'teardown', taskName);

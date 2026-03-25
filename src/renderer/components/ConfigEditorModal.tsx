@@ -11,6 +11,7 @@ import { useFeatureFlag } from '../hooks/useFeatureFlag';
 type LifecycleScripts = {
   setup: string;
   run: string;
+  stop: string;
   teardown: string;
 };
 
@@ -39,6 +40,7 @@ interface ConfigEditorModalProps {
 const EMPTY_SCRIPTS: LifecycleScripts = {
   setup: '',
   run: '',
+  stop: '',
   teardown: '',
 };
 const PROJECT_CONFIG_DOCS_URL = 'https://docs.emdash.sh/project-config';
@@ -57,6 +59,7 @@ function scriptsFromConfig(config: ConfigShape): LifecycleScripts {
   return {
     setup: typeof obj.setup === 'string' ? obj.setup : '',
     run: typeof obj.run === 'string' ? obj.run : '',
+    stop: typeof obj.stop === 'string' ? obj.stop : '',
     teardown: typeof obj.teardown === 'string' ? obj.teardown : '',
   };
 }
@@ -72,6 +75,8 @@ function applyScripts(config: ConfigShape, scripts: LifecycleScripts): ConfigSha
   else delete cleanScripts.setup;
   if (scripts.run.trim()) cleanScripts.run = scripts.run;
   else delete cleanScripts.run;
+  if (scripts.stop.trim()) cleanScripts.stop = scripts.stop;
+  else delete cleanScripts.stop;
   if (scripts.teardown.trim()) cleanScripts.teardown = scripts.teardown;
   else delete cleanScripts.teardown;
 
@@ -183,6 +188,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     () =>
       scripts.setup !== originalScripts.setup ||
       scripts.run !== originalScripts.run ||
+      scripts.stop !== originalScripts.stop ||
       scripts.teardown !== originalScripts.teardown ||
       preservePatternsInput !== originalPreservePatternsInput ||
       shellSetup !== originalShellSetup ||
@@ -194,6 +200,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       originalPreservePatternsInput,
       originalScripts.run,
       originalScripts.setup,
+      originalScripts.stop,
       originalScripts.teardown,
       originalTmux,
       originalWpProvisionCommand,
@@ -202,6 +209,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       preservePatternsInput,
       scripts.run,
       scripts.setup,
+      scripts.stop,
       scripts.teardown,
       tmux,
       wpProvisionCommand,
@@ -542,6 +550,22 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   Long-running command for the task (start/stop from the task terminal).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="config-scripts-stop">Stop script</Label>
+                <Textarea
+                  id="config-scripts-stop"
+                  value={scripts.stop}
+                  onChange={handleScriptChange('stop')}
+                  placeholder="No stop script configured"
+                  className="min-h-[84px] font-mono text-xs"
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Runs when the run script is stopped. The run process is killed after this
+                  completes.
                 </p>
               </div>
 

@@ -386,14 +386,19 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
-      await api.lifecycleRunStop?.({ taskId: task.id });
+      await api.lifecycleRunStop?.({
+        taskId: task.id,
+        taskPath: task.path,
+        ...(projectPath ? { projectPath } : {}),
+        taskName: task.name,
+      });
     } catch (error) {
       console.error('Failed to stop run phase:', error);
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [task?.id, refreshLifecycleState]);
+  }, [task?.id, task?.path, task?.name, projectPath, refreshLifecycleState]);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;

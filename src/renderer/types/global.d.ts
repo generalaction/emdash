@@ -171,6 +171,9 @@ declare global {
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleRunStop: (args: {
         taskId: string;
+        taskPath?: string;
+        projectPath?: string;
+        taskName?: string;
       }) => Promise<{ success: boolean; skipped?: boolean; error?: string }>;
       lifecycleTeardown: (args: {
         taskId: string;
