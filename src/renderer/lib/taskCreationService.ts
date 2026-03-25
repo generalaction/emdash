@@ -24,6 +24,8 @@ export interface CreateTaskParams {
   nameGenerated?: boolean;
   useWorktree: boolean;
   baseRef?: string;
+  customBranchName?: string;
+  customWorktreeName?: string;
   /** When true, provision a remote workspace instead of creating a local worktree. */
   useRemoteWorkspace?: boolean;
   /** Workspace provider commands from .emdash.json — required when useRemoteWorkspace is true. */
@@ -311,6 +313,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     nameGenerated,
     useWorktree,
     baseRef,
+    customBranchName,
+    customWorktreeName,
     useRemoteWorkspace,
     workspaceProvider,
     preflightPromise,
@@ -558,6 +562,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
       projectPath: project.path,
       taskName,
       baseRef,
+      customBranchName,
+      customWorktreeName,
       task: {
         projectId: project.id,
         name: taskName,
@@ -583,6 +589,8 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
         taskName,
         projectId: project.id,
         baseRef,
+        customBranchName,
+        customWorktreeName,
       });
       if (!worktreeResult.success) {
         throw new Error(worktreeResult.error || 'Failed to create worktree');

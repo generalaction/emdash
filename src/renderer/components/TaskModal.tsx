@@ -29,6 +29,7 @@ import {
   normalizeTaskName,
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
+import { validateBranchName, validateWorktreeName } from '../lib/nameValidation';
 import BranchSelect from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import type { Project } from '../types/app';
@@ -79,6 +80,8 @@ interface TaskModalProps {
     useWorktree?: boolean,
     baseRef?: string,
     nameGenerated?: boolean,
+    customBranchName?: string,
+    customWorktreeName?: string,
     useRemoteWorkspace?: boolean,
     workspaceProvider?: { provisionCommand: string; terminateCommand: string }
   ) => Promise<void>;
@@ -109,6 +112,8 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
         useWorktree,
         baseRef,
         nameGenerated,
+        customBranchName,
+        customWorktreeName,
         useRemoteWorkspace,
         workspaceProvider
       ) => {
@@ -126,6 +131,8 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
           useWorktree,
           baseRef,
           nameGenerated,
+          customBranchName,
+          customWorktreeName,
           useRemoteWorkspace,
           workspaceProvider,
           initialProject ?? undefined
@@ -200,6 +207,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
       }
     })();
   }, [projectPath, workspaceProviderEnabled]);
+
+  // Custom branch and worktree name state
+  const [customBranchName, setCustomBranchName] = useState('');
+  const [customWorktreeName, setCustomWorktreeName] = useState('');
+  const [branchNameError, setBranchNameError] = useState<string | null>(null);
+  const [worktreeNameError, setWorktreeNameError] = useState<string | null>(null);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -291,6 +304,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setCustomBranchName('');
+    setCustomWorktreeName('');
+    setBranchNameError(null);
+    setWorktreeNameError(null);
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
@@ -409,6 +426,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     }
   };
 
+  const handleCustomBranchNameChange = (val: string) => {
+    setCustomBranchName(val);
+    setBranchNameError(validateBranchName(val));
+  };
+
+  const handleCustomWorktreeNameChange = (val: string) => {
+    setCustomWorktreeName(val);
+    setWorktreeNameError(validateWorktreeName(val));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
@@ -417,6 +444,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     if (err) {
       setError(err);
       return;
+    }
+
+    // Validate custom names if worktree is enabled
+    if (useWorktree) {
+      const branchErr = validateBranchName(customBranchName);
+      const worktreeErr = validateWorktreeName(customWorktreeName);
+      if (branchErr || worktreeErr) {
+        setBranchNameError(branchErr);
+        setWorktreeNameError(worktreeErr);
+        return;
+      }
     }
 
     // Determine the final task name and whether it should be eligible for
@@ -454,6 +492,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         useRemoteWorkspace ? false : useWorktree,
         selectedBranch,
         isNameGenerated,
+        useWorktree && customBranchName.trim() ? customBranchName.trim() : undefined,
+        useWorktree && customWorktreeName.trim() ? customWorktreeName.trim() : undefined,
         useRemoteWorkspace,
         useRemoteWorkspace && workspaceProviderConfig ? workspaceProviderConfig : undefined
       );
@@ -539,6 +579,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
             projectPath={projectPath}
             useWorktree={useWorktree}
             onUseWorktreeChange={setUseWorktree}
+            customBranchName={customBranchName}
+            onCustomBranchNameChange={handleCustomBranchNameChange}
+            branchNameError={branchNameError}
+            customWorktreeName={customWorktreeName}
+            onCustomWorktreeNameChange={handleCustomWorktreeNameChange}
+            worktreeNameError={worktreeNameError}
             useRemoteWorkspace={useRemoteWorkspace}
             onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
             hasWorkspaceProvider={!!workspaceProviderConfig}
@@ -579,7 +625,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         </div>
 
         <DialogFooter className="shrink-0 px-6 py-4">
-          <Button type="submit" disabled={!!error || isCreating} aria-busy={isCreating}>
+          <Button
+            type="submit"
+            disabled={!!error || !!branchNameError || !!worktreeNameError || isCreating}
+            aria-busy={isCreating}
+          >
             {isCreating ? (
               <>
                 <Spinner size="sm" className="mr-2" />

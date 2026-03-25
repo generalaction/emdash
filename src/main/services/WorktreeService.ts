@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { projectSettingsService } from './ProjectSettingsService';
 import { minimatch } from 'minimatch';
 import { errorTracking } from '../errorTracking';
+import { sanitizeBranchName, sanitizeWorktreeName } from '../lib/worktreeNameUtils';
 
 type BaseRefInfo = { remote: string; branch: string; fullRef: string };
 
@@ -180,7 +181,9 @@ export class WorktreeService {
     projectPath: string,
     taskName: string,
     projectId: string,
-    baseRef?: string
+    baseRef?: string,
+    customBranchName?: string,
+    customWorktreeName?: string
   ): Promise<WorktreeInfo> {
     // Declare variables outside try block for access in catch block
     let branchName: string | undefined;
@@ -192,8 +195,17 @@ export class WorktreeService {
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
       const prefix = settings?.repository?.branchPrefix || 'emdash';
-      branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
-      worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
+
+      // Use custom names if provided, otherwise auto-generate
+      branchName = customBranchName
+        ? sanitizeBranchName(customBranchName, prefix)
+        : sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`, prefix);
+
+      const worktreeDirName = customWorktreeName
+        ? sanitizeWorktreeName(customWorktreeName)
+        : `${sluggedName}-${hash}`;
+
+      worktreePath = path.join(projectPath, '..', `worktrees/${worktreeDirName}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
       log.info(`Creating worktree: ${branchName} -> ${worktreePath}`);
@@ -384,20 +396,6 @@ export class WorktreeService {
       log.error('Failed to list worktrees:', error);
       return [];
     }
-  }
-
-  /** Sanitize branch name to ensure it's a valid Git ref */
-  private sanitizeBranchName(name: string): string {
-    let n = name
-      .replace(/\s+/g, '-')
-      .replace(/[^A-Za-z0-9._\/-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/\/+/g, '/');
-    n = n.replace(/^[./-]+/, '').replace(/[./-]+$/, '');
-    if (!n || n === 'HEAD') {
-      n = `emdash/${this.slugify('task')}-${this.generateShortHash()}`;
-    }
-    return n;
   }
 
   /** Remove a worktree */

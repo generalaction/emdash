@@ -993,6 +993,8 @@ export function useTaskManagement() {
       useWorktree: boolean = true,
       baseRef?: string,
       nameGenerated?: boolean,
+      customBranchName?: string,
+      customWorktreeName?: string,
       useRemoteWorkspace?: boolean,
       workspaceProvider?: { provisionCommand: string; terminateCommand: string },
       overrideProject?: Project
@@ -1018,6 +1020,8 @@ export function useTaskManagement() {
         nameGenerated,
         useWorktree,
         baseRef,
+        customBranchName,
+        customWorktreeName,
         useRemoteWorkspace,
         workspaceProvider,
         preflightPromise: preflight,
