@@ -266,15 +266,6 @@ export class LocalProjectProvider implements ProjectProvider {
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-
-    if (task.taskBranch) {
-      await this.removeTaskWorktree(task.taskBranch).catch((e) => {
-        log.warn('LocalProjectProvider: worktree removal failed', {
-          taskId: task.taskId,
-          error: String(e),
-        });
-      });
-    }
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
