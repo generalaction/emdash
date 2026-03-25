@@ -85,19 +85,12 @@ function makeStubFs(overrides: Partial<FileSystemProvider> = {}): FileSystemProv
 // ---------------------------------------------------------------------------
 
 describe('cloneRepository', () => {
-  it('creates parent directory and runs git clone', async () => {
+  it('runs git clone', async () => {
     const exec = makeExec();
-    const fs = makeStubFs();
 
-    const result = await cloneRepository(
-      'https://github.com/org/repo.git',
-      '/projects/repo',
-      exec,
-      fs
-    );
+    const result = await cloneRepository('https://github.com/org/repo.git', '/projects/repo', exec);
 
     expect(result).toEqual({ success: true });
-    expect(fs.mkdir).toHaveBeenCalledWith('/projects', { recursive: true });
     expect(exec.calls).toEqual([['clone', 'https://github.com/org/repo.git', '/projects/repo']]);
   });
 
@@ -106,43 +99,11 @@ describe('cloneRepository', () => {
       'clone https://github.com/org/repo.git /projects/repo',
       'fatal: repository not found'
     );
-    const fs = makeStubFs();
 
-    const result = await cloneRepository(
-      'https://github.com/org/repo.git',
-      '/projects/repo',
-      exec,
-      fs
-    );
+    const result = await cloneRepository('https://github.com/org/repo.git', '/projects/repo', exec);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('repository not found');
-  });
-
-  it('returns error when mkdir fails', async () => {
-    const exec = makeExec();
-    const fs = makeStubFs({
-      mkdir: vi.fn().mockRejectedValue(new Error('permission denied')),
-    });
-
-    const result = await cloneRepository(
-      'https://github.com/org/repo.git',
-      '/projects/repo',
-      exec,
-      fs
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('permission denied');
-  });
-
-  it('handles deeply nested local path', async () => {
-    const exec = makeExec();
-    const fs = makeStubFs();
-
-    await cloneRepository('git@github.com:org/repo.git', '/a/b/c/d/repo', exec, fs);
-
-    expect(fs.mkdir).toHaveBeenCalledWith('/a/b/c/d', { recursive: true });
   });
 });
 
@@ -151,7 +112,7 @@ describe('cloneRepository', () => {
 // ---------------------------------------------------------------------------
 
 describe('initializeNewProject', () => {
-  it('writes README, stages, commits, and pushes to main', async () => {
+  it('checks existence via relative path and writes README', async () => {
     const exec = makeExec();
     const fs = makeStubFs();
 
@@ -166,15 +127,31 @@ describe('initializeNewProject', () => {
       fs
     );
 
-    // README written with description
+    expect(fs.exists).toHaveBeenCalledWith('.');
     expect(fs.write).toHaveBeenCalledWith('README.md', '# My Project\n\nA cool project\n');
 
-    // Correct git commands in order
     expect(exec.calls).toEqual([
       ['add', 'README.md'],
       ['commit', '-m', 'Initial commit'],
       ['push', '-u', 'origin', 'main'],
     ]);
+  });
+
+  it('throws when local path does not exist', async () => {
+    const exec = makeExec();
+    const fs = makeStubFs({ exists: vi.fn().mockResolvedValue(false) });
+
+    await expect(
+      initializeNewProject(
+        {
+          repoUrl: 'https://github.com/org/repo.git',
+          localPath: '/projects/repo',
+          name: 'Project',
+        },
+        exec,
+        fs
+      )
+    ).rejects.toThrow('Local path does not exist');
   });
 
   it('writes README without description when not provided', async () => {

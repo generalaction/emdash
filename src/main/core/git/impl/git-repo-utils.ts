@@ -16,17 +16,14 @@ import type { ExecFn } from '@main/core/utils/exec';
 
 /**
  * Clone a git repository to a local path.
- * Creates parent directories if they don't exist.
+ * The caller is responsible for ensuring the parent directory exists.
  */
 export async function cloneRepository(
   repoUrl: string,
   localPath: string,
-  exec: ExecFn,
-  fs: FileSystemProvider
+  exec: ExecFn
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Uses ".", because fs provider is already mounted at path.dirname(localPath).
-    await fs.mkdir('.', { recursive: true });
     await exec('git', ['clone', repoUrl, localPath]);
     return { success: true };
   } catch (error) {
@@ -64,9 +61,9 @@ export async function initializeNewProject(
 ): Promise<void> {
   const { localPath, name, description } = params;
 
-  const exists = await fs.exists(localPath);
+  const exists = await fs.exists('.');
   if (!exists) {
-    throw new Error('Local path does not exist after clone');
+    throw new Error('Local path does not exist');
   }
 
   const readmeContent = description ? `# ${name}\n\n${description}\n` : `# ${name}\n`;

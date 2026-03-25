@@ -252,8 +252,9 @@ export const githubController = createRPCController({
   cloneRepository: async (repoUrl: string, localPath: string) => {
     try {
       const exec = getLocalExec();
-      const fs = new LocalFileSystem(path.dirname(localPath));
-      return await cloneRepository(repoUrl, localPath, exec, fs);
+      const parentFs = new LocalFileSystem(path.dirname(localPath));
+      await parentFs.mkdir('.', { recursive: true });
+      return await cloneRepository(repoUrl, localPath, exec);
     } catch (error) {
       log.error('Failed to clone repository:', error);
       return {
@@ -290,8 +291,9 @@ export const githubController = createRPCController({
         path.join(homedir(), 'emdash-projects');
       const localPath = path.join(projectDir, name);
       const exec = getLocalExec();
-      const fs = new LocalFileSystem(path.dirname(localPath));
-      const cloneResult = await cloneRepository(cloneUrl, localPath, exec, fs);
+      const parentFs = new LocalFileSystem(path.dirname(localPath));
+      await parentFs.mkdir('.', { recursive: true });
+      const cloneResult = await cloneRepository(cloneUrl, localPath, exec);
       if (!cloneResult.success) {
         throw new Error(cloneResult.error ?? 'Clone failed');
       }
