@@ -1,4 +1,5 @@
 import * as toml from 'smol-toml';
+import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 
@@ -43,6 +44,8 @@ export class HookConfigWriter {
   constructor(private readonly fs: FileSystemProvider) {}
 
   async writeClaudeHooks(): Promise<void> {
+    if (!(await resolveCommandPath('claude'))) return;
+
     const config: Record<string, unknown> = await this.fs
       .read(CLAUDE_SETTINGS_PATH)
       .then((r) => JSON.parse(r.content) ?? {})
@@ -59,6 +62,8 @@ export class HookConfigWriter {
   }
 
   async writeCodexNotify(): Promise<void> {
+    if (!(await resolveCommandPath('codex'))) return;
+
     const config: Record<string, unknown> = await this.fs
       .read(CODEX_CONFIG_PATH)
       .then((result) => JSON.parse(result.content) ?? {})
