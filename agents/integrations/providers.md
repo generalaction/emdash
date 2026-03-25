@@ -23,13 +23,13 @@ codex, claude, qwen, droid, gemini, cursor, copilot, amp, opencode, charm, auggi
 
 ## Agent Event Classifiers
 
-Each provider has a terminal output classifier in `src/main/core/conversations/impl/agent-event-classifiers/`. These parse agent terminal output to detect events (task completion, errors, etc.) and forward them to the renderer via `AgentEventService`.
+Each provider has a terminal output classifier in `src/main/core/conversations/impl/agent-event-classifiers/`. These parse agent terminal output to detect events (task completion, errors, etc.) and forward them to the renderer via the agent hooks module (`src/main/core/agent-hooks/`).
 
 ## Provider Runtime Notes
 
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Agents with no CLI prompt flag (e.g., Amp, OpenCode) use keystroke injection — Emdash types the prompt into the TUI after startup.
-- `src/main/services/AgentEventService.ts` forwards hook events to renderer windows and can show OS notifications.
+- `src/main/core/agent-hooks/service.ts` forwards hook events to renderer windows and can show OS notifications. Also writes hook config files (`.claude/settings.local.json`, `.codex/config.toml`) into worktrees.
 
 ## Adding Or Changing A Provider
 
