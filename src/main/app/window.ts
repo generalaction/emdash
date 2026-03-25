@@ -43,7 +43,7 @@ export function createMainWindow(): BrowserWindow {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL(`http://localhost:${process.env.EMDASH_DEV_PORT || 3000}`);
   } else {
     // Serve renderer over an HTTP origin in production so embeds work.
     const rendererRoot = join(app.getAppPath(), 'dist', 'renderer');
