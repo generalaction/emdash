@@ -863,8 +863,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   automationsCreate: (args: {
     name: string;
     projectId: string;
+    projectName?: string;
     prompt: string;
     agentId: string;
+    mode?: string;
     schedule: {
       type: string;
       hour?: number;
@@ -872,14 +874,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       dayOfWeek?: string;
       dayOfMonth?: number;
     };
+    triggerType?: string;
+    triggerConfig?: Record<string, unknown>;
     useWorktree?: boolean;
   }) => ipcRenderer.invoke('automations:create', args),
   automationsUpdate: (args: {
     id: string;
     name?: string;
     projectId?: string;
+    projectName?: string;
     prompt?: string;
     agentId?: string;
+    mode?: string;
     schedule?: {
       type: string;
       hour?: number;
@@ -887,6 +893,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       dayOfWeek?: string;
       dayOfMonth?: number;
     };
+    triggerType?: string | null;
+    triggerConfig?: Record<string, unknown> | null;
     status?: string;
     useWorktree?: boolean;
   }) => ipcRenderer.invoke('automations:update', args),

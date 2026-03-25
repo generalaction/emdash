@@ -1384,8 +1384,8 @@ export class GitHubService {
   // Repo events API — efficient polling with ETag caching
   // -----------------------------------------------------------------------
 
-  /** ETag cache: repoNwo → { etag, events } */
-  private eventEtags = new Map<string, { etag: string; events: RepoEvent[] }>();
+  /** ETag cache: repoNwo → { etag, rawEvents (unfiltered) } */
+  private eventEtags = new Map<string, { etag: string; rawEvents: any[] }>();
 
   /**
    * Fetch recent repo events via the GitHub Events API.
@@ -1412,6 +1412,29 @@ export class GitHubService {
         : '';
       const cmd = `gh api /repos/${nwo}/events?per_page=30${etagHeader} --include`;
 
+      const typesFilter = eventTypes
+        ? new Set(eventTypes)
+        : new Set(['IssuesEvent', 'PullRequestEvent']);
+
+      const filterRawEvents = (raw: any[]): RepoEvent[] =>
+        raw
+          .filter((e: any) => typesFilter.has(e.type))
+          .map((e: any) => {
+            const item = e.payload?.issue ?? e.payload?.pull_request;
+            return {
+              id: String(e.id),
+              type: e.type,
+              action: e.payload?.action ?? '',
+              title: item?.title ?? '',
+              number: item?.number ?? 0,
+              url: item?.html_url ?? '',
+              labels: (item?.labels ?? []).map((l: any) => l?.name ?? '').filter(Boolean),
+              assignee: item?.assignee?.login ?? item?.user?.login ?? undefined,
+              branch: e.payload?.pull_request?.head?.ref ?? undefined,
+              createdAt: e.created_at ?? '',
+            };
+          });
+
       let stdout: string;
       try {
         const result = await this.execGH(cmd, { cwd: projectPath });
@@ -1420,7 +1443,7 @@ export class GitHubService {
         // gh api exits with non-zero on 304 — that means nothing changed
         const msg = err?.stderr || err?.message || '';
         if (msg.includes('304') || msg.includes('Not Modified')) {
-          return cached?.events ?? [];
+          return filterRawEvents(cached?.rawEvents ?? []);
         }
         throw err;
       }
@@ -1435,36 +1458,14 @@ export class GitHubService {
       const newEtag = etagMatch?.[1] ?? '';
 
       const rawEvents = JSON.parse(jsonBody || '[]');
-      if (!Array.isArray(rawEvents)) return cached?.events ?? [];
+      if (!Array.isArray(rawEvents)) return filterRawEvents(cached?.rawEvents ?? []);
 
-      const typesFilter = eventTypes
-        ? new Set(eventTypes)
-        : new Set(['IssuesEvent', 'PullRequestEvent']);
-
-      const events: RepoEvent[] = rawEvents
-        .filter((e: any) => typesFilter.has(e.type))
-        .map((e: any) => {
-          const item = e.payload?.issue ?? e.payload?.pull_request;
-          return {
-            id: String(e.id),
-            type: e.type,
-            action: e.payload?.action ?? '',
-            title: item?.title ?? '',
-            number: item?.number ?? 0,
-            url: item?.html_url ?? '',
-            labels: (item?.labels ?? []).map((l: any) => l?.name ?? '').filter(Boolean),
-            assignee: item?.assignee?.login ?? item?.user?.login ?? undefined,
-            branch: e.payload?.pull_request?.head?.ref ?? undefined,
-            createdAt: e.created_at ?? '',
-          };
-        });
-
-      // Cache for next poll
+      // Cache unfiltered events for next poll (so different eventTypes can reuse the cache)
       if (newEtag) {
-        this.eventEtags.set(nwo, { etag: newEtag, events });
+        this.eventEtags.set(nwo, { etag: newEtag, rawEvents });
       }
 
-      return events;
+      return filterRawEvents(rawEvents);
     } catch (error) {
       console.error('Failed to fetch repo events:', error);
       return [];

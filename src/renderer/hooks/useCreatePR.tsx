@@ -99,9 +99,13 @@ export function useCreatePR() {
       // Now await the parallel generation result (if started) and apply it
       if (generatePromise) {
         const generated = await generatePromise;
-        if (generated?.success && generated.title) {
-          finalPrOptions.title = finalPrOptions.title || generated.title;
-          finalPrOptions.body = finalPrOptions.body || generated.description || '';
+        if (generated?.success) {
+          if (!finalPrOptions.title && generated.title) {
+            finalPrOptions.title = generated.title;
+          }
+          if (!finalPrOptions.body && generated.description) {
+            finalPrOptions.body = generated.description;
+          }
         }
       }
 

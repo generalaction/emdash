@@ -111,19 +111,24 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
   useEffect(() => {
     if (isEditing) return;
     let cancel = false;
-    rpc.appSettings.get().then((settings) => {
-      if (cancel) return;
-      if (!userTouchedAgentRef.current) {
-        const settingsAgent = settings?.defaultProvider;
-        if (isValidProviderId(settingsAgent)) {
-          setAgentId(settingsAgent as string);
+    rpc.appSettings
+      .get()
+      .then((settings) => {
+        if (cancel) return;
+        if (!userTouchedAgentRef.current) {
+          const settingsAgent = settings?.defaultProvider;
+          if (isValidProviderId(settingsAgent)) {
+            setAgentId(settingsAgent as string);
+          }
         }
-      }
-      if (!userTouchedWorktreeRef.current) {
-        const createWorktreeByDefault = settings?.tasks?.createWorktreeByDefault ?? true;
-        setUseWorktree(createWorktreeByDefault);
-      }
-    });
+        if (!userTouchedWorktreeRef.current) {
+          const createWorktreeByDefault = settings?.tasks?.createWorktreeByDefault ?? true;
+          setUseWorktree(createWorktreeByDefault);
+        }
+      })
+      .catch(() => {
+        // Ignore — defaults remain unchanged
+      });
     return () => {
       cancel = true;
     };

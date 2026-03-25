@@ -1160,8 +1160,13 @@ export function registerGitIpc() {
               }
             }
           } catch (stageErr) {
-            log.warn('Failed to stage/commit changes before PR:', stageErr as string);
-            // Continue; PR may still be created for existing commits
+            const stageMsg = stageErr instanceof Error ? stageErr.message : String(stageErr);
+            if (/nothing to commit/i.test(stageMsg)) {
+              outputs.push('git: nothing to commit');
+            } else {
+              log.error('Failed to stage/commit changes before PR:', stageMsg);
+              throw stageErr;
+            }
           }
 
           // Ensure branch is pushed to origin so PR includes latest commit

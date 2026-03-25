@@ -135,7 +135,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
 
       {/* Actions — visible on hover */}
       <TooltipProvider delayDuration={200}>
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

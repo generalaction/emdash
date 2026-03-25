@@ -81,6 +81,7 @@ const AutomationsView: React.FC = () => {
     mode?: AutomationMode,
     triggerType?: TriggerType
   ) => {
+    setEditingAutomation(null);
     setPrefill({ name, prompt, mode, triggerType });
     setShowCreate(true);
   };

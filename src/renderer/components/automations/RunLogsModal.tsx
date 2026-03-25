@@ -37,12 +37,15 @@ const statusLabel = (status: AutomationRunLog['status']) => {
 const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation, getRunLogs }) => {
   const [logs, setLogs] = useState<AutomationRunLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && automation) {
       setIsLoading(true);
+      setError(null);
       getRunLogs(automation.id, 50)
         .then(setLogs)
+        .catch((err) => setError(err?.message ?? 'Failed to load run history'))
         .finally(() => setIsLoading(false));
     }
   }, [isOpen, automation, getRunLogs]);
@@ -70,6 +73,10 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="py-8 text-center">
+            <p className="text-xs text-red-500">{error}</p>
           </div>
         ) : logs.length === 0 ? (
           <div className="py-8 text-center">

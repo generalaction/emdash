@@ -271,6 +271,9 @@ class AutomationsService {
   /** Tracks the last-known event IDs per automation to detect new ones */
   private knownEventIds = new Map<string, Set<string>>();
 
+  /** Tracks automations with an in-flight (running) run to prevent overlap */
+  private inFlightRuns = new Set<string>();
+
   // -------------------------------------------------------------------
   // Initialization — runs once to ensure DB client is ready.
   // Tables are created by DatabaseService.ensureMigrations() in production
@@ -290,6 +293,7 @@ class AutomationsService {
     this.ticking = false;
     this.triggerTicking = false;
     this.knownEventIds.clear();
+    this.inFlightRuns.clear();
     this.stop();
   }
 
@@ -361,6 +365,9 @@ class AutomationsService {
         const automation = mapAutomationRow(row);
         if (!automation.nextRunAt) continue;
 
+        // Skip if a previous run is still in-flight to prevent overlap
+        if (this.inFlightRuns.has(automation.id)) continue;
+
         const runLogId = generateId();
         const nextRunAt = computeNextRun(automation.schedule, now);
         const nextRunCount = automation.runCount + 1;
@@ -384,6 +391,8 @@ class AutomationsService {
           error: null,
           taskId: null,
         });
+
+        this.inFlightRuns.add(automation.id);
 
         triggers.push({
           automation: {
@@ -652,7 +661,7 @@ class AutomationsService {
       const repoEvents = await gh.fetchRepoEvents(projectPath, [eventType]);
 
       return repoEvents.map((event) => ({
-        id: `${eventType === 'IssuesEvent' ? 'issue' : 'pr'}-${event.number}`,
+        id: event.id,
         title: event.title,
         url: event.url,
         type: eventType === 'IssuesEvent' ? 'GitHub Issue' : 'GitHub PR',
@@ -925,14 +934,19 @@ class AutomationsService {
 
     log.info(`[Automations] Updated automation: ${updated.name} (${updated.id})`);
 
-    // Re-seed when trigger type changed or automation switched to trigger mode
+    // Re-seed when trigger type changed, automation switched to trigger mode,
+    // or the project context changed (so stale events aren't replayed).
     const triggerTypeChanged =
       updated.mode === 'trigger' &&
       (input.triggerType !== undefined || input.mode === 'trigger') &&
       updated.triggerType !== current.triggerType;
     const switchedToTrigger = input.mode === 'trigger' && current.mode !== 'trigger';
+    const projectChanged =
+      updated.mode === 'trigger' &&
+      input.projectId !== undefined &&
+      input.projectId !== current.projectId;
 
-    if (triggerTypeChanged || switchedToTrigger) {
+    if (triggerTypeChanged || switchedToTrigger || projectChanged) {
       this.knownEventIds.delete(updated.id);
       void this.seedAutomationEvents(updated);
     }
@@ -999,11 +1013,8 @@ class AutomationsService {
 
     // Re-seed known events when a trigger automation is re-activated so stale
     // issues/PRs created while paused don't fire as false positives.
-    if (
-      nextStatus === 'active' &&
-      updated.mode === 'trigger' &&
-      !this.knownEventIds.has(updated.id)
-    ) {
+    if (nextStatus === 'active' && updated.mode === 'trigger') {
+      this.knownEventIds.delete(updated.id);
       void this.seedAutomationEvents(updated);
     }
 
@@ -1030,7 +1041,8 @@ class AutomationsService {
 
   async updateRunLog(
     runId: string,
-    update: Partial<Pick<AutomationRunLog, 'status' | 'error' | 'finishedAt' | 'taskId'>>
+    update: Partial<Pick<AutomationRunLog, 'status' | 'error' | 'finishedAt' | 'taskId'>>,
+    automationId?: string
   ): Promise<void> {
     await this.ensureInitialized();
     const { db } = await getDrizzleClient();
@@ -1045,6 +1057,11 @@ class AutomationsService {
         taskId: update.taskId,
       })
       .where(eq(automationRunLogsTable.id, runId));
+
+    // Clear in-flight tracking when the run finishes
+    if (automationId && (update.status === 'success' || update.status === 'failure')) {
+      this.inFlightRuns.delete(automationId);
+    }
   }
 
   async setLastRunResult(
