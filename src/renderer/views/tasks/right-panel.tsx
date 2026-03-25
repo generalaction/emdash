@@ -1,21 +1,20 @@
+import { observer } from 'mobx-react-lite';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { ChangesPanel } from './diff-viewer/right-panel/changes-panel';
 import { EditorFileTree } from './editor/editor-file-tree';
 import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 
-export function TaskRightSidebar() {
-  const { rightPanelView } = useTaskViewContext();
+export const TaskRightSidebar = observer(function TaskRightSidebar() {
+  const { taskId } = useTaskViewContext();
+  const { rightPanelView } = taskViewStateStore.getOrCreate(taskId);
 
-  const renderView = () => {
-    switch (rightPanelView) {
-      case 'changes':
-        return <ChangesPanel />;
-      case 'files':
-        return <EditorFileTree />;
-      case 'terminals':
-        return <TerminalsPanel />;
-    }
-  };
-
-  return <div className="flex h-full flex-col">{renderView()}</div>;
-}
+  switch (rightPanelView) {
+    case 'changes':
+      return <ChangesPanel />;
+    case 'files':
+      return <EditorFileTree />;
+    case 'terminals':
+      return <TerminalsPanel />;
+  }
+});

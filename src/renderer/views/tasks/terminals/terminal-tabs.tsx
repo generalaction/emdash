@@ -1,41 +1,77 @@
-import { FileTerminal, Play, Plus, Terminal, X } from 'lucide-react';
+import { Plus, Terminal, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
+import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
+import { frontendPtyRegistry } from '@renderer/core/pty/pty';
+import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
+import { TerminalManagerStore } from '@renderer/core/stores/terminal-manager';
 import { cn } from '@renderer/lib/utils';
-import type { TerminalTabItem } from '../hooks/use-terminals';
-import { useTaskViewContext } from '../task-view-context';
+
+export type TerminalTabItem = { kind: 'terminal'; id: string; name: string };
+
+function getTerminalsPaneSize() {
+  const container = getPaneContainer('terminals');
+  return container ? (measureDimensions(container, 8, 16) ?? undefined) : undefined;
+}
+
+function nextTerminalName(names: string[]): string {
+  const taken = new Set(
+    names
+      .map((n) => /^Terminal (\d+)$/.exec(n)?.[1])
+      .filter(Boolean)
+      .map(Number)
+  );
+  let n = 1;
+  while (taken.has(n)) n++;
+  return `Terminal ${n}`;
+}
 
 interface TerminalsTabsProps {
   tabItems: TerminalTabItem[];
   activeId: string | null;
+  projectId: string;
+  taskId: string;
+  terminalMgr: TerminalManagerStore | null;
 }
 
-export function TerminalsTabs({ tabItems, activeId }: TerminalsTabsProps) {
-  const { setActiveTerminalId, createTerminal, removeTerminal, runLifecycleScript } =
-    useTaskViewContext();
-
-  const activeItem = tabItems.find((item) => item.id === activeId) ?? null;
-
+export const TerminalsTabs = observer(function TerminalsTabs({
+  tabItems,
+  activeId,
+  projectId,
+  taskId,
+  terminalMgr,
+}: TerminalsTabsProps) {
   const handleCreate = useCallback(async () => {
+    if (!terminalMgr) return;
+    const id = crypto.randomUUID();
+    const name = nextTerminalName(tabItems.map((t) => t.name));
     try {
-      const terminal = await createTerminal();
-      setActiveTerminalId(terminal.id);
+      await terminalMgr.createTerminal({
+        id,
+        projectId,
+        taskId,
+        name,
+        initialSize: getTerminalsPaneSize(),
+      });
     } catch (error) {
       console.error('Failed to create terminal:', error);
     }
-  }, [createTerminal, setActiveTerminalId]);
+  }, [terminalMgr, projectId, taskId, tabItems]);
 
   const handleRemove = useCallback(
     (terminalId: string) => {
-      removeTerminal(terminalId);
+      if (!terminalMgr) return;
+      frontendPtyRegistry.unregister(makePtySessionId(projectId, taskId, terminalId));
+      void terminalMgr.deleteTerminal(terminalId);
       if (activeId === terminalId) {
         const index = tabItems.findIndex((item) => item.id === terminalId);
         const nextId = tabItems[index + 1]?.id ?? tabItems[index - 1]?.id;
-        setActiveTerminalId(nextId ?? undefined);
+        if (nextId) terminalMgr.tabs.setActiveTab(nextId);
       }
     },
-    [activeId, tabItems, removeTerminal, setActiveTerminalId]
+    [activeId, tabItems, terminalMgr, projectId, taskId]
   );
 
   return (
@@ -44,30 +80,10 @@ export function TerminalsTabs({ tabItems, activeId }: TerminalsTabsProps) {
         <div className="flex gap-1">
           {tabItems.map((item) => {
             const isActive = activeId === item.id;
-            if (item.kind === 'lifecycle') {
-              return (
-                <Tooltip key={item.type}>
-                  <TooltipTrigger>
-                    <button
-                      onClick={() => setActiveTerminalId(item.id)}
-                      className={cn(
-                        'group relative flex items-center gap-1.5 rounded-md border border-border px-2.5 h-7 justify-center hover:bg-muted text-xs',
-                        isActive && 'bg-muted'
-                      )}
-                    >
-                      <FileTerminal className="size-3" />
-                      <span className="capitalize">{item.type}</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="capitalize">{item.type} script</TooltipContent>
-                </Tooltip>
-              );
-            }
-
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTerminalId(item.id)}
+                onClick={() => terminalMgr?.tabs.setActiveTab(item.id)}
                 className={cn(
                   'group relative flex items-center gap-1.5 rounded-md border border-border h-7 px-2.5 text-xs hover:bg-muted',
                   isActive && 'bg-muted'
@@ -100,30 +116,6 @@ export function TerminalsTabs({ tabItems, activeId }: TerminalsTabsProps) {
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
-      {activeItem?.kind === 'lifecycle' && (
-        <div className="p-2 pt-0">
-          <div className="flex items-center gap-2 p-1.5 justify-between border border-border rounded-lg">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon-xs"
-                onClick={() => runLifecycleScript(activeItem.type)}
-              >
-                <Play className="size-3" />
-              </Button>
-              <span className="text-xs text-muted-foreground capitalize">
-                {activeItem.type} script
-              </span>
-            </div>
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground mr-1"
-              onClick={() => {}}
-            >
-              View in Project Settings
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
+});

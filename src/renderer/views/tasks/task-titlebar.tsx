@@ -1,27 +1,31 @@
 import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
-import { TaskActionsMenu } from '@renderer/components/task-actions-menu';
+import { observer } from 'mobx-react-lite';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { type RightPanelView } from '@renderer/core/tasks/view/task-view-store';
-import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { RightPanelView } from '@renderer/core/tasks/types';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
-import { useReadyTaskViewContext, useTaskViewContext } from './task-view-context';
+import { useTaskViewContext } from './task-view-context';
+import { getTaskStore, taskDisplayName, taskViewKind } from './task-view-state';
 
-export function TaskTitlebar() {
-  const { lifecycleTask } = useTaskViewContext();
-  if (lifecycleTask.status === 'creating') {
-    return <PendingTaskTitlebar name={lifecycleTask.task.name} />;
+export const TaskTitlebar = observer(function TaskTitlebar() {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskStore = getTaskStore(projectId, taskId);
+  const kind = taskViewKind(taskStore, projectId);
+
+  const isNotReady =
+    kind === 'creating' ||
+    kind === 'create-error' ||
+    kind === 'provisioning' ||
+    kind === 'provision-error';
+
+  if (isNotReady) {
+    return <PendingTaskTitlebar name={taskDisplayName(taskStore)} />;
   }
-  if (
-    lifecycleTask.status === 'create-error' ||
-    lifecycleTask.status === 'provisioning' ||
-    lifecycleTask.status === 'provision-error'
-  ) {
-    return <PendingTaskTitlebar />;
-  }
-  return <ActiveTaskTitlebar />;
-}
+
+  return <ActiveTaskTitlebar taskId={taskId} />;
+});
 
 function PendingTaskTitlebar({ name }: { name?: string }) {
   return (
@@ -35,27 +39,19 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
   );
 }
 
-function ActiveTaskTitlebar() {
-  const { view, lifecycleTask, rightPanelView, setRightPanelView } = useReadyTaskViewContext();
-  const { navigate } = useNavigate();
+const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { taskId: string }) {
+  const { projectId } = useTaskViewContext();
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskState = taskViewStateStore.getOrCreate(taskId);
+  const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
-
   const delayedIsPending = useDelayedBoolean(isPending, 200);
-
-  const task = lifecycleTask.task;
-  const navigateToProject = () => navigate('project', { projectId: task.projectId });
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
-          <span className="text-sm text-muted-foreground">{task.name}</span>
-          <TaskActionsMenu
-            task={task}
-            onArchived={navigateToProject}
-            onDeleted={navigateToProject}
-            triggerProps={{ variant: 'ghost', size: 'default' }}
-          />
+          <span className="text-sm text-muted-foreground">{taskDisplayName(taskStore)}</span>
         </div>
       }
       rightSlot={
@@ -102,7 +98,7 @@ function ActiveTaskTitlebar() {
             className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1 mr-2"
             onValueChange={([value]) => {
               if (!value) return;
-              setRightPanelView(value as RightPanelView);
+              taskState.setRightPanelView(value as RightPanelView);
             }}
           >
             <ToggleGroupItem
@@ -131,4 +127,4 @@ function ActiveTaskTitlebar() {
       }
     />
   );
-}
+});

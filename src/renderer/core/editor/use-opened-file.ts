@@ -1,9 +1,7 @@
 import { useCallback } from 'react';
-import {
-  taskViewStateStore,
-  type FileRendererData,
-} from '@renderer/core/tasks/view/task-view-store';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
+import { FileRendererData } from '../tasks/types';
 
 /**
  * Gives any component direct read+write access to its `ManagedFile` entry in

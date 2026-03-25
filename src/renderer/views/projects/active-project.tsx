@@ -11,15 +11,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 import { TaskList } from './task-list';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
-  const showConfirmation = useShowModal('confirmActionModal');
-  const { deleteProject } = useProjectsDataContext();
   const githubUrl = project.gitRemote ? gitRemoteToUrl(project.gitRemote) : undefined;
 
   return (
@@ -53,24 +51,11 @@ export function ActiveProject() {
                   </Button>
                 }
               />
-              <DropdownMenuContent className="min-w-fit">
-                <DropdownMenuItem>
-                  <Pencil />
-                  Rename project
-                </DropdownMenuItem>
+              <DropdownMenuContent>
+                <DropdownMenuItem>Rename project</DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>
-                    showConfirmation({
-                      title: 'Delete project?',
-                      description:
-                        'This will remove the project from Emdash. Your files and repository will not be affected.',
-                      confirmLabel: 'Delete',
-                      onSuccess: () => deleteProject(project.id),
-                    })
-                  }
-                  variant="destructive"
+                  onClick={() => void projectManagerStore.deleteProject(project.id)}
                 >
-                  <Trash />
                   Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>

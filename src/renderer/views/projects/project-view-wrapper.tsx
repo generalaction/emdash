@@ -1,15 +1,16 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { Project } from '@shared/projects';
+import { observer } from 'mobx-react-lite';
+import { createContext, useContext, type ReactNode } from 'react';
+import type { Project } from '@shared/projects';
+import { UnregisteredProjectStore } from '@renderer/core/stores/project';
 import {
-  usePendingProjectsContext,
-  type PendingProject,
-} from '@renderer/components/add-project-modal/pending-projects-provider';
-import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
-import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+  getProjectStore,
+  projectViewKind,
+  unmountedMountErrorMessage,
+} from '@renderer/views/projects/project-view-state';
 import { RepositoryProvider } from './repository-provider';
 
 export type ProjectStatus =
-  | { status: 'creating'; pending: PendingProject }
+  | { status: 'creating'; pending: UnregisteredProjectStore }
   | { status: 'bootstrapping' }
   | { status: 'error'; message: string }
   | { status: 'ready' };
@@ -38,32 +39,34 @@ interface ProjectViewWrapperProps {
   projectId: string;
 }
 
-export function ProjectViewWrapper({ children, projectId }: ProjectViewWrapperProps) {
-  const { projects } = useProjectsDataContext();
-  const { pendingProjects } = usePendingProjectsContext();
-  const { entries, startTracking } = useProjectBootstrapContext();
+export const ProjectViewWrapper = observer(function ProjectViewWrapper({
+  children,
+  projectId,
+}: ProjectViewWrapperProps) {
+  const projectStore = getProjectStore(projectId);
+  const kind = projectViewKind(projectStore);
 
-  useEffect(() => {
-    startTracking(projectId);
-  }, [projectId, startTracking]);
+  const projectData =
+    projectStore?.state === 'mounted' || projectStore?.state === 'unmounted'
+      ? (projectStore.data as Project)
+      : null;
 
-  const project = (projects.find((p) => p.id === projectId) ?? null) as Project | null;
-  const pendingProject = pendingProjects.find((p) => p.id === projectId);
-  const bootstrapEntry = entries[projectId];
-
-  const status: ProjectStatus = pendingProject
-    ? { status: 'creating', pending: pendingProject }
-    : bootstrapEntry?.status === 'bootstrapping'
-      ? { status: 'bootstrapping' }
-      : bootstrapEntry?.status === 'error'
-        ? { status: 'error', message: bootstrapEntry.error ?? 'Bootstrap failed' }
-        : { status: 'ready' };
+  const status: ProjectStatus =
+    projectStore?.state === 'unregistered'
+      ? { status: 'creating', pending: projectStore }
+      : kind === 'bootstrapping'
+        ? { status: 'bootstrapping' }
+        : kind === 'mount_error'
+          ? { status: 'error', message: unmountedMountErrorMessage(projectStore) }
+          : { status: 'ready' };
 
   return (
     <CurrentProjectStatusContext.Provider value={status}>
       <RepositoryProvider projectId={projectId}>
-        <CurrentProjectContext.Provider value={project}>{children}</CurrentProjectContext.Provider>
+        <CurrentProjectContext.Provider value={projectData}>
+          {children}
+        </CurrentProjectContext.Provider>
       </RepositoryProvider>
     </CurrentProjectStatusContext.Provider>
   );
-}
+});

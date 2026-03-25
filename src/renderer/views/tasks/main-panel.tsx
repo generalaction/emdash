@@ -1,13 +1,18 @@
 import { Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-viewer/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { useTaskViewContext } from './task-view-context';
+import { getTaskStore, taskErrorMessage, taskViewKind } from './task-view-state';
 
-export function TaskMainPanel() {
-  const { lifecycleTask } = useTaskViewContext();
+export const TaskMainPanel = observer(function TaskMainPanel() {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskStore = getTaskStore(projectId, taskId);
+  const kind = taskViewKind(taskStore, projectId);
 
-  if (lifecycleTask.status === 'creating') {
+  if (kind === 'creating') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
@@ -16,20 +21,20 @@ export function TaskMainPanel() {
     );
   }
 
-  if (lifecycleTask.status === 'create-error') {
+  if (kind === 'create-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
         <div className="flex max-w-xs flex-col items-center text-center gap-2">
           <p className="text-sm font-medium font-mono text-destructive">Error creating task</p>
           <p className="text-xs font-mono text-muted-foreground/70">
-            {lifecycleTask.error.message}
+            {taskErrorMessage(taskStore)}
           </p>
         </div>
       </div>
     );
   }
 
-  if (lifecycleTask.status === 'provisioning') {
+  if (kind === 'project-mounting' || kind === 'provisioning') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
@@ -38,7 +43,7 @@ export function TaskMainPanel() {
     );
   }
 
-  if (lifecycleTask.status === 'provision-error') {
+  if (kind === 'provision-error' || kind === 'project-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
         <div className="flex max-w-xs flex-col items-center text-center gap-2">
@@ -46,18 +51,18 @@ export function TaskMainPanel() {
             Failed to set up workspace
           </p>
           <p className="text-xs font-mono text-muted-foreground/70">
-            {lifecycleTask.error.message}
+            {taskErrorMessage(taskStore)}
           </p>
         </div>
       </div>
     );
   }
 
-  return <ReadyTaskMainPanel />;
-}
+  return <ReadyTaskMainPanel taskId={taskId} />;
+});
 
-function ReadyTaskMainPanel() {
-  const { view } = useTaskViewContext();
+const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel({ taskId }: { taskId: string }) {
+  const { view } = taskViewStateStore.getOrCreate(taskId);
 
   switch (view) {
     case 'agents':
@@ -67,4 +72,4 @@ function ReadyTaskMainPanel() {
     case 'diff':
       return <DiffView />;
   }
-}
+});

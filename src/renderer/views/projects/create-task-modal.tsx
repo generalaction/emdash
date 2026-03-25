@@ -17,9 +17,10 @@ import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
+import { MountedProjectStore } from '@renderer/core/stores/project';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
-import { useTaskLifecycleContext } from '../../core/tasks/task-lifecycle-provider';
 import { BranchSelector } from './branch-selector';
 
 export function CreateTaskModal({
@@ -27,7 +28,6 @@ export function CreateTaskModal({
   onClose,
 }: BaseModalProps & { projectId: string; projectPath: string }) {
   const { branches, defaultBranch } = useRepository(projectId);
-  const { createTask } = useTaskLifecycleContext();
   const { navigate } = useNavigate();
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
     defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined
@@ -49,19 +49,21 @@ export function CreateTaskModal({
 
   const handleCreateTask = useCallback(() => {
     const id = crypto.randomUUID();
-    createTask({
-      id,
-      projectId,
-      name: taskName,
-      sourceBranch: selectedBranch?.branch ?? '',
-      taskBranch: createBranchAndWorktree ? taskName : undefined,
-      linkedIssue: linkedIssue ?? undefined,
-      pushBranch: createBranchAndWorktree ? pushBranch : undefined,
-    });
+    const projectStore = projectManagerStore.projects.get(projectId);
+    if (projectStore?.state === 'mounted') {
+      void (projectStore as MountedProjectStore).taskManager.createTask({
+        id,
+        projectId,
+        name: taskName,
+        sourceBranch: selectedBranch?.branch ?? '',
+        taskBranch: createBranchAndWorktree ? taskName : undefined,
+        linkedIssue: linkedIssue ?? undefined,
+        pushBranch: createBranchAndWorktree ? pushBranch : undefined,
+      });
+    }
     onClose();
     navigate('task', { projectId, taskId: id });
   }, [
-    createTask,
     projectId,
     selectedBranch,
     taskName,

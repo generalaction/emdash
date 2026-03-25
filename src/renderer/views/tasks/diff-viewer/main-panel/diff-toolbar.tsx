@@ -1,7 +1,7 @@
 import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
 import React from 'react';
 import { FileIcon } from '@renderer/core/editor/file-icon';
-import type { ActiveFile } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
+import type { ActiveFile } from '@renderer/core/stores/diff-view-store';
 import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
 
 interface DiffToolbarProps {

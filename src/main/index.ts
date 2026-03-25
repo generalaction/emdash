@@ -95,10 +95,6 @@ app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, ipcMain);
 
-  projectManager.initialize().catch((e) => {
-    log.error('Failed to initialize environment providers:', e);
-  });
-
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });

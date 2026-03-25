@@ -1,6 +1,6 @@
 import { Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { MarkdownPreview } from '@renderer/components/FileExplorer/MarkdownPreview';
+import { MarkdownRenderer } from '@renderer/components/ui/markdown-renderer';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
@@ -25,7 +25,14 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 
   return (
     <div className="relative h-full">
-      <MarkdownPreview content={content} rootPath={modelRootPath} fileDir={fileDir} />
+      <MarkdownRenderer
+        content={content}
+        variant="full"
+        className="w-full max-w-3xl px-8 py-8"
+        rootPath={modelRootPath}
+        fileDir={fileDir}
+      />
+
       <button
         className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
         onClick={() => updateRenderer(() => ({ kind: 'markdown-source' }))}

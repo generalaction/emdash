@@ -9,8 +9,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
 import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,

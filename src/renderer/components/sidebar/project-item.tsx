@@ -1,57 +1,46 @@
 import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
-import React, { useEffect, useMemo } from 'react';
-import { LocalProject, SshProject } from '@shared/projects';
-import { Task } from '@shared/tasks';
+import { observer } from 'mobx-react-lite';
+import React, { useEffect } from 'react';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useProjectBootstrapContext } from '@renderer/core/projects/project-bootstrap-provider';
 import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
-import { PendingTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
+import {
+  MountedProjectStore,
+  ProjectStore,
+  UnmountedProjectStore,
+  UnregisteredProjectStore,
+} from '@renderer/core/stores/project';
+import { sidebarStore } from '@renderer/core/stores/sidebar-store';
+import { TaskStore } from '@renderer/core/stores/task';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { PendingProject } from '../add-project-modal/pending-projects-provider';
+import { getProjectStore, projectViewKind } from '@renderer/views/projects/project-view-state';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { ProjectItem } from './left-sidebar';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
-import { useSidebarContext } from './sidebar-provider';
 import { SidebarTaskItem } from './task-item';
 
-const STAGE_LABEL: Record<PendingProject['stage'], string> = {
+const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProjectStore['phase'], string> = {
   'creating-repo': 'Creating repository…',
   cloning: 'Cloning…',
-  initializing: 'Initializing…',
   registering: 'Registering…',
   error: 'Failed',
 };
 
-export type TaskItem =
-  | {
-      status: 'ready';
-      data: Task;
-    }
-  | {
-      status: 'pending';
-      data: PendingTask;
-    };
-
-export function SidebarProjectItem({ project }: { project: ProjectItem }) {
-  const { forceOpenIds, setForceOpenIds } = useSidebarContext();
-  const { activeTasksByProjectId: tasksByProjectId } = useTasksDataContext();
-  const { pendingTasks } = useTaskLifecycleContext();
-  const pendingTasksByProjectId = useMemo(
-    () =>
-      Object.values(pendingTasks).reduce<Record<string, PendingTask[]>>((acc, t) => {
-        acc[t.projectId] = [...(acc[t.projectId] ?? []), t];
-        return acc;
-      }, {}),
-    [pendingTasks]
-  );
-  const { entries: bootstrapEntries } = useProjectBootstrapContext();
+export const SidebarProjectItem = observer(function SidebarProjectItem({
+  project,
+}: {
+  project: ProjectStore;
+}) {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
   const { params: projectParams } = useParams('project');
   const { params: taskParams } = useParams('task');
+  const showCreateTaskModal = useShowModal('taskModal');
+
+  const projectId = project.state === 'unregistered' ? project.id : project.data.id;
+  const projectName = project.state === 'unregistered' ? project.name : project.data.name;
+
+  const { prefetch: prefetchRepository } = usePrefetchRepository(projectId);
 
   const currentProjectId =
     currentView === 'task'
@@ -61,39 +50,24 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
         : null;
   const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
 
-  const isProjectActive = useMemo(
-    () => currentProjectId === project.data.id && !currentTaskId,
-    [currentProjectId, currentTaskId, project.data.id]
-  );
-
-  const { prefetch: prefetchRepository } = usePrefetchRepository(project.data.id);
+  const isProjectActive = currentProjectId === projectId && !currentTaskId;
 
   useEffect(() => {
-    if (isProjectActive) {
-      prefetchRepository();
-    }
+    if (isProjectActive) prefetchRepository();
   }, [isProjectActive, prefetchRepository]);
 
-  const showCreateTaskModal = useShowModal('taskModal');
+  const forceOpen = sidebarStore.forceOpenIds.has(projectId);
 
-  const tasks = useMemo(
-    () => tasksByProjectId[project.data.id] ?? [],
-    [tasksByProjectId, project.data.id]
-  );
-
-  const allTasks = useMemo(() => {
-    const readyTasks: TaskItem[] = tasks.map((t) => ({
-      status: 'ready',
-      data: t,
-    }));
-    const readyIds = new Set(tasks.map((t) => t.id));
-    const pendingTasks: TaskItem[] = (pendingTasksByProjectId[project.data.id] ?? [])
-      .filter((t) => !readyIds.has(t.id))
-      .map((t) => ({ status: 'pending', data: t }));
-    return [...pendingTasks, ...readyTasks];
-  }, [tasks, pendingTasksByProjectId, project.data.id]);
+  const tasks: TaskStore[] =
+    project.state === 'mounted'
+      ? Array.from((project as MountedProjectStore).taskManager.tasks.values()).filter(
+          (t) => t.state === 'unregistered' || !t.data.archivedAt
+        )
+      : [];
 
   const renderSpinnerWithTooltip = () => {
+    if (project.state !== 'unregistered') return null;
+    const label = UNREGISTERED_PHASE_LABEL[project.phase] ?? 'Loading…';
     return (
       <Tooltip>
         <TooltipTrigger>
@@ -101,7 +75,7 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
             <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
           </SidebarItemMiniButton>
         </TooltipTrigger>
-        <TooltipContent>{STAGE_LABEL[(project.data as PendingProject).stage]}</TooltipContent>
+        <TooltipContent>{label}</TooltipContent>
       </Tooltip>
     );
   };
@@ -109,21 +83,15 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
   return (
     <Collapsible
       defaultOpen
-      open={forceOpenIds.has(project.data.id) ? true : undefined}
+      open={forceOpen ? true : undefined}
       onOpenChange={() => {
-        if (forceOpenIds.has(project.data.id)) {
-          setForceOpenIds((s) => {
-            const n = new Set(s);
-            n.delete(project.data.id);
-            return n;
-          });
-        }
+        if (forceOpen) sidebarStore.clearForceOpen(projectId);
       }}
       className="group/collapsible w-full"
     >
       <SidebarMenuRow className="group/row justify-between flex p-1.5" isActive={isProjectActive}>
         <div className="flex items-center gap-1 flex-1 min-w-0">
-          {project.status === 'creating' ? (
+          {project.state === 'unregistered' ? (
             renderSpinnerWithTooltip()
           ) : (
             <CollapsibleTrigger
@@ -139,11 +107,12 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
           <button
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
-              bootstrapEntries[project.data.id]?.status === 'bootstrapping' && 'text-foreground/40'
+              projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
+                'text-foreground/40'
             )}
-            onClick={() => navigate('project', { projectId: project.data.id })}
+            onClick={() => navigate('project', { projectId })}
           >
-            {project.data.name}
+            {projectName}
           </button>
         </div>
         <SidebarItemMiniButton
@@ -152,21 +121,23 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
           onPointerEnter={() => prefetchRepository()}
           onClick={() =>
             showCreateTaskModal({
-              projectId: project.data.id,
-              projectPath: (project.data as LocalProject | SshProject).path,
+              projectId,
+              projectPath:
+                (project as MountedProjectStore | UnmountedProjectStore).data?.path ?? '',
             })
           }
-          disabled={project.status === 'creating'}
+          disabled={project.state === 'unregistered'}
         >
           <Plus className="h-4 w-4" />
         </SidebarItemMiniButton>
       </SidebarMenuRow>
       <CollapsibleContent className=" min-w-0 data-open:mt-0.5 data-closed:mt-0 data-closed:hidden">
         <div className="flex min-w-0 flex-col gap-0.5 ">
-          {allTasks.map((task) => (
+          {tasks.map((task) => (
             <SidebarTaskItem
               key={task.data.id}
               task={task}
+              projectId={projectId}
               isActive={currentTaskId === task.data.id}
             />
           ))}
@@ -174,7 +145,7 @@ export function SidebarProjectItem({ project }: { project: ProjectItem }) {
       </CollapsibleContent>
     </Collapsible>
   );
-}
+});
 
 interface BaseProjectItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isActive: boolean;
