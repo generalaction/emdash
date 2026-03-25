@@ -21,6 +21,21 @@ import type {
 } from '../../shared/automations/types';
 
 // ---------------------------------------------------------------------------
+// Shared event shape returned by all fetch*() methods
+// ---------------------------------------------------------------------------
+
+interface RawEvent {
+  id: string;
+  title: string;
+  url?: string;
+  type: string;
+  extra?: string;
+  labels?: string[];
+  branch?: string;
+  assignee?: string;
+}
+
+// ---------------------------------------------------------------------------
 // AsyncMutex — promise-chaining based mutex for serializing async operations
 // ---------------------------------------------------------------------------
 
@@ -292,11 +307,14 @@ class AutomationsService {
     this.timer = setInterval(() => void this.tick(), 30_000);
     void this.tick();
 
-    // Start trigger polling at a slower cadence (every 60s)
+    // Trigger polling every 10s. This is safe because:
+    // 1. GitHub Events API with ETag caching → 304 responses when nothing changed (nearly free)
+    // 2. Fetch results are deduplicated per project+triggerType within each cycle
+    // 3. GitHub's Events API recommends X-Poll-Interval of ~10s
     if (!this.triggerTimer) {
-      this.triggerTimer = setInterval(() => void this.tickTriggers(), 60_000);
+      this.triggerTimer = setInterval(() => void this.tickTriggers(), 10_000);
       // First trigger poll after a short delay to let integrations initialize
-      setTimeout(() => void this.tickTriggers(), 5_000);
+      setTimeout(() => void this.tickTriggers(), 2_000);
     }
   }
 
@@ -426,13 +444,17 @@ class AutomationsService {
 
     if (activeAutomations.length === 0) return;
 
+    // Per-cycle fetch cache: avoids duplicate API calls when multiple automations
+    // watch the same project+triggerType (e.g. 5 automations on the same repo).
+    const fetchCache = new Map<string, Promise<RawEvent[]>>();
+
     const triggers: Array<{ automation: Automation; runLogId: string }> = [];
 
     for (const automation of activeAutomations) {
       if (!automation.triggerType) continue;
 
       try {
-        const newEvents = await this.fetchNewEvents(automation);
+        const newEvents = await this.fetchNewEventsCached(automation, fetchCache);
         if (newEvents.length === 0) continue;
 
         for (const event of newEvents) {
@@ -500,7 +522,7 @@ class AutomationsService {
 
   private enrichPromptWithEvent(
     basePrompt: string,
-    event: { id: string; title: string; url?: string; type: string; extra?: string }
+    event: Pick<RawEvent, 'id' | 'title' | 'url' | 'type' | 'extra'>
   ): string {
     const contextLines: string[] = [];
     contextLines.push(`[Triggered by ${event.type}: "${event.title}"]`);
@@ -509,20 +531,25 @@ class AutomationsService {
     return `${contextLines.join('\n')}\n\n${basePrompt}`;
   }
 
-  private async fetchNewEvents(
-    automation: Automation
-  ): Promise<Array<{ id: string; title: string; url?: string; type: string; extra?: string }>> {
+  /**
+   * Fetch new events for an automation, using a per-cycle cache to deduplicate
+   * API calls when multiple automations watch the same project + trigger type.
+   */
+  private async fetchNewEventsCached(
+    automation: Automation,
+    cache: Map<string, Promise<RawEvent[]>>
+  ): Promise<RawEvent[]> {
     const known = this.knownEventIds.get(automation.id) ?? new Set<string>();
-    const newEvents: Array<{
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-    }> = [];
+    const newEvents: RawEvent[] = [];
 
     try {
-      const rawEvents = await this.fetchRawEvents(automation);
+      const cacheKey = `${automation.projectId}::${automation.triggerType}`;
+      let eventsPromise = cache.get(cacheKey);
+      if (!eventsPromise) {
+        eventsPromise = this.fetchRawEvents(automation);
+        cache.set(cacheKey, eventsPromise);
+      }
+      const rawEvents = await eventsPromise;
 
       if (!this.knownEventIds.has(automation.id)) {
         // First poll: seed the known set without triggering
@@ -557,19 +584,7 @@ class AutomationsService {
     return newEvents;
   }
 
-  private matchesTriggerFilters(
-    event: {
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-      labels?: string[];
-      branch?: string;
-      assignee?: string;
-    },
-    config: TriggerConfig | null
-  ): boolean {
+  private matchesTriggerFilters(event: RawEvent, config: TriggerConfig | null): boolean {
     if (!config) return true;
 
     if (config.labelFilter && config.labelFilter.length > 0) {
@@ -601,18 +616,7 @@ class AutomationsService {
     return true;
   }
 
-  private async fetchRawEvents(automation: Automation): Promise<
-    Array<{
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-      labels?: string[];
-      branch?: string;
-      assignee?: string;
-    }>
-  > {
+  private async fetchRawEvents(automation: Automation): Promise<RawEvent[]> {
     const { databaseService } = await import('./DatabaseService');
     const projects = await databaseService.getProjects();
     const project = projects.find((p) => p.id === automation.projectId);
@@ -620,9 +624,9 @@ class AutomationsService {
 
     switch (automation.triggerType) {
       case 'github_pr':
-        return this.fetchGitHubPRs(project.path);
+        return this.fetchGitHubEvents(project.path, 'PullRequestEvent');
       case 'github_issue':
-        return this.fetchGitHubIssues(project.path);
+        return this.fetchGitHubEvents(project.path, 'IssuesEvent');
       case 'linear_issue':
         return this.fetchLinearIssues();
       default:
@@ -630,84 +634,40 @@ class AutomationsService {
     }
   }
 
-  private async fetchGitHubPRs(projectPath: string): Promise<
-    Array<{
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-      labels?: string[];
-      branch?: string;
-      assignee?: string;
-    }>
-  > {
+  /**
+   * Fetch GitHub events via the Events API with ETag caching.
+   * One API call returns both issue and PR events. ETag-based conditional
+   * requests return 304 when nothing changed → nearly free against rate limit.
+   * This replaces the old separate `gh issue list` + `gh pr list` calls.
+   */
+  private async fetchGitHubEvents(
+    projectPath: string,
+    eventType: 'IssuesEvent' | 'PullRequestEvent'
+  ): Promise<RawEvent[]> {
     try {
       const { githubService: gh } = await import('./GitHubService');
       const isAuth = await gh.isAuthenticated();
       if (!isAuth) return [];
 
-      const result = await gh.getPullRequests(projectPath, { limit: 30 });
-      return result.prs.map((pr) => ({
-        id: `pr-${pr.number}`,
-        title: pr.title,
-        url: pr.url,
-        type: 'GitHub PR',
-        extra: `PR #${pr.number} — ${pr.headRefName} -> ${pr.baseRefName}`,
-        labels: (pr as any).labels?.map((l: any) => l?.name ?? '').filter(Boolean) ?? [],
-        branch: pr.headRefName,
-        assignee: pr.author?.login ?? undefined,
+      const repoEvents = await gh.fetchRepoEvents(projectPath, [eventType]);
+
+      return repoEvents.map((event) => ({
+        id: `${eventType === 'IssuesEvent' ? 'issue' : 'pr'}-${event.number}`,
+        title: event.title,
+        url: event.url,
+        type: eventType === 'IssuesEvent' ? 'GitHub Issue' : 'GitHub PR',
+        extra: `${eventType === 'IssuesEvent' ? 'Issue' : 'PR'} #${event.number}`,
+        labels: event.labels,
+        branch: event.branch,
+        assignee: event.assignee,
       }));
     } catch (err) {
-      log.error('[Automations] Failed to fetch GitHub PRs:', err);
+      log.error(`[Automations] Failed to fetch GitHub events (${eventType}):`, err);
       return [];
     }
   }
 
-  private async fetchGitHubIssues(projectPath: string): Promise<
-    Array<{
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-      labels?: string[];
-      branch?: string;
-      assignee?: string;
-    }>
-  > {
-    try {
-      const { githubService: gh } = await import('./GitHubService');
-      const isAuth = await gh.isAuthenticated();
-      if (!isAuth) return [];
-
-      const issues = await gh.listIssues(projectPath, 30);
-      return issues.map((issue) => ({
-        id: `issue-${issue.number}`,
-        title: issue.title,
-        url: issue.url,
-        type: 'GitHub Issue',
-        extra: `Issue #${issue.number}`,
-        labels: issue.labels?.map((l) => l.name ?? '').filter(Boolean),
-        assignee: issue.assignees?.[0]?.login ?? undefined,
-      }));
-    } catch (err) {
-      log.error('[Automations] Failed to fetch GitHub issues:', err);
-      return [];
-    }
-  }
-
-  private async fetchLinearIssues(): Promise<
-    Array<{
-      id: string;
-      title: string;
-      url?: string;
-      type: string;
-      extra?: string;
-      labels?: string[];
-      assignee?: string;
-    }>
-  > {
+  private async fetchLinearIssues(): Promise<RawEvent[]> {
     try {
       const { default: LinearService } = await import('./LinearService');
       const linear = new LinearService();
@@ -865,7 +825,30 @@ class AutomationsService {
     });
 
     log.info(`[Automations] Created automation: ${automation.name} (${automation.id})`);
+
+    // For trigger-based automations, immediately seed known events so the next
+    // poll cycle can detect new events right away (instead of wasting a cycle on seeding).
+    if (isTrigger) {
+      void this.seedAutomationEvents(automation);
+    }
+
     return automation;
+  }
+
+  /**
+   * Pre-seed known events for a trigger automation so the very next poll
+   * cycle can detect genuinely new events instead of treating everything as "first seen".
+   */
+  private async seedAutomationEvents(automation: Automation): Promise<void> {
+    try {
+      const rawEvents = await this.fetchRawEvents(automation);
+      this.knownEventIds.set(automation.id, new Set(rawEvents.map((e) => e.id)));
+      log.info(
+        `[Automations] Pre-seeded ${rawEvents.length} events for "${automation.name}" (${automation.triggerType})`
+      );
+    } catch (err) {
+      log.warn(`[Automations] Failed to pre-seed events for "${automation.name}":`, err);
+    }
   }
 
   async update(input: UpdateAutomationInput): Promise<Automation | null> {
@@ -941,6 +924,19 @@ class AutomationsService {
       .where(eq(automationsTable.id, updated.id));
 
     log.info(`[Automations] Updated automation: ${updated.name} (${updated.id})`);
+
+    // Re-seed when trigger type changed or automation switched to trigger mode
+    const triggerTypeChanged =
+      updated.mode === 'trigger' &&
+      (input.triggerType !== undefined || input.mode === 'trigger') &&
+      updated.triggerType !== current.triggerType;
+    const switchedToTrigger = input.mode === 'trigger' && current.mode !== 'trigger';
+
+    if (triggerTypeChanged || switchedToTrigger) {
+      this.knownEventIds.delete(updated.id);
+      void this.seedAutomationEvents(updated);
+    }
+
     return updated;
   }
 
@@ -1000,6 +996,16 @@ class AutomationsService {
         updatedAt: updated.updatedAt,
       })
       .where(eq(automationsTable.id, id));
+
+    // Re-seed known events when a trigger automation is re-activated so stale
+    // issues/PRs created while paused don't fire as false positives.
+    if (
+      nextStatus === 'active' &&
+      updated.mode === 'trigger' &&
+      !this.knownEventIds.has(updated.id)
+    ) {
+      void this.seedAutomationEvents(updated);
+    }
 
     return updated;
   }
