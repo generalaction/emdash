@@ -28,6 +28,7 @@ export interface KeyboardSettings {
   newTask?: KeyboardShortcutBinding;
   nextAgent?: KeyboardShortcutBinding;
   prevAgent?: KeyboardShortcutBinding;
+  newAgent?: KeyboardShortcutBinding;
   openInEditor?: KeyboardShortcutBinding;
 }
 
@@ -92,6 +93,7 @@ export interface GlobalShortcutHandlers {
   // Agent switching (within same task)
   onNextAgent?: () => void;
   onPrevAgent?: () => void;
+  onNewAgent?: () => void;
   onSelectAgentTab?: (tabIndex: number) => void;
 
   // Open in editor
