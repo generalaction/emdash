@@ -1,14 +1,8 @@
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, makeObservable, observable, runInAction } from 'mobx';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { FileNode, FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
-import {
-  buildVisibleRows,
-  isExcluded,
-  makeNode,
-  sortedChildPaths,
-} from '@renderer/views/tasks/editor/file-tree/utils';
-import { EditorViewStore } from './editor-view-store';
+import { isExcluded, makeNode, sortedChildPaths } from '@renderer/core/stores/files-store-utils';
 
 export class FilesStore {
   // Non-observable imperative maps — generation drives reactive re-renders.
@@ -245,24 +239,5 @@ export class FilesStore {
     this._unsubscribe?.();
     this._unsubscribe = null;
     rpc.fs.watchStop(this.projectId, this.taskId, 'filetree').catch(() => {});
-  }
-}
-
-export class FileTreeViewModel {
-  constructor(
-    private readonly files: FilesStore,
-    private readonly editorView: EditorViewStore
-  ) {
-    makeObservable(this, {
-      visibleRows: computed,
-    });
-  }
-
-  get visibleRows(): FileNode[] {
-    // Read generation to establish a MobX dependency — structural mutations bump
-    // the counter, triggering recompute even though nodes/childIndex are not observable.
-    const stale = this.files.generation < 0;
-    if (stale) return [];
-    return buildVisibleRows(this.files.nodes, this.files.childIndex, this.editorView.expandedPaths);
   }
 }

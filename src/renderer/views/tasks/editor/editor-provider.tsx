@@ -34,33 +34,13 @@ function getDefaultRenderer(kind: ReturnType<typeof getFileKind>): FileRendererD
 }
 
 interface EditorContextValue {
-  projectId: string;
-  taskId: string;
   modelRootPath: string;
-
-  activeFilePath: string | null;
-  isSaving: boolean;
-
-  /** Path of the current unstable/preview tab (italic in the tab bar). Null when all tabs are stable. */
-  previewFilePath: string | null;
-
   loadFile: (filePath: string) => void;
   /** Opens a file as an unstable preview tab; replaces the existing preview tab if clean. */
   openFilePreview: (filePath: string) => void;
-  /** Promotes the preview tab to a stable tab. */
-  pinFile: (filePath: string) => void;
   saveFile: (filePath?: string) => Promise<void>;
   saveAllFiles: () => Promise<void>;
-  closeFile: (filePath: string) => void;
-  setActiveFile: (filePath: string | null) => void;
-
-  /** Ordered list of open tabs with stable `tabId` for use as React keys. */
-  tabs: Array<{ tabId: string; filePath: string }>;
-
-  fileChanges: { path: string; status: 'added' | 'modified' | 'deleted' | 'renamed' }[];
-
   handleCloseFile: (filePath: string) => void;
-
   /**
    * Ref callback that appends the task's stable Monaco editor container to the given DOM element.
    * Called by EditorMainPanel to position the editor host.
@@ -415,20 +395,6 @@ export const EditorProvider = observer(function EditorProvider({
     return saveAllFilesRef.current();
   }, []);
 
-  const closeFile = useCallback(
-    (filePath: string) => {
-      editorView.removeFile(filePath);
-    },
-    [editorView]
-  );
-
-  const setActiveFile = useCallback(
-    (filePath: string | null) => {
-      editorView.setActiveFilePath(filePath);
-    },
-    [editorView]
-  );
-
   const handleCloseFile = useCallback(
     (filePath: string) => {
       const uri = buildMonacoModelPath(modelRootPath, filePath);
@@ -438,12 +404,12 @@ export const EditorProvider = observer(function EditorProvider({
       modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, 'HEAD'));
       void rpc.editorBuffer.clearBuffer(projectId, taskId, filePath);
 
-      closeFile(filePath);
+      editorView.removeFile(filePath);
       if (editorView.previewFilePath === filePath) {
         editorView.setPreviewFilePath(null);
       }
     },
-    [closeFile, editorView, projectId, taskId, modelRootPath]
+    [editorView, projectId, taskId, modelRootPath]
   );
 
   /**
@@ -509,16 +475,6 @@ export const EditorProvider = observer(function EditorProvider({
     [editorView, openTab, modelRootPath, projectId, taskId]
   );
 
-  /** Promotes the preview tab to a stable tab (double-click on tab). */
-  const pinFile = useCallback(
-    (filePath: string) => {
-      if (editorView.previewFilePath === filePath) {
-        editorView.setPreviewFilePath(null);
-      }
-    },
-    [editorView]
-  );
-
   // Cleanup: unregister all models for this task on unmount.
   // Use a ref so the cleanup closure sees the latest openFiles without re-running.
   const editorViewRef = useRef(editorView);
@@ -539,21 +495,11 @@ export const EditorProvider = observer(function EditorProvider({
   return (
     <EditorContext.Provider
       value={{
-        projectId,
-        taskId,
         modelRootPath,
-        tabs: editorView.tabs,
-        activeFilePath: editorView.activeFilePath,
-        isSaving: editorView.isSaving,
-        previewFilePath: editorView.previewFilePath,
         loadFile,
         openFilePreview,
-        pinFile,
         saveFile,
         saveAllFiles,
-        closeFile,
-        setActiveFile,
-        fileChanges: [],
         handleCloseFile,
         setEditorHost,
       }}

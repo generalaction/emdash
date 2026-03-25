@@ -11,7 +11,6 @@ import {
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { cn } from '@renderer/lib/utils';
-import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useBranchStatus } from '@renderer/views/tasks/diff-viewer/state/use-branch-status';
 import { useSelection } from '@renderer/views/tasks/diff-viewer/state/use-selection';
@@ -48,7 +47,8 @@ export const ChangesPanel = observer(function ChangesPanel() {
   const taskState = taskViewStateStore.getOrCreate(taskId);
   const { view } = taskState;
   const setView = (v: string) => taskState.setView(v as 'agents' | 'editor' | 'diff');
-  const { activeFile, setActiveFile } = useGitViewContext();
+  const diffView = provisionedTask(getTaskStore(projectId, taskId))?.diffView;
+  const activeFile = diffView?.activeFile ?? null;
   const prefetchUnstagedDiff = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
   const prefetchStagedDiff = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');
 
@@ -139,7 +139,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
   };
 
   const handleSelectChange = (path: string, type: 'disk' | 'staged') => {
-    setActiveFile({ path, type, originalRef: 'HEAD' });
+    diffView?.setActiveFile({ path, type, originalRef: 'HEAD' });
     setView('diff');
   };
 

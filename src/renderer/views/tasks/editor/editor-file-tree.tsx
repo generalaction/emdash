@@ -6,13 +6,14 @@ import type { FileNode } from '@shared/fs';
 import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { cn } from '@renderer/lib/utils';
 import { FileIcon } from '../../../core/editor/file-icon';
+import { buildVisibleRows } from '../../../core/stores/files-store-utils';
 import { useTaskViewContext } from '../task-view-context';
+import { getTaskStore, provisionedTask } from '../task-view-state';
 import { useEditorContext } from './editor-provider';
-import { useFileTreeContext } from './file-tree/filetree-provider';
 
 interface FileChange {
   path: string;
-  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
 }
 
 const FileTreeRow = React.memo(function FileTreeRow({
@@ -127,10 +128,31 @@ const FileTreeRow = React.memo(function FileTreeRow({
 });
 
 export const EditorFileTree = observer(function EditorFileTree() {
-  const { taskId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
   const taskState = taskViewStateStore.getOrCreate(taskId);
-  const { activeFilePath, loadFile, openFilePreview, fileChanges } = useEditorContext();
-  const { visibleRows, expandedPaths, toggleExpand, isLoading, error } = useFileTreeContext();
+  const { loadFile, openFilePreview } = useEditorContext();
+
+  const provisioned = provisionedTask(getTaskStore(projectId, taskId));
+  const files = provisioned?.files;
+  const editorView = taskState.editorView;
+  const activeFilePath = editorView.activeFilePath;
+  const fileChanges = provisioned?.git.fileChanges ?? [];
+
+  // Establish MobX dependency on structural tree mutations — generation is bumped
+  // whenever nodes/childIndex change (non-observable imperative maps).
+  void files?.generation;
+  const visibleRows = files
+    ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)
+    : [];
+
+  const toggleExpand = (path: string) => {
+    if (editorView.expandedPaths.has(path)) {
+      editorView.expandedPaths.delete(path);
+    } else {
+      editorView.expandedPaths.add(path);
+      if (!files?.loadedPaths.has(path)) void files?.loadDir(path);
+    }
+  };
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -141,7 +163,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     overscan: 10,
   });
 
-  if (isLoading) {
+  if (files?.isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         Loading...
@@ -149,10 +171,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     );
   }
 
-  if (error) {
+  if (files?.error) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-destructive">
-        {error}
+        {files.error}
       </div>
     );
   }
@@ -184,7 +206,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
                 }}
                 view={taskState.view}
                 onSetEditorView={() => taskState.setView('editor')}
-                isExpanded={expandedPaths.has(node.path)}
+                isExpanded={editorView.expandedPaths.has(node.path)}
                 isSelected={taskState.view === 'editor' && activeFilePath === node.path}
                 onToggle={() => toggleExpand(node.path)}
                 onSelect={() => void openFilePreview(node.path)}

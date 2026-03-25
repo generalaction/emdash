@@ -9,7 +9,6 @@ import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
-import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
@@ -24,8 +23,9 @@ const MAX_STACKED_FILES = 75;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const { projectId, taskId } = useTaskViewContext();
-  const git = provisionedTask(getTaskStore(projectId, taskId))?.git;
-  const { activeFile } = useGitViewContext();
+  const provisioned = provisionedTask(getTaskStore(projectId, taskId));
+  const git = provisioned?.git;
+  const activeFile = provisioned?.diffView.activeFile ?? null;
   const stagedFileChanges = git?.stagedFileChanges ?? [];
   const unstagedFileChanges = git?.unstagedFileChanges ?? [];
   const { pullRequests, prFilesMap } = usePrContext();
@@ -51,9 +51,16 @@ export interface StackedDiffPanelProps {
   originalRef: string;
 }
 
-export function StackedDiffPanel({ files, diffType, originalRef }: StackedDiffPanelProps) {
+export const StackedDiffPanel = observer(function StackedDiffPanel({
+  files,
+  diffType,
+  originalRef,
+}: StackedDiffPanelProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const { activeFile, setActiveFile, viewMode, diffStyle } = useGitViewContext();
+  const diffView = provisionedTask(getTaskStore(projectId, taskId))?.diffView;
+  const activeFile = diffView?.activeFile ?? null;
+  const viewMode = diffView?.viewMode ?? 'stacked';
+  const diffStyle = diffView?.diffStyle ?? 'unified';
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressObserver = useRef(false);
@@ -62,14 +69,14 @@ export function StackedDiffPanel({ files, diffType, originalRef }: StackedDiffPa
     files,
     diffType,
     originalRef,
-    setActiveFile,
+    diffView,
     suppress: suppressObserver,
   });
   scrollSyncRef.current = {
     files,
     diffType,
     originalRef,
-    setActiveFile,
+    diffView,
     suppress: suppressObserver,
   };
 
@@ -92,14 +99,14 @@ export function StackedDiffPanel({ files, diffType, originalRef }: StackedDiffPa
         files: f,
         diffType: dt,
         originalRef: ref,
-        setActiveFile: setFile,
+        diffView: dv,
         suppress,
       } = scrollSyncRef.current;
       if (!suppress.current) {
         const startIndex = instance.range?.startIndex;
         if (startIndex != null) {
           const file = f[startIndex];
-          if (file) setFile({ path: file.path, type: dt, originalRef: ref });
+          if (file) dv?.setActiveFile({ path: file.path, type: dt, originalRef: ref });
         }
       }
     },
@@ -269,7 +276,7 @@ export function StackedDiffPanel({ files, diffType, originalRef }: StackedDiffPa
       </div>
     </div>
   );
-}
+});
 
 interface StackedFileSectionProps {
   file: GitChange;

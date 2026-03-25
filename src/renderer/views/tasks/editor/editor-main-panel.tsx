@@ -9,24 +9,19 @@ import type { ManagedFile } from '@renderer/core/editor/types';
 import { useOpenedFile } from '@renderer/core/editor/use-opened-file';
 import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
+import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { useEditorContext } from './editor-provider';
 
 export const EditorMainPanel = observer(function EditorMainPanel() {
-  const {
-    modelRootPath,
-    tabs,
-    activeFilePath,
-    previewFilePath,
-    handleCloseFile,
-    setActiveFile,
-    pinFile,
-    taskId,
-    setEditorHost,
-  } = useEditorContext();
+  const { taskId } = useTaskViewContext();
+  const { modelRootPath, handleCloseFile, setEditorHost } = useEditorContext();
 
   const editorView = taskViewStateStore.getOrCreate(taskId).editorView;
   const openFiles = editorView.openFiles;
   const activeFile = editorView.activeFile;
+  const tabs = editorView.tabs;
+  const activeFilePath = editorView.activeFilePath;
+  const previewFilePath = editorView.previewFilePath;
 
   const isMonacoActive =
     activeFile &&
@@ -54,9 +49,11 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
         activeFilePath={activeFilePath}
         previewFilePath={previewFilePath}
         modelRootPath={modelRootPath}
-        onTabClick={setActiveFile}
+        onTabClick={(path) => editorView.setActiveFilePath(path)}
         onTabClose={handleCloseFile}
-        onPinTab={pinFile}
+        onPinTab={(path) => {
+          if (editorView.previewFilePath === path) editorView.setPreviewFilePath(null);
+        }}
       />
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {/* Stable Monaco host — always in DOM, shown/hidden by CSS only. Never re-parented. */}
