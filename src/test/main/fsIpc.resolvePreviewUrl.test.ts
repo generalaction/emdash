@@ -42,6 +42,7 @@ describe('fs:resolvePreviewUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.unstubAllEnvs();
     ipcHandleHandlers.clear();
   });
 
@@ -116,8 +117,7 @@ describe('fs:resolvePreviewUrl', () => {
       JSON.stringify({ openBrowserUrl: 'http://localhost:$EMDASH_PORT' })
     );
     // Simulate process.env having a different value
-    const origEnv = process.env.EMDASH_PORT;
-    process.env.EMDASH_PORT = '9999';
+    vi.stubEnv('EMDASH_PORT', '9999');
     const handler = await getHandler();
     const result = await handler(
       {},
@@ -126,7 +126,6 @@ describe('fs:resolvePreviewUrl', () => {
         taskEnvVars: { EMDASH_PORT: '3000' },
       }
     );
-    process.env.EMDASH_PORT = origEnv;
     expect(result).toEqual({ success: true, url: 'http://localhost:3000' });
   });
 
