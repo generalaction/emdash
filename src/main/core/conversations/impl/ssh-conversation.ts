@@ -2,6 +2,7 @@ import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import type {
   ConversationProvider,
   ConversationStartOptions,
@@ -16,7 +17,6 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { ok, Result } from '@main/lib/result';
 import type { AgentSessionConfig } from './agent-session';
-import { wireAgentClassifier } from './shared';
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
