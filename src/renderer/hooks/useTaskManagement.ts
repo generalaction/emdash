@@ -456,10 +456,12 @@ export function useTaskManagement() {
   const handleStartCreateTaskFromSidebar = useCallback(
     (project: Project) => {
       const targetProject = projects.find((p) => p.id === project.id) || project;
-      activateProjectView(targetProject);
+      if (!selectedProject || selectedProject.id !== targetProject.id) {
+        activateProjectView(targetProject);
+      }
       openTaskModal(targetProject);
     },
-    [activateProjectView, projects, openTaskModal]
+    [activateProjectView, projects, selectedProject, openTaskModal]
   );
 
   // ---------------------------------------------------------------------------
