@@ -549,7 +549,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     if (preflightPromise) {
       await Promise.race([
         preflightPromise,
-        new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+        new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
       ]);
     }
 
