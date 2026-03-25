@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Loader2, X } from 'lucide-react';
+import { Plus, Loader2, X, LayoutGrid } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '../ui/button';
 import {
@@ -15,11 +15,16 @@ import {
 import AutomationRow from './AutomationRow';
 import AutomationInlineCreate from './AutomationInlineCreate';
 import AutomationRunningTasks from './AutomationRunningTasks';
-import ExampleAutomations from './ExampleAutomations';
+import ExampleAutomations, { TemplatesDialog } from './ExampleAutomations';
 import RunLogsModal from './RunLogsModal';
 import { useAutomations } from './useAutomations';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import type { Automation, UpdateAutomationInput } from '@shared/automations/types';
+import type {
+  Automation,
+  AutomationMode,
+  TriggerType,
+  UpdateAutomationInput,
+} from '@shared/automations/types';
 
 const AutomationsView: React.FC = () => {
   const {
@@ -42,7 +47,13 @@ const AutomationsView: React.FC = () => {
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [logsAutomation, setLogsAutomation] = useState<Automation | null>(null);
-  const [prefill, setPrefill] = useState<{ name: string; prompt: string } | null>(null);
+  const [prefill, setPrefill] = useState<{
+    name: string;
+    prompt: string;
+    mode?: AutomationMode;
+    triggerType?: TriggerType;
+  } | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleEdit = (automation: Automation) => {
     setShowCreate(false);
@@ -64,8 +75,13 @@ const AutomationsView: React.FC = () => {
     }
   };
 
-  const handleExampleClick = (name: string, prompt: string) => {
-    setPrefill({ name, prompt });
+  const handleExampleClick = (
+    name: string,
+    prompt: string,
+    mode?: AutomationMode,
+    triggerType?: TriggerType
+  ) => {
+    setPrefill({ name, prompt, mode, triggerType });
     setShowCreate(true);
   };
 
@@ -89,22 +105,28 @@ const AutomationsView: React.FC = () => {
           <div>
             <h1 className="text-lg font-semibold">Automations</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              Schedule recurring tasks to run automatically on your projects
+              Trigger automations from GitHub events, Linear tickets, or run them on a schedule
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setPrefill(null);
-              setEditingAutomation(null);
-              setShowCreate(true);
-            }}
-            disabled={showCreate}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New Automation
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowTemplates(true)}>
+              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+              Browse Templates
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPrefill(null);
+                setEditingAutomation(null);
+                setShowCreate(true);
+              }}
+              disabled={showCreate}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              New Automation
+            </Button>
+          </div>
         </div>
 
         {/* Error banner */}
@@ -173,7 +195,7 @@ const AutomationsView: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* Empty state with examples */}
+        {/* Empty state with inline templates */}
         {!hasAutomations && !showCreate && <ExampleAutomations onSelect={handleExampleClick} />}
 
         {/* Active automations */}
@@ -221,6 +243,15 @@ const AutomationsView: React.FC = () => {
         {/* Automation tasks (runs) — below active/paused */}
         <AutomationRunningTasks />
       </div>
+
+      {/* Browse Templates Dialog */}
+      <TemplatesDialog
+        open={showTemplates}
+        onOpenChange={setShowTemplates}
+        onSelect={(name, prompt, mode, triggerType) => {
+          handleExampleClick(name, prompt, mode, triggerType);
+        }}
+      />
 
       {/* Run Logs Modal */}
       <RunLogsModal

@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle, Loader2, Clock, Timer } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Separator } from '../ui/separator';
 import type { Automation, AutomationRunLog } from '@shared/automations/types';
-import { formatRelativeTime, formatScheduleLabel } from './utils';
+import { formatRelativeTime, formatScheduleLabel, formatTriggerLabel } from './utils';
 
 interface RunLogsModalProps {
   isOpen: boolean;
@@ -56,7 +56,9 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
             {automation && (
               <span className="flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />
-                {formatScheduleLabel(automation.schedule)}
+                {automation.mode === 'trigger'
+                  ? formatTriggerLabel(automation.triggerType)
+                  : formatScheduleLabel(automation.schedule)}
                 <span className="text-muted-foreground/40">·</span>
                 {automation.runCount} run{automation.runCount !== 1 ? 's' : ''} total
               </span>

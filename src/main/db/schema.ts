@@ -189,7 +189,10 @@ export const automations = sqliteTable(
     name: text('name').notNull(),
     prompt: text('prompt').notNull(),
     agentId: text('agent_id').notNull(),
+    mode: text('mode').notNull().default('schedule'), // 'schedule' | 'trigger'
     schedule: text('schedule').notNull(), // JSON encoded AutomationSchedule
+    triggerType: text('trigger_type'), // 'github_pr' | 'github_issue' | 'linear_issue'
+    triggerConfig: text('trigger_config'), // JSON encoded TriggerConfig
     useWorktree: integer('use_worktree').notNull().default(1), // boolean
     status: text('status').notNull().default('active'),
     lastRunAt: text('last_run_at'),

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pause, Play, Trash2, Pencil, Zap, Clock } from 'lucide-react';
+import { Pause, Play, Trash2, Pencil, Zap, Clock, GitPullRequest, CircleDot } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Spinner } from '../ui/spinner';
@@ -8,7 +8,7 @@ import { agentConfig } from '../../lib/agentConfig';
 import { useRunningAutomations, getPhaseLabel } from './useRunningAutomations';
 import type { Automation } from '@shared/automations/types';
 import type { Project } from '../../types/app';
-import { formatScheduleLabel, formatRelativeTime } from './utils';
+import { formatScheduleLabel, formatRelativeTime, formatTriggerLabel } from './utils';
 import type { Agent } from '../../types';
 
 interface AutomationRowProps {
@@ -80,8 +80,20 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
         </span>
       )}
 
-      {/* Schedule info */}
-      {!isTriggering && (
+      {/* Schedule / trigger info */}
+      {!isTriggering && automation.mode === 'trigger' && automation.triggerType && (
+        <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
+          {automation.triggerType === 'github_pr' ? (
+            <GitPullRequest className="h-3 w-3" />
+          ) : automation.triggerType === 'linear_issue' ? (
+            <CircleDot className="h-3 w-3" />
+          ) : (
+            <Zap className="h-3 w-3" />
+          )}
+          {formatTriggerLabel(automation.triggerType)}
+        </span>
+      )}
+      {!isTriggering && automation.mode !== 'trigger' && (
         <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
           <Clock className="h-3 w-3" />
           {formatScheduleLabel(automation.schedule)}
@@ -89,7 +101,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
       )}
 
       {/* Next run / last run */}
-      {!isTriggering && automation.nextRunAt && isActive && (
+      {!isTriggering && automation.nextRunAt && isActive && automation.mode !== 'trigger' && (
         <span className="hidden text-xs text-muted-foreground/40 lg:inline">
           next {formatRelativeTime(automation.nextRunAt)}
         </span>

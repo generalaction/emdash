@@ -9,11 +9,14 @@ import type { AutomationRow, AutomationRunLogRow } from '../db/schema';
 import { log } from '../lib/logger';
 import type {
   Automation,
+  AutomationMode,
   AutomationRunLog,
   AutomationSchedule,
   CreateAutomationInput,
   DayOfWeek,
   ScheduleType,
+  TriggerConfig,
+  TriggerType,
   UpdateAutomationInput,
 } from '../../shared/automations/types';
 
@@ -172,6 +175,33 @@ function deserializeSchedule(serialized: string): AutomationSchedule {
   return parsed;
 }
 
+function deserializeTriggerConfig(serialized: string | null): TriggerConfig | null {
+  if (!serialized) return null;
+  try {
+    return JSON.parse(serialized) as TriggerConfig;
+  } catch {
+    return null;
+  }
+}
+
+function serializeTriggerConfig(config: TriggerConfig | null | undefined): string | null {
+  if (!config) return null;
+  return JSON.stringify(config);
+}
+
+function normalizeMode(value: unknown): AutomationMode {
+  if (value === 'trigger') return 'trigger';
+  return 'schedule';
+}
+
+function normalizeTriggerType(value: unknown): TriggerType | null {
+  const valid: TriggerType[] = ['github_pr', 'github_issue', 'linear_issue'];
+  if (typeof value === 'string' && valid.includes(value as TriggerType)) {
+    return value as TriggerType;
+  }
+  return null;
+}
+
 function mapAutomationRow(row: AutomationRow): Automation {
   return {
     id: row.id,
@@ -180,7 +210,10 @@ function mapAutomationRow(row: AutomationRow): Automation {
     projectName: row.projectName,
     prompt: row.prompt,
     agentId: row.agentId,
+    mode: normalizeMode(row.mode),
     schedule: deserializeSchedule(row.schedule),
+    triggerType: normalizeTriggerType(row.triggerType),
+    triggerConfig: deserializeTriggerConfig(row.triggerConfig),
     useWorktree: row.useWorktree === 1,
     status: normalizeAutomationStatus(row.status),
     lastRunAt: row.lastRunAt,
@@ -214,9 +247,14 @@ type AutomationTriggerCallback = (automation: Automation, runLogId: string) => v
 
 class AutomationsService {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private triggerTimer: ReturnType<typeof setInterval> | null = null;
   private triggerCallbacks: AutomationTriggerCallback[] = [];
   private ticking = false;
+  private triggerTicking = false;
   private initialized = false;
+
+  /** Tracks the last-known event IDs per automation to detect new ones */
+  private knownEventIds = new Map<string, Set<string>>();
 
   // -------------------------------------------------------------------
   // Initialization — runs once to ensure DB client is ready.
@@ -235,6 +273,8 @@ class AutomationsService {
   _resetForTesting(): void {
     this.initialized = false;
     this.ticking = false;
+    this.triggerTicking = false;
+    this.knownEventIds.clear();
     this.stop();
   }
 
@@ -251,14 +291,25 @@ class AutomationsService {
     log.info('[Automations] Scheduler started');
     this.timer = setInterval(() => void this.tick(), 30_000);
     void this.tick();
+
+    // Start trigger polling at a slower cadence (every 60s)
+    if (!this.triggerTimer) {
+      this.triggerTimer = setInterval(() => void this.tickTriggers(), 60_000);
+      // First trigger poll after a short delay to let integrations initialize
+      setTimeout(() => void this.tickTriggers(), 5_000);
+    }
   }
 
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      log.info('[Automations] Scheduler stopped');
     }
+    if (this.triggerTimer) {
+      clearInterval(this.triggerTimer);
+      this.triggerTimer = null;
+    }
+    log.info('[Automations] Scheduler stopped');
   }
 
   // Prevent overlapping ticks — if the previous tick is still running, skip
@@ -346,6 +397,339 @@ class AutomationsService {
   }
 
   // -------------------------------------------------------------------
+  // Event-trigger polling
+  // -------------------------------------------------------------------
+
+  private async tickTriggers(): Promise<void> {
+    if (this.triggerTicking) return;
+    this.triggerTicking = true;
+    try {
+      await this.executeTriggerPoll();
+    } catch (err) {
+      log.error('[Automations] Trigger poll failed:', err);
+    } finally {
+      this.triggerTicking = false;
+    }
+  }
+
+  private async executeTriggerPoll(): Promise<void> {
+    // Read active trigger automations under mutex to avoid TOCTOU with deletes/updates
+    const activeAutomations: Automation[] = await dataMutex.run(async () => {
+      await this.ensureInitialized();
+      const { db } = await getDrizzleClient();
+      const rows = await db
+        .select()
+        .from(automationsTable)
+        .where(and(eq(automationsTable.status, 'active'), eq(automationsTable.mode, 'trigger')));
+      return rows.map(mapAutomationRow);
+    });
+
+    if (activeAutomations.length === 0) return;
+
+    const triggers: Array<{ automation: Automation; runLogId: string }> = [];
+
+    for (const automation of activeAutomations) {
+      if (!automation.triggerType) continue;
+
+      try {
+        const newEvents = await this.fetchNewEvents(automation);
+        if (newEvents.length === 0) continue;
+
+        for (const event of newEvents) {
+          const runLogId = generateId();
+          const nowIso = new Date().toISOString();
+
+          await dataMutex.run(async () => {
+            const { db: freshDb } = await getDrizzleClient();
+            await freshDb
+              .update(automationsTable)
+              .set({
+                lastRunAt: nowIso,
+                runCount: sql`${automationsTable.runCount} + 1`,
+                updatedAt: nowIso,
+              })
+              .where(eq(automationsTable.id, automation.id));
+
+            await this.insertRunLog({
+              id: runLogId,
+              automationId: automation.id,
+              startedAt: nowIso,
+              finishedAt: null,
+              status: 'running',
+              error: null,
+              taskId: null,
+            });
+          });
+
+          const enrichedPrompt = this.enrichPromptWithEvent(automation.prompt, event);
+          triggers.push({
+            automation: {
+              ...automation,
+              prompt: enrichedPrompt,
+              lastRunAt: new Date().toISOString(),
+              runCount: automation.runCount + 1,
+            },
+            runLogId,
+          });
+        }
+      } catch (err) {
+        log.error(`[Automations] Trigger poll failed for "${automation.name}":`, err);
+        await this.setLastRunResult(
+          automation.id,
+          'failure',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    }
+
+    for (const { automation, runLogId } of triggers) {
+      for (const cb of this.triggerCallbacks) {
+        try {
+          cb(automation, runLogId);
+        } catch (err) {
+          log.error(`[Automations] Trigger callback failed for ${automation.id}:`, err);
+          await this.setLastRunResult(
+            automation.id,
+            'failure',
+            err instanceof Error ? err.message : String(err)
+          );
+        }
+      }
+    }
+  }
+
+  private enrichPromptWithEvent(
+    basePrompt: string,
+    event: { id: string; title: string; url?: string; type: string; extra?: string }
+  ): string {
+    const contextLines: string[] = [];
+    contextLines.push(`[Triggered by ${event.type}: "${event.title}"]`);
+    if (event.url) contextLines.push(`URL: ${event.url}`);
+    if (event.extra) contextLines.push(event.extra);
+    return `${contextLines.join('\n')}\n\n${basePrompt}`;
+  }
+
+  private async fetchNewEvents(
+    automation: Automation
+  ): Promise<Array<{ id: string; title: string; url?: string; type: string; extra?: string }>> {
+    const known = this.knownEventIds.get(automation.id) ?? new Set<string>();
+    const newEvents: Array<{
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+    }> = [];
+
+    try {
+      const rawEvents = await this.fetchRawEvents(automation);
+
+      if (!this.knownEventIds.has(automation.id)) {
+        // First poll: seed the known set without triggering
+        this.knownEventIds.set(automation.id, new Set(rawEvents.map((e) => e.id)));
+        log.info(
+          `[Automations] Seeded ${rawEvents.length} known events for "${automation.name}" (${automation.triggerType})`
+        );
+        return [];
+      }
+
+      for (const event of rawEvents) {
+        if (!known.has(event.id)) {
+          if (this.matchesTriggerFilters(event, automation.triggerConfig)) {
+            newEvents.push(event);
+          }
+          known.add(event.id);
+        }
+      }
+
+      // Cap the known set to prevent memory bloat
+      if (known.size > 5000) {
+        const entries = Array.from(known);
+        const toRemove = entries.slice(0, entries.length - 2000);
+        for (const id of toRemove) known.delete(id);
+      }
+
+      this.knownEventIds.set(automation.id, known);
+    } catch (err) {
+      log.error(`[Automations] fetchNewEvents failed for "${automation.name}":`, err);
+    }
+
+    return newEvents;
+  }
+
+  private matchesTriggerFilters(
+    event: {
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+      labels?: string[];
+      branch?: string;
+      assignee?: string;
+    },
+    config: TriggerConfig | null
+  ): boolean {
+    if (!config) return true;
+
+    if (config.labelFilter && config.labelFilter.length > 0) {
+      if (!event.labels || event.labels.length === 0) return false;
+      const hasMatchingLabel = config.labelFilter.some((f) =>
+        event.labels!.some((l) => l.toLowerCase() === f.toLowerCase())
+      );
+      if (!hasMatchingLabel) return false;
+    }
+
+    if (config.branchFilter) {
+      if (!event.branch) return false;
+      const pattern = config.branchFilter;
+      if (pattern.includes('*')) {
+        // Escape regex special chars, then convert glob * to .*
+        const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+        const regex = new RegExp('^' + escaped + '$');
+        if (!regex.test(event.branch)) return false;
+      } else {
+        if (event.branch !== pattern) return false;
+      }
+    }
+
+    if (config.assigneeFilter) {
+      if (!event.assignee) return false;
+      if (event.assignee.toLowerCase() !== config.assigneeFilter.toLowerCase()) return false;
+    }
+
+    return true;
+  }
+
+  private async fetchRawEvents(automation: Automation): Promise<
+    Array<{
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+      labels?: string[];
+      branch?: string;
+      assignee?: string;
+    }>
+  > {
+    const { databaseService } = await import('./DatabaseService');
+    const projects = await databaseService.getProjects();
+    const project = projects.find((p) => p.id === automation.projectId);
+    if (!project) return [];
+
+    switch (automation.triggerType) {
+      case 'github_pr':
+        return this.fetchGitHubPRs(project.path);
+      case 'github_issue':
+        return this.fetchGitHubIssues(project.path);
+      case 'linear_issue':
+        return this.fetchLinearIssues();
+      default:
+        return [];
+    }
+  }
+
+  private async fetchGitHubPRs(projectPath: string): Promise<
+    Array<{
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+      labels?: string[];
+      branch?: string;
+      assignee?: string;
+    }>
+  > {
+    try {
+      const { githubService: gh } = await import('./GitHubService');
+      const isAuth = await gh.isAuthenticated();
+      if (!isAuth) return [];
+
+      const result = await gh.getPullRequests(projectPath, { limit: 30 });
+      return result.prs.map((pr) => ({
+        id: `pr-${pr.number}`,
+        title: pr.title,
+        url: pr.url,
+        type: 'GitHub PR',
+        extra: `PR #${pr.number} — ${pr.headRefName} -> ${pr.baseRefName}`,
+        labels: (pr as any).labels?.map((l: any) => l?.name ?? '').filter(Boolean) ?? [],
+        branch: pr.headRefName,
+        assignee: pr.author?.login ?? undefined,
+      }));
+    } catch (err) {
+      log.error('[Automations] Failed to fetch GitHub PRs:', err);
+      return [];
+    }
+  }
+
+  private async fetchGitHubIssues(projectPath: string): Promise<
+    Array<{
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+      labels?: string[];
+      branch?: string;
+      assignee?: string;
+    }>
+  > {
+    try {
+      const { githubService: gh } = await import('./GitHubService');
+      const isAuth = await gh.isAuthenticated();
+      if (!isAuth) return [];
+
+      const issues = await gh.listIssues(projectPath, 30);
+      return issues.map((issue) => ({
+        id: `issue-${issue.number}`,
+        title: issue.title,
+        url: issue.url,
+        type: 'GitHub Issue',
+        extra: `Issue #${issue.number}`,
+        labels: issue.labels?.map((l) => l.name ?? '').filter(Boolean),
+        assignee: issue.assignees?.[0]?.login ?? undefined,
+      }));
+    } catch (err) {
+      log.error('[Automations] Failed to fetch GitHub issues:', err);
+      return [];
+    }
+  }
+
+  private async fetchLinearIssues(): Promise<
+    Array<{
+      id: string;
+      title: string;
+      url?: string;
+      type: string;
+      extra?: string;
+      labels?: string[];
+      assignee?: string;
+    }>
+  > {
+    try {
+      const { default: LinearService } = await import('./LinearService');
+      const linear = new LinearService();
+      const status = await linear.checkConnection();
+      if (!status.connected) return [];
+
+      const issues = await linear.initialFetch(30);
+      return issues.map((issue: any) => ({
+        id: `linear-${issue.id}`,
+        title: issue.title ?? '',
+        url: issue.url,
+        type: 'Linear Issue',
+        extra: issue.identifier ? `${issue.identifier}: ${issue.title}` : issue.title,
+        assignee: issue.assignee?.displayName ?? issue.assignee?.name ?? undefined,
+      }));
+    } catch (err) {
+      log.error('[Automations] Failed to fetch Linear issues:', err);
+      return [];
+    }
+  }
+
+  // -------------------------------------------------------------------
   // Run log internals — always called under dataMutex
   // -------------------------------------------------------------------
 
@@ -424,10 +808,17 @@ class AutomationsService {
   }
 
   async create(input: CreateAutomationInput): Promise<Automation> {
-    validateSchedule(input.schedule);
+    const mode: AutomationMode = input.mode ?? 'schedule';
+    if (mode === 'schedule') {
+      validateSchedule(input.schedule);
+    }
+    if (mode === 'trigger' && !input.triggerType) {
+      throw new Error('triggerType is required when mode is "trigger"');
+    }
     await this.ensureInitialized();
 
     const now = new Date().toISOString();
+    const isTrigger = mode === 'trigger';
     const automation: Automation = {
       id: generateId(),
       name: input.name,
@@ -435,11 +826,14 @@ class AutomationsService {
       projectName: input.projectName ?? '',
       prompt: input.prompt,
       agentId: input.agentId,
+      mode,
       schedule: input.schedule,
+      triggerType: isTrigger ? (input.triggerType ?? null) : null,
+      triggerConfig: isTrigger ? (input.triggerConfig ?? null) : null,
       useWorktree: input.useWorktree ?? true,
       status: 'active',
       lastRunAt: null,
-      nextRunAt: computeNextRun(input.schedule),
+      nextRunAt: isTrigger ? null : computeNextRun(input.schedule),
       runCount: 0,
       lastRunResult: null,
       lastRunError: null,
@@ -455,7 +849,10 @@ class AutomationsService {
       name: automation.name,
       prompt: automation.prompt,
       agentId: automation.agentId,
+      mode: automation.mode,
       schedule: serializeSchedule(automation.schedule),
+      triggerType: automation.triggerType,
+      triggerConfig: serializeTriggerConfig(automation.triggerConfig),
       useWorktree: automation.useWorktree ? 1 : 0,
       status: automation.status,
       lastRunAt: automation.lastRunAt,
@@ -488,8 +885,10 @@ class AutomationsService {
     if (!row) return null;
 
     const current = mapAutomationRow(row);
+    const nextMode = input.mode ?? current.mode;
     const nextSchedule = input.schedule ?? current.schedule;
     const nextUpdatedAt = new Date().toISOString();
+    const isTrigger = nextMode === 'trigger';
 
     const updated: Automation = {
       ...current,
@@ -498,10 +897,27 @@ class AutomationsService {
       projectName: input.projectName ?? current.projectName,
       prompt: input.prompt ?? current.prompt,
       agentId: input.agentId ?? current.agentId,
+      mode: nextMode,
       status: input.status ?? current.status,
       useWorktree: input.useWorktree ?? current.useWorktree,
       schedule: nextSchedule,
-      nextRunAt: input.schedule ? computeNextRun(nextSchedule) : current.nextRunAt,
+      triggerType:
+        input.triggerType !== undefined
+          ? input.triggerType
+          : isTrigger
+            ? current.triggerType
+            : null,
+      triggerConfig:
+        input.triggerConfig !== undefined
+          ? input.triggerConfig
+          : isTrigger
+            ? current.triggerConfig
+            : null,
+      nextRunAt: isTrigger
+        ? null
+        : input.schedule
+          ? computeNextRun(nextSchedule)
+          : current.nextRunAt,
       updatedAt: nextUpdatedAt,
     };
 
@@ -513,7 +929,10 @@ class AutomationsService {
         projectName: updated.projectName,
         prompt: updated.prompt,
         agentId: updated.agentId,
+        mode: updated.mode,
         schedule: serializeSchedule(updated.schedule),
+        triggerType: updated.triggerType,
+        triggerConfig: serializeTriggerConfig(updated.triggerConfig),
         useWorktree: updated.useWorktree ? 1 : 0,
         status: updated.status,
         nextRunAt: updated.nextRunAt,
@@ -538,6 +957,7 @@ class AutomationsService {
 
     await db.delete(automationRunLogsTable).where(eq(automationRunLogsTable.automationId, id));
     await db.delete(automationsTable).where(eq(automationsTable.id, id));
+    this.knownEventIds.delete(id);
     log.info(`[Automations] Deleted automation: ${id}`);
     return true;
   }
@@ -562,7 +982,11 @@ class AutomationsService {
       ...automation,
       status: nextStatus,
       nextRunAt:
-        nextStatus === 'active' ? computeNextRun(automation.schedule) : automation.nextRunAt,
+        nextStatus === 'active' && automation.mode === 'schedule'
+          ? computeNextRun(automation.schedule)
+          : automation.mode === 'trigger'
+            ? null
+            : automation.nextRunAt,
       lastRunError: nextStatus === 'active' ? null : automation.lastRunError,
       updatedAt: nowIso,
     };

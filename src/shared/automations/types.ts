@@ -14,6 +14,20 @@ export interface AutomationSchedule {
   dayOfMonth?: number;
 }
 
+export type TriggerType = 'github_pr' | 'github_issue' | 'linear_issue';
+
+export interface TriggerConfig {
+  /** Filter PRs/issues by branch pattern (glob), e.g. "feature/*" */
+  branchFilter?: string;
+  /** Only trigger for PRs/issues with these labels */
+  labelFilter?: string[];
+  /** Only trigger for PRs/issues assigned to this user */
+  assigneeFilter?: string;
+}
+
+/** 'schedule' = cron-like, 'trigger' = event-driven (polling) */
+export type AutomationMode = 'schedule' | 'trigger';
+
 export type AutomationStatus = 'active' | 'paused' | 'error';
 
 export interface Automation {
@@ -25,13 +39,19 @@ export interface Automation {
   prompt: string;
   /** The coding agent provider id to use */
   agentId: string;
+  /** Whether this automation is schedule-based or trigger-based */
+  mode: AutomationMode;
   schedule: AutomationSchedule;
+  /** Event trigger type (only used when mode === 'trigger') */
+  triggerType: TriggerType | null;
+  /** Event trigger filter config (only used when mode === 'trigger') */
+  triggerConfig: TriggerConfig | null;
   /** Whether to create a worktree for each run */
   useWorktree: boolean;
   status: AutomationStatus;
   /** ISO timestamp of last run */
   lastRunAt: string | null;
-  /** ISO timestamp of next scheduled run */
+  /** ISO timestamp of next scheduled run (null for trigger-based) */
   nextRunAt: string | null;
   /** Number of times this automation has run */
   runCount: number;
@@ -61,7 +81,13 @@ export interface CreateAutomationInput {
   projectName?: string;
   prompt: string;
   agentId: string;
+  /** 'schedule' (default) or 'trigger' */
+  mode?: AutomationMode;
   schedule: AutomationSchedule;
+  /** Event trigger type (required when mode === 'trigger') */
+  triggerType?: TriggerType;
+  /** Event trigger filter config */
+  triggerConfig?: TriggerConfig;
   /** Whether to create a worktree for each run (default: true) */
   useWorktree?: boolean;
 }
@@ -74,7 +100,10 @@ export interface UpdateAutomationInput {
   projectName?: string;
   prompt?: string;
   agentId?: string;
+  mode?: AutomationMode;
   schedule?: AutomationSchedule;
+  triggerType?: TriggerType | null;
+  triggerConfig?: TriggerConfig | null;
   status?: AutomationStatus;
   useWorktree?: boolean;
 }

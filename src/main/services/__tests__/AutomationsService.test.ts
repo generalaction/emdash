@@ -34,20 +34,15 @@ let tmpDir: string;
  * does in production, keeping the migration file as the single source of truth.
  */
 async function createAutomationsTables(): Promise<void> {
-  const migrationPath = path.join(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    '..',
-    'drizzle',
-    '0011_add_automations_tables.sql'
-  );
-  const migrationSql = await fs.readFile(migrationPath, 'utf-8');
+  const drizzleDir = path.join(__dirname, '..', '..', '..', '..', 'drizzle');
   const { sqlite } = await getDrizzleClient();
-  await new Promise<void>((resolve, reject) => {
-    sqlite.exec(migrationSql, (err) => (err ? reject(err) : resolve()));
-  });
+
+  for (const file of ['0011_add_automations_tables.sql', '0012_add_automation_triggers.sql']) {
+    const migrationSql = await fs.readFile(path.join(drizzleDir, file), 'utf-8');
+    await new Promise<void>((resolve, reject) => {
+      sqlite.exec(migrationSql, (err) => (err ? reject(err) : resolve()));
+    });
+  }
 }
 
 beforeEach(async () => {

@@ -854,6 +854,7 @@ export class GitHubService {
         'additions',
         'deletions',
         'statusCheckRollup',
+        'labels',
       ];
       const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
@@ -884,6 +885,7 @@ export class GitHubService {
           additions: typeof item?.additions === 'number' ? item.additions : undefined,
           deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
           checksStatus: this.deriveChecksStatus(item?.statusCheckRollup),
+          labels: Array.isArray(item?.labels) ? item.labels : [],
         }))
       );
 

@@ -1,4 +1,9 @@
-import type { AutomationSchedule, DayOfWeek, ScheduleType } from '@shared/automations/types';
+import type {
+  AutomationSchedule,
+  DayOfWeek,
+  ScheduleType,
+  TriggerType,
+} from '@shared/automations/types';
 
 export const DAY_LABELS: Record<DayOfWeek, string> = {
   mon: 'Monday',
@@ -107,4 +112,21 @@ export function buildSchedule(
   if (type === 'weekly') base.dayOfWeek = dayOfWeek as DayOfWeek;
   if (type === 'monthly') base.dayOfMonth = dayOfMonth;
   return base;
+}
+
+export const TRIGGER_TYPE_LABELS: Record<TriggerType, string> = {
+  github_pr: 'GitHub PR Created',
+  github_issue: 'GitHub Issue Created',
+  linear_issue: 'Linear Issue Created',
+};
+
+export const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
+  { value: 'github_pr', label: 'New Pull Request' },
+  { value: 'github_issue', label: 'New GitHub Issue' },
+  { value: 'linear_issue', label: 'New Linear Issue' },
+];
+
+export function formatTriggerLabel(triggerType: TriggerType | null): string {
+  if (!triggerType) return 'Unknown trigger';
+  return TRIGGER_TYPE_LABELS[triggerType] ?? triggerType;
 }
