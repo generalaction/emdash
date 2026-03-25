@@ -12,15 +12,24 @@ import {
   setInstalled,
 } from '@/lib/previewStorage';
 import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
+import { getBasePort } from '@shared/task/envVars';
 
 interface Props {
   defaultUrl?: string;
   taskId?: string | null;
+  taskName?: string | null;
   taskPath?: string | null;
+  taskBranch?: string | null;
   parentProjectPath?: string | null;
 }
 
-const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectPath }) => {
+const BrowserToggleButton: React.FC<Props> = ({
+  taskId,
+  taskName,
+  taskPath,
+  taskBranch,
+  parentProjectPath,
+}) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
     const p = (path || '').trim();
@@ -96,10 +105,14 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
     // If openBrowserUrl is configured in .emdash.json, use it directly
     if (pp) {
       try {
+        const portSeed = wp || id;
         const taskEnvVars: Record<string, string> = {};
         if (id) taskEnvVars['EMDASH_TASK_ID'] = id;
+        if (taskName) taskEnvVars['EMDASH_TASK_NAME'] = taskName;
         if (wp) taskEnvVars['EMDASH_TASK_PATH'] = wp;
         if (pp) taskEnvVars['EMDASH_ROOT_PATH'] = pp;
+        taskEnvVars['EMDASH_DEFAULT_BRANCH'] = taskBranch || 'main';
+        if (portSeed) taskEnvVars['EMDASH_PORT'] = String(getBasePort(portSeed));
         const result = await (window as any).electronAPI?.resolvePreviewUrl?.(pp, taskEnvVars);
         if (result?.success && result?.url) {
           const configuredUrl = String(result.url);
@@ -179,7 +192,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
     }
     // Fallback: clear spinner after a grace period if nothing arrives
     setTimeout(() => browser.hideSpinner(), SPINNER_MAX_MS);
-  }, [browser, taskId, taskPath, parentProjectPath]);
+  }, [browser, taskId, taskName, taskPath, taskBranch, parentProjectPath]);
 
   return (
     <TooltipProvider delayDuration={200}>

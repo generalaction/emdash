@@ -28,7 +28,7 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function getBasePort(seed: string): number {
+export function getBasePort(seed: string): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
     hash = (hash << 5) - hash + seed.charCodeAt(i);

@@ -303,7 +303,9 @@ const Titlebar: React.FC<TitlebarProps> = ({
           {taskId && !isTaskMultiAgent ? (
             <BrowserToggleButton
               taskId={taskId}
+              taskName={activeTask?.name ?? null}
               taskPath={taskPath}
+              taskBranch={activeTask?.branch ?? null}
               parentProjectPath={projectPath}
             />
           ) : null}
