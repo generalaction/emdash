@@ -19,6 +19,7 @@ import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
 import { rpcRouter } from './rpc';
+import { agentEventService } from './services/AgentEventService';
 
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
@@ -87,6 +88,10 @@ app.whenReady().then(async () => {
   appService.initialize();
   appSettingsService.initialize();
 
+  agentEventService.start().catch((e) => {
+    log.error('Failed to start agent event service:', e);
+  });
+
   emdashAccountService.loadSessionToken().catch((e) => {
     log.warn('Failed to load account session token:', e);
   });
@@ -121,6 +126,7 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
+  agentEventService.stop();
   autoUpdateService.shutdown();
   projectManager.shutdown().catch((e) => {
     log.error('Failed to shutdown project manager:', e);

@@ -1,5 +1,6 @@
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
@@ -8,6 +9,7 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { agentEventService } from '@main/services/AgentEventService';
 import { buildAgentCommand, wireAgentClassifier } from './shared';
 
 const DEFAULT_COLS = 80;
@@ -54,12 +56,17 @@ export class LocalConversationProvider implements ConversationProvider {
       initialPrompt,
     });
 
+    const ptyId = makePtyId(conversation.providerId, conversation.id);
+    const port = agentEventService.getPort();
+    const token = agentEventService.getToken();
     const pty = spawnLocalPty({
       id: sessionId,
       command,
       args,
       cwd: this.taskPath,
-      env: buildAgentEnv(),
+      env: buildAgentEnv({
+        hook: port > 0 ? { port, ptyId, token } : undefined,
+      }),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

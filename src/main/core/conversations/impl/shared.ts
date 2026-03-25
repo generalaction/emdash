@@ -1,5 +1,7 @@
+import { BrowserWindow } from 'electron';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
 import { Pty } from '@main/core/pty/pty';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { events } from '@main/lib/events';
@@ -19,19 +21,27 @@ export function wireAgentClassifier({
   conversationId: string;
 }): void {
   const classifier = createClassifier(providerId);
+  const ptyId = makePtyId(providerId, conversationId);
   pty.onData((chunk) => {
     const result = classifier.classify(chunk);
     if (result) {
+      const windows = BrowserWindow.getAllWindows();
+      const appFocused = windows.some((w) => !w.isDestroyed() && w.isFocused());
       events.emit(agentEventChannel, {
-        type: result.type,
-        conversationId: conversationId,
-        taskId: taskId,
-        projectId: projectId,
-        timestamp: Date.now(),
-        payload: {
-          message: result.message,
-          notificationType: result.type === 'notification' ? result.notificationType : undefined,
+        event: {
+          type: result.type,
+          ptyId,
+          providerId,
+          conversationId,
+          taskId,
+          projectId,
+          timestamp: Date.now(),
+          payload: {
+            message: result.message,
+            notificationType: result.type === 'notification' ? result.notificationType : undefined,
+          },
         },
+        appFocused,
       });
     }
   });

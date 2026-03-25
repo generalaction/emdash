@@ -10,6 +10,8 @@ export type NotificationType =
 
 export interface AgentEvent {
   type: AgentEventType;
+  ptyId?: string;
+  providerId?: string;
   projectId: string;
   taskId: string;
   conversationId: string;
@@ -22,9 +24,14 @@ export interface AgentEvent {
   };
 }
 
+export interface AgentEventEnvelope {
+  event: AgentEvent;
+  appFocused: boolean;
+}
+
 export type SoundEvent = 'needs_attention' | 'task_complete';
 
-export const agentEventChannel = defineEvent<AgentEvent>('agent:event');
+export const agentEventChannel = defineEvent<AgentEventEnvelope>('agent:event');
 
 export interface AgentSessionExited {
   /** PTY session ID (= conversationId for agent sessions). */

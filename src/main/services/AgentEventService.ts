@@ -71,11 +71,12 @@ class AgentEventService {
           }
 
           const convRows = await db
-            .select({ taskId: conversations.taskId })
+            .select({ taskId: conversations.taskId, projectId: conversations.projectId })
             .from(conversations)
             .where(eq(conversations.id, parsed.conversationId))
             .limit(1);
           const taskId = convRows[0]?.taskId ?? parsed.conversationId;
+          const projectId = convRows[0]?.projectId ?? '';
 
           // Body is the raw Claude Code hook payload JSON
           const raw = body ? JSON.parse(body) : {};
@@ -92,9 +93,10 @@ class AgentEventService {
           const event: AgentEvent = {
             type: type as AgentEvent['type'],
             ptyId,
+            providerId: parsed.providerId,
+            projectId,
             conversationId: parsed.conversationId,
             taskId,
-            providerId: parsed.providerId,
             timestamp: Date.now(),
             payload: normalizedPayload,
           };
