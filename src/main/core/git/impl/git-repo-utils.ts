@@ -25,8 +25,8 @@ export async function cloneRepository(
   fs: FileSystemProvider
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const dir = parentDir(localPath);
-    await fs.mkdir(dir, { recursive: true });
+    // Uses ".", because fs provider is already mounted at path.dirname(localPath).
+    await fs.mkdir('.', { recursive: true });
     await exec('git', ['clone', repoUrl, localPath]);
     return { success: true };
   } catch (error) {
@@ -112,15 +112,4 @@ export async function ensurePullRequestBranch(
   );
 
   return safeBranch;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Extract parent directory from a path (last `/`-separated segment removed). */
-function parentDir(p: string): string {
-  const sep = p.lastIndexOf('/');
-  if (sep <= 0) return '/';
-  return p.slice(0, sep);
 }
