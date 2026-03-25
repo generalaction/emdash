@@ -41,6 +41,7 @@ const ICON_PATHS = {
   rustrover: 'rustrover.svg',
   'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
+  windsurf: 'windsurf.svg',
 } as const;
 
 export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
@@ -290,6 +291,34 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     },
   },
   {
+    id: 'windsurf',
+    label: 'Windsurf',
+    iconPath: ICON_PATHS.windsurf,
+    invertInDark: true,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v windsurf >/dev/null 2>&1 && windsurf {{path}}',
+          'open -n -b com.codeium.windsurf --args {{path}}',
+          'open -n -a "Windsurf" {{path}}',
+        ],
+        checkCommands: ['windsurf'],
+        bundleIds: ['com.codeium.windsurf'],
+        appNames: ['Windsurf'],
+      },
+      win32: {
+        openCommands: ['start "" windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+      linux: {
+        openCommands: ['windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+    },
+  },
+  {
     id: 'intellij-idea',
     label: 'IntelliJ IDEA',
     iconPath: ICON_PATHS['intellij-idea'],
@@ -407,6 +436,13 @@ export function getAppById(id: string): OpenInAppConfig | undefined {
 
 export function isValidOpenInAppId(value: unknown): value is OpenInAppId {
   return typeof value === 'string' && OPEN_IN_APPS.some((app) => app.id === value);
+}
+
+export function isOpenInAppSupportedForWorkspace(
+  app: Pick<OpenInAppConfigShape, 'supportsRemote'>,
+  isRemote: boolean
+): boolean {
+  return !isRemote || app.supportsRemote === true;
 }
 
 export function getResolvedLabel(app: OpenInAppConfigShape, platform: PlatformKey): string {

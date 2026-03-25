@@ -931,8 +931,16 @@ const ChatInterface: React.FC<Props> = ({
   }, [activeConversationId, handleCloseChat]);
 
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
+
+  // Auto-approve is enabled if:
+  // 1. The task was explicitly created with autoApprove, OR
+  // 2. The global "auto-approve by default" setting is on
+  // In both cases the provider must actually support an auto-approve flag.
+  const { settings: autoApproveSettings } = useAppSettings();
   const autoApproveEnabled =
-    Boolean(task.metadata?.autoApprove) && Boolean(agentMeta[agent]?.autoApproveFlag);
+    (Boolean(task.metadata?.autoApprove) ||
+      Boolean(autoApproveSettings?.tasks?.autoApproveByDefault)) &&
+    Boolean(agentMeta[agent]?.autoApproveFlag);
 
   const isMainConversation = activeConversationId === mainConversationId;
 

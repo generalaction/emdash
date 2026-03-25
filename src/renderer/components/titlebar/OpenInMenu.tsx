@@ -30,7 +30,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const { toast } = useToast();
-  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, loading } = useOpenInApps({ isRemote });
   const { settings, updateSettings } = useAppSettings();
 
   const defaultApp: OpenInAppId | null =

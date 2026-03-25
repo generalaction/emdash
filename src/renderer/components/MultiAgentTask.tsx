@@ -13,6 +13,7 @@ import { classifyActivity, sampleActivityChunk } from '@/lib/activityClassifier'
 import { activityStore } from '@/lib/activityStore';
 import { Spinner } from './ui/spinner';
 import { BUSY_HOLD_MS, CLEAR_BUSY_MS } from '@/lib/activityConstants';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { CornerDownLeft } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
@@ -57,6 +58,7 @@ const MultiAgentTask: React.FC<Props> = ({
   onTaskInterfaceReady,
 }) => {
   const { effectiveTheme } = useTheme();
+  const { settings: multiAgentSettings } = useAppSettings();
   const [prompt, setPrompt] = useState('');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [variantBusy, setVariantBusy] = useState<Record<string, boolean>>({});
@@ -655,7 +657,8 @@ const MultiAgentTask: React.FC<Props> = ({
                       providerId={v.agent}
                       env={variantEnvs.get(v.worktreeId || v.path)}
                       autoApprove={
-                        Boolean(task.metadata?.autoApprove) &&
+                        (Boolean(task.metadata?.autoApprove) ||
+                          Boolean(multiAgentSettings?.tasks?.autoApproveByDefault)) &&
                         Boolean(agentMeta[v.agent]?.autoApproveFlag)
                       }
                       initialPrompt={
