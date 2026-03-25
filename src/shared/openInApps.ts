@@ -249,6 +249,21 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     },
   },
   {
+    id: 'foot',
+    label: 'Foot',
+    iconPath: ICON_PATHS.terminal,
+    supportsRemote: true,
+    platforms: {
+      linux: {
+        openCommands: [
+          'footclient --working-directory={{path}}',
+          'foot --working-directory={{path}}',
+        ],
+        checkCommands: ['footclient', 'foot'],
+      },
+    },
+  },
+  {
     id: 'zed',
     label: 'Zed',
     iconPath: ICON_PATHS.zed,
