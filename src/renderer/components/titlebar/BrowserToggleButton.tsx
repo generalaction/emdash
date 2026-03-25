@@ -87,10 +87,35 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
     }
     const id = (taskId || '').trim();
     const wp = (taskPath || '').trim();
+    const pp = (parentProjectPath || '').trim();
     const appPort = Number(window.location.port || 0);
     // Open pane immediately with no URL; we will navigate when ready
     browser.showSpinner();
     browser.toggle(undefined);
+
+    // If a previewUrl is configured in .emdash.json, use it directly
+    if (pp) {
+      try {
+        const taskEnvVars: Record<string, string> = {};
+        if (id) taskEnvVars['EMDASH_TASK_ID'] = id;
+        if (wp) taskEnvVars['EMDASH_TASK_PATH'] = wp;
+        if (pp) taskEnvVars['EMDASH_ROOT_PATH'] = pp;
+        const result = await (window as any).electronAPI?.resolvePreviewUrl?.(pp, taskEnvVars);
+        if (result?.success && result?.url) {
+          const configuredUrl = String(result.url);
+          if (!isAppPort(configuredUrl, appPort)) {
+            browser.open(configuredUrl);
+            try {
+              if (id) {
+                setLastUrl(id, configuredUrl);
+              }
+            } catch {}
+            browser.hideSpinner();
+            return;
+          }
+        }
+      } catch {}
+    }
 
     if (id) {
       try {
@@ -131,7 +156,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
           await (window as any).electronAPI?.hostPreviewStart?.({
             taskId: id,
             taskPath: wp,
-            parentProjectPath: (parentProjectPath || '').trim(),
+            parentProjectPath: pp,
           });
         }
         // Fallback: if no URL event yet after a short delay, try default dev port once.
