@@ -60,6 +60,7 @@ export type AgentProviderDefinition = {
   /** When true, the logo should be colour-inverted in dark mode. */
   invertInDark?: boolean;
   terminalOnly?: boolean;
+  supportsHooks?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -77,6 +78,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'claude',
@@ -94,6 +96,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'claude.png',
     alt: 'Claude Code',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'cursor',

@@ -10,6 +10,7 @@ class AgentHookService {
   async start(): Promise<void> {
     await this.server.start(async (raw) => {
       const event = await enrichEvent(raw);
+      event.source = 'hook';
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
       events.emit(agentEventChannel, { event, appFocused });

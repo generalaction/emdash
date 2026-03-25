@@ -10,6 +10,7 @@ export type NotificationType =
 
 export interface AgentEvent {
   type: AgentEventType;
+  source?: 'hook' | 'classifier';
   ptyId?: string;
   providerId?: string;
   projectId: string;

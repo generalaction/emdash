@@ -1,8 +1,10 @@
+import { getProvider } from '@shared/agent-provider-registry';
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
@@ -10,7 +12,7 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { buildAgentCommand, wireAgentClassifier } from './shared';
+import { buildAgentCommand } from './agent-command';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -71,13 +73,19 @@ export class LocalConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
     });
 
-    wireAgentClassifier({
-      pty,
-      providerId: conversation.providerId,
-      projectId: conversation.projectId,
-      taskId: conversation.taskId,
-      conversationId: conversation.id,
-    });
+    const hookActive = port > 0;
+    const provider = getProvider(conversation.providerId);
+    const useHooksOnly = hookActive && provider?.supportsHooks;
+
+    if (!useHooksOnly) {
+      wireAgentClassifier({
+        pty,
+        providerId: conversation.providerId,
+        projectId: conversation.projectId,
+        taskId: conversation.taskId,
+        conversationId: conversation.id,
+      });
+    }
 
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
