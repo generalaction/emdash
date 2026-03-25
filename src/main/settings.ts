@@ -58,6 +58,7 @@ export interface KeyboardSettings {
   newTask?: KeyboardShortcutBinding;
   nextAgent?: KeyboardShortcutBinding;
   prevAgent?: KeyboardShortcutBinding;
+  newAgent?: KeyboardShortcutBinding;
   openInEditor?: KeyboardShortcutBinding;
 }
 
