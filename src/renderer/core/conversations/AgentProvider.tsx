@@ -55,14 +55,15 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
           setNotificationsByTaskId((prev) => {
             const existing = prev[event.taskId] ?? [];
             // Replace any existing notification from the same PTY so we don't accumulate duplicates
-            const filtered = existing.filter((n) => n.ptyId !== event.ptyId);
+            const ptyId = event.ptyId ?? event.conversationId;
+            const filtered = existing.filter((n) => n.ptyId !== ptyId);
             return {
               ...prev,
               [event.taskId]: [
                 ...filtered,
                 {
-                  ptyId: event.ptyId,
-                  providerId: event.providerId,
+                  ptyId,
+                  providerId: event.providerId ?? '',
                   type: nt,
                   message: event.payload.message,
                   timestamp: event.timestamp,
@@ -73,10 +74,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (event.type === 'stop') {
         // Agent finished — clear its notifications
+        const stopPtyId = event.ptyId ?? event.conversationId;
         setNotificationsByTaskId((prev) => {
           const existing = prev[event.taskId];
           if (!existing) return prev;
-          const filtered = existing.filter((n) => n.ptyId !== event.ptyId);
+          const filtered = existing.filter((n) => n.ptyId !== stopPtyId);
           if (filtered.length === existing.length) return prev;
           const next = { ...prev };
           if (filtered.length === 0) delete next[event.taskId];

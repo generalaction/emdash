@@ -4,10 +4,8 @@ import { createAuggieClassifier } from './auggie';
 import { createAutohandClassifier } from './autohand';
 import type { ProviderClassifier } from './base';
 import { createCharmClassifier } from './charm';
-import { createClaudeClassifier } from './claude';
 import { createClineClassifier } from './cline';
 import { createCodebuffClassifier } from './codebuff';
-import { createCodexClassifier } from './codex';
 import { createContinueClassifier } from './continue';
 import { createCopilotClassifier } from './copilot';
 import { createCursorClassifier } from './cursor';
@@ -26,15 +24,13 @@ import { createRovoClassifier } from './rovo';
 
 export type { ProviderClassifier, ClassificationResult } from './base';
 
-const classifierFactories: Record<AgentProviderId, () => ProviderClassifier> = {
+const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassifier>> = {
   amp: createAmpClassifier,
   auggie: createAuggieClassifier,
   autohand: createAutohandClassifier,
   charm: createCharmClassifier,
-  claude: createClaudeClassifier,
   cline: createClineClassifier,
   codebuff: createCodebuffClassifier,
-  codex: createCodexClassifier,
   continue: createContinueClassifier,
   copilot: createCopilotClassifier,
   cursor: createCursorClassifier,

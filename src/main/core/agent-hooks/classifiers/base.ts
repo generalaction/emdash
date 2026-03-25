@@ -31,11 +31,12 @@ type ClassifyFn = (text: string) => ClassificationResult;
 
 const MAX_BUFFER = 4096; // 4KB sliding window
 
-function stripAnsi(s: string): string {
+export function stripAnsi(s: string): string {
   return s
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
     .replace(/\r/g, '')
-    .replace(/\x1b\][^\x07]*\x07/g, '');
+    .replace(/\x1b\][^\x07]*\x07/g, '')
+    .replace(/\x1b\][^\x1b]*\x1b\\/g, '');
 }
 
 /**

@@ -8,6 +8,7 @@ import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
+import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
@@ -87,6 +88,10 @@ app.whenReady().then(async () => {
   appService.initialize();
   appSettingsService.initialize();
 
+  agentHookService.start().catch((e) => {
+    log.error('Failed to start agent event service:', e);
+  });
+
   emdashAccountService.loadSessionToken().catch((e) => {
     log.warn('Failed to load account session token:', e);
   });
@@ -117,6 +122,7 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
+  agentHookService.stop();
   autoUpdateService.shutdown();
   projectManager.shutdown().catch((e) => {
     log.error('Failed to shutdown project manager:', e);

@@ -5,7 +5,7 @@
 - `src/main/core/pty/` — `local-pty.ts`, `ssh2-pty.ts`, `pty.ts`, `pty-env.ts`, `pty-session-registry.ts`, `spawn-utils.ts`, `exit-signals.ts`, `controller.ts`
 - `src/main/core/terminals/` — terminal lifecycle, local and SSH terminal providers
 - `src/main/core/conversations/impl/agent-event-classifiers/` — per-provider terminal output parsers
-- `src/main/services/AgentEventService.ts`
+- `src/main/core/agent-hooks/` — hook server, event enrichment, OS notifications, hook config writer
 
 ## Core Risks
 

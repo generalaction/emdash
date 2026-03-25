@@ -4,6 +4,7 @@ import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -140,6 +141,8 @@ export class LocalProjectProvider implements ProjectProvider {
     }
 
     const taskFs = new LocalFileSystem(workDir);
+    await new HookConfigWriter(taskFs).writeAll();
+
     const taskGit = new GitService(workDir, getLocalExec(), taskFs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
