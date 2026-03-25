@@ -1,14 +1,10 @@
 import { makeAutoObservable, observable } from 'mobx';
 import { MainPanelView, RightPanelView } from '../tasks/types';
-import { ConversationsViewState } from './conversation-manager';
 import { EditorViewStore } from './editor-view-store';
-import { TerminalsViewState } from './terminal-view-store';
 
 export class TaskViewState {
   view: MainPanelView = 'agents';
   rightPanelView: RightPanelView = 'changes';
-  terminalsView = new TerminalsViewState();
-  conversationsView = new ConversationsViewState();
   editorView = new EditorViewStore();
 
   constructor() {

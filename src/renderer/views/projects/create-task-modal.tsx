@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import { useCallback, useEffect, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { IssueSelector } from '@renderer/components/issue-selector';
+import { ProjectSelector } from '@renderer/components/project-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
   DialogContent,
@@ -23,15 +25,14 @@ import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
 import { BranchSelector } from './branch-selector';
 
-export function CreateTaskModal({
+export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   onClose,
-}: BaseModalProps & { projectId: string; projectPath: string }) {
-  const { branches, defaultBranch } = useRepository(projectId);
+}: BaseModalProps & { projectId?: string }) {
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
+  const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
-  const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
-    defaultBranch ? { type: 'local', branch: defaultBranch.name } : undefined
-  );
+  const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(undefined);
   const [providerId, setProviderId] = useState<AgentProviderId>('claude');
   const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
   const [pushBranch, setPushBranch] = useState(false);
@@ -39,6 +40,14 @@ export function CreateTaskModal({
   const [taskName, setTaskName] = useState(generateFriendlyTaskName());
   const [showSlugHint, setShowSlugHint] = useState(false);
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
+
+  useEffect(() => {
+    if (defaultBranch) {
+      setSelectedBranch({ type: 'local', branch: defaultBranch.name });
+    } else {
+      setSelectedBranch(undefined);
+    }
+  }, [selectedProjectId, defaultBranch]);
 
   const handleTaskNameChange = useCallback((value: string) => {
     const transformed = liveTransformTaskName(value);
@@ -48,12 +57,13 @@ export function CreateTaskModal({
   }, []);
 
   const handleCreateTask = useCallback(() => {
+    if (!selectedProjectId) return;
     const id = crypto.randomUUID();
-    const projectStore = projectManagerStore.projects.get(projectId);
+    const projectStore = projectManagerStore.projects.get(selectedProjectId);
     if (projectStore?.state === 'mounted') {
       void (projectStore as MountedProjectStore).taskManager.createTask({
         id,
-        projectId,
+        projectId: selectedProjectId,
         name: taskName,
         sourceBranch: selectedBranch?.branch ?? '',
         taskBranch: createBranchAndWorktree ? taskName : undefined,
@@ -62,9 +72,9 @@ export function CreateTaskModal({
       });
     }
     onClose();
-    navigate('task', { projectId, taskId: id });
+    navigate('task', { projectId: selectedProjectId, taskId: id });
   }, [
-    projectId,
+    selectedProjectId,
     selectedBranch,
     taskName,
     createBranchAndWorktree,
@@ -81,6 +91,10 @@ export function CreateTaskModal({
       </DialogHeader>
       <div className="flex flex-col gap-2 w-full">
         <FieldGroup>
+          <Field>
+            <FieldLabel>Project</FieldLabel>
+            <ProjectSelector value={selectedProjectId} onChange={setSelectedProjectId} />
+          </Field>
           <Field>
             <FieldLabel>From Branch</FieldLabel>
             <BranchSelector
@@ -133,8 +147,10 @@ export function CreateTaskModal({
         </FieldGroup>
       </div>
       <DialogFooter>
-        <Button onClick={handleCreateTask}>Create</Button>
+        <Button onClick={handleCreateTask} disabled={!selectedProjectId}>
+          Create
+        </Button>
       </DialogFooter>
     </DialogContent>
   );
-}
+});

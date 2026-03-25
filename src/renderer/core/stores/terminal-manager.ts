@@ -1,33 +1,97 @@
-import {
-  makeAutoObservable,
-  makeObservable,
-  observable,
-  onBecomeObserved,
-  runInAction,
-} from 'mobx';
+import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/core/ipc';
-import { TabsStore } from '@renderer/core/stores/tabs-store';
+import { TabViewProvider, TabViewSnapshot } from '@renderer/core/stores/generic-tab-view';
+import { Snapshottable } from '@renderer/core/stores/snapshottable';
+import {
+  addTabId,
+  removeTabId,
+  reorderTabIds,
+  setNextTabActive,
+  setPreviousTabActive,
+  setTabActive,
+  setTabActiveIndex,
+} from '@renderer/core/stores/tab-utils';
 import { PtySession } from './pty-session';
-import { TerminalsViewState } from './terminal-view-store';
 
-export class TerminalManagerStore {
+export class TerminalManagerStore
+  implements TabViewProvider<TerminalStore, CreateTerminalParams>, Snapshottable<TabViewSnapshot>
+{
   private readonly projectId: string;
   private readonly taskId: string;
   private _loaded = false;
-  readonly view = new TerminalsViewState();
   terminals = observable.map<string, TerminalStore>();
-  tabs = new TabsStore();
+  tabOrder: string[] = [];
+  activeTabId: string | undefined = undefined;
 
   constructor(projectId: string, taskId: string) {
     this.projectId = projectId;
     this.taskId = taskId;
-    makeObservable(this, { terminals: observable });
+    makeObservable(this, {
+      terminals: observable,
+      tabOrder: observable,
+      activeTabId: observable,
+      tabs: computed,
+      activeTab: computed,
+      snapshot: computed,
+      addTab: action,
+      removeTab: action,
+      reorderTabs: action,
+      setNextTabActive: action,
+      setPreviousTabActive: action,
+      setTabActiveIndex: action,
+      setActiveTab: action,
+    });
     onBecomeObserved(this, 'terminals', () => {
       if (this._loaded) return;
       this.load();
     });
+  }
+
+  get tabs(): TerminalStore[] {
+    return this.tabOrder.map((id) => this.terminals.get(id)).filter(Boolean) as TerminalStore[];
+  }
+
+  get activeTab(): TerminalStore | undefined {
+    return this.activeTabId ? this.terminals.get(this.activeTabId) : undefined;
+  }
+
+  get snapshot(): TabViewSnapshot {
+    return { tabOrder: this.tabOrder.slice(), activeTabId: this.activeTabId };
+  }
+
+  restoreSnapshot(snapshot: Partial<TabViewSnapshot>): void {
+    if (snapshot.tabOrder) this.tabOrder = snapshot.tabOrder;
+    if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
+  }
+
+  setActiveTab(id: string): void {
+    setTabActive(this, id);
+  }
+
+  reorderTabs(fromIndex: number, toIndex: number): void {
+    reorderTabIds(this, fromIndex, toIndex);
+  }
+
+  setNextTabActive(): void {
+    setNextTabActive(this);
+  }
+
+  setPreviousTabActive(): void {
+    setPreviousTabActive(this);
+  }
+
+  setTabActiveIndex(index: number): void {
+    setTabActiveIndex(this, index);
+  }
+
+  addTab(params: CreateTerminalParams): void {
+    void this.createTerminal(params);
+  }
+
+  removeTab(terminalId: string): void {
+    void this.deleteTerminal(terminalId);
   }
 
   async load() {
@@ -37,7 +101,7 @@ export class TerminalManagerStore {
       for (const terminal of terminals) {
         const store = new TerminalStore(terminal);
         this.terminals.set(terminal.id, store);
-        this.tabs.addTab(terminal.id);
+        addTabId(this, terminal.id);
         void store.session.connect();
       }
     });
@@ -54,8 +118,8 @@ export class TerminalManagerStore {
     runInAction(() => {
       const store = new TerminalStore(optimistic);
       this.terminals.set(params.id, store);
-      this.tabs.addTab(params.id);
-      this.tabs.setActiveTab(params.id);
+      addTabId(this, params.id);
+      setTabActive(this, params.id);
       void store.session.connect();
     });
 
@@ -72,7 +136,7 @@ export class TerminalManagerStore {
       runInAction(() => {
         this.terminals.get(params.id)?.dispose();
         this.terminals.delete(params.id);
-        this.tabs.removeTab(params.id);
+        removeTabId(this, params.id);
       });
       throw err;
     }
@@ -82,12 +146,11 @@ export class TerminalManagerStore {
     const snapshot = this.terminals.get(terminalId);
     if (!snapshot) return;
 
-    const previousTabOrder = this.tabs.tabOrder.slice();
-    const previousActiveTabId = this.tabs.activeTabId;
+    const tabSnapshot = this.snapshot;
 
     runInAction(() => {
       this.terminals.delete(terminalId);
-      this.tabs.removeTab(terminalId);
+      removeTabId(this, terminalId);
     });
 
     try {
@@ -100,8 +163,7 @@ export class TerminalManagerStore {
     } catch (err) {
       runInAction(() => {
         this.terminals.set(terminalId, snapshot);
-        this.tabs.tabOrder = previousTabOrder;
-        if (previousActiveTabId) this.tabs.setActiveTab(previousActiveTabId);
+        this.restoreSnapshot(tabSnapshot);
       });
       throw err;
     }
@@ -126,10 +188,6 @@ export class TerminalManagerStore {
       throw err;
     }
   }
-
-  reorderTerminals(fromIndex: number, toIndex: number): void {
-    this.tabs.reorderTabs(fromIndex, toIndex);
-  }
 }
 
 export class TerminalStore {
@@ -141,7 +199,7 @@ export class TerminalStore {
     this.session = new PtySession(
       makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
     );
-    makeAutoObservable(this);
+    makeObservable(this, { data: observable, session: observable });
   }
 
   dispose() {

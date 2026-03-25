@@ -6,7 +6,6 @@ import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
 import {
   MountedProjectStore,
   ProjectStore,
-  UnmountedProjectStore,
   UnregisteredProjectStore,
 } from '@renderer/core/stores/project';
 import { sidebarStore } from '@renderer/core/stores/sidebar-store';
@@ -119,13 +118,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           type="button"
           className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
           onPointerEnter={() => prefetchRepository()}
-          onClick={() =>
-            showCreateTaskModal({
-              projectId,
-              projectPath:
-                (project as MountedProjectStore | UnmountedProjectStore).data?.path ?? '',
-            })
-          }
+          onClick={() => showCreateTaskModal({ projectId })}
           disabled={project.state === 'unregistered'}
         >
           <Plus className="h-4 w-4" />
