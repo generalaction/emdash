@@ -41,6 +41,7 @@ const ICON_PATHS = {
   rustrover: 'rustrover.svg',
   'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
+  windsurf: 'windsurf.svg',
 } as const;
 
 export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
@@ -286,6 +287,34 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['kiro {{path}}'],
         checkCommands: ['kiro'],
+      },
+    },
+  },
+  {
+    id: 'windsurf',
+    label: 'Windsurf',
+    iconPath: ICON_PATHS.windsurf,
+    invertInDark: true,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v windsurf >/dev/null 2>&1 && windsurf {{path}}',
+          'open -n -b com.codeium.windsurf --args {{path}}',
+          'open -n -a "Windsurf" {{path}}',
+        ],
+        checkCommands: ['windsurf'],
+        bundleIds: ['com.codeium.windsurf'],
+        appNames: ['Windsurf'],
+      },
+      win32: {
+        openCommands: ['start "" windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+      linux: {
+        openCommands: ['windsurf {{path}}'],
+        checkCommands: ['windsurf'],
       },
     },
   },
