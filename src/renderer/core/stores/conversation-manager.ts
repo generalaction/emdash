@@ -44,7 +44,7 @@ export class ConversationManagerStore
       setTabActiveIndex: action,
       setActiveTab: action,
     });
-    onBecomeObserved(this, 'conversations', () => {
+    onBecomeObserved(this, 'tabOrder', () => {
       if (this._loaded) return;
       this.load();
     });
@@ -98,6 +98,7 @@ export class ConversationManagerStore
   }
 
   async load() {
+    this._loaded = true;
     const conversations = await rpc.conversations.getConversationsForTask(
       this.projectId,
       this.taskId
@@ -109,8 +110,10 @@ export class ConversationManagerStore
         addTabId(this, conversation.id);
         void store.session.connect();
       }
+      if (!this.activeTabId && this.tabOrder.length > 0) {
+        this.activeTabId = this.tabOrder[0];
+      }
     });
-    this._loaded = true;
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {

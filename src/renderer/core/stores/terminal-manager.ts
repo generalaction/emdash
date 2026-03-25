@@ -43,7 +43,7 @@ export class TerminalManagerStore
       setTabActiveIndex: action,
       setActiveTab: action,
     });
-    onBecomeObserved(this, 'terminals', () => {
+    onBecomeObserved(this, 'tabOrder', () => {
       if (this._loaded) return;
       this.load();
     });
@@ -103,6 +103,9 @@ export class TerminalManagerStore
         this.terminals.set(terminal.id, store);
         addTabId(this, terminal.id);
         void store.session.connect();
+      }
+      if (!this.activeTabId && this.tabOrder.length > 0) {
+        this.activeTabId = this.tabOrder[0];
       }
     });
   }

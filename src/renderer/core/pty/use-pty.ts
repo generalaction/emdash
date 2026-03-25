@@ -8,7 +8,7 @@ import { pendingInjectionManager } from '../../lib/PendingInjectionManager';
 import { events, rpc } from '../ipc';
 import { panelDragStore } from '../view/panel-drag-store';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { buildTheme, frontendPtyRegistry, type SessionTheme } from './pty';
+import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import {
   CTRL_J_ASCII,
@@ -58,6 +58,8 @@ const IS_MAC_PLATFORM =
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, taskId, conversationId|terminalId) */
   sessionId: string;
+  /** Pre-connected FrontendPty instance owned by the entity's PtySession store. */
+  pty: FrontendPty;
   theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
@@ -92,7 +94,8 @@ export function usePty(
   options: UsePtyOptions,
   containerRef: React.RefObject<HTMLElement | null>
 ): UseTerminalReturn {
-  const { sessionId, theme, mapShiftEnterToCtrlJ, onActivity, onExit, onFirstMessage } = options;
+  const { sessionId, pty, theme, mapShiftEnterToCtrlJ, onActivity, onExit, onFirstMessage } =
+    options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
@@ -261,10 +264,9 @@ export function usePty(
     if (!container) return;
 
     // ── Compute targetDims synchronously ─────────────────────────────────────
-    // Must happen before the async IIFE since it reads termRef.current (the
-    // previous session's terminal cell metrics) before we overwrite it.
-    // PaneSizingContext.containerRef and measureCurrentDimensions() are also
-    // read here so the pre-resize happens against the live pane dimensions.
+    // Reads the previous session's terminal cell metrics before overwriting
+    // termRef. PaneSizingContext dimensions are also sampled here so the
+    // pre-resize happens against the live pane dimensions.
     const pane = paneSizingRef.current;
     const prevCell = termRef.current ? getCellMetrics(termRef.current) : null;
     let targetDims: { cols: number; rows: number } | undefined;
@@ -282,21 +284,13 @@ export function usePty(
       targetDims = pane.getCurrentDimensions() ?? undefined;
     }
 
-    // ── Async mount ───────────────────────────────────────────────────────────
-    let cancelled = false;
+    // ── Mount ─────────────────────────────────────────────────────────────────
+    // pty is pre-connected by PtySession before TerminalPane renders, so no
+    // async work is needed here.
     const cleanups: (() => void)[] = [];
 
-    void (async () => {
-      // For sessions not pre-registered by PtySessionProvider (standalone
-      // terminals), register() creates the terminal and awaits getBuffer()
-      // before returning.  For already-registered sessions this is a no-op
-      // and resolves in the same microtask.
-      if (!frontendPtyRegistry.get(sessionId)) {
-        await frontendPtyRegistry.register(sessionId);
-      }
-      if (cancelled) return;
-
-      const frontendPty = frontendPtyRegistry.get(sessionId)!;
+    {
+      const frontendPty = pty;
       termRef.current = frontendPty.terminal;
 
       // Apply current theme before mounting (in case it differs from the
@@ -528,11 +522,10 @@ export function usePty(
       });
       resizeObserver.observe(container);
       cleanups.push(() => resizeObserver.disconnect());
-    })();
+    }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      cancelled = true;
       if (pendingResizeTimerRef.current) {
         clearTimeout(pendingResizeTimerRef.current);
         pendingResizeTimerRef.current = null;
@@ -548,14 +541,14 @@ export function usePty(
         } catch {}
       }
       // Return terminal's ownedContainer to the off-screen host.
-      frontendPtyRegistry.get(sessionId)?.unmount();
+      pty.unmount();
       termRef.current = null;
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;
       inputBufferRef.current = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]); // Re-run only when the session changes
+  }, [sessionId, pty]); // Re-run only when the session changes
 
   // ── Theme update (after initial mount) ──────────────────────────────────────
   useEffect(() => {

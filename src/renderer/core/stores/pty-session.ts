@@ -30,7 +30,7 @@ export class PtySession {
     });
   }
 
-  async dispose() {
+  dispose() {
     this.pty?.dispose();
     runInAction(() => {
       this.pty = null;

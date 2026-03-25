@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -13,7 +12,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
-import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 
@@ -46,8 +44,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
 
   const handleCreateConversation = useCallback(() => {
     const id = crypto.randomUUID();
-    const sessionId = makePtySessionId(projectId, taskId, id);
-    void frontendPtyRegistry.register(sessionId);
     void conversationMgr?.createConversation({
       projectId,
       taskId,

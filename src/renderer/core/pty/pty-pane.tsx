@@ -2,23 +2,17 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { log } from '../../lib/logger';
 import { rpc } from '../ipc';
-import type { SessionTheme } from './pty';
+import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
 type Props = {
   /**
    * Deterministic PTY session ID: `makePtySessionId(projectId, taskId, conversationId|terminalId)`.
-   * The renderer subscribes to this ID before calling startSession so no data is missed.
-   *
-   * Either `sessionId` or `id` must be provided. `id` is kept for backward compatibility
-   * with callers that have not yet been migrated to compute deterministic session IDs.
    */
-  sessionId?: string;
-  /** @deprecated Use `sessionId` instead. Kept for backward compatibility. */
-  id?: string;
+  sessionId: string;
+  /** Pre-connected FrontendPty owned by the entity's PtySession store. */
+  pty: FrontendPty;
   className?: string;
-  /** @deprecated Accepted but has no effect; use `themeOverride` to customise colours. */
-  variant?: 'dark' | 'light';
   themeOverride?: SessionTheme['override'];
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
@@ -32,10 +26,9 @@ type Props = {
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   (
     {
-      sessionId: sessionIdProp,
-      id,
+      sessionId,
+      pty,
       className,
-      variant: _variant = 'dark',
       themeOverride,
       contentFilter,
       mapShiftEnterToCtrlJ,
@@ -48,14 +41,12 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
-    // Prefer explicit sessionId, fall back to id for backward compat.
-    const sessionId = sessionIdProp ?? id ?? '';
-
     const theme: SessionTheme = { override: themeOverride };
 
     const { focus } = usePty(
       {
         sessionId,
+        pty,
         theme,
         mapShiftEnterToCtrlJ,
         onActivity,
@@ -90,7 +81,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
             const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
             if (result.success && result.data?.remotePaths) {
               const escaped = result.data.remotePaths
-                .map((p) => `'${p.replace(/'/g, "'\\''")}'`)
+                .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
                 .join(' ');
               await rpc.pty.sendInput(sessionId, `${escaped} `);
             }

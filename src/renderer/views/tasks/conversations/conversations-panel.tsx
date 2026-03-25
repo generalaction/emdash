@@ -22,6 +22,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       store={conversationMgr}
       paneId="conversations"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
+      getSession={(s) => s.session}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
       emptyState={
         <EmptyState

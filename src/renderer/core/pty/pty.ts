@@ -1,7 +1,6 @@
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/core/ipc';
 import { cssVar } from '@renderer/lib/cssVars';
@@ -10,7 +9,7 @@ import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
 
-// ── Theme helpers (previously in pty-pool.ts) ─────────────────────────────────
+// ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
   override?: ITerminalOptions['theme'];
@@ -47,15 +46,16 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
  *  - mount()   → appends ownedContainer to the visible mount target
  *  - unmount() → moves ownedContainer back to the off-screen host
  *
- * Lifecycle: created once per session in FrontendPtyRegistry. Survives React
- * component unmounts (e.g. navigating away from a task), and is disposed only
- * when the entity (terminal or conversation) is explicitly deleted.
+ * Lifecycle: created and owned by PtySession (stores/pty-session.ts), one per
+ * live session. Survives React component unmounts (e.g. navigating away from a
+ * task), and is disposed only when the entity (terminal or conversation) is
+ * explicitly deleted.
  */
 export class FrontendPty {
+  /** All live FrontendPty instances — used for app-wide operations (e.g. theme updates). */
+  static readonly all = new Set<FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
-  /** MobX observable — flips to 'ready' once subscribe() resolves and historical buffer is written. */
-  readonly status = observable.box<'connecting' | 'ready'>('connecting');
   private offData: (() => void) | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
@@ -108,6 +108,7 @@ export class FrontendPty {
     }
 
     ensureXtermHost().appendChild(this.ownedContainer);
+    FrontendPty.all.add(this);
   }
 
   /**
@@ -130,7 +131,6 @@ export class FrontendPty {
       },
       this.sessionId
     );
-    runInAction(() => this.status.set('ready'));
   }
 
   /**
@@ -171,6 +171,7 @@ export class FrontendPty {
    * disposes the xterm Terminal, and removes the owned container from the DOM.
    */
   dispose(): void {
+    FrontendPty.all.delete(this);
     this.offData?.();
     this.offData = null;
     rpc.pty.unsubscribe(this.sessionId).catch(() => {});
@@ -183,84 +184,19 @@ export class FrontendPty {
   }
 }
 
-// ── FrontendPtyRegistry ───────────────────────────────────────────────────────
+// ── App-wide helpers ──────────────────────────────────────────────────────────
 
-/**
- * Module-level registry of FrontendPty instances, one per live session.
- * Lives outside React's lifecycle so terminals persist across component
- * unmounts (e.g. navigating away from a task and back).
- *
- * register() is async: it creates the FrontendPty, calls connect() which
- * subscribes to the main-process ring buffer and sets up the live IPC
- * listener. By the time register() resolves, status is 'ready' and the
- * terminal is safe to mount.
- */
-class FrontendPtyRegistry {
-  /**
-   * Observable map so that observer components track both the presence of an
-   * entry (re-render when a pty is added) and its status (re-render when
-   * status flips to 'ready'). Using a plain Map would break the reactivity
-   * chain: when a component renders before the pty is registered (e.g. during
-   * the useEffect hydration cycle), `ptys.get(id)` returns undefined and no
-   * MobX observable is accessed — so the component would never learn that the
-   * pty was eventually added and became ready.
-   */
-  ptys = observable.map<string, FrontendPty>();
-
-  constructor() {
-    makeAutoObservable(this, {
-      // ptys is already declared as observable.map above; skip re-wrapping
-      ptys: false,
-    });
-  }
-
-  /**
-   * Create and register a FrontendPty for the given session. Returns
-   * immediately if already registered (idempotent — safe in StrictMode).
-   *
-   * On first registration:
-   *  1. Constructs FrontendPty (xterm Terminal created, off-screen container ready)
-   *  2. Calls connect(): subscribes to the main process, writes ring buffer to
-   *     xterm, sets up live IPC listener, marks status as 'ready'
-   */
-  async register(sessionId: string): Promise<void> {
-    if (this.ptys.has(sessionId)) return;
-    const pty = new FrontendPty(sessionId);
-    runInAction(() => this.ptys.set(sessionId, pty));
-    await pty.connect();
-  }
-
-  /** Returns true once the FrontendPty for sessionId has connected and is safe to mount. */
-  isReady(sessionId: string): boolean {
-    return this.ptys.get(sessionId)?.status.get() === 'ready';
-  }
-
-  /** Return the FrontendPty for the given session, or undefined. */
-  get(sessionId: string): FrontendPty | undefined {
-    return this.ptys.get(sessionId);
-  }
-
-  /** Dispose and remove the FrontendPty.  Called when a conversation is deleted. */
-  unregister(sessionId: string): void {
-    this.ptys.get(sessionId)?.dispose();
-    runInAction(() => this.ptys.delete(sessionId));
-  }
-
-  /** Dispose all registered sessions (called on app teardown). */
-  disposeAll(): void {
-    for (const pty of this.ptys.values()) {
-      pty.dispose();
-    }
-    runInAction(() => this.ptys.clear());
-  }
-
-  /** Apply a theme to all registered terminals. Called on app-level theme change. */
-  applyThemeToAll(theme?: SessionTheme): void {
-    const xTermTheme = buildTheme(theme);
-    for (const pty of this.ptys.values()) {
-      pty.terminal.options.theme = xTermTheme;
-    }
+/** Apply a theme to all live terminals. Called on app-level theme change. */
+export function applyThemeToAll(theme?: SessionTheme): void {
+  const xTermTheme = buildTheme(theme);
+  for (const pty of FrontendPty.all) {
+    pty.terminal.options.theme = xTermTheme;
   }
 }
 
-export const frontendPtyRegistry = new FrontendPtyRegistry();
+/** Dispose all live FrontendPty instances. Called on app teardown. */
+export function disposeAllPtys(): void {
+  for (const pty of [...FrontendPty.all]) {
+    pty.dispose();
+  }
+}

@@ -9,7 +9,6 @@ import {
   UnregisteredProjectStore,
 } from '@renderer/core/stores/project';
 import { sidebarStore } from '@renderer/core/stores/sidebar-store';
-import { TaskStore } from '@renderer/core/stores/task';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { getProjectStore, projectViewKind } from '@renderer/views/projects/project-view-state';
@@ -24,6 +23,35 @@ const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProjectStore['phase'], string
   registering: 'Registering…',
   error: 'Failed',
 };
+
+const TaskList = observer(function TaskList({
+  taskManager,
+  projectId,
+}: {
+  taskManager: MountedProjectStore['taskManager'];
+  projectId: string;
+}) {
+  const { currentView } = useWorkspaceSlots();
+  const { params: taskParams } = useParams('task');
+  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
+
+  const tasks = Array.from(taskManager.tasks.values()).filter(
+    (t) => t.state === 'unregistered' || !t.data.archivedAt
+  );
+
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      {tasks.map((task) => (
+        <SidebarTaskItem
+          key={task.data.id}
+          task={task}
+          projectId={projectId}
+          isActive={currentTaskId === task.data.id}
+        />
+      ))}
+    </div>
+  );
+});
 
 export const SidebarProjectItem = observer(function SidebarProjectItem({
   project,
@@ -56,13 +84,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   }, [isProjectActive, prefetchRepository]);
 
   const forceOpen = sidebarStore.forceOpenIds.has(projectId);
-
-  const tasks: TaskStore[] =
-    project.state === 'mounted'
-      ? Array.from((project as MountedProjectStore).taskManager.tasks.values()).filter(
-          (t) => t.state === 'unregistered' || !t.data.archivedAt
-        )
-      : [];
 
   const renderSpinnerWithTooltip = () => {
     if (project.state !== 'unregistered') return null;
@@ -125,16 +146,12 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </SidebarItemMiniButton>
       </SidebarMenuRow>
       <CollapsibleContent className=" min-w-0 data-open:mt-0.5 data-closed:mt-0 data-closed:hidden">
-        <div className="flex min-w-0 flex-col gap-0.5 ">
-          {tasks.map((task) => (
-            <SidebarTaskItem
-              key={task.data.id}
-              task={task}
-              projectId={projectId}
-              isActive={currentTaskId === task.data.id}
-            />
-          ))}
-        </div>
+        {project.state === 'mounted' && (
+          <TaskList
+            taskManager={(project as MountedProjectStore).taskManager}
+            projectId={projectId}
+          />
+        )}
       </CollapsibleContent>
     </Collapsible>
   );

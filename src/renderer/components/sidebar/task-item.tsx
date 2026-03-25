@@ -1,6 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import React from 'react';
-import { MountedProjectStore } from '@renderer/core/stores/project';
+import { useRef } from 'react';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { TaskStore } from '@renderer/core/stores/task';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
@@ -29,10 +28,20 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const taskName = task.data.name;
 
   const handleProvision = () => {
+    if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
     const projectStore = projectManagerStore.projects.get(projectId);
     if (projectStore?.state === 'mounted') {
-      void (projectStore as MountedProjectStore).taskManager.provisionTask(taskId);
+      void projectStore.taskManager.provisionTask(taskId);
     }
+  };
+
+  const provisionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePointerEnter = () => {
+    provisionTimer.current = setTimeout(handleProvision, 150);
+  };
+  const handlePointerLeave = () => {
+    if (provisionTimer.current) clearTimeout(provisionTimer.current);
   };
 
   return (
@@ -42,7 +51,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         handleProvision();
         navigate('task', { projectId, taskId });
       }}
-      onPointerEnter={handleProvision}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       isActive={isActive}
     >
       <span

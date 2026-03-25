@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
-import { frontendPtyRegistry } from '@renderer/core/pty/pty';
+import { applyThemeToAll } from '@renderer/core/pty/pty';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 type Theme = 'light' | 'dark' | 'dark-black' | 'system';
@@ -50,7 +50,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Re-apply xterm theme after CSS classes have been updated by the effect above.
   useEffect(() => {
-    frontendPtyRegistry.applyThemeToAll();
+    applyThemeToAll();
   }, [effectiveTheme]);
 
   // Listen for OS theme changes when preference is 'system'

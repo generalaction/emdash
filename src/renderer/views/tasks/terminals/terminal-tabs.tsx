@@ -1,9 +1,7 @@
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
-import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { TerminalManagerStore, TerminalStore } from '@renderer/core/stores/terminal-manager';
 
@@ -45,7 +43,6 @@ export const TerminalsTabs = observer(function TerminalsTabs({
       getLabel={(s) => s.data.name}
       onSelect={(id) => terminalMgr.setActiveTab(id)}
       onRemove={(id) => {
-        frontendPtyRegistry.unregister(makePtySessionId(projectId, taskId, id));
         terminalMgr.removeTab(id);
       }}
       onAdd={async () => {

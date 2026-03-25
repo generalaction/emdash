@@ -1,14 +1,15 @@
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
-import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
+import { PtySession } from '@renderer/core/stores/pty-session';
 import { cn } from '@renderer/lib/utils';
 
 export interface TabbedPtyPanelProps<TEntity> {
   store: TabViewProvider<TEntity, never> | undefined;
   getSessionId: (entity: TEntity) => string;
+  getSession: (entity: TEntity) => PtySession;
   paneId: string;
   tabBar: React.ReactNode;
   emptyState: React.ReactNode;
@@ -17,6 +18,7 @@ export interface TabbedPtyPanelProps<TEntity> {
 export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   store,
   getSessionId,
+  getSession,
   paneId,
   tabBar,
   emptyState,
@@ -31,6 +33,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   );
 
   const activeSessionId = activeTab ? getSessionId(activeTab) : null;
+  const activeSession = activeTab ? getSession(activeTab) : null;
 
   const terminalRef = useRef<{ focus: () => void }>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -62,8 +65,13 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
         )}
       >
         <PaneSizingProvider paneId={paneId} sessionIds={allSessionIds}>
-          {activeSessionId && frontendPtyRegistry.isReady(activeSessionId) && (
-            <TerminalPane ref={terminalRef} sessionId={activeSessionId} className="h-full w-full" />
+          {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
+            <TerminalPane
+              ref={terminalRef}
+              sessionId={activeSessionId}
+              pty={activeSession.pty}
+              className="h-full w-full"
+            />
           )}
         </PaneSizingProvider>
       </div>

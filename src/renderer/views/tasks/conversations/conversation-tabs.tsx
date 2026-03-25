@@ -1,10 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { makePtySessionId } from '@shared/ptySessionId';
 import AgentLogo from '@renderer/components/agent-logo';
 import { Button } from '@renderer/components/ui/button';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { frontendPtyRegistry } from '@renderer/core/pty/pty';
 import { ConversationStore } from '@renderer/core/stores/conversation-manager';
 import { agentConfig } from '@renderer/lib/agentConfig';
 import { getTaskStore, provisionedTask } from '../task-view-state';
@@ -29,7 +27,6 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       getLabel={(s) => s.data.title}
       onSelect={(id) => conversationMgr.setActiveTab(id)}
       onRemove={(id) => {
-        frontendPtyRegistry.unregister(makePtySessionId(projectId, taskId, id));
         conversationMgr.removeTab(id);
       }}
       onAdd={() =>

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { frontendPtyRegistry } from './pty';
+import { disposeAllPtys } from './pty';
 import { ensureXtermHost } from './xterm-host';
 
 /**
@@ -11,7 +11,7 @@ export function TerminalPoolProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     ensureXtermHost();
     return () => {
-      frontendPtyRegistry.disposeAll();
+      disposeAllPtys();
     };
   }, []);
 

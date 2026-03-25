@@ -37,6 +37,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       store={terminalMgr}
       paneId="terminals"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
+      getSession={(s) => s.session}
       tabBar={
         <TerminalsTabs projectId={projectId} taskId={taskId} terminalMgr={terminalMgr ?? null} />
       }
