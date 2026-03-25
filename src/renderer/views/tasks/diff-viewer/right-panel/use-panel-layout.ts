@@ -1,19 +1,14 @@
-import React, { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
+import type { ChangesViewStore, ExpandedSections } from '@renderer/core/stores/changes-view-store';
 
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px
 export const SECTION_HEADER_HEIGHT = '3rem';
 
-export type ExpandedState = {
-  unstaged: boolean;
-  staged: boolean;
-  pullRequests: boolean;
-};
-
 type usePanelLayoutReturn = {
-  expanded: ExpandedState;
-  toggleExpanded: (section: keyof ExpandedState) => void;
-  setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
+  expanded: ExpandedSections;
+  toggleExpanded: (section: keyof ExpandedSections) => void;
+  setExpanded: (next: ExpandedSections | ((prev: ExpandedSections) => ExpandedSections)) => void;
   panelTransitionClass: string | false;
   pointerHandlers: {
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
@@ -26,7 +21,7 @@ type usePanelLayoutReturn = {
   spacerRef: ReturnType<typeof usePanelRef>;
 };
 
-export function usePanelLayout(): usePanelLayoutReturn {
+export function usePanelLayout(changesView: ChangesViewStore): usePanelLayoutReturn {
   const unstagedRef = usePanelRef();
   const stagedRef = usePanelRef();
   const prRef = usePanelRef();
@@ -44,14 +39,7 @@ export function usePanelLayout(): usePanelLayoutReturn {
     onPointerCancel: () => setIsDragging(false),
   };
 
-  const [expanded, setExpanded] = useState<ExpandedState>({
-    unstaged: true,
-    staged: true,
-    pullRequests: true,
-  });
-
-  const toggleExpanded = (section: keyof ExpandedState) =>
-    setExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
+  const expanded = changesView.expandedSections;
 
   useLayoutEffect(() => {
     const sections = [
@@ -76,8 +64,8 @@ export function usePanelLayout(): usePanelLayoutReturn {
 
   return {
     expanded,
-    toggleExpanded,
-    setExpanded,
+    toggleExpanded: (section) => changesView.toggleExpanded(section),
+    setExpanded: (next) => changesView.setExpanded(next),
     panelTransitionClass,
     pointerHandlers,
     unstagedRef,

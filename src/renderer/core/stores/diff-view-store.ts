@@ -1,4 +1,5 @@
 import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { ChangesViewStore } from './changes-view-store';
 import { GitStore } from './git';
 
 export interface ActiveFile {
@@ -19,9 +20,13 @@ export class DiffViewStore {
   activeFile: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
   viewMode: 'stacked' | 'file' = 'stacked';
-  private _disposeReaction: () => void;
+  readonly changesView: ChangesViewStore;
+
+  private _disposeReactions: Array<() => void> = [];
 
   constructor(private readonly git: GitStore) {
+    this.changesView = new ChangesViewStore(git);
+
     makeObservable(this, {
       activeFile: observable,
       diffStyle: observable,
@@ -33,42 +38,55 @@ export class DiffViewStore {
 
     // Sync activeFile when staged/unstaged lists change (replaces ActiveFileSync component).
     // Files with type='git' are not in working-tree lists and are left unchanged.
-    this._disposeReaction = reaction(
-      () => ({
-        staged: this.git.stagedFileChanges,
-        unstaged: this.git.unstagedFileChanges,
-      }),
-      ({ staged, unstaged }) => {
-        const current = this.activeFile;
-        if (!current || current.type === 'git') return;
+    this._disposeReactions.push(
+      reaction(
+        () => ({
+          staged: this.git.stagedFileChanges,
+          unstaged: this.git.unstagedFileChanges,
+        }),
+        ({ staged, unstaged }) => {
+          const current = this.activeFile;
+          if (!current || current.type === 'git') return;
 
-        const isStaged = current.type === 'staged';
-        const inCurrentList = (isStaged ? staged : unstaged).some((f) => f.path === current.path);
-        if (inCurrentList) return;
+          const isStaged = current.type === 'staged';
+          const inCurrentList = (isStaged ? staged : unstaged).some((f) => f.path === current.path);
+          if (inCurrentList) return;
 
-        const movedToStaged = staged.some((f) => f.path === current.path);
-        const movedToUnstaged = unstaged.some((f) => f.path === current.path);
+          const movedToStaged = staged.some((f) => f.path === current.path);
+          const movedToUnstaged = unstaged.some((f) => f.path === current.path);
 
-        runInAction(() => {
-          if (movedToStaged) {
-            this.activeFile = {
-              ...current,
-              type: 'staged',
-              originalRef: 'HEAD',
-              scrollBehavior: 'auto',
-            };
-          } else if (movedToUnstaged) {
-            this.activeFile = {
-              ...current,
-              type: 'disk',
-              originalRef: 'HEAD',
-              scrollBehavior: 'auto',
-            };
-          } else {
-            this.activeFile = null;
-          }
-        });
-      }
+          runInAction(() => {
+            if (movedToStaged) {
+              this.activeFile = {
+                ...current,
+                type: 'staged',
+                originalRef: 'HEAD',
+                scrollBehavior: 'auto',
+              };
+            } else if (movedToUnstaged) {
+              this.activeFile = {
+                ...current,
+                type: 'disk',
+                originalRef: 'HEAD',
+                scrollBehavior: 'auto',
+              };
+            } else {
+              this.activeFile = null;
+            }
+          });
+        }
+      )
+    );
+
+    // Auto-expand the changes panel section that contains the newly selected file.
+    this._disposeReactions.push(
+      reaction(
+        () => this.activeFile,
+        (file) => {
+          if (!file || file.type === 'git') return;
+          this.changesView.expandForActiveFileType(file.type);
+        }
+      )
     );
   }
 
@@ -85,6 +103,8 @@ export class DiffViewStore {
   }
 
   dispose(): void {
-    this._disposeReaction();
+    for (const dispose of this._disposeReactions) dispose();
+    this._disposeReactions = [];
+    this.changesView.dispose();
   }
 }

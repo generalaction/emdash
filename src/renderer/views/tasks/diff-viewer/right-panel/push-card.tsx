@@ -1,20 +1,23 @@
 import { ArrowUp } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
-import { useBranchStatus } from '@renderer/views/tasks/diff-viewer/state/use-branch-status';
+import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
-export function PushCard() {
+export const PushCard = observer(function PushCard() {
   const { projectId, taskId } = useTaskViewContext();
-  const { pushChanges, data } = useBranchStatus({ projectId, taskId });
+  const git = asProvisioned(getTaskStore(projectId, taskId))?.git;
+  const ahead = git ? selectAheadCount(git) : 0;
 
   return (
     <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border  p-2.5">
-      <Button variant="default" size="sm" className="w-full" onClick={() => pushChanges()}>
+      <Button variant="default" size="sm" className="w-full" onClick={() => git?.push()}>
         <ArrowUp className="size-3" />
         Push changes
-        <Badge variant="secondary">{data?.ahead ?? 0}</Badge>
+        <Badge variant="secondary">{ahead}</Badge>
       </Button>
     </div>
   );
-}
+});

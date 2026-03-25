@@ -3,6 +3,13 @@ import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { GitChange } from '@shared/git';
 import { events, rpc } from '@renderer/core/ipc';
 
+export interface BranchStatus {
+  branch: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+}
+
 export class GitStore {
   fileChanges: GitChange[] = [];
   stagedFileChanges: GitChange[] = [];
@@ -12,8 +19,13 @@ export class GitStore {
   isLoading = false;
   error: string | undefined = undefined;
 
+  branchStatus: BranchStatus | null = null;
+  branchStatusLoading = false;
+  branchStatusError: string | undefined = undefined;
+
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private _unsubscribe: (() => void) | null = null;
+  private _branchStatusPollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly projectId: string,
@@ -27,7 +39,11 @@ export class GitStore {
       totalLinesDeleted: observable,
       isLoading: observable,
       error: observable,
+      branchStatus: observable,
+      branchStatusLoading: observable,
+      branchStatusError: observable,
       load: action,
+      loadBranchStatus: action,
       stageFiles: action,
       stageAllFiles: action,
       unstageFiles: action,
@@ -35,6 +51,9 @@ export class GitStore {
       discardFiles: action,
       discardAllFiles: action,
       commit: action,
+      fetchRemote: action,
+      push: action,
+      pull: action,
     });
   }
 
@@ -66,6 +85,65 @@ export class GitStore {
         this.isLoading = false;
       });
     }
+
+    void this.loadBranchStatus();
+  }
+
+  async loadBranchStatus(): Promise<void> {
+    runInAction(() => {
+      this.branchStatusLoading = true;
+      this.branchStatusError = undefined;
+    });
+    try {
+      const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+      runInAction(() => {
+        if (!result.success) {
+          this.branchStatusError = result.error.type;
+          this.branchStatusLoading = false;
+          return;
+        }
+        this.branchStatus = result.data;
+        this.branchStatusLoading = false;
+      });
+    } catch (e) {
+      runInAction(() => {
+        this.branchStatusError = e instanceof Error ? e.message : String(e);
+        this.branchStatusLoading = false;
+      });
+    }
+  }
+
+  async fetchRemote(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const result = await rpc.git.fetch(this.projectId, this.taskId);
+      if (!result.success) return { success: false, error: result.error?.type };
+      await this.loadBranchStatus();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  async push(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const result = await rpc.git.push(this.projectId, this.taskId);
+      if (!result.success) return { success: false, error: result.error?.type };
+      await this.loadBranchStatus();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  async pull(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const result = await rpc.git.pull(this.projectId, this.taskId);
+      if (!result.success) return { success: false, error: result.error?.type };
+      await this.load();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 
   startWatching(): void {
@@ -79,12 +157,20 @@ export class GitStore {
       },
       this.taskId
     );
+
+    this._branchStatusPollTimer = setInterval(() => {
+      void this.loadBranchStatus();
+    }, 10_000);
   }
 
   dispose(): void {
     if (this._debounceTimer) {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
+    }
+    if (this._branchStatusPollTimer) {
+      clearInterval(this._branchStatusPollTimer);
+      this._branchStatusPollTimer = null;
     }
     this._unsubscribe?.();
     this._unsubscribe = null;

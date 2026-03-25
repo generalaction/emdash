@@ -8,10 +8,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { GitChange } from '@shared/git';
 import { PullRequest } from '@shared/pull-requests';
-import { events, rpc } from '@renderer/core/ipc';
+import { rpc } from '@renderer/core/ipc';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 type MergeResult = { success: true } | { success: false; error: string };
@@ -44,6 +44,12 @@ export function PrProvider({
 }) {
   const queryClient = useQueryClient();
   const [activePrFilePath, setActivePrFilePath] = useState<string | null>(null);
+
+  // Use the GitStore's fileChanges as the reactive trigger for invalidating PR
+  // file queries — GitStore already debounces FS watch events so we avoid a
+  // second duplicate listener on fsWatchEventChannel.
+  const git = asProvisioned(getTaskStore(projectId, taskId))?.git;
+  const fileChanges = git?.fileChanges;
 
   const { data } = useQuery({
     queryKey: ['pullRequests', 'task', projectId, taskId],
@@ -79,32 +85,20 @@ export function PrProvider({
     prFilesMap[pr.id] = prFileQueries[i]?.data ?? [];
   });
 
-  // Invalidate all PR file queries when any FS event fires (e.g. after a commit
-  // advances HEAD). Debounced to collapse rapid bursts, same as git-changes-provider.
+  // Invalidate PR file queries whenever the git store reloads (i.e. after any
+  // .git FS change). fileChanges is a MobX observable — React re-runs this
+  // effect each time its reference changes after a reload.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsub = events.on(
-      fsWatchEventChannel,
-      () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          for (const pr of pullRequests) {
-            void queryClient.invalidateQueries({
-              queryKey: ['git', 'changedFiles', projectId, taskId, pr.metadata.baseRefName],
-            });
-          }
-        }, 400);
-      },
-      taskId
-    );
-    return () => {
-      unsub();
-      if (timer) clearTimeout(timer);
-    };
-    // pullRequests is intentionally omitted — the subscription is re-established when taskId changes.
-    // Individual PR base refs are stable for the lifetime of a task.
+    if (!fileChanges) return;
+    for (const pr of pullRequests) {
+      void queryClient.invalidateQueries({
+        queryKey: ['git', 'changedFiles', projectId, taskId, pr.metadata.baseRefName],
+      });
+    }
+    // pullRequests is intentionally omitted — we only want to re-run on git reload,
+    // not every time the PR list itself updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, taskId, queryClient]);
+  }, [fileChanges, projectId, taskId, queryClient]);
 
   const mergePr = useCallback(
     async (id: string, options: { strategy: MergeMode; commitHeadOid?: string }) => {

@@ -2,8 +2,8 @@ import { ChevronDown, Plus } from 'lucide-react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
+import { SelectionState } from '@renderer/core/stores/changes-view-store';
 import { cn } from '@renderer/lib/utils';
-import { SelectionState } from '../state/use-selection';
 
 interface SectionHeaderProps {
   label: string;
