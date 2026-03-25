@@ -478,7 +478,7 @@ class TaskLifecycleService extends EventEmitter {
                 stopPty.kill();
               } catch {}
               resolve();
-            }, 15_000);
+            }, 30_000);
             stopPty.onExit(() => {
               clearTimeout(timer);
               resolve();
