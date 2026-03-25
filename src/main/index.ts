@@ -8,6 +8,7 @@ import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
+import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
@@ -19,7 +20,6 @@ import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
 import { rpcRouter } from './rpc';
-import { agentEventService } from './services/AgentEventService';
 
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
   appService.initialize();
   appSettingsService.initialize();
 
-  agentEventService.start().catch((e) => {
+  agentHookService.start().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
@@ -126,7 +126,7 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
-  agentEventService.stop();
+  agentHookService.stop();
   autoUpdateService.shutdown();
   projectManager.shutdown().catch((e) => {
     log.error('Failed to shutdown project manager:', e);
