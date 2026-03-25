@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { cn } from '@/lib/utils';
+import { resolveRemoteProjectName } from '@/lib/remoteProjectNaming';
 import type { SshConfig, ConnectionTestResult, FileEntry, SshConfigHost } from '@shared/ssh/types';
 import {
   Server,
@@ -70,6 +71,7 @@ interface FormData {
 
   // Path step
   remotePath: string;
+  projectName: string;
 }
 
 interface FormErrors {
@@ -80,6 +82,7 @@ interface FormErrors {
   password?: string;
   privateKeyPath?: string;
   remotePath?: string;
+  projectName?: string;
   general?: string;
 }
 
@@ -112,6 +115,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   const [cloneDirManuallyEdited, setCloneDirManuallyEdited] = useState(false);
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [isCloningRepo, setIsCloningRepo] = useState(false);
+  const [projectNameManuallyEdited, setProjectNameManuallyEdited] = useState(false);
 
   // SSH config auto-detect state
   const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
@@ -146,6 +150,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     privateKeyPath: '',
     passphrase: '',
     remotePath: '',
+    projectName: '',
   });
 
   // Reset form when modal opens and load SSH config
@@ -162,6 +167,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
       privateKeyPath: '',
       passphrase: '',
       remotePath: '',
+      projectName: '',
     });
     setErrors({});
     setTouched({});
@@ -184,6 +190,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     setCloneDirManuallyEdited(false);
     setIsCreatingRepo(false);
     setIsCloningRepo(false);
+    setProjectNameManuallyEdited(false);
 
     // Load SSH config hosts and saved connections
     void loadSshConfig();
@@ -581,6 +588,31 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     }
   }, [cloneUrl, cloneDirManuallyEdited]);
 
+  useEffect(() => {
+    setFormData((prev) => {
+      const nextProjectName = resolveRemoteProjectName({
+        remotePath: prev.remotePath,
+        fallbackName: prev.name,
+        currentName: prev.projectName,
+        wasCustomized: projectNameManuallyEdited,
+      });
+
+      if (prev.projectName === nextProjectName) {
+        return prev;
+      }
+
+      return { ...prev, projectName: nextProjectName };
+    });
+  }, [formData.name, formData.remotePath, projectNameManuallyEdited]);
+
+  const updateProjectName = useCallback(
+    (value: string) => {
+      setProjectNameManuallyEdited(true);
+      updateField('projectName', value);
+    },
+    [updateField]
+  );
+
   // Handle next step
   const handleNext = useCallback(async () => {
     if (!validateStep(currentStep)) return;
@@ -726,12 +758,16 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
   // Handle submit
   const handleSubmit = useCallback(async () => {
     if (!validateStep('path')) return;
+    if (!formData.projectName.trim()) {
+      touchField('projectName');
+      setErrors((prev) => ({ ...prev, projectName: 'Project name is required' }));
+      return;
+    }
 
     setIsSubmitting(true);
 
     try {
-      // Derive project display name from the remote folder path, not the connection name
-      const projectName = formData.remotePath.split('/').filter(Boolean).pop() || formData.name;
+      const projectName = formData.projectName.trim();
 
       if (useExistingConnection && selectedSavedConnection) {
         // Reuse existing connection — no save needed
@@ -783,6 +819,7 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
     onClose,
     useExistingConnection,
     selectedSavedConnection,
+    touchField,
   ]);
 
   // Handle close
@@ -1463,15 +1500,43 @@ export const AddRemoteProjectModal: React.FC<AddRemoteProjectModalProps> = ({
               <span>Please review your configuration before saving.</span>
             </Badge>
 
+            <div className="space-y-2">
+              <Label htmlFor="project-name">
+                Project Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="project-name"
+                value={formData.projectName}
+                onChange={(e) => updateProjectName(e.target.value)}
+                onBlur={() => touchField('projectName')}
+                placeholder="workspace/repo"
+                className={cn(errors.projectName && touched.projectName && 'border-destructive')}
+              />
+              <p className="text-xs text-muted-foreground">
+                This name is used in the sidebar. The remote path stays the same.
+              </p>
+              {errors.projectName && touched.projectName && (
+                <p className="text-xs text-destructive">{errors.projectName}</p>
+              )}
+            </div>
+
             <div className="rounded-md border">
               <div className="border-b bg-muted/50 px-4 py-2 text-sm font-medium">
                 Connection Summary
               </div>
               <div className="divide-y">
                 <div className="flex px-4 py-3">
-                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Name</span>
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">
+                    Connection Name
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {formData.name}
+                  </span>
+                </div>
+                <div className="flex px-4 py-3">
+                  <span className="w-32 shrink-0 text-sm text-muted-foreground">Project Name</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {formData.projectName}
                   </span>
                 </div>
                 <div className="flex px-4 py-3">
