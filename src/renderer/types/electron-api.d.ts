@@ -525,6 +525,7 @@ declare global {
         draft?: boolean;
         web?: boolean;
         fill?: boolean;
+        skipPrePush?: boolean;
       }) => Promise<{
         success: boolean;
         url?: string;
@@ -1701,6 +1702,7 @@ export interface ElectronAPI {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => Promise<{
     success: boolean;
     url?: string;

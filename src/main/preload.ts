@@ -436,6 +436,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
   mergeToMain: (args: { taskPath: string; taskId?: string }) =>
     ipcRenderer.invoke('git:merge-to-main', args),
@@ -1231,6 +1232,7 @@ export interface ElectronAPI {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => Promise<{ success: boolean; url?: string; output?: string; error?: string }>;
   connectToGitHub: (
     projectPath: string
