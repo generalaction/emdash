@@ -880,7 +880,7 @@ export function registerFsIpc(): void {
     }
   );
 
-  // Resolve the previewUrl from .emdash.json, expanding $VAR references using
+  // Resolve the openBrowserUrl from .emdash.json, expanding $VAR references using
   // process.env merged with EMDASH task-specific vars supplied by the caller.
   ipcMain.handle(
     'fs:resolvePreviewUrl',
@@ -892,7 +892,7 @@ export function registerFsIpc(): void {
         if (!fs.existsSync(configPath)) return { success: true, url: null };
         const raw = fs.readFileSync(configPath, 'utf8');
         const config = JSON.parse(raw);
-        const template: string | undefined = config?.previewUrl;
+        const template: string | undefined = config?.openBrowserUrl;
         if (!template || typeof template !== 'string' || !template.trim()) {
           return { success: true, url: null };
         }

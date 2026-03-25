@@ -52,7 +52,7 @@ describe('fs:resolvePreviewUrl', () => {
     expect(result).toEqual({ success: true, url: null });
   });
 
-  it('returns null when previewUrl is not set in config', async () => {
+  it('returns null when openBrowserUrl is not set in config', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(JSON.stringify({ scripts: { run: 'npm start' } }));
     const handler = await getHandler();
@@ -60,9 +60,9 @@ describe('fs:resolvePreviewUrl', () => {
     expect(result).toEqual({ success: true, url: null });
   });
 
-  it('returns null when previewUrl is blank', async () => {
+  it('returns null when openBrowserUrl is blank', async () => {
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readFileSync.mockReturnValue(JSON.stringify({ previewUrl: '   ' }));
+    fsMock.readFileSync.mockReturnValue(JSON.stringify({ openBrowserUrl: '   ' }));
     const handler = await getHandler();
     const result = await handler({}, { projectPath: '/tmp/repo' });
     expect(result).toEqual({ success: true, url: null });
@@ -70,7 +70,9 @@ describe('fs:resolvePreviewUrl', () => {
 
   it('returns a static URL unchanged', async () => {
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readFileSync.mockReturnValue(JSON.stringify({ previewUrl: 'http://localhost:3000' }));
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ openBrowserUrl: 'http://localhost:3000' })
+    );
     const handler = await getHandler();
     const result = await handler({}, { projectPath: '/tmp/repo' });
     expect(result).toEqual({ success: true, url: 'http://localhost:3000' });
@@ -79,7 +81,7 @@ describe('fs:resolvePreviewUrl', () => {
   it('expands $VAR from taskEnvVars', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(
-      JSON.stringify({ previewUrl: 'http://localhost:$EMDASH_PORT' })
+      JSON.stringify({ openBrowserUrl: 'http://localhost:$EMDASH_PORT' })
     );
     const handler = await getHandler();
     const result = await handler(
@@ -95,7 +97,7 @@ describe('fs:resolvePreviewUrl', () => {
   it('expands ${VAR} syntax', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(
-      JSON.stringify({ previewUrl: 'http://${EMDASH_TASK_NAME}.localhost' })
+      JSON.stringify({ openBrowserUrl: 'http://${EMDASH_TASK_NAME}.localhost' })
     );
     const handler = await getHandler();
     const result = await handler(
@@ -111,7 +113,7 @@ describe('fs:resolvePreviewUrl', () => {
   it('taskEnvVars take priority over process.env', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(
-      JSON.stringify({ previewUrl: 'http://localhost:$EMDASH_PORT' })
+      JSON.stringify({ openBrowserUrl: 'http://localhost:$EMDASH_PORT' })
     );
     // Simulate process.env having a different value
     const origEnv = process.env.EMDASH_PORT;
@@ -131,7 +133,7 @@ describe('fs:resolvePreviewUrl', () => {
   it('leaves unresolvable vars unexpanded', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(
-      JSON.stringify({ previewUrl: 'http://localhost:$UNKNOWN_VAR' })
+      JSON.stringify({ openBrowserUrl: 'http://localhost:$UNKNOWN_VAR' })
     );
     // Make sure UNKNOWN_VAR is not in process.env
     delete process.env.UNKNOWN_VAR;

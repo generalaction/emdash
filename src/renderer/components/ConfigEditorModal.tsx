@@ -26,7 +26,7 @@ type ConfigShape = Record<string, unknown> & {
   shellSetup?: string;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
-  previewUrl?: string;
+  openBrowserUrl?: string;
 };
 
 interface ConfigEditorModalProps {
@@ -136,10 +136,10 @@ function applyWorkspaceProvider(
 }
 
 function applyPreviewUrl(config: ConfigShape, previewUrl: string): ConfigShape {
-  const { previewUrl: _previewUrl, ...rest } = config;
+  const { openBrowserUrl: _openBrowserUrl, ...rest } = config;
   const trimmed = previewUrl.trim();
   if (!trimmed) return rest;
-  return { ...rest, previewUrl: trimmed };
+  return { ...rest, openBrowserUrl: trimmed };
 }
 
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
@@ -271,7 +271,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
         wp && typeof wp === 'object' && typeof wp.terminateCommand === 'string'
           ? wp.terminateCommand
           : '';
-      const nextPreviewUrl = typeof parsed.previewUrl === 'string' ? parsed.previewUrl : '';
+      const nextPreviewUrl = typeof parsed.openBrowserUrl === 'string' ? parsed.openBrowserUrl : '';
       setConfig(parsed);
       setScripts(nextScripts);
       setOriginalScripts(nextScripts);

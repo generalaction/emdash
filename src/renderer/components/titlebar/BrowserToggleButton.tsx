@@ -93,7 +93,7 @@ const BrowserToggleButton: React.FC<Props> = ({ taskId, taskPath, parentProjectP
     browser.showSpinner();
     browser.toggle(undefined);
 
-    // If a previewUrl is configured in .emdash.json, use it directly
+    // If openBrowserUrl is configured in .emdash.json, use it directly
     if (pp) {
       try {
         const taskEnvVars: Record<string, string> = {};
