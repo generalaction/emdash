@@ -136,7 +136,10 @@ export class WorktreeService {
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePath = path.join(this.worktreePoolPath, branchName);
-    if (fs.existsSync(worktreePath)) return worktreePath;
+    if (fs.existsSync(worktreePath)) {
+      if (await this.isValidWorktree(worktreePath)) return worktreePath;
+      await fs.promises.rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+    }
 
     try {
       const realPoolPath = fs.realpathSync(this.worktreePoolPath);
