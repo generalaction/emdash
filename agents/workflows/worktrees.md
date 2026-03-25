@@ -24,6 +24,7 @@ Current supported keys:
 - `scripts.teardown`
 - `shellSetup`
 - `tmux`
+- `openBrowserUrl`
 
 ## Rules
 

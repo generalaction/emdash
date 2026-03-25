@@ -130,6 +130,18 @@ Python project with virtual environment:
 python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
+## Open Browser URL
+
+The **Open Browser URL** field (`openBrowserUrl` in `.emdash.json`) lets you pin a specific URL for the browser toggle button instead of relying on auto-detection from terminal output.
+
+Supports env var expansion — any `$VAR` or `${VAR}` reference is expanded using the task's environment variables as well as system vars like `$USER`.
+
+```text
+http://localhost:$EMDASH_PORT
+```
+
+Leave it blank to fall back to auto-detection.
+
 ## Editing the config
 
 On the project page, click **Edit config**, fill the fields, then click **Save**. Emdash stores these settings in `.emdash.json`.
