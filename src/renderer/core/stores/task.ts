@@ -1,93 +1,199 @@
 import { makeAutoObservable } from 'mobx';
 import { Task } from '@shared/tasks';
+import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
 import { DiffViewStore } from './diff-view-store';
+import { EditorViewStore } from './editor-view-store';
 import { FilesStore } from './files-store';
 import { GitStore } from './git';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 import { TerminalManagerStore } from './terminal-manager';
 
-type UnregisteredTaskPhase = 'creating' | 'create-error';
+export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
-export type UnregisteredTaskData = {
-  id: string;
-  name: string;
-};
-
-export class UnregisteredTaskStore {
-  readonly state = 'unregistered' as const;
-  data: UnregisteredTaskData;
-  phase: UnregisteredTaskPhase = 'creating';
-  errorMessage: string | undefined = undefined;
-
-  constructor(data: UnregisteredTaskData) {
-    this.data = data;
-    makeAutoObservable(this);
-  }
-}
-
-type UnprovisionedTaskPhase =
+export type UnprovisionedTaskPhase =
   | 'provision'
   | 'provision-error'
   | 'teardown'
   | 'teardown-error'
   | 'idle';
 
-export class UnprovisionedTaskStore {
-  readonly state = 'unprovisioned' as const;
-  phase: UnprovisionedTaskPhase = 'idle';
-  data: Task;
-  errorMessage: string | undefined = undefined;
+export type UnregisteredTaskData = {
+  id: string;
+  name: string;
+};
 
-  constructor(task: Task) {
-    this.data = task;
-    makeAutoObservable(this);
-  }
+export interface IUnregisteredTask {
+  readonly state: 'unregistered';
+  data: UnregisteredTaskData;
+  phase: UnregisteredTaskPhase;
+  errorMessage: string | undefined;
 }
 
-export class ProvisionedTaskStore {
-  readonly state = 'provisioned' as const;
+export interface IUnprovisionedTask {
+  readonly state: 'unprovisioned';
+  data: Task;
+  phase: UnprovisionedTaskPhase;
+  errorMessage: string | undefined;
+}
+
+export interface IProvisionedTask {
+  readonly state: 'provisioned';
   data: Task;
   terminals: TerminalManagerStore;
   conversations: ConversationManagerStore;
   git: GitStore;
-  lifecycleScripts: LifecycleScriptsStore;
   files: FilesStore;
+  lifecycleScripts: LifecycleScriptsStore;
   diffView: DiffViewStore;
+  view: MainPanelView;
+  rightPanelView: RightPanelView;
+  editorView: EditorViewStore;
+}
 
-  constructor(task: Task) {
-    this.data = task;
-    this.terminals = new TerminalManagerStore(task.projectId, task.id);
-    this.conversations = new ConversationManagerStore(task.projectId, task.id);
-    this.git = new GitStore(task.projectId, task.id);
-    this.files = new FilesStore(task.projectId, task.id);
-    this.lifecycleScripts = new LifecycleScriptsStore();
-    this.diffView = new DiffViewStore(this.git);
+// Single mutable TaskStore class
+export class TaskStore {
+  state: 'unregistered' | 'unprovisioned' | 'provisioned';
+  data: UnregisteredTaskData | Task;
+  phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
+  errorMessage: string | undefined = undefined;
+
+  // Provisioned-only sub-stores — null until transitionToProvisioned
+  terminals: TerminalManagerStore | null = null;
+  conversations: ConversationManagerStore | null = null;
+  git: GitStore | null = null;
+  files: FilesStore | null = null;
+  lifecycleScripts: LifecycleScriptsStore | null = null;
+  diffView: DiffViewStore | null = null;
+
+  // View state — populated once provisioned
+  view: MainPanelView | null = null;
+  rightPanelView: RightPanelView | null = null;
+  editorView: EditorViewStore | null = null;
+
+  constructor(
+    data: UnregisteredTaskData | Task,
+    state: TaskStore['state'],
+    phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null = null
+  ) {
+    this.state = state;
+    this.data = data;
+    this.phase = phase;
     makeAutoObservable(this, { diffView: false });
   }
 
+  transitionToProvisioned(data: Task): void {
+    this.terminals = new TerminalManagerStore(data.projectId, data.id);
+    this.conversations = new ConversationManagerStore(data.projectId, data.id);
+    this.git = new GitStore(data.projectId, data.id);
+    this.files = new FilesStore(data.projectId, data.id);
+    this.lifecycleScripts = new LifecycleScriptsStore();
+    this.diffView = new DiffViewStore(this.git);
+    this.view = 'agents';
+    this.rightPanelView = 'changes';
+    this.editorView = new EditorViewStore(data.projectId, data.id);
+    this.data = data;
+    this.state = 'provisioned';
+    this.phase = null;
+    this.errorMessage = undefined;
+  }
+
+  transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
+    this._disposeSubStores();
+    this.terminals = null;
+    this.conversations = null;
+    this.git = null;
+    this.files = null;
+    this.lifecycleScripts = null;
+    this.diffView = null;
+    this.view = null;
+    this.rightPanelView = null;
+    this.editorView = null;
+    this.data = data;
+    this.state = 'unprovisioned';
+    this.phase = phase;
+    this.errorMessage = undefined;
+  }
+
+  transitionToUnregistered(data: UnregisteredTaskData): void {
+    this._disposeSubStores();
+    this.terminals = null;
+    this.conversations = null;
+    this.git = null;
+    this.files = null;
+    this.lifecycleScripts = null;
+    this.diffView = null;
+    this.view = null;
+    this.rightPanelView = null;
+    this.editorView = null;
+    this.data = data;
+    this.state = 'unregistered';
+    this.phase = 'creating';
+    this.errorMessage = undefined;
+  }
+
   activate(): void {
-    void this.git.load();
-    this.git.startWatching();
-    void this.files.loadRoot();
-    this.files.startWatching();
+    void this.git!.load();
+    this.git!.startWatching();
+    void this.files!.loadRoot();
+    this.files!.startWatching();
+    this.editorView!.initialize();
   }
 
   dispose(): void {
-    this.git.dispose();
-    this.files.dispose();
-    this.diffView.dispose();
-    for (const conv of this.conversations.conversations.values()) {
-      conv.dispose();
-    }
-    for (const term of this.terminals.terminals.values()) {
-      term.dispose();
-    }
+    this._disposeSubStores();
+  }
+
+  setView(v: MainPanelView): void {
+    this.view = v;
+  }
+
+  setRightPanelView(v: RightPanelView): void {
+    this.rightPanelView = v;
   }
 
   async rename(_name: string) {
     // TODO: implement
   }
+
+  private _disposeSubStores(): void {
+    this.editorView?.dispose();
+    this.git?.dispose();
+    this.files?.dispose();
+    this.diffView?.dispose();
+    if (this.conversations) {
+      for (const conv of this.conversations.conversations.values()) {
+        conv.dispose();
+      }
+    }
+    if (this.terminals) {
+      for (const term of this.terminals.terminals.values()) {
+        term.dispose();
+      }
+    }
+  }
 }
 
-export type TaskStore = UnprovisionedTaskStore | ProvisionedTaskStore | UnregisteredTaskStore;
+export type UnregisteredTask = TaskStore & IUnregisteredTask;
+export type UnprovisionedTask = TaskStore & IUnprovisionedTask;
+export type ProvisionedTask = TaskStore & IProvisionedTask;
+
+export function isUnregistered(t: TaskStore): t is UnregisteredTask {
+  return t.state === 'unregistered';
+}
+
+export function isUnprovisioned(t: TaskStore): t is UnprovisionedTask {
+  return t.state === 'unprovisioned';
+}
+
+export function isProvisioned(t: TaskStore): t is ProvisionedTask {
+  return t.state === 'provisioned';
+}
+
+export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {
+  return new TaskStore(data, 'unregistered', 'creating');
+}
+
+export function createUnprovisionedTask(data: Task): TaskStore {
+  return new TaskStore(data, 'unprovisioned', 'idle');
+}

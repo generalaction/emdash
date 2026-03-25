@@ -1,13 +1,13 @@
 import { observer } from 'mobx-react-lite';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { ChangesPanel } from './diff-viewer/right-panel/changes-panel';
 import { EditorFileTree } from './editor/editor-file-tree';
 import { useTaskViewContext } from './task-view-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 
 export const TaskRightSidebar = observer(function TaskRightSidebar() {
-  const { taskId } = useTaskViewContext();
-  const { rightPanelView } = taskViewStateStore.getOrCreate(taskId);
+  const { projectId, taskId } = useTaskViewContext();
+  const { rightPanelView } = asProvisioned(getTaskStore(projectId, taskId))!;
 
   switch (rightPanelView) {
     case 'changes':

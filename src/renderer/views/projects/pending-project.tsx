@@ -1,7 +1,7 @@
 import { AlertCircle, Check, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
-import { UnregisteredProjectStore } from '@renderer/core/stores/project';
+import { UnregisteredProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 
@@ -22,7 +22,7 @@ const STAGES_BY_MODE: Record<'pick' | 'clone' | 'new', Stage[]> = {
 export const PendingProjectStatus = observer(function PendingProjectStatus({
   project,
 }: {
-  project: UnregisteredProjectStore;
+  project: UnregisteredProject;
 }) {
   const { navigate } = useNavigate();
   const stages = STAGES_BY_MODE[project.mode];

@@ -1,14 +1,14 @@
 import { observer } from 'mobx-react-lite';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
-import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 import { useDiffModels } from '../use-diff-models';
 
 export const FileDiffView = observer(function FileDiffView() {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = provisionedTask(getTaskStore(projectId, taskId))?.diffView;
+  const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
   const activeFile = diffView?.activeFile ?? null;
   const diffStyle = diffView?.diffStyle ?? 'unified';
 

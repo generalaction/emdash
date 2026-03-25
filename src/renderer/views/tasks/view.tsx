@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { type ReactNode } from 'react';
+import { getTaskStore, taskViewKind } from '@renderer/core/stores/task-selectors';
 import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
 import { PrProvider } from './diff-viewer/state/pr-provider';
@@ -7,7 +8,6 @@ import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
-import { getTaskStore, taskViewKind } from './task-view-state';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
   children,

@@ -1,16 +1,16 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
 import type { Project } from '@shared/projects';
-import { UnregisteredProjectStore } from '@renderer/core/stores/project';
+import { UnregisteredProject } from '@renderer/core/stores/project';
 import {
   getProjectStore,
   projectViewKind,
   unmountedMountErrorMessage,
-} from '@renderer/views/projects/project-view-state';
+} from '@renderer/core/stores/project-selectors';
 import { RepositoryProvider } from './repository-provider';
 
 export type ProjectStatus =
-  | { status: 'creating'; pending: UnregisteredProjectStore }
+  | { status: 'creating'; pending: UnregisteredProject }
   | { status: 'bootstrapping' }
   | { status: 'error'; message: string }
   | { status: 'ready' };

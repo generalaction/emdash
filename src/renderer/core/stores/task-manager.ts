@@ -3,10 +3,12 @@ import type { CreateTaskParams } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 import { projectManagerStore } from './project-manager';
 import {
-  ProvisionedTaskStore,
+  createUnprovisionedTask,
+  createUnregisteredTask,
+  isProvisioned,
+  isUnprovisioned,
+  isUnregistered,
   TaskStore,
-  UnprovisionedTaskStore,
-  UnregisteredTaskStore,
 } from './task';
 
 export class TaskManagerStore {
@@ -31,28 +33,31 @@ export class TaskManagerStore {
     const tasks = await rpc.tasks.getTasks(this.projectId);
     runInAction(() => {
       for (const t of tasks) {
-        this.tasks.set(t.id, new UnprovisionedTaskStore(t));
+        this.tasks.set(t.id, createUnprovisionedTask(t));
       }
     });
   }
 
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
-      this.tasks.set(params.id, new UnregisteredTaskStore({ id: params.id, name: params.name }));
+      this.tasks.set(params.id, createUnregisteredTask({ id: params.id, name: params.name }));
     });
 
     await rpc.tasks
       .createTask(params)
       .then((task) => {
         runInAction(() => {
-          this.tasks.set(params.id, new UnprovisionedTaskStore(task));
+          const current = this.tasks.get(params.id);
+          if (current && isUnregistered(current)) {
+            current.transitionToUnprovisioned(task);
+          }
         });
         return task;
       })
       .catch((err: unknown) => {
         runInAction(() => {
           const current = this.tasks.get(params.id);
-          if (current?.state === 'unregistered') {
+          if (current && isUnregistered(current)) {
             current.phase = 'create-error';
             current.errorMessage = err instanceof Error ? err.message : String(err);
           }
@@ -71,7 +76,7 @@ export class TaskManagerStore {
     if (inFlight) return inFlight;
 
     const task = this.tasks.get(taskId);
-    if (!task || task.state !== 'unprovisioned') return;
+    if (!task || !isUnprovisioned(task)) return;
 
     runInAction(() => {
       task.phase = 'provision';
@@ -82,17 +87,16 @@ export class TaskManagerStore {
       .then(() => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
-          if (current?.state === 'unprovisioned') {
-            const store = new ProvisionedTaskStore({ ...current.data });
-            this.tasks.set(taskId, store);
-            store.activate();
+          if (current && isUnprovisioned(current)) {
+            current.transitionToProvisioned({ ...current.data });
+            current.activate();
           }
         });
       })
       .catch((err: unknown) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
-          if (current?.state === 'unprovisioned') {
+          if (current && isUnprovisioned(current)) {
             current.phase = 'provision-error';
             current.errorMessage = err instanceof Error ? err.message : String(err);
           }
@@ -116,11 +120,10 @@ export class TaskManagerStore {
 
     runInAction(() => {
       const current = this.tasks.get(taskId);
-      if (current?.state === 'provisioned') {
-        const store = new UnprovisionedTaskStore({ ...current.data });
-        store.phase = 'teardown';
-        this.tasks.set(taskId, store);
-      } else if (current?.state === 'unprovisioned') {
+      if (!current) return;
+      if (isProvisioned(current)) {
+        current.transitionToUnprovisioned({ ...current.data }, 'teardown');
+      } else if (isUnprovisioned(current)) {
         current.phase = 'teardown';
       }
     });
@@ -130,7 +133,7 @@ export class TaskManagerStore {
       .then(() => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
-          if (current?.state === 'unprovisioned') {
+          if (current && isUnprovisioned(current)) {
             current.phase = 'idle';
           }
         });
@@ -138,7 +141,7 @@ export class TaskManagerStore {
       .catch((err: unknown) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
-          if (current?.state === 'unprovisioned') {
+          if (current && isUnprovisioned(current)) {
             current.phase = 'teardown-error';
           }
         });
@@ -154,25 +157,23 @@ export class TaskManagerStore {
 
   async archiveTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
-    if (!task || task.state === 'unregistered') return;
+    if (!task || isUnregistered(task)) return;
 
-    if (task.state === 'unprovisioned') {
-      runInAction(() => {
-        task.phase = 'teardown';
-      });
-    } else {
-      runInAction(() => {
-        const u = new UnprovisionedTaskStore({ ...task.data });
-        u.phase = 'teardown';
-        this.tasks.set(taskId, u);
-      });
-    }
+    runInAction(() => {
+      const current = this.tasks.get(taskId);
+      if (!current) return;
+      if (isProvisioned(current)) {
+        current.transitionToUnprovisioned({ ...current.data }, 'teardown');
+      } else if (isUnprovisioned(current)) {
+        current.phase = 'teardown';
+      }
+    });
 
     try {
       await rpc.tasks.archiveTask(this.projectId, taskId);
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current?.state === 'unprovisioned') {
+        if (current && isUnprovisioned(current)) {
           current.data.archivedAt = new Date().toISOString();
           current.data.status = 'archived';
           current.phase = 'idle';
@@ -181,7 +182,7 @@ export class TaskManagerStore {
     } catch (err: unknown) {
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current?.state === 'unprovisioned') {
+        if (current && isUnprovisioned(current)) {
           current.phase = 'teardown-error';
         }
       });
@@ -191,10 +192,10 @@ export class TaskManagerStore {
 
   async restoreTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
-    if (!task || task.state === 'unregistered') return;
+    if (!task || isUnregistered(task)) return;
 
     runInAction(() => {
-      if (task.state === 'unprovisioned') {
+      if (isUnprovisioned(task)) {
         task.phase = 'provision';
       }
     });
@@ -203,7 +204,7 @@ export class TaskManagerStore {
       await rpc.tasks.restoreTask(taskId);
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current?.state === 'unprovisioned') {
+        if (current && isUnprovisioned(current)) {
           current.data.archivedAt = undefined;
           current.data.status = 'in_progress';
         }
@@ -212,7 +213,7 @@ export class TaskManagerStore {
     } catch (err: unknown) {
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current?.state === 'unprovisioned') {
+        if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
         }
       });

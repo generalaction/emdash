@@ -19,7 +19,7 @@ import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
-import { MountedProjectStore } from '@renderer/core/stores/project';
+import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
@@ -61,7 +61,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const id = crypto.randomUUID();
     const projectStore = projectManagerStore.projects.get(selectedProjectId);
     if (projectStore?.state === 'mounted') {
-      void (projectStore as MountedProjectStore).taskManager.createTask({
+      void (projectStore as MountedProject).taskManager.createTask({
         id,
         projectId: selectedProjectId,
         name: taskName,

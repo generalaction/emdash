@@ -9,13 +9,12 @@ import {
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useBranchStatus } from '@renderer/views/tasks/diff-viewer/state/use-branch-status';
 import { useSelection } from '@renderer/views/tasks/diff-viewer/state/use-selection';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
-import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 import { ActionCard } from './action-card';
 import { CommitCard } from './commit-card';
 import { GitStatusSection } from './git-status-section';
@@ -40,14 +39,14 @@ export const ChangesPanel = observer(function ChangesPanel() {
   } = usePanelLayout();
 
   const { projectId, taskId } = useTaskViewContext();
-  const git = provisionedTask(getTaskStore(projectId, taskId))?.git;
+  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  const git = provisioned?.git;
 
   const stagedFileChanges = git?.stagedFileChanges ?? [];
   const unstagedFileChanges = git?.unstagedFileChanges ?? [];
-  const taskState = taskViewStateStore.getOrCreate(taskId);
-  const { view } = taskState;
-  const setView = (v: string) => taskState.setView(v as 'agents' | 'editor' | 'diff');
-  const diffView = provisionedTask(getTaskStore(projectId, taskId))?.diffView;
+  const view = provisioned?.view;
+  const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
+  const diffView = provisioned?.diffView;
   const activeFile = diffView?.activeFile ?? null;
   const prefetchUnstagedDiff = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
   const prefetchStagedDiff = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');

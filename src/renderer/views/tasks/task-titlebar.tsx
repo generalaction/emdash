@@ -2,12 +2,17 @@ import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'l
 import { observer } from 'mobx-react-lite';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
+import {
+  asProvisioned,
+  getTaskStore,
+  taskDisplayName,
+  taskViewKind,
+} from '@renderer/core/stores/task-selectors';
 import { RightPanelView } from '@renderer/core/tasks/types';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewContext } from './task-view-context';
-import { getTaskStore, taskDisplayName, taskViewKind } from './task-view-state';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -42,7 +47,7 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
 const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { taskId: string }) {
   const { projectId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
-  const taskState = taskViewStateStore.getOrCreate(taskId);
+  const taskState = asProvisioned(taskStore)!;
   const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
@@ -68,27 +73,42 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
               if (value === 'diff') openDiffView();
             }}
           >
-            <ToggleGroupItem
-              value="agents"
-              size="sm"
-              className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <MessageSquare className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="diff"
-              size="sm"
-              className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <FileDiff className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="editor"
-              size="sm"
-              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <Files className="size-3.5" />
-            </ToggleGroupItem>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="agents"
+                  size="sm"
+                  className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <MessageSquare className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>Conversations view</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="diff"
+                  size="sm"
+                  className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <FileDiff className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>Diff view</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="editor"
+                  size="sm"
+                  className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <Files className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>File view</TooltipContent>
+            </Tooltip>
           </ToggleGroup>
           <ToggleGroup
             disabled={delayedIsPending}
@@ -101,27 +121,42 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
               taskState.setRightPanelView(value as RightPanelView);
             }}
           >
-            <ToggleGroupItem
-              value="changes"
-              size="sm"
-              className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <GitCommit className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="terminals"
-              size="sm"
-              className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <Terminal className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="files"
-              size="sm"
-              className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-            >
-              <ListTree className="size-3.5" />
-            </ToggleGroupItem>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="changes"
+                  size="sm"
+                  className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <GitCommit className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>Git changes</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="terminals"
+                  size="sm"
+                  className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <Terminal className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>Terminals</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem
+                  value="files"
+                  size="sm"
+                  className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
+                >
+                  <ListTree className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>File explorer</TooltipContent>
+            </Tooltip>
           </ToggleGroup>
         </>
       }

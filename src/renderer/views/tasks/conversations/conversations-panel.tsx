@@ -4,15 +4,15 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
 import { useTaskViewContext } from '../task-view-context';
-import { getTaskStore, provisionedTask } from '../task-view-state';
 import { ConversationsTabs } from './conversation-tabs';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const conversationMgr = provisionedTask(getTaskStore(projectId, taskId))?.conversations;
+  const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const showCreateConversationModal = useShowModal('createConversationModal');
 
   useTabShortcuts(conversationMgr);

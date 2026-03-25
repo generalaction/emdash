@@ -4,20 +4,21 @@ import React, { useEffect } from 'react';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
 import {
-  MountedProjectStore,
+  isUnregisteredProject,
+  MountedProject,
   ProjectStore,
-  UnregisteredProjectStore,
+  UnregisteredProject,
 } from '@renderer/core/stores/project';
+import { getProjectStore, projectViewKind } from '@renderer/core/stores/project-selectors';
 import { sidebarStore } from '@renderer/core/stores/sidebar-store';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { getProjectStore, projectViewKind } from '@renderer/views/projects/project-view-state';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
 import { SidebarTaskItem } from './task-item';
 
-const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProjectStore['phase'], string> = {
+const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
   'creating-repo': 'Creating repository…',
   cloning: 'Cloning…',
   registering: 'Registering…',
@@ -28,7 +29,7 @@ const TaskList = observer(function TaskList({
   taskManager,
   projectId,
 }: {
-  taskManager: MountedProjectStore['taskManager'];
+  taskManager: MountedProject['taskManager'];
   projectId: string;
 }) {
   const { currentView } = useWorkspaceSlots();
@@ -36,7 +37,7 @@ const TaskList = observer(function TaskList({
   const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
 
   const tasks = Array.from(taskManager.tasks.values()).filter(
-    (t) => t.state === 'unregistered' || !t.data.archivedAt
+    (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
   );
 
   return (
@@ -64,8 +65,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
 
-  const projectId = project.state === 'unregistered' ? project.id : project.data.id;
-  const projectName = project.state === 'unregistered' ? project.name : project.data.name;
+  const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
+  const projectName = project.state === 'unregistered' ? project.name : project.data!.name;
 
   const { prefetch: prefetchRepository } = usePrefetchRepository(projectId);
 
@@ -86,7 +87,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const forceOpen = sidebarStore.forceOpenIds.has(projectId);
 
   const renderSpinnerWithTooltip = () => {
-    if (project.state !== 'unregistered') return null;
+    if (!isUnregisteredProject(project)) return null;
     const label = UNREGISTERED_PHASE_LABEL[project.phase] ?? 'Loading…';
     return (
       <Tooltip>
@@ -147,10 +148,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
       </SidebarMenuRow>
       <CollapsibleContent className=" min-w-0 data-open:mt-0.5 data-closed:mt-0 data-closed:hidden">
         {project.state === 'mounted' && (
-          <TaskList
-            taskManager={(project as MountedProjectStore).taskManager}
-            projectId={projectId}
-          />
+          <TaskList taskManager={(project as MountedProject).taskManager} projectId={projectId} />
         )}
       </CollapsibleContent>
     </Collapsible>

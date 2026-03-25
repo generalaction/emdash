@@ -1,10 +1,5 @@
 import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import {
-  MountedProjectStore,
-  ProjectStore,
-  UnmountedProjectStore,
-  UnregisteredProjectStore,
-} from './project';
+import { MountedProject, ProjectStore, UnmountedProject, UnregisteredProject } from './project';
 import { projectManagerStore } from './project-manager';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
@@ -57,11 +52,9 @@ class SidebarStore {
   get orderedProjects(): ProjectStore[] {
     const all = Array.from(projectManagerStore.projects.values());
 
-    const unregistered = all.filter(
-      (p): p is UnregisteredProjectStore => p.state === 'unregistered'
-    );
+    const unregistered = all.filter((p): p is UnregisteredProject => p.state === 'unregistered');
     const real = all.filter(
-      (p): p is UnmountedProjectStore | MountedProjectStore => p.state !== 'unregistered'
+      (p): p is UnmountedProject | MountedProject => p.state !== 'unregistered'
     );
 
     const sorted = [...real].sort((a, b) => {

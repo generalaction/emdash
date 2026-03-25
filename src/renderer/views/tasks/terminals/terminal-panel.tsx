@@ -3,15 +3,15 @@ import { observer } from 'mobx-react-lite';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
 import { useTaskViewContext } from '../task-view-context';
-import { getTaskStore, provisionedTask } from '../task-view-state';
 import { getTerminalsPaneSize, nextTerminalName, TerminalsTabs } from './terminal-tabs';
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const terminalMgr = provisionedTask(getTaskStore(projectId, taskId))?.terminals;
+  const terminalMgr = asProvisioned(getTaskStore(projectId, taskId))?.terminals;
 
   useTabShortcuts(terminalMgr);
 

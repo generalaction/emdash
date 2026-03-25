@@ -2,8 +2,8 @@ import { Pencil } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
-import { useOpenedFile } from './use-opened-file';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 interface SvgRendererProps {
   filePath: string;
@@ -14,10 +14,11 @@ interface SvgRendererProps {
  * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
  */
 export function SvgRenderer({ filePath }: SvgRendererProps) {
-  const { modelRootPath } = useEditorContext();
-  const { updateRenderer } = useOpenedFile(filePath);
+  const { projectId, taskId } = useTaskViewContext();
+  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
 
-  const content = modelRegistry.getValue(buildMonacoModelPath(modelRootPath, filePath)) ?? '';
+  const content =
+    modelRegistry.getValue(buildMonacoModelPath(editorView.modelRootPath, filePath)) ?? '';
 
   const svgUrl = useMemo(
     () => (content ? URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' })) : ''),
@@ -37,7 +38,7 @@ export function SvgRenderer({ filePath }: SvgRendererProps) {
       <img src={svgUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
       <button
         className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-        onClick={() => updateRenderer(() => ({ kind: 'svg-source' }))}
+        onClick={() => editorView.updateRenderer(filePath, () => ({ kind: 'svg-source' }))}
         title="Edit source"
         aria-label="Edit source"
       >

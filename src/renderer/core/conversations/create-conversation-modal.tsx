@@ -13,7 +13,7 @@ import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
-import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
@@ -29,7 +29,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   taskId: string;
 }) {
   const [providerId, setProviderId] = useState<AgentProviderId>('claude');
-  const conversationMgr = provisionedTask(getTaskStore(projectId, taskId))?.conversations;
+  const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
 
   const providerIdConversationsCount = useMemo(() => {
     if (!conversationMgr) return 0;

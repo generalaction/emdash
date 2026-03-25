@@ -3,61 +3,44 @@ import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { FileIcon } from '@renderer/core/editor/file-icon';
+import { buildVisibleRows } from '@renderer/core/stores/files-store-utils';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
-import { FileIcon } from '../../../core/editor/file-icon';
-import { buildVisibleRows } from '../../../core/stores/files-store-utils';
 import { useTaskViewContext } from '../task-view-context';
-import { getTaskStore, provisionedTask } from '../task-view-state';
-import { useEditorContext } from './editor-provider';
 
-interface FileChange {
-  path: string;
-  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
-}
-
-const FileTreeRow = React.memo(function FileTreeRow({
+const FileTreeRow = observer(function FileTreeRow({
   node,
-  isExpanded,
-  isSelected,
-  onToggle,
-  onSelect,
-  onOpen,
-  fileChanges,
   style,
-  view,
-  onSetEditorView,
 }: {
   node: FileNode;
-  isExpanded: boolean;
-  isSelected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
-  onOpen?: () => void;
-  fileChanges: FileChange[];
   style: React.CSSProperties;
-  view: string;
-  onSetEditorView: () => void;
 }) {
-  const fileStatus = fileChanges.find((c) => c.path === node.path)?.status;
+  const { projectId, taskId } = useTaskViewContext();
+  const taskState = asProvisioned(getTaskStore(projectId, taskId))!;
+  const editorView = taskState.editorView;
+
+  const isExpanded = editorView.expandedPaths.has(node.path);
+  const isSelected = taskState.view === 'editor' && editorView.activeFilePath === node.path;
+  const fileStatus = taskState.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (view !== 'editor') {
-      onSetEditorView();
+    if (taskState.view !== 'editor') {
+      taskState.setView('editor');
     }
     if (node.type === 'directory') {
-      onToggle();
+      toggleExpand();
     } else {
-      onSelect();
+      editorView.openFilePreview(node.path);
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === 'file' && onOpen) {
-      onOpen();
+    if (node.type === 'file') {
+      editorView.openFile(node.path);
     }
   };
 
@@ -65,9 +48,20 @@ const FileTreeRow = React.memo(function FileTreeRow({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (node.type === 'directory') {
-        onToggle();
+        toggleExpand();
       } else {
-        onSelect();
+        editorView.openFilePreview(node.path);
+      }
+    }
+  };
+
+  const toggleExpand = () => {
+    if (editorView.expandedPaths.has(node.path)) {
+      editorView.expandedPaths.delete(node.path);
+    } else {
+      editorView.expandedPaths.add(node.path);
+      if (!taskState.files?.loadedPaths.has(node.path)) {
+        void taskState.files?.loadDir(node.path);
       }
     }
   };
@@ -129,14 +123,10 @@ const FileTreeRow = React.memo(function FileTreeRow({
 
 export const EditorFileTree = observer(function EditorFileTree() {
   const { projectId, taskId } = useTaskViewContext();
-  const taskState = taskViewStateStore.getOrCreate(taskId);
-  const { loadFile, openFilePreview } = useEditorContext();
 
-  const provisioned = provisionedTask(getTaskStore(projectId, taskId));
-  const files = provisioned?.files;
+  const taskState = asProvisioned(getTaskStore(projectId, taskId))!;
+  const files = taskState.files;
   const editorView = taskState.editorView;
-  const activeFilePath = editorView.activeFilePath;
-  const fileChanges = provisioned?.git.fileChanges ?? [];
 
   // Establish MobX dependency on structural tree mutations — generation is bumped
   // whenever nodes/childIndex change (non-observable imperative maps).
@@ -144,15 +134,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)
     : [];
-
-  const toggleExpand = (path: string) => {
-    if (editorView.expandedPaths.has(path)) {
-      editorView.expandedPaths.delete(path);
-    } else {
-      editorView.expandedPaths.add(path);
-      if (!files?.loadedPaths.has(path)) void files?.loadDir(path);
-    }
-  };
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -204,14 +185,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
                   width: '100%',
                   height: `${vItem.size}px`,
                 }}
-                view={taskState.view}
-                onSetEditorView={() => taskState.setView('editor')}
-                isExpanded={editorView.expandedPaths.has(node.path)}
-                isSelected={taskState.view === 'editor' && activeFilePath === node.path}
-                onToggle={() => toggleExpand(node.path)}
-                onSelect={() => void openFilePreview(node.path)}
-                onOpen={() => void loadFile(node.path)}
-                fileChanges={fileChanges}
               />
             );
           })}

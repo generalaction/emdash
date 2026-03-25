@@ -6,30 +6,27 @@ import { MarkdownEditorRenderer } from '@renderer/core/editor/markdown-renderer'
 import { SvgRenderer } from '@renderer/core/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/core/editor/too-large-renderer';
 import type { ManagedFile } from '@renderer/core/editor/types';
-import { useOpenedFile } from '@renderer/core/editor/use-opened-file';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { EditorViewStore } from '@renderer/core/stores/editor-view-store';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { useEditorContext } from './editor-provider';
 
 export const EditorMainPanel = observer(function EditorMainPanel() {
-  const { taskId } = useTaskViewContext();
-  const { modelRootPath, handleCloseFile, setEditorHost } = useEditorContext();
+  const { projectId, taskId } = useTaskViewContext();
+  const { setEditorHost } = useEditorContext();
 
-  const editorView = taskViewStateStore.getOrCreate(taskId).editorView;
-  const openFiles = editorView.openFiles;
-  const activeFile = editorView.activeFile;
+  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
   const tabs = editorView.tabs;
-  const activeFilePath = editorView.activeFilePath;
-  const previewFilePath = editorView.previewFilePath;
+  const activeTab = editorView.activeTab;
 
   const isMonacoActive =
-    activeFile &&
-    (activeFile.renderer.kind === 'text' ||
-      activeFile.renderer.kind === 'markdown-source' ||
-      activeFile.renderer.kind === 'svg-source');
+    activeTab &&
+    (activeTab.renderer.kind === 'text' ||
+      activeTab.renderer.kind === 'markdown-source' ||
+      activeTab.renderer.kind === 'svg-source');
 
-  if (openFiles.size === 0) {
+  if (tabs.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
         <FileCode className="h-10 w-10 opacity-20" />
@@ -45,15 +42,10 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <FileTabs
         tabs={tabs}
-        openFiles={openFiles as unknown as Map<string, ManagedFile>}
-        activeFilePath={activeFilePath}
-        previewFilePath={previewFilePath}
-        modelRootPath={modelRootPath}
-        onTabClick={(path) => editorView.setActiveFilePath(path)}
-        onTabClose={handleCloseFile}
-        onPinTab={(path) => {
-          if (editorView.previewFilePath === path) editorView.setPreviewFilePath(null);
-        }}
+        activeTabId={editorView.activeTabId}
+        onTabClick={(tabId) => editorView.setActiveTab(tabId)}
+        onTabClose={(tabId) => editorView.removeTab(tabId)}
+        onPinTab={(tabId) => editorView.pinTab(tabId)}
       />
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {/* Stable Monaco host — always in DOM, shown/hidden by CSS only. Never re-parented. */}
@@ -62,14 +54,18 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
           className="absolute inset-0"
           style={{ display: isMonacoActive ? 'flex' : 'none' }}
         />
-        {/* Floating "Edit source" toggle for markdown/svg in Monaco source mode */}
+        {/* Floating "View rendered" toggle shown when editing markdown/svg source */}
         {isMonacoActive &&
-          activeFile &&
-          (activeFile.kind === 'markdown' || activeFile.kind === 'svg') && (
-            <SourceToggleOverlay filePath={activeFile.path} kind={activeFile.kind} />
+          activeTab &&
+          (activeTab.kind === 'markdown' || activeTab.kind === 'svg') && (
+            <SourceToggleOverlay
+              filePath={activeTab.path}
+              kind={activeTab.kind}
+              editorView={editorView}
+            />
           )}
         {/* Non-Monaco renderers */}
-        {!isMonacoActive && activeFile && <ActiveNonMonacoRenderer file={activeFile} />}
+        {!isMonacoActive && activeTab && <ActiveNonMonacoRenderer file={activeTab} />}
       </div>
     </div>
   );
@@ -82,16 +78,16 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
 interface SourceToggleOverlayProps {
   filePath: string;
   kind: 'markdown' | 'svg';
+  editorView: EditorViewStore;
 }
 
-function SourceToggleOverlay({ filePath, kind }: SourceToggleOverlayProps) {
-  const { updateRenderer } = useOpenedFile(filePath);
+function SourceToggleOverlay({ filePath, kind, editorView }: SourceToggleOverlayProps) {
   const label = kind === 'markdown' ? 'View preview' : 'View rendered';
   const targetKind = kind === 'markdown' ? 'markdown' : 'svg';
   return (
     <button
       className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-      onClick={() => updateRenderer(() => ({ kind: targetKind }))}
+      onClick={() => editorView.updateRenderer(filePath, () => ({ kind: targetKind }))}
       title={label}
       aria-label={label}
     >

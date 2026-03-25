@@ -2,11 +2,12 @@ import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx'
 import { LocalProject, SshProject } from '@shared/projects';
 import { rpc } from '@renderer/core/ipc';
 import {
-  MountedProjectStore,
+  createUnmountedProject,
+  createUnregisteredProject,
+  isUnmountedProject,
+  isUnregisteredProject,
   ProjectStore,
-  UnmountedProjectStore,
   UnregisteredProjectPhase,
-  UnregisteredProjectStore,
 } from './project';
 
 interface BaseModeData {
@@ -54,7 +55,7 @@ class ProjectManagerStore {
     runInAction(() => {
       for (const p of rawProjects) {
         if (this.projects.has(p.id)) continue;
-        this.projects.set(p.id, new UnmountedProjectStore(p, 'idle')); // idle until mountProject sets 'opening'
+        this.projects.set(p.id, createUnmountedProject(p, 'idle'));
         toMount.push(p.id);
       }
     });
@@ -80,7 +81,7 @@ class ProjectManagerStore {
         runInAction(() => {
           this.projects.set(
             projectId,
-            new UnregisteredProjectStore(projectId, data.name, 'registering', 'pick')
+            createUnregisteredProject(projectId, data.name, 'registering', 'pick')
           );
         });
         try {
@@ -101,7 +102,7 @@ class ProjectManagerStore {
         runInAction(() => {
           this.projects.set(
             projectId,
-            new UnregisteredProjectStore(projectId, data.name, 'cloning', 'clone')
+            createUnregisteredProject(projectId, data.name, 'cloning', 'clone')
           );
         });
         try {
@@ -126,7 +127,7 @@ class ProjectManagerStore {
         runInAction(() => {
           this.projects.set(
             projectId,
-            new UnregisteredProjectStore(projectId, data.name, 'creating-repo', 'new')
+            createUnregisteredProject(projectId, data.name, 'creating-repo', 'new')
           );
         });
         try {
@@ -163,12 +164,11 @@ class ProjectManagerStore {
     if (inFlight) return inFlight;
 
     const project = this.projects.get(projectId);
-    if (!project || project.state !== 'unmounted') return Promise.resolve();
+    if (!project || !isUnmountedProject(project)) return Promise.resolve();
 
     runInAction(() => {
-      const u = project as UnmountedProjectStore;
-      u.phase = 'opening';
-      u.error = undefined;
+      project.phase = 'opening';
+      project.error = undefined;
     });
 
     const promise = rpc.projects
@@ -176,15 +176,15 @@ class ProjectManagerStore {
       .then(() => {
         runInAction(() => {
           const current = this.projects.get(projectId);
-          if (current?.state === 'unmounted') {
-            this.projects.set(projectId, new MountedProjectStore(current.data));
+          if (current && isUnmountedProject(current)) {
+            current.transitionToMounted(current.data);
           }
         });
       })
       .catch((err: unknown) => {
         runInAction(() => {
           const current = this.projects.get(projectId);
-          if (current?.state === 'unmounted') {
+          if (current && isUnmountedProject(current)) {
             current.phase = 'error';
             current.error = err instanceof Error ? err.message : String(err);
           }
@@ -217,7 +217,7 @@ class ProjectManagerStore {
   removeUnregisteredProject(projectId: string): void {
     runInAction(() => {
       const store = this.projects.get(projectId);
-      if (store?.state === 'unregistered') {
+      if (store && isUnregisteredProject(store)) {
         this.projects.delete(projectId);
       }
     });
@@ -225,7 +225,12 @@ class ProjectManagerStore {
 
   private _setAndOpenProject(id: string, project: LocalProject | SshProject): void {
     runInAction(() => {
-      this.projects.set(id, new UnmountedProjectStore(project));
+      const current = this.projects.get(id);
+      if (current) {
+        current.transitionToUnmounted(project, 'opening');
+      } else {
+        this.projects.set(id, createUnmountedProject(project, 'opening'));
+      }
     });
     this.mountProject(id);
   }
@@ -233,14 +238,14 @@ class ProjectManagerStore {
   private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
     runInAction(() => {
       const store = this.projects.get(id);
-      if (store?.state === 'unregistered') store.phase = phase;
+      if (store && isUnregisteredProject(store)) store.phase = phase;
     });
   }
 
   private _markError(id: string, err: unknown): void {
     runInAction(() => {
       const store = this.projects.get(id);
-      if (store?.state === 'unregistered') {
+      if (store && isUnregisteredProject(store)) {
         store.phase = 'error';
         store.error = err instanceof Error ? err.message : String(err);
       }

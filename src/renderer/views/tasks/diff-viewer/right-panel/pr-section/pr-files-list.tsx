@@ -1,19 +1,18 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { usePrefetchModels } from '@renderer/views/tasks/diff-viewer/right-panel/use-prefetch-models';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
-import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { prFilesMap, activePrFilePath, setActivePrFilePath } = usePrContext();
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = provisionedTask(getTaskStore(projectId, taskId))?.diffView;
-  const setView = (v: string) =>
-    taskViewStateStore.getOrCreate(taskId).setView(v as 'agents' | 'editor' | 'diff');
+  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  const diffView = provisioned?.diffView;
+  const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
 
   const baseRef = pr.metadata.baseRefName;
   const prFiles = prFilesMap[pr.id] ?? [];

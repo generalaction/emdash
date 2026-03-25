@@ -4,8 +4,8 @@ import { Button } from '@renderer/components/ui/button';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { ConversationStore } from '@renderer/core/stores/conversation-manager';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { agentConfig } from '@renderer/lib/agentConfig';
-import { getTaskStore, provisionedTask } from '../task-view-state';
 
 export const ConversationsTabs = observer(function ConversationsTabs({
   projectId,
@@ -14,7 +14,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
   projectId: string;
   taskId: string;
 }) {
-  const conversationMgr = provisionedTask(getTaskStore(projectId, taskId))?.conversations;
+  const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const showCreateConversationModal = useShowModal('createConversationModal');
 
   if (!conversationMgr) return null;

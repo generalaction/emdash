@@ -1,16 +1,12 @@
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
-import type {
-  ProvisionedTaskStore,
-  TaskStore,
-  UnprovisionedTaskStore,
-  UnregisteredTaskStore,
-} from '@renderer/core/stores/task';
-import type { TaskManagerStore } from '@renderer/core/stores/task-manager';
+import { isMountedProject, isUnmountedProject } from './project';
+import { projectManagerStore } from './project-manager';
+import { isProvisioned, isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
+import type { TaskManagerStore } from './task-manager';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
   const p = projectManagerStore.projects.get(projectId);
-  return p?.state === 'mounted' ? p.taskManager : undefined;
+  return p && isMountedProject(p) ? p.taskManager : undefined;
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
@@ -44,7 +40,7 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   if (!projectStore) return 'missing';
 
   // Project is being opened — tasks won't be available yet
-  if (projectStore.state === 'unmounted') {
+  if (isUnmountedProject(projectStore)) {
     if (projectStore.phase === 'opening') return 'project-mounting';
     if (projectStore.phase === 'error') return 'project-error';
     // idle/closing unmounted — still needs to be opened
@@ -57,11 +53,11 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   // Project is mounted — dispatch on task state
   if (!store) return 'missing';
 
-  if (store.state === 'unregistered') {
+  if (isUnregistered(store)) {
     if (store.phase === 'creating') return 'creating';
     return 'create-error';
   }
-  if (store.state === 'unprovisioned') {
+  if (isUnprovisioned(store)) {
     if (store.phase === 'provision') return 'provisioning';
     if (store.phase === 'provision-error') return 'provision-error';
     if (store.phase === 'teardown') return 'teardown';
@@ -71,17 +67,9 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   return 'ready';
 }
 
-/** Returns the mount error message for the project. */
-export function projectMountErrorMessage(projectId: string): string {
-  const store = projectManagerStore.projects.get(projectId);
-  if (store?.state === 'unmounted' && store.phase === 'error') {
-    return store.error ?? 'Failed to open project';
-  }
-  return 'Failed to open project';
-}
-
-export function provisionedTask(store: TaskStore | undefined): ProvisionedTaskStore | undefined {
-  if (store?.state === 'provisioned') return store;
+/** Returns the provisioned task if ready, otherwise undefined. */
+export function asProvisioned(store: TaskStore | undefined): ProvisionedTask | undefined {
+  if (store && isProvisioned(store)) return store;
   return undefined;
 }
 
@@ -93,10 +81,11 @@ export function taskDisplayName(store: TaskStore | undefined): string | undefine
 
 /** Returns the error message for error states. */
 export function taskErrorMessage(store: TaskStore | undefined): string | undefined {
-  if (store?.state === 'unregistered' && store.phase === 'create-error') {
+  if (!store) return undefined;
+  if (isUnregistered(store) && store.phase === 'create-error') {
     return store.errorMessage ?? 'Failed to create task';
   }
-  if (store?.state === 'unprovisioned') {
+  if (isUnprovisioned(store)) {
     if (store.phase === 'provision-error') {
       return store.errorMessage ?? 'Failed to set up workspace';
     }
@@ -107,10 +96,11 @@ export function taskErrorMessage(store: TaskStore | undefined): string | undefin
   return undefined;
 }
 
-export function asUnregistered(store: TaskStore | undefined): UnregisteredTaskStore | undefined {
-  return store?.state === 'unregistered' ? store : undefined;
-}
-
-export function asUnprovisioned(store: TaskStore | undefined): UnprovisionedTaskStore | undefined {
-  return store?.state === 'unprovisioned' ? store : undefined;
+/** Returns the mount error message for the project. */
+export function projectMountErrorMessage(projectId: string): string {
+  const store = projectManagerStore.projects.get(projectId);
+  if (store && isUnmountedProject(store) && store.phase === 'error') {
+    return store.error ?? 'Failed to open project';
+  }
+  return 'Failed to open project';
 }

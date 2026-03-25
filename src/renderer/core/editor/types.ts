@@ -18,3 +18,14 @@ export interface ManagedFile {
   /** Renderer kind and its display state. */
   renderer: FileRendererData;
 }
+
+/**
+ * A tab entry in the EditorViewStore tab list.
+ * Extends ManagedFile with the isPreview flag so that a single-click preview
+ * tab can be promoted to a stable tab without removing and re-adding it
+ * (same tabId → same React key → no flash).
+ */
+export interface EditorTab extends ManagedFile {
+  /** True when opened via single-click; double-click or an edit promotes it to stable. */
+  isPreview: boolean;
+}

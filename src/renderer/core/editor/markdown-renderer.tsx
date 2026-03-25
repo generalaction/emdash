@@ -3,8 +3,8 @@ import { observer } from 'mobx-react-lite';
 import { MarkdownRenderer } from '@renderer/components/ui/markdown-renderer';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { useEditorContext } from '@renderer/views/tasks/editor/editor-provider';
-import { useOpenedFile } from './use-opened-file';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 interface MarkdownEditorRendererProps {
   filePath: string;
@@ -17,9 +17,9 @@ interface MarkdownEditorRendererProps {
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
-  const { modelRootPath } = useEditorContext();
-  const { updateRenderer } = useOpenedFile(filePath);
-  const bufferUri = buildMonacoModelPath(modelRootPath, filePath);
+  const { projectId, taskId } = useTaskViewContext();
+  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
+  const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   const content = modelRegistry.getValue(bufferUri) ?? '';
   const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 
@@ -29,13 +29,13 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         content={content}
         variant="full"
         className="w-full max-w-3xl px-8 py-8"
-        rootPath={modelRootPath}
+        rootPath={editorView.modelRootPath}
         fileDir={fileDir}
       />
 
       <button
         className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-        onClick={() => updateRenderer(() => ({ kind: 'markdown-source' }))}
+        onClick={() => editorView.updateRenderer(filePath, () => ({ kind: 'markdown-source' }))}
         title="Edit source"
         aria-label="Edit source"
       >

@@ -12,17 +12,17 @@ import {
 import { Input } from '@renderer/components/ui/input';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
-import { MountedProjectStore } from '@renderer/core/stores/project';
+import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
-import { ProvisionedTaskStore, UnprovisionedTaskStore } from '@renderer/core/stores/task';
+import { ProvisionedTask, UnprovisionedTask } from '@renderer/core/stores/task';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 
-type ReadyTask = UnprovisionedTaskStore | ProvisionedTaskStore;
+type ReadyTask = UnprovisionedTask | ProvisionedTask;
 
 function getTaskManager(projectId: string) {
   const store = projectManagerStore.projects.get(projectId);
-  return store?.state === 'mounted' ? (store as MountedProjectStore).taskManager : null;
+  return store?.state === 'mounted' ? (store as MountedProject).taskManager : null;
 }
 
 const TaskRow = observer(function TaskRow({

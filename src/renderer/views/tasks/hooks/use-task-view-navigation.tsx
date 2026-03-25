@@ -1,12 +1,12 @@
 import { useCallback, useTransition } from 'react';
-import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
+import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useTaskViewContext } from '../task-view-context';
 
 export function useTaskViewNavigation() {
   const { setCollapsed } = useWorkspaceLayoutContext();
-  const { taskId } = useTaskViewContext();
-  const taskState = taskViewStateStore.getOrCreate(taskId);
+  const { projectId, taskId } = useTaskViewContext();
+  const taskState = asProvisioned(getTaskStore(projectId, taskId))!;
   const [isPending, startTransition] = useTransition();
 
   const openAgentsView = useCallback(() => {
