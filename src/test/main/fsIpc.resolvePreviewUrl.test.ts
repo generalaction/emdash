@@ -1,0 +1,148 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const ipcHandleHandlers = new Map<string, (...args: any[]) => any>();
+
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: vi.fn((channel: string, cb: (...args: any[]) => any) => {
+      ipcHandleHandlers.set(channel, cb);
+    }),
+  },
+  shell: { openExternal: vi.fn() },
+}));
+
+// Mock heavy deps that fsIpc pulls in but are irrelevant to resolvePreviewUrl
+vi.mock('worker_threads', () => ({ Worker: vi.fn() }));
+vi.mock('../../main/services/ssh/SshService', () => ({ sshService: {} }));
+vi.mock('../../main/services/fs/RemoteFileSystem', () => ({ RemoteFileSystem: vi.fn() }));
+vi.mock('../../main/utils/fsIgnores', () => ({ DEFAULT_IGNORES: [] }));
+vi.mock('../../main/utils/safeStat', () => ({ safeStat: vi.fn() }));
+vi.mock('../../main/utils/gitIgnore', () => ({ GitIgnoreParser: vi.fn() }));
+
+const fsMock = {
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  readdirSync: vi.fn(),
+  statSync: vi.fn(),
+};
+
+vi.mock('fs', () => fsMock);
+
+async function getHandler() {
+  const { registerFsIpc } = await import('../../main/services/fsIpc');
+  registerFsIpc();
+  const handler = ipcHandleHandlers.get('fs:resolvePreviewUrl');
+  expect(handler).toBeTypeOf('function');
+  return handler!;
+}
+
+describe('fs:resolvePreviewUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    ipcHandleHandlers.clear();
+  });
+
+  it('returns null when .emdash.json does not exist', async () => {
+    fsMock.existsSync.mockReturnValue(false);
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: null });
+  });
+
+  it('returns null when previewUrl is not set in config', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(JSON.stringify({ scripts: { run: 'npm start' } }));
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: null });
+  });
+
+  it('returns null when previewUrl is blank', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(JSON.stringify({ previewUrl: '   ' }));
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: null });
+  });
+
+  it('returns a static URL unchanged', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(JSON.stringify({ previewUrl: 'http://localhost:3000' }));
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: 'http://localhost:3000' });
+  });
+
+  it('expands $VAR from taskEnvVars', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ previewUrl: 'http://localhost:$EMDASH_PORT' })
+    );
+    const handler = await getHandler();
+    const result = await handler(
+      {},
+      {
+        projectPath: '/tmp/repo',
+        taskEnvVars: { EMDASH_PORT: '8080' },
+      }
+    );
+    expect(result).toEqual({ success: true, url: 'http://localhost:8080' });
+  });
+
+  it('expands ${VAR} syntax', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ previewUrl: 'http://${EMDASH_TASK_NAME}.localhost' })
+    );
+    const handler = await getHandler();
+    const result = await handler(
+      {},
+      {
+        projectPath: '/tmp/repo',
+        taskEnvVars: { EMDASH_TASK_NAME: 'my-feature' },
+      }
+    );
+    expect(result).toEqual({ success: true, url: 'http://my-feature.localhost' });
+  });
+
+  it('taskEnvVars take priority over process.env', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ previewUrl: 'http://localhost:$EMDASH_PORT' })
+    );
+    // Simulate process.env having a different value
+    const origEnv = process.env.EMDASH_PORT;
+    process.env.EMDASH_PORT = '9999';
+    const handler = await getHandler();
+    const result = await handler(
+      {},
+      {
+        projectPath: '/tmp/repo',
+        taskEnvVars: { EMDASH_PORT: '3000' },
+      }
+    );
+    process.env.EMDASH_PORT = origEnv;
+    expect(result).toEqual({ success: true, url: 'http://localhost:3000' });
+  });
+
+  it('leaves unresolvable vars unexpanded', async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ previewUrl: 'http://localhost:$UNKNOWN_VAR' })
+    );
+    // Make sure UNKNOWN_VAR is not in process.env
+    delete process.env.UNKNOWN_VAR;
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: 'http://localhost:$UNKNOWN_VAR' });
+  });
+
+  it('returns error when projectPath is missing', async () => {
+    const handler = await getHandler();
+    const result = await handler({}, { projectPath: '' });
+    expect(result).toMatchObject({ success: false });
+  });
+});
