@@ -19,7 +19,7 @@ export function ProjectMainPanel() {
   const status = useCurrentProjectStatus();
 
   if (status.status === 'creating') {
-    return <PendingProjectStatus pending={status.pending} />;
+    return <PendingProjectStatus project={status.pending} />;
   }
 
   if (status.status === 'bootstrapping') {

@@ -1,4 +1,5 @@
 import { Minus, Plus, Undo2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
@@ -8,13 +9,14 @@ import {
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { cn } from '@renderer/lib/utils';
-import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
 import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useBranchStatus } from '@renderer/views/tasks/diff-viewer/state/use-branch-status';
 import { useSelection } from '@renderer/views/tasks/diff-viewer/state/use-selection';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 import { ActionCard } from './action-card';
 import { CommitCard } from './commit-card';
 import { GitStatusSection } from './git-status-section';
@@ -25,7 +27,7 @@ import { SECTION_HEADER_HEIGHT, usePanelLayout } from './use-panel-layout';
 import { usePrefetchModels } from './use-prefetch-models';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
-export function ChangesPanel() {
+export const ChangesPanel = observer(function ChangesPanel() {
   const {
     expanded,
     toggleExpanded,
@@ -38,18 +40,14 @@ export function ChangesPanel() {
     spacerRef,
   } = usePanelLayout();
 
-  const {
-    stagedFileChanges,
-    unstagedFileChanges,
-    stageAllChanges,
-    unstageAllChanges,
-    discardAllChanges,
-    stageFilesChanges,
-    unstageFilesChanges,
-    discardFilesChanges,
-    commitChanges,
-  } = useGitChangesContext();
-  const { projectId, taskId, view, setView } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
+  const git = provisionedTask(getTaskStore(projectId, taskId))?.git;
+
+  const stagedFileChanges = git?.stagedFileChanges ?? [];
+  const unstagedFileChanges = git?.unstagedFileChanges ?? [];
+  const taskState = taskViewStateStore.getOrCreate(taskId);
+  const { view } = taskState;
+  const setView = (v: string) => taskState.setView(v as 'agents' | 'editor' | 'diff');
   const { activeFile, setActiveFile } = useGitViewContext();
   const prefetchUnstagedDiff = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
   const prefetchStagedDiff = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');
@@ -87,38 +85,56 @@ export function ChangesPanel() {
     }));
   }, [activeFile, setExpanded]);
 
+  const showConfirmActionModal = useShowModal('confirmActionModal');
+
   const handleDiscardSelection = () => {
     const remaining = unstagedFileChanges.length - unstagedSelection.selectedPaths.size;
-    discardFilesChanges([...unstagedSelection.selectedPaths]);
-    unstagedSelection.clear();
-    setExpanded((prev) => ({ ...prev, unstaged: remaining > 0 }));
+    const paths = [...unstagedSelection.selectedPaths];
+    showConfirmActionModal({
+      title: 'Discard Files Changes',
+      variant: 'destructive',
+      description:
+        'Are you sure you want to discard the changes to the selected files? This can not be undone.',
+      onSuccess: async () => {
+        await git?.discardFiles(paths);
+        unstagedSelection.clear();
+        setExpanded((prev) => ({ ...prev, unstaged: remaining > 0 }));
+      },
+    });
   };
   const handleDiscardAll = () => {
-    discardAllChanges();
-    setExpanded((prev) => ({ ...prev, unstaged: false }));
+    showConfirmActionModal({
+      title: 'Discard All Changes',
+      variant: 'destructive',
+      description: 'Are you sure you want to discard all changes? This can not be undone.',
+      onSuccess: async () => {
+        await git?.discardAllFiles();
+        setExpanded((prev) => ({ ...prev, unstaged: false }));
+      },
+    });
   };
   const handleStageSelection = () => {
     const remaining = unstagedFileChanges.length - unstagedSelection.selectedPaths.size;
-    stageFilesChanges([...unstagedSelection.selectedPaths]);
+    void git?.stageFiles([...unstagedSelection.selectedPaths]);
     unstagedSelection.clear();
     setExpanded({ unstaged: remaining > 0, staged: true, pullRequests: false });
   };
   const handleStageAll = () => {
-    stageAllChanges();
+    void git?.stageAllFiles();
     setExpanded({ unstaged: false, staged: true, pullRequests: false });
   };
   const handleUnstageSelection = () => {
     const remaining = stagedFileChanges.length - stagedSelection.selectedPaths.size;
-    unstageFilesChanges([...stagedSelection.selectedPaths]);
+    void git?.unstageFiles([...stagedSelection.selectedPaths]);
     stagedSelection.clear();
     setExpanded({ unstaged: true, staged: remaining > 0, pullRequests: hasPRs });
   };
   const handleUnstageAll = () => {
-    unstageAllChanges();
+    void git?.unstageAllFiles();
     setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
   };
   const handleCommit = (message: string) => {
-    commitChanges(message);
+    void git?.commit(message);
     setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
   };
 
@@ -342,7 +358,7 @@ export function ChangesPanel() {
       <GitStatusSection />
     </div>
   );
-}
+});
 
 export function ChangedEmptyState() {
   return <EmptyState label="Working tree clean" description="No uncommitted file changes." />;

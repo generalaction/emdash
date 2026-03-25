@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { Button } from '../ui/button';
@@ -10,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { ModeTabs } from './mode-tabs';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
-import { usePendingProjectsContext } from './pending-projects-provider';
 
 export type Strategy = 'local' | 'ssh';
 
@@ -49,7 +49,6 @@ export function AddProjectModal({
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
 
-  const { startPickProject, startNewProject, startCloneProject } = usePendingProjectsContext();
   const { navigate } = useNavigate();
 
   const showSshConnModal = useShowModal('addSshConnModal');
@@ -98,25 +97,44 @@ export function AddProjectModal({
     }
 
     const id = crypto.randomUUID();
+    const projectType =
+      strategy === 'ssh' && connectionId
+        ? { type: 'ssh' as const, connectionId }
+        : { type: 'local' as const };
+
     switch (mode) {
       case 'pick':
-        startPickProject(id, { name: pickState.name, path: pickState.path });
+        void projectManagerStore.createProject(
+          projectType,
+          { mode: 'pick', name: pickState.name, path: pickState.path },
+          id
+        );
         break;
       case 'new':
-        startNewProject(id, {
-          name: newState.name,
-          path: newState.path,
-          repositoryName: newState.repositoryName,
-          repositoryOwner: newState.repositoryOwner?.value ?? '',
-          repositoryVisibility: newState.repositoryVisibility,
-        });
+        void projectManagerStore.createProject(
+          projectType,
+          {
+            mode: 'new',
+            name: newState.name,
+            path: newState.path,
+            repositoryName: newState.repositoryName,
+            repositoryOwner: newState.repositoryOwner?.value ?? '',
+            repositoryVisibility: newState.repositoryVisibility,
+          },
+          id
+        );
         break;
       case 'clone':
-        startCloneProject(id, {
-          name: cloneState.name,
-          path: cloneState.path,
-          repositoryUrl: cloneState.repositoryUrl,
-        });
+        void projectManagerStore.createProject(
+          projectType,
+          {
+            mode: 'clone',
+            name: cloneState.name,
+            path: cloneState.path,
+            repositoryUrl: cloneState.repositoryUrl,
+          },
+          id
+        );
         break;
     }
     onClose();

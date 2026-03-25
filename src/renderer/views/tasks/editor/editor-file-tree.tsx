@@ -1,7 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { cn } from '@renderer/lib/utils';
 import { FileIcon } from '../../../core/editor/file-icon';
 import { useTaskViewContext } from '../task-view-context';
@@ -22,6 +24,8 @@ const FileTreeRow = React.memo(function FileTreeRow({
   onOpen,
   fileChanges,
   style,
+  view,
+  onSetEditorView,
 }: {
   node: FileNode;
   isExpanded: boolean;
@@ -31,16 +35,16 @@ const FileTreeRow = React.memo(function FileTreeRow({
   onOpen?: () => void;
   fileChanges: FileChange[];
   style: React.CSSProperties;
+  view: string;
+  onSetEditorView: () => void;
 }) {
-  const { setView, view } = useTaskViewContext();
   const fileStatus = fileChanges.find((c) => c.path === node.path)?.status;
-  // Each depth level adds 12px; the base offset reserves space for the chevron column.
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (view !== 'editor') {
-      setView('editor');
+      onSetEditorView();
     }
     if (node.type === 'directory') {
       onToggle();
@@ -83,7 +87,6 @@ const FileTreeRow = React.memo(function FileTreeRow({
       aria-selected={isSelected}
       aria-expanded={node.type === 'directory' ? isExpanded : undefined}
     >
-      {/* Chevron for directories */}
       <span className="shrink-0 text-muted-foreground">
         {node.type === 'directory' ? (
           isExpanded ? (
@@ -96,7 +99,6 @@ const FileTreeRow = React.memo(function FileTreeRow({
         )}
       </span>
 
-      {/* Icon */}
       <span className="shrink-0">
         {node.type === 'directory' ? (
           isExpanded ? (
@@ -109,7 +111,6 @@ const FileTreeRow = React.memo(function FileTreeRow({
         )}
       </span>
 
-      {/* Label */}
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-sm',
@@ -125,17 +126,18 @@ const FileTreeRow = React.memo(function FileTreeRow({
   );
 });
 
-export function EditorFileTree() {
+export const EditorFileTree = observer(function EditorFileTree() {
+  const { taskId } = useTaskViewContext();
+  const taskState = taskViewStateStore.getOrCreate(taskId);
   const { activeFilePath, loadFile, openFilePreview, fileChanges } = useEditorContext();
   const { visibleRows, expandedPaths, toggleExpand, isLoading, error } = useFileTreeContext();
-  const { view } = useTaskViewContext();
 
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
     count: visibleRows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 28, // h-7 = 28px
+    estimateSize: () => 28,
     overscan: 10,
   });
 
@@ -180,8 +182,10 @@ export function EditorFileTree() {
                   width: '100%',
                   height: `${vItem.size}px`,
                 }}
+                view={taskState.view}
+                onSetEditorView={() => taskState.setView('editor')}
                 isExpanded={expandedPaths.has(node.path)}
-                isSelected={view === 'editor' && activeFilePath === node.path}
+                isSelected={taskState.view === 'editor' && activeFilePath === node.path}
                 onToggle={() => toggleExpand(node.path)}
                 onSelect={() => void openFilePreview(node.path)}
                 onOpen={() => void loadFile(node.path)}
@@ -193,4 +197,4 @@ export function EditorFileTree() {
       </div>
     </div>
   );
-}
+});

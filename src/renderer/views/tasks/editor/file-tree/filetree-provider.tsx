@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import React, { createContext, useContext } from 'react';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { getTaskStore, taskViewKind } from '@renderer/views/tasks/task-view-state';
 import { useFileTree, UseFileTreeResult } from './use-file-tree';
 
 type FileTreeContextValue = UseFileTreeResult;
@@ -16,8 +16,7 @@ export const EditorFiletreeProvider = observer(function EditorFiletreeProvider({
   projectId: string;
   taskId: string;
 }) {
-  const { lifecycleTask } = useTaskViewContext();
-  const isReady = lifecycleTask.status === 'ready';
+  const isReady = taskViewKind(getTaskStore(projectId, taskId), projectId) === 'ready';
 
   const filetree = useFileTree(projectId, taskId, isReady);
 

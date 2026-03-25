@@ -1,25 +1,38 @@
+import { observer } from 'mobx-react-lite';
 import React from 'react';
-import { useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
+import { MountedProjectStore } from '@renderer/core/stores/project';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { TaskStore } from '@renderer/core/stores/task';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { TaskItem } from './project-item';
 import { SidebarMenuButton } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
-  task: TaskItem;
+  task: TaskStore;
+  projectId: string;
   isActive: boolean;
 }
 
-export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActive }) => {
+export const SidebarTaskItem = observer(function SidebarTaskItem({
+  task,
+  projectId,
+  isActive,
+}: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
-  const { taskStatus, provisionTask } = useTaskLifecycleContext();
 
-  const status = taskStatus[task.data.id];
   const isBootstrapping =
-    task.status === 'pending' || status === 'creating' || status === 'provisioning';
+    task.state === 'unregistered' ||
+    (task.state === 'unprovisioned' &&
+      (task.phase === 'provision' || task.phase === 'provision-error'));
+
+  const taskId = task.data.id;
+  const taskName = task.data.name;
 
   const handleProvision = () => {
-    provisionTask(task.data.id);
+    const projectStore = projectManagerStore.projects.get(projectId);
+    if (projectStore?.state === 'mounted') {
+      void (projectStore as MountedProjectStore).taskManager.provisionTask(taskId);
+    }
   };
 
   return (
@@ -27,7 +40,7 @@ export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActiv
       className="pl-9"
       onClick={() => {
         handleProvision();
-        navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
+        navigate('task', { projectId, taskId });
       }}
       onPointerEnter={handleProvision}
       isActive={isActive}
@@ -38,10 +51,8 @@ export const SidebarTaskItem = React.memo<SidebarTaskItemProps>(({ task, isActiv
           isBootstrapping && 'text-foreground/40'
         )}
       >
-        {task.data.name}
+        {taskName}
       </span>
     </SidebarMenuButton>
   );
 });
-
-SidebarTaskItem.displayName = 'SidebarTaskItem';

@@ -15,12 +15,8 @@ import {
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import {
-  taskViewStateStore,
-  type FileRendererData,
-  type ManagedFileInput,
-  type OpenedFile,
-} from '@renderer/core/tasks/view/task-view-store';
+import { FileRendererData, ManagedFileInput, OpenedFile } from '@renderer/core/tasks/types';
+import { taskViewStateStore } from '@renderer/core/tasks/view/task-view-store';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';

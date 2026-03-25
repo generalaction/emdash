@@ -11,14 +11,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { useProjectsDataContext } from '@renderer/core/projects/projects-data-provider';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useRequiredCurrentProject } from './project-view-wrapper';
 import { TaskList } from './task-list';
 
 export function ActiveProject() {
   const project = useRequiredCurrentProject();
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
-  const { deleteProject } = useProjectsDataContext();
   const githubUrl = project.gitRemote ? gitRemoteToUrl(project.gitRemote) : undefined;
 
   return (
@@ -54,7 +53,9 @@ export function ActiveProject() {
               />
               <DropdownMenuContent>
                 <DropdownMenuItem>Rename project</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => deleteProject(project.id)}>
+                <DropdownMenuItem
+                  onClick={() => void projectManagerStore.deleteProject(project.id)}
+                >
                   Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>

@@ -1,0 +1,251 @@
+import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { LocalProject, SshProject } from '@shared/projects';
+import { rpc } from '@renderer/core/ipc';
+import {
+  MountedProjectStore,
+  ProjectStore,
+  UnmountedProjectStore,
+  UnregisteredProjectPhase,
+  UnregisteredProjectStore,
+} from './project';
+
+interface BaseModeData {
+  name: string;
+  path: string;
+}
+
+export interface PickModeData extends BaseModeData {
+  mode: 'pick';
+}
+
+export interface CloneModeData extends BaseModeData {
+  mode: 'clone';
+  repositoryUrl: string;
+}
+
+export interface NewModeData extends BaseModeData {
+  mode: 'new';
+  repositoryName: string;
+  repositoryOwner: string;
+  repositoryVisibility: 'public' | 'private';
+}
+
+export type ModeData = PickModeData | CloneModeData | NewModeData;
+
+export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: string };
+
+class ProjectManagerStore {
+  projects = observable.map<string, ProjectStore>();
+  private _projectMountPromises = new Map<string, Promise<void>>();
+  private _loaded = false;
+
+  constructor() {
+    makeObservable(this, { projects: observable });
+    onBecomeObserved(this, 'projects', () => {
+      if (this._loaded) return;
+      this.load();
+    });
+  }
+
+  async load(): Promise<void> {
+    this._loaded = true;
+    const rawProjects = await rpc.projects.getProjects();
+    const toMount: string[] = [];
+    runInAction(() => {
+      for (const p of rawProjects) {
+        if (this.projects.has(p.id)) continue;
+        this.projects.set(p.id, new UnmountedProjectStore(p, 'idle')); // idle until mountProject sets 'opening'
+        toMount.push(p.id);
+      }
+    });
+    for (const id of toMount) this.mountProject(id);
+  }
+
+  async createProject(
+    projectType: ProjectType,
+    data: ModeData,
+    id?: string
+  ): Promise<string | undefined> {
+    if (projectType.type === 'local') {
+      const existing = await rpc.projects.getLocalProjectByPath(data.path);
+      if (existing) return existing.id;
+    } else {
+      const existing = await rpc.projects.getSshProjectByPath(data.path, projectType.connectionId);
+      if (existing) return existing.id;
+    }
+
+    const projectId = id ?? crypto.randomUUID();
+    switch (data.mode) {
+      case 'pick': {
+        runInAction(() => {
+          this.projects.set(
+            projectId,
+            new UnregisteredProjectStore(projectId, data.name, 'registering', 'pick')
+          );
+        });
+        try {
+          const project = await rpc.projects.createLocalProject({
+            id: projectId,
+            path: data.path,
+            name: data.name,
+          });
+          this._setAndOpenProject(projectId, project);
+        } catch (err) {
+          this._markError(projectId, err);
+          throw err;
+        }
+        break;
+      }
+
+      case 'clone': {
+        runInAction(() => {
+          this.projects.set(
+            projectId,
+            new UnregisteredProjectStore(projectId, data.name, 'cloning', 'clone')
+          );
+        });
+        try {
+          const clonePath = `${data.path}/${data.name}`;
+          const cloneResult = await rpc.github.cloneRepository(data.repositoryUrl, clonePath);
+          if (!cloneResult.success) throw new Error(cloneResult.error);
+          this._updatePhase(projectId, 'registering');
+          const project = await rpc.projects.createLocalProject({
+            id: projectId,
+            path: clonePath,
+            name: data.name,
+          });
+          this._setAndOpenProject(projectId, project);
+        } catch (err) {
+          this._markError(projectId, err);
+          throw err;
+        }
+        break;
+      }
+
+      case 'new': {
+        runInAction(() => {
+          this.projects.set(
+            projectId,
+            new UnregisteredProjectStore(projectId, data.name, 'creating-repo', 'new')
+          );
+        });
+        try {
+          const repoResult = await rpc.github.createNewProject({
+            name: data.repositoryName,
+            owner: data.repositoryOwner,
+            isPrivate: data.repositoryVisibility === 'private',
+          });
+          if (!repoResult.success || !repoResult.repoUrl) throw new Error(repoResult.error);
+          this._updatePhase(projectId, 'cloning');
+          const clonePath = `${data.path}/${data.name}`;
+          const cloneResult = await rpc.github.cloneRepository(repoResult.repoUrl, clonePath);
+          if (!cloneResult.success) throw new Error(cloneResult.error);
+          this._updatePhase(projectId, 'registering');
+          const project = await rpc.projects.createLocalProject({
+            id: projectId,
+            path: clonePath,
+            name: data.name,
+          });
+          this._setAndOpenProject(projectId, project);
+        } catch (err) {
+          this._markError(projectId, err);
+          throw err;
+        }
+        break;
+      }
+    }
+
+    return projectId;
+  }
+
+  mountProject(projectId: string): Promise<void> {
+    const inFlight = this._projectMountPromises.get(projectId);
+    if (inFlight) return inFlight;
+
+    const project = this.projects.get(projectId);
+    if (!project || project.state !== 'unmounted') return Promise.resolve();
+
+    runInAction(() => {
+      const u = project as UnmountedProjectStore;
+      u.phase = 'opening';
+      u.error = undefined;
+    });
+
+    const promise = rpc.projects
+      .openProject(projectId)
+      .then(() => {
+        runInAction(() => {
+          const current = this.projects.get(projectId);
+          if (current?.state === 'unmounted') {
+            this.projects.set(projectId, new MountedProjectStore(current.data));
+          }
+        });
+      })
+      .catch((err: unknown) => {
+        runInAction(() => {
+          const current = this.projects.get(projectId);
+          if (current?.state === 'unmounted') {
+            current.phase = 'error';
+            current.error = err instanceof Error ? err.message : String(err);
+          }
+        });
+        throw err;
+      })
+      .finally(() => {
+        this._projectMountPromises.delete(projectId);
+      });
+
+    this._projectMountPromises.set(projectId, promise);
+    return promise;
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    const snapshot = this.projects.get(projectId);
+    runInAction(() => {
+      this.projects.delete(projectId);
+    });
+    try {
+      await rpc.projects.deleteProject(projectId);
+    } catch (err) {
+      runInAction(() => {
+        if (snapshot) this.projects.set(projectId, snapshot);
+      });
+      throw err;
+    }
+  }
+
+  removeUnregisteredProject(projectId: string): void {
+    runInAction(() => {
+      const store = this.projects.get(projectId);
+      if (store?.state === 'unregistered') {
+        this.projects.delete(projectId);
+      }
+    });
+  }
+
+  private _setAndOpenProject(id: string, project: LocalProject | SshProject): void {
+    runInAction(() => {
+      this.projects.set(id, new UnmountedProjectStore(project));
+    });
+    this.mountProject(id);
+  }
+
+  private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store?.state === 'unregistered') store.phase = phase;
+    });
+  }
+
+  private _markError(id: string, err: unknown): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store?.state === 'unregistered') {
+        store.phase = 'error';
+        store.error = err instanceof Error ? err.message : String(err);
+      }
+    });
+  }
+}
+
+export const projectManagerStore = new ProjectManagerStore();

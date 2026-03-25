@@ -1,5 +1,8 @@
+import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
-import { useGitChangesContext } from './git-changes-provider';
+import { provisionedTask } from '@renderer/views/tasks/task-view-state';
+import { useTaskViewContext } from '../../task-view-context';
+import { getTaskStore } from '../../task-view-state';
 import { useGitViewContext } from './git-view-provider';
 
 /**
@@ -10,16 +13,20 @@ import { useGitViewContext } from './git-view-provider';
  * Files with type='git' (PR / ref diffs) are not tracked in the working-tree lists and are
  * left unchanged.
  */
-export function ActiveFileSync() {
+export const ActiveFileSync = observer(function ActiveFileSync() {
+  const { projectId, taskId } = useTaskViewContext();
+  const git = provisionedTask(getTaskStore(projectId, taskId))?.git;
+
   const { activeFile, setActiveFile } = useGitViewContext();
-  const { fileChanges, stagedFileChanges, unstagedFileChanges } = useGitChangesContext();
 
   useEffect(() => {
     if (!activeFile) return;
+    if (!git) return;
 
     // PR / ref diffs are not part of staged/unstaged lists — leave them alone.
     if (activeFile.type === 'git') return;
 
+    const { stagedFileChanges, unstagedFileChanges } = git;
     const isStaged = activeFile.type === 'staged';
     const inCurrentList = isStaged
       ? stagedFileChanges.some((f) => f.path === activeFile.path)
@@ -47,7 +54,7 @@ export function ActiveFileSync() {
     } else {
       setActiveFile(null);
     }
-  }, [fileChanges, activeFile, stagedFileChanges, unstagedFileChanges, setActiveFile]);
+  }, [git, git?.fileChanges, activeFile, setActiveFile]);
 
   return null;
-}
+});

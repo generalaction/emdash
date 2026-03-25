@@ -1,6 +1,6 @@
 import { Archive, MoreHorizontal, Pencil, RotateCcw, Search } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import type { Task } from '@shared/tasks';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import {
@@ -12,28 +12,40 @@ import {
 import { Input } from '@renderer/components/ui/input';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
-import { useTask, useTaskLifecycleContext } from '@renderer/core/tasks/task-lifecycle-provider';
-import { useTasksDataContext } from '@renderer/core/tasks/tasks-data-provider';
+import { MountedProjectStore } from '@renderer/core/stores/project';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { ProvisionedTaskStore, UnprovisionedTaskStore } from '@renderer/core/stores/task';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 
-function TaskRow({
+type ReadyTask = UnprovisionedTaskStore | ProvisionedTaskStore;
+
+function getTaskManager(projectId: string) {
+  const store = projectManagerStore.projects.get(projectId);
+  return store?.state === 'mounted' ? (store as MountedProjectStore).taskManager : null;
+}
+
+const TaskRow = observer(function TaskRow({
   task,
   isSelected,
   onToggleSelect,
 }: {
-  task: Task;
+  task: ReadyTask;
   isSelected: boolean;
   onToggleSelect: () => void;
 }) {
   const { navigate } = useNavigate();
-  const { archiveTask, restoreTask, provisionTask } = useTaskLifecycleContext();
-  const lifecycleTask = useTask({ projectId: task.projectId, taskId: task.id });
+  const taskManager = getTaskManager(task.data.projectId);
 
-  const handleArchive = () => archiveTask(task.projectId, task.id);
-  const handleRestore = () => restoreTask(task.id);
+  const isTransitioning =
+    task.state === 'unprovisioned' &&
+    task.phase !== 'idle' &&
+    task.phase !== 'provision-error' &&
+    task.phase !== 'teardown-error';
 
-  const handleProvision = () => provisionTask(task.id);
+  const handleArchive = () => void taskManager?.archiveTask(task.data.id);
+  const handleRestore = () => void taskManager?.restoreTask(task.data.id);
+  const handleProvision = () => void taskManager?.provisionTask(task.data.id);
 
   return (
     <div className="group flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-muted/50">
@@ -43,15 +55,13 @@ function TaskRow({
         className="flex-1 min-w-0 text-left text-sm truncate hover:underline"
         onClick={() => {
           handleProvision();
-          navigate('task', { projectId: task.projectId, taskId: task.id });
+          navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
         }}
         onPointerEnter={handleProvision}
       >
-        {task.name}
+        {task.data.name}
       </button>
-      {lifecycleTask.status !== 'ready' && (
-        <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />
-      )}
+      {isTransitioning && <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -74,7 +84,6 @@ function TaskRow({
             <RotateCcw className="size-4" />
             Restore
           </DropdownMenuItem>
-
           <DropdownMenuItem>
             <Pencil className="size-4" />
             Rename
@@ -83,14 +92,14 @@ function TaskRow({
       </DropdownMenu>
     </div>
   );
-}
+});
 
 function TaskRows({
   tasks,
   selectedIds,
   onToggleSelect,
 }: {
-  tasks: Task[];
+  tasks: ReadyTask[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
 }) {
@@ -102,23 +111,32 @@ function TaskRows({
     <div className="flex flex-col">
       {tasks.map((task) => (
         <TaskRow
-          key={task.id}
+          key={task.data.id}
           task={task}
-          isSelected={selectedIds.has(task.id)}
-          onToggleSelect={() => onToggleSelect(task.id)}
+          isSelected={selectedIds.has(task.data.id)}
+          onToggleSelect={() => onToggleSelect(task.data.id)}
         />
       ))}
     </div>
   );
 }
 
-export function TaskList() {
+export const TaskList = observer(function TaskList() {
   const project = useRequiredCurrentProject();
-  const { activeTasksByProjectId, archivedTasksByProjectId } = useTasksDataContext();
-  const { archiveTask, restoreTask } = useTaskLifecycleContext();
+  const taskManager = getTaskManager(project.id);
 
-  const activeTasks = activeTasksByProjectId[project.id] ?? [];
-  const archivedTasks = archivedTasksByProjectId[project.id] ?? [];
+  const allTasks = useMemo<ReadyTask[]>(() => {
+    if (!taskManager) return [];
+    return Array.from(taskManager.tasks.values()).filter(
+      (t): t is ReadyTask => t.state !== 'unregistered'
+    );
+  }, [taskManager, taskManager?.tasks.size]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeTasks = useMemo(() => allTasks.filter((t) => !t.data.archivedAt), [allTasks]);
+  const archivedTasks = useMemo(
+    () => allTasks.filter((t) => Boolean(t.data.archivedAt)),
+    [allTasks]
+  );
 
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +146,7 @@ export function TaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return q ? displayTasks.filter((t) => t.name.toLowerCase().includes(q)) : displayTasks;
+    return q ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q)) : displayTasks;
   }, [displayTasks, searchQuery]);
 
   const toggleSelect = (id: string) => {
@@ -139,10 +157,11 @@ export function TaskList() {
     });
   };
 
-  const selectAll = () => setSelectedIds(new Set(filteredTasks.map((t) => t.id)));
+  const selectAll = () => setSelectedIds(new Set(filteredTasks.map((t) => t.data.id)));
   const clearSelection = () => setSelectedIds(new Set());
 
-  const allSelected = filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.id));
+  const allSelected =
+    filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.data.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   const handleTabChange = (value: string) => {
@@ -152,19 +171,18 @@ export function TaskList() {
 
   const bulkArchive = () => {
     const ids = [...selectedIds];
-    ids.forEach((id) => archiveTask(project.id, id));
+    ids.forEach((id) => void taskManager?.archiveTask(id));
     clearSelection();
   };
 
   const bulkRestore = () => {
     const ids = [...selectedIds];
-    ids.forEach((id) => restoreTask(id));
+    ids.forEach((id) => void taskManager?.restoreTask(id));
     clearSelection();
   };
 
   return (
     <div className="flex flex-col gap-4 pt-4">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
         <Input
@@ -183,7 +201,6 @@ export function TaskList() {
           </TabsList>
         </div>
 
-        {/* Bulk toolbar */}
         {filteredTasks.length > 0 && (
           <div className="flex items-center gap-2 border-b border-border py-2">
             <Checkbox
@@ -227,4 +244,4 @@ export function TaskList() {
       </Tabs>
     </div>
   );
-}
+});

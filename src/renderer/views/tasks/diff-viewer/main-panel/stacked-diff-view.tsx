@@ -9,10 +9,10 @@ import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
-import { useGitChangesContext } from '@renderer/views/tasks/diff-viewer/state/git-changes-provider';
 import { useGitViewContext } from '@renderer/views/tasks/diff-viewer/state/git-view-provider';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { getTaskStore, provisionedTask } from '@renderer/views/tasks/task-view-state';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
 
@@ -22,9 +22,12 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
  */
 const MAX_STACKED_FILES = 75;
 
-export function StackedDiffView() {
+export const StackedDiffView = observer(function StackedDiffView() {
+  const { projectId, taskId } = useTaskViewContext();
+  const git = provisionedTask(getTaskStore(projectId, taskId))?.git;
   const { activeFile } = useGitViewContext();
-  const { stagedFileChanges, unstagedFileChanges } = useGitChangesContext();
+  const stagedFileChanges = git?.stagedFileChanges ?? [];
+  const unstagedFileChanges = git?.unstagedFileChanges ?? [];
   const { pullRequests, prFilesMap } = usePrContext();
 
   if (activeFile?.type === 'git') {
@@ -39,7 +42,7 @@ export function StackedDiffView() {
   const diffType = isStaged ? ('staged' as const) : ('disk' as const);
 
   return <StackedDiffPanel files={files} diffType={diffType} originalRef="HEAD" />;
-}
+});
 
 export interface StackedDiffPanelProps {
   files: GitChange[];

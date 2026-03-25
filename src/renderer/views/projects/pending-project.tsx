@@ -1,46 +1,47 @@
 import { AlertCircle, Check, Loader2, X } from 'lucide-react';
-import {
-  PendingProject,
-  PendingProjectStage,
-  usePendingProjectsContext,
-} from '@renderer/components/add-project-modal/pending-projects-provider';
+import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
+import { UnregisteredProjectStore } from '@renderer/core/stores/project';
+import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 
-const STAGE_LABELS: Record<PendingProjectStage, string> = {
+type Stage = 'creating-repo' | 'cloning' | 'registering';
+
+const STAGE_LABELS: Record<Stage, string> = {
   'creating-repo': 'Creating repository',
   cloning: 'Cloning',
-  initializing: 'Initializing',
   registering: 'Registering',
-  error: 'Error',
 };
 
-const STAGES_BY_MODE: Record<PendingProject['mode'], PendingProjectStage[]> = {
+const STAGES_BY_MODE: Record<'pick' | 'clone' | 'new', Stage[]> = {
   pick: ['registering'],
   clone: ['cloning', 'registering'],
   new: ['creating-repo', 'cloning', 'registering'],
 };
 
-export function PendingProjectStatus({ pending }: { pending: PendingProject }) {
-  const { removePending } = usePendingProjectsContext();
+export const PendingProjectStatus = observer(function PendingProjectStatus({
+  project,
+}: {
+  project: UnregisteredProjectStore;
+}) {
   const { navigate } = useNavigate();
-  const stages = STAGES_BY_MODE[pending.mode];
-  const currentStageIndex = stages.indexOf(pending.stage as PendingProjectStage);
-  const isError = pending.stage === 'error';
+  const stages = STAGES_BY_MODE[project.mode];
+  const currentStageIndex = stages.indexOf(project.phase as Stage);
+  const isError = project.phase === 'error';
 
   const handleDismiss = () => {
-    removePending(pending.id);
+    projectManagerStore.removeUnregisteredProject(project.id);
     navigate('home');
   };
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <div className="flex w-full max-w-sm flex-col gap-3">
-        <h2 className="mb-2 text-base font-semibold">{pending.name}</h2>
+        <h2 className="mb-2 text-base font-semibold">{project.name}</h2>
 
         {stages.map((stage, i) => {
           const isDone = !isError && i < currentStageIndex;
-          const isActive = !isError && stage === pending.stage;
+          const isActive = !isError && stage === project.phase;
           return (
             <div key={stage} className="flex items-center gap-3">
               <div className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -72,7 +73,7 @@ export function PendingProjectStatus({ pending }: { pending: PendingProject }) {
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <span className="text-sm text-destructive">
-                {pending.error ?? 'An error occurred'}
+                {project.error ?? 'An error occurred'}
               </span>
             </div>
             <Button size="sm" variant="outline" className="self-start" onClick={handleDismiss}>
@@ -84,4 +85,4 @@ export function PendingProjectStatus({ pending }: { pending: PendingProject }) {
       </div>
     </div>
   );
-}
+});
