@@ -104,7 +104,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -112,9 +112,9 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionIds = Array.from(this.sessions.keys());
     await this.detachAll();
     if (this.tmux) {
-      for (const sessionId of sessionIds) {
-        killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
-      }
+      await Promise.all(
+        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
+      );
     }
   }
 

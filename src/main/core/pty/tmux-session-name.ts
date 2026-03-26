@@ -8,11 +8,13 @@ export function makeTmuxSessionName(sessionId: string): string {
   return `${TMUX_SESSION_PREFIX}${encoded}`;
 }
 
-export function killTmuxSession(exec: ExecFn, sessionName: string): void {
-  exec('tmux', ['kill-session', '-t', sessionName]).catch((err) => {
+export async function killTmuxSession(exec: ExecFn, sessionName: string): Promise<void> {
+  try {
+    await exec('tmux', ['kill-session', '-t', sessionName]);
+  } catch (err) {
     log.debug('killTmuxSession: tmux session not found or already dead', {
       sessionName,
       error: String(err),
     });
-  });
+  }
 }

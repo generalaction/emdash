@@ -22,7 +22,7 @@ export async function buildAgentCommand({
   if (isResuming && providerConfig?.resumeFlag) {
     args.push(...providerConfig.resumeFlag.split(' '));
     if (providerConfig?.sessionIdFlag) {
-      args.push(sessionId);
+      args.push(providerConfig.sessionIdFlag, sessionId);
     }
   } else if (providerConfig?.sessionIdFlag) {
     args.push(providerConfig.sessionIdFlag, sessionId);
@@ -34,7 +34,6 @@ export async function buildAgentCommand({
 
   if (!isResuming && initialPrompt && providerConfig?.initialPromptFlag) {
     args.push(providerConfig?.initialPromptFlag, initialPrompt);
-    args.push(initialPrompt);
   }
 
   args.push(...(providerConfig?.defaultArgs ?? []));
