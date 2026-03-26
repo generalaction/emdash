@@ -20,6 +20,8 @@ import type {
   UpdateAutomationInput,
 } from '../../shared/automations/types';
 
+import { TRIGGER_INTEGRATION_MAP } from '../../shared/automations/types';
+
 // ---------------------------------------------------------------------------
 // Shared event shape returned by all fetch*() methods
 // ---------------------------------------------------------------------------
@@ -210,8 +212,7 @@ function normalizeMode(value: unknown): AutomationMode {
 }
 
 function normalizeTriggerType(value: unknown): TriggerType | null {
-  const valid: TriggerType[] = ['github_pr', 'github_issue', 'linear_issue'];
-  if (typeof value === 'string' && valid.includes(value as TriggerType)) {
+  if (typeof value === 'string' && value in TRIGGER_INTEGRATION_MAP) {
     return value as TriggerType;
   }
   return null;
@@ -626,76 +627,165 @@ class AutomationsService {
   }
 
   private async fetchRawEvents(automation: Automation): Promise<RawEvent[]> {
+    if (!automation.triggerType) return [];
+
+    // Resolve project path (needed for GitHub, GitLab, Forgejo)
     const { databaseService } = await import('./DatabaseService');
     const projects = await databaseService.getProjects();
     const project = projects.find((p) => p.id === automation.projectId);
-    if (!project) return [];
+    const projectPath = project?.path;
 
-    switch (automation.triggerType) {
-      case 'github_pr':
-        return this.fetchGitHubEvents(project.path, 'PullRequestEvent');
-      case 'github_issue':
-        return this.fetchGitHubEvents(project.path, 'IssuesEvent');
-      case 'linear_issue':
-        return this.fetchLinearIssues();
-      default:
-        return [];
+    try {
+      switch (automation.triggerType) {
+        case 'github_pr':
+          return await this.fetchGitHubEvents(projectPath, 'PullRequestEvent');
+        case 'github_issue':
+          return await this.fetchGitHubEvents(projectPath, 'IssuesEvent');
+        case 'linear_issue':
+          return await this.fetchLinearEvents();
+        case 'jira_issue':
+          return await this.fetchJiraEvents();
+        case 'gitlab_issue':
+          return await this.fetchGitLabEvents(projectPath, 'issue');
+        case 'gitlab_mr':
+          return await this.fetchGitLabEvents(projectPath, 'mr');
+        case 'forgejo_issue':
+          return await this.fetchForgejoEvents(projectPath);
+        case 'plain_thread':
+          return await this.fetchPlainEvents();
+        default:
+          return [];
+      }
+    } catch (err) {
+      const integration = TRIGGER_INTEGRATION_MAP[automation.triggerType];
+      log.error(`[Automations] Fetch failed for "${automation.name}" (${integration}):`, err);
+      return [];
     }
   }
 
-  /**
-   * Fetch GitHub events via the Events API with ETag caching.
-   * One API call returns both issue and PR events. ETag-based conditional
-   * requests return 304 when nothing changed → nearly free against rate limit.
-   * This replaces the old separate `gh issue list` + `gh pr list` calls.
-   */
+  // -------------------------------------------------------------------
+  // Per-integration event fetchers — each checks connection first
+  // -------------------------------------------------------------------
+
   private async fetchGitHubEvents(
-    projectPath: string,
+    projectPath: string | undefined,
     eventType: 'IssuesEvent' | 'PullRequestEvent'
   ): Promise<RawEvent[]> {
-    try {
-      const { githubService: gh } = await import('./GitHubService');
-      const isAuth = await gh.isAuthenticated();
-      if (!isAuth) return [];
+    if (!projectPath) return [];
+    const { githubService: gh } = await import('./GitHubService');
+    if (!(await gh.isAuthenticated())) return [];
 
-      const repoEvents = await gh.fetchRepoEvents(projectPath, [eventType]);
-
-      return repoEvents.map((event) => ({
-        id: event.id,
-        title: event.title,
-        url: event.url,
-        type: eventType === 'IssuesEvent' ? 'GitHub Issue' : 'GitHub PR',
-        extra: `${eventType === 'IssuesEvent' ? 'Issue' : 'PR'} #${event.number}`,
-        labels: event.labels,
-        branch: event.branch,
-        assignee: event.assignee,
-      }));
-    } catch (err) {
-      log.error(`[Automations] Failed to fetch GitHub events (${eventType}):`, err);
-      return [];
-    }
+    const repoEvents = await gh.fetchRepoEvents(projectPath, [eventType]);
+    return repoEvents.map((event) => ({
+      id: event.id,
+      title: event.title,
+      url: event.url,
+      type: eventType === 'IssuesEvent' ? 'GitHub Issue' : 'GitHub PR',
+      extra: `${eventType === 'IssuesEvent' ? 'Issue' : 'PR'} #${event.number}`,
+      labels: event.labels,
+      branch: event.branch,
+      assignee: event.assignee,
+    }));
   }
 
-  private async fetchLinearIssues(): Promise<RawEvent[]> {
-    try {
-      const { default: LinearService } = await import('./LinearService');
-      const linear = new LinearService();
-      const status = await linear.checkConnection();
-      if (!status.connected) return [];
+  private async fetchLinearEvents(): Promise<RawEvent[]> {
+    const { default: LinearService } = await import('./LinearService');
+    const linear = new LinearService();
+    const status = await linear.checkConnection();
+    if (!status.connected) return [];
 
-      const issues = await linear.initialFetch(30);
-      return issues.map((issue: any) => ({
-        id: `linear-${issue.id}`,
+    const issues = await linear.initialFetch(30);
+    return issues.map((issue: any) => ({
+      id: `linear-${issue.id}`,
+      title: issue.title ?? '',
+      url: issue.url,
+      type: 'Linear Issue',
+      extra: issue.identifier ? `${issue.identifier}: ${issue.title}` : issue.title,
+      assignee: issue.assignee?.displayName ?? issue.assignee?.name ?? undefined,
+    }));
+  }
+
+  private async fetchJiraEvents(): Promise<RawEvent[]> {
+    const JiraService = (await import('./JiraService')).default;
+    const jira = new JiraService();
+    const status = await jira.checkConnection();
+    if (!status.connected) return [];
+
+    const issues = await jira.initialFetch(30);
+    return issues.map((issue: any) => ({
+      id: `jira-${issue.id ?? issue.key}`,
+      title: issue.title ?? issue.summary ?? '',
+      url: issue.url ?? issue.self ?? undefined,
+      type: 'Jira Issue',
+      extra: issue.key ? `${issue.key}: ${issue.title ?? issue.summary}` : (issue.title ?? ''),
+      labels: issue.labels,
+      assignee: issue.assignee?.displayName ?? issue.assignee?.name ?? undefined,
+    }));
+  }
+
+  private async fetchGitLabEvents(
+    projectPath: string | undefined,
+    kind: 'issue' | 'mr'
+  ): Promise<RawEvent[]> {
+    if (!projectPath) return [];
+    const { GitLabService } = await import('./GitLabService');
+    const gitlab = new GitLabService();
+    const connStatus = await gitlab.checkConnection();
+    if (!connStatus.success) return [];
+
+    if (kind === 'issue') {
+      const result = await gitlab.initialFetch(projectPath, 30);
+      if (!result.success || !result.issues) return [];
+      return result.issues.map((issue: any) => ({
+        id: `gitlab-issue-${issue.id ?? issue.iid}`,
         title: issue.title ?? '',
-        url: issue.url,
-        type: 'Linear Issue',
-        extra: issue.identifier ? `${issue.identifier}: ${issue.title}` : issue.title,
-        assignee: issue.assignee?.displayName ?? issue.assignee?.name ?? undefined,
+        url: issue.web_url ?? undefined,
+        type: 'GitLab Issue',
+        extra: issue.iid ? `#${issue.iid}: ${issue.title}` : issue.title,
+        labels: issue.labels ?? [],
+        assignee: issue.assignee?.name ?? issue.assignee?.username ?? undefined,
       }));
-    } catch (err) {
-      log.error('[Automations] Failed to fetch Linear issues:', err);
-      return [];
     }
+
+    // MR support — placeholder until GitLabService gets a dedicated MR fetch method
+    return [];
+  }
+
+  private async fetchForgejoEvents(projectPath: string | undefined): Promise<RawEvent[]> {
+    if (!projectPath) return [];
+    const { ForgejoService } = await import('./ForgejoService');
+    const forgejo = new ForgejoService();
+    const connStatus = await forgejo.checkConnection();
+    if (!connStatus.success) return [];
+
+    const result = await forgejo.initialFetch(projectPath, 30);
+    if (!result.success || !result.issues) return [];
+    return result.issues.map((issue: any) => ({
+      id: `forgejo-${issue.id ?? issue.number}`,
+      title: issue.title ?? '',
+      url: issue.html_url ?? issue.url ?? undefined,
+      type: 'Forgejo Issue',
+      extra: issue.number ? `#${issue.number}: ${issue.title}` : issue.title,
+      labels: issue.labels?.map((l: any) => l?.name ?? l).filter(Boolean) ?? [],
+      assignee: issue.assignee?.login ?? issue.assignee?.username ?? undefined,
+    }));
+  }
+
+  private async fetchPlainEvents(): Promise<RawEvent[]> {
+    const { default: PlainService } = await import('./PlainService');
+    const plain = new PlainService();
+    const status = await plain.checkConnection();
+    if (!status.connected) return [];
+
+    const threads = await plain.initialFetch(30);
+    return threads.map((thread: any) => ({
+      id: `plain-${thread.id}`,
+      title: thread.title ?? thread.subject ?? '',
+      url: thread.url ?? undefined,
+      type: 'Plain Thread',
+      extra: thread.title ?? thread.subject ?? '',
+      assignee: thread.assignee?.name ?? thread.assignee?.email ?? undefined,
+    }));
   }
 
   // -------------------------------------------------------------------
@@ -1121,14 +1211,6 @@ class AutomationsService {
     return runLogId;
   }
 
-  /**
-   * Reconcile state after an app restart:
-   * 1. Recalculate nextRunAt for any active automations whose scheduled time has passed.
-   * 2. Mark orphaned "running" run logs as failed (app was closed or run timed out).
-   *
-   * All operations are performed under a single dataMutex lock to prevent
-   * interleaving with concurrent ticks or manual triggers.
-   */
   /**
    * Reconcile state after an app restart:
    * 1. Mark orphaned "running" run logs as failed (app was closed or timed out).
