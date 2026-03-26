@@ -21,9 +21,10 @@ export async function buildAgentCommand({
 
   if (isResuming && providerConfig?.resumeFlag) {
     args.push(...providerConfig.resumeFlag.split(' '));
-  }
-
-  if (providerConfig?.sessionIdFlag) {
+    if (providerConfig?.sessionIdFlag) {
+      args.push(sessionId);
+    }
+  } else if (providerConfig?.sessionIdFlag) {
     args.push(providerConfig.sessionIdFlag, sessionId);
   }
 
