@@ -1,4 +1,4 @@
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId, getProvider } from '@shared/agent-provider-registry';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 
 export async function buildAgentCommand({
@@ -15,21 +15,31 @@ export async function buildAgentCommand({
   isResuming?: boolean;
 }) {
   const providerConfig = await providerOverrideSettings.getItem(providerId);
+  const providerDef = getProvider(providerId);
 
   const cli = providerConfig?.cli;
   const args: string[] = [];
 
-  if (isResuming && providerConfig?.sessionIdFlag) {
-    args.push(providerConfig?.sessionIdFlag, sessionId);
+  if (isResuming && providerConfig?.resumeFlag) {
+    args.push(...providerConfig.resumeFlag.split(' '));
+    if (providerConfig?.sessionIdFlag) {
+      args.push(sessionId);
+    }
+  } else if (providerConfig?.sessionIdFlag) {
+    args.push(providerConfig.sessionIdFlag, sessionId);
   }
 
   if (autoApprove && providerConfig?.autoApproveFlag) {
-    args.push(providerConfig?.autoApproveFlag);
+    args.push(providerConfig.autoApproveFlag);
   }
 
-  if (!isResuming && initialPrompt && providerConfig?.initialPromptFlag) {
-    args.push(providerConfig?.initialPromptFlag, initialPrompt);
-    args.push(initialPrompt);
+  if (!isResuming && initialPrompt && !providerDef?.useKeystrokeInjection) {
+    const flag = providerConfig?.initialPromptFlag;
+    if (flag) {
+      args.push(flag, initialPrompt);
+    } else {
+      args.push(initialPrompt);
+    }
   }
 
   args.push(...(providerConfig?.defaultArgs ?? []));

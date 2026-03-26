@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import { Branch } from '@shared/git';
-import { Issue } from '@shared/tasks';
+import { formatIssueAsPrompt, Issue } from '@shared/tasks';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { IssueSelector } from '@renderer/components/issue-selector';
 import { ProjectSelector } from '@renderer/components/project-selector';
@@ -40,6 +40,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [taskName, setTaskName] = useState(generateFriendlyTaskName());
   const [showSlugHint, setShowSlugHint] = useState(false);
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (defaultBranch) {
@@ -59,6 +60,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
+    const prompt = linkedIssue ? formatIssueAsPrompt(linkedIssue, initialPrompt) : undefined;
     const projectStore = projectManagerStore.projects.get(selectedProjectId);
     if (projectStore?.state === 'mounted') {
       void (projectStore as MountedProject).taskManager.createTask({
@@ -69,6 +71,17 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         taskBranch: createBranchAndWorktree ? taskName : undefined,
         linkedIssue: linkedIssue ?? undefined,
         pushBranch: createBranchAndWorktree ? pushBranch : undefined,
+        initialConversation: prompt
+          ? {
+              id: crypto.randomUUID(),
+              projectId: selectedProjectId,
+              taskId: id,
+              provider: providerId,
+              title: `${providerId} (1)`,
+              autoApprove: autoApprove,
+              initialPrompt: prompt,
+            }
+          : undefined,
       });
     }
     onClose();
@@ -82,6 +95,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     linkedIssue,
     onClose,
     navigate,
+    providerId,
+    autoApprove,
+    initialPrompt,
   ]);
 
   return (
@@ -138,7 +154,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
           <Field>
             <FieldLabel>Initial prompt</FieldLabel>
-            <Textarea />
+            <Textarea value={initialPrompt} onChange={(e) => setInitialPrompt(e.target.value)} />
           </Field>
           <Field orientation="horizontal">
             <Switch checked={autoApprove} onCheckedChange={setAutoApprove} />
