@@ -24,7 +24,8 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
     return <div />;
   }
   const projectValue = selectedProject.id;
-  const taskValue = activeTask?.id;
+  const noTaskValue = '__no_task_selected__';
+  const taskValue = activeTask?.id ?? noTaskValue;
   const currentBranch = getCurrentBranch(selectedProject, activeTask);
   const projectLabel = selectedProject.name;
   const taskLabel = currentBranch;
@@ -76,42 +77,37 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
       </div>
       <span className="px-2 text-center text-[11px] text-muted-foreground/60">/</span>
       <div className="flex items-center justify-start">
-        {activeTask ? (
-          <Select value={taskValue} onValueChange={handleTaskChange} disabled={!selectedProject}>
-            <SelectTrigger
-              className="pointer-events-auto h-7 w-auto min-w-[60px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none [-webkit-app-region:no-drag] hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[placeholder]:text-muted-foreground/70 data-[state=open]:text-foreground [&>span]:block [&>span]:max-w-[218px] [&>span]:truncate [&>svg]:hidden"
-              aria-label="Current branch"
-              title={taskLabel}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent side="bottom" align="start" className={selectContentClassName}>
-              {tasks.length > 0 ? (
-                tasks.map((task) => (
-                  <SelectItem
-                    key={task.id}
-                    value={task.id}
-                    className="min-w-0 [&>span:last-child]:block [&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
-                  >
-                    {task.name} • {task.branch}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="__empty_tasks__" disabled>
-                  No tasks yet
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        ) : (
-          <div
-            className="pointer-events-none h-7 min-w-[60px] max-w-[218px] truncate px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground"
+        <Select value={taskValue} onValueChange={handleTaskChange} disabled={!selectedProject}>
+          <SelectTrigger
+            className="pointer-events-auto h-7 w-auto min-w-[60px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none [-webkit-app-region:no-drag] hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[placeholder]:text-muted-foreground/70 data-[state=open]:text-foreground [&>span]:block [&>span]:max-w-[218px] [&>span]:truncate [&>svg]:hidden"
             aria-label="Current branch"
             title={taskLabel}
           >
-            {currentBranch}
-          </div>
-        )}
+            <SelectValue placeholder={currentBranch} />
+          </SelectTrigger>
+          <SelectContent side="bottom" align="start" className={selectContentClassName}>
+            {!activeTask && (
+              <SelectItem value={noTaskValue} disabled>
+                Current branch: {currentBranch || 'Unknown'}
+              </SelectItem>
+            )}
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
+                <SelectItem
+                  key={task.id}
+                  value={task.id}
+                  className="min-w-0 [&>span:last-child]:block [&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
+                >
+                  {task.name} • {task.branch}
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="__empty_tasks__" disabled>
+                No tasks yet
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
