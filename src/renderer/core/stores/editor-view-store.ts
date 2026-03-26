@@ -86,6 +86,15 @@ export class EditorViewStore {
     if (prev) this.activeTabId = prev.tabId;
   }
 
+  setTabActiveIndex(index: number): void {
+    const tab = this._tabs[index];
+    if (tab) this.activeTabId = tab.tabId;
+  }
+
+  closeActiveTab(): void {
+    if (this.activeTabId) this.removeTab(this.activeTabId);
+  }
+
   // ---------------------------------------------------------------------------
   // File opening
   // ---------------------------------------------------------------------------
@@ -127,7 +136,7 @@ export class EditorViewStore {
     if (canReplace && prevPreview && prevUri) {
       // Unregister the outgoing preview's models before mutating.
       const oldFilePath = prevPreview.path;
-      this._unregisterModels(oldFilePath, prevUri);
+      this._unregisterModels(prevUri);
       void rpc.editorBuffer.clearBuffer(this.projectId, this.taskId, oldFilePath);
 
       const kind = getFileKind(filePath);
@@ -157,7 +166,7 @@ export class EditorViewStore {
     if (idx === -1) return;
     const tab = this._tabs[idx];
     const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
-    this._unregisterModels(tab.path, uri);
+    this._unregisterModels(uri);
     void rpc.editorBuffer.clearBuffer(this.projectId, this.taskId, tab.path);
     this._tabs.splice(idx, 1);
     if (this.activeTabId === tabId) {
@@ -293,7 +302,7 @@ export class EditorViewStore {
     rpc.fs.watchStop(this.projectId, this.taskId, 'editor').catch(() => {});
     for (const tab of this._tabs) {
       const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
-      this._unregisterModels(tab.path, uri);
+      this._unregisterModels(uri);
     }
   }
 
@@ -369,7 +378,7 @@ export class EditorViewStore {
     // For 'binary' and other non-Monaco kinds, no model registration is needed.
   }
 
-  private _unregisterModels(_filePath: string, bufferUri: string): void {
+  private _unregisterModels(bufferUri: string): void {
     modelRegistry.unregisterModel(bufferUri);
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(bufferUri));
     modelRegistry.unregisterModel(modelRegistry.toGitUri(bufferUri, 'HEAD'));

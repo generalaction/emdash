@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/ui/button';
+import { ConfirmButton } from '../../components/ui/confirm-button';
 import { DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -260,7 +261,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
             <Button type="button" variant="outline" onClick={onClose} disabled={isCreating}>
               Cancel
             </Button>
-            <Button
+            <ConfirmButton
               type="submit"
               disabled={
                 !!validationError || !repoName.trim() || !owner || isCreating || isValidating
@@ -274,7 +275,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
               ) : (
                 'Create Project'
               )}
-            </Button>
+            </ConfirmButton>
           </div>
         </form>
       )}

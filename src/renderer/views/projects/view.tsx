@@ -1,41 +1,42 @@
 import { Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { isUnregisteredProject } from '@renderer/core/stores/project';
 import {
-  ProjectViewWrapper,
-  useCurrentProject,
-  useCurrentProjectStatus,
-} from '@renderer/views/projects/project-view-wrapper';
+  getProjectStore,
+  projectViewKind,
+  unmountedMountErrorMessage,
+} from '@renderer/core/stores/project-selectors';
+import { useParams } from '@renderer/core/view/navigation-provider';
+import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
 import { ProjectTitlebar } from './titlebar';
 
-export const projectView = {
-  WrapView: ProjectViewWrapper,
-  TitlebarSlot: ProjectTitlebar,
-  MainPanel: ProjectMainPanel,
-};
+export const ProjectMainPanel = observer(function ProjectMainPanel() {
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const store = getProjectStore(projectId);
+  const kind = projectViewKind(store);
 
-export function ProjectMainPanel() {
-  const project = useCurrentProject();
-  const status = useCurrentProjectStatus();
-
-  if (status.status === 'creating') {
-    return <PendingProjectStatus project={status.pending} />;
+  if (kind === 'creating' && store && isUnregisteredProject(store)) {
+    return <PendingProjectStatus project={store} />;
   }
 
-  if (status.status === 'bootstrapping') {
+  if (kind === 'bootstrapping') {
     return <ProjectBootstrappingPanel />;
   }
 
-  if (status.status === 'error') {
-    return <ProjectBootstrapErrorPanel message={status.message} />;
+  if (kind === 'mount_error') {
+    return <ProjectBootstrapErrorPanel message={unmountedMountErrorMessage(store)} />;
   }
 
-  if (!project) {
+  if (kind !== 'ready') {
     return <div className="flex flex-1 items-center justify-center text-muted-foreground" />;
   }
 
   return <ActiveProject />;
-}
+});
 
 function ProjectBootstrappingPanel() {
   return (
@@ -56,3 +57,9 @@ function ProjectBootstrapErrorPanel({ message }: { message: string }) {
     </div>
   );
 }
+
+export const projectView = {
+  WrapView: ProjectViewWrapper,
+  TitlebarSlot: ProjectTitlebar,
+  MainPanel: ProjectMainPanel,
+};

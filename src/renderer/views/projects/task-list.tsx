@@ -1,6 +1,6 @@
-import { Archive, MoreHorizontal, Pencil, RotateCcw, Search } from 'lucide-react';
+import { Archive, MoreHorizontal, Pencil, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import {
@@ -12,32 +12,26 @@ import {
 import { Input } from '@renderer/components/ui/input';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
-import { MountedProject } from '@renderer/core/stores/project';
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { ProvisionedTask, UnprovisionedTask } from '@renderer/core/stores/task';
-import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
+import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
+import { useNavigate, useParams } from '@renderer/core/view/navigation-provider';
 
 type ReadyTask = UnprovisionedTask | ProvisionedTask;
-
-function getTaskManager(projectId: string) {
-  const store = projectManagerStore.projects.get(projectId);
-  return store?.state === 'mounted' ? (store as MountedProject).taskManager : null;
-}
 
 const TaskRow = observer(function TaskRow({
   task,
   isSelected,
-  showRestore,
   onToggleSelect,
 }: {
   task: ReadyTask;
   isSelected: boolean;
-  showRestore?: boolean;
   onToggleSelect: () => void;
 }) {
   const { navigate } = useNavigate();
-  const taskManager = getTaskManager(task.data.projectId);
+  const showRename = useShowModal('renameTaskModal');
+  const showConfirm = useShowModal('confirmActionModal');
+  const taskManager = getTaskManagerStore(task.data.projectId);
 
   const isTransitioning =
     task.state === 'unprovisioned' &&
@@ -48,6 +42,21 @@ const TaskRow = observer(function TaskRow({
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
   const handleProvision = () => void taskManager?.provisionTask(task.data.id);
+  const handleDelete = () =>
+    showConfirm({
+      title: 'Delete task',
+      description: `"${task.data.name}" will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      onSuccess: () => void taskManager?.deleteTask(task.data.id),
+    });
+  const handleRename = () =>
+    showRename({
+      projectId: task.data.projectId,
+      taskId: task.data.id,
+      currentName: task.data.name,
+    });
+
+  const isArchived = Boolean(task.data.archivedAt);
 
   return (
     <div className="group flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-muted/50">
@@ -78,17 +87,27 @@ const TaskRow = observer(function TaskRow({
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={handleArchive}>
-            <Archive className="size-4" />
-            Archive
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleRestore}>
-            <RotateCcw className="size-4" />
-            Restore
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Pencil className="size-4" />
-            Rename
+          {!isArchived && (
+            <>
+              <DropdownMenuItem onClick={handleRename}>
+                <Pencil className="size-4" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleArchive}>
+                <Archive className="size-4" />
+                Archive
+              </DropdownMenuItem>
+            </>
+          )}
+          {isArchived && (
+            <DropdownMenuItem onClick={handleRestore}>
+              <RotateCcw className="size-4" />
+              Restore
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+            <Trash2 className="size-4" />
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -99,12 +118,10 @@ const TaskRow = observer(function TaskRow({
 function TaskRows({
   tasks,
   selectedIds,
-  showRestore,
   onToggleSelect,
 }: {
   tasks: ReadyTask[];
   selectedIds: Set<string>;
-  showRestore?: boolean;
   onToggleSelect: (id: string) => void;
 }) {
   if (tasks.length === 0) {
@@ -126,32 +143,31 @@ function TaskRows({
 }
 
 export const TaskList = observer(function TaskList() {
-  const project = useRequiredCurrentProject();
-  const taskManager = getTaskManager(project.id);
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const taskManager = getTaskManagerStore(projectId);
+  const showRename = useShowModal('renameTaskModal');
+  const showConfirm = useShowModal('confirmActionModal');
 
-  const allTasks = useMemo<ReadyTask[]>(() => {
-    if (!taskManager) return [];
-    return Array.from(taskManager.tasks.values()).filter(
-      (t): t is ReadyTask => t.state !== 'unregistered'
-    );
-  }, [taskManager, taskManager?.tasks.size]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const activeTasks = useMemo(() => allTasks.filter((t) => !t.data.archivedAt), [allTasks]);
-  const archivedTasks = useMemo(
-    () => allTasks.filter((t) => Boolean(t.data.archivedAt)),
-    [allTasks]
-  );
+  // Computed inline so MobX tracks task.data.archivedAt directly in the observer render
+  const allTasks = taskManager
+    ? Array.from(taskManager.tasks.values()).filter(
+        (t): t is ReadyTask => t.state !== 'unregistered'
+      )
+    : [];
+  const activeTasks = allTasks.filter((t) => !t.data.archivedAt);
+  const archivedTasks = allTasks.filter((t) => Boolean(t.data.archivedAt));
 
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const displayTasks = activeTab === 'active' ? activeTasks : archivedTasks;
-
-  const filteredTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return q ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q)) : displayTasks;
-  }, [displayTasks, searchQuery]);
+  const q = searchQuery.trim().toLowerCase();
+  const filteredTasks = q
+    ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
+    : displayTasks;
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -168,24 +184,13 @@ export const TaskList = observer(function TaskList() {
     filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.has(t.data.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
   const singleSelectedTask =
-    selectedIds.size === 1
-      ? (tasksByProjectId[project.id] ?? []).find((t) => selectedIds.has(t.id))
-      : undefined;
+    selectedIds.size === 1 ? filteredTasks.find((t) => selectedIds.has(t.data.id)) : undefined;
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as 'active' | 'archived');
     clearSelection();
   };
 
-  const handleRename = (task: Task) => {
-    showRename({
-      projectId: task.projectId,
-      taskId: task.id,
-      currentName: task.name,
-    });
-  };
-
-  // Bulk actions
   const bulkArchive = () => {
     const ids = [...selectedIds];
     ids.forEach((id) => void taskManager?.archiveTask(id));
@@ -206,7 +211,7 @@ export const TaskList = observer(function TaskList() {
       confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
       onSuccess: () => {
         const ids = [...selectedIds];
-        ids.forEach((id) => deleteTask(project.id, id));
+        ids.forEach((id) => void taskManager?.deleteTask(id));
         clearSelection();
       },
     });
@@ -260,7 +265,13 @@ export const TaskList = observer(function TaskList() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleRename(singleSelectedTask)}
+                      onClick={() =>
+                        showRename({
+                          projectId: singleSelectedTask.data.projectId,
+                          taskId: singleSelectedTask.data.id,
+                          currentName: singleSelectedTask.data.name,
+                        })
+                      }
                     >
                       <Pencil className="size-3.5" />
                       Rename
@@ -284,12 +295,7 @@ export const TaskList = observer(function TaskList() {
           <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
         <TabsContent value="archived">
-          <TaskRows
-            tasks={filteredTasks}
-            selectedIds={selectedIds}
-            showRestore
-            onToggleSelect={toggleSelect}
-          />
+          <TaskRows tasks={filteredTasks} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
         </TabsContent>
       </Tabs>
     </div>

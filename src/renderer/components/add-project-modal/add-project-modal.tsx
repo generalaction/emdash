@@ -4,7 +4,7 @@ import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-pr
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
-import { Button } from '../ui/button';
+import { ConfirmButton } from '../ui/confirm-button';
 import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Field, FieldLabel } from '../ui/field';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -179,9 +179,9 @@ export function AddProjectModal({
         </TabsContent>
       </Tabs>
       <DialogFooter>
-        <Button type="button" onClick={handleSubmit}>
+        <ConfirmButton type="button" onClick={() => void handleSubmit()}>
           Create
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </DialogContent>
   );

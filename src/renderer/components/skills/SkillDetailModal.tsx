@@ -4,6 +4,7 @@ import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
 import { Button } from '../ui/button';
+import { ConfirmButton } from '../ui/confirm-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { MarkdownRenderer } from '../ui/markdown-renderer';
 import { Separator } from '../ui/separator';
@@ -156,9 +157,9 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </>
           )}
           {!skill.installed && !justInstalled && (
-            <Button size="sm" onClick={handleInstall} disabled={isProcessing}>
+            <ConfirmButton size="sm" onClick={() => void handleInstall()} disabled={isProcessing}>
               {isProcessing ? 'Installing...' : 'Install'}
-            </Button>
+            </ConfirmButton>
           )}
           {justInstalled && (
             <Button size="sm" variant="outline" disabled>

@@ -94,6 +94,10 @@ export class TerminalManagerStore
     void this.deleteTerminal(terminalId);
   }
 
+  closeActiveTab(): void {
+    if (this.activeTabId) this.removeTab(this.activeTabId);
+  }
+
   async load() {
     this._loaded = true;
     const terminals = await rpc.terminals.getTerminalsForTask(this.projectId, this.taskId);

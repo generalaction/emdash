@@ -26,7 +26,8 @@ const diffPool = new MonacoPool<monaco.editor.IStandaloneDiffEditor>({
       console.warn('[monaco-diff-pool] model disposal error (suppressed):', err);
     }
   },
-  onInit: async () => {
+  onInit: async (m) => {
+    modelRegistry.notifyMonacoReady(m);
     await registerDiffThemes();
   },
 });

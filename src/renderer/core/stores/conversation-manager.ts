@@ -97,6 +97,10 @@ export class ConversationManagerStore
     void this.deleteConversation(conversationId);
   }
 
+  closeActiveTab(): void {
+    if (this.activeTabId) this.removeTab(this.activeTabId);
+  }
+
   async load() {
     this._loaded = true;
     const conversations = await rpc.conversations.getConversationsForTask(
@@ -172,7 +176,7 @@ export class ConversationManagerStore
   }
 }
 
-export type ConversationStatus = 'connecting' | 'ready';
+type ConversationStatus = 'connecting' | 'ready';
 
 export class ConversationStore {
   data: Conversation;

@@ -1,33 +1,53 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
+import { getEffectiveHotkey } from './useKeyboardShortcuts';
 
 /**
- * Registers keyboard shortcuts for tab navigation within a TabViewProvider.
+ * Minimal interface required for tab navigation shortcuts.
+ * Both TabViewProvider stores and EditorViewStore satisfy this shape.
+ */
+export interface TabNavigationProvider {
+  setNextTabActive: () => void;
+  setPreviousTabActive: () => void;
+  setTabActiveIndex: (index: number) => void;
+  closeActiveTab: () => void;
+}
+
+/**
+ * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
- *   Mod+Alt+]  — next tab
- *   Mod+Alt+[  — previous tab
- *   Mod+1–9    — jump to tab by index
+ *   tabNext   (default Mod+Alt+])  — next tab
+ *   tabPrev   (default Mod+Alt+[)  — previous tab
+ *   tabClose  (default Mod+W)      — close active tab
+ *   Mod+1–9                        — jump to tab by index (not configurable)
  *
  * Note: Mod+] and Mod+[ are reserved for task-level navigation
  * (nextProject / prevProject) in useKeyboardShortcuts.ts.
- * Mod+Shift+]/[ are not valid RegisterableHotkey values because
- * Shift + PunctuationKey combinations are excluded to avoid layout issues.
  */
-export function useTabShortcuts(store: TabViewProvider<unknown, never> | undefined): void {
+export function useTabShortcuts(store: TabNavigationProvider | undefined): void {
+  const { value: keyboard } = useAppSettingsKey('keyboard');
   const enabled = !!store;
 
   useHotkey(
-    'Mod+Alt+]',
+    getEffectiveHotkey('tabNext', keyboard),
     () => {
       store?.setNextTabActive();
     },
     { enabled }
   );
   useHotkey(
-    'Mod+Alt+[',
+    getEffectiveHotkey('tabPrev', keyboard),
     () => {
       store?.setPreviousTabActive();
+    },
+    { enabled }
+  );
+  useHotkey(
+    getEffectiveHotkey('tabClose', keyboard),
+    (e) => {
+      e.preventDefault();
+      store?.closeActiveTab();
     },
     { enabled }
   );

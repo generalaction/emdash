@@ -4,6 +4,7 @@ import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-pro
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { useProviderSettings } from '../../hooks/useProviderSettings';
 import { Button } from '../ui/button';
+import { ConfirmButton } from '../ui/confirm-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -378,14 +379,14 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
             <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button
+            <ConfirmButton
               type="button"
               size="sm"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={isLoading || saving || !hasChanges}
             >
               {saving ? 'Saving...' : 'Save'}
-            </Button>
+            </ConfirmButton>
           </div>
         </div>
       </DialogContent>

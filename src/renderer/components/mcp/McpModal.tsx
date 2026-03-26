@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { Button } from '../ui/button';
+import { ConfirmButton } from '../ui/confirm-button';
 import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '../ui/field';
 import { Input } from '../ui/input';
@@ -291,9 +292,14 @@ export const McpModal: React.FC<McpModalProps> = ({
               values.selectedProviders.size > 0 &&
               !!(values.transport === 'http' ? values.url.trim() : values.command.trim());
             return (
-              <Button type="button" onClick={handleSave} disabled={!canSave} size="sm">
+              <ConfirmButton
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={!canSave}
+                size="sm"
+              >
                 {saving ? (isEdit ? 'Saving...' : 'Adding...') : isEdit ? 'Save' : 'Add'}
-              </Button>
+              </ConfirmButton>
             );
           }}
         </form.Subscribe>

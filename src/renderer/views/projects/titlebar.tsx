@@ -1,16 +1,26 @@
+import { observer } from 'mobx-react-lite';
 import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
-import {
-  useCurrentProject,
-  useCurrentProjectStatus,
-} from '@renderer/views/projects/project-view-wrapper';
+import { getProjectStore } from '@renderer/core/stores/project-selectors';
+import { useParams } from '@renderer/core/view/navigation-provider';
 
-export function ProjectTitlebar() {
-  const project = useCurrentProject();
-  const status = useCurrentProjectStatus();
+export const ProjectTitlebar = observer(function ProjectTitlebar() {
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const store = getProjectStore(projectId);
 
-  const displayName = project?.name ?? (status.status === 'creating' ? status.pending.name : null);
-  const currentPath = project?.isRemote ? project?.remotePath : project?.path || null;
+  const displayName =
+    store?.state === 'mounted' || store?.state === 'unmounted'
+      ? store.data?.name
+      : store?.state === 'unregistered'
+        ? store.name
+        : null;
+
+  const project = store?.state === 'mounted' ? store.data : null;
+  const currentPath = project?.path ?? null;
+  const isRemote = project?.type === 'ssh';
+  const sshConnectionId = project?.type === 'ssh' ? project.connectionId : null;
 
   return (
     <Titlebar
@@ -22,15 +32,15 @@ export function ProjectTitlebar() {
         )
       }
       rightSlot={
-        currentPath && (
+        currentPath ? (
           <OpenInMenu
             path={currentPath}
             align="right"
-            isRemote={project?.isRemote || false}
-            sshConnectionId={project?.sshConnectionId || null}
+            isRemote={isRemote}
+            sshConnectionId={sshConnectionId}
           />
-        )
+        ) : null
       }
     />
   );
-}
+});

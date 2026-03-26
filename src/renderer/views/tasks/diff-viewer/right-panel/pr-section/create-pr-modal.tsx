@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import { DialogClose, DialogContent } from '@renderer/components/ui/dialog';
 import { Input } from '@renderer/components/ui/input';
 import { Textarea } from '@renderer/components/ui/textarea';
@@ -124,13 +125,13 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <Button
+        <ConfirmButton
           size="sm"
-          onClick={handleCreate}
+          onClick={() => void handleCreate()}
           disabled={!hasGitHubRemote || !title.trim() || isCreating}
         >
           {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
-        </Button>
+        </ConfirmButton>
       </div>
     </DialogContent>
   );

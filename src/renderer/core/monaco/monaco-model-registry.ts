@@ -10,7 +10,7 @@ const BUFFER_DEBOUNCE_MS = 2000;
 // Discriminated-union entry types
 // ---------------------------------------------------------------------------
 
-export interface BufferModelEntry {
+interface BufferModelEntry {
   type: 'buffer';
   model: monaco.editor.ITextModel;
   /** Monaco cursor/scroll/folding state, saved between tab switches. */
@@ -22,7 +22,7 @@ export interface BufferModelEntry {
   language: string;
 }
 
-export interface DiskModelEntry {
+interface DiskModelEntry {
   type: 'disk';
   model: monaco.editor.ITextModel;
   refs: number;
@@ -32,7 +32,7 @@ export interface DiskModelEntry {
   language: string;
 }
 
-export interface GitModelEntry {
+interface GitModelEntry {
   type: 'git';
   model: monaco.editor.ITextModel;
   refs: number;
@@ -44,8 +44,8 @@ export interface GitModelEntry {
   ref: string;
 }
 
-export type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
-export type ModelType = 'buffer' | 'disk' | 'gitBase' | 'git';
+type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
+export type ModelType = 'buffer' | 'disk' | 'git';
 export type ModelStatus = 'loading' | 'ready' | 'error';
 
 /**
@@ -74,6 +74,36 @@ class MonacoModelRegistry {
    * Plain Map — Monaco ITextModel instances are imperative/mutable; not observable.
    */
   private modelMap = new Map<string, ModelEntry>();
+
+  // ---------------------------------------------------------------------------
+  // Monaco readiness — awaited before creating any ITextModel instance.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resolves with the Monaco namespace once a pool has finished initialization.
+   * Both codeEditorPool and diffEditorPool call notifyMonacoReady() from their
+   * onInit hooks, whichever resolves first wins (the promise is idempotent after
+   * the first resolution).
+   */
+  private readonly monacoReadyPromise: Promise<typeof monaco>;
+  private resolveMonacoReady!: (m: typeof monaco) => void;
+  private monacoResolved = false;
+
+  constructor() {
+    this.monacoReadyPromise = new Promise<typeof monaco>((resolve) => {
+      this.resolveMonacoReady = resolve;
+    });
+  }
+
+  /**
+   * Called by MonacoPool instances after Monaco finishes loading.
+   * Safe to call multiple times — only the first call has any effect.
+   */
+  notifyMonacoReady(m: typeof monaco): void {
+    if (this.monacoResolved) return;
+    this.monacoResolved = true;
+    this.resolveMonacoReady(m);
+  }
 
   private reloadingFromDisk = new Set<string>();
 
@@ -107,6 +137,14 @@ class MonacoModelRegistry {
    * Drives useIsDirty() in observer() components.
    */
   readonly dirtyUris = observable.set<string>();
+
+  /**
+   * Monotonically-increasing content version for each buffer URI (file://).
+   * Incremented on every content change and set to 1 on initial buffer creation.
+   * Observable so components that read buffer text (e.g. MarkdownEditorRenderer)
+   * can subscribe reactively without polling — read this before calling getValue().
+   */
+  readonly bufferVersions = observable.map<string, number>();
 
   /**
    * 60 s TTL timers. Started in unregisterModel when refs drop to 0.
@@ -164,7 +202,7 @@ class MonacoModelRegistry {
    * - `'disk'`          — fetches disk content via RPC, creates `disk://` model.
    *                       FS watching is NOT started here; it starts only when a React
    *                       component observes via `useModelStatus` (in an `observer()` component).
-   * - `'gitBase'`/`'git'` — fetches git content via RPC; creates `git://` model.
+   * - `'git'`            — fetches git content via RPC; creates `git://` model.
    *                       .git dir watch starts only when observed.
    * - `'buffer'`        — seeds from the existing disk model (disk must be registered first).
    *                       Creates `file://` model, fires any queued `onceBufferReady` callbacks.
@@ -187,7 +225,6 @@ class MonacoModelRegistry {
     switch (type) {
       case 'disk':
         return this.registerDisk(projectId, taskId, uri, filePath, language);
-      case 'gitBase':
       case 'git':
         return this.registerGit(projectId, taskId, uri, filePath, language, ref);
       case 'buffer':
@@ -217,38 +254,41 @@ class MonacoModelRegistry {
 
     this.modelStatus.set(diskUri, 'loading');
 
+    // Run the RPC fetch and Monaco initialization in parallel — no need to wait
+    // for Monaco before fetching file content from the main process.
     let content: string;
+    let m: typeof monaco;
     try {
       const fetchKey = `${projectId}:${taskId}:${filePath}:disk`;
-      const result = await this.dedupFetch(fetchKey, async () => {
-        const res = await rpc.fs.readFile(projectId, taskId, filePath);
-        if (!res.success)
-          throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
-        return res.data.content;
-      });
-      if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
-      content = result;
+      [content, m] = await Promise.all([
+        this.dedupFetch(fetchKey, async () => {
+          const res = await rpc.fs.readFile(projectId, taskId, filePath);
+          if (!res.success)
+            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
+          const result = res.data.content;
+          if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
+          return result;
+        }) as Promise<string>,
+        this.monacoReadyPromise,
+      ]);
     } catch (err) {
       this.modelStatus.set(diskUri, 'error');
       throw err;
     }
 
-    const m = this.getMonaco();
-    if (m) {
-      const diskMonacoUri = m.Uri.parse(diskUri);
-      let model = m.editor.getModel(diskMonacoUri);
-      if (!model) model = m.editor.createModel(content, language, diskMonacoUri);
-      const entry: DiskModelEntry = {
-        type: 'disk',
-        model,
-        refs: 1,
-        projectId,
-        taskId,
-        filePath,
-        language,
-      };
-      this.modelMap.set(diskUri, entry);
-    }
+    const diskMonacoUri = m.Uri.parse(diskUri);
+    let model = m.editor.getModel(diskMonacoUri);
+    if (!model) model = m.editor.createModel(content, language, diskMonacoUri);
+    const entry: DiskModelEntry = {
+      type: 'disk',
+      model,
+      refs: 1,
+      projectId,
+      taskId,
+      filePath,
+      language,
+    };
+    this.modelMap.set(diskUri, entry);
 
     this.modelStatus.set(diskUri, 'ready');
 
@@ -278,40 +318,41 @@ class MonacoModelRegistry {
 
     this.modelStatus.set(gitUri, 'loading');
 
+    // Run the RPC fetch and Monaco initialization in parallel.
     const fetchKey = `${projectId}:${taskId}:${filePath}:git:${ref}`;
-    const content = await this.dedupFetch(fetchKey, async () => {
-      if (ref === 'staged') {
-        const res = await rpc.git.getFileAtIndex(projectId, taskId, filePath);
+    const [content, m] = await Promise.all([
+      this.dedupFetch(fetchKey, async () => {
+        if (ref === 'staged') {
+          const res = await rpc.git.getFileAtIndex(projectId, taskId, filePath);
+          return res.success ? res.data.content : null;
+        }
+        const res = await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
         return res.success ? res.data.content : null;
-      }
-      const res = await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
-      return res.success ? res.data.content : null;
-    });
+      }),
+      this.monacoReadyPromise,
+    ]);
 
-    const m = this.getMonaco();
-    if (m) {
-      const gitMonacoUri = m.Uri.parse(gitUri);
-      let model = m.editor.getModel(gitMonacoUri);
-      if (!model) model = m.editor.createModel(content ?? '', language, gitMonacoUri);
-      const entry: GitModelEntry = {
-        type: 'git',
-        model,
-        refs: 1,
-        projectId,
-        taskId,
-        filePath,
-        language,
-        ref,
-      };
-      this.modelMap.set(gitUri, entry);
-    }
+    const gitMonacoUri = m.Uri.parse(gitUri);
+    let model = m.editor.getModel(gitMonacoUri);
+    if (!model) model = m.editor.createModel(content ?? '', language, gitMonacoUri);
+    const entry: GitModelEntry = {
+      type: 'git',
+      model,
+      refs: 1,
+      projectId,
+      taskId,
+      filePath,
+      language,
+      ref,
+    };
+    this.modelMap.set(gitUri, entry);
 
     this.modelStatus.set(gitUri, 'ready');
 
     return uri;
   }
 
-  private registerBuffer(uri: string, language: string): string {
+  private async registerBuffer(uri: string, language: string): Promise<string> {
     const existing = this.modelMap.get(uri);
 
     if (existing?.type === 'buffer') {
@@ -324,14 +365,15 @@ class MonacoModelRegistry {
       return uri;
     }
 
+    const m = await this.monacoReadyPromise;
+
     const diskEntry = this.modelMap.get(this.toDiskUri(uri));
     const seedContent = diskEntry?.type === 'disk' ? diskEntry.model.getValue() : '';
     const projectId = diskEntry?.projectId ?? '';
     const taskId = diskEntry?.taskId ?? '';
     const filePath = diskEntry?.filePath ?? '';
 
-    const m = this.getMonaco();
-    if (m) {
+    {
       const bufferMonacoUri = m.Uri.parse(uri);
       let model = m.editor.getModel(bufferMonacoUri);
       if (!model) model = m.editor.createModel(seedContent, language, bufferMonacoUri);
@@ -351,10 +393,12 @@ class MonacoModelRegistry {
       const disposable = model.onDidChangeContent(() => {
         if (this.reloadingFromDisk.has(uri)) return;
 
-        // Update reactive dirty set so observer() components re-render.
+        // Update reactive dirty set and bump content version so observer()
+        // components that render buffer text (e.g. markdown preview) re-render.
         runInAction(() => {
           if (this.computeIsDirtyRaw(uri)) this.dirtyUris.add(uri);
           else this.dirtyUris.delete(uri);
+          this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
         });
 
         // Debounced crash-recovery save — persists unsaved edits across app restarts.
@@ -381,6 +425,11 @@ class MonacoModelRegistry {
     }
 
     this.modelStatus.set(uri, 'ready');
+    // Mark the buffer as having content so markdown/other renderers that depend
+    // on bufferVersions can react to the initial population.
+    runInAction(() => {
+      this.bufferVersions.set(uri, 1);
+    });
 
     const callbacks = this.bufferReadyCallbacks.get(uri);
     if (callbacks?.length) {
@@ -432,6 +481,7 @@ class MonacoModelRegistry {
         this.pendingConflicts.delete(uri);
         runInAction(() => {
           this.dirtyUris.delete(uri);
+          this.bufferVersions.delete(uri);
         });
       }
     }, 60_000);
@@ -720,12 +770,6 @@ class MonacoModelRegistry {
       }
     }
     return undefined;
-  }
-
-  private getMonaco(): typeof monaco | null {
-    // Registry is module-level; Monaco is loaded asynchronously by the pool.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (globalThis as any).__monaco ?? null;
   }
 }
 

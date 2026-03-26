@@ -1,3 +1,4 @@
+import { AppKeyboardShortcuts } from '@renderer/components/AppKeyboardShortcuts';
 import { LeftSidebar } from '@renderer/components/sidebar/left-sidebar';
 import { Toaster } from '@renderer/components/ui/toaster';
 import { ModalRenderer } from '@renderer/core/modal/modal-renderer';
@@ -15,6 +16,7 @@ export function Workspace() {
   const { wrapParams } = useWorkspaceWrapParams();
   return (
     <>
+      <AppKeyboardShortcuts />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={

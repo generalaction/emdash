@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContent,
   DialogFooter,
@@ -271,9 +272,9 @@ function ProjectSettingsForm({
         <Button variant="outline" onClick={onClose} disabled={isSaving}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={!isDirty || isSaving}>
+        <ConfirmButton onClick={() => void handleSave()} disabled={!isDirty || isSaving}>
           {isSaving ? 'Saving…' : 'Save'}
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </>
   );

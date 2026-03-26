@@ -1,4 +1,5 @@
 import { RefreshCw, Search } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useDeferredValue, useMemo, useState } from 'react';
 import type { PullRequest, PullRequestStatus } from '@shared/pull-requests';
@@ -12,8 +13,9 @@ import {
   SelectValue,
 } from '@renderer/components/ui/select';
 import { useGithubContext } from '@renderer/core/github-context-provider';
+import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
+import { useParams } from '@renderer/core/view/navigation-provider';
 import { usePullRequests } from '@renderer/hooks/usePullRequests';
-import { useRequiredCurrentProject } from '@renderer/views/projects/project-view-wrapper';
 import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
 import { PrRow } from './pr-row';
 
@@ -40,10 +42,13 @@ function textSearch(prs: PullRequest[], query: string) {
   );
 }
 
-export function PullRequestList() {
-  const project = useRequiredCurrentProject();
+export const PullRequestList = observer(function PullRequestList() {
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const project = mountedProjectData(getProjectStore(projectId));
   const { user } = useGithubContext();
-  const nameWithOwner = project.gitRemote ? parseGithubNameWithOwner(project.gitRemote) : null;
+  const nameWithOwner = project?.gitRemote ? parseGithubNameWithOwner(project.gitRemote) : null;
 
   const { prs, refresh } = usePullRequests(nameWithOwner ?? undefined);
 
@@ -176,4 +181,4 @@ export function PullRequestList() {
       </div>
     </div>
   );
-}
+});

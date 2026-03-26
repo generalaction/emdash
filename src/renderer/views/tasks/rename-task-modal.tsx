@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import { useCallback, useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContent,
   DialogFooter,
@@ -9,13 +11,14 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
 import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
 } from '@renderer/lib/taskNames';
 
-export type RenameTaskModalArgs = {
+type RenameTaskModalArgs = {
   projectId: string;
   taskId: string;
   currentName: string;
@@ -23,17 +26,22 @@ export type RenameTaskModalArgs = {
 
 type Props = BaseModalProps<void> & RenameTaskModalArgs;
 
-export function RenameTaskModal({ projectId, taskId, currentName, onSuccess, onClose }: Props) {
-  const { tasks } = useTasksDataContext();
-  const { renameTask } = useTaskLifecycleContext();
+export const RenameTaskModal = observer(function RenameTaskModal({
+  projectId,
+  taskId,
+  currentName,
+  onSuccess,
+  onClose,
+}: Props) {
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const siblingNames = useMemo(
-    () =>
-      new Set(tasks.filter((t) => t.projectId === projectId && t.id !== taskId).map((t) => t.name)),
-    [tasks, projectId, taskId]
+  const taskManager = getTaskManagerStore(projectId);
+  const siblingNames = new Set(
+    Array.from(taskManager?.tasks.values() ?? [])
+      .filter((t) => t.state !== 'unregistered' && t.data.id !== taskId)
+      .map((t) => t.data.name)
   );
 
   const normalizedName = normalizeTaskName(name);
@@ -55,16 +63,18 @@ export function RenameTaskModal({ projectId, taskId, currentName, onSuccess, onC
 
   const handleSubmit = useCallback(async () => {
     if (!isValid) return;
+    const task = taskManager?.tasks.get(taskId);
+    if (!task) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      await renameTask(projectId, taskId, normalizedName);
+      await task.rename(normalizedName);
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename task');
       setIsSubmitting(false);
     }
-  }, [isValid, renameTask, projectId, taskId, normalizedName, onSuccess]);
+  }, [isValid, taskManager, taskId, normalizedName, onSuccess]);
 
   return (
     <DialogContent showCloseButton={false} className="sm:max-w-xs">
@@ -78,7 +88,7 @@ export function RenameTaskModal({ projectId, taskId, currentName, onSuccess, onC
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSubmit();
+              if (e.key === 'Enter') void handleSubmit();
             }}
             maxLength={MAX_TASK_NAME_LENGTH}
             autoFocus
@@ -93,10 +103,10 @@ export function RenameTaskModal({ projectId, taskId, currentName, onSuccess, onC
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}>
+        <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
           {isSubmitting ? 'Renaming...' : 'Rename'}
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </DialogContent>
   );
-}
+});

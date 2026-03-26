@@ -1,10 +1,14 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
+import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
 import { useTaskViewContext } from '../task-view-context';
@@ -14,8 +18,17 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const showCreateConversationModal = useShowModal('createConversationModal');
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+
+  const handleCreate = () =>
+    showCreateConversationModal({
+      projectId,
+      taskId,
+      onSuccess: ({ conversationId }) => conversationMgr?.setActiveTab(conversationId),
+    });
 
   useTabShortcuts(conversationMgr);
+  useHotkey(getEffectiveHotkey('newConversation', keyboard), handleCreate);
 
   return (
     <TabbedPtyPanel
@@ -33,15 +46,11 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
-                showCreateConversationModal({
-                  projectId,
-                  taskId,
-                  onSuccess: ({ conversationId }) => conversationMgr?.setActiveTab(conversationId),
-                })
-              }
+              onClick={handleCreate}
+              className="flex items-center gap-2"
             >
               Create conversation
+              <ShortcutHint settingsKey="newConversation" />
             </Button>
           }
         />

@@ -1,6 +1,7 @@
 import { FileDiff, Files, GitCommit, ListTree, MessageSquare, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import {
@@ -12,6 +13,7 @@ import {
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
+import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useTaskViewContext } from './task-view-context';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
@@ -51,6 +53,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
   const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
+  useTaskViewShortcuts();
 
   return (
     <Titlebar
@@ -83,7 +86,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                   <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Conversations view</TooltipContent>
+              <TooltipContent>
+                <div className="flex flex-col gap-1">
+                  <span>Conversations view</span>
+                  <ShortcutHint settingsKey="taskViewAgents" />
+                </div>
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -95,7 +103,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Diff view</TooltipContent>
+              <TooltipContent>
+                <div className="flex flex-col gap-1">
+                  <span>Diff view</span>
+                  <ShortcutHint settingsKey="taskViewDiff" />
+                </div>
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -107,7 +120,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                   <Files className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>File view</TooltipContent>
+              <TooltipContent>
+                <div className="flex flex-col gap-1">
+                  <span>File view</span>
+                  <ShortcutHint settingsKey="taskViewEditor" />
+                </div>
+              </TooltipContent>
             </Tooltip>
           </ToggleGroup>
           <ToggleGroup

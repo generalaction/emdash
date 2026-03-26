@@ -9,22 +9,6 @@
  */
 import type { Hotkey } from '@tanstack/react-hotkeys';
 
-export type ShortcutSettingsKey =
-  | 'commandPalette'
-  | 'settings'
-  | 'toggleLeftSidebar'
-  | 'toggleRightSidebar'
-  | 'toggleTheme'
-  | 'toggleKanban'
-  | 'toggleEditor'
-  | 'closeModal'
-  | 'nextProject'
-  | 'prevProject'
-  | 'newTask'
-  | 'nextAgent'
-  | 'prevAgent'
-  | 'openInEditor';
-
 export interface AppShortcutDef {
   defaultHotkey: string;
   label: string;
@@ -33,7 +17,18 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
 }
 
-export const APP_SHORTCUTS: Record<ShortcutSettingsKey, AppShortcutDef> = {
+/**
+ * Preserves literal key types for `keyof` inference while widening each value
+ * to the full `AppShortcutDef` interface (so optional fields like
+ * `hideFromSettings` are accessible on every entry without a union problem).
+ */
+function defineShortcuts<T extends Record<string, AppShortcutDef>>(
+  shortcuts: T
+): Record<keyof T, AppShortcutDef> {
+  return shortcuts as Record<keyof T, AppShortcutDef>;
+}
+
+export const APP_SHORTCUTS = defineShortcuts({
   commandPalette: {
     defaultHotkey: 'Mod+K',
     label: 'Command Palette',
@@ -64,18 +59,6 @@ export const APP_SHORTCUTS: Record<ShortcutSettingsKey, AppShortcutDef> = {
     description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
   },
-  toggleKanban: {
-    defaultHotkey: 'Mod+P',
-    label: 'Toggle Kanban',
-    description: 'Show or hide the Kanban board',
-    category: 'Navigation',
-  },
-  toggleEditor: {
-    defaultHotkey: 'Mod+Shift+E',
-    label: 'Toggle Editor',
-    description: 'Show or hide the code editor',
-    category: 'View',
-  },
   closeModal: {
     defaultHotkey: 'Escape',
     label: 'Close Modal',
@@ -101,16 +84,10 @@ export const APP_SHORTCUTS: Record<ShortcutSettingsKey, AppShortcutDef> = {
     description: 'Create a new task',
     category: 'Navigation',
   },
-  nextAgent: {
-    defaultHotkey: 'Mod+Shift+K',
-    label: 'Next Agent',
-    description: 'Cycle through agents on a task',
-    category: 'Navigation',
-  },
-  prevAgent: {
-    defaultHotkey: 'Mod+Shift+J',
-    label: 'Previous Agent',
-    description: 'Cycle through agents on a task',
+  newProject: {
+    defaultHotkey: 'Mod+Shift+N',
+    label: 'New Project',
+    description: 'Create a new project',
     category: 'Navigation',
   },
   openInEditor: {
@@ -119,7 +96,64 @@ export const APP_SHORTCUTS: Record<ShortcutSettingsKey, AppShortcutDef> = {
     description: 'Open the project in the default editor',
     category: 'Navigation',
   },
-};
+  taskViewAgents: {
+    defaultHotkey: 'Mod+Shift+1',
+    label: 'Conversations view',
+    description: 'Switch to the conversations view in the task panel',
+    category: 'Task View',
+  },
+  taskViewDiff: {
+    defaultHotkey: 'Mod+Shift+2',
+    label: 'Diff view',
+    description: 'Switch to the diff view in the task panel',
+    category: 'Task View',
+  },
+  taskViewEditor: {
+    defaultHotkey: 'Mod+Shift+3',
+    label: 'Editor view',
+    description: 'Switch to the editor view in the task panel',
+    category: 'Task View',
+  },
+  tabNext: {
+    defaultHotkey: 'Mod+Alt+]',
+    label: 'Next Tab',
+    description: 'Switch to the next tab',
+    category: 'Tab Navigation',
+  },
+  tabPrev: {
+    defaultHotkey: 'Mod+Alt+[',
+    label: 'Previous Tab',
+    description: 'Switch to the previous tab',
+    category: 'Tab Navigation',
+  },
+  tabClose: {
+    defaultHotkey: 'Mod+W',
+    label: 'Close Tab',
+    description: 'Close the active tab',
+    category: 'Tab Navigation',
+  },
+  newConversation: {
+    defaultHotkey: 'Mod+Shift+C',
+    label: 'New Conversation',
+    description: 'Create a new conversation in the current task',
+    category: 'Task View',
+  },
+  newTerminal: {
+    defaultHotkey: 'Mod+Shift+T',
+    label: 'New Terminal',
+    description: 'Create a new terminal in the current task',
+    category: 'Task View',
+  },
+  confirm: {
+    defaultHotkey: 'Mod+Enter',
+    label: 'Confirm',
+    description: 'Confirm the current dialog action',
+    category: 'Navigation',
+  },
+});
+
+/** All valid shortcut keys — inferred directly from the registry, never redeclared. */
+export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
 
 /**
  * Returns the user's stored hotkey for an action, or the default if none is stored.

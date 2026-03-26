@@ -1,13 +1,13 @@
 import { formatForDisplay, useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
 import React, { useState } from 'react';
+import { Button } from '@renderer/components/ui/button';
 import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
-import { toast } from '../../hooks/use-toast';
+import { toast } from '@renderer/hooks/use-toast';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,
   type ShortcutSettingsKey,
-} from '../../hooks/useKeyboardShortcuts';
-import { Button } from '../ui/button';
+} from '@renderer/hooks/useKeyboardShortcuts';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 
 const CONFIGURABLE_SHORTCUTS = (
@@ -16,6 +16,15 @@ const CONFIGURABLE_SHORTCUTS = (
     (typeof APP_SHORTCUTS)[ShortcutSettingsKey],
   ][]
 ).filter(([, def]) => !def.hideFromSettings);
+
+const SHORTCUTS_BY_CATEGORY = CONFIGURABLE_SHORTCUTS.reduce<
+  Record<string, [ShortcutSettingsKey, (typeof APP_SHORTCUTS)[ShortcutSettingsKey]][]>
+>((acc, entry) => {
+  const category = entry[1].category;
+  if (!acc[category]) acc[category] = [];
+  acc[category].push(entry);
+  return acc;
+}, {});
 
 const KeyboardSettingsCard: React.FC = () => {
   const {
@@ -72,64 +81,73 @@ const KeyboardSettingsCard: React.FC = () => {
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-      <div className="space-y-4">
-        {CONFIGURABLE_SHORTCUTS.map(([key, def]) => {
-          const effectiveHotkey = getEffectiveHotkey(key, keyboard);
-          const capturing = editingKey === key && recorder.isRecording;
-
-          return (
-            <div key={key} className="flex items-center justify-between gap-2">
-              <div className="space-y-1">
-                <div className="text-sm">{def.label}</div>
-                <div className="text-xs text-muted-foreground">{def.description}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                {capturing ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="min-w-[80px] animate-pulse"
-                      onClick={() => recorder.cancelRecording()}
-                      disabled={saving}
-                    >
-                      Press keys...
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => recorder.cancelRecording()}
-                      disabled={saving}
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {isFieldOverridden(key) && (
-                      <ResetToDefaultButton
-                        onReset={() => handleReset(key)}
-                        disabled={loading || saving}
-                      />
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="min-w-[80px] font-mono"
-                      onClick={() => startCapture(key)}
-                      disabled={loading || saving}
-                    >
-                      {formatForDisplay(effectiveHotkey)}
-                    </Button>
-                  </>
-                )}
-              </div>
+      <div className="space-y-6">
+        {Object.entries(SHORTCUTS_BY_CATEGORY).map(([category, shortcuts]) => (
+          <div key={category}>
+            <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {category}
             </div>
-          );
-        })}
+            <div className="space-y-3">
+              {shortcuts.map(([key, def]) => {
+                const effectiveHotkey = getEffectiveHotkey(key, keyboard);
+                const capturing = editingKey === key && recorder.isRecording;
+
+                return (
+                  <div key={key} className="flex items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="text-sm">{def.label}</div>
+                      <div className="text-xs text-muted-foreground">{def.description}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {capturing ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-w-[80px] animate-pulse"
+                            onClick={() => recorder.cancelRecording()}
+                            disabled={saving}
+                          >
+                            Press keys...
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => recorder.cancelRecording()}
+                            disabled={saving}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {isFieldOverridden(key) && (
+                            <ResetToDefaultButton
+                              onReset={() => handleReset(key)}
+                              disabled={loading || saving}
+                            />
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-w-[80px] font-mono"
+                            onClick={() => startCapture(key)}
+                            disabled={loading || saving}
+                          >
+                            {formatForDisplay(effectiveHotkey)}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

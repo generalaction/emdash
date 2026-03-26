@@ -1,4 +1,5 @@
-import { Github, MoreHorizontal, Pencil, Trash } from 'lucide-react';
+import { Github, MoreHorizontal } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { gitRemoteToUrl } from '@shared/git-remote-url';
 import { PullRequestList } from '@renderer/components/projects/pr-list';
 import { Button } from '@renderer/components/ui/button';
@@ -12,12 +13,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/u
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
-import { useRequiredCurrentProject } from './project-view-wrapper';
+import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
+import { useParams } from '@renderer/core/view/navigation-provider';
 import { TaskList } from './task-list';
 
-export function ActiveProject() {
-  const project = useRequiredCurrentProject();
+export const ActiveProject = observer(function ActiveProject() {
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const project = mountedProjectData(getProjectStore(projectId));
   const showProjectSettingsModal = useShowModal('projectSettingsModal');
+
+  if (!project) return null;
+
   const githubUrl = project.gitRemote ? gitRemoteToUrl(project.gitRemote) : undefined;
 
   return (
@@ -52,7 +60,6 @@ export function ActiveProject() {
                 }
               />
               <DropdownMenuContent>
-                <DropdownMenuItem>Rename project</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void projectManagerStore.deleteProject(project.id)}
                 >
@@ -68,8 +75,7 @@ export function ActiveProject() {
         <TabsContent value="prs" className="flex flex-col min-h-0 flex-1">
           <PullRequestList />
         </TabsContent>
-        <TabsContent value="settings">Settings</TabsContent>
       </Tabs>
     </div>
   );
-}
+});

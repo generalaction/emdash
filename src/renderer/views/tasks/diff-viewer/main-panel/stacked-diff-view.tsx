@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
@@ -44,14 +44,14 @@ export const StackedDiffView = observer(function StackedDiffView() {
   return <StackedDiffPanel files={files} diffType={diffType} originalRef="HEAD" />;
 });
 
-export interface StackedDiffPanelProps {
+interface StackedDiffPanelProps {
   files: GitChange[];
   diffType: 'disk' | 'staged' | 'git';
   /** Git ref for the left (original/before) side. Ignored for 'staged'. */
   originalRef: string;
 }
 
-export const StackedDiffPanel = observer(function StackedDiffPanel({
+const StackedDiffPanel = observer(function StackedDiffPanel({
   files,
   diffType,
   originalRef,
@@ -112,17 +112,28 @@ export const StackedDiffPanel = observer(function StackedDiffPanel({
     },
   });
 
-  // Bulk register models for all non-binary files on mount.
-  // FS watching is driven by useModelStatus inside each StackedFileSection —
-  // visible sections subscribe, invoking FS watching; sections scrolled out of
-  // view unsubscribe, pausing watching after 60 s TTL.
+  // Stable dep: re-register whenever the file set or the base ref changes.
+  // Using a joined-path key avoids reacting to array reference identity churn
+  // (React Query returns a new array object on every refetch even if data is unchanged).
+  const filePathsKey = useMemo(() => files.map((f) => f.path).join(','), [files]);
+
+  // Bulk register models for all non-binary files whenever the file list or
+  // originalRef changes. FS watching is driven by useModelStatus inside each
+  // StackedFileSection — visible sections subscribe, invoking FS watching;
+  // sections scrolled out of view unsubscribe, pausing watching after 60 s TTL.
   useEffect(() => {
     if (files.length > MAX_STACKED_FILES) return;
 
+    // Track registered URIs in a plain object so the async loop and the cleanup
+    // closure share the same reference (a local `const` inside a void IIFE would
+    // be captured by value before any pushes happen if the component unmounts
+    // between iterations).
     const registered: Array<{ originalUri: string; modifiedUri: string }> = [];
+    const aborted = { value: false };
 
     void (async () => {
       for (const file of files) {
+        if (aborted.value) break;
         if (isBinaryForDiff(file.path)) continue;
         const language = getLanguageFromPath(file.path);
         const root = `task:${taskId}`;
@@ -197,13 +208,14 @@ export const StackedDiffPanel = observer(function StackedDiffPanel({
     })();
 
     return () => {
+      aborted.value = true;
       for (const { originalUri, modifiedUri } of registered) {
         modelRegistry.unregisterModel(originalUri);
         modelRegistry.unregisterModel(modifiedUri);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, taskId, diffType]);
+  }, [projectId, taskId, diffType, originalRef, filePathsKey]);
 
   // Click → scroll: when activeFile changes or mode switches back to stacked
   useEffect(() => {

@@ -12,6 +12,7 @@ import { useState } from 'react';
 import * as z from 'zod';
 import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogClose,
   DialogContent,
@@ -425,7 +426,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           )}
         </Button>
         <div className="flex gap-2">
-          <Button type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
+          <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <LoaderCircle className="size-4 animate-spin" />
@@ -434,7 +435,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
             ) : (
               'Save'
             )}
-          </Button>
+          </ConfirmButton>
         </div>
       </DialogFooter>
     </DialogContent>

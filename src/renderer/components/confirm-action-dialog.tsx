@@ -1,5 +1,6 @@
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { Button } from './ui/button';
+import { ConfirmButton } from './ui/confirm-button';
 import {
   DialogContent,
   DialogDescription,
@@ -35,9 +36,9 @@ export function ConfirmActionDialog({
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant={variant} onClick={() => onSuccess()}>
+        <ConfirmButton variant={variant} onClick={() => onSuccess()}>
           {confirmLabel}
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </DialogContent>
   );

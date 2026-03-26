@@ -54,6 +54,10 @@ export const EditorProvider = observer(function EditorProvider({
   // Stable host element provided by EditorMainPanel via setEditorHost.
   const hostRef = useRef<HTMLElement | null>(null);
 
+  // Cancel fn for any pending onceBufferReady callback. Cleared whenever the
+  // active path changes so stale callbacks don't fire after a tab switch.
+  const cancelReadyCallbackRef = useRef<(() => void) | null>(null);
+
   // ---------------------------------------------------------------------------
   // Editor lifecycle — lease once on mount, release on unmount.
   // ---------------------------------------------------------------------------
@@ -117,14 +121,37 @@ export const EditorProvider = observer(function EditorProvider({
       reaction(
         () => editorView.activeFilePath,
         (path, prevPath) => {
+          // Cancel any pending ready-callback for the previous path.
+          cancelReadyCallbackRef.current?.();
+          cancelReadyCallbackRef.current = null;
+
           const editor = editorRef.current;
           if (!editor) return;
           const bufUri = path ? buildMonacoModelPath(editorView.modelRootPath, path) : null;
           const prevBufUri = prevPath
             ? buildMonacoModelPath(editorView.modelRootPath, prevPath)
             : undefined;
-          if (bufUri) modelRegistry.attach(editor, bufUri, prevBufUri);
-          else editor.setModel(null);
+
+          if (!bufUri) {
+            editor.setModel(null);
+            return;
+          }
+
+          // Immediate attach — succeeds when the buffer is already registered
+          // (e.g. switching between already-open tabs).
+          modelRegistry.attach(editor, bufUri, prevBufUri);
+
+          // Deferred attach — fires when the buffer model becomes ready. This
+          // handles the race where openFile() sets activeTabId synchronously
+          // before _registerModels() has finished the async RPC + model creation.
+          // onceBufferReady fires immediately if the model already exists, so
+          // the second attach is a harmless no-op in the common case.
+          const cancel = modelRegistry.onceBufferReady(bufUri, () => {
+            if (editorRef.current && editorView.activeFilePath === path) {
+              modelRegistry.attach(editorRef.current, bufUri);
+            }
+          });
+          cancelReadyCallbackRef.current = cancel;
         }
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps

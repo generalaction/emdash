@@ -6,7 +6,7 @@ import { Issue } from '@shared/tasks';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { IssueSelector } from '@renderer/components/issue-selector';
 import { ProjectSelector } from '@renderer/components/project-selector';
-import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContent,
   DialogFooter,
@@ -147,9 +147,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </FieldGroup>
       </div>
       <DialogFooter>
-        <Button onClick={handleCreateTask} disabled={!selectedProjectId}>
+        <ConfirmButton onClick={handleCreateTask} disabled={!selectedProjectId}>
           Create
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </DialogContent>
   );

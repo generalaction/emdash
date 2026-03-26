@@ -1,9 +1,13 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
+import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
+import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
 import { useTaskViewContext } from '../task-view-context';
@@ -12,8 +16,7 @@ import { getTerminalsPaneSize, nextTerminalName, TerminalsTabs } from './termina
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const terminalMgr = asProvisioned(getTaskStore(projectId, taskId))?.terminals;
-
-  useTabShortcuts(terminalMgr);
+  const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const handleCreate = async () => {
     if (!terminalMgr) return;
@@ -32,6 +35,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     }
   };
 
+  useTabShortcuts(terminalMgr);
+  useHotkey(getEffectiveHotkey('newTerminal', keyboard), () => void handleCreate());
+
   return (
     <TabbedPtyPanel
       store={terminalMgr}
@@ -47,8 +53,14 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           label="No terminals yet"
           description="Add a terminal to run shell commands in this task's working directory."
           action={
-            <Button size="sm" variant="outline" onClick={handleCreate}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCreate}
+              className="flex items-center gap-2"
+            >
               New terminal
+              <ShortcutHint settingsKey="newTerminal" />
             </Button>
           }
         />
