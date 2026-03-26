@@ -112,6 +112,32 @@ describe('waitForShellPrompt', () => {
     expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
   });
 
+  it('detects prompt followed by charset designation escape \\x1b(B', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // fish's set_color normal emits \x1b(B after the prompt
+    pty.emit('\x1b[32muser@host\x1b[0m \x1b[34m~\x1b[0m\x1b(B> \x1b[?2004h');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects prompt with trailing unstripped escape sequences', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Prompt followed by charset reset + bracketed paste that survive escape stripping
+    pty.emit('user@host ~> \x1b(B');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
   it('does not match a bare prompt character with no preceding context', () => {
     const pty = createMockPty();
     waitForShellPrompt({
@@ -292,6 +318,71 @@ describe('waitForShellPrompt', () => {
 
     pty.emit('Total: 5$');
     expect(pty.write).not.toHaveBeenCalled();
+  });
+
+  it('detects fish prompt with DCS and mixed OSC terminators', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Real fish output: DCS queries (\x1bP...\x1b\\), ST-terminated OSC (\x1b]...\x1b\\),
+    // and BEL-terminated OSC (\x1b]...\x07) interleaved with visible prompt text.
+    // The ST-terminated OSC must be stripped before the BEL-terminated OSC regex runs,
+    // otherwise the greedy BEL regex matches from an ST-terminated \x1b] across visible
+    // text to a distant \x07, consuming the entire prompt.
+    pty.emit(
+      '\x1b[?u\x1b[>0q\x1b]11;?\x1b\\\x1b[?1049h' +
+        '\x1bP+q696e646e\x1b\\\x1bP+q71756572792d6f732d6e616d65\x1b\\' +
+        '\x1b[?1049l\x1b[0c\r' +
+        'Welcome to fish, the friendly interactive shell\r\n' +
+        'Type \x1b[32mhelp\x1b[m for instructions on how to use fish\r\n' +
+        '\x1b]7;file://host/home/user/project\x07' +
+        '\x1b]0;[host] ~/project\x07' +
+        '\x1b[m\x1b]11;?\x1b\\\x1b[6n\x1b[0c' +
+        '\x1b[?2004h\x1b[?2031h\x1b[>4;1m\x1b=' +
+        '\x1b]133;A;click_events=1\x1b\\' +
+        '\x1b[92muser\x1b[m@\x1b[33mhost\x1b[m \x1b[32m~/project\x1b[m (master)\x1b[m> ' +
+        '\x1b]133;B\x07\x1b[K\r\x1b[45C'
+    );
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects prompt split across TCP segments', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Prompt character arrives in a separate chunk from the rest
+    pty.emit('user@host /path');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects fish prompt split across TCP segments', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    pty.emit('Welcome to fish, the friendly interactive shell\r\n');
+    pty.emit('Type `help` for instructions on how to use fish\r\n');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('\x1b[32muser@host\x1b[0m \x1b[34m~');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('\x1b[0m> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
   });
 
   it('detects prompt after multiple MOTD chunks', () => {

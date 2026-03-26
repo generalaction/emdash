@@ -65,7 +65,8 @@ function waitForSshPromptThenWrite(
     write: (data: string) => void;
   },
   data: string,
-  label: string
+  label: string,
+  earlyChunks?: string[]
 ): void {
   const handles = promptHandles.get(id) ?? [];
   promptHandles.set(id, handles);
@@ -73,6 +74,12 @@ function waitForSshPromptThenWrite(
   const handle = waitForShellPrompt({
     subscribe: (cb) => {
       const disposable = proc.onData(cb);
+      // Replay data that arrived before the prompt detector subscribed
+      // (e.g. during an async resolveRemoteTmuxEnabled call).
+      // Replayed after subscribing so finish() can dispose the real listener.
+      if (earlyChunks) {
+        for (const chunk of earlyChunks) cb(chunk);
+      }
       return () => disposable.dispose();
     },
     write: (d) => {
@@ -725,9 +732,15 @@ export function registerPtyIpc(): void {
             env,
           });
 
+          // Capture early PTY data so the prompt detector can replay it
+          // even if the prompt arrives during the async tmux resolution below.
+          const earlyChunks: string[] = [];
+          let capturingEarly = true;
+
           if (!listeners.has(id)) {
             proc.onData((data) => {
               bufferedSendPtyData(id, data);
+              if (capturingEarly) earlyChunks.push(data);
             });
             proc.onExit(({ exitCode, signal }) => {
               cancelPromptHandles(id);
@@ -753,8 +766,10 @@ export function registerPtyIpc(): void {
             cwd,
             tmux: remoteTmuxOpt,
           });
+          capturingEarly = false;
+
           if (remoteInit) {
-            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:start');
+            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:start', earlyChunks);
           }
 
           try {
@@ -1266,9 +1281,15 @@ export function registerPtyIpc(): void {
             env: mergedEnv,
           });
 
+          // Capture early PTY data so the prompt detector can replay it
+          // even if the prompt arrives during the async tmux resolution below.
+          const earlyChunks: string[] = [];
+          let capturingEarly = true;
+
           if (!listeners.has(id)) {
             proc.onData((data) => {
               bufferedSendPtyData(id, data);
+              if (capturingEarly) earlyChunks.push(data);
             });
             proc.onExit(({ exitCode, signal }) => {
               cancelPromptHandles(id);
@@ -1297,8 +1318,10 @@ export function registerPtyIpc(): void {
             tmux: tmuxOpt,
             preProviderCommands: preProviderCommands.length ? preProviderCommands : undefined,
           });
+          capturingEarly = false;
+
           if (remoteInit) {
-            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:startDirect');
+            waitForSshPromptThenWrite(id, proc, remoteInit, 'ptyIpc:startDirect', earlyChunks);
           }
 
           maybeMarkProviderStart(id);

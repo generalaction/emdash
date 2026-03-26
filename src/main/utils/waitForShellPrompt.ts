@@ -1,8 +1,8 @@
-import { stripAnsi } from '@shared/text/stripAnsi';
+import { stripForPromptDetection } from '@shared/text/stripAnsi';
 
 /**
  * Matches common shell prompt endings: $, #, %, >, ❯ preceded by a non-digit, non-space character.
- * Each chunk is matched independently — prompts split across TCP segments rely on the timeout fallback.
+ * Chunks are accumulated so prompts split across TCP segments are still detected.
  */
 const SHELL_PROMPT_RE = /\S.*(?<!\d)[#$%>❯]\s*$/;
 
@@ -44,10 +44,19 @@ export function waitForShellPrompt(options: PromptWaitOptions): PromptWaitHandle
     unsubscribe();
   };
 
-  const unsubscribe = subscribe((chunk: string) => {
+  let buffer = '';
+  // Use `let` so unsubscribe is available if subscribe's callback fires
+  // synchronously (e.g. earlyChunks replay) before subscribe() returns.
+  let unsubscribe: () => void = () => {};
+  unsubscribe = subscribe((chunk: string) => {
     if (done) return;
-    const clean = stripAnsi(chunk, { includePrivateCsiParams: true });
-    if (SHELL_PROMPT_RE.test(clean)) {
+    buffer += chunk;
+    // Keep only the tail to bound memory on large MOTD output.
+    // The regex uses $ (end-of-string) so only the tail matters.
+    if (buffer.length > 2048) {
+      buffer = buffer.slice(-1024);
+    }
+    if (SHELL_PROMPT_RE.test(stripForPromptDetection(buffer))) {
       finish();
     }
   });
