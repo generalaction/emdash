@@ -61,6 +61,33 @@ function validateIdArg(args: unknown): asserts args is { id: string } {
   assertString((args as Record<string, unknown>).id, 'id');
 }
 
+function validateRunLogsArg(
+  args: unknown
+): asserts args is { automationId: string; limit?: number } {
+  if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+  const a = args as Record<string, unknown>;
+  assertString(a.automationId, 'automationId');
+  if (a.limit !== undefined && (typeof a.limit !== 'number' || a.limit <= 0)) {
+    throw new Error('Invalid limit: expected positive number or undefined');
+  }
+}
+
+function validateCompleteRunArg(args: unknown): asserts args is {
+  runLogId: string;
+  automationId: string;
+  status: 'success' | 'failure';
+  taskId?: string;
+  error?: string;
+} {
+  if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
+  const a = args as Record<string, unknown>;
+  assertString(a.runLogId, 'runLogId');
+  assertString(a.automationId, 'automationId');
+  if (a.status !== 'success' && a.status !== 'failure') {
+    throw new Error('Invalid status: expected "success" or "failure"');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Trigger queue — always buffers, renderer pulls when ready.
 // Triggers are queued and the renderer drains via automations:drainTriggers
@@ -241,11 +268,9 @@ export function registerAutomationsIpc(): void {
 
   ipcMain.handle('automations:runLogs', async (_, args: unknown) => {
     try {
-      if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
-      const a = args as Record<string, unknown>;
-      assertString(a.automationId, 'automationId');
-      const limit = typeof a.limit === 'number' && a.limit > 0 ? Math.min(a.limit, 500) : undefined;
-      const logs = await automationsService.getRunLogs(a.automationId as string, limit);
+      validateRunLogsArg(args);
+      const limit = args.limit !== undefined ? Math.min(args.limit, 500) : undefined;
+      const logs = await automationsService.getRunLogs(args.automationId, limit);
       return { success: true, data: logs };
     } catch (error) {
       log.error('Failed to get automation run logs:', error);
@@ -280,28 +305,16 @@ export function registerAutomationsIpc(): void {
 
   ipcMain.handle('automations:completeRun', async (_, args: unknown) => {
     try {
-      if (!args || typeof args !== 'object') throw new Error('Invalid input: expected object');
-      const a = args as Record<string, unknown>;
-      assertString(a.runLogId, 'runLogId');
-      assertString(a.automationId, 'automationId');
-      if (a.status !== 'success' && a.status !== 'failure') {
-        throw new Error('Invalid status: expected "success" or "failure"');
-      }
+      validateCompleteRunArg(args);
 
-      // Update the run log
-      await automationsService.updateRunLog(a.runLogId as string, {
-        status: a.status,
+      await automationsService.updateRunLog(args.runLogId, {
+        status: args.status,
         finishedAt: new Date().toISOString(),
-        taskId: typeof a.taskId === 'string' ? a.taskId : null,
-        error: typeof a.error === 'string' ? a.error : null,
+        taskId: args.taskId ?? null,
+        error: args.error ?? null,
       });
 
-      // Update the automation's last result
-      await automationsService.setLastRunResult(
-        a.automationId as string,
-        a.status,
-        typeof a.error === 'string' ? a.error : undefined
-      );
+      await automationsService.setLastRunResult(args.automationId, args.status, args.error);
 
       return { success: true };
     } catch (error) {
