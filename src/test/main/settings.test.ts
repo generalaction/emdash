@@ -228,3 +228,19 @@ describe('normalizeSettings - review preset', () => {
     });
   });
 });
+
+describe('normalizeSettings – terminal settings', () => {
+  it('preserves macOptionIsMeta: true', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        terminal: {
+          fontFamily: '',
+          fontSize: 0,
+          autoCopyOnSelection: false,
+          macOptionIsMeta: true,
+        },
+      })
+    );
+    expect(result.terminal?.macOptionIsMeta).toBe(true);
+  });
+});
