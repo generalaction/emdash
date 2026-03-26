@@ -83,7 +83,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
             aria-label="Select task"
             title={taskLabel}
           >
-            <SelectValue placeholder={currentBranch} />
+            <SelectValue placeholder={currentBranch || 'Unknown'} />
           </SelectTrigger>
           <SelectContent side="bottom" align="start" className={selectContentClassName}>
             {!activeTask && (
