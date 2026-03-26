@@ -204,7 +204,7 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
         </div>
         {isLoading && (
           <div className="py-1.5 pl-2 pr-8 text-xs text-muted-foreground">
-            Fetching latest branches…
+            Fetching latest branches...
           </div>
         )}
         <ScrollArea
@@ -225,7 +225,9 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
               <div className="px-3 py-2 text-xs text-muted-foreground">No matching branches</div>
             )}
             {hasMore && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">Type to filter more…</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Type to filter more...
+              </div>
             )}
           </div>
         </ScrollArea>
