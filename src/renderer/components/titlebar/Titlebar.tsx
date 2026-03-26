@@ -4,6 +4,8 @@ import { Toggle } from '@renderer/components/ui/toggle';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
+import ShortcutHint from '../ui/shortcut-hint';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
@@ -20,23 +22,42 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
-              <Toggle pressed={isLeftOpen} onPressedChange={() => setCollapsed('left', isLeftOpen)}>
-                <PanelLeft className="h-4 w-4" />
-              </Toggle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Toggle
+                    pressed={isLeftOpen}
+                    onPressedChange={() => setCollapsed('left', isLeftOpen)}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Toggle>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Toggle left sidebar
+                  <ShortcutHint settingsKey="toggleLeftSidebar" />
+                </TooltipContent>
+              </Tooltip>
             )}
             {leftSlot}
           </div>
           <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
             {rightSlot}
-            <Toggle
-              disabled={!RightPanel}
-              pressed={isRightOpen}
-              size="sm"
-              className="rounded-lg data-pressed:bg-muted size-7 w-7 border border-border data-pressed:text-foreground text-muted-foreground"
-              onPressedChange={() => setCollapsed('right', isRightOpen)}
-            >
-              <PanelRight className="size-3.5" />
-            </Toggle>
+            <Tooltip>
+              <TooltipTrigger>
+                <Toggle
+                  disabled={!RightPanel}
+                  pressed={isRightOpen}
+                  size="sm"
+                  className="rounded-lg data-pressed:bg-muted size-7 w-7 border border-border data-pressed:text-foreground text-muted-foreground"
+                  onPressedChange={() => setCollapsed('right', isRightOpen)}
+                >
+                  <PanelRight className="size-3.5" />
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Toggle right sidebar
+                <ShortcutHint settingsKey="toggleRightSidebar" />
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

@@ -49,7 +49,7 @@ export class TaskManagerStore {
         runInAction(() => {
           const current = this.tasks.get(params.id);
           if (current && isUnregistered(current)) {
-            current.transitionToUnprovisioned(task);
+            current.transitionToUnprovisioned(task, 'provision');
           }
         });
         return task;

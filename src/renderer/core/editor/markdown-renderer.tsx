@@ -28,7 +28,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full overflow-y-auto">
       <MarkdownRenderer
         content={content}
         variant="full"

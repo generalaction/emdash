@@ -7,7 +7,9 @@ import { TerminalsPanel } from './terminals/terminal-panel';
 
 export const TaskRightSidebar = observer(function TaskRightSidebar() {
   const { projectId, taskId } = useTaskViewContext();
-  const { rightPanelView } = asProvisioned(getTaskStore(projectId, taskId))!;
+  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  if (!provisioned) return null;
+  const { rightPanelView } = provisioned;
 
   switch (rightPanelView) {
     case 'changes':
