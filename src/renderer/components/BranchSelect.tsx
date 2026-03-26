@@ -220,7 +220,14 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
           <div className="space-y-0 pr-3">
             {displayedOptions.length > 0 ? (
               displayedOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                // Radix SelectItem steals focus on hover via onPointerMove. Suppress it to
+                // keep focus in the search input. See: github.com/radix-ui/primitives/issues/2193
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  onPointerMove={(e) => e.preventDefault()}
+                  onPointerLeave={(e) => e.preventDefault()}
+                >
                   {option.label}
                 </SelectItem>
               ))
