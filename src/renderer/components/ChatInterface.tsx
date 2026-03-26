@@ -193,7 +193,7 @@ const ChatInterface: React.FC<Props> = ({ workspace, projectName, className }) =
               "linear-gradient(to bottom, black 0%, black 93%, transparent 100%)",
           }}
         >
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="max-w-full mx-auto space-y-6">
             <div className="flex items-center justify-center py-8">
               <div className="text-gray-500 dark:text-gray-400 text-sm font-sans">
                 Loading conversation...
