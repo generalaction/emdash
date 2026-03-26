@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaximize: () => ipcRenderer.invoke('app:windowMaximize'),
   windowClose: () => ipcRenderer.invoke('app:windowClose'),
   windowIsMaximized: () => ipcRenderer.invoke('app:windowIsMaximized') as Promise<boolean>,
+  setWindowTitle: (title: string) => ipcRenderer.invoke('app:setWindowTitle', title),
   popupMenu: (args: { label: string; x: number; y: number }) =>
     ipcRenderer.invoke('app:popupMenu', args),
   onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => {

@@ -664,4 +664,16 @@ export function registerAppIpc() {
     const win = BrowserWindow.fromWebContents(event.sender);
     return win?.isMaximized() ?? false;
   });
+  ipcMain.handle('app:setWindowTitle', (event, title: string) => {
+    try {
+      if (typeof title !== 'string') {
+        throw new Error('Invalid window title');
+      }
+      const win = BrowserWindow.fromWebContents(event.sender);
+      win?.setTitle(title);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }

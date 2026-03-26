@@ -20,6 +20,7 @@ import TitlebarContext from './TitlebarContext';
 import WindowControls from './WindowControls';
 import TitlebarMenu from './TitlebarMenu';
 import PerformanceChip from './PerformanceChip';
+import { buildWindowTitle } from './windowTitle';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
@@ -205,6 +206,12 @@ const Titlebar: React.FC<TitlebarProps> = ({
       document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, []);
+
+  useEffect(() => {
+    const nextTitle = buildWindowTitle(selectedProject, activeTask);
+    document.title = nextTitle;
+    void window.electronAPI.setWindowTitle(nextTitle);
+  }, [activeTask, selectedProject]);
 
   return (
     <>

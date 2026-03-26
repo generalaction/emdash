@@ -59,6 +59,7 @@ declare global {
       windowMaximize: () => Promise<void>;
       windowClose: () => Promise<void>;
       windowIsMaximized: () => Promise<boolean>;
+      setWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>;
       popupMenu: (args: { label: string; x: number; y: number }) => Promise<void>;
       onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => () => void;
 
