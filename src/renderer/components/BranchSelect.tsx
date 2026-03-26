@@ -62,6 +62,7 @@ export function filterBranchOptions(
   const matches: BranchOption[] = [];
   let selectedFound = false;
   let totalMatches = 0;
+  let hasMore = false;
 
   for (const option of options) {
     const isMatch = !query || option.label.toLowerCase().includes(query);
@@ -69,12 +70,14 @@ export function filterBranchOptions(
       totalMatches++;
       if (matches.length < limit) {
         matches.push(option);
+      } else {
+        hasMore = true;
       }
     }
     if (selectedValue && option.value === selectedValue) {
       selectedFound = true;
     }
-    if (totalMatches > limit && (selectedFound || !selectedValue)) break;
+    if (hasMore && (selectedFound || !selectedValue)) break;
   }
 
   // Radix Select can only display the trigger text for a value if a matching
@@ -88,7 +91,7 @@ export function filterBranchOptions(
 
   return {
     displayed: matches,
-    hasMore: totalMatches > limit,
+    hasMore,
     hasKnownSelection: selectedFound,
   };
 }
