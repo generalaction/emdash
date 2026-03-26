@@ -45,7 +45,55 @@ interface BranchSelectProps {
 
 const ROW_HEIGHT = 32;
 const MAX_LIST_HEIGHT = 256;
+const MAX_DISPLAYED_OPTIONS = 50;
 const EMPTY_BRANCH_VALUE = '__branch_select_empty__';
+
+/**
+ * Filter and cap options for display. Ensures the selected value is always
+ * included in the result so Radix can render it in the trigger.
+ */
+export function filterBranchOptions(
+  options: BranchOption[],
+  searchTerm: string,
+  selectedValue?: string
+): { displayed: BranchOption[]; hasMore: boolean; hasKnownSelection: boolean } {
+  const query = searchTerm.trim().toLowerCase();
+  const limit = MAX_DISPLAYED_OPTIONS;
+  const matches: BranchOption[] = [];
+  let selectedFound = false;
+  let totalMatches = 0;
+  let hasMore = false;
+
+  for (const option of options) {
+    const isMatch = !query || option.label.toLowerCase().includes(query);
+    if (isMatch) {
+      totalMatches++;
+      if (matches.length < limit) {
+        matches.push(option);
+      } else {
+        hasMore = true;
+      }
+    }
+    if (selectedValue && option.value === selectedValue) {
+      selectedFound = true;
+    }
+    if (hasMore && (selectedFound || !selectedValue)) break;
+  }
+
+  // Radix Select can only display the trigger text for a value if a matching
+  // <SelectItem> exists in the DOM. If the selected branch falls past the cap,
+  // prepend it so the trigger doesn't render blank.
+  if (selectedValue && selectedFound && !matches.some((o) => o.value === selectedValue)) {
+    const selectedOption = options.find((o) => o.value === selectedValue);
+    if (selectedOption) matches.unshift(selectedOption);
+  }
+
+  return {
+    displayed: matches,
+    hasMore,
+    hasKnownSelection: selectedFound,
+  };
+}
 
 const BranchSelect: React.FC<BranchSelectProps> = ({
   value,
@@ -62,25 +110,30 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Freeze options while dropdown is open so Radix doesn't lose the
+  // selected value when the list changes. Allow the initial load through
+  // (snapshot has ≤1 item) so branches appear on first open.
+  const [snapshot, setSnapshot] = useState(options);
+  useEffect(() => {
+    if (!open || snapshot.length <= 1) {
+      setSnapshot(options);
+    }
+  }, [open, options]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stableOptions = open ? snapshot : options;
+
   const navigationKeys = useMemo(
     () => new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Enter', 'Escape']),
     []
   );
 
-  const filteredOptions = useMemo(() => {
-    if (!searchTerm.trim()) return options;
-    const query = searchTerm.trim().toLowerCase();
-    return options.filter((option) => option.label.toLowerCase().includes(query));
-  }, [options, searchTerm]);
-
-  const displayedOptions = useMemo(() => {
-    if (!value) return filteredOptions;
-    const hasSelection = filteredOptions.some((option) => option.value === value);
-    if (hasSelection) return filteredOptions;
-    const selectedOption = options.find((option) => option.value === value);
-    if (!selectedOption) return filteredOptions;
-    return [selectedOption, ...filteredOptions];
-  }, [filteredOptions, options, value]);
+  const {
+    displayed: displayedOptions,
+    hasMore,
+    hasKnownSelection,
+  } = useMemo(
+    () => filterBranchOptions(stableOptions, searchTerm, value),
+    [stableOptions, searchTerm, value]
+  );
 
   const estimatedListHeight = Math.min(
     MAX_LIST_HEIGHT,
@@ -106,7 +159,6 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
 
   const defaultPlaceholder = isLoading ? 'Loading...' : 'Select branch';
   const triggerPlaceholder = placeholder ?? defaultPlaceholder;
-  const hasKnownSelection = Boolean(value && options.some((option) => option.value === value));
   const selectedValue = hasKnownSelection ? (value as string) : EMPTY_BRANCH_VALUE;
 
   const triggerClassName =
@@ -117,8 +169,13 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
   return (
     <Select
       value={selectedValue}
-      onValueChange={onValueChange}
-      disabled={disabled || isLoading || options.length === 0}
+      onValueChange={(v) => {
+        // Radix can emit the hidden placeholder item's value when options
+        // change while the dropdown is open. Filter it out so the parent
+        // never receives the sentinel as a real selection.
+        if (v && v !== EMPTY_BRANCH_VALUE) onValueChange(v);
+      }}
+      disabled={disabled || (isLoading && options.length === 0)}
       open={open}
       onOpenChange={handleOpenChange}
     >
@@ -147,6 +204,11 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
             className="bg-popover px-2 py-1 text-sm"
           />
         </div>
+        {isLoading && (
+          <div className="py-1.5 pl-2 pr-8 text-xs text-muted-foreground">
+            Fetching latest branches...
+          </div>
+        )}
         <ScrollArea
           className="w-full"
           style={{
@@ -157,12 +219,24 @@ const BranchSelect: React.FC<BranchSelectProps> = ({
           <div className="space-y-0 pr-3">
             {displayedOptions.length > 0 ? (
               displayedOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                // Radix SelectItem steals focus on hover via onPointerMove. Suppress it to
+                // keep focus in the search input. See: github.com/radix-ui/primitives/issues/2193
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  onPointerMove={(e) => e.preventDefault()}
+                  onPointerLeave={(e) => e.preventDefault()}
+                >
                   {option.label}
                 </SelectItem>
               ))
             ) : (
               <div className="px-3 py-2 text-xs text-muted-foreground">No matching branches</div>
+            )}
+            {hasMore && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Type to filter more...
+              </div>
             )}
           </div>
         </ScrollArea>
