@@ -1,5 +1,5 @@
-import type { AgentSessionConfig } from '../conversations/impl/agent-session';
-import type { GeneralSessionConfig } from '../terminals/impl/general-session';
+import type { AgentSessionConfig } from '@shared/agent-session';
+import type { GeneralSessionConfig } from '@shared/general-session';
 
 export type SessionType = 'agent' | 'general' | 'lifecycle';
 export type SessionConfig = AgentSessionConfig | GeneralSessionConfig;
@@ -36,13 +36,23 @@ export function resolveSpawnParams(type: SessionType, config: SessionConfig): Sp
 
     case 'general': {
       const cfg = config as GeneralSessionConfig;
-      if (cfg.shellSetup) {
-        return {
-          command: shell,
-          args: ['-c', `${cfg.shellSetup} && exec ${shell} -il`],
-          cwd: cfg.cwd,
-        };
+      const baseCmd = cfg.command ? [cfg.command, ...(cfg.args ?? [])].join(' ') : null;
+      const fullCmd = baseCmd
+        ? cfg.shellSetup
+          ? `${cfg.shellSetup} && ${baseCmd}`
+          : baseCmd
+        : cfg.shellSetup
+          ? `${cfg.shellSetup} && exec ${shell} -il`
+          : `exec ${shell} -il`;
+
+      if (cfg.tmuxSessionName) {
+        return buildTmuxParams(shell, cfg.tmuxSessionName, fullCmd, cfg.cwd);
       }
+
+      if (cfg.command || cfg.shellSetup) {
+        return { command: shell, args: ['-c', fullCmd], cwd: cfg.cwd };
+      }
+
       return { command: shell, args: ['-il'], cwd: cfg.cwd };
     }
 
