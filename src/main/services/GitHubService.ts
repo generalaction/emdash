@@ -2,6 +2,7 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
@@ -9,6 +10,12 @@ import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
+
+interface RunCommandOptions {
+  cwd?: string;
+  timeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
+}
 
 export interface GitHubUser {
   id: number;
@@ -553,6 +560,61 @@ export class GitHubService {
       }
       throw error;
     }
+  }
+
+  private async runCommand(
+    command: string,
+    args: string[],
+    options: RunCommandOptions = {}
+  ): Promise<void> {
+    const { cwd, timeoutMs, env } = options;
+
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, {
+        cwd,
+        env: env ?? process.env,
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+      let timedOut = false;
+
+      const timeout =
+        typeof timeoutMs === 'number' && timeoutMs > 0
+          ? setTimeout(() => {
+              timedOut = true;
+              child.kill('SIGTERM');
+            }, timeoutMs)
+          : null;
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', (error) => {
+        if (timeout) clearTimeout(timeout);
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        if (timeout) clearTimeout(timeout);
+        if (timedOut) {
+          reject(new Error(`Command timed out: ${command} ${args.join(' ')}`));
+          return;
+        }
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(
+          new Error(
+            stderr.trim() ||
+              `Command failed (${code}): ${command} ${args.map((arg) => JSON.stringify(arg)).join(' ')}`
+          )
+        );
+      });
+    });
   }
 
   /**
@@ -1255,6 +1317,285 @@ export class GitHubService {
       };
     } catch (error) {
       console.error('Failed to create repository:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new project from a template by cloning and re-initializing
+   */
+  async createProjectFromTemplate(params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    templateOwner: string;
+    templateRepo: string;
+    localPath: string;
+  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+    try {
+      const { name, description, owner, isPrivate, templateOwner, templateRepo, localPath } =
+        params;
+
+      const tempDir = path.join(os.tmpdir(), `emdash-template-${Date.now()}`);
+
+      try {
+        const cloneUrl = `https://github.com/${templateOwner}/${templateRepo}.git`;
+
+        await this.execGH(`git clone --depth 1 "${cloneUrl}" "${tempDir}"`);
+
+        const templateGitDir = path.join(tempDir, '.git');
+        if (fs.existsSync(templateGitDir)) {
+          fs.rmSync(templateGitDir, { recursive: true, force: true });
+        }
+
+        const readmePath = path.join(tempDir, 'README.md');
+        if (readmePath && description) {
+          const existingReadme = fs.existsSync(readmePath)
+            ? fs.readFileSync(readmePath, 'utf8')
+            : '';
+          const newReadme = `# ${name}\n\n${description}\n\n---\n\n${existingReadme}`;
+          fs.writeFileSync(readmePath, newReadme, 'utf8');
+        }
+
+        const execOptions = { cwd: tempDir };
+        await execAsync('/bin/sh -c "git init"', execOptions);
+        await execAsync('/bin/sh -c "git add -A"', execOptions);
+        await execAsync(
+          '/bin/sh -c "git commit -m \\"Initial commit from template\\""',
+          execOptions
+        );
+
+        const visibilityFlag = isPrivate ? '--private' : '--public';
+        const createCmd = `gh repo create ${owner}/${name} ${visibilityFlag} --confirm`;
+        await this.execGH(createCmd);
+
+        await execAsync(
+          '/bin/sh -c "git remote add origin https://github.com/' + owner + '/' + name + '.git"',
+          execOptions
+        );
+        await execAsync('/bin/sh -c "git push -u origin main"', execOptions).catch(async () => {
+          try {
+            await execAsync('/bin/sh -c "git push -u origin master"', execOptions);
+          } catch {
+            throw new Error('Failed to push to remote repository');
+          }
+        });
+
+        const { stdout } = await this.execGH(
+          `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
+        );
+        const repoInfo = JSON.parse(stdout);
+
+        return {
+          url: repoInfo.url || `https://github.com/${repoInfo.nameWithOwner}`,
+          defaultBranch: repoInfo.defaultBranchRef?.name || 'main',
+          fullName: repoInfo.nameWithOwner || `${owner}/${name}`,
+        };
+      } finally {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create project from template:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new Vite + React project
+   */
+  async createViteReactProject(params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    localPath: string;
+  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+    try {
+      const { name, description, owner, isPrivate } = params;
+
+      const tempDir = path.join(os.tmpdir(), `emdash-vite-react-${Date.now()}`);
+
+      try {
+        fs.mkdirSync(tempDir, { recursive: true });
+
+        const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+        await this.runCommand(pnpmCmd, ['create', 'vite', name, '--template', 'react-ts'], {
+          cwd: tempDir,
+          timeoutMs: 300000,
+        });
+
+        const projectDir = path.join(tempDir, name);
+        if (!fs.existsSync(projectDir)) {
+          throw new Error('Vite React project creation failed');
+        }
+
+        await this.runCommand(pnpmCmd, ['install'], {
+          cwd: projectDir,
+          timeoutMs: 300000,
+        });
+
+        if (description) {
+          const readmePath = path.join(projectDir, 'README.md');
+          if (fs.existsSync(readmePath)) {
+            const existingReadme = fs.readFileSync(readmePath, 'utf8');
+            const newReadme = `# ${name}\n\n${description}\n\n---\n\n${existingReadme}`;
+            fs.writeFileSync(readmePath, newReadme, 'utf8');
+          }
+        }
+
+        await this.runCommand('git', ['init'], { cwd: projectDir });
+        await this.runCommand('git', ['config', 'user.email', 'emdash@local'], { cwd: projectDir });
+        await this.runCommand('git', ['config', 'user.name', 'Emdash'], { cwd: projectDir });
+        await this.runCommand('git', ['add', '-A'], { cwd: projectDir });
+
+        const { stdout: statusOutput } = await this.execGH(
+          `cd "${projectDir}" && git status --porcelain`
+        );
+        if (statusOutput.trim()) {
+          await this.runCommand('git', ['commit', '-m', 'Initial commit from create-vite'], {
+            cwd: projectDir,
+          });
+        }
+
+        const visibilityFlag = isPrivate ? '--private' : '--public';
+        const createRepoCmd = `gh repo create ${owner}/${name} ${visibilityFlag} --confirm`;
+        await this.execGH(createRepoCmd);
+
+        await this.runCommand(
+          'git',
+          ['remote', 'add', 'origin', `https://github.com/${owner}/${name}.git`],
+          {
+            cwd: projectDir,
+          }
+        );
+        await this.runCommand('git', ['push', '-u', 'origin', 'main'], { cwd: projectDir }).catch(
+          async () => {
+            try {
+              await this.runCommand('git', ['push', '-u', 'origin', 'master'], { cwd: projectDir });
+            } catch {
+              throw new Error('Failed to push to remote repository');
+            }
+          }
+        );
+
+        const { stdout } = await this.execGH(
+          `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
+        );
+        const repoInfo = JSON.parse(stdout);
+
+        return {
+          url: repoInfo.url || `https://github.com/${repoInfo.nameWithOwner}`,
+          defaultBranch: repoInfo.defaultBranchRef?.name || 'main',
+          fullName: repoInfo.nameWithOwner || `${owner}/${name}`,
+        };
+      } finally {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create Vite React project:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize a new project with initial files and commit
+   */
+  async createNextJsProject(params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    localPath: string;
+  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+    try {
+      const { name, description, owner, isPrivate } = params;
+
+      const tempDir = path.join(os.tmpdir(), `emdash-nextjs-${Date.now()}`);
+
+      try {
+        // Ensure the parent working directory exists before spawning any child process.
+        fs.mkdirSync(tempDir, { recursive: true });
+
+        // Use pnpm create next-app with --yes to use recommended defaults
+        // (TypeScript, ESLint, Tailwind, App Router, AGENTS.md, etc.)
+        const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+        await this.runCommand(pnpmCmd, ['create', 'next-app', name, '--yes'], {
+          cwd: tempDir,
+          timeoutMs: 300000,
+        });
+
+        const projectDir = path.join(tempDir, name);
+        if (!fs.existsSync(projectDir)) {
+          throw new Error('Next.js project creation failed');
+        }
+
+        if (description) {
+          const readmePath = path.join(projectDir, 'README.md');
+          if (fs.existsSync(readmePath)) {
+            const existingReadme = fs.readFileSync(readmePath, 'utf8');
+            const newReadme = `# ${name}\n\n${description}\n\n---\n\n${existingReadme}`;
+            fs.writeFileSync(readmePath, newReadme, 'utf8');
+          }
+        }
+
+        await this.runCommand('git', ['init'], { cwd: projectDir });
+
+        // Configure git user identity for commits
+        await this.runCommand('git', ['config', 'user.email', 'emdash@local'], { cwd: projectDir });
+        await this.runCommand('git', ['config', 'user.name', 'Emdash'], { cwd: projectDir });
+
+        await this.runCommand('git', ['add', '-A'], { cwd: projectDir });
+        await this.runCommand(
+          'git',
+          ['commit', '--allow-empty', '-m', 'Initial commit from create-next-app'],
+          {
+            cwd: projectDir,
+          }
+        );
+
+        const visibilityFlag = isPrivate ? '--private' : '--public';
+        const createRepoCmd = `gh repo create ${owner}/${name} ${visibilityFlag} --confirm`;
+        await this.execGH(createRepoCmd);
+
+        await this.runCommand(
+          'git',
+          ['remote', 'add', 'origin', `https://github.com/${owner}/${name}.git`],
+          {
+            cwd: projectDir,
+          }
+        );
+        await this.runCommand('git', ['push', '-u', 'origin', 'main'], { cwd: projectDir }).catch(
+          async () => {
+            try {
+              await this.runCommand('git', ['push', '-u', 'origin', 'master'], { cwd: projectDir });
+            } catch {
+              throw new Error('Failed to push to remote repository');
+            }
+          }
+        );
+
+        const { stdout } = await this.execGH(
+          `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
+        );
+        const repoInfo = JSON.parse(stdout);
+
+        return {
+          url: repoInfo.url || `https://github.com/${repoInfo.nameWithOwner}`,
+          defaultBranch: repoInfo.defaultBranchRef?.name || 'main',
+          fullName: repoInfo.nameWithOwner || `${owner}/${name}`,
+        };
+      } finally {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create Next.js project:', error);
       throw error;
     }
   }
