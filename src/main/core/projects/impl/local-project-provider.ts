@@ -279,8 +279,13 @@ export class LocalProjectProvider implements ProjectProvider {
       });
     }
 
-    await task.conversations.destroyAll();
-    await task.terminals.destroyAll();
+    if (settings.tmux) {
+      await task.conversations.detachAll();
+      await task.terminals.detachAll();
+    } else {
+      await task.conversations.destroyAll();
+      await task.terminals.destroyAll();
+    }
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {

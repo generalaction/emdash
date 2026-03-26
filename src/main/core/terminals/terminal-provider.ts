@@ -8,4 +8,5 @@ export interface TerminalProvider {
   ): Promise<void>;
   killTerminal(terminalId: string): Promise<void>;
   destroyAll(): Promise<void>;
+  detachAll(): Promise<void>;
 }

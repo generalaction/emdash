@@ -9,6 +9,7 @@ export interface ConversationProvider {
   ): Promise<void>;
   stopSession(conversationId: string): Promise<void>;
   destroyAll(): Promise<void>;
+  detachAll(): Promise<void>;
 }
 
 export type ConversationConfig = {
