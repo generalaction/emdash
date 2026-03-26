@@ -12,7 +12,7 @@ import { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -159,7 +159,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (this.tmux) {
-      this.killTmuxSession(makeTmuxSessionName(sessionId));
+      killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -168,7 +168,7 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.detachAll();
     if (this.tmux) {
       for (const sessionId of sessionIds) {
-        this.killTmuxSession(makeTmuxSessionName(sessionId));
+        killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
       }
     }
   }
@@ -181,14 +181,5 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
-  }
-
-  private killTmuxSession(sessionName: string): void {
-    this.exec('tmux', ['kill-session', '-t', sessionName]).catch((err) => {
-      log.debug('LocalConversationProvider: tmux session not found or already dead', {
-        sessionName,
-        error: String(err),
-      });
-    });
   }
 }

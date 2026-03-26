@@ -1,12 +1,11 @@
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
-import { log } from '@main/lib/logger';
 import { spawnLocalPty } from '../pty/local-pty';
 import { Pty } from '../pty/pty';
 import { buildTerminalEnv } from '../pty/pty-env';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { resolveSpawnParams } from '../pty/spawn-utils';
-import { makeTmuxSessionName } from '../pty/tmux-session-name';
+import { killTmuxSession, makeTmuxSessionName } from '../pty/tmux-session-name';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { ExecFn } from '../utils/exec';
 
@@ -109,12 +108,7 @@ export class TaskLifecycleService {
         this.sessions.delete(id);
         ptySessionRegistry.unregister(sessionId);
         if (tmuxSessionName) {
-          this.exec('tmux', ['kill-session', '-t', tmuxSessionName]).catch((err) => {
-            log.debug('TaskLifecycleService: tmux session not found or already dead', {
-              sessionName: tmuxSessionName,
-              error: String(err),
-            });
-          });
+          killTmuxSession(this.exec, tmuxSessionName);
         }
         resolve();
       });

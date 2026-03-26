@@ -36,14 +36,10 @@ export function resolveSpawnParams(type: SessionType, config: SessionConfig): Sp
 
     case 'general': {
       const cfg = config as GeneralSessionConfig;
-      const baseCmd = cfg.command ? [cfg.command, ...(cfg.args ?? [])].join(' ') : null;
-      const fullCmd = baseCmd
-        ? cfg.shellSetup
-          ? `${cfg.shellSetup} && ${baseCmd}`
-          : baseCmd
-        : cfg.shellSetup
-          ? `${cfg.shellSetup} && exec ${shell} -il`
-          : `exec ${shell} -il`;
+      const baseCmd = cfg.command
+        ? [cfg.command, ...(cfg.args ?? [])].join(' ')
+        : `exec ${shell} -il`;
+      const fullCmd = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
 
       if (cfg.tmuxSessionName) {
         return buildTmuxParams(shell, cfg.tmuxSessionName, fullCmd, cfg.cwd);

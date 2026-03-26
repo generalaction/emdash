@@ -298,10 +298,11 @@ export class LocalProjectProvider implements ProjectProvider {
     const settings = await this.settings.get();
 
     if (settings.tmux) {
-      for (const task of this.tasks.values()) {
-        await task.conversations.detachAll();
-        await task.terminals.detachAll();
-      }
+      await Promise.all(
+        Array.from(this.tasks.values()).map((task) =>
+          Promise.all([task.conversations.detachAll(), task.terminals.detachAll()])
+        )
+      );
       this.tasks.clear();
     } else {
       await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
