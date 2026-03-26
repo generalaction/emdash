@@ -80,7 +80,7 @@ const TitlebarContext: React.FC<TitlebarContextProps> = ({
         <Select value={taskValue} onValueChange={handleTaskChange} disabled={!selectedProject}>
           <SelectTrigger
             className="pointer-events-auto h-7 w-auto min-w-[60px] justify-start gap-1 border-none bg-transparent px-1 py-0.5 text-[13px] font-medium leading-none text-muted-foreground shadow-none [-webkit-app-region:no-drag] hover:bg-background/70 hover:text-foreground data-[state=open]:bg-background/80 data-[placeholder]:text-muted-foreground/70 data-[state=open]:text-foreground [&>span]:block [&>span]:max-w-[218px] [&>span]:truncate [&>svg]:hidden"
-            aria-label="Current branch"
+            aria-label="Select task"
             title={taskLabel}
           >
             <SelectValue placeholder={currentBranch} />
