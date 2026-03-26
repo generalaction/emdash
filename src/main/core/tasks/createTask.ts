@@ -22,7 +22,11 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
   }
 
   if (taskBranch) {
-    await project.git.createBranch(taskBranch, params.sourceBranch);
+    await project.git.createBranch(
+      taskBranch,
+      params.sourceBranch.branch,
+      !!params.sourceBranch.remote
+    );
     if (params.pushBranch) {
       await project.git.publishBranch(taskBranch);
     }
@@ -36,7 +40,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
       name: params.name,
       taskBranch: taskBranch,
       status: 'todo' as TaskLifecycleStatus,
-      sourceBranch: params.sourceBranch,
+      sourceBranch: params.sourceBranch.branch,
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
@@ -47,7 +51,7 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     projectId: params.projectId,
     name: params.name,
     status: 'todo' as TaskLifecycleStatus,
-    sourceBranch: params.sourceBranch,
+    sourceBranch: params.sourceBranch.branch,
     taskBranch: taskBranch,
     linkedIssue: params.linkedIssue ? params.linkedIssue : undefined,
     createdAt: taskRow.createdAt,

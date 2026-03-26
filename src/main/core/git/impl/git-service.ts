@@ -963,7 +963,7 @@ export class GitService implements GitProvider {
       isGitRepo: true,
       remote,
       branch,
-      baseRef: computeBaseRef(remote, branch),
+      baseRef: computeBaseRef(undefined, remote, branch),
       rootPath,
     };
   }
