@@ -81,9 +81,8 @@ export function filterBranchOptions(
   }
 
   // Radix Select can only display the trigger text for a value if a matching
-  // <SelectItem> exists in the DOM. With 15k+ branches capped at 50, the
-  // selected branch (e.g. origin/main) often falls past the cap alphabetically.
-  // Prepend it so the trigger doesn't render blank.
+  // <SelectItem> exists in the DOM. If the selected branch falls past the cap,
+  // prepend it so the trigger doesn't render blank.
   if (selectedValue && selectedFound && !matches.some((o) => o.value === selectedValue)) {
     const selectedOption = options.find((o) => o.value === selectedValue);
     if (selectedOption) matches.unshift(selectedOption);
