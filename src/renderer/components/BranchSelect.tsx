@@ -45,7 +45,7 @@ interface BranchSelectProps {
 
 const ROW_HEIGHT = 32;
 const MAX_LIST_HEIGHT = 256;
-export const MAX_DISPLAYED_OPTIONS = 50;
+const MAX_DISPLAYED_OPTIONS = 50;
 const EMPTY_BRANCH_VALUE = '__branch_select_empty__';
 
 /**

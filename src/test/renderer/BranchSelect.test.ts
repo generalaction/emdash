@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   pickDefaultBranch,
   filterBranchOptions,
-  MAX_DISPLAYED_OPTIONS,
   type BranchOption,
 } from '../../renderer/components/BranchSelect';
 
@@ -75,20 +74,20 @@ describe('pickDefaultBranch', () => {
 
 describe('filterBranchOptions', () => {
   describe('capping', () => {
-    it('returns at most MAX_DISPLAYED_OPTIONS items', () => {
+    it('returns at most 50 items', () => {
       const options = makeBranches(200);
       const { displayed } = filterBranchOptions(options, '');
-      expect(displayed.length).toBe(MAX_DISPLAYED_OPTIONS);
+      expect(displayed.length).toBe(50);
     });
 
     it('sets hasMore when options exceed the cap', () => {
-      const options = makeBranches(MAX_DISPLAYED_OPTIONS + 1);
+      const options = makeBranches(50 + 1);
       const { hasMore } = filterBranchOptions(options, '');
       expect(hasMore).toBe(true);
     });
 
     it('does not set hasMore when options fit within the cap', () => {
-      const options = makeBranches(MAX_DISPLAYED_OPTIONS);
+      const options = makeBranches(50);
       const { hasMore } = filterBranchOptions(options, '');
       expect(hasMore).toBe(false);
     });
@@ -129,7 +128,7 @@ describe('filterBranchOptions', () => {
       // All branches contain "branch" so all match
       const options = makeBranches(200);
       const { displayed, hasMore } = filterBranchOptions(options, 'branch');
-      expect(displayed.length).toBe(MAX_DISPLAYED_OPTIONS);
+      expect(displayed.length).toBe(50);
       expect(hasMore).toBe(true);
     });
   });
@@ -192,7 +191,7 @@ describe('filterBranchOptions', () => {
       const start = performance.now();
       const { displayed, hasMore } = filterBranchOptions(options, '');
       const elapsed = performance.now() - start;
-      expect(displayed.length).toBe(MAX_DISPLAYED_OPTIONS);
+      expect(displayed.length).toBe(50);
       expect(hasMore).toBe(true);
       // Should complete very quickly due to early termination
       expect(elapsed).toBeLessThan(100);
