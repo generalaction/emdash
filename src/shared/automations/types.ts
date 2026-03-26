@@ -1,3 +1,5 @@
+import type { IntegrationId } from '../integrations/types';
+
 export type ScheduleType = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
 export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -14,7 +16,15 @@ export interface AutomationSchedule {
   dayOfMonth?: number;
 }
 
-export type TriggerType = 'github_pr' | 'github_issue' | 'linear_issue';
+export type TriggerType =
+  | 'github_pr'
+  | 'github_issue'
+  | 'linear_issue'
+  | 'jira_issue'
+  | 'gitlab_issue'
+  | 'gitlab_mr'
+  | 'forgejo_issue'
+  | 'plain_thread';
 
 export interface TriggerConfig {
   /** Filter PRs/issues by branch pattern (glob), e.g. "feature/*" */
@@ -91,6 +101,18 @@ export interface CreateAutomationInput {
   /** Whether to create a worktree for each run (default: true) */
   useWorktree?: boolean;
 }
+
+/** Maps each trigger type to the integration it requires. Single source of truth shared by main and renderer. */
+export const TRIGGER_INTEGRATION_MAP: Record<TriggerType, IntegrationId> = {
+  github_pr: 'github',
+  github_issue: 'github',
+  linear_issue: 'linear',
+  jira_issue: 'jira',
+  gitlab_issue: 'gitlab',
+  gitlab_mr: 'gitlab',
+  forgejo_issue: 'forgejo',
+  plain_thread: 'plain',
+};
 
 export interface UpdateAutomationInput {
   id: string;
