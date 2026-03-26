@@ -1,20 +1,21 @@
 ---
 title: tmux Sessions
-description: Persistent agent sessions with tmux
+description: Persistent terminal sessions with tmux
 ---
 
-Optionally wrap agent terminal sessions in [tmux](https://github.com/tmux/tmux) so they survive disconnects and Emdash restarts. When enabled, each chat runs inside a named tmux session that keeps the agent alive in the background even if the connection drops.
+Optionally wrap terminal sessions in [tmux](https://github.com/tmux/tmux) so they survive disconnects and Emdash restarts. When enabled, each terminal runs inside a named tmux session that keeps the process alive in the background even if the connection drops.
 
 ## Why use this
 
-Without tmux, if Emdash quits or an SSH connection drops, the agent process dies and the terminal goes blank. You lose any in-progress work the agent was doing.
+Without tmux, if Emdash quits or an SSH connection drops, the terminal process dies and the terminal goes blank. You lose any in-progress work the agent was doing, any running lifecycle scripts, and any open regular terminals.
 
-With tmux enabled, the agent keeps running inside its tmux session. When Emdash reconnects — whether after a restart or an SSH reconnect — it reattaches to the same session and picks up where it left off.
+With tmux enabled, every terminal keeps running inside its tmux session. When Emdash reconnects — whether after a restart or an SSH reconnect — it reattaches to the same session and picks up where it left off.
 
 This is especially useful for:
 
-- **Remote projects over SSH** — network interruptions don't kill long-running agent tasks
+- **Remote projects over SSH** — network interruptions don't kill long-running agent tasks or lifecycle scripts
 - **Long-running agent sessions** — quit Emdash, come back later, the agent is still working
+- **Regular terminals** — shell sessions you opened inside Emdash survive restarts just like agent sessions
 - **Unreliable connections** — WiFi drops, VPN reconnects, laptop lid closes
 
 ## Enabling tmux
@@ -42,28 +43,28 @@ tmux must be installed on the machine where the agent runs — your local machin
 
 ## How it works
 
-When you create a task or open a chat with tmux enabled:
+When you create a task, open a chat, launch a regular terminal, or run a lifecycle script with tmux enabled:
 
-1. Emdash spawns the agent inside `tmux new-session -As emdash-{id}` instead of a plain shell
-2. Each chat tab gets its own named tmux session (e.g., `emdash-claude-main-abc123`)
-3. If the connection drops, tmux keeps the agent running in the background
+1. Emdash spawns terminals inside `tmux new-session -As emdash-{id}` instead of a plain shell
+2. Each terminal session — agent conversations, regular terminals, and lifecycle scripts — gets its own named tmux session (e.g., `emdash-claude-main-abc123`)
+3. If the connection drops, tmux keeps the process running in the background
 4. When Emdash reconnects, the same `tmux new-session -As` command reattaches to the existing session
 
 The session name is derived deterministically from the task and conversation ID, so Emdash always reconnects to the correct session.
 
-## Mixing tmux and non-tmux chats
+## Mixing tmux and non-tmux sessions
 
 tmux is resolved at the moment a terminal session starts, not when the task is created. If you enable tmux on a project that already has running tasks:
 
-- **Existing chats** continue running without tmux — no disruption
-- **New chats** created after the config change will use tmux
-- **After an Emdash restart**, all chats use the current config (tmux-wrapped sessions from before will be reattached; non-tmux sessions start fresh)
+- **Existing sessions** continue running without tmux — no disruption
+- **New sessions** created after the config change will use tmux
+- **After an Emdash restart**, all sessions use the current config (tmux-wrapped sessions from before will be reattached; non-tmux sessions start fresh)
 
-There's no conflict between tmux and non-tmux chats in the same project.
+There's no conflict between tmux and non-tmux sessions in the same project.
 
 ## Cleanup
 
-When you **delete a task**, Emdash kills the associated tmux sessions automatically.
+When you **delete a task**, Emdash kills the associated tmux sessions automatically — this covers all terminal types tied to that task, including agent conversations, regular terminals, and lifecycle scripts.
 
 When you **quit Emdash**, tmux sessions are left running (that's the point — the agent keeps working). On next launch, Emdash reattaches.
 
