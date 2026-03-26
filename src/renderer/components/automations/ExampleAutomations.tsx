@@ -8,12 +8,19 @@ import {
   MessageSquare,
   CircuitBoard,
   Plus,
+  GitMerge,
+  Ticket,
+  Headphones,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Separator } from '../ui/separator';
 import type { TriggerType, AutomationMode } from '@shared/automations/types';
 import linearSvg from '../../../assets/images/Linear.svg?raw';
 import githubPng from '../../../assets/images/github.png';
+import jiraSvg from '../../../assets/images/Jira.svg?raw';
+import gitlabSvg from '../../../assets/images/GitLab.svg?raw';
+import forgejoSvg from '../../../assets/images/Forgejo.svg?raw';
+import plainSvg from '../../../assets/images/Plain.svg?raw';
 
 const GitHubIcon: React.FC<{ className?: string }> = ({ className }) => (
   <img src={githubPng} alt="" className={`dark:invert ${className ?? 'h-5 w-5'}`} />
@@ -25,6 +32,13 @@ const LinearIcon: React.FC<{ className?: string }> = ({ className }) => (
     dangerouslySetInnerHTML={{
       __html: linearSvg.replace(/width="200" height="200"/, 'width="100%" height="100%"'),
     }}
+  />
+);
+
+const SvgIcon: React.FC<{ raw: string; className?: string }> = ({ raw, className }) => (
+  <span
+    className={`inline-flex items-center justify-center dark:invert [&_svg]:h-full [&_svg]:w-full ${className ?? 'h-5 w-5'}`}
+    dangerouslySetInnerHTML={{ __html: raw }}
   />
 );
 
@@ -82,6 +96,51 @@ const TRIGGER_EXAMPLES: ExampleAutomation[] = [
     description: 'Auto-triage new GitHub issues',
     mode: 'trigger',
     triggerType: 'github_issue',
+  },
+  {
+    icon: <SvgIcon raw={jiraSvg} />,
+    name: 'Jira Ticket Autostart',
+    prompt:
+      'Read the Jira ticket description and acceptance criteria. Implement the requested changes following project conventions and create a PR when done.',
+    description: 'Start work on new Jira tickets',
+    mode: 'trigger',
+    triggerType: 'jira_issue',
+  },
+  {
+    icon: <SvgIcon raw={gitlabSvg} />,
+    name: 'GitLab Issue Worker',
+    prompt:
+      'Read the GitLab issue description and implement the requested changes. Follow project conventions and create a merge request when done.',
+    description: 'Start work on new GitLab issues',
+    mode: 'trigger',
+    triggerType: 'gitlab_issue',
+  },
+  {
+    icon: <SvgIcon raw={gitlabSvg} />,
+    name: 'GitLab MR Review',
+    prompt:
+      'Review the merge request changes for code quality, potential bugs, security issues, and adherence to project conventions. Provide actionable feedback.',
+    description: 'Auto-review new merge requests',
+    mode: 'trigger',
+    triggerType: 'gitlab_mr',
+  },
+  {
+    icon: <SvgIcon raw={forgejoSvg} />,
+    name: 'Forgejo Issue Worker',
+    prompt:
+      'Read the Forgejo issue description and implement the requested changes. Follow project conventions and create a pull request when done.',
+    description: 'Start work on new Forgejo issues',
+    mode: 'trigger',
+    triggerType: 'forgejo_issue',
+  },
+  {
+    icon: <SvgIcon raw={plainSvg} />,
+    name: 'Support Thread Helper',
+    prompt:
+      'Analyze the new support thread. Research the issue in the codebase, identify the root cause, and draft a helpful response with a fix or workaround.',
+    description: 'Auto-respond to support threads',
+    mode: 'trigger',
+    triggerType: 'plain_thread',
   },
 ];
 

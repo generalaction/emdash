@@ -23,6 +23,7 @@ import type { Agent } from '../../types';
 import {
   SCHEDULE_TYPES,
   TRIGGER_TYPES,
+  TRIGGER_INTEGRATION_MAP,
   DAYS_OF_WEEK,
   HOURS,
   MINUTES,
@@ -31,6 +32,8 @@ import {
   formatTriggerLabel,
   buildSchedule,
 } from './utils';
+import { INTEGRATION_LABELS } from '@shared/integrations/types';
+import { useIntegrationStatusMap } from '../../hooks/useIntegrationStatusMap';
 
 interface AutomationInlineCreateProps {
   projects: Project[];
@@ -55,6 +58,7 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
   onCancel,
 }) => {
   const isEditing = !!editingAutomation;
+  const { statuses: integrationStatuses } = useIntegrationStatusMap();
 
   const [name, setName] = useState(editingAutomation?.name ?? prefill?.name ?? '');
   const [projectId, setProjectId] = useState(editingAutomation?.projectId ?? projects[0]?.id ?? '');
@@ -441,15 +445,37 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {TRIGGER_TYPES.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
+                        {TRIGGER_TYPES.map((t) => {
+                          const connected = integrationStatuses[t.integration];
+                          return (
+                            <SelectItem key={t.value} value={t.value}>
+                              <span className="flex items-center gap-2">
+                                {t.label}
+                                {!connected && (
+                                  <span className="text-[10px] text-amber-500">
+                                    (not connected)
+                                  </span>
+                                )}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
-                  {(triggerType === 'github_pr' || triggerType === 'github_issue') && (
+                  {/* Connection warning */}
+                  {!integrationStatuses[TRIGGER_INTEGRATION_MAP[triggerType]] && (
+                    <p className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-[10px] text-amber-600 dark:text-amber-400">
+                      {INTEGRATION_LABELS[TRIGGER_INTEGRATION_MAP[triggerType]]} is not connected.
+                      Connect it in Settings → Integrations for this trigger to work.
+                    </p>
+                  )}
+                  {/* Branch & label filters for integrations that support them */}
+                  {(triggerType === 'github_pr' ||
+                    triggerType === 'github_issue' ||
+                    triggerType === 'gitlab_issue' ||
+                    triggerType === 'gitlab_mr' ||
+                    triggerType === 'forgejo_issue') && (
                     <>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-muted-foreground">

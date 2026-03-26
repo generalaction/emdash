@@ -1,5 +1,15 @@
 import React from 'react';
-import { Pause, Play, Trash2, Pencil, Zap, Clock, GitPullRequest, CircleDot } from 'lucide-react';
+import {
+  Pause,
+  Play,
+  Trash2,
+  Pencil,
+  Zap,
+  Clock,
+  GitPullRequest,
+  CircleDot,
+  AlertTriangle,
+} from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Spinner } from '../ui/spinner';
@@ -8,12 +18,20 @@ import { agentConfig } from '../../lib/agentConfig';
 import { useRunningAutomations, getPhaseLabel } from './useRunningAutomations';
 import type { Automation } from '@shared/automations/types';
 import type { Project } from '../../types/app';
-import { formatScheduleLabel, formatRelativeTime, formatTriggerLabel } from './utils';
+import {
+  formatScheduleLabel,
+  formatRelativeTime,
+  formatTriggerLabel,
+  TRIGGER_INTEGRATION_MAP,
+} from './utils';
+import { INTEGRATION_LABELS } from '@shared/integrations/types';
+import type { IntegrationStatusMap } from '@shared/integrations/types';
 import type { Agent } from '../../types';
 
 interface AutomationRowProps {
   automation: Automation;
   projects: Project[];
+  integrationStatuses?: IntegrationStatusMap;
   onEdit: (automation: Automation) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
@@ -21,9 +39,16 @@ interface AutomationRowProps {
   onViewLogs: (automation: Automation) => void;
 }
 
+function getTriggerIcon(triggerType: string): React.ReactNode {
+  if (triggerType === 'github_pr') return <GitPullRequest className="h-3 w-3" />;
+  if (triggerType === 'linear_issue') return <CircleDot className="h-3 w-3" />;
+  return <Zap className="h-3 w-3" />;
+}
+
 const AutomationRow: React.FC<AutomationRowProps> = ({
   automation,
   projects,
+  integrationStatuses,
   onEdit,
   onToggle,
   onDelete,
@@ -33,6 +58,14 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
   const agent = agentConfig[automation.agentId as Agent];
   const project = projects.find((p) => p.id === automation.projectId);
   const isActive = automation.status === 'active';
+
+  // Check if the required integration is connected for trigger automations
+  const requiredIntegration =
+    automation.mode === 'trigger' && automation.triggerType
+      ? TRIGGER_INTEGRATION_MAP[automation.triggerType]
+      : null;
+  const isIntegrationDisconnected =
+    requiredIntegration && integrationStatuses ? !integrationStatuses[requiredIntegration] : false;
 
   const { getRunState } = useRunningAutomations();
   const runState = getRunState(automation.id);
@@ -80,19 +113,33 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
         </span>
       )}
 
-      {/* Schedule / trigger info */}
-      {!isTriggering && automation.mode === 'trigger' && automation.triggerType && (
-        <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
-          {automation.triggerType === 'github_pr' ? (
-            <GitPullRequest className="h-3 w-3" />
-          ) : automation.triggerType === 'linear_issue' ? (
-            <CircleDot className="h-3 w-3" />
-          ) : (
-            <Zap className="h-3 w-3" />
-          )}
-          {formatTriggerLabel(automation.triggerType)}
-        </span>
+      {/* Integration disconnected warning */}
+      {!isTriggering && isIntegrationDisconnected && requiredIntegration && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex items-center gap-1 text-xs text-amber-500">
+              <AlertTriangle className="h-3 w-3" />
+              <span className="hidden sm:inline">
+                {INTEGRATION_LABELS[requiredIntegration]} not connected
+              </span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            Connect {INTEGRATION_LABELS[requiredIntegration]} in Settings → Integrations
+          </TooltipContent>
+        </Tooltip>
       )}
+
+      {/* Schedule / trigger info */}
+      {!isTriggering &&
+        automation.mode === 'trigger' &&
+        automation.triggerType &&
+        !isIntegrationDisconnected && (
+          <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
+            {getTriggerIcon(automation.triggerType)}
+            {formatTriggerLabel(automation.triggerType)}
+          </span>
+        )}
       {!isTriggering && automation.mode !== 'trigger' && (
         <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
           <Clock className="h-3 w-3" />

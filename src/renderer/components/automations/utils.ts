@@ -1,9 +1,11 @@
+import type { IntegrationId } from '@shared/integrations/types';
 import type {
   AutomationSchedule,
   DayOfWeek,
   ScheduleType,
   TriggerType,
 } from '@shared/automations/types';
+export { TRIGGER_INTEGRATION_MAP } from '@shared/automations/types';
 
 export const DAY_LABELS: Record<DayOfWeek, string> = {
   mon: 'Monday',
@@ -118,12 +120,22 @@ export const TRIGGER_TYPE_LABELS: Record<TriggerType, string> = {
   github_pr: 'GitHub PR Created',
   github_issue: 'GitHub Issue Created',
   linear_issue: 'Linear Issue Created',
+  jira_issue: 'Jira Issue Created',
+  gitlab_issue: 'GitLab Issue Created',
+  gitlab_mr: 'GitLab MR Created',
+  forgejo_issue: 'Forgejo Issue Created',
+  plain_thread: 'Plain Thread Created',
 };
 
-export const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
-  { value: 'github_pr', label: 'New Pull Request' },
-  { value: 'github_issue', label: 'New GitHub Issue' },
-  { value: 'linear_issue', label: 'New Linear Issue' },
+export const TRIGGER_TYPES: { value: TriggerType; label: string; integration: IntegrationId }[] = [
+  { value: 'github_pr', label: 'New Pull Request', integration: 'github' },
+  { value: 'github_issue', label: 'New GitHub Issue', integration: 'github' },
+  { value: 'linear_issue', label: 'New Linear Issue', integration: 'linear' },
+  { value: 'jira_issue', label: 'New Jira Issue', integration: 'jira' },
+  { value: 'gitlab_issue', label: 'New GitLab Issue', integration: 'gitlab' },
+  { value: 'gitlab_mr', label: 'New GitLab Merge Request', integration: 'gitlab' },
+  { value: 'forgejo_issue', label: 'New Forgejo Issue', integration: 'forgejo' },
+  { value: 'plain_thread', label: 'New Plain Thread', integration: 'plain' },
 ];
 
 export function formatTriggerLabel(triggerType: TriggerType | null): string {

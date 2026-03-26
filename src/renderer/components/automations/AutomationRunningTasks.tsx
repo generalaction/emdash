@@ -72,6 +72,43 @@ const AutomationRunningTasks: React.FC = () => {
 // Single task row
 // ---------------------------------------------------------------------------
 
+function TaskStatusDisplay({
+  status,
+  createdAt,
+}: {
+  status: ReturnType<typeof useTaskStatus>;
+  createdAt?: string;
+}): React.ReactNode {
+  if (status === 'working') {
+    return (
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Spinner size="sm" className="h-3 w-3" />
+        Working
+      </span>
+    );
+  }
+  if (status === 'waiting') {
+    return (
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <TaskStatusIndicator status={status} />
+        Waiting
+      </span>
+    );
+  }
+  if (status === 'complete') {
+    return <span className="text-[11px] text-muted-foreground">Done</span>;
+  }
+  if (status === 'error') {
+    return <span className="text-[11px] text-muted-foreground">Error</span>;
+  }
+  if (createdAt) {
+    return (
+      <span className="text-[11px] text-muted-foreground">{formatRelativeTime(createdAt)}</span>
+    );
+  }
+  return null;
+}
+
 const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, project }) => {
   const status = useTaskStatus(task.id);
   const isWorking = status === 'working';
@@ -129,27 +166,7 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
 
       {/* Status indicator */}
       <div className="flex items-center gap-2">
-        {isWorking ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Spinner size="sm" className="h-3 w-3" />
-            Working
-          </span>
-        ) : status === 'waiting' ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <TaskStatusIndicator status={status} />
-            Waiting
-          </span>
-        ) : status === 'complete' ? (
-          <span className="text-[11px] text-muted-foreground">Done</span>
-        ) : status === 'error' ? (
-          <span className="text-[11px] text-muted-foreground">Error</span>
-        ) : (
-          task.createdAt && (
-            <span className="text-[11px] text-muted-foreground">
-              {formatRelativeTime(task.createdAt)}
-            </span>
-          )
-        )}
+        <TaskStatusDisplay status={status} createdAt={task.createdAt} />
       </div>
 
       {/* Actions — visible on hover */}

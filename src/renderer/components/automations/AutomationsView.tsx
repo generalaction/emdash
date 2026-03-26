@@ -25,6 +25,7 @@ import type {
   TriggerType,
   UpdateAutomationInput,
 } from '@shared/automations/types';
+import { useIntegrationStatusMap } from '../../hooks/useIntegrationStatusMap';
 
 const AutomationsView: React.FC = () => {
   const {
@@ -42,6 +43,7 @@ const AutomationsView: React.FC = () => {
   } = useAutomations();
 
   const { projects } = useProjectManagementContext();
+  const { statuses: integrationStatuses } = useIntegrationStatusMap();
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
@@ -209,6 +211,7 @@ const AutomationsView: React.FC = () => {
                   key={automation.id}
                   automation={automation}
                   projects={projects}
+                  integrationStatuses={integrationStatuses}
                   onEdit={handleEdit}
                   onToggle={toggle}
                   onDelete={setDeleteTarget}
@@ -230,6 +233,7 @@ const AutomationsView: React.FC = () => {
                   key={automation.id}
                   automation={automation}
                   projects={projects}
+                  integrationStatuses={integrationStatuses}
                   onEdit={handleEdit}
                   onToggle={toggle}
                   onDelete={setDeleteTarget}
