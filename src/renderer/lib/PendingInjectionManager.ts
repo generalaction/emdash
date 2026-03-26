@@ -4,51 +4,61 @@
  * This is implemented as a singleton rather than React context because:
  * 1. TerminalSessionManager is a class-based component that can't access React context
  * 2. We need synchronous access to pending text during terminal input handling
+ *
+ * Supports multiple named sources (e.g. diff comments, PR comments) that are
+ * concatenated when retrieved and all cleared when the injection is consumed.
  */
 
 type InjectionUsedCallback = () => void;
 
+const DEFAULT_SOURCE = 'default';
+
 class PendingInjectionManagerSingleton {
-  private pendingText: string | null = null;
+  private sources = new Map<string, string>();
   private listeners: Set<() => void> = new Set();
   private onInjectionUsedCallbacks: Set<InjectionUsedCallback> = new Set();
 
   /**
-   * Set pending text to be prepended to the next user message
+   * Set pending text for a named source. Multiple sources are concatenated on retrieval.
    */
-  setPending(text: string): void {
-    this.pendingText = text;
+  setPending(text: string, source: string = DEFAULT_SOURCE): void {
+    this.sources.set(source, text);
     this.notifyListeners();
   }
 
   /**
-   * Get the current pending text (if any)
+   * Get concatenated pending text from all sources (if any)
    */
   getPending(): string | null {
-    return this.pendingText;
+    if (this.sources.size === 0) return null;
+    return Array.from(this.sources.values()).join('');
   }
 
   /**
-   * Clear the pending text
+   * Clear pending text. If source is given, clears only that source; otherwise clears all.
    */
-  clear(): void {
-    this.pendingText = null;
+  clear(source?: string): void {
+    if (source !== undefined) {
+      this.sources.delete(source);
+    } else {
+      this.sources.clear();
+    }
     this.notifyListeners();
   }
 
   /**
-   * Check if there is pending text
+   * Check if there is any pending text
    */
   hasPending(): boolean {
-    return this.pendingText !== null;
+    return this.sources.size > 0;
   }
 
   /**
    * Called when the pending injection has been used (prepended to user input)
-   * This clears the pending text and notifies callbacks
+   * This clears all sources and notifies callbacks
    */
   markUsed(): void {
-    this.pendingText = null;
+    this.sources.clear();
     this.notifyListeners();
     // Notify callbacks that injection was used
     for (const callback of this.onInjectionUsedCallbacks) {

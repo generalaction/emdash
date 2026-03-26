@@ -3,6 +3,8 @@ import { useTaskComments } from './useLineComments';
 import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { formatCommentsForAgent } from '../lib/formatCommentsForAgent';
 
+const INJECTION_SOURCE = 'diff-comments';
+
 export function useCommentInjection(taskId?: string, taskPath?: string | null) {
   const resolvedTaskId = taskId ?? '';
   const { comments, consumeAll } = useTaskComments(resolvedTaskId, taskPath);
@@ -15,12 +17,12 @@ export function useCommentInjection(taskId?: string, taskPath?: string | null) {
   useEffect(() => {
     if (!resolvedTaskId || comments.length === 0) {
       if (hasPendingRef.current) {
-        pendingInjectionManager.clear();
+        pendingInjectionManager.clear(INJECTION_SOURCE);
         hasPendingRef.current = false;
       }
       return () => {
         if (hasPendingRef.current) {
-          pendingInjectionManager.clear();
+          pendingInjectionManager.clear(INJECTION_SOURCE);
           hasPendingRef.current = false;
         }
       };
@@ -32,16 +34,16 @@ export function useCommentInjection(taskId?: string, taskPath?: string | null) {
     });
 
     if (formatted) {
-      pendingInjectionManager.setPending(formatted);
+      pendingInjectionManager.setPending(formatted, INJECTION_SOURCE);
       hasPendingRef.current = true;
     } else if (hasPendingRef.current) {
-      pendingInjectionManager.clear();
+      pendingInjectionManager.clear(INJECTION_SOURCE);
       hasPendingRef.current = false;
     }
 
     return () => {
       if (hasPendingRef.current) {
-        pendingInjectionManager.clear();
+        pendingInjectionManager.clear(INJECTION_SOURCE);
         hasPendingRef.current = false;
       }
     };
