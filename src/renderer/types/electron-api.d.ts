@@ -1399,6 +1399,13 @@ declare global {
       }>;
       onAutomationTriggerAvailable: (listener: () => void) => () => void;
 
+      // Integrations
+      integrationsStatusMap: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/integrations/types').IntegrationStatusMap;
+        error?: string;
+      }>;
+
       // Performance Monitor
       perfSubscribe: () => Promise<{
         success: boolean;
@@ -2154,6 +2161,13 @@ export interface ElectronAPI {
     error?: string;
   }>;
   onAutomationTriggerAvailable: (listener: () => void) => () => void;
+
+  // Integrations
+  integrationsStatusMap: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/integrations/types').IntegrationStatusMap;
+    error?: string;
+  }>;
 
   // Performance Monitor
   perfSubscribe: () => Promise<{

@@ -920,6 +920,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     };
   },
 
+  // Integrations
+  integrationsStatusMap: () => ipcRenderer.invoke('integrations:statusMap'),
+
   // Performance Monitor
   perfSubscribe: () => ipcRenderer.invoke('perf:subscribe'),
   perfUnsubscribe: () => ipcRenderer.invoke('perf:unsubscribe'),
