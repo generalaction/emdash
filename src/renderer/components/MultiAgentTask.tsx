@@ -22,6 +22,7 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import { rpc } from '@/lib/rpc';
 import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useCommentInjection } from '@/hooks/useCommentInjection';
+import { usePrCommentInjection } from '@/hooks/usePrCommentInjection';
 import { isSlashCommandInput } from '@/lib/slashCommand';
 import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
 import { formatCommentsForAgent } from '@/lib/formatCommentsForAgent';
@@ -69,6 +70,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
   const activeVariantPath = variants[activeTabIndex]?.path ?? task.path;
   useCommentInjection(task.id, activeVariantPath);
+  usePrCommentInjection();
 
   const variantEnvs = useMemo(() => {
     if (!projectPath) return new Map<string, Record<string, string>>();

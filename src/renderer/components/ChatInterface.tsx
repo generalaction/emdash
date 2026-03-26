@@ -15,6 +15,7 @@ import { useConversationStatus } from '../hooks/useConversationStatus';
 import { useStatusUnread } from '../hooks/useStatusUnread';
 import { useInitialPromptInjection } from '../hooks/useInitialPromptInjection';
 import { useCommentInjection } from '../hooks/useCommentInjection';
+import { usePrCommentInjection } from '../hooks/usePrCommentInjection';
 import { type Agent } from '../types';
 import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
@@ -290,6 +291,7 @@ const ChatInterface: React.FC<Props> = ({
 
   // Wire comment injection to pendingInjectionManager
   useCommentInjection(task.id, task.path);
+  usePrCommentInjection();
 
   // Auto-scroll to bottom when this task becomes active
   useAutoScrollOnTaskSwitch(true, task.id);

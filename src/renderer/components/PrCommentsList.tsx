@@ -1,6 +1,15 @@
-import { CheckCircle2, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  MessageSquarePlus,
+  XCircle,
+} from 'lucide-react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import type { PrCommentsStatus, PrComment } from '../lib/prCommentsStatus';
 import { formatRelativeTime } from '../lib/prCommentsStatus';
+import { selectedPrCommentsStore } from '../lib/selectedPrCommentsStore';
 
 function ReviewBadge({ state }: { state?: PrComment['reviewState'] }) {
   switch (state) {
@@ -37,29 +46,78 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+const subscribe = (listener: () => void) => selectedPrCommentsStore.subscribe(listener);
+
 function CommentItem({ comment, prUrl }: { comment: PrComment; prUrl?: string }) {
-  const preview = comment.body ? stripMarkdown(comment.body) : '';
+  const preview = useMemo(() => (comment.body ? stripMarkdown(comment.body) : ''), [comment.body]);
+  const hasBody = !!comment.body;
+  const [expanded, setExpanded] = useState(false);
+  const isSelected = useSyncExternalStore(subscribe, () => selectedPrCommentsStore.has(comment.id));
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectedPrCommentsStore.toggle(comment);
+  };
 
   return (
     <div
-      className="min-w-0 cursor-pointer px-4 py-2.5 transition-colors hover:bg-muted/50"
-      onClick={() => prUrl && window.electronAPI?.openExternal?.(prUrl)}
+      className={`group min-w-0 px-4 py-2.5 transition-colors hover:bg-muted/50 ${
+        isSelected ? 'bg-primary/10' : ''
+      } ${hasBody ? 'cursor-pointer' : ''}`}
+      onClick={hasBody ? () => setExpanded((prev) => !prev) : undefined}
     >
       <div className="flex items-center gap-2">
+        {hasBody ? (
+          expanded ? (
+            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+          )
+        ) : (
+          <span className="h-3 w-3 shrink-0" />
+        )}
         <img
           src={comment.author.avatarUrl || `https://github.com/${comment.author.login}.png?size=40`}
           alt=""
           className="h-5 w-5 shrink-0 rounded-sm"
         />
         <span className="shrink-0 text-sm font-medium text-foreground">{comment.author.login}</span>
-        {preview && (
+        {!expanded && preview && (
           <span className="min-w-0 truncate text-xs text-muted-foreground">{preview}</span>
         )}
         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
           {formatRelativeTime(comment.createdAt)}
         </span>
         {comment.type === 'review' && <ReviewBadge state={comment.reviewState} />}
+        {hasBody && (
+          <button
+            className={`shrink-0 rounded p-0.5 transition-colors hover:bg-muted ${
+              isSelected ? 'text-primary' : 'text-muted-foreground'
+            }`}
+            onClick={handleToggle}
+            title={isSelected ? 'Remove from chat' : 'Send to chat'}
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {prUrl && (
+          <button
+            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.electronAPI?.openExternal?.(prUrl);
+            }}
+            title="Open in GitHub"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        )}
       </div>
+      {expanded && comment.body && (
+        <div className="mt-2 whitespace-pre-wrap break-words pl-5 text-xs text-foreground">
+          {comment.body}
+        </div>
+      )}
     </div>
   );
 }

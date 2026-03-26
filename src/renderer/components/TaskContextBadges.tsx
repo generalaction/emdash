@@ -7,6 +7,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/t
 import { CommentsPopover } from './CommentsPopover';
 import { Button } from './ui/button';
 import { useTaskComments } from '../hooks/useLineComments';
+import { useSelectedPrCommentCount } from '../hooks/usePrCommentInjection';
 import { useTaskScope } from './TaskScopeContext';
 import linearLogoSvg from '../../assets/images/Linear.svg?raw';
 import githubLogo from '../../assets/images/github.png';
@@ -29,8 +30,10 @@ export const TaskContextBadges: React.FC<Props> = ({
   const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const { count: unsentCount } = useTaskComments(resolvedTaskId, scopedTaskPath);
+  const prCommentCount = useSelectedPrCommentCount();
+  const totalUnsentCount = unsentCount + prCommentCount;
 
-  const hasAnything = !!linearIssue || !!githubIssue || !!jiraIssue || unsentCount > 0;
+  const hasAnything = !!linearIssue || !!githubIssue || !!jiraIssue || totalUnsentCount > 0;
   if (!hasAnything) return null;
 
   const handleIssueClick = (url?: string) => {
@@ -189,7 +192,7 @@ export const TaskContextBadges: React.FC<Props> = ({
         </TooltipProvider>
       )}
 
-      {resolvedTaskId && unsentCount > 0 && (
+      {resolvedTaskId && totalUnsentCount > 0 && (
         <CommentsPopover
           tooltipContent="These comments will be appended to your next agent message."
           tooltipDelay={300}
@@ -199,12 +202,12 @@ export const TaskContextBadges: React.FC<Props> = ({
             variant="outline"
             size="sm"
             className="relative h-7 gap-1.5 border-border bg-muted px-2 text-xs hover:bg-muted/80 dark:border-border dark:bg-muted"
-            title={`${unsentCount} comment${unsentCount === 1 ? '' : 's'} will be sent`}
+            title={`${totalUnsentCount} comment${totalUnsentCount === 1 ? '' : 's'} will be sent`}
           >
             <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="font-medium">Comments</span>
             <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">
-              {unsentCount}
+              {totalUnsentCount}
             </span>
           </Button>
         </CommentsPopover>
