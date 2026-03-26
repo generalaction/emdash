@@ -218,6 +218,7 @@ export class TerminalSessionManager {
         updateCustomFontSize(size);
       }
       this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+      this.terminal.options.macOptionIsMeta = settings?.terminal?.macOptionIsMeta ?? false;
     });
 
     window.electronAPI.terminalGetTheme().then((result) => {
@@ -261,6 +262,15 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+    );
+
+    const handleMacOptionIsMetaChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ macOptionIsMeta?: boolean }>).detail;
+      this.terminal.options.macOptionIsMeta = detail?.macOptionIsMeta ?? false;
+    };
+    window.addEventListener('terminal-mac-option-is-meta-changed', handleMacOptionIsMetaChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-mac-option-is-meta-changed', handleMacOptionIsMetaChange)
     );
 
     const handlePanelResizeDragging = (e: Event) => {

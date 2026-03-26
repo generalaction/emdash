@@ -119,6 +119,7 @@ export interface AppSettings {
     fontFamily: string;
     fontSize: number;
     autoCopyOnSelection: boolean;
+    macOptionIsMeta: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -204,6 +205,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontFamily: '',
     fontSize: 0,
     autoCopyOnSelection: false,
+    macOptionIsMeta: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -579,13 +581,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
+  const macOptionIsMeta = Boolean(term?.macOptionIsMeta ?? false);
   const rawFontSize = term?.fontSize;
   let fontSize = 0;
   if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
     const clamped = Math.round(rawFontSize);
     fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
   }
-  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection, macOptionIsMeta };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;
