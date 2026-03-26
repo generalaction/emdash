@@ -25,10 +25,11 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     await project.git.createBranch(
       taskBranch,
       params.sourceBranch.branch,
-      !!params.sourceBranch.remote
+      !!params.sourceBranch.remote,
+      params.sourceBranch.remote || 'origin'
     );
     if (params.pushBranch) {
-      await project.git.publishBranch(taskBranch);
+      await project.git.publishBranch(taskBranch, params.sourceBranch.remote || 'origin');
     }
   }
 

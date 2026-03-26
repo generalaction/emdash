@@ -640,7 +640,17 @@ export class GitService implements GitProvider {
           const { stdout: branchOut } = await this.exec('git', ['branch', '--show-current'], {
             cwd: this.path,
           });
-          const output = await doPush(['push', '--set-upstream', 'origin', branchOut.trim()]);
+          const currentBranch = branchOut.trim();
+          let pushRemote = 'origin';
+          try {
+            const { stdout: remoteOut } = await this.exec(
+              'git',
+              ['config', '--get', `branch.${currentBranch}.remote`],
+              { cwd: this.path }
+            );
+            if (remoteOut.trim()) pushRemote = remoteOut.trim();
+          } catch {}
+          const output = await doPush(['push', '--set-upstream', pushRemote, currentBranch]);
           return ok({ output });
         } catch (upstreamError: unknown) {
           const upstreamStderr = (upstreamError as { stderr?: string })?.stderr || '';
@@ -656,14 +666,17 @@ export class GitService implements GitProvider {
     }
   }
 
-  async publishBranch(branchName: string): Promise<Result<{ output: string }, PushError>> {
+  async publishBranch(
+    branchName: string,
+    remote = 'origin'
+  ): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
       const { stdout, stderr } = await this.exec('git', args, { cwd: this.path });
       return (stdout || stderr || '').trim();
     };
 
     try {
-      const output = await doPush(['push', '--set-upstream', 'origin', branchName]);
+      const output = await doPush(['push', '--set-upstream', remote, branchName]);
       return ok({ output });
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || '';
@@ -813,33 +826,33 @@ export class GitService implements GitProvider {
     return branches;
   }
 
-  async getDefaultBranch(): Promise<DefaultBranch> {
+  async getDefaultBranch(remote = 'origin'): Promise<DefaultBranch> {
     // Heuristic 1: ask the remote what its HEAD points to (fast, no network call needed
-    // because git caches this in refs/remotes/origin/HEAD after a fetch/clone).
+    // because git caches this in refs/remotes/<remote>/HEAD after a fetch/clone).
     try {
       const { stdout } = await this.exec(
         'git',
-        ['symbolic-ref', 'refs/remotes/origin/HEAD', '--short'],
+        ['symbolic-ref', `refs/remotes/${remote}/HEAD`, '--short'],
         { cwd: this.path }
       );
-      const ref = stdout.trim(); // e.g. "origin/main"
+      const ref = stdout.trim();
       if (ref) {
         const slashIdx = ref.indexOf('/');
-        const remote = slashIdx === -1 ? 'origin' : ref.slice(0, slashIdx);
+        const resolvedRemote = slashIdx === -1 ? remote : ref.slice(0, slashIdx);
         const name = slashIdx === -1 ? ref : ref.slice(slashIdx + 1);
         const existsLocally = await this._branchExistsLocally(name);
-        return { name, remote, existsLocally };
+        return { name, remote: resolvedRemote, existsLocally };
       }
     } catch {}
 
     // Heuristic 2: ask the remote directly (requires a network call).
     try {
-      const { stdout } = await this.exec('git', ['remote', 'show', 'origin'], { cwd: this.path });
+      const { stdout } = await this.exec('git', ['remote', 'show', remote], { cwd: this.path });
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
       if (match?.[1]) {
         const name = match[1];
         const existsLocally = await this._branchExistsLocally(name);
-        return { name, remote: 'origin', existsLocally };
+        return { name, remote, existsLocally };
       }
     } catch {}
 
@@ -883,33 +896,38 @@ export class GitService implements GitProvider {
     }
   }
 
-  async createBranch(name: string, from: string, syncWithRemote = true): Promise<void> {
+  async createBranch(
+    name: string,
+    from: string,
+    syncWithRemote = true,
+    remote = 'origin'
+  ): Promise<void> {
     if (syncWithRemote) {
-      await this.exec('git', ['fetch', 'origin'], { cwd: this.path }).catch(() => {});
+      await this.exec('git', ['fetch', remote], { cwd: this.path }).catch(() => {});
     }
-    const base = syncWithRemote ? `origin/${from}` : `refs/heads/${from}`;
+    const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     await this.exec('git', ['branch', '--no-track', name, base], { cwd: this.path });
   }
 
   async renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }> {
-    let remotePushed = false;
+    let remoteName: string | undefined;
     try {
       const { stdout } = await this.exec('git', ['config', '--get', `branch.${oldBranch}.remote`], {
         cwd: this.path,
       });
-      remotePushed = Boolean(stdout.trim());
+      remoteName = stdout.trim() || undefined;
     } catch {}
 
     await this.exec('git', ['branch', '-m', oldBranch, newBranch], { cwd: this.path });
 
-    if (remotePushed) {
+    if (remoteName) {
       try {
-        await this.exec('git', ['push', 'origin', '--delete', oldBranch], { cwd: this.path });
+        await this.exec('git', ['push', remoteName, '--delete', oldBranch], { cwd: this.path });
       } catch {}
-      await this.exec('git', ['push', '-u', 'origin', newBranch], { cwd: this.path });
+      await this.exec('git', ['push', '-u', remoteName, newBranch], { cwd: this.path });
     }
 
-    return { remotePushed };
+    return { remotePushed: !!remoteName };
   }
 
   async deleteBranch(branch: string, force = true): Promise<void> {
@@ -928,13 +946,22 @@ export class GitService implements GitProvider {
       return { isGitRepo: false, baseRef: 'main', rootPath: this.path };
     }
 
+    let remoteName: string | undefined;
     let remote: string | undefined;
     try {
-      const { stdout } = await this.exec('git', ['remote', 'get-url', 'origin'], {
-        cwd: this.path,
-      });
-      remote = stdout.trim() || undefined;
+      const { stdout } = await this.exec('git', ['remote'], { cwd: this.path });
+      const remotes = stdout.trim().split('\n').filter(Boolean);
+      remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
     } catch {}
+
+    if (remoteName) {
+      try {
+        const { stdout } = await this.exec('git', ['remote', 'get-url', remoteName], {
+          cwd: this.path,
+        });
+        remote = stdout.trim() || undefined;
+      } catch {}
+    }
 
     let branch: string | undefined;
     try {
@@ -942,9 +969,11 @@ export class GitService implements GitProvider {
       branch = stdout.trim() || undefined;
     } catch {}
 
-    if (!branch) {
+    if (!branch && remoteName) {
       try {
-        const { stdout } = await this.exec('git', ['remote', 'show', 'origin'], { cwd: this.path });
+        const { stdout } = await this.exec('git', ['remote', 'show', remoteName], {
+          cwd: this.path,
+        });
         const match = /HEAD branch:\s*(\S+)/.exec(stdout);
         branch = match?.[1] ?? undefined;
       } catch {}
@@ -963,7 +992,7 @@ export class GitService implements GitProvider {
       isGitRepo: true,
       remote,
       branch,
-      baseRef: computeBaseRef(undefined, remote, branch),
+      baseRef: computeBaseRef(undefined, remoteName, branch),
       rootPath,
     };
   }
