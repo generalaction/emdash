@@ -5,20 +5,12 @@ import {
   type BranchOption,
 } from '../../renderer/components/BranchSelect';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeBranches(count: number, prefix = 'origin/'): BranchOption[] {
   return Array.from({ length: count }, (_, i) => {
     const name = `${prefix}branch-${String(i).padStart(5, '0')}`;
     return { value: name, label: name };
   });
 }
-
-// ---------------------------------------------------------------------------
-// pickDefaultBranch
-// ---------------------------------------------------------------------------
 
 describe('pickDefaultBranch', () => {
   it('returns undefined for empty options', () => {
@@ -67,10 +59,6 @@ describe('pickDefaultBranch', () => {
     expect(pickDefaultBranch(options)).toBe('origin/develop');
   });
 });
-
-// ---------------------------------------------------------------------------
-// filterBranchOptions
-// ---------------------------------------------------------------------------
 
 describe('filterBranchOptions', () => {
   describe('capping', () => {
