@@ -626,7 +626,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
         // checkCommand is interpolated into `command -v ${cmd}`, so restrict to safe basenames
         if (typeof c.checkCommand === 'string') {
           const cmd = c.checkCommand.trim();
-          if (cmd && /^[a-zA-Z0-9_\-./]+$/.test(cmd)) {
+          if (cmd && /^[a-zA-Z0-9_\-]+$/.test(cmd)) {
             entry.checkCommand = cmd;
           }
         }

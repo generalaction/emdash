@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { exec, execFile } from 'child_process';
 import { readFile, stat } from 'fs/promises';
-import { extname, isAbsolute, join } from 'path';
+import { extname, isAbsolute, join, normalize } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
 import { type PlatformKey } from '@shared/openInApps';
@@ -628,17 +628,21 @@ export function registerAppIpc() {
   ipcMain.handle('app:getCustomToolIcon', async (_event, iconPath: string) => {
     try {
       if (typeof iconPath !== 'string' || !isAbsolute(iconPath)) return '';
+      const normalizedInput = normalize(iconPath);
       // Only allow paths that are actually configured in customOpenInApps
       const settings = getAppSettings();
       const allowedPaths = new Set(
-        (settings.customOpenInApps ?? []).map((c) => c.iconPath).filter(Boolean)
+        (settings.customOpenInApps ?? [])
+          .map((c) => c.iconPath)
+          .filter(Boolean)
+          .map((p) => normalize(p!))
       );
-      if (!allowedPaths.has(iconPath)) return '';
-      const ext = extname(iconPath).toLowerCase();
+      if (!allowedPaths.has(normalizedInput)) return '';
+      const ext = extname(normalizedInput).toLowerCase();
       if (!ALLOWED_ICON_EXTENSIONS.has(ext)) return '';
-      const info = await stat(iconPath);
+      const info = await stat(normalizedInput);
       if (!info.isFile() || info.size > MAX_ICON_SIZE_BYTES) return '';
-      const data = await readFile(iconPath);
+      const data = await readFile(normalizedInput);
       const mimeMap: Record<string, string> = {
         '.png': 'image/png',
         '.jpg': 'image/jpeg',

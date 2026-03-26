@@ -25,7 +25,7 @@ export function mergeApps(customs: CustomOpenInApp[], platform: PlatformKey): Re
     const override = customById.get(builtIn.id);
     if (override) {
       customById.delete(builtIn.id);
-      return customToResolved(override);
+      return customToResolved(override, resolveAppForPlatform(builtIn, platform));
     }
     return resolveAppForPlatform(builtIn, platform);
   });
@@ -37,22 +37,22 @@ export function mergeApps(customs: CustomOpenInApp[], platform: PlatformKey): Re
   return result;
 }
 
-function customToResolved(c: CustomOpenInApp): ResolvedOpenInApp {
+function customToResolved(c: CustomOpenInApp, base?: ResolvedOpenInApp): ResolvedOpenInApp {
   return {
     id: c.id,
     label: c.label,
-    iconPath: c.iconPath ?? '',
-    iconIsCustomPath: true,
+    iconPath: c.iconPath ?? base?.iconPath ?? '',
+    iconIsCustomPath: Boolean(c.iconPath),
     openCommands: [c.openCommand],
     openUrls: [],
     checkCommands: c.checkCommand ? [c.checkCommand] : [],
     bundleIds: [],
     appNames: [],
     alwaysAvailable: !c.checkCommand,
-    hideIfUnavailable: false,
-    autoInstall: false,
-    supportsRemote: false,
-    invertInDark: false,
+    hideIfUnavailable: base?.hideIfUnavailable ?? false,
+    autoInstall: base?.autoInstall ?? false,
+    supportsRemote: base?.supportsRemote ?? false,
+    invertInDark: c.iconPath ? false : (base?.invertInDark ?? false),
     isCustom: true,
   };
 }

@@ -83,7 +83,9 @@ export function useOpenInApps({
     const hiddenApps: string[] = settings?.hiddenOpenInApps ?? [];
     const workspaceApps = allApps.filter((app) => !isRemote || app.supportsRemote);
     if (loading) return workspaceApps;
-    return workspaceApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
+    return workspaceApps.filter(
+      (app) => (availability[app.id] || app.alwaysAvailable) && !hiddenApps.includes(app.id)
+    );
   }, [allApps, availability, isRemote, loading, settings?.hiddenOpenInApps]);
 
   return { icons, labels, availability, installedApps, loading };

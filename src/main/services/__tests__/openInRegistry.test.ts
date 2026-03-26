@@ -42,6 +42,23 @@ describe('mergeApps', () => {
     expect(result.filter((a) => a.id === 'terminal')).toHaveLength(1);
   });
 
+  it('preserves built-in metadata when overriding', () => {
+    const customs: CustomOpenInApp[] = [
+      { id: 'vscode', label: 'My VS Code', openCommand: 'my-code {{path}}' },
+    ];
+    const result = mergeApps(customs, 'darwin');
+    const vscode = result.find((a) => a.id === 'vscode');
+    expect(vscode!.isCustom).toBe(true);
+    expect(vscode!.label).toBe('My VS Code');
+    expect(vscode!.openCommands).toEqual(['my-code {{path}}']);
+    // Built-in metadata should be preserved
+    expect(vscode!.supportsRemote).toBe(true);
+    expect(vscode!.autoInstall).toBe(true);
+    // Built-in icon should be preserved when no custom iconPath
+    expect(vscode!.iconPath).toBe('vscode.png');
+    expect(vscode!.iconIsCustomPath).toBe(false);
+  });
+
   it('marks custom tools without checkCommand as alwaysAvailable', () => {
     const customs: CustomOpenInApp[] = [
       { id: 'no-check', label: 'No Check', openCommand: 'cmd {{path}}' },
