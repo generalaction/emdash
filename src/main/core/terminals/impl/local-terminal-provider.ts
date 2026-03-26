@@ -1,9 +1,13 @@
+import type { GeneralSessionConfig } from '@shared/general-session';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Terminal } from '@shared/terminals';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { TerminalProvider } from '../terminal-provider';
 
@@ -15,19 +19,31 @@ export class LocalTerminalProvider implements TerminalProvider {
   private readonly projectId: string;
   private readonly taskId: string;
   private readonly taskPath: string;
+  private readonly tmux: boolean;
+  private readonly shellSetup?: string;
+  private readonly exec: ExecFn;
 
   constructor({
     projectId,
     taskId,
     taskPath,
+    tmux = false,
+    shellSetup,
+    exec,
   }: {
     projectId: string;
     taskId: string;
     taskPath: string;
+    tmux?: boolean;
+    shellSetup?: string;
+    exec: ExecFn;
   }) {
     this.projectId = projectId;
     this.taskId = taskId;
     this.taskPath = taskPath;
+    this.tmux = tmux;
+    this.shellSetup = shellSetup;
+    this.exec = exec;
   }
 
   async spawnTerminal(
@@ -37,17 +53,20 @@ export class LocalTerminalProvider implements TerminalProvider {
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
 
-    const userShell =
-      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    const cfg: GeneralSessionConfig = {
+      taskId: this.taskId,
+      cwd: this.taskPath,
+      shellSetup: this.shellSetup,
+      tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      command: command?.command,
+      args: command?.args,
+    };
+    const params = resolveSpawnParams('general', cfg);
 
     const pty = spawnLocalPty({
       id: sessionId,
-      command: command?.command ?? userShell,
-      // -l: login shell — sources /etc/profile, ~/.zprofile, ~/.bash_profile,
-      // etc., giving the user the same environment as any other terminal app.
-      // Only applied when using the default shell; explicit commands control
-      // their own args.
-      args: command?.args ?? (process.platform !== 'win32' ? ['-l'] : []),
+      command: params.command,
+      args: params.args,
       cwd: this.taskPath,
       env: buildTerminalEnv(),
       cols: initialSize.cols,
@@ -58,7 +77,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      if (shouldRespawn) {
+      if (shouldRespawn && !this.tmux) {
         setTimeout(() => {
           this.spawnTerminal(terminal).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
@@ -84,6 +103,9 @@ export class LocalTerminalProvider implements TerminalProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
+    if (this.tmux) {
+      this.killTmuxSession(makeTmuxSessionName(sessionId));
+    }
   }
 
   async destroyAll(): Promise<void> {
@@ -92,7 +114,19 @@ export class LocalTerminalProvider implements TerminalProvider {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
+      if (this.tmux) {
+        this.killTmuxSession(makeTmuxSessionName(sessionId));
+      }
     }
     this.sessions.clear();
+  }
+
+  private killTmuxSession(sessionName: string): void {
+    this.exec('tmux', ['kill-session', '-t', sessionName]).catch((err) => {
+      log.debug('LocalTerminalProvider: tmux session not found or already dead', {
+        sessionName,
+        error: String(err),
+      });
+    });
   }
 }

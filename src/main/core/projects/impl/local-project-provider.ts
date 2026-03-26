@@ -143,17 +143,29 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskFs = new LocalFileSystem(workDir);
     await new HookConfigWriter(taskFs).writeAll();
 
-    const taskGit = new GitService(workDir, getLocalExec(), taskFs);
+    const settings = await this.settings.get();
+    const tmuxEnabled = settings.tmux ?? false;
+    const shellSetup = settings.shellSetup;
+    const scripts = settings.scripts;
+
+    const exec = getLocalExec();
+    const taskGit = new GitService(workDir, exec, taskFs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
       taskId: task.id,
+      tmux: tmuxEnabled,
+      shellSetup,
+      exec,
     });
 
     const terminalProvider = new LocalTerminalProvider({
       projectId: this.project.id,
       taskId: task.id,
       taskPath: workDir,
+      tmux: tmuxEnabled,
+      shellSetup,
+      exec,
     });
 
     const taskEnv: TaskProvider = {
@@ -167,12 +179,10 @@ export class LocalProjectProvider implements ProjectProvider {
       terminals: terminalProvider,
     };
 
-    const scripts = (await this.settings.get()).scripts;
-
-    const userShell =
-      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
     if (scripts?.setup) {
+      const userShell =
+        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+
       const id = await createScriptTerminalId({
         projectId: this.project.id,
         taskId: task.id,
@@ -199,7 +209,7 @@ export class LocalProjectProvider implements ProjectProvider {
 
     Promise.all(
       conversations.map((conv) =>
-        conversationProvider.startSession(conv).catch((e) => {
+        conversationProvider.startSession(conv, undefined, true).catch((e) => {
           log.error('LocalEnvironmentProvider: failed to hydrate conversation', {
             conversationId: conv.id,
             error: String(e),
@@ -248,14 +258,19 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const settings = await this.settings.get();
+
     const taskLifecycleService = new TaskLifecycleService({
       projectId: this.project.id,
       taskId: task.taskId,
       taskPath: task.taskPath,
       terminals: task.terminals,
+      tmux: settings.tmux ?? false,
+      shellSetup: settings.shellSetup,
+      exec: getLocalExec(),
     });
 
-    const scripts = (await this.settings.get())?.scripts;
+    const scripts = settings?.scripts;
 
     if (scripts?.teardown) {
       taskLifecycleService.runLifecycleScript({
