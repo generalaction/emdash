@@ -164,23 +164,21 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   async destroyAll(): Promise<void> {
-    await this.cleanupSessions('destroy');
+    const sessionIds = Array.from(this.sessions.keys());
+    await this.detachAll();
+    if (this.tmux) {
+      for (const sessionId of sessionIds) {
+        this.killTmuxSession(makeTmuxSessionName(sessionId));
+      }
+    }
   }
 
   async detachAll(): Promise<void> {
-    await this.cleanupSessions('detach');
-  }
-
-  private async cleanupSessions(mode: 'destroy' | 'detach'): Promise<void> {
-    const killTmux = mode === 'destroy';
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
-      if (this.tmux && killTmux) {
-        this.killTmuxSession(makeTmuxSessionName(sessionId));
-      }
     }
     this.sessions.clear();
   }

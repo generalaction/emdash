@@ -1,5 +1,6 @@
 import { projectManager } from '../projects/project-manager';
 import { TaskLifecycleService } from '../tasks/task-lifecycle-service';
+import { getLocalExec } from '../utils/exec';
 
 export async function runLifecycleScript({
   projectId,
@@ -18,12 +19,16 @@ export async function runLifecycleScript({
 
   const task = project?.getTask(taskId);
   if (!task) throw new Error('Task not found');
+  const settings = await project.settings.get();
 
   const lifecycle = new TaskLifecycleService({
     projectId,
     taskId,
     taskPath: task.taskPath,
     terminals: task.terminals,
+    tmux: settings.tmux ?? false,
+    shellSetup: settings.shellSetup,
+    exec: getLocalExec(),
   });
 
   await lifecycle.runLifecycleScript({ type, script }, { shouldRespawn: true });

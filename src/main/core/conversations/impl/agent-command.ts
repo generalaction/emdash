@@ -19,8 +19,12 @@ export async function buildAgentCommand({
   const cli = providerConfig?.cli;
   const args: string[] = [];
 
-  if (isResuming && providerConfig?.sessionIdFlag) {
-    args.push(providerConfig?.sessionIdFlag, sessionId);
+  if (isResuming && providerConfig?.resumeFlag) {
+    args.push(...providerConfig.resumeFlag.split(' '));
+  }
+
+  if (providerConfig?.sessionIdFlag) {
+    args.push(providerConfig.sessionIdFlag, sessionId);
   }
 
   if (autoApprove && providerConfig?.autoApproveFlag) {

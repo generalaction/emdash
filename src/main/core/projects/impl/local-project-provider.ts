@@ -3,7 +3,7 @@ import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { createScriptTerminalId, type Terminal } from '@shared/terminals';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -116,7 +116,9 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<TaskProvider> {
-    log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
+    log.debug('LocalProjectProvider: doProvisionTask START', {
+      taskId: task.id,
+    });
 
     let workDir: string;
 
@@ -218,7 +220,9 @@ export class LocalProjectProvider implements ProjectProvider {
       )
     );
 
-    log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
+    log.debug('LocalProjectProvider: doProvisionTask DONE', {
+      taskId: task.id,
+    });
     return taskEnv;
   }
 
@@ -279,13 +283,8 @@ export class LocalProjectProvider implements ProjectProvider {
       });
     }
 
-    if (settings.tmux) {
-      await task.conversations.detachAll();
-      await task.terminals.detachAll();
-    } else {
-      await task.conversations.destroyAll();
-      await task.terminals.destroyAll();
-    }
+    await task.conversations.destroyAll();
+    await task.terminals.destroyAll();
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
@@ -296,6 +295,16 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
-    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+    const settings = await this.settings.get();
+
+    if (settings.tmux) {
+      for (const task of this.tasks.values()) {
+        await task.conversations.detachAll();
+        await task.terminals.detachAll();
+      }
+      this.tasks.clear();
+    } else {
+      await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+    }
   }
 }

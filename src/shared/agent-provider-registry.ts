@@ -90,7 +90,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'claude',
     autoApproveFlag: '--dangerously-skip-permissions',
     initialPromptFlag: '',
-    resumeFlag: '-c -r',
+    resumeFlag: '--continue',
     sessionIdFlag: '--session-id',
     planActivateCommand: '/plan',
     icon: 'claude.png',

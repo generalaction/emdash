@@ -109,14 +109,21 @@ export class LocalTerminalProvider implements TerminalProvider {
   }
 
   async destroyAll(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await this.detachAll();
+    if (this.tmux) {
+      for (const sessionId of sessionIds) {
+        this.killTmuxSession(makeTmuxSessionName(sessionId));
+      }
+    }
+  }
+
+  async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
-      if (this.tmux) {
-        this.killTmuxSession(makeTmuxSessionName(sessionId));
-      }
     }
     this.sessions.clear();
   }
