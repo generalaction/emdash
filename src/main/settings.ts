@@ -5,6 +5,10 @@ import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import {
+  isNotificationSoundProfile,
+  type NotificationSoundProfile,
+} from '@shared/notificationSounds';
 
 export type DeepPartial<T> = {
   [K in keyof T]?: NonNullable<T[K]> extends object ? DeepPartial<NonNullable<T[K]>> : T[K];
@@ -87,6 +91,7 @@ export interface AppSettings {
     sound: boolean;
     osNotifications: boolean;
     soundFocusMode: 'always' | 'unfocused';
+    soundProfile: NotificationSoundProfile;
   };
   defaultProvider?: ProviderId;
   tasks?: {
@@ -147,6 +152,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sound: true,
     osNotifications: true,
     soundFocusMode: 'always',
+    soundProfile: 'default',
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
   tasks: {
@@ -352,6 +358,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       sound: DEFAULT_SETTINGS.notifications!.sound,
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
+      soundProfile: DEFAULT_SETTINGS.notifications!.soundProfile,
     },
   };
 
@@ -389,6 +396,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       rawFocusMode === 'always' || rawFocusMode === 'unfocused'
         ? rawFocusMode
         : DEFAULT_SETTINGS.notifications!.soundFocusMode,
+    soundProfile: isNotificationSoundProfile(notif?.soundProfile)
+      ? notif.soundProfile
+      : DEFAULT_SETTINGS.notifications!.soundProfile,
   };
 
   // Default provider

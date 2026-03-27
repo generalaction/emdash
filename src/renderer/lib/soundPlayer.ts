@@ -1,8 +1,12 @@
 import type { SoundEvent } from '@shared/agentEvents';
+import type { NotificationSoundProfile } from '@shared/notificationSounds';
+import gilfoyleBitcoinAlertUrl from '../assets/sounds/gilfoyle-bitcoin-alert.mp3';
 
 let audioCtx: AudioContext | null = null;
 let enabled = true;
 let focusMode: 'always' | 'unfocused' = 'always';
+let profile: NotificationSoundProfile = 'default';
+let previewAudio: HTMLAudioElement | null = null;
 
 function getContext(): AudioContext {
   if (!audioCtx) {
@@ -48,19 +52,61 @@ function playTaskComplete(): void {
   playTone(783.99, now + 0.36, 0.2, 'triangle', 0.12);
 }
 
+function stopPreview(): void {
+  if (!previewAudio) return;
+  previewAudio.pause();
+  previewAudio.currentTime = 0;
+  previewAudio = null;
+}
+
+function playGilfoyleClip(asPreview = false): void {
+  const audio = new Audio(gilfoyleBitcoinAlertUrl);
+  audio.volume = 0.85;
+  audio.currentTime = 0;
+
+  if (asPreview) {
+    stopPreview();
+    previewAudio = audio;
+    audio.addEventListener(
+      'ended',
+      () => {
+        if (previewAudio === audio) {
+          previewAudio = null;
+        }
+      },
+      { once: true }
+    );
+  }
+
+  void audio.play().catch(() => {
+    if (previewAudio === audio) {
+      previewAudio = null;
+    }
+  });
+}
+
+function playForProfile(event: SoundEvent, selectedProfile: NotificationSoundProfile): void {
+  if (selectedProfile === 'gilfoyle') {
+    playGilfoyleClip();
+    return;
+  }
+
+  switch (event) {
+    case 'needs_attention':
+      playNeedsAttention();
+      break;
+    case 'task_complete':
+      playTaskComplete();
+      break;
+  }
+}
+
 export const soundPlayer = {
   play(event: SoundEvent, appFocused?: boolean): void {
     if (!enabled) return;
     if (focusMode === 'unfocused' && appFocused) return;
     try {
-      switch (event) {
-        case 'needs_attention':
-          playNeedsAttention();
-          break;
-        case 'task_complete':
-          playTaskComplete();
-          break;
-      }
+      playForProfile(event, profile);
     } catch {
       // Audio may fail if user hasn't interacted with page yet
     }
@@ -72,5 +118,23 @@ export const soundPlayer = {
 
   setFocusMode(mode: 'always' | 'unfocused'): void {
     focusMode = mode;
+  },
+
+  setProfile(nextProfile: NotificationSoundProfile): void {
+    profile = nextProfile;
+  },
+
+  preview(nextProfile: NotificationSoundProfile): void {
+    try {
+      if (nextProfile === 'gilfoyle') {
+        playGilfoyleClip(true);
+        return;
+      }
+
+      stopPreview();
+      playForProfile('needs_attention', nextProfile);
+    } catch {
+      // Preview is best-effort only.
+    }
   },
 };

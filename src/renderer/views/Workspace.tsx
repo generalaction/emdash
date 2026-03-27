@@ -24,6 +24,7 @@ import {
 } from '@/constants/layout';
 import { KeyboardSettingsProvider } from '@/contexts/KeyboardSettingsContext';
 import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
@@ -34,7 +35,6 @@ import useUpdateNotifier from '@/hooks/useUpdateNotifier';
 import { activityStore } from '@/lib/activityStore';
 import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
-import { rpc } from '@/lib/rpc';
 import { soundPlayer } from '@/lib/soundPlayer';
 import BrowserProvider, { useBrowser } from '@/providers/BrowserProvider';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
@@ -79,6 +79,7 @@ const BrowserAwareShortcuts: React.FC<
 export function Workspace() {
   useTheme(); // Initialize theme on app startup
   const { showModal } = useModalContext();
+  const { settings } = useAppSettings();
 
   // Agent event hook: plays sounds and updates sidebar status for all tasks
   const handleAgentEvent = useCallback((event: import('@shared/agentEvents').AgentEvent) => {
@@ -87,19 +88,14 @@ export function Workspace() {
   }, []);
   useAgentEvents(handleAgentEvent);
 
-  // Load notification sound settings
   useEffect(() => {
-    (async () => {
-      try {
-        const settings = await rpc.appSettings.get();
-        const notif = settings.notifications;
-        const masterEnabled = Boolean(notif?.enabled ?? true);
-        const soundOn = Boolean(notif?.sound ?? true);
-        soundPlayer.setEnabled(masterEnabled && soundOn);
-        soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
-      } catch {}
-    })();
-  }, []);
+    const notif = settings?.notifications;
+    const masterEnabled = Boolean(notif?.enabled ?? true);
+    const soundOn = Boolean(notif?.sound ?? true);
+    soundPlayer.setEnabled(masterEnabled && soundOn);
+    soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
+    soundPlayer.setProfile(notif?.soundProfile ?? 'default');
+  }, [settings?.notifications]);
 
   // --- View-mode / UI visibility state (inlined from former useModalState) ---
   const [showSettingsPage, setShowSettingsPage] = useState(false);
