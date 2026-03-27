@@ -234,6 +234,13 @@ export class SshFileSystem implements FileSystemProvider {
 
           const fileSize = stats.size;
           const readSize = Math.min(fileSize, maxBytes, MAX_READ_SIZE);
+
+          if (readSize === 0) {
+            sftp.close(handle, () => {});
+            resolve({ content: '', truncated: false, totalSize: fileSize });
+            return;
+          }
+
           const buffer = Buffer.alloc(readSize);
 
           sftp.read(handle, buffer, 0, readSize, 0, (readErr, bytesRead) => {
@@ -281,6 +288,17 @@ export class SshFileSystem implements FileSystemProvider {
         }
 
         const buffer = Buffer.from(content, 'utf-8');
+
+        if (buffer.length === 0) {
+          sftp.close(handle, (closeErr) => {
+            if (closeErr) {
+              reject(this.mapSftpError(closeErr, fullPath));
+              return;
+            }
+            resolve({ success: true, bytesWritten: 0 });
+          });
+          return;
+        }
 
         sftp.write(handle, buffer, 0, buffer.length, 0, (writeErr) => {
           sftp.close(handle, (closeErr) => {
@@ -692,6 +710,12 @@ export class SshFileSystem implements FileSystemProvider {
               success: false,
               error: `Image too large: ${stats.size} bytes (max ${maxImageSize})`,
             });
+            return;
+          }
+
+          if (stats.size === 0) {
+            sftp.close(handle, () => {});
+            resolve({ success: false, error: 'Image file is empty' });
             return;
           }
 
