@@ -182,6 +182,10 @@ export function isUnregistered(t: TaskStore): t is UnregisteredTask {
   return t.state === 'unregistered';
 }
 
+export function isRegistered(t: TaskStore): t is UnprovisionedTask | ProvisionedTask {
+  return t.state !== 'unregistered';
+}
+
 export function isUnprovisioned(t: TaskStore): t is UnprovisionedTask {
   return t.state === 'unprovisioned';
 }

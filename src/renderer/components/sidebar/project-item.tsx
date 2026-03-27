@@ -110,7 +110,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
       }}
       className="group/collapsible w-full"
     >
-      <SidebarMenuRow className="group/row justify-between flex p-1.5" isActive={isProjectActive}>
+      <SidebarMenuRow
+        className={cn('group/row justify-between flex p-1.5')}
+        data-active={isProjectActive || undefined}
+        isActive={isProjectActive}
+      >
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {project.state === 'unregistered' ? (
             renderSpinnerWithTooltip()
@@ -119,8 +123,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               className="group/trigger"
               render={
                 <SidebarItemMiniButton type="button" className="relative">
-                  <FolderClosed className="absolute h-4 w-4 text-foreground/60 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
-                  <ChevronRight className="absolute h-4 w-4 text-foreground/60 transition-all duration-150 opacity-0 group-hover/row:opacity-100 group-data-[panel-open]/trigger:rotate-90" />
+                  <FolderClosed className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+                  <ChevronRight className="absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100 group-data-panel-open/trigger:rotate-90" />
                 </SidebarItemMiniButton>
               }
             />
@@ -129,7 +133,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
               projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
-                'text-foreground/40'
+                'text-foreground-tertiary-passive'
             )}
             onClick={() => navigate('project', { projectId })}
           >

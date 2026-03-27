@@ -49,6 +49,10 @@ export function getMonacoTheme(effectiveTheme: string): string {
     case 'dark':
       return 'custom-dark';
     case 'light':
+    case 'emlight':
+      return 'custom-light';
+    case 'emdark':
+      return 'custom-dark';
     default:
       return 'custom-light';
   }

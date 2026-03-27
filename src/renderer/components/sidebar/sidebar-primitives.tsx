@@ -7,10 +7,7 @@ export const SidebarContainer = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      'group/sidebar relative z-50 flex h-full flex-col bg-accent text-sm text-foreground dark:bg-muted/10',
-      className
-    )}
+    className={cn('group/sidebar relative z-50 flex flex-col text-sm text-foreground', className)}
     {...props}
   />
 ));
@@ -34,7 +31,7 @@ export const SidebarContent = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-1 flex-col overflow-y-auto px-3 py-4 text-sm text-muted-foreground',
+      'flex flex-1 flex-col overflow-hidden px-3 py-4 text-sm text-muted-foreground',
       className
     )}
     {...props}
@@ -44,25 +41,10 @@ SidebarContent.displayName = 'SidebarContent';
 
 export const SidebarGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('mb-6 grid gap-1', className)} {...props} />
+    <div ref={ref} className={cn('mb-6 grid gap-3', className)} {...props} />
   )
 );
 SidebarGroup.displayName = 'SidebarGroup';
-
-export const SidebarGroupLabel = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'text-xs font-semibold uppercase tracking-wide text-muted-foreground/70',
-      className
-    )}
-    {...props}
-  />
-));
-SidebarGroupLabel.displayName = 'SidebarGroupLabel';
 
 export const SidebarGroupContent = React.forwardRef<
   HTMLDivElement,
@@ -71,6 +53,17 @@ export const SidebarGroupContent = React.forwardRef<
   <div ref={ref} className={cn('grid gap-1', className)} {...props} />
 ));
 SidebarGroupContent.displayName = 'SidebarGroupContent';
+
+export const SidebarFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn('mt-auto flex flex-col border-t px-3 py-3', className)}
+      {...props}
+    />
+  )
+);
+SidebarFooter.displayName = 'SidebarFooter';
 
 export const SidebarMenu = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
@@ -86,7 +79,7 @@ export const SidebarItemMiniButton = React.forwardRef<
   <button
     ref={ref}
     className={cn(
-      'w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-black/5',
+      'w-6 h-6 flex items-center justify-center text-foreground-tertiary-muted hover:text-foreground-tertiary rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3',
       className
     )}
     {...props}
@@ -95,7 +88,7 @@ export const SidebarItemMiniButton = React.forwardRef<
 SidebarItemMiniButton.displayName = 'SidebarItemMiniButton';
 
 const sidebarMenuItemClass =
-  'flex w-full rounded-lg items-center hover:bg-accent-hover text-muted-foreground gap-2 px-3 py-2 text-sm transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-accent-layer data-[active=true]:text-accent-foreground';
+  'flex w-full font-normal text-foreground-tertiary-muted rounded-lg items-center hover:bg-background-tertiary-1 hover:text-foreground-tertiary gap-2 px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[active=true]:bg-background-tertiary-2 data-[active=true]:text-foreground-tertiary';
 
 interface SidebarMenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isActive?: boolean;

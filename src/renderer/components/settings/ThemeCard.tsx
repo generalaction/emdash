@@ -10,6 +10,8 @@ const ThemeCard: React.FC = () => {
     { value: 'dark' as const, label: 'Dark Navy', icon: Moon },
     { value: 'dark-black' as const, label: 'Dark Black', icon: Circle },
     { value: 'system' as const, label: 'System', icon: Monitor },
+    { value: 'emlight' as const, label: 'Emdash Light', icon: Sun },
+    { value: 'emdark' as const, label: 'Emdash Dark', icon: Moon },
   ];
 
   return (

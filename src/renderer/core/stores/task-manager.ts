@@ -6,6 +6,7 @@ import {
   createUnprovisionedTask,
   createUnregisteredTask,
   isProvisioned,
+  isRegistered,
   isUnprovisioned,
   isUnregistered,
   TaskStore,
@@ -156,68 +157,47 @@ export class TaskManagerStore {
   }
 
   async archiveTask(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task || isUnregistered(task)) return;
-
-    runInAction(() => {
-      const current = this.tasks.get(taskId);
-      if (!current) return;
-      if (isProvisioned(current)) {
-        current.transitionToUnprovisioned({ ...current.data }, 'teardown');
-      } else if (isUnprovisioned(current)) {
-        current.phase = 'teardown';
-      }
-    });
-
     try {
       await rpc.tasks.archiveTask(this.projectId, taskId);
       runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.data.archivedAt = new Date().toISOString();
-          current.data.status = 'archived';
-          current.phase = 'idle';
+        const task = this.tasks.get(taskId);
+        if (task && isRegistered(task)) {
+          task.data.archivedAt = new Date().toISOString();
         }
       });
-    } catch (err: unknown) {
+      void this.teardownTask(taskId).catch(() => {});
+    } catch (e) {
       runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.phase = 'teardown-error';
+        const task = this.tasks.get(taskId);
+        if (task && isRegistered(task)) {
+          task.data.archivedAt = undefined;
         }
       });
-      throw err;
+      throw e;
     }
   }
 
   async restoreTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
-    if (!task || isUnregistered(task)) return;
-
-    runInAction(() => {
-      if (isUnprovisioned(task)) {
-        task.phase = 'provision';
-      }
-    });
+    if (!task || !isRegistered(task)) return;
+    const archivedAt = task.data.archivedAt;
 
     try {
       await rpc.tasks.restoreTask(taskId);
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
+        if (current && isRegistered(current)) {
           current.data.archivedAt = undefined;
-          current.data.status = 'in_progress';
         }
       });
-      await this.provisionTask(taskId);
-    } catch (err: unknown) {
+    } catch (e) {
       runInAction(() => {
         const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.phase = 'provision-error';
+        if (current && isRegistered(current)) {
+          current.data.archivedAt = archivedAt;
         }
       });
-      throw err;
+      throw e;
     }
   }
 

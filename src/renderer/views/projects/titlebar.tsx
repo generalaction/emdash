@@ -1,7 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { isMountedProject } from '@renderer/core/stores/project';
 import { getProjectStore } from '@renderer/core/stores/project-selectors';
+import type { ProjectView } from '@renderer/core/stores/project-view';
 import { useParams } from '@renderer/core/view/navigation-provider';
 
 export const ProjectTitlebar = observer(function ProjectTitlebar() {
@@ -17,10 +19,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
         ? store.name
         : null;
 
-  const project = store?.state === 'mounted' ? store.data : null;
-  const currentPath = project?.path ?? null;
-  const isRemote = project?.type === 'ssh';
-  const sshConnectionId = project?.type === 'ssh' ? project.connectionId : null;
+  const mounted = store && isMountedProject(store) ? store : null;
 
   return (
     <Titlebar
@@ -32,14 +31,33 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
         )
       }
       rightSlot={
-        currentPath ? (
-          <OpenInMenu
-            path={currentPath}
-            align="right"
-            isRemote={isRemote}
-            sshConnectionId={sshConnectionId}
-          />
-        ) : null
+        mounted && (
+          <ToggleGroup
+            variant="outline"
+            size="sm"
+            value={[mounted.view.activeView]}
+            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1 mr-2 "
+            onValueChange={([value]) => {
+              if (value) mounted.view.setProjectView(value as ProjectView);
+            }}
+          >
+            <ToggleGroupItem value="tasks" size="sm">
+              Tasks
+            </ToggleGroupItem>
+            <ToggleGroupItem value="pull-request" size="sm">
+              Pull Requests
+            </ToggleGroupItem>
+            <ToggleGroupItem value="repository" size="sm">
+              Repository
+            </ToggleGroupItem>
+            <ToggleGroupItem value="commits" size="sm">
+              Commits
+            </ToggleGroupItem>
+            <ToggleGroupItem value="settings" size="sm">
+              Settings
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )
       }
     />
   );

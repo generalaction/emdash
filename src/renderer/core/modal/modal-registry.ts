@@ -23,7 +23,6 @@ export const modalRegistry = {
   addSshConnModal: AddSshConnModal,
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   commandPaletteModal: CommandPaletteModal,
-  projectSettingsModal: ProjectSettingsModal,
   confirmActionModal: ConfirmActionDialog,
   createConversationModal: CreateConversationModal,
   mcpServerModal: McpModal,

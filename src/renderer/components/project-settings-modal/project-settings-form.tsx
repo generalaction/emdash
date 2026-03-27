@@ -1,11 +1,25 @@
-import { DialogContent, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog';
-import { Spinner } from '@renderer/components/ui/spinner';
-import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { useProjectSettings } from './use-project-settings';
-
-export interface ProjectSettingsModalProps extends BaseModalProps<void> {
-  projectId: string;
-}
+import { useState } from 'react';
+import type { Branch } from '@shared/git';
+import type { ProjectSettings } from '@main/core/projects/settings/schema';
+import { Button } from '@renderer/components/ui/button';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
+import { DialogFooter } from '@renderer/components/ui/dialog';
+import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/components/ui/field';
+import { Input } from '@renderer/components/ui/input';
+import { ScrollArea } from '@renderer/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/components/ui/select';
+import { Separator } from '@renderer/components/ui/separator';
+import { Switch } from '@renderer/components/ui/switch';
+import { Textarea } from '@renderer/components/ui/textarea';
+import { useBranches } from '@renderer/core/projects/repository/use-branches';
+import { useRemotes } from '@renderer/core/projects/repository/use-remotes';
+import { BranchSelector } from '@renderer/views/projects/branch-selector';
 
 type FormState = {
   preservePatterns: string;
@@ -24,7 +38,7 @@ function normalizeScript(val: string | string[] | undefined): string {
   return val ?? '';
 }
 
-function settingsToForm(s: ProjectSettings): FormState {
+export function settingsToForm(s: ProjectSettings): FormState {
   return {
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     shellSetup: s.shellSetup ?? '',
@@ -38,7 +52,7 @@ function settingsToForm(s: ProjectSettings): FormState {
   };
 }
 
-function formToSettings(f: FormState): ProjectSettings {
+export function formToSettings(f: FormState): ProjectSettings {
   return {
     preservePatterns: f.preservePatterns
       .split('\n')
@@ -57,16 +71,17 @@ function formToSettings(f: FormState): ProjectSettings {
   };
 }
 
-interface ProjectSettingsFormProps {
+export interface ProjectSettingsFormProps {
   projectId: string;
   initial: ProjectSettings;
   onSuccess: () => void;
-  onClose: () => void;
+  /** When provided, a Cancel button is rendered that calls this handler. */
+  onClose?: () => void;
   save: (settings: ProjectSettings) => Promise<void>;
   isSaving: boolean;
 }
 
-function ProjectSettingsForm({
+export function ProjectSettingsForm({
   projectId,
   initial,
   onSuccess,
@@ -174,7 +189,7 @@ function ProjectSettingsForm({
           <Field>
             <FieldTitle>Shell setup</FieldTitle>
             <FieldDescription>
-              Shell commands run before each terminal session starts (e.g.{' '}
+              Shell commands run before the agent starts in each worktree session (e.g.{' '}
               <code className="font-mono text-xs">nvm use</code>).
             </FieldDescription>
             <Textarea
@@ -190,9 +205,7 @@ function ProjectSettingsForm({
           <Field orientation="horizontal">
             <div className="flex flex-1 flex-col gap-1">
               <FieldTitle>Enable tmux</FieldTitle>
-              <FieldDescription>
-                Run all terminal sessions inside tmux for persistence across restarts.
-              </FieldDescription>
+              <FieldDescription>Run the agent session inside a tmux session.</FieldDescription>
             </div>
             <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
           </Field>
@@ -243,40 +256,15 @@ function ProjectSettingsForm({
       </ScrollArea>
 
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={isSaving}>
-          Cancel
-        </Button>
+        {onClose && (
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+        )}
         <ConfirmButton onClick={() => void handleSave()} disabled={!isDirty || isSaving}>
           {isSaving ? 'Saving…' : 'Save'}
         </ConfirmButton>
       </DialogFooter>
     </>
-  );
-}
-
-export function ProjectSettingsModal({ projectId, onSuccess, onClose }: ProjectSettingsModalProps) {
-  const { settings, isLoading, save, isSaving } = useProjectSettings(projectId);
-
-  return (
-    <DialogContent className="sm:max-w-2xl">
-      <DialogHeader>
-        <DialogTitle>Project settings</DialogTitle>
-      </DialogHeader>
-
-      {isLoading || !settings ? (
-        <div className="flex items-center justify-center py-10">
-          <Spinner />
-        </div>
-      ) : (
-        <ProjectSettingsForm
-          projectId={projectId}
-          initial={settings}
-          onSuccess={onSuccess}
-          onClose={onClose}
-          save={save}
-          isSaving={isSaving}
-        />
-      )}
-    </DialogContent>
   );
 }

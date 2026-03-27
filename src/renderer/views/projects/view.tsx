@@ -32,7 +32,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind !== 'ready') {
-    return <div className="flex flex-1 items-center justify-center text-muted-foreground" />;
+    return <div className="flex flex-1 items-center justify-center text-foreground-muted" />;
   }
 
   return <ActiveProject />;
@@ -41,8 +41,8 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
 function ProjectBootstrappingPanel() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
-      <p className="text-xs font-mono text-muted-foreground/50">Setting up project…</p>
+      <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
+      <p className="text-xs font-mono text-foreground-passive">Setting up project…</p>
     </div>
   );
 }
@@ -51,8 +51,10 @@ function ProjectBootstrapErrorPanel({ message }: { message: string }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-xs flex-col items-center text-center gap-2">
-        <p className="text-sm font-medium font-mono text-destructive">Failed to set up project</p>
-        <p className="text-xs font-mono text-muted-foreground/70">{message}</p>
+        <p className="text-sm font-medium font-mono text-foreground-destructive">
+          Failed to set up project
+        </p>
+        <p className="text-xs font-mono text-foreground-passive">{message}</p>
       </div>
     </div>
   );

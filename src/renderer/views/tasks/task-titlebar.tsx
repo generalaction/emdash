@@ -63,13 +63,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
         </div>
       }
       rightSlot={
-        <>
+        <div className="flex items-center gap-2 mr-2">
           <ToggleGroup
             disabled={delayedIsPending}
             variant="outline"
             value={[view]}
             size="sm"
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
             onValueChange={([value]) => {
               if (value === 'agents') openAgentsView();
               if (value === 'editor') openEditorView();
@@ -78,11 +77,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="agents"
-                  size="sm"
-                  className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="agents" size="sm">
                   <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
@@ -95,11 +90,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="diff"
-                  size="sm"
-                  className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="diff" size="sm">
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
@@ -112,11 +103,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="editor"
-                  size="sm"
-                  className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="editor" size="sm">
                   <Files className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
@@ -133,7 +120,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
             variant="outline"
             value={[rightPanelView]}
             size="sm"
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1 mr-2"
             onValueChange={([value]) => {
               if (!value) return;
               taskState.setRightPanelView(value as RightPanelView);
@@ -141,11 +127,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="changes"
-                  size="sm"
-                  className="data-pressed:bg-muted  border-none rounded-lg data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="changes" size="sm">
                   <GitCommit className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
@@ -153,11 +135,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="terminals"
-                  size="sm"
-                  className="border-none data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="terminals" size="sm">
                   <Terminal className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
@@ -165,18 +143,14 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem
-                  value="files"
-                  size="sm"
-                  className="border-none rounded-md data-pressed:text-foreground text-muted-foreground size-7 px-1"
-                >
+                <ToggleGroupItem value="files" size="sm">
                   <ListTree className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>File explorer</TooltipContent>
             </Tooltip>
           </ToggleGroup>
-        </>
+        </div>
       }
     />
   );

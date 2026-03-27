@@ -258,7 +258,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   }
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto p-2 bg-white shadow-xs">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto p-2 shadow-xs">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const file = files[virtualItem.index]!;
