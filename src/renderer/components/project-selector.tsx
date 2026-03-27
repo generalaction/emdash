@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import {
@@ -22,11 +22,13 @@ interface ProjectOption {
 interface ProjectSelectorProps {
   value: string | undefined;
   onChange: (projectId: string) => void;
+  trigger?: React.ReactNode;
 }
 
 export const ProjectSelector = observer(function ProjectSelector({
   value,
   onChange,
+  trigger,
 }: ProjectSelectorProps) {
   const [open, setOpen] = useState(false);
 
@@ -58,10 +60,12 @@ export const ProjectSelector = observer(function ProjectSelector({
       }
       autoHighlight
     >
-      <ComboboxTrigger className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none">
-        <ComboboxValue placeholder="Select a project" />
-      </ComboboxTrigger>
-      <ComboboxContent className="min-w-(--anchor-width)">
+      {trigger ?? (
+        <ComboboxTrigger className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none">
+          <ComboboxValue placeholder="Select a project" />
+        </ComboboxTrigger>
+      )}
+      <ComboboxContent className="w-auto min-w-(--anchor-width)">
         <ComboboxInput showTrigger={false} placeholder="Search projects..." />
         <ComboboxList className="pb-0">
           {(group: { value: string; items: ProjectOption[] }) => (

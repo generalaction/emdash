@@ -11,6 +11,7 @@ import {
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { SearchInput } from '@renderer/components/ui/search-input';
 import { Separator } from '@renderer/components/ui/separator';
+import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
@@ -198,6 +199,7 @@ export const TaskList = observer(function TaskList() {
   const store = getProjectStore(projectId);
   const taskManager = getTaskManagerStore(projectId);
   const showConfirm = useShowModal('confirmActionModal');
+  const showCreateTaskModal = useShowModal('taskModal');
 
   const taskView = store && isMountedProject(store) ? store.view.taskView : null;
 
@@ -258,12 +260,17 @@ export const TaskList = observer(function TaskList() {
           <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
           <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
         </ToggleGroup>
-        <SearchInput
-          placeholder="Search tasks…"
-          value={taskView.searchQuery}
-          onChange={(e) => taskView.setSearchQuery(e.target.value)}
-          className="flex-1"
-        />
+        <div className="flex items-center gap-2">
+          <SearchInput
+            placeholder="Search tasks…"
+            value={taskView.searchQuery}
+            onChange={(e) => taskView.setSearchQuery(e.target.value)}
+            className="flex-1"
+          />
+          <Button onClick={() => showCreateTaskModal({ projectId })}>
+            Create Task <ShortcutHint settingsKey="newTask" />
+          </Button>
+        </div>
       </div>
 
       <TaskRows

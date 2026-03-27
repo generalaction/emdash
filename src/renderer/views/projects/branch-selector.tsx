@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Branch } from '@shared/git';
 import {
   Combobox,
@@ -17,6 +17,7 @@ interface BranchSelectorProps {
   value?: Branch;
   onValueChange: (value: Branch) => void;
   remoteOnly?: boolean;
+  trigger?: React.ReactNode;
 }
 
 export function BranchSelector({
@@ -24,6 +25,7 @@ export function BranchSelector({
   value,
   onValueChange,
   remoteOnly = false,
+  trigger,
 }: BranchSelectorProps) {
   const [tab, setTab] = useState<'local' | 'remote'>(remoteOnly ? 'remote' : 'local');
 
@@ -47,12 +49,14 @@ export function BranchSelector({
         a.value.type === b.value.type && a.value.branch === b.value.branch
       }
     >
-      <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <GitBranch />
-          <ComboboxValue placeholder="Select a branch" />
-        </div>
-      </ComboboxTrigger>
+      {trigger ?? (
+        <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <GitBranch />
+            <ComboboxValue placeholder="Select a branch" />
+          </div>
+        </ComboboxTrigger>
+      )}
       <ComboboxContent className="min-w-(--anchor-width) pb-1">
         <div className="flex  p-1">
           <button

@@ -1,7 +1,9 @@
+import { GitBranch } from 'lucide-react';
 import { useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { Button } from '@renderer/components/ui/button';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import { DialogFooter } from '@renderer/components/ui/dialog';
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/components/ui/field';
@@ -151,6 +153,14 @@ export function ProjectSettingsForm({
               branches={branches}
               value={form.defaultBranch ? { type: 'local', branch: form.defaultBranch } : undefined}
               onValueChange={(branch: Branch) => update('defaultBranch', branch.branch)}
+              trigger={
+                <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between w-full">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <GitBranch className="size-4 shrink-0" />
+                    <ComboboxValue placeholder="Select a branch" />
+                  </div>
+                </ComboboxTrigger>
+              }
             />
           </Field>
 
