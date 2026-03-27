@@ -104,7 +104,7 @@ const BrowserToggleButton: React.FC<Props> = ({
     browser.showSpinner();
     browser.toggle(undefined);
 
-    // If openBrowserUrl is configured in .emdash.json, use it directly
+    let configuredUrl: string | null = null;
     if (pp) {
       try {
         const taskEnvVars = getTaskEnvVars({
@@ -117,16 +117,9 @@ const BrowserToggleButton: React.FC<Props> = ({
         });
         const result = await (window as any).electronAPI?.resolvePreviewUrl?.(pp, taskEnvVars);
         if (result?.success && result?.url) {
-          const configuredUrl = String(result.url);
-          if (!isAppPort(configuredUrl, appPort)) {
-            browser.open(configuredUrl);
-            try {
-              if (id) {
-                setLastUrl(id, configuredUrl);
-              }
-            } catch {}
-            browser.hideSpinner();
-            return;
+          const resolvedUrl = String(result.url);
+          if (!isAppPort(resolvedUrl, appPort)) {
+            configuredUrl = resolvedUrl;
           }
         }
       } catch {}
@@ -174,11 +167,9 @@ const BrowserToggleButton: React.FC<Props> = ({
             parentProjectPath: pp,
           });
         }
-        // Fallback: if no URL event yet after a short delay, try default dev port once.
         setTimeout(async () => {
           try {
-            const candidate = 'http://localhost:5173';
-            // Avoid the app's own port
+            const candidate = configuredUrl || 'http://localhost:5173';
             if (isAppPort(candidate, appPort)) return;
             if (await isReachable(candidate)) {
               browser.open(candidate);
