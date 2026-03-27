@@ -40,14 +40,17 @@ function toTeardownError(e: unknown): TeardownTaskError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
+export async function createLocalProvider(
+  project: LocalProject,
+  rootFs: FileSystemProvider
+): Promise<LocalProjectProvider> {
   const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
     .defaultWorktreeDirectory;
   const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
 
   await fs.promises.mkdir(worktreePoolPath, { recursive: true });
 
-  return new LocalProjectProvider(project, { worktreePoolPath });
+  return new LocalProjectProvider(project, rootFs, { worktreePoolPath });
 }
 
 export class LocalProjectProvider implements ProjectProvider {
@@ -64,6 +67,7 @@ export class LocalProjectProvider implements ProjectProvider {
 
   constructor(
     private readonly project: LocalProject,
+    readonly rootFs: FileSystemProvider,
     options: {
       worktreePoolPath: string;
     }
@@ -76,6 +80,7 @@ export class LocalProjectProvider implements ProjectProvider {
       repoPath: project.path,
       projectSettings: this.settings,
       exec: getLocalExec(),
+      rootFs: rootFs,
     });
   }
 

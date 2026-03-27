@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { FileSystemProvider } from '@main/core/fs/types';
 
 export const ensureLocalWorktreeDirectory = ({
   directory,
@@ -23,7 +23,7 @@ export const ensureSshWorktreeDirectory = async ({
 }: {
   directory?: string;
   projectName: string;
-  rootFs: SshFileSystem;
+  rootFs: FileSystemProvider;
 }): Promise<string> => {
   directory = directory ?? path.join('emdash', 'projects', 'worktrees', projectName);
 
