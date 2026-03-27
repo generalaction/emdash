@@ -167,7 +167,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
             '--porcelain=v2',
             '-z',
             '--no-ahead-behind',
-            '--untracked-files=normal',
+            '--untracked-files=all',
           ],
           {
             cwd: taskPath,
@@ -179,7 +179,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
         // Fallback for older git versions that do not support porcelain v2.
         const { stdout } = await execFileAsync(
           'git',
-          ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=normal'],
+          ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
           {
             cwd: taskPath,
             maxBuffer: MAX_DIFF_OUTPUT_BYTES,
