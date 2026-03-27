@@ -23,14 +23,14 @@ const statusIcon = (status: AutomationRunLog['status']) => {
   }
 };
 
-const statusLabel = (status: AutomationRunLog['status']) => {
+const statusBadge = (status: AutomationRunLog['status']) => {
   switch (status) {
     case 'success':
-      return 'text-emerald-600 dark:text-emerald-400';
+      return 'border-emerald-500/20 bg-emerald-500/[0.08]';
     case 'failure':
-      return 'text-red-600 dark:text-red-400';
+      return 'border-red-500/20 bg-red-500/[0.08]';
     case 'running':
-      return 'text-blue-600 dark:text-blue-400';
+      return 'border-blue-500/20 bg-blue-500/[0.08]';
   }
 };
 
@@ -87,19 +87,18 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
           </div>
         ) : (
           <div className="space-y-0.5">
-            {logs.map((run, i) => (
+            {logs.map((run) => (
               <div
                 key={run.id}
                 className="flex items-center justify-between rounded-md px-3 py-2.5 transition-colors hover:bg-muted/40"
               >
-                <div className="flex items-center gap-2.5">
-                  {statusIcon(run.status)}
+                <div className="flex min-w-0 items-center gap-3">
                   <div>
-                    <span className={`text-xs font-medium capitalize ${statusLabel(run.status)}`}>
+                    <span className="text-xs font-medium capitalize text-foreground/85">
                       {run.status}
                     </span>
                     {run.error && (
-                      <p className="mt-0.5 max-w-[200px] truncate text-[10px] text-red-500/70">
+                      <p className="mt-0.5 max-w-[220px] truncate text-[10px] text-muted-foreground">
                         {run.error}
                       </p>
                     )}
@@ -117,6 +116,11 @@ const RunLogsModal: React.FC<RunLogsModalProps> = ({ isOpen, onClose, automation
                   )}
                   <span className="text-muted-foreground/60">
                     {formatRelativeTime(run.startedAt)}
+                  </span>
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full border ${statusBadge(run.status)}`}
+                  >
+                    {statusIcon(run.status)}
                   </span>
                 </div>
               </div>
