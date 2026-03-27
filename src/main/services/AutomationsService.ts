@@ -747,8 +747,18 @@ class AutomationsService {
       }));
     }
 
-    // MR support — placeholder until GitLabService gets a dedicated MR fetch method
-    return [];
+    const mrResult = await gitlab.initialFetchMRs(projectPath, 30);
+    if (!mrResult.success || !mrResult.mrs) return [];
+    return mrResult.mrs.map((mr: any) => ({
+      id: `gitlab-mr-${mr.id}`,
+      title: mr.title ?? '',
+      url: mr.web_url ?? undefined,
+      type: 'GitLab MR',
+      extra: mr.iid ? `!${mr.iid}: ${mr.title}` : mr.title,
+      labels: mr.labels ?? [],
+      branch: mr.source_branch ?? undefined,
+      assignee: mr.assignee?.name ?? mr.assignee?.username ?? undefined,
+    }));
   }
 
   private async fetchForgejoEvents(projectPath: string | undefined): Promise<RawEvent[]> {
