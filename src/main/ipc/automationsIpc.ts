@@ -285,6 +285,12 @@ export function registerAutomationsIpc(): void {
       if (!automation) {
         return { success: false, error: 'Automation not found' };
       }
+      if (automation.mode === 'trigger') {
+        return {
+          success: false,
+          error: 'Run now is only available for scheduled automations',
+        };
+      }
       log.info(`[Automations] Manual trigger for: ${automation.name} (${automation.id})`);
 
       // Create a run log for the manual trigger

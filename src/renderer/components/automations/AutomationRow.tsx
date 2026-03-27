@@ -70,6 +70,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
   const { getRunState } = useRunningAutomations();
   const runState = getRunState(automation.id);
   const isTriggering = !!runState && runState.phase !== 'error';
+  const canRunNow = automation.mode !== 'trigger' && !isTriggering;
 
   const projectLabel =
     project?.githubInfo?.connected && project?.githubInfo?.repository
@@ -183,21 +184,28 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTriggerNow(automation.id);
-                }}
-                aria-label="Run now"
-                className="h-7 w-7 text-muted-foreground"
-                disabled={isTriggering}
-              >
-                <Zap className="h-3.5 w-3.5" />
-              </Button>
+              <span className="inline-flex">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!canRunNow) return;
+                    onTriggerNow(automation.id);
+                  }}
+                  aria-label="Run now"
+                  className="h-7 w-7 text-muted-foreground"
+                  disabled={!canRunNow}
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                </Button>
+              </span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Run now</TooltipContent>
+            <TooltipContent side="bottom">
+              {automation.mode === 'trigger'
+                ? 'Run now is unavailable for event-triggered automations'
+                : 'Run now'}
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
