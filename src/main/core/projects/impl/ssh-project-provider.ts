@@ -272,17 +272,6 @@ export class SshProjectProvider implements ProjectProvider {
     return taskEnv;
   }
 
-  async retryTaskProvision(
-    task: Task,
-    conversations: Conversation[],
-    terminals: Terminal[]
-  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
-    this.tasks.delete(task.id);
-    this.conversationProviders.delete(task.id);
-    this.terminalProviders.delete(task.id);
-    return this.provisionTask(task, conversations, terminals);
-  }
-
   getTask(taskId: string): TaskProvider | undefined {
     return this.tasks.get(taskId);
   }
@@ -344,10 +333,6 @@ export class SshProjectProvider implements ProjectProvider {
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-  }
-
-  async retryTaskTeardown(taskId: string): Promise<Result<void, TeardownTaskError>> {
-    return this.teardownTask(taskId);
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
