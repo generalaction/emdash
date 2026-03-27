@@ -1277,21 +1277,25 @@ const ChatInterface: React.FC<Props> = ({
             )}
             <div
               ref={terminalPanelRef}
-              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${setupRunning ? 'hidden' : ''} ${
-                agent === 'charm'
-                  ? effectiveTheme === 'dark-black'
-                    ? 'bg-black'
-                    : effectiveTheme === 'dark'
-                      ? 'bg-card'
-                      : 'bg-white'
-                  : agent === 'mistral'
-                    ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                      ? effectiveTheme === 'dark-black'
-                        ? 'bg-[#141820]'
-                        : 'bg-[#202938]'
-                      : 'bg-white'
-                    : ''
-              }`}
+              className={cn(
+                'relative mx-auto h-full max-w-4xl overflow-hidden rounded-md',
+                setupRunning && 'hidden',
+                `${
+                  agent === 'charm'
+                    ? effectiveTheme === 'dark-black'
+                      ? 'bg-black'
+                      : effectiveTheme === 'dark'
+                        ? 'bg-card'
+                        : 'bg-white'
+                    : agent === 'mistral'
+                      ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? effectiveTheme === 'dark-black'
+                          ? 'bg-[#141820]'
+                          : 'bg-[#202938]'
+                        : 'bg-white'
+                      : ''
+                }`
+              )}
             >
               <TerminalSearchOverlay
                 isOpen={isSearchOpen}
