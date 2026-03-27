@@ -80,6 +80,15 @@ const TRIGGER_EXAMPLES: ExampleAutomation[] = [
     triggerType: 'github_pr',
   },
   {
+    icon: <GitHubIcon />,
+    name: 'Auto Fix CI',
+    prompt:
+      'The CI pipeline on this pull request is failing due to formatting or linting errors. Run the formatter and linter with auto-fix enabled (e.g. prettier --write, eslint --fix), then commit and push the changes so CI passes.',
+    description: 'Auto-fix formatting & lint errors',
+    mode: 'trigger',
+    triggerType: 'github_pr',
+  },
+  {
     icon: <LinearIcon />,
     name: 'Linear Issue Autostart',
     prompt:
