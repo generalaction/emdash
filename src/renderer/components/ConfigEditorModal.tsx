@@ -483,8 +483,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                   disabled={isSaving}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Overrides the browser toggle URL. Supports env var expansion. Leave blank to
-                  auto-detect from output.
+                  Overrides the browser toggle URL. Supports EMDASH vars. Leave blank to auto-detect
+                  from output.
                 </p>
               </div>
 
