@@ -154,6 +154,45 @@ describe('normalizeSettings - changelog dismissed versions', () => {
   });
 });
 
+describe('normalizeSettings - notification sound profile', () => {
+  it('defaults to the current sound profile when missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+  });
+
+  it('preserves the gilfoyle sound profile when selected', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        notifications: {
+          enabled: true,
+          sound: true,
+          osNotifications: true,
+          soundFocusMode: 'always',
+          soundProfile: 'gilfoyle',
+        },
+      })
+    );
+
+    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+  });
+
+  it('falls back to default for unknown sound profiles', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        notifications: {
+          enabled: true,
+          sound: true,
+          osNotifications: true,
+          soundFocusMode: 'always',
+          soundProfile: 'unknown' as any,
+        },
+      })
+    );
+
+    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+  });
+});
+
 describe('normalizeSettings - keyboard shortcuts', () => {
   it('preserves explicitly removed shortcuts', () => {
     const result = normalizeSettings(
