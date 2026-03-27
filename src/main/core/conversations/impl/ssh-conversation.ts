@@ -1,81 +1,149 @@
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentSessionConfig } from '@shared/agent-session';
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
-import type {
-  ConversationProvider,
-  ConversationStartOptions,
-  CreateSessionError,
-} from '@main/core/conversations/types';
+import type { ConversationProvider } from '@main/core/conversations/types';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { buildSshCommandString, resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { ok, Result } from '@main/lib/result';
-import type { AgentSessionConfig } from './agent-session';
+import { buildAgentCommand } from './agent-command';
+
+const DEFAULT_COLS = 80;
+const DEFAULT_ROWS = 24;
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
+  private readonly projectId: string;
+  private readonly taskPath: string;
+  private readonly taskId: string;
+  private readonly tmux: boolean = false;
+  private readonly shellSetup?: string;
+  private readonly exec: ExecFn;
+  private readonly proxy: SshClientProxy;
 
-  constructor(
-    private readonly projectId: string,
-    private readonly taskId: string,
-    private readonly proxy: SshClientProxy
-  ) {}
+  constructor({
+    projectId,
+    taskPath,
+    taskId,
+    tmux = false,
+    shellSetup,
+    exec,
+    proxy,
+  }: {
+    projectId: string;
+    taskPath: string;
+    taskId: string;
+    tmux?: boolean;
+    shellSetup?: string;
+    exec: ExecFn;
+    proxy: SshClientProxy;
+  }) {
+    this.projectId = projectId;
+    this.taskPath = taskPath;
+    this.taskId = taskId;
+    this.tmux = tmux;
+    this.shellSetup = shellSetup;
+    this.exec = exec;
+    this.proxy = proxy;
+  }
 
-  async startSession(conversation: Conversation): Promise<void> {
-    const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.conversationId);
+  async startSession(
+    conversation: Conversation,
+    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    isResuming: boolean = false,
+    initialPrompt?: string
+  ): Promise<void> {
+    const sessionId = makePtySessionId(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
 
-    if (this.sessions.has(sessionId)) return ok();
+    if (this.sessions.has(sessionId)) return;
+
+    const { command, args } = await buildAgentCommand({
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+      sessionId: conversation.id,
+      isResuming,
+      initialPrompt,
+    });
+
+    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
     const cfg: AgentSessionConfig = {
-      taskId: opts.taskId,
-      conversationId: opts.conversationId,
-      providerId: opts.providerId as AgentProviderId,
-      command: opts.command,
-      args: opts.args,
-      cwd: opts.cwd,
-      sessionId: opts.agentSessionId,
-      shellSetup: opts.shellSetup,
-      tmuxSessionName: opts.tmuxSessionName,
-      autoApprove: opts.autoApprove ?? false,
-      resume: opts.resume ?? false,
+      taskId: this.taskId,
+      conversationId: conversation.id,
+      providerId: conversation.providerId,
+      command,
+      args,
+      cwd: this.taskPath,
+      shellSetup: this.shellSetup,
+      tmuxSessionName,
+      autoApprove: conversation.autoApprove ?? false,
+      resume: isResuming,
     };
 
-    const { command, args, cwd } = resolveSpawnParams('agent', cfg);
-    const sshCommand = buildSshCommandString(command, args, cwd);
+    const sshCommand = resolveSshCommand('agent', cfg);
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
       command: sshCommand,
-      cols: 80,
-      rows: 24,
+      cols: initialSize.cols,
+      rows: initialSize.rows,
     });
 
-    if (!result.success) return result;
+    if (!result.success) {
+      log.error('SshConversationProvider: failed to open SSH channel', {
+        sessionId,
+        error: result.error.message,
+      });
+      return;
+    }
 
     const pty = result.data;
 
-    wireAgentClassifier(pty, sessionId, cfg);
+    // hooks not supported yet, rely on classifier for visual indicator
+    wireAgentClassifier({
+      pty,
+      providerId: conversation.providerId,
+      projectId: conversation.projectId,
+      taskId: conversation.taskId,
+      conversationId: conversation.id,
+    });
 
     pty.onExit(({ exitCode }) => {
+      ptySessionRegistry.unregister(sessionId);
+      const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      events.emit(
-        agentSessionExitedChannel,
-        { sessionId, conversationId: cfg.conversationId, taskId: cfg.taskId, exitCode },
-        cfg.taskId
-      );
+      events.emit(agentSessionExitedChannel, {
+        sessionId,
+        projectId: conversation.projectId,
+        conversationId: conversation.id,
+        taskId: conversation.taskId,
+        exitCode,
+      });
+      if (shouldRespawn && !this.tmux) {
+        setTimeout(() => {
+          this.startSession(conversation, initialSize, isResuming, initialPrompt).catch((e) => {
+            log.error('SshConversationProvider: respawn failed', {
+              conversationId: conversation.id,
+              error: String(e),
+            });
+          });
+        }, 500);
+      }
     });
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-
-    log.info('SshAgentProvider: session started', { sessionId, cwd });
-    return ok();
   }
 
   async stopSession(conversationId: string): Promise<void> {
@@ -89,9 +157,22 @@ export class SshConversationProvider implements ConversationProvider {
     }
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
+    if (this.tmux) {
+      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+    }
   }
 
   async destroyAll(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await this.detachAll();
+    if (this.tmux) {
+      await Promise.all(
+        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
+      );
+    }
+  }
+
+  async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
