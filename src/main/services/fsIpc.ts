@@ -72,6 +72,8 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set<string>([
 ]);
 const DEFAULT_ATTACHMENTS_SUBDIR = 'attachments' as const;
 
+const ALLOWED_HOST_VARS = ['USER'];
+
 export function registerFsIpc(): void {
   function emitPlanEvent(payload: any) {
     try {
@@ -881,7 +883,7 @@ export function registerFsIpc(): void {
   );
 
   // Resolve the openBrowserUrl from .emdash.json, expanding $VAR references using
-  // process.env merged with EMDASH task-specific vars supplied by the caller.
+  // taskEnvVars and a small allowlist of benign host vars supplied by the caller.
   ipcMain.handle(
     'fs:resolvePreviewUrl',
     async (_event, args: { projectPath: string; taskEnvVars?: Record<string, string> }) => {
@@ -896,11 +898,15 @@ export function registerFsIpc(): void {
         if (!template || typeof template !== 'string' || !template.trim()) {
           return { success: true, url: null };
         }
-        // Expand $VAR and ${VAR} references: EMDASH vars take priority, then process.env
-        const env: Record<string, string> = {
-          ...(process.env as Record<string, string>),
-          ...(taskEnvVars || {}),
-        };
+
+        // Expand $VAR and ${VAR} references from taskEnvVars plus an allowlist
+        // of benign host vars to avoid leaking secrets from process.env.
+        const hostVars: Record<string, string> = {};
+        for (const key of ALLOWED_HOST_VARS) {
+          if (typeof process.env[key] === 'string') hostVars[key] = process.env[key]!;
+        }
+
+        const env: Record<string, string> = { ...hostVars, ...(taskEnvVars || {}) };
         const resolved = template.replace(
           /\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
           (_m, braced, bare) => {

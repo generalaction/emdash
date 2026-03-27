@@ -111,22 +111,15 @@ describe('fs:resolvePreviewUrl', () => {
     expect(result).toEqual({ success: true, url: 'http://my-feature.localhost' });
   });
 
-  it('taskEnvVars take priority over process.env', async () => {
+  it('expands allowlisted host vars', async () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValue(
-      JSON.stringify({ openBrowserUrl: 'http://localhost:$EMDASH_PORT' })
+      JSON.stringify({ openBrowserUrl: 'http://$USER.internal' })
     );
-    // Simulate process.env having a different value
-    vi.stubEnv('EMDASH_PORT', '9999');
+    vi.stubEnv('USER', 'alice');
     const handler = await getHandler();
-    const result = await handler(
-      {},
-      {
-        projectPath: '/tmp/repo',
-        taskEnvVars: { EMDASH_PORT: '3000' },
-      }
-    );
-    expect(result).toEqual({ success: true, url: 'http://localhost:3000' });
+    const result = await handler({}, { projectPath: '/tmp/repo' });
+    expect(result).toEqual({ success: true, url: 'http://alice.internal' });
   });
 
   it('leaves unresolvable vars unexpanded', async () => {
