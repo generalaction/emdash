@@ -40,7 +40,10 @@ export interface GitProvider {
   commit(message: string): Promise<{ hash: string }>;
   fetch(): Promise<void>;
   push(): Promise<Result<{ output: string }, PushError>>;
-  publishBranch(branchName: string): Promise<Result<{ output: string }, PushError>>;
+  publishBranch(
+    branchName: string,
+    remote?: string
+  ): Promise<Result<{ output: string }, PushError>>;
   pull(): Promise<Result<{ output: string }, PullError>>;
   softReset(): Promise<{ subject: string; body: string }>;
 
@@ -52,9 +55,14 @@ export interface GitProvider {
   }>;
 
   getBranches(): Promise<Branch[]>;
-  getDefaultBranch(): Promise<DefaultBranch>;
+  getDefaultBranch(remote?: string): Promise<DefaultBranch>;
   getRemotes(): Promise<{ name: string; url: string }[]>;
-  createBranch(name: string, from: string, syncWithRemote?: boolean): Promise<void>;
+  createBranch(
+    name: string,
+    from: string,
+    syncWithRemote?: boolean,
+    remote?: string
+  ): Promise<void>;
   renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }>;
   deleteBranch(branch: string, force?: boolean): Promise<void>;
 

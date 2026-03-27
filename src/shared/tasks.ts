@@ -39,7 +39,7 @@ export type CreateTaskParams = {
   projectId: string;
   name: string;
   /** The branch to fork the new worktree from */
-  sourceBranch: string;
+  sourceBranch: { branch: string; remote: string };
   /** If available, create a new git branch before the worktree */
   taskBranch?: string;
   /** The issue to link to the task */
