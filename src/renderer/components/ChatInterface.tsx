@@ -311,11 +311,13 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     let cancelled = false;
 
+    // Add event listener to track setup status changes
     const off = window.electronAPI.onLifecycleEvent((event) => {
       if (event.taskId !== task.id || event.phase !== 'setup') return;
       setSetupRunning(event.status === 'running');
     });
 
+    // Additionally, in case the event is missed during mount, also fetch the state immediately
     window.electronAPI
       .lifecycleGetState({ taskId: task.id })
       .then((res) => {
