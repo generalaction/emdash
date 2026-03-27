@@ -86,11 +86,11 @@ export function getGitSshExec(
   const baseExec = getSshExec(proxy);
   return async (command, args = [], options = {}) => {
     if (command === 'git') {
-      const token = await getToken();
+      const token = Buffer.from(`x-access-token:${await getToken()}`).toString('base64');
       if (token) {
         args = [
           '-c',
-          `http.https://github.com/.extraHeader=Authorization: Bearer ${token}`,
+          `http.https://github.com/.extraHeader=Authorization: Basic ${token}`,
           ...args,
         ];
       }
