@@ -39,6 +39,7 @@ const ICON_PATHS = {
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
+  phpstorm: 'phpstorm.svg',
   'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
   windsurf: 'windsurf.svg',
@@ -414,6 +415,27 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['rustrover {{path}}'],
         checkCommands: ['rustrover'],
+      },
+    },
+  },
+  {
+    id: 'phpstorm',
+    label: 'PhpStorm',
+    iconPath: ICON_PATHS.phpstorm,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "PhpStorm" {{path}}'],
+        bundleIds: ['com.jetbrains.PhpStorm'],
+        appNames: ['PhpStorm'],
+      },
+      win32: {
+        openCommands: ['phpstorm64 {{path}}', 'phpstorm {{path}}'],
+        checkCommands: ['phpstorm64', 'phpstorm'],
+      },
+      linux: {
+        openCommands: ['phpstorm {{path}}'],
+        checkCommands: ['phpstorm'],
       },
     },
   },
