@@ -3,6 +3,7 @@ import type { CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks'
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { createConversation } from '../conversations/createConversation';
 import { appSettingsService } from '../settings/settings-service';
 
 export async function createTask(params: CreateTaskParams): Promise<Task> {
@@ -62,6 +63,10 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
   const provisionResult = await project.provisionTask(task, [], []);
   if (!provisionResult.success) {
     throw new Error(`Failed to provision task: ${provisionResult.error.message}`);
+  }
+
+  if (params.initialConversation) {
+    await createConversation(params.initialConversation);
   }
 
   return task;

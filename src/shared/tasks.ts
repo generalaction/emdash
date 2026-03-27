@@ -49,3 +49,12 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
 };
+
+export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
+  const parts = [`[${issue.identifier}] ${issue.title}`, issue.url, issue.description].filter(
+    Boolean
+  );
+
+  if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
+  return parts.join('\n');
+}
