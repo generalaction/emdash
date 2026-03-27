@@ -67,7 +67,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         id,
         projectId: selectedProjectId,
         name: taskName,
-        sourceBranch: selectedBranch?.branch ?? '',
+        sourceBranch: {
+          branch: selectedBranch?.branch ?? '',
+          remote: selectedBranch?.remote ?? '',
+        },
         taskBranch: createBranchAndWorktree ? taskName : undefined,
         linkedIssue: linkedIssue ?? undefined,
         pushBranch: createBranchAndWorktree ? pushBranch : undefined,

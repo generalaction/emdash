@@ -3,7 +3,7 @@ import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { createScriptTerminalId, type Terminal } from '@shared/terminals';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -116,7 +116,9 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<TaskProvider> {
-    log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
+    log.debug('LocalProjectProvider: doProvisionTask START', {
+      taskId: task.id,
+    });
 
     let workDir: string;
 
@@ -143,17 +145,29 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskFs = new LocalFileSystem(workDir);
     await new HookConfigWriter(taskFs).writeAll();
 
-    const taskGit = new GitService(workDir, getLocalExec(), taskFs);
+    const settings = await this.settings.get();
+    const tmuxEnabled = settings.tmux ?? false;
+    const shellSetup = settings.shellSetup;
+    const scripts = settings.scripts;
+
+    const exec = getLocalExec();
+    const taskGit = new GitService(workDir, exec, taskFs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
       taskId: task.id,
+      tmux: tmuxEnabled,
+      shellSetup,
+      exec,
     });
 
     const terminalProvider = new LocalTerminalProvider({
       projectId: this.project.id,
       taskId: task.id,
       taskPath: workDir,
+      tmux: tmuxEnabled,
+      shellSetup,
+      exec,
     });
 
     const taskEnv: TaskProvider = {
@@ -167,12 +181,10 @@ export class LocalProjectProvider implements ProjectProvider {
       terminals: terminalProvider,
     };
 
-    const scripts = (await this.settings.get()).scripts;
-
-    const userShell =
-      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
     if (scripts?.setup) {
+      const userShell =
+        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+
       const id = await createScriptTerminalId({
         projectId: this.project.id,
         taskId: task.id,
@@ -199,7 +211,7 @@ export class LocalProjectProvider implements ProjectProvider {
 
     Promise.all(
       conversations.map((conv) =>
-        conversationProvider.startSession(conv).catch((e) => {
+        conversationProvider.startSession(conv, undefined, true).catch((e) => {
           log.error('LocalEnvironmentProvider: failed to hydrate conversation', {
             conversationId: conv.id,
             error: String(e),
@@ -208,7 +220,9 @@ export class LocalProjectProvider implements ProjectProvider {
       )
     );
 
-    log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
+    log.debug('LocalProjectProvider: doProvisionTask DONE', {
+      taskId: task.id,
+    });
     return taskEnv;
   }
 
@@ -248,14 +262,19 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const settings = await this.settings.get();
+
     const taskLifecycleService = new TaskLifecycleService({
       projectId: this.project.id,
       taskId: task.taskId,
       taskPath: task.taskPath,
       terminals: task.terminals,
+      tmux: settings.tmux ?? false,
+      shellSetup: settings.shellSetup,
+      exec: getLocalExec(),
     });
 
-    const scripts = (await this.settings.get())?.scripts;
+    const scripts = settings?.scripts;
 
     if (scripts?.teardown) {
       taskLifecycleService.runLifecycleScript({
@@ -276,6 +295,17 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
-    await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+    const settings = await this.settings.get();
+
+    if (settings.tmux) {
+      await Promise.all(
+        Array.from(this.tasks.values()).map((task) =>
+          Promise.all([task.conversations.detachAll(), task.terminals.detachAll()])
+        )
+      );
+      this.tasks.clear();
+    } else {
+      await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+    }
   }
 }

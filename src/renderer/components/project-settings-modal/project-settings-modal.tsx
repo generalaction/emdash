@@ -202,7 +202,7 @@ function ProjectSettingsForm({
           <Field>
             <FieldTitle>Shell setup</FieldTitle>
             <FieldDescription>
-              Shell commands run before the agent starts in each worktree session (e.g.{' '}
+              Shell commands run before each terminal session starts (e.g.{' '}
               <code className="font-mono text-xs">nvm use</code>).
             </FieldDescription>
             <Textarea
@@ -218,7 +218,9 @@ function ProjectSettingsForm({
           <Field orientation="horizontal">
             <div className="flex flex-1 flex-col gap-1">
               <FieldTitle>Enable tmux</FieldTitle>
-              <FieldDescription>Run the agent session inside a tmux session.</FieldDescription>
+              <FieldDescription>
+                Run all terminal sessions inside tmux for persistence across restarts.
+              </FieldDescription>
             </div>
             <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
           </Field>
