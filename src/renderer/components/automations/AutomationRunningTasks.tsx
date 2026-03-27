@@ -139,21 +139,19 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
   return (
     <div className="group flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-muted/40">
       {/* Agent icon */}
-      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-muted/40">
-        {agent?.logo ? (
-          <AgentLogo
-            logo={agent.logo}
-            alt={agent.name}
-            isSvg={agent.isSvg}
-            invertInDark={agent.invertInDark}
-            className="h-4 w-4"
-          />
-        ) : (
-          <span className="text-[9px] font-semibold text-muted-foreground">
-            {(task.agentId ?? '??').slice(0, 2).toUpperCase()}
-          </span>
-        )}
-      </div>
+      {agent?.logo ? (
+        <AgentLogo
+          logo={agent.logo}
+          alt={agent.name}
+          isSvg={agent.isSvg}
+          invertInDark={agent.invertInDark}
+          className="h-4 w-4 shrink-0 rounded-sm"
+        />
+      ) : (
+        <span className="w-4 shrink-0 text-center text-[9px] font-semibold text-muted-foreground">
+          {(task.agentId ?? '??').slice(0, 2).toUpperCase()}
+        </span>
+      )}
 
       {/* Task name — clickable to navigate */}
       <button
