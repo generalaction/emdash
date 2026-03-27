@@ -1,3 +1,4 @@
+import { ProjectSettings } from '@main/core/projects/settings/schema';
 import { DialogContent, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog';
 import { Spinner } from '@renderer/components/ui/spinner';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
