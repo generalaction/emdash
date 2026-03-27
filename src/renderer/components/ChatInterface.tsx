@@ -311,6 +311,8 @@ const ChatInterface: React.FC<Props> = ({
   useEffect(() => {
     let cancelled = false;
 
+    setSetupRunning(false);
+
     // Add event listener to track setup status changes
     const off = window.electronAPI.onLifecycleEvent((event) => {
       if (event.taskId !== task.id || event.phase !== 'setup') return;
@@ -326,6 +328,7 @@ const ChatInterface: React.FC<Props> = ({
       })
       .catch((err) => {
         console.error('Failed to get lifecycle state:', err);
+        if (!cancelled) setSetupRunning(false);
       });
 
     return () => {
