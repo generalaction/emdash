@@ -876,6 +876,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             />
             {pr && (
               <PrCommentsList
+                taskId={resolvedTaskId ?? ''}
                 status={prCommentsStatus}
                 isLoading={prCommentsLoading}
                 hasPr={!!pr}
