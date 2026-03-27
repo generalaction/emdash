@@ -113,7 +113,7 @@ const NotificationSettingsCard: React.FC = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Classic Emdash</SelectItem>
+              <SelectItem value="default">Default</SelectItem>
               <SelectItem value="gilfoyle">Gilfoyle Bitcoin Alert</SelectItem>
             </SelectContent>
           </Select>
