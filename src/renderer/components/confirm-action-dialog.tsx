@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { ConfirmButton } from './ui/confirm-button';
 import {
   DialogContent,
+  DialogContentArea,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -27,11 +28,13 @@ export function ConfirmActionDialog({
   onClose,
 }: Props) {
   return (
-    <DialogContent showCloseButton={false} className="sm:max-w-xs">
-      <DialogHeader>
+    <DialogContent className="sm:max-w-xs">
+      <DialogHeader showCloseButton={false}>
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
+      <DialogContentArea className="pt-0">
+        <p>{description}</p>
+      </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>
           Cancel

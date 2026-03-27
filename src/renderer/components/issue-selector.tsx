@@ -1,16 +1,13 @@
 import { ExternalLink, Loader2, XIcon } from 'lucide-react';
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useRef, useState } from 'react';
 import githubLogo from '@/assets/images/github.png';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
 import type { Issue } from '@shared/tasks';
-import { useGitHubIssues } from '@renderer/core/integrations/use-github-issues';
-import { useJiraIssues } from '@renderer/core/integrations/use-jira-issues';
-import { useLinearIssues } from '@renderer/core/integrations/use-linear-issues';
 import { rpc } from '@renderer/core/ipc';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { useIntegrationStatus } from './hooks/useIntegrationStatus';
+import { useIssueSearch } from './hooks/useIssueSearch';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import {
@@ -25,6 +22,8 @@ import {
 } from './ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+
+export const ISSUE_PROVIDERS = ['linear', 'github', 'jira'] as const;
 
 function getStatusColorClass(status?: string) {
   if (!status) return '';
@@ -42,7 +41,7 @@ function getStatusColorClass(status?: string) {
   return 'bg-gray-300';
 }
 
-function IssueIdentifier({ identifier }: { identifier: string }) {
+export function IssueIdentifier({ identifier }: { identifier: string }) {
   return (
     <span className="shrink-0 whitespace-nowrap font-medium text-muted-foreground group-hover:text-muted-foreground text-xs font-mono">
       {identifier}
@@ -50,19 +49,21 @@ function IssueIdentifier({ identifier }: { identifier: string }) {
   );
 }
 
-const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(({ status, ...props }, ref) => {
-  if (!status) return null;
-  const color = getStatusColorClass(status);
-  return (
-    <span
-      ref={ref}
-      {...props}
-      className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
-    />
-  );
-});
+export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
+  ({ status, ...props }, ref) => {
+    if (!status) return null;
+    const color = getStatusColorClass(status);
+    return (
+      <span
+        ref={ref}
+        {...props}
+        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
+      />
+    );
+  }
+);
 
-function ProviderLogo({
+export function ProviderLogo({
   provider,
   className,
 }: {
@@ -74,7 +75,7 @@ function ProviderLogo({
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
-function IssueRow({ issue }: { issue: Issue }) {
+export function IssueRow({ issue }: { issue: Issue }) {
   return (
     <span className="flex min-w-0 items-center gap-2 w-full">
       <Tooltip>
@@ -87,8 +88,6 @@ function IssueRow({ issue }: { issue: Issue }) {
   );
 }
 
-const ISSUE_PROVIDERS = ['linear', 'github', 'jira'] as const;
-
 export interface IssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
@@ -96,86 +95,30 @@ export interface IssueSelectorProps {
 }
 
 export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSelectorProps) {
-  const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
-  const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
-    null
-  );
+  const {
+    issues,
+    issueProvider,
+    hasAnyIntegration,
+    isProviderLoading,
+    isProviderDisabled,
+    connectedProviderCount,
+    handleSetSearchTerm,
+    setSelectedIssueProvider,
+  } = useIssueSearch(nameWithOwner);
+
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSelectIssueProvider = (provider: Issue['provider']) => {
-    setSelectedIssueProvider(provider);
-    if (value?.provider !== provider) {
-      onValueChange(null);
-    }
-  };
-
-  const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
-  const githubIssues = useGitHubIssues({
-    nameWithOwner,
-    enabled: isGithubConnected && !!nameWithOwner,
-  });
-  const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
-
-  const hasAnyIntegration = isLinearConnected || isGithubConnected || isJiraConnected;
-
-  const issueProvider = useMemo(() => {
-    if (!selectedIssueProvider) {
-      if (isLinearConnected) return 'linear' as const;
-      if (isGithubConnected) return 'github' as const;
-      if (isJiraConnected) return 'jira' as const;
-    }
-    return selectedIssueProvider;
-  }, [isLinearConnected, isGithubConnected, isJiraConnected, selectedIssueProvider]);
-
-  const handleSetSearchTerm = useCallback(
-    (term: string) => {
-      switch (issueProvider) {
-        case 'linear':
-          return linearIssues.setSearchTerm(term);
-        case 'github':
-          return githubIssues.setSearchTerm(term);
-        case 'jira':
-          return jiraIssues.setSearchTerm(term);
-        default:
-          return null;
+  const handleSelectIssueProvider = useCallback(
+    (provider: Issue['provider']) => {
+      setSelectedIssueProvider(provider);
+      if (value?.provider !== provider) {
+        onValueChange(null);
       }
     },
-    [issueProvider, linearIssues, githubIssues, jiraIssues]
+    [setSelectedIssueProvider, value, onValueChange]
   );
-
-  const isProviderDisabled = useCallback(
-    (provider: Issue['provider']) => {
-      if (!hasAnyIntegration) return true;
-      if (provider === 'linear') return !isLinearConnected;
-      if (provider === 'github') return !isGithubConnected;
-      if (provider === 'jira') return !isJiraConnected;
-      return false;
-    },
-    [hasAnyIntegration, isLinearConnected, isGithubConnected, isJiraConnected]
-  );
-
-  const issues = useMemo(() => {
-    if (!issueProvider) return [];
-    if (issueProvider === 'linear') return linearIssues.issues;
-    if (issueProvider === 'github') return githubIssues.issues;
-    if (issueProvider === 'jira') return jiraIssues.issues;
-    return [];
-  }, [issueProvider, linearIssues.issues, githubIssues.issues, jiraIssues.issues]);
-
-  const activeHook =
-    issueProvider === 'linear'
-      ? linearIssues
-      : issueProvider === 'github'
-        ? githubIssues
-        : jiraIssues;
-
-  const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
-
-  const connectedProviderCount = [isLinearConnected, isGithubConnected, isJiraConnected].filter(
-    Boolean
-  ).length;
 
   const leftAddon = issueProvider ? (
     isProviderLoading ? (
@@ -267,7 +210,7 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
             <ComboboxInput
               leftAddon={leftAddon}
               inputRef={inputRef}
-              showClear={!!value}
+              showClear={false}
               showTrigger={false}
               placeholder={`Search ${issueProvider ?? 'issues'}…`}
               disabled={!hasAnyIntegration}
@@ -291,7 +234,7 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
   );
 }
 
-function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () => void }) {
+export function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () => void }) {
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center justify-between w-full ">
@@ -300,18 +243,6 @@ function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () =>
           <span className="capitalize">{issue.provider + ' issue'}</span>
           <IssueIdentifier identifier={issue.identifier} />
         </div>
-        <Button variant="ghost" size="icon-xs" className="-mt-1 -mr-1" onClick={onRemove}>
-          <XIcon className="size-3" />
-        </Button>
-      </div>
-      {issue.title ? (
-        <div className="min-w-0 truncate text-muted-foreground">{issue.title}</div>
-      ) : null}
-      <div className="flex items-center justify-between gap-2 relative">
-        <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
-          <StatusDot status={issue.status} />
-          {issue.status}
-        </Badge>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -322,11 +253,20 @@ function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () =>
           <ExternalLink className="size-3" />
         </Button>
       </div>
+      {issue.title ? (
+        <div className="min-w-0 truncate text-muted-foreground">{issue.title}</div>
+      ) : null}
+      <div className="flex items-center justify-between gap-2 relative">
+        <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
+          <StatusDot status={issue.status} />
+          {issue.status}
+        </Badge>
+      </div>
     </div>
   );
 }
 
-function ConnectIssueIntegrationPlaceholder() {
+export function ConnectIssueIntegrationPlaceholder() {
   const { navigate } = useNavigate();
 
   return (
