@@ -5,8 +5,8 @@ import { LocalFileSystem } from '../fs/impl/local-fs';
 import { SshFileSystem } from '../fs/impl/ssh-fs';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
 import { sshConnectionManager } from '../ssh/ssh-connection-manager';
-import { createSshProvider } from './impl/_ssh-project-provider';
 import { createLocalProvider } from './impl/local-project-provider';
+import { createSshProvider } from './impl/ssh-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
