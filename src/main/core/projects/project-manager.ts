@@ -2,6 +2,7 @@ import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/p
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
+import { createSshProvider } from './impl/_ssh-project-provider';
 import { createLocalProvider } from './impl/local-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
@@ -126,7 +127,7 @@ class ProjectManager {
 
 async function createProvider(project: LocalProject | SshProject): Promise<ProjectProvider> {
   if (project.type === 'ssh') {
-    throw new Error('SSH projects are not yet supported');
+    return createSshProvider(project);
   }
   return createLocalProvider(project);
 }
