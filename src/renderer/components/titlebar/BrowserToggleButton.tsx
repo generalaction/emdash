@@ -12,7 +12,7 @@ import {
   setInstalled,
 } from '@/lib/previewStorage';
 import { isReachable, isAppPort, FALLBACK_DELAY_MS, SPINNER_MAX_MS } from '@/lib/previewNetwork';
-import { getBasePort } from '@shared/task/envVars';
+import { getTaskEnvVars } from '@shared/task/envVars';
 
 interface Props {
   defaultUrl?: string;
@@ -21,6 +21,7 @@ interface Props {
   taskPath?: string | null;
   taskBranch?: string | null;
   parentProjectPath?: string | null;
+  defaultBranch?: string;
 }
 
 const BrowserToggleButton: React.FC<Props> = ({
@@ -29,6 +30,7 @@ const BrowserToggleButton: React.FC<Props> = ({
   taskPath,
   taskBranch,
   parentProjectPath,
+  defaultBranch,
 }) => {
   const browser = useBrowser();
   async function needsInstall(path?: string | null): Promise<boolean> {
@@ -105,14 +107,14 @@ const BrowserToggleButton: React.FC<Props> = ({
     // If openBrowserUrl is configured in .emdash.json, use it directly
     if (pp) {
       try {
-        const portSeed = wp || id;
-        const taskEnvVars: Record<string, string> = {};
-        if (id) taskEnvVars['EMDASH_TASK_ID'] = id;
-        if (taskName) taskEnvVars['EMDASH_TASK_NAME'] = taskName;
-        if (wp) taskEnvVars['EMDASH_TASK_PATH'] = wp;
-        if (pp) taskEnvVars['EMDASH_ROOT_PATH'] = pp;
-        taskEnvVars['EMDASH_DEFAULT_BRANCH'] = taskBranch || 'main';
-        if (portSeed) taskEnvVars['EMDASH_PORT'] = String(getBasePort(portSeed));
+        const taskEnvVars = getTaskEnvVars({
+          taskId: id,
+          taskName: taskName || '',
+          taskPath: wp,
+          projectPath: pp,
+          defaultBranch,
+          portSeed: wp || id,
+        });
         const result = await (window as any).electronAPI?.resolvePreviewUrl?.(pp, taskEnvVars);
         if (result?.success && result?.url) {
           const configuredUrl = String(result.url);
@@ -192,7 +194,7 @@ const BrowserToggleButton: React.FC<Props> = ({
     }
     // Fallback: clear spinner after a grace period if nothing arrives
     setTimeout(() => browser.hideSpinner(), SPINNER_MAX_MS);
-  }, [browser, taskId, taskName, taskPath, taskBranch, parentProjectPath]);
+  }, [browser, taskId, taskName, taskPath, defaultBranch, parentProjectPath]);
 
   return (
     <TooltipProvider delayDuration={200}>

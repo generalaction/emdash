@@ -103,6 +103,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   const {
     projects,
     selectedProject,
+    projectDefaultBranch,
     handleSelectProject: onSelectProject,
     showKanban: isKanbanOpen,
     showEditorMode: isEditorOpen,
@@ -307,6 +308,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
               taskPath={taskPath}
               taskBranch={activeTask?.branch ?? null}
               parentProjectPath={projectPath}
+              defaultBranch={projectDefaultBranch}
             />
           ) : null}
           <TooltipProvider delayDuration={200}>
