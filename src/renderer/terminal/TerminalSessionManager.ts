@@ -1016,6 +1016,7 @@ export class TerminalSessionManager {
     delete (colorTheme as any)?.fontFamily;
     delete (colorTheme as any)?.fontSize;
     this.terminal.options.theme = { ...base, ...colorTheme };
+    this.terminal.options.minimumContrastRatio = theme.base === 'light' ? 4.5 : 1;
 
     this.themeFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
     this.applyEffectiveFont();
