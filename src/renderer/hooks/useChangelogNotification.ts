@@ -80,10 +80,10 @@ export function useChangelogNotification() {
       rpc.changelog.getLatestEntry({ version: notificationVersion ?? undefined }),
   });
 
-  const entry = useMemo(
-    () => (notificationVersion ? (data ?? createFallbackEntry(notificationVersion)) : null),
-    [data, notificationVersion]
-  );
+  const entry = useMemo(() => {
+    if (!notificationVersion) return null;
+    return data ?? createFallbackEntry(notificationVersion);
+  }, [data, notificationVersion]);
 
   const dismiss = useCallback(() => {
     if (!notificationVersion) return;

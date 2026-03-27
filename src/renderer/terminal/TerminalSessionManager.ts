@@ -29,6 +29,7 @@ import {
   type TerminalSearchBufferLike,
   type TerminalSearchMatch,
 } from './terminalSearch';
+import { scheduleTerminalWriteDrain } from './writeDrainScheduler';
 import { rpc } from '@/lib/rpc';
 import { APP_SHORTCUTS, normalizeShortcutKey } from '@/hooks/useKeyboardShortcuts';
 
@@ -117,6 +118,14 @@ export class TerminalSessionManager {
   private readonly exitListeners = new Set<
     (info: { exitCode: number | undefined; signal?: number }) => void
   >();
+  private ptyListenerDisposables: CleanupFn[] = [];
+  private ptyConnectPromise: Promise<{
+    ok: boolean;
+    reused?: boolean;
+    tmux?: boolean;
+    error?: string;
+  }> | null = null;
+  private restartPromise: Promise<boolean> | null = null;
   private firstFrameRendered = false;
   private ptyStarted = false;
   private lastSnapshotAt: number | null = null;
@@ -137,11 +146,13 @@ export class TerminalSessionManager {
   private readonly pendingWriteQueue: string[] = [];
   private queuedWriteChars = 0;
   private writeDrainScheduled = false;
+  private cancelPendingWriteDrain: CleanupFn | null = null;
   private writeInFlight = false;
   private shouldScrollToBottomAfterWrites = false;
   private lastSlowInputLogAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
+  private wheelLineRemainder = 0;
   private activeSearchQuery = '';
   private activeSearchMatch: TerminalSearchMatch | null = null;
 
@@ -207,6 +218,7 @@ export class TerminalSessionManager {
         updateCustomFontSize(size);
       }
       this.autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+      this.terminal.options.macOptionIsMeta = settings?.terminal?.macOptionIsMeta ?? false;
     });
 
     window.electronAPI.terminalGetTheme().then((result) => {
@@ -250,6 +262,15 @@ export class TerminalSessionManager {
     window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
     this.disposables.push(() =>
       window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+    );
+
+    const handleMacOptionIsMetaChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ macOptionIsMeta?: boolean }>).detail;
+      this.terminal.options.macOptionIsMeta = detail?.macOptionIsMeta ?? false;
+    };
+    window.addEventListener('terminal-mac-option-is-meta-changed', handleMacOptionIsMetaChange);
+    this.disposables.push(() =>
+      window.removeEventListener('terminal-mac-option-is-meta-changed', handleMacOptionIsMetaChange)
     );
 
     const handlePanelResizeDragging = (e: Event) => {
@@ -554,6 +575,8 @@ export class TerminalSessionManager {
     this.pendingWriteQueue.length = 0;
     this.queuedWriteChars = 0;
     this.writeDrainScheduled = false;
+    this.cancelPendingWriteDrain?.();
+    this.cancelPendingWriteDrain = null;
     this.writeInFlight = false;
     this.shouldScrollToBottomAfterWrites = false;
     this.detach();
@@ -571,6 +594,7 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to kill PTY during dispose', { id: this.id, error });
     }
+    this.cleanupPtyListeners();
     for (const dispose of this.disposables.splice(0)) {
       try {
         dispose();
@@ -611,6 +635,34 @@ export class TerminalSessionManager {
     } catch (error) {
       log.warn('Failed to scroll to bottom', { id: this.id, error });
     }
+  }
+
+  forwardWheelInput(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    if (this.dispatchWheelEventToTerminal(input)) {
+      return true;
+    }
+
+    return this.scrollViewportFromWheelDelta(input.deltaY, input.deltaMode);
+  }
+
+  scrollViewportFromWheelDelta(deltaY: number, deltaMode: number): boolean {
+    const lineDelta = this.normalizeWheelDeltaToLines(deltaY, deltaMode);
+    if (!Number.isFinite(lineDelta) || lineDelta === 0) return false;
+
+    const totalDelta = this.wheelLineRemainder + lineDelta;
+    const wholeLines = totalDelta > 0 ? Math.floor(totalDelta) : Math.ceil(totalDelta);
+    this.wheelLineRemainder = totalDelta - wholeLines;
+
+    if (wholeLines === 0) return false;
+    return this.scrollViewportByLineDelta(wholeLines);
   }
 
   search(
@@ -708,6 +760,29 @@ export class TerminalSessionManager {
     return () => {
       this.exitListeners.delete(listener);
     };
+  }
+
+  isPtyActive(): boolean {
+    return this.ptyStarted;
+  }
+
+  async restart(): Promise<boolean> {
+    if (this.disposed || this.ptyStarted) return false;
+    if (this.restartPromise) return this.restartPromise;
+
+    this.restartPromise = (async () => {
+      this.clearQueuedResize();
+      this.cleanupPtyListeners();
+
+      const result = await this.connectPty(true);
+      return Boolean(result?.ok);
+    })();
+
+    try {
+      return await this.restartPromise;
+    } finally {
+      this.restartPromise = null;
+    }
   }
 
   private handleTerminalInput(data: string, isNewlineInsert: boolean = false) {
@@ -950,6 +1025,98 @@ export class TerminalSessionManager {
   private applyEffectiveFont() {
     const selected = this.customFontFamily || this.themeFontFamily;
     this.terminal.options.fontFamily = selected ? `${selected}, ${FALLBACK_FONTS}` : FALLBACK_FONTS;
+  }
+
+  private scrollViewportByLineDelta(lines: number): boolean {
+    try {
+      const buffer = this.terminal.buffer?.active;
+      if (
+        !buffer ||
+        typeof buffer.baseY !== 'number' ||
+        typeof buffer.viewportY !== 'number' ||
+        lines === 0
+      ) {
+        return false;
+      }
+
+      const targetLine = Math.max(0, Math.min(buffer.baseY, buffer.viewportY + lines));
+      if (targetLine === buffer.viewportY) return false;
+
+      this.terminal.scrollToLine(targetLine);
+      return true;
+    } catch (error) {
+      log.warn('Failed to scroll terminal viewport', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private normalizeWheelDeltaToLines(deltaY: number, deltaMode: number): number {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      return deltaY;
+    }
+
+    if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return deltaY * this.terminal.rows;
+    }
+
+    return deltaY / this.getApproximateRowHeightPx();
+  }
+
+  private dispatchWheelEventToTerminal(input: {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }): boolean {
+    try {
+      const terminalElement = (this.terminal as any).element as HTMLElement | null;
+      if (!terminalElement) return false;
+
+      const rect = terminalElement.getBoundingClientRect();
+      const didPreventDefault = !terminalElement.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaX: input.deltaX,
+          deltaY: input.deltaY,
+          deltaMode: input.deltaMode,
+          altKey: input.altKey,
+          ctrlKey: input.ctrlKey,
+          metaKey: input.metaKey,
+          shiftKey: input.shiftKey,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+
+      return didPreventDefault;
+    } catch (error) {
+      log.warn('Failed to forward wheel input to terminal', { id: this.id, error });
+      return false;
+    }
+  }
+
+  private getApproximateRowHeightPx(): number {
+    const rowElement = this.container.querySelector('.xterm-rows > div');
+    if (rowElement instanceof HTMLElement) {
+      const { height } = rowElement.getBoundingClientRect();
+      if (height > 0) return height;
+    }
+
+    const fontSize =
+      typeof this.terminal.options.fontSize === 'number'
+        ? this.terminal.options.fontSize
+        : DEFAULT_FONT_SIZE;
+    const lineHeight =
+      typeof this.terminal.options.lineHeight === 'number' ? this.terminal.options.lineHeight : 1.2;
+
+    return Math.max(fontSize * lineHeight, 1);
   }
 
   private scheduleFit() {
@@ -1197,85 +1364,99 @@ export class TerminalSessionManager {
   private async connectPty(
     hasExistingSession: boolean = false
   ): Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }> {
-    this.ptyConnectStartTime = performance.now();
-    const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
-      this.options;
-    const id = taskId;
-
-    // Provider CLIs use direct spawn (bypasses shell config loading)
-    // Regular shell terminals use shell-based spawn
-    const ptyPromise =
-      providerId && cwd
-        ? window.electronAPI.ptyStartDirect({
-            id,
-            providerId,
-            cwd,
-            remote: this.options.remote,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-            env,
-            resume: hasExistingSession,
-          })
-        : window.electronAPI.ptyStart({
-            id,
-            cwd,
-            remote: this.options.remote,
-            shell,
-            env,
-            cols: initialSize.cols,
-            rows: initialSize.rows,
-            autoApprove,
-            initialPrompt,
-          });
-
-    const result = await ptyPromise.catch((error: any) => {
-      const message = error?.message || String(error);
-      log.error('terminalSession:ptyStartError', { id, error });
-      this.emitError(message);
-      return { ok: false, error: message };
-    });
-
-    if (result?.ok) {
-      this.ptyStarted = true;
-      this.lastSentResize = null;
-      this.sendSizeIfStarted();
-      this.emitReady();
-      try {
-        let offStarted: (() => void) | undefined;
-        const removeOffStartedFromDisposables = () => {
-          if (!offStarted) return;
-          const idx = this.disposables.indexOf(offStarted);
-          if (idx >= 0) this.disposables.splice(idx, 1);
-        };
-        offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
-          if (payload?.id === id) {
-            this.ptyStarted = true;
-            this.lastSentResize = null;
-            this.sendSizeIfStarted();
-            try {
-              offStarted?.();
-            } catch {}
-            removeOffStartedFromDisposables();
-            offStarted = undefined;
-          }
-        });
-        if (offStarted) this.disposables.push(offStarted);
-      } catch {}
-    } else {
-      const message = result?.error || 'Failed to start PTY';
-      log.warn('terminalSession:ptyStartFailed', { id, error: message });
-      this.emitError(message);
+    if (this.ptyConnectPromise) {
+      return this.ptyConnectPromise;
     }
 
-    // Set up data listener (runs regardless of success for potential reuse)
-    this.setupPtyDataListener(id);
+    this.ptyConnectPromise = (async () => {
+      this.ptyConnectStartTime = performance.now();
+      const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
+        this.options;
+      const id = taskId;
 
-    return result || { ok: false, error: 'Unknown error' };
+      // Provider CLIs use direct spawn (bypasses shell config loading)
+      // Regular shell terminals use shell-based spawn
+      const ptyPromise =
+        providerId && cwd
+          ? window.electronAPI.ptyStartDirect({
+              id,
+              providerId,
+              cwd,
+              remote: this.options.remote,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+              env,
+              resume: hasExistingSession,
+            })
+          : window.electronAPI.ptyStart({
+              id,
+              cwd,
+              remote: this.options.remote,
+              shell,
+              env,
+              cols: initialSize.cols,
+              rows: initialSize.rows,
+              autoApprove,
+              initialPrompt,
+            });
+
+      const result = await ptyPromise.catch((error: any) => {
+        const message = error?.message || String(error);
+        log.error('terminalSession:ptyStartError', { id, error });
+        this.emitError(message);
+        return { ok: false, error: message };
+      });
+
+      if (result?.ok) {
+        this.ptyStarted = true;
+        this.lastSentResize = null;
+        this.sendSizeIfStarted();
+        this.emitReady();
+        try {
+          let offStarted: (() => void) | undefined;
+          const removeOffStartedFromDisposables = () => {
+            if (!offStarted) return;
+            const idx = this.disposables.indexOf(offStarted);
+            if (idx >= 0) this.disposables.splice(idx, 1);
+          };
+          offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
+            if (payload?.id === id) {
+              this.ptyStarted = true;
+              this.lastSentResize = null;
+              this.sendSizeIfStarted();
+              try {
+                offStarted?.();
+              } catch {}
+              removeOffStartedFromDisposables();
+              offStarted = undefined;
+            }
+          });
+          if (offStarted) this.disposables.push(offStarted);
+        } catch {}
+      } else {
+        const message = result?.error || 'Failed to start PTY';
+        log.warn('terminalSession:ptyStartFailed', { id, error: message });
+        this.emitError(message);
+      }
+
+      // Set up data listener (runs regardless of success for potential reuse)
+      this.setupPtyDataListener(id);
+
+      return result || { ok: false, error: 'Unknown error' };
+    })();
+
+    try {
+      return await this.ptyConnectPromise;
+    } finally {
+      this.ptyConnectPromise = null;
+    }
   }
 
   private setupPtyDataListener(id: string): void {
+    this.cleanupPtyListeners();
+
     const offData = window.electronAPI.onPtyData(id, (chunk) => {
       if (!this.metrics.canAccept(chunk)) {
         log.warn('Terminal scrollback truncated to protect memory', { id });
@@ -1304,7 +1485,17 @@ export class TerminalSessionManager {
       this.emitExit(info);
     });
 
-    this.disposables.push(offData, offExit);
+    this.ptyListenerDisposables = [offData, offExit];
+  }
+
+  private cleanupPtyListeners(): void {
+    for (const dispose of this.ptyListenerDisposables.splice(0)) {
+      try {
+        dispose();
+      } catch (error) {
+        log.warn('Terminal PTY listener cleanup failed', { id: this.id, error });
+      }
+    }
   }
 
   private enqueueTerminalWrite(chunk: string) {
@@ -1317,8 +1508,9 @@ export class TerminalSessionManager {
   private scheduleWriteDrain() {
     if (this.writeDrainScheduled || this.disposed) return;
     this.writeDrainScheduled = true;
-    requestAnimationFrame(() => {
+    this.cancelPendingWriteDrain = scheduleTerminalWriteDrain(() => {
       this.writeDrainScheduled = false;
+      this.cancelPendingWriteDrain = null;
       this.drainQueuedWrites();
     });
   }

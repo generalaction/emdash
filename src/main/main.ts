@@ -22,28 +22,41 @@ try {
 }
 
 if (process.platform === 'darwin') {
-  const extras = ['/opt/homebrew/bin', '/usr/local/bin', '/opt/homebrew/sbin', '/usr/local/sbin'];
-  const cur = process.env.PATH || '';
-  const parts = cur.split(':').filter(Boolean);
-  for (const p of extras) {
-    if (!parts.includes(p)) parts.unshift(p);
-  }
-  process.env.PATH = parts.join(':');
-
-  // As a last resort, ask the user's login shell for PATH and merge it in.
   try {
-    const { execSync } = require('child_process');
-    const shell = process.env.SHELL || '/bin/zsh';
-    const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
-    if (loginPath) {
-      // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
-      // Split by both : and \n so noise fused with the first real path entry
-      // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
-      const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
-      const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
-      const merged = new Set(validEntries);
-      process.env.PATH = Array.from(merged).join(':');
+    const os = require('os');
+    const path = require('path');
+    const homeDir = os.homedir();
+    const extras = [
+      path.join(homeDir, '.npm-global/bin'),
+      path.join(homeDir, '.local/bin'),
+      path.join(homeDir, '.bun/bin'),
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/local/sbin',
+    ];
+    const cur = process.env.PATH || '';
+    const parts = cur.split(':').filter(Boolean);
+    for (const p of extras) {
+      if (!parts.includes(p)) parts.unshift(p);
     }
+    process.env.PATH = parts.join(':');
+
+    // As a last resort, ask the user's login shell for PATH and merge it in.
+    try {
+      const { execSync } = require('child_process');
+      const shell = process.env.SHELL || '/bin/zsh';
+      const loginPath = execSync(`${shell} -ilc 'echo -n $PATH'`, { encoding: 'utf8' });
+      if (loginPath) {
+        // Shell noise (nvm messages, ASCII art, motd) gets captured in stdout.
+        // Split by both : and \n so noise fused with the first real path entry
+        // (e.g. "nvm output\n/usr/local/bin") is correctly separated.
+        const allEntries = (loginPath + ':' + process.env.PATH).split(/[:\n]/).filter(Boolean);
+        const validEntries = allEntries.filter((p: string) => p.startsWith('/'));
+        const merged = new Set(validEntries);
+        process.env.PATH = Array.from(merged).join(':');
+      }
+    } catch {}
   } catch {}
 }
 
@@ -56,6 +69,7 @@ if (process.platform === 'linux') {
       path.join(homeDir, '.nvm/versions/node', process.version, 'bin'),
       path.join(homeDir, '.npm-global/bin'),
       path.join(homeDir, '.local/bin'),
+      path.join(homeDir, '.bun/bin'),
       '/usr/local/bin',
     ];
     const cur = process.env.PATH || '';
@@ -117,8 +131,10 @@ import { setupApplicationMenu } from './app/menu';
 import { registerAllIpc } from './ipc';
 import { databaseService, DatabaseSchemaMismatchError } from './services/DatabaseService';
 import { connectionsService } from './services/ConnectionsService';
+import { emdashAccountService } from './services/EmdashAccountService';
 import { autoUpdateService } from './services/AutoUpdateService';
 import { worktreePoolService } from './services/WorktreePoolService';
+import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
@@ -309,9 +325,20 @@ app.whenReady().then(async () => {
   // Register IPC handlers
   registerAllIpc();
 
+  try {
+    await emdashAccountService.loadSessionToken();
+  } catch (error) {
+    console.warn('Failed to load account session:', error);
+  }
+
   // Clean up any orphaned reserve worktrees from previous sessions
   worktreePoolService.cleanupOrphanedReserves(localProjectPathsForReserveCleanup).catch((error) => {
     console.warn('Failed to cleanup orphaned reserves:', error);
+  });
+
+  // Reconcile workspace instances from previous sessions (mark stale as error, check connectivity)
+  workspaceProviderService.reconcileOnStartup().catch((error) => {
+    console.warn('Failed to reconcile workspace instances:', error);
   });
 
   // Warm provider installation cache

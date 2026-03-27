@@ -25,6 +25,7 @@ import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 import { EditorHeader } from './EditorHeader';
 import { MarkdownPreview } from './MarkdownPreview';
+import { SettingsPage, type SettingsPageTab } from '../SettingsPage';
 import '@/styles/editor-diff.css';
 
 interface CodeEditorProps {
@@ -35,6 +36,9 @@ interface CodeEditorProps {
   onClose: () => void;
   connectionId?: string | null;
   remotePath?: string | null;
+  showSettingsPage?: boolean;
+  settingsPageInitialTab?: SettingsPageTab;
+  onCloseSettingsPage?: () => void;
 }
 
 export default function CodeEditor({
@@ -45,12 +49,37 @@ export default function CodeEditor({
   onClose,
   connectionId,
   remotePath,
+  showSettingsPage,
+  settingsPageInitialTab,
+  onCloseSettingsPage,
 }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
-  const { toggle: toggleRightSidebar, collapsed: rightSidebarCollapsed } = useRightSidebar();
+  const {
+    toggle: toggleRightSidebar,
+    collapsed: rightSidebarCollapsed,
+    setCollapsed: setRightSidebarCollapsed,
+  } = useRightSidebar();
   const monacoRef = useRef<any>(null);
   const editorRef = useRef<any>(null);
   const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
+  const rightSidebarWasCollapsedRef = useRef<boolean>(false);
+
+  // Collapse the right sidebar when settings is shown inside the editor,
+  // and restore the previous state when settings is closed.
+  useEffect(() => {
+    if (showSettingsPage) {
+      rightSidebarWasCollapsedRef.current = rightSidebarCollapsed;
+      if (!rightSidebarCollapsed) {
+        setRightSidebarCollapsed(true);
+      }
+    } else {
+      if (!rightSidebarWasCollapsedRef.current && rightSidebarCollapsed) {
+        setRightSidebarCollapsed(false);
+      }
+    }
+    // Only react to showSettingsPage toggling, not rightSidebarCollapsed changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSettingsPage, setRightSidebarCollapsed]);
 
   // File management with custom hook
   const {
@@ -277,6 +306,7 @@ export default function CodeEditor({
         onSaveAll={saveAllFiles}
         onToggleRightSidebar={toggleRightSidebar}
         onClose={onClose}
+        showSettingsPage={showSettingsPage}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -297,24 +327,35 @@ export default function CodeEditor({
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <FileTabs
-            openFiles={openFiles}
-            activeFilePath={activeFilePath}
-            onTabClick={setActiveFile}
-            onTabClose={handleCloseFile}
-            previewMode={previewMode}
-            onTogglePreview={togglePreview}
-          />
+          {showSettingsPage ? (
+            <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
+              <SettingsPage
+                initialTab={settingsPageInitialTab}
+                onClose={onCloseSettingsPage || (() => {})}
+              />
+            </div>
+          ) : (
+            <>
+              <FileTabs
+                openFiles={openFiles}
+                activeFilePath={activeFilePath}
+                onTabClick={setActiveFile}
+                onTabClose={handleCloseFile}
+                previewMode={previewMode}
+                onTogglePreview={togglePreview}
+              />
 
-          <EditorContent
-            activeFile={activeFile}
-            effectiveTheme={effectiveTheme}
-            onEditorMount={handleEditorMount}
-            onEditorChange={handleEditorChange}
-            isPreviewActive={isPreviewActive}
-            modelRootPath={modelRootPath}
-            taskPath={taskPath}
-          />
+              <EditorContent
+                activeFile={activeFile}
+                effectiveTheme={effectiveTheme}
+                onEditorMount={handleEditorMount}
+                onEditorChange={handleEditorChange}
+                isPreviewActive={isPreviewActive}
+                modelRootPath={modelRootPath}
+                taskPath={taskPath}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

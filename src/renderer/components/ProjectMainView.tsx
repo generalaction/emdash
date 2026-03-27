@@ -41,6 +41,7 @@ import { pickDefaultBranch, type BranchOption } from './BranchSelect';
 import { ConfigEditorModal } from './ConfigEditorModal';
 import { useToast } from '../hooks/use-toast';
 import DeletePrNotice from './DeletePrNotice';
+import DeleteRiskFileList from './DeleteRiskFileList';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -1066,11 +1067,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 
             {/* Open PRs Section */}
             {project.githubInfo?.connected && !project.isRemote && (
-              <OpenPrsSection
-                projectPath={project.path}
-                projectId={project.id}
-                onReviewPr={onSelectTask}
-              />
+              <OpenPrsSection projectPath={project.path} projectId={project.id} />
             )}
           </div>
         </div>
@@ -1112,12 +1109,16 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                         return (
                           <li
                             key={ws.id}
-                            className="flex items-center gap-2 rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
+                            className="rounded-md bg-amber-50/80 px-2 py-1 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-50"
                           >
-                            <Folder className="h-4 w-4 fill-amber-700 text-amber-700" />
-                            <span className="font-medium">{ws.name}</span>
-                            <span className="text-muted-foreground">—</span>
-                            <span>{summary || status?.error || 'Status unavailable'}</span>
+                            <div className="flex items-start gap-2">
+                              <Folder className="mt-0.5 h-4 w-4 flex-shrink-0 fill-amber-700 text-amber-700" />
+                              <div className="min-w-0">
+                                <div className="font-medium">{ws.name}</div>
+                                <div>{summary || status?.error || 'Status unavailable'}</div>
+                              </div>
+                            </div>
+                            <DeleteRiskFileList files={status?.files || []} />
                           </li>
                         );
                       })}

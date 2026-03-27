@@ -62,4 +62,61 @@ describe('parseChangelogHtml', () => {
     expect(entry?.content).toContain('## Sidebar card');
     expect(entry?.content).toContain('- Dismiss per version');
   });
+
+  it('infers the published date from rendered content when no time tag exists', () => {
+    const htmlWithoutTime = `
+      <main>
+        <article data-version="0.4.32">
+          <h2>March 13, 2026 v0.4.32</h2>
+          <p>Added a changelog card in the sidebar.</p>
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithoutTime, '0.4.32');
+
+    expect(entry?.version).toBe('0.4.32');
+    expect(entry?.publishedAt).toBe('March 13, 2026');
+  });
+
+  it('extracts a hero image from an img tag inside the article and strips it from content', () => {
+    const htmlWithImage = `
+      <main>
+        <article data-version="0.5.0">
+          <time datetime="2026-03-20">Mar 20, 2026</time>
+          <h2>Screenshot release</h2>
+          <p>A release with a screenshot.</p>
+          <img src="https://github.com/user-attachments/assets/abc123.png" alt="hero" />
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithImage, '0.5.0');
+
+    expect(entry?.version).toBe('0.5.0');
+    expect(entry?.image).toBe('https://github.com/user-attachments/assets/abc123.png');
+    expect(entry?.content).not.toContain(
+      '![hero](https://github.com/user-attachments/assets/abc123.png)'
+    );
+  });
+
+  it('does not assign another release date when the requested version has no matching date text', () => {
+    const htmlWithOtherDate = `
+      <main>
+        <article data-version="0.4.31">
+          <h2>March 12, 2026 v0.4.31</h2>
+          <p>Previous release.</p>
+        </article>
+        <article data-version="0.4.32">
+          <h2>What&apos;s new in Emdash v0.4.32</h2>
+          <p>Current release.</p>
+        </article>
+      </main>
+    `;
+
+    const entry = parseChangelogHtml(htmlWithOtherDate, '0.4.32');
+
+    expect(entry?.version).toBe('0.4.32');
+    expect(entry?.publishedAt).toBeUndefined();
+  });
 });

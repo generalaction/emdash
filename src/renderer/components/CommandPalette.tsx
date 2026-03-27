@@ -87,12 +87,17 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     (
       settingsKey: ShortcutSettingsKey,
       fallback: { key: string; modifier?: ShortcutModifier }
-    ): { key: string; modifier?: ShortcutModifier } => {
+    ): { key: string; modifier?: ShortcutModifier } | undefined => {
       const binding = getShortcut(settingsKey);
-      if (binding.key && binding.modifier) {
+      if (binding?.key && binding.modifier) {
         return { key: normalizeShortcutKey(binding.key), modifier: binding.modifier };
       }
-      return { key: normalizeShortcutKey(fallback.key), modifier: fallback.modifier };
+      if (binding === null) {
+        return undefined;
+      }
+      return fallback.modifier
+        ? { key: normalizeShortcutKey(fallback.key), modifier: fallback.modifier }
+        : undefined;
     },
     [getShortcut]
   );

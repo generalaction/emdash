@@ -6,6 +6,7 @@ import { GITHUB_CONFIG } from '../config/github.config';
 import { getMainWindow } from '../app/window';
 import { errorTracking } from '../errorTracking';
 import { sortByUpdatedAtDesc } from '../utils/issueSorting';
+import { quoteShellArg } from '../utils/shellEscape';
 
 const execAsync = promisify(exec);
 
@@ -33,6 +34,11 @@ export interface GitHubRepo {
   forks_count: number;
 }
 
+export interface GitHubReviewer {
+  login: string;
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
+
 export interface GitHubPullRequest {
   number: number;
   title: string;
@@ -54,11 +60,21 @@ export interface GitHubPullRequest {
     nameWithOwner?: string;
     url?: string;
   } | null;
+  reviewDecision?: string | null;
+  reviewers?: GitHubReviewer[];
+  additions?: number;
+  deletions?: number;
+  checksStatus?: 'pass' | 'fail' | 'pending' | 'none';
 }
 
 export interface GitHubPullRequestListResult {
   prs: GitHubPullRequest[];
   totalCount: number;
+}
+
+export interface GitHubPullRequestListOptions {
+  limit?: number;
+  searchQuery?: string;
 }
 
 export interface AuthResult {
@@ -94,6 +110,52 @@ export class GitHubService {
    */
   async authenticate(): Promise<DeviceCodeResult | AuthResult> {
     return await this.requestDeviceCode();
+  }
+
+  /**
+   * Store a GitHub token obtained via OAuth (Emdash Accounts flow).
+   * Also authenticates the gh CLI with the token.
+   */
+  async storeTokenFromOAuth(token: string): Promise<void> {
+    await this.storeToken(token);
+    await this.authenticateGHCLI(token);
+  }
+
+  /**
+   * Start OAuth authentication via Emdash Account.
+   * Opens browser to auth server, waits for loopback callback, exchanges code for token.
+   */
+  async startOAuthAuth(): Promise<AuthResult> {
+    const { emdashAccountService } = await import('./EmdashAccountService');
+    try {
+      const result = await emdashAccountService.signIn();
+
+      if (result.providerId === 'github') {
+        await this.storeToken(result.accessToken);
+        await this.authenticateGHCLI(result.accessToken);
+      }
+
+      const user = await this.getUserInfo(result.accessToken);
+
+      if (user?.login) {
+        await errorTracking.updateGithubUsername(user.login);
+      }
+
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send('github:auth:success', {
+          token: result.accessToken,
+          user,
+        });
+      }
+
+      return { success: true, token: result.accessToken, user: user || undefined };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'OAuth authentication failed',
+      };
+    }
   }
 
   /**
@@ -768,9 +830,10 @@ export class GitHubService {
    */
   async getPullRequests(
     projectPath: string,
-    limit: number = 30
+    options: GitHubPullRequestListOptions = {}
   ): Promise<GitHubPullRequestListResult> {
-    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const safeLimit = Math.min(Math.max(Number(options.limit) || 30, 1), 200);
+    const searchQuery = options.searchQuery?.trim() || '';
 
     try {
       const fields = [
@@ -785,9 +848,16 @@ export class GitHubService {
         'author',
         'headRepositoryOwner',
         'headRepository',
+        'reviewRequests',
+        'latestReviews',
+        'reviewDecision',
+        'additions',
+        'deletions',
+        'statusCheckRollup',
       ];
+      const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
-        `gh pr list --state open --limit ${safeLimit} --json ${fields.join(',')}`,
+        `gh pr list --state open --limit ${safeLimit}${searchFlag} --json ${fields.join(',')}`,
         { cwd: projectPath }
       );
       const list = JSON.parse(stdout || '[]');
@@ -809,10 +879,16 @@ export class GitHubService {
           author: item?.author || null,
           headRepositoryOwner: item?.headRepositoryOwner || null,
           headRepository: item?.headRepository || null,
+          reviewDecision: item?.reviewDecision || null,
+          reviewers: this.buildReviewerList(item?.reviewRequests, item?.latestReviews),
+          additions: typeof item?.additions === 'number' ? item.additions : undefined,
+          deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
+          checksStatus: this.deriveChecksStatus(item?.statusCheckRollup),
         }))
       );
 
-      const totalCount = (await this.getOpenPullRequestCount(projectPath)) ?? prs.length;
+      const totalCount =
+        (await this.getOpenPullRequestCount(projectPath, searchQuery)) ?? prs.length;
 
       return { prs, totalCount };
     } catch (error) {
@@ -821,7 +897,80 @@ export class GitHubService {
     }
   }
 
-  private async getOpenPullRequestCount(projectPath: string): Promise<number | null> {
+  private deriveChecksStatus(rollup: any[]): 'pass' | 'fail' | 'pending' | 'none' {
+    if (!Array.isArray(rollup) || rollup.length === 0) return 'none';
+
+    let hasFail = false;
+    let hasPending = false;
+    let hasPass = false;
+
+    for (const item of rollup) {
+      if (item?.__typename === 'CheckRun') {
+        if (item.status !== 'COMPLETED') {
+          hasPending = true;
+        } else {
+          const c = item.conclusion;
+          if (['FAILURE', 'ACTION_REQUIRED', 'TIMED_OUT', 'STARTUP_FAILURE'].includes(c)) {
+            hasFail = true;
+          } else if (['SUCCESS', 'NEUTRAL', 'SKIPPED', 'CANCELLED'].includes(c)) {
+            hasPass = true;
+          } else {
+            hasPending = true;
+          }
+        }
+      } else {
+        // StatusContext
+        const s = item?.state;
+        if (['FAILURE', 'ERROR'].includes(s)) {
+          hasFail = true;
+        } else if (s === 'SUCCESS') {
+          hasPass = true;
+        } else {
+          hasPending = true;
+        }
+      }
+    }
+
+    if (hasFail) return 'fail';
+    if (hasPending) return 'pending';
+    if (hasPass) return 'pass';
+    return 'none';
+  }
+
+  private buildReviewerList(reviewRequests?: any[], latestReviews?: any[]): GitHubReviewer[] {
+    const reviewerMap = new Map<string, GitHubReviewer>();
+
+    // Add requested reviewers (pending review)
+    if (Array.isArray(reviewRequests)) {
+      for (const req of reviewRequests) {
+        const login = req?.login || req?.name;
+        if (login && typeof login === 'string') {
+          reviewerMap.set(login, { login, state: 'PENDING' });
+        }
+      }
+    }
+
+    // Add/overwrite with latest review states
+    if (Array.isArray(latestReviews)) {
+      for (const review of latestReviews) {
+        const login = review?.author?.login;
+        const state = review?.state;
+        if (login && typeof login === 'string') {
+          reviewerMap.set(login, {
+            login,
+            state: state || undefined,
+          });
+        }
+      }
+    }
+
+    return Array.from(reviewerMap.values());
+  }
+
+  private async getOpenPullRequestCount(
+    projectPath: string,
+    searchQuery?: string
+  ): Promise<number | null> {
     try {
       const { stdout: repoStdout } = await this.execGH(
         'gh repo view --json nameWithOwner --jq .nameWithOwner',
@@ -830,9 +979,14 @@ export class GitHubService {
       const repoNameWithOwner = repoStdout.trim();
       if (!repoNameWithOwner) return null;
 
-      const query = `repo:${repoNameWithOwner} is:pr is:open`;
+      const queryParts = [`repo:${repoNameWithOwner}`, 'is:pr', 'is:open'];
+      const normalizedSearchQuery = searchQuery?.trim();
+      if (normalizedSearchQuery) {
+        queryParts.push(normalizedSearchQuery);
+      }
+      const query = queryParts.join(' ');
       const { stdout } = await this.execGH(
-        `gh api search/issues --method GET -f q=${JSON.stringify(query)} --jq .total_count`,
+        `gh api search/issues --method GET -f q=${quoteShellArg(query)} --jq .total_count`,
         { cwd: projectPath }
       );
 

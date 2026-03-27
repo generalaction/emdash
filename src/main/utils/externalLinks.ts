@@ -9,7 +9,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   const wc = win.webContents;
 
   const isInternalAppUrl = (url: string) => {
-    if (isDev) return url.startsWith('http://localhost:3000');
+    if (isDev) return url.startsWith(`http://localhost:${process.env.EMDASH_DEV_PORT || 3000}`);
     return url.startsWith('file://') || /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url);
   };
 

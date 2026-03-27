@@ -12,6 +12,7 @@ export type LifecyclePhaseStateStatus = (typeof LIFECYCLE_PHASE_STATES)[number];
 export interface LifecycleScriptConfig {
   setup?: string;
   run?: string;
+  stop?: string;
   teardown?: string;
 }
 

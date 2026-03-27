@@ -71,7 +71,12 @@ class SessionRegistry {
 
   private getOrCreate(options: AttachOptions): TerminalSessionManager {
     const existing = this.sessions.get(options.taskId);
-    if (existing) return existing;
+    if (existing) {
+      if (options.remote?.connectionId && !existing.isPtyActive()) {
+        void existing.restart();
+      }
+      return existing;
+    }
 
     const sessionOptions: TerminalSessionOptions = {
       taskId: options.taskId,

@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { exec, execFile } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -7,6 +7,7 @@ import { getAppSettings } from '../settings';
 import {
   getAppById,
   getResolvedLabel,
+  isOpenInAppSupportedForWorkspace,
   OPEN_IN_APPS,
   type OpenInAppId,
   type PlatformKey,
@@ -298,8 +299,22 @@ export function registerAppIpc() {
           return { success: false, error: `${label} is not available on this platform.` };
         }
 
+        if (!isOpenInAppSupportedForWorkspace(appConfig, isRemote)) {
+          return {
+            success: false,
+            error: `${label} is not available for remote SSH workspaces.`,
+          };
+        }
+
         // Handle remote SSH connections for supported editors and terminals
-        if (isRemote && sshConnectionId) {
+        if (isRemote) {
+          if (!sshConnectionId) {
+            return {
+              success: false,
+              error: `Missing SSH connection for remote ${label} launch.`,
+            };
+          }
+
           try {
             const connection = await databaseService.getSshConnection(sshConnectionId);
             if (!connection) {
@@ -627,4 +642,26 @@ export function registerAppIpc() {
   ipcMain.handle('app:getAppVersion', () => getCachedAppVersion());
   ipcMain.handle('app:getElectronVersion', () => process.versions.electron);
   ipcMain.handle('app:getPlatform', () => process.platform);
+
+  // Window controls (used by custom title bar on Windows/Linux)
+  ipcMain.handle('app:windowMinimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+  });
+  ipcMain.handle('app:windowMaximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win?.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win?.maximize();
+    }
+  });
+  ipcMain.handle('app:windowClose', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+  });
+  ipcMain.handle('app:windowIsMaximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win?.isMaximized() ?? false;
+  });
 }

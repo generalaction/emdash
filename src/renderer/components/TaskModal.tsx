@@ -29,12 +29,13 @@ import {
   normalizeTaskName,
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
-import BranchSelect from './BranchSelect';
+import BranchSelect, { pickDefaultBranch } from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { rpc } from '@/lib/rpc';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
@@ -52,6 +53,13 @@ export interface CreateTaskResult {
   useWorktree?: boolean;
   baseRef?: string;
   nameGenerated?: boolean;
+  /** When true, provision a remote workspace instead of creating a local worktree. */
+  useRemoteWorkspace?: boolean;
+  /** Workspace provider commands — required when useRemoteWorkspace is true. */
+  workspaceProvider?: {
+    provisionCommand: string;
+    terminateCommand: string;
+  };
 }
 
 interface TaskModalProps {
@@ -70,7 +78,9 @@ interface TaskModalProps {
     autoApprove?: boolean,
     useWorktree?: boolean,
     baseRef?: string,
-    nameGenerated?: boolean
+    nameGenerated?: boolean,
+    useRemoteWorkspace?: boolean,
+    workspaceProvider?: { provisionCommand: string; terminateCommand: string }
   ) => Promise<void>;
 }
 
@@ -98,7 +108,9 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
         autoApprove,
         useWorktree,
         baseRef,
-        nameGenerated
+        nameGenerated,
+        useRemoteWorkspace,
+        workspaceProvider
       ) => {
         await handleCreateTask(
           name,
@@ -114,6 +126,8 @@ export function TaskModalOverlay({ onClose, initialProject }: TaskModalOverlayPr
           useWorktree,
           baseRef,
           nameGenerated,
+          useRemoteWorkspace,
+          workspaceProvider,
           initialProject ?? undefined
         );
       }}
@@ -131,6 +145,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   } = useProjectManagementContext();
   const { linkedGithubIssueMap } = useTaskManagementContext();
 
+  const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const project = initialProject ?? selectedProject;
   const projectName = project?.name || '';
   const existingNames = (project?.tasks || []).map((w) => w.name);
@@ -155,6 +170,36 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [useRemoteWorkspace, setUseRemoteWorkspace] = useState(false);
+  const [workspaceProviderConfig, setWorkspaceProviderConfig] = useState<{
+    provisionCommand: string;
+    terminateCommand: string;
+  } | null>(null);
+
+  // Load workspace provider config from .emdash.json (only when feature flag is on)
+  useEffect(() => {
+    if (!projectPath || !workspaceProviderEnabled) return;
+    void (async () => {
+      try {
+        const result = await window.electronAPI.getProjectConfig(projectPath);
+        if (result.success && result.content) {
+          const parsed = JSON.parse(result.content);
+          if (
+            parsed?.workspaceProvider?.type === 'script' &&
+            typeof parsed.workspaceProvider.provisionCommand === 'string' &&
+            typeof parsed.workspaceProvider.terminateCommand === 'string'
+          ) {
+            setWorkspaceProviderConfig({
+              provisionCommand: parsed.workspaceProvider.provisionCommand,
+              terminateCommand: parsed.workspaceProvider.terminateCommand,
+            });
+          }
+        }
+      } catch {
+        // Config not found or invalid — no workspace provider available
+      }
+    })();
+  }, [projectPath, workspaceProviderEnabled]);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -163,9 +208,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
 
   useEffect(() => {
     if (!userChangedBranchRef.current) {
-      setSelectedBranch(defaultBranch);
+      const branch = defaultBranch || pickDefaultBranch(branchOptions);
+      if (branch) setSelectedBranch((prev) => (prev === branch ? prev : branch));
     }
-  }, [defaultBranch]);
+  }, [defaultBranch, branchOptions]);
 
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value);
@@ -406,9 +452,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         selectedGitlabIssue,
         selectedForgejoIssue,
         hasAutoApproveSupport ? autoApprove : false,
-        useWorktree,
+        useRemoteWorkspace ? false : useWorktree,
         selectedBranch,
-        isNameGenerated
+        isNameGenerated,
+        useRemoteWorkspace,
+        useRemoteWorkspace && workspaceProviderConfig ? workspaceProviderConfig : undefined
       );
       onClose();
     } catch (error) {
@@ -492,6 +540,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
             projectPath={projectPath}
             useWorktree={useWorktree}
             onUseWorktreeChange={setUseWorktree}
+            useRemoteWorkspace={useRemoteWorkspace}
+            onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
+            hasWorkspaceProvider={!!workspaceProviderConfig}
             autoApprove={autoApprove}
             onAutoApproveChange={setAutoApprove}
             hasAutoApproveSupport={hasAutoApproveSupport}

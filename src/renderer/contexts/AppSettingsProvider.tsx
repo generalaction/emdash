@@ -22,8 +22,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
   const updateSettingsMutation = useMutation({
     mutationFn: (update: AppSettingsUpdate) => rpc.appSettings.update(update),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings'] });
+    onSuccess: (nextSettings) => {
+      queryClient.setQueryData(['appSettings'], nextSettings);
     },
   });
 

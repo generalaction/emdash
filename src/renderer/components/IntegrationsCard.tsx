@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Plus, Loader2 } from 'lucide-react';
 import { useGithubContext } from '../contexts/GithubContextProvider';
+import { useEmdashAccount } from '../contexts/EmdashAccountProvider';
 import { useTheme } from '../hooks/useTheme';
 import githubSvg from '../../assets/images/Github.svg?raw';
 import jiraSvg from '../../assets/images/Jira.svg?raw';
@@ -46,6 +47,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 
 const IntegrationsCard: React.FC = () => {
   const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubContext();
+  const { hasAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const { showModal, closeModal } = useModalContext();
 
   // Connection states
@@ -162,6 +164,21 @@ const IntegrationsCard: React.FC = () => {
         await checkStatus();
       }
 
+      if (hasAccount && (await checkServerHealth())) {
+        try {
+          const result = await window.electronAPI.githubAuthOAuth();
+          if (result.success) {
+            await refreshSession();
+            await checkStatus();
+            return;
+          }
+
+          console.warn('OAuth auth failed, falling back to Device Flow:', result.error);
+        } catch (err) {
+          console.warn('OAuth auth error, falling back to Device Flow:', err);
+        }
+      }
+
       showModal('githubDeviceFlowModal', {
         onSuccess: async () => {
           let attempts = 0;
@@ -186,7 +203,16 @@ const IntegrationsCard: React.FC = () => {
       setGithubError('Could not connect.');
       closeModal();
     }
-  }, [checkStatus, login, installed, showModal, closeModal]);
+  }, [
+    hasAccount,
+    checkServerHealth,
+    refreshSession,
+    checkStatus,
+    login,
+    installed,
+    showModal,
+    closeModal,
+  ]);
 
   const handleGithubDisconnect = useCallback(async () => {
     setGithubError(null);

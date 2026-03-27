@@ -9,6 +9,7 @@ import AgentLogo from './AgentLogo';
 import type { Agent } from '../types';
 import { TaskScopeProvider, useTaskScope } from './TaskScopeContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY } from '@/constants/layout';
 
@@ -47,6 +48,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   const asideRef = useRef<HTMLElement>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(new Set());
+
+  // For workspace tasks, use the workspace connection instead of project-level
+  const { connectionId: wsConnectionId, remotePath: wsRemotePath } = useWorkspaceConnection(task);
+  const isWorkspaceTask = !!task?.metadata?.workspace;
+  const effectiveConnectionId = wsConnectionId || projectRemoteConnectionId || null;
+  const effectiveRemotePath = wsRemotePath || projectRemotePath || null;
+  // When a workspace task is active but its connection hasn't resolved yet,
+  // terminals should wait instead of starting a local session.
+  const awaitingRemote = isWorkspaceTask && !wsConnectionId;
 
   const toggleVariantCollapsed = (variantKey: string) => {
     setCollapsedVariants((prev) => {
@@ -225,13 +235,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               agent={v.agent}
                               projectPath={projectPath || task?.path}
                               remote={
-                                projectRemoteConnectionId
+                                effectiveConnectionId
                                   ? {
-                                      connectionId: projectRemoteConnectionId,
-                                      projectPath: projectRemotePath || projectPath || undefined,
+                                      connectionId: effectiveConnectionId,
+                                      projectPath: effectiveRemotePath || projectPath || undefined,
                                     }
                                   : undefined
                               }
+                              awaitingRemote={awaitingRemote}
                               defaultBranch={projectDefaultBranch || undefined}
                               portSeed={v.worktreeId}
                               className="min-h-[200px]"
@@ -270,13 +281,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                           agent={v.agent}
                           projectPath={projectPath || task?.path}
                           remote={
-                            projectRemoteConnectionId
+                            effectiveConnectionId
                               ? {
-                                  connectionId: projectRemoteConnectionId,
-                                  projectPath: projectRemotePath || projectPath || undefined,
+                                  connectionId: effectiveConnectionId,
+                                  projectPath: effectiveRemotePath || projectPath || undefined,
                                 }
                               : undefined
                           }
+                          awaitingRemote={awaitingRemote}
                           defaultBranch={projectDefaultBranch || undefined}
                           portSeed={v.worktreeId}
                           className="h-full min-h-0"
@@ -289,27 +301,48 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 <SingleTaskSidebar
                   task={task}
                   projectPath={projectPath}
-                  projectRemoteConnectionId={projectRemoteConnectionId}
-                  projectRemotePath={projectRemotePath}
+                  effectiveConnectionId={effectiveConnectionId}
+                  effectiveRemotePath={effectiveRemotePath}
+                  awaitingRemote={awaitingRemote}
                   projectDefaultBranch={projectDefaultBranch}
                   onOpenChanges={onOpenChanges}
                 />
               ) : (
-                <TaskTerminalPanel
-                  task={null}
-                  agent={undefined}
-                  projectPath={projectPath || undefined}
-                  remote={
-                    projectRemoteConnectionId
-                      ? {
-                          connectionId: projectRemoteConnectionId,
-                          projectPath: projectRemotePath || projectPath || undefined,
-                        }
-                      : undefined
-                  }
-                  defaultBranch={projectDefaultBranch || undefined}
-                  className="h-full min-h-0"
-                />
+                <ResizablePanelGroup
+                  direction="vertical"
+                  autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
+                >
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <div className="flex h-full flex-col bg-background">
+                      <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
+                        <span className="whitespace-nowrap">Changes</span>
+                      </div>
+                      <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                          Select a task to review file changes.
+                        </span>
+                      </div>
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={50} minSize={20}>
+                    <TaskTerminalPanel
+                      task={null}
+                      agent={undefined}
+                      projectPath={projectPath || undefined}
+                      remote={
+                        effectiveConnectionId
+                          ? {
+                              connectionId: effectiveConnectionId,
+                              projectPath: effectiveRemotePath || projectPath || undefined,
+                            }
+                          : undefined
+                      }
+                      defaultBranch={projectDefaultBranch || undefined}
+                      className="h-full min-h-0"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               )}
             </div>
           ) : (
@@ -326,15 +359,17 @@ export default RightSidebar;
 const SingleTaskSidebar: React.FC<{
   task: RightSidebarTask;
   projectPath?: string | null;
-  projectRemoteConnectionId?: string | null;
-  projectRemotePath?: string | null;
+  effectiveConnectionId?: string | null;
+  effectiveRemotePath?: string | null;
+  awaitingRemote?: boolean;
   projectDefaultBranch?: string | null;
   onOpenChanges?: (filePath?: string, taskPath?: string) => void;
 }> = ({
   task,
   projectPath,
-  projectRemoteConnectionId,
-  projectRemotePath,
+  effectiveConnectionId,
+  effectiveRemotePath,
+  awaitingRemote,
   projectDefaultBranch,
   onOpenChanges,
 }) => {
@@ -350,13 +385,14 @@ const SingleTaskSidebar: React.FC<{
           agent={task.agentId as Agent}
           projectPath={projectPath || task?.path}
           remote={
-            projectRemoteConnectionId
+            effectiveConnectionId
               ? {
-                  connectionId: projectRemoteConnectionId,
-                  projectPath: projectRemotePath || projectPath || undefined,
+                  connectionId: effectiveConnectionId,
+                  projectPath: effectiveRemotePath || projectPath || undefined,
                 }
               : undefined
           }
+          awaitingRemote={awaitingRemote}
           defaultBranch={projectDefaultBranch || undefined}
           className="h-full min-h-0"
         />

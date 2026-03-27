@@ -41,6 +41,7 @@ const ICON_PATHS = {
   rustrover: 'rustrover.svg',
   'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
+  windsurf: 'windsurf.svg',
 } as const;
 
 export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
@@ -100,16 +101,43 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
           'open -n -a "Visual Studio Code" {{path}}',
         ],
         checkCommands: ['code'],
-        bundleIds: ['com.microsoft.VSCode', 'com.microsoft.VSCodeInsiders'],
+        bundleIds: ['com.microsoft.VSCode'],
         appNames: ['Visual Studio Code'],
       },
       win32: {
-        openCommands: ['start "" code {{path}}', 'start "" code-insiders {{path}}'],
-        checkCommands: ['code', 'code-insiders'],
+        openCommands: ['start "" code {{path}}'],
+        checkCommands: ['code'],
       },
       linux: {
-        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
-        checkCommands: ['code', 'code-insiders'],
+        openCommands: ['code {{path}}'],
+        checkCommands: ['code'],
+      },
+    },
+  },
+  {
+    id: 'vscode-insiders',
+    label: 'VS Code Insiders',
+    iconPath: ICON_PATHS.vscode,
+    autoInstall: true,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v code-insiders >/dev/null 2>&1 && code-insiders {{path}}',
+          'open -n -b com.microsoft.VSCodeInsiders --args {{path}}',
+          'open -n -a "Visual Studio Code - Insiders" {{path}}',
+        ],
+        checkCommands: ['code-insiders'],
+        bundleIds: ['com.microsoft.VSCodeInsiders'],
+        appNames: ['Visual Studio Code - Insiders'],
+      },
+      win32: {
+        openCommands: ['start "" code-insiders {{path}}'],
+        checkCommands: ['code-insiders'],
+      },
+      linux: {
+        openCommands: ['code-insiders {{path}}'],
+        checkCommands: ['code-insiders'],
       },
     },
   },
@@ -221,6 +249,21 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     },
   },
   {
+    id: 'foot',
+    label: 'Foot',
+    iconPath: ICON_PATHS.terminal,
+    supportsRemote: true,
+    platforms: {
+      linux: {
+        openCommands: [
+          'footclient --working-directory={{path}}',
+          'foot --working-directory={{path}}',
+        ],
+        checkCommands: ['footclient', 'foot'],
+      },
+    },
+  },
+  {
     id: 'zed',
     label: 'Zed',
     iconPath: ICON_PATHS.zed,
@@ -259,6 +302,34 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
       linux: {
         openCommands: ['kiro {{path}}'],
         checkCommands: ['kiro'],
+      },
+    },
+  },
+  {
+    id: 'windsurf',
+    label: 'Windsurf',
+    iconPath: ICON_PATHS.windsurf,
+    invertInDark: true,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v windsurf >/dev/null 2>&1 && windsurf {{path}}',
+          'open -n -b com.codeium.windsurf --args {{path}}',
+          'open -n -a "Windsurf" {{path}}',
+        ],
+        checkCommands: ['windsurf'],
+        bundleIds: ['com.codeium.windsurf'],
+        appNames: ['Windsurf'],
+      },
+      win32: {
+        openCommands: ['start "" windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+      linux: {
+        openCommands: ['windsurf {{path}}'],
+        checkCommands: ['windsurf'],
       },
     },
   },
@@ -380,6 +451,13 @@ export function getAppById(id: string): OpenInAppConfig | undefined {
 
 export function isValidOpenInAppId(value: unknown): value is OpenInAppId {
   return typeof value === 'string' && OPEN_IN_APPS.some((app) => app.id === value);
+}
+
+export function isOpenInAppSupportedForWorkspace(
+  app: Pick<OpenInAppConfigShape, 'supportsRemote'>,
+  isRemote: boolean
+): boolean {
+  return !isRemote || app.supportsRemote === true;
 }
 
 export function getResolvedLabel(app: OpenInAppConfigShape, platform: PlatformKey): string {

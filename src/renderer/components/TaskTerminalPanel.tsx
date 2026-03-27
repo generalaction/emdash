@@ -48,6 +48,8 @@ interface Props {
     connectionId: string;
     projectPath?: string;
   };
+  /** When true, a workspace connection is expected but not yet resolved. Terminals will show a loading state. */
+  awaitingRemote?: boolean;
   defaultBranch?: string;
   portSeed?: string;
 }
@@ -60,6 +62,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   className,
   projectPath,
   remote,
+  awaitingRemote,
   defaultBranch,
   portSeed,
 }) => {
@@ -383,14 +386,19 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const api = window.electronAPI as any;
     setRunActionBusy(true);
     try {
-      await api.lifecycleRunStop?.({ taskId: task.id });
+      await api.lifecycleRunStop?.({
+        taskId: task.id,
+        taskPath: task.path,
+        ...(projectPath ? { projectPath } : {}),
+        taskName: task.name,
+      });
     } catch (error) {
       console.error('Failed to stop run phase:', error);
     } finally {
       setRunActionBusy(false);
       void refreshLifecycleState();
     }
-  }, [task?.id, refreshLifecycleState]);
+  }, [task?.id, task?.path, task?.name, projectPath, refreshLifecycleState]);
 
   const [nativeTheme, setNativeTheme] = useState<{
     background?: string;
@@ -762,71 +770,83 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
             onStep={stepSearch}
             onClose={closeSearch}
           />
-          {task &&
-            taskTerminals.terminals.map((terminal) => {
-              const isActive =
-                selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
-              return (
-                <div
-                  key={`task::${terminal.id}`}
-                  className={cn(
-                    'absolute inset-0 h-full w-full transition-opacity',
-                    isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-                  )}
-                >
-                  <TerminalPane
-                    key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
-                    ref={(r) => setTerminalRef(terminal.id, r)}
-                    id={terminal.id}
-                    cwd={terminal.cwd || task.path}
-                    remote={
-                      remote?.connectionId ? { connectionId: remote.connectionId } : undefined
-                    }
-                    env={taskEnv}
-                    variant={
-                      effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                        ? 'dark'
-                        : 'light'
-                    }
-                    themeOverride={themeOverride}
-                    className="h-full w-full"
-                    keepAlive
-                  />
-                </div>
-              );
-            })}
-          {globalTerminals.terminals.map((terminal) => {
-            const isActive =
-              selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
-            return (
-              <div
-                key={`global::${terminal.id}`}
-                className={cn(
-                  'absolute inset-0 h-full w-full transition-opacity',
-                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
-                )}
-              >
-                <TerminalPane
-                  key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
-                  ref={(r) => setTerminalRef(terminal.id, r)}
-                  id={terminal.id}
-                  cwd={terminal.cwd || projectPath}
-                  remote={remote?.connectionId ? { connectionId: remote.connectionId } : undefined}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
-                  themeOverride={themeOverride}
-                  className="h-full w-full"
-                  keepAlive
-                />
-              </div>
-            );
-          })}
-          {totalTerminals === 0 ? (
+          {awaitingRemote ? (
             <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
-              <p>No terminal found.</p>
+              <p>Connecting to workspace...</p>
             </div>
-          ) : null}
+          ) : (
+            <>
+              {task &&
+                taskTerminals.terminals.map((terminal) => {
+                  const isActive =
+                    selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
+                  return (
+                    <div
+                      key={`task::${terminal.id}`}
+                      className={cn(
+                        'absolute inset-0 h-full w-full transition-opacity',
+                        isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      )}
+                    >
+                      <TerminalPane
+                        key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
+                        ref={(r) => setTerminalRef(terminal.id, r)}
+                        id={terminal.id}
+                        cwd={remote?.projectPath || terminal.cwd || task.path}
+                        remote={
+                          remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                        }
+                        env={taskEnv}
+                        variant={
+                          effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                            ? 'dark'
+                            : 'light'
+                        }
+                        themeOverride={themeOverride}
+                        className="h-full w-full"
+                        keepAlive
+                      />
+                    </div>
+                  );
+                })}
+              {globalTerminals.terminals.map((terminal) => {
+                const isActive =
+                  selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
+                return (
+                  <div
+                    key={`global::${terminal.id}`}
+                    className={cn(
+                      'absolute inset-0 h-full w-full transition-opacity',
+                      isActive ? 'opacity-100' : 'pointer-events-none opacity-0'
+                    )}
+                  >
+                    <TerminalPane
+                      key={`${terminal.id}${reattachId === terminal.id ? `::${reattachCounter.current}` : ''}`}
+                      ref={(r) => setTerminalRef(terminal.id, r)}
+                      id={terminal.id}
+                      cwd={terminal.cwd || projectPath}
+                      remote={
+                        remote?.connectionId ? { connectionId: remote.connectionId } : undefined
+                      }
+                      variant={
+                        effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                          ? 'dark'
+                          : 'light'
+                      }
+                      themeOverride={themeOverride}
+                      className="h-full w-full"
+                      keepAlive
+                    />
+                  </div>
+                );
+              })}
+              {totalTerminals === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
+                  <p>No terminal found.</p>
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       )}
       {/* Expanded terminal modal */}

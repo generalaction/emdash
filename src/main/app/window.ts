@@ -30,12 +30,20 @@ export function createMainWindow(): BrowserWindow {
       // Preload is emitted to dist/main/main/preload.js
       preload: join(__dirname, '..', 'preload.js'),
     },
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 16, y: 12 },
+          // Enable Window Controls Overlay API so the renderer can use
+          // env(titlebar-area-x) to position content after the traffic lights.
+          titleBarOverlay: { height: 36 },
+        }
+      : { frame: false }),
     show: false,
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL(`http://localhost:${process.env.EMDASH_DEV_PORT || 3000}`);
   } else {
     // Serve renderer over an HTTP origin in production so embeds work.
     const rendererRoot = join(app.getAppPath(), 'dist', 'renderer');
@@ -70,6 +78,16 @@ export function createMainWindow(): BrowserWindow {
       checkAndReportDailyActiveUser();
     });
   });
+
+  // Notify renderer of maximize/unmaximize for custom title bar
+  if (process.platform !== 'darwin') {
+    mainWindow.on('maximize', () => {
+      mainWindow?.webContents.send('window:maximized');
+    });
+    mainWindow.on('unmaximize', () => {
+      mainWindow?.webContents.send('window:unmaximized');
+    });
+  }
 
   // Cleanup reference on close
   mainWindow.on('closed', () => {

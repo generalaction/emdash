@@ -17,9 +17,15 @@ import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
 import BrowserToggleButton from './BrowserToggleButton';
 import TitlebarContext from './TitlebarContext';
+import WindowControls from './WindowControls';
+import TitlebarMenu from './TitlebarMenu';
+import PerformanceChip from './PerformanceChip';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
+
+const isMacOS = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 interface GithubUser {
   login?: string;
@@ -107,6 +113,8 @@ const Titlebar: React.FC<TitlebarProps> = ({
     tasksByProjectId,
   } = useTaskManagementContext();
   const { user: githubUser } = useGithubContext();
+  const { settings } = useAppSettings();
+  const showResourceMonitor = settings?.interface?.showResourceMonitor ?? false;
 
   const isTaskMultiAgent = Boolean(activeTask?.metadata?.multiAgent?.enabled);
   const currentPath = isTaskMultiAgent
@@ -202,10 +210,25 @@ const Titlebar: React.FC<TitlebarProps> = ({
     <>
       <header
         ref={headerRef}
-        className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center justify-end bg-muted pr-2 shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background"
+        className="fixed inset-x-0 top-0 z-[80] flex h-[var(--tb,36px)] items-center bg-muted shadow-[inset_0_-1px_0_hsl(var(--border))] [-webkit-app-region:drag] dark:bg-background"
       >
+        {/* Left: menu bar (Windows/Linux only) + performance chip */}
+        {!isMacOS && (
+          <div className="pointer-events-auto flex-shrink-0">
+            <TitlebarMenu />
+          </div>
+        )}
         <div
-          className={`pointer-events-none flex justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
+          className="pointer-events-auto flex flex-shrink-0 items-center [-webkit-app-region:no-drag]"
+          style={{
+            paddingLeft: isMacOS ? 'env(titlebar-area-x, 80px)' : '0.5rem',
+          }}
+        >
+          {showResourceMonitor ? <PerformanceChip /> : null}
+        </div>
+        {/* Center: project/task context (grows to fill) */}
+        <div
+          className={`pointer-events-none flex min-w-0 flex-1 justify-center transition-opacity duration-200 has-[[data-state=open]]:opacity-100 ${isHeaderHovered ? 'opacity-100' : 'opacity-0'}`}
         >
           <div className="w-[min(60vw,720px)] truncate">
             <TitlebarContext
@@ -218,7 +241,8 @@ const Titlebar: React.FC<TitlebarProps> = ({
             />
           </div>
         </div>
-        <div className="pointer-events-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+        {/* Right: action buttons */}
+        <div className="pointer-events-auto flex flex-shrink-0 items-center gap-1 pr-2 [-webkit-app-region:no-drag]">
           {currentPath ? (
             <OpenInMenu
               path={currentPath}
@@ -341,6 +365,8 @@ const Titlebar: React.FC<TitlebarProps> = ({
             </Tooltip>
           </TooltipProvider>
         </div>
+        {/* Right: window controls (Windows/Linux only) */}
+        {!isMacOS && <WindowControls />}
       </header>
       <FeedbackModal
         isOpen={isFeedbackOpen}

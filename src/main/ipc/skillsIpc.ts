@@ -23,15 +23,18 @@ export function registerSkillsIpc(): void {
     }
   });
 
-  ipcMain.handle('skills:install', async (_, args: { skillId: string }) => {
-    try {
-      const skill = await skillsService.installSkill(args.skillId);
-      return { success: true, data: skill };
-    } catch (error) {
-      log.error('Failed to install skill:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+  ipcMain.handle(
+    'skills:install',
+    async (_, args: { skillId: string; source?: { owner: string; repo: string } }) => {
+      try {
+        const skill = await skillsService.installSkill(args.skillId, args.source);
+        return { success: true, data: skill };
+      } catch (error) {
+        log.error('Failed to install skill:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
-  });
+  );
 
   ipcMain.handle('skills:uninstall', async (_, args: { skillId: string }) => {
     try {
@@ -43,15 +46,18 @@ export function registerSkillsIpc(): void {
     }
   });
 
-  ipcMain.handle('skills:getDetail', async (_, args: { skillId: string }) => {
-    try {
-      const skill = await skillsService.getSkillDetail(args.skillId);
-      return { success: true, data: skill };
-    } catch (error) {
-      log.error('Failed to get skill detail:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+  ipcMain.handle(
+    'skills:getDetail',
+    async (_, args: { skillId: string; source?: { owner: string; repo: string } }) => {
+      try {
+        const skill = await skillsService.getSkillDetail(args.skillId, args.source);
+        return { success: true, data: skill };
+      } catch (error) {
+        log.error('Failed to get skill detail:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
-  });
+  );
 
   ipcMain.handle('skills:getDetectedAgents', async () => {
     try {
@@ -59,6 +65,16 @@ export function registerSkillsIpc(): void {
       return { success: true, data: agents };
     } catch (error) {
       log.error('Failed to detect agents:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('skills:search', async (_, args: { query: string }) => {
+    try {
+      const skills = await skillsService.searchSkillsSh(args.query);
+      return { success: true, data: skills };
+    } catch (error) {
+      log.error('Failed to search skills.sh:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });

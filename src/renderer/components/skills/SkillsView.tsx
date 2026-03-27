@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Search, Plus, Loader2, Sparkles } from 'lucide-react';
+import { RefreshCw, Search, Plus, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -30,6 +30,9 @@ const SkillsView: React.FC = () => {
     setShowCreateModal,
     installedSkills,
     recommendedSkills,
+    skillsShResults,
+    isSearching,
+    isSearchActive,
     refresh,
     install,
     uninstall,
@@ -97,6 +100,9 @@ const SkillsView: React.FC = () => {
     );
   }
 
+  const hasAnyResults =
+    installedSkills.length > 0 || recommendedSkills.length > 0 || skillsShResults.length > 0;
+
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
@@ -113,11 +119,14 @@ const SkillsView: React.FC = () => {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search skills..."
+              placeholder="Search and discover skills..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
+            {isSearching && (
+              <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
           </div>
           <Button
             variant="ghost"
@@ -136,40 +145,40 @@ const SkillsView: React.FC = () => {
           </Button>
         </div>
 
-        <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Skills from the{' '}
-            <a
-              href="https://github.com/openai/skills"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              OpenAI
-            </a>{' '}
-            and{' '}
-            <a
-              href="https://github.com/anthropics/skills"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              Anthropic
-            </a>{' '}
-            catalogs. Install a skill to make it available across all your coding agents. Skills
-            follow the open{' '}
-            <a
-              href="https://agentskills.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              Agent Skills
-            </a>{' '}
-            standard. If you want to use skills from another library, feel free to let us know
-            through the feedback modal.
-          </p>
-        </div>
+        {!isSearchActive && (
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Skills from{' '}
+              <a
+                href="https://github.com/openai/skills"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+              >
+                OpenAI
+              </a>
+              ,{' '}
+              <a
+                href="https://github.com/anthropics/skills"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+              >
+                Anthropic
+              </a>
+              , and the{' '}
+              <a
+                href="https://skills.sh"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+              >
+                skills.sh
+              </a>{' '}
+              ecosystem. Search to discover community skills.
+            </p>
+          </div>
+        )}
 
         {installedSkills.length > 0 && (
           <div className="mb-6">
@@ -187,7 +196,7 @@ const SkillsView: React.FC = () => {
         {recommendedSkills.length > 0 && (
           <div className="mb-6">
             <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Recommended
+              {isSearchActive ? 'Catalog' : 'Recommended'}
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {recommendedSkills.map((skill) => (
@@ -197,7 +206,42 @@ const SkillsView: React.FC = () => {
           </div>
         )}
 
-        {installedSkills.length === 0 && recommendedSkills.length === 0 && (
+        {/* skills.sh search results */}
+        {isSearchActive && (skillsShResults.length > 0 || isSearching) && (
+          <div className="mb-6">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-xs font-medium tracking-wide text-muted-foreground">
+                From{' '}
+                <a
+                  href="https://skills.sh"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:decoration-foreground"
+                >
+                  skills.sh
+                </a>
+              </h2>
+              {isSearching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </div>
+            {skillsShResults.length > 0 && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {skillsShResults.map((skill) => (
+                  <SkillCard
+                    key={`sh-${skill.id}-${skill.owner}`}
+                    skill={skill}
+                    onSelect={openDetail}
+                    onInstall={install}
+                  />
+                ))}
+              </div>
+            )}
+            {!isSearching && skillsShResults.length === 0 && (
+              <p className="text-xs text-muted-foreground/60">No additional results on skills.sh</p>
+            )}
+          </div>
+        )}
+
+        {!hasAnyResults && !isSearching && (
           <div className="py-12 text-center">
             <p className="text-sm text-muted-foreground">
               {searchQuery ? 'No skills match your search.' : 'No skills available.'}

@@ -12,6 +12,7 @@ import geminiIcon from '../../assets/images/gemini.png';
 import cursorlogoIcon from '../../assets/images/cursor.svg?raw';
 import ghcopilotIcon from '../../assets/images/gh-copilot.svg?raw';
 import gooseIcon from '../../assets/images/goose.png';
+import hermesIcon from '../../assets/images/hermesagent.jpg';
 import kimiIcon from '../../assets/images/kimi.png';
 import kilocodeIcon from '../../assets/images/kilocode.png';
 import kiroIcon from '../../assets/images/kiro.png';
@@ -35,6 +36,7 @@ const ICONS: Record<string, string> = {
   'claude.png': claudeIcon,
   'droid.svg': factorydroidIcon,
   'gemini.png': geminiIcon,
+  'hermesagent.jpg': hermesIcon,
   'cursor.svg': cursorlogoIcon,
   'gh-copilot.svg': ghcopilotIcon,
   'goose.png': gooseIcon,

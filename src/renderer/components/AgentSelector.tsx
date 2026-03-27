@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { AgentInfoCard } from './AgentInfoCard';
+import AgentTooltipRow from './AgentTooltipRow';
 import RoutingInfoCard from './RoutingInfoCard';
 import { Workflow } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -58,7 +58,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
         <SelectContent side="top" className="z-[120]">
           <TooltipProvider delayDuration={150}>
             {Object.entries(agentConfig).map(([key, config]) => (
-              <TooltipRow key={key} id={key as UiAgent}>
+              <AgentTooltipRow key={key} id={key as UiAgent}>
                 <SelectItem value={key}>
                   <div className="flex items-center gap-2">
                     <AgentLogo
@@ -71,7 +71,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
                     <span>{config.name}</span>
                   </div>
                 </SelectItem>
-              </TooltipRow>
+              </AgentTooltipRow>
             ))}
             {false && (
               <RoutingTooltipRow>
@@ -97,33 +97,6 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
         </SelectContent>
       </Select>
     </div>
-  );
-};
-
-const TooltipRow: React.FC<{ id: UiAgent; children: React.ReactElement }> = ({ id, children }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <Tooltip open={open}>
-      <TooltipTrigger asChild>
-        {React.cloneElement(children, {
-          onMouseEnter: () => setOpen(true),
-          onMouseLeave: () => setOpen(false),
-          onPointerEnter: () => setOpen(true),
-          onPointerLeave: () => setOpen(false),
-        })}
-      </TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="start"
-        className="border-foreground/20 bg-background p-0 text-foreground"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onPointerEnter={() => setOpen(true)}
-        onPointerLeave={() => setOpen(false)}
-      >
-        <AgentInfoCard id={id} />
-      </TooltipContent>
-    </Tooltip>
   );
 };
 
