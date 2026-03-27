@@ -5,9 +5,10 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { getLocalExec, getSshExec } from '@main/core/utils/exec';
+import { getGitSshExec, getLocalExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 
@@ -71,7 +72,11 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   const sshProxy = await sshConnectionManager.connect(params.connectionId);
 
   const sshFs = new SshFileSystem(sshProxy, params.path);
-  const git = new GitService(params.path, getSshExec(sshProxy), sshFs);
+  const git = new GitService(
+    params.path,
+    getGitSshExec(sshProxy, () => githubAuthService.getToken()),
+    sshFs
+  );
 
   const gitInfo = await git.detectInfo();
 

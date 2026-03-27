@@ -11,11 +11,12 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
-import { getSshExec } from '@main/core/utils/exec';
+import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import type {
@@ -86,12 +87,13 @@ export class SshProjectProvider implements ProjectProvider {
   ) {
     this.fs = new SshFileSystem(this.proxy, project.path);
     this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
-    this.git = new GitService(project.path, getSshExec(this.proxy), this.fs);
+    const gitExec = getGitSshExec(this.proxy, () => githubAuthService.getToken());
+    this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
       projectSettings: this.settings,
-      exec: getSshExec(this.proxy),
+      exec: gitExec,
       rootFs: rootFs,
     });
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
@@ -195,8 +197,9 @@ export class SshProjectProvider implements ProjectProvider {
     const scripts = settings.scripts;
     const proxy = this.proxy;
 
+    const taskGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
     const exec = getSshExec(proxy);
-    const taskGit = new GitService(workDir, exec, taskFs);
+    const taskGit = new GitService(workDir, taskGitExec, taskFs);
     const conversationProvider = new SshConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
