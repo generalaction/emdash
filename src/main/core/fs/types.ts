@@ -5,8 +5,6 @@
 
 import type { FileWatchEvent } from '@shared/fs';
 
-export type { FileWatchEvent };
-
 /**
  * Handle returned by FileSystemProvider.watch().
  * Call update() to change the set of watched paths, close() to stop.
@@ -190,11 +188,38 @@ export interface FileSystemProvider {
   search(query: string, options?: SearchOptions): Promise<SearchResult>;
 
   /**
-   * Remove a file
-   * @param path - File path relative to project root
+   * Remove a file or directory.
+   * @param path - Path relative to project root
+   * @param options - Pass `{ recursive: true }` to remove directories and all contents
    * @returns Promise resolving to success status
    */
-  remove(path: string): Promise<{ success: boolean; error?: string }>;
+  remove(
+    path: string,
+    options?: { recursive?: boolean }
+  ): Promise<{ success: boolean; error?: string }>;
+
+  /**
+   * Resolve a path to its absolute, canonical form (resolving symlinks).
+   * @param path - Path relative to project root
+   * @returns Promise resolving to the absolute path
+   */
+  realPath(path: string): Promise<string>;
+
+  /**
+   * Find files matching a glob pattern.
+   * @param pattern - Glob pattern (e.g., ".env", ".env.*.local")
+   * @param options - cwd: directory to search in; dot: include dotfiles (default false)
+   * @returns Relative paths of matching entries
+   */
+  glob(pattern: string, options?: { cwd?: string; dot?: boolean }): Promise<string[]>;
+
+  /**
+   * Copy a file from src to dest (both paths relative to project root).
+   * Does not create parent directories — caller must ensure they exist.
+   * @param src - Source path
+   * @param dest - Destination path
+   */
+  copyFile(src: string, dest: string): Promise<void>;
 
   /**
    * Read image file as base64 data URL

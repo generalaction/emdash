@@ -432,6 +432,37 @@ export class SshFileSystem implements FileSystemProvider {
     }
   }
 
+  async realPath(path: string): Promise<string> {
+    const fullPath = this.resolveRemotePath(path);
+    const result = await this.exec(`realpath ${quoteShellArg(fullPath)}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`realpath failed: ${result.stderr}`);
+    }
+    return result.stdout.trim();
+  }
+
+  async glob(pattern: string, options?: { cwd?: string; dot?: boolean }): Promise<string[]> {
+    const cwd = options?.cwd ? this.resolveRemotePath(options.cwd) : this.remotePath;
+    const dotSetup = options?.dot ? 'shopt -s dotglob;' : '';
+    const command = `${dotSetup} shopt -s nullglob; cd ${quoteShellArg(cwd)} && printf '%s\\n' ${pattern}`;
+    try {
+      const result = await this.exec(command);
+      if (result.exitCode !== 0) return [];
+      return result.stdout.trim().split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  async copyFile(src: string, dest: string): Promise<void> {
+    const fullSrc = this.resolveRemotePath(src);
+    const fullDest = this.resolveRemotePath(dest);
+    const result = await this.exec(`cp ${quoteShellArg(fullSrc)} ${quoteShellArg(fullDest)}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to copy file: ${result.stderr}`);
+    }
+  }
+
   /**
    * Get file/directory metadata via SFTP
    */
@@ -559,7 +590,10 @@ export class SshFileSystem implements FileSystemProvider {
    * Remove a file via SFTP
    * For directories, uses SSH exec with rm -rf
    */
-  async remove(path: string): Promise<{ success: boolean; error?: string }> {
+  async remove(
+    path: string,
+    options?: { recursive?: boolean }
+  ): Promise<{ success: boolean; error?: string }> {
     const fullPath = this.resolveRemotePath(path);
 
     try {
@@ -572,7 +606,9 @@ export class SshFileSystem implements FileSystemProvider {
       const sftp = await this.getSftp();
 
       if (entry.type === 'dir') {
-        // For directories, use SSH exec to recursively remove
+        if (!options?.recursive) {
+          return { success: false, error: `Path is a directory: ${path}` };
+        }
         const command = `rm -rf ${quoteShellArg(fullPath)}`;
         const result = await this.exec(command);
 
