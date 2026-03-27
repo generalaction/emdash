@@ -279,7 +279,7 @@ export class LocalProjectProvider implements ProjectProvider {
       exec: getLocalExec(),
     });
 
-    const scripts = settings?.scripts;
+    const scripts = settings.scripts;
 
     if (scripts?.teardown) {
       taskLifecycleService.runLifecycleScript({
