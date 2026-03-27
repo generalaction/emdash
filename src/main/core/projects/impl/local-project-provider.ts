@@ -152,7 +152,6 @@ export class LocalProjectProvider implements ProjectProvider {
 
     const settings = await this.settings.get();
     const tmuxEnabled = settings.tmux ?? false;
-    const shellSetup = settings.shellSetup;
     const scripts = settings.scripts;
 
     const exec = getLocalExec();
@@ -162,7 +161,6 @@ export class LocalProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
-      shellSetup,
       exec,
     });
 
@@ -171,7 +169,6 @@ export class LocalProjectProvider implements ProjectProvider {
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
-      shellSetup,
       exec,
     });
 

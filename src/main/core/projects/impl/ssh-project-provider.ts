@@ -193,7 +193,6 @@ export class SshProjectProvider implements ProjectProvider {
     const taskFs = new SshFileSystem(this.proxy, workDir);
     const settings = await this.settings.get();
     const tmuxEnabled = settings.tmux ?? false;
-    const shellSetup = settings.shellSetup;
     const scripts = settings.scripts;
     const proxy = this.proxy;
 
@@ -205,7 +204,6 @@ export class SshProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
-      shellSetup,
       exec,
       proxy,
     });
@@ -215,7 +213,6 @@ export class SshProjectProvider implements ProjectProvider {
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
-      shellSetup,
       exec,
       proxy,
     });
