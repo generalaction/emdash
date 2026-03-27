@@ -2,61 +2,88 @@ import type { PrComment } from './prCommentsStatus';
 
 const EMPTY: PrComment[] = [];
 
-class SelectedPrCommentsStoreSingleton {
-  private selected = new Map<string, PrComment>();
-  private listeners = new Set<() => void>();
-  private cachedSnapshot: PrComment[] = EMPTY;
+class SelectedPrCommentsStore {
+  private selected = new Map<string, Map<string, PrComment>>();
+  private listeners = new Map<string, Set<() => void>>();
+  private snapshots = new Map<string, PrComment[]>();
 
-  private updateSnapshot(): void {
-    this.cachedSnapshot = this.selected.size === 0 ? EMPTY : Array.from(this.selected.values());
+  add(scopeKey: string, comment: PrComment): void {
+    const scope = this.getOrCreateScope(scopeKey);
+    scope.set(comment.id, comment);
+    this.invalidateSnapshot(scopeKey);
+    this.emit(scopeKey);
   }
 
-  add(comment: PrComment): void {
-    this.selected.set(comment.id, comment);
-    this.updateSnapshot();
-    this.notify();
+  remove(scopeKey: string, commentId: string): void {
+    const scope = this.selected.get(scopeKey);
+    if (!scope?.delete(commentId)) return;
+    if (scope.size === 0) this.selected.delete(scopeKey);
+    this.invalidateSnapshot(scopeKey);
+    this.emit(scopeKey);
   }
 
-  remove(commentId: string): void {
-    if (!this.selected.delete(commentId)) return;
-    this.updateSnapshot();
-    this.notify();
-  }
-
-  toggle(comment: PrComment): void {
-    if (this.selected.has(comment.id)) {
-      this.selected.delete(comment.id);
+  toggle(scopeKey: string, comment: PrComment): void {
+    const scope = this.getOrCreateScope(scopeKey);
+    if (scope.has(comment.id)) {
+      scope.delete(comment.id);
+      if (scope.size === 0) this.selected.delete(scopeKey);
     } else {
-      this.selected.set(comment.id, comment);
+      scope.set(comment.id, comment);
     }
-    this.updateSnapshot();
-    this.notify();
+    this.invalidateSnapshot(scopeKey);
+    this.emit(scopeKey);
   }
 
-  has(commentId: string): boolean {
-    return this.selected.has(commentId);
+  has(scopeKey: string, commentId: string): boolean {
+    return this.selected.get(scopeKey)?.has(commentId) ?? false;
   }
 
-  clear(): void {
-    if (this.selected.size === 0) return;
-    this.selected.clear();
-    this.updateSnapshot();
-    this.notify();
+  clear(scopeKey: string): void {
+    const scope = this.selected.get(scopeKey);
+    if (!scope || scope.size === 0) return;
+    this.selected.delete(scopeKey);
+    this.invalidateSnapshot(scopeKey);
+    this.emit(scopeKey);
   }
 
-  subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
+  subscribe(scopeKey: string, listener: () => void): () => void {
+    const set = this.listeners.get(scopeKey) ?? new Set();
+    set.add(listener);
+    this.listeners.set(scopeKey, set);
     return () => {
-      this.listeners.delete(listener);
+      set.delete(listener);
+      if (set.size === 0) this.listeners.delete(scopeKey);
     };
   }
 
-  getSnapshot(): PrComment[] {
-    return this.cachedSnapshot;
+  getSnapshot(scopeKey: string): PrComment[] {
+    const scope = this.selected.get(scopeKey);
+    if (!scope || scope.size === 0) return EMPTY;
+    let snapshot = this.snapshots.get(scopeKey);
+    if (!snapshot) {
+      snapshot = Array.from(scope.values());
+      this.snapshots.set(scopeKey, snapshot);
+    }
+    return snapshot;
   }
 
-  private notify(): void {
-    for (const fn of this.listeners) {
+  private getOrCreateScope(scopeKey: string): Map<string, PrComment> {
+    let scope = this.selected.get(scopeKey);
+    if (!scope) {
+      scope = new Map();
+      this.selected.set(scopeKey, scope);
+    }
+    return scope;
+  }
+
+  private invalidateSnapshot(scopeKey: string): void {
+    this.snapshots.delete(scopeKey);
+  }
+
+  private emit(scopeKey: string): void {
+    const set = this.listeners.get(scopeKey);
+    if (!set) return;
+    for (const fn of set) {
       try {
         fn();
       } catch (err) {
@@ -66,4 +93,4 @@ class SelectedPrCommentsStoreSingleton {
   }
 }
 
-export const selectedPrCommentsStore = new SelectedPrCommentsStoreSingleton();
+export const selectedPrCommentsStore = new SelectedPrCommentsStore();

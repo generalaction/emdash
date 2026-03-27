@@ -70,7 +70,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
   const activeVariantPath = variants[activeTabIndex]?.path ?? task.path;
   useCommentInjection(task.id, activeVariantPath);
-  usePrCommentInjection();
+  usePrCommentInjection(task.id);
 
   const variantEnvs = useMemo(() => {
     if (!projectPath) return new Map<string, Record<string, string>>();

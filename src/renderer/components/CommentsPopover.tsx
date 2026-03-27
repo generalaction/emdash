@@ -1,4 +1,4 @@
-import React, { useMemo, useSyncExternalStore } from 'react';
+import React, { useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Button } from './ui/button';
@@ -6,11 +6,9 @@ import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useTaskScope } from './TaskScopeContext';
 import { useTaskComments } from '../hooks/useLineComments';
+import { useSelectedPrComments } from '../hooks/usePrCommentInjection';
 import type { DraftComment } from '../lib/DraftCommentsStore';
 import { selectedPrCommentsStore } from '../lib/selectedPrCommentsStore';
-
-const subscribePrComments = (listener: () => void) => selectedPrCommentsStore.subscribe(listener);
-const getPrCommentsSnapshot = () => selectedPrCommentsStore.getSnapshot();
 
 interface CommentsPopoverProps {
   taskId?: string;
@@ -30,7 +28,7 @@ export function CommentsPopover({
   const { taskId: scopedTaskId, taskPath: scopedTaskPath } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId ?? '';
   const { comments, remove } = useTaskComments(resolvedTaskId, scopedTaskPath);
-  const prComments = useSyncExternalStore(subscribePrComments, getPrCommentsSnapshot);
+  const prComments = useSelectedPrComments(resolvedTaskId);
   const totalCount = comments.length + prComments.length;
 
   const groupedComments = useMemo(() => {
@@ -92,7 +90,7 @@ export function CommentsPopover({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => selectedPrCommentsStore.remove(comment.id)}
+                        onClick={() => selectedPrCommentsStore.remove(resolvedTaskId, comment.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

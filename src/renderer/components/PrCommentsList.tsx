@@ -6,7 +6,7 @@ import {
   MessageSquarePlus,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { PrCommentsStatus, PrComment } from '../lib/prCommentsStatus';
 import { formatRelativeTime } from '../lib/prCommentsStatus';
 import { selectedPrCommentsStore } from '../lib/selectedPrCommentsStore';
@@ -46,17 +46,26 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-const subscribe = (listener: () => void) => selectedPrCommentsStore.subscribe(listener);
-
-function CommentItem({ comment, prUrl }: { comment: PrComment; prUrl?: string }) {
+function CommentItem({
+  taskId,
+  comment,
+  prUrl,
+}: {
+  taskId: string;
+  comment: PrComment;
+  prUrl?: string;
+}) {
   const preview = useMemo(() => (comment.body ? stripMarkdown(comment.body) : ''), [comment.body]);
   const hasBody = !!comment.body;
   const [expanded, setExpanded] = useState(false);
-  const isSelected = useSyncExternalStore(subscribe, () => selectedPrCommentsStore.has(comment.id));
+  const isSelected = useSyncExternalStore(
+    useCallback((listener) => selectedPrCommentsStore.subscribe(taskId, listener), [taskId]),
+    useCallback(() => selectedPrCommentsStore.has(taskId, comment.id), [taskId, comment.id])
+  );
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    selectedPrCommentsStore.toggle(comment);
+    selectedPrCommentsStore.toggle(taskId, comment);
   };
 
   return (
@@ -123,13 +132,14 @@ function CommentItem({ comment, prUrl }: { comment: PrComment; prUrl?: string })
 }
 
 interface PrCommentsListProps {
+  taskId: string;
   status: PrCommentsStatus | null;
   isLoading: boolean;
   hasPr: boolean;
   prUrl?: string;
 }
 
-export function PrCommentsList({ status, isLoading, hasPr, prUrl }: PrCommentsListProps) {
+export function PrCommentsList({ taskId, status, isLoading, hasPr, prUrl }: PrCommentsListProps) {
   if (!hasPr) return null;
 
   if (isLoading && !status) return null;
@@ -142,7 +152,12 @@ export function PrCommentsList({ status, isLoading, hasPr, prUrl }: PrCommentsLi
         <span className="text-sm font-medium text-foreground">Comments</span>
       </div>
       {status.comments.map((comment) => (
-        <CommentItem key={`${comment.type}-${comment.id}`} comment={comment} prUrl={prUrl} />
+        <CommentItem
+          key={`${comment.type}-${comment.id}`}
+          taskId={taskId}
+          comment={comment}
+          prUrl={prUrl}
+        />
       ))}
     </div>
   );
