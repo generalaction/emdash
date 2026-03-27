@@ -22,6 +22,16 @@ import {
   WriteResult,
 } from '../types';
 
+const SFTP_STATUS = {
+  NO_SUCH_FILE: 2,
+  PERMISSION_DENIED: 3,
+  FAILURE: 4,
+} as const;
+
+interface SftpError extends Error {
+  code?: number;
+}
+
 /**
  * Allowed image extensions for readImage
  */
@@ -474,8 +484,11 @@ export class SshFileSystem implements FileSystemProvider {
       sftp.stat(fullPath, (err, stats) => {
         if (err) {
           // Check if file doesn't exist
-          const anyErr = err as any;
-          if (anyErr?.message?.includes('No such file') || anyErr?.code === 2) {
+          const sftpErr = err as SftpError;
+          if (
+            sftpErr.message?.includes('No such file') ||
+            sftpErr.code === SFTP_STATUS.NO_SUCH_FILE
+          ) {
             resolve(null);
             return;
           }
@@ -837,18 +850,24 @@ export class SshFileSystem implements FileSystemProvider {
     return new Promise((resolve, reject) => {
       sftp.mkdir(dirPath, (err) => {
         if (!err) {
-          // Directory created successfully
           resolve();
           return;
         }
 
-        // Check if directory already exists
-        if (err.message?.includes('already exists') || err.message?.includes('File exists')) {
+        const sftpErr = err as SftpError;
+        const msg = sftpErr.message ?? '';
+        const code = sftpErr.code;
+
+        const isAlreadyExists =
+          msg.includes('already exists') ||
+          msg.includes('File exists') ||
+          (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
+
+        if (isAlreadyExists) {
           resolve();
           return;
         }
 
-        // Try to create parent directory recursively
         const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'));
         if (parentPath && parentPath !== dirPath && parentPath.length >= this.remotePath.length) {
           this.ensureRemoteDir(sftp, parentPath)
@@ -866,12 +885,12 @@ export class SshFileSystem implements FileSystemProvider {
    * Map SFTP error codes to FileSystemError
    */
   private mapSftpError(error: unknown, path?: string): FileSystemError {
-    const anyErr = error as any;
-    const message = typeof anyErr?.message === 'string' ? anyErr.message : String(error);
-    const code = anyErr?.code;
+    const sftpErr = error as SftpError;
+    const message = typeof sftpErr?.message === 'string' ? sftpErr.message : String(error);
+    const code = sftpErr?.code;
 
     // Map common SFTP error codes
-    if (code === 2 || message.includes('No such file')) {
+    if (code === SFTP_STATUS.NO_SUCH_FILE || message.includes('No such file')) {
       return new FileSystemError(
         `File or directory not found: ${path || message}`,
         FileSystemErrorCodes.NOT_FOUND,
@@ -879,7 +898,7 @@ export class SshFileSystem implements FileSystemProvider {
       );
     }
 
-    if (code === 3 || message.includes('Permission denied')) {
+    if (code === SFTP_STATUS.PERMISSION_DENIED || message.includes('Permission denied')) {
       return new FileSystemError(
         `Permission denied: ${path || message}`,
         FileSystemErrorCodes.PERMISSION_DENIED,
