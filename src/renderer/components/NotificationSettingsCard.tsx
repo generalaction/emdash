@@ -102,18 +102,18 @@ const NotificationSettingsCard: React.FC = () => {
           <div className="flex flex-1 flex-col gap-0.5">
             <p className="text-sm font-medium text-foreground">Sound profile</p>
             <p className="text-sm text-muted-foreground">
-              Keep the current Emdash chime or switch to the Gilfoyle bitcoin alert.
+              Switch between the classic Emdash chime and the Gilfoyle bitcoin alert.
             </p>
           </div>
           <Select
-            value={notifications?.soundProfile ?? 'default'}
+            value={notifications?.soundProfile ?? 'gilfoyle'}
             onValueChange={handleSoundProfileChange}
           >
             <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="default">Classic Emdash</SelectItem>
               <SelectItem value="gilfoyle">Gilfoyle Bitcoin Alert</SelectItem>
             </SelectContent>
           </Select>

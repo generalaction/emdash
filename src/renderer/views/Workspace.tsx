@@ -94,7 +94,7 @@ export function Workspace() {
     const soundOn = Boolean(notif?.sound ?? true);
     soundPlayer.setEnabled(masterEnabled && soundOn);
     soundPlayer.setFocusMode(notif?.soundFocusMode ?? 'always');
-    soundPlayer.setProfile(notif?.soundProfile ?? 'default');
+    soundPlayer.setProfile(notif?.soundProfile ?? 'gilfoyle');
   }, [settings?.notifications]);
 
   // --- View-mode / UI visibility state (inlined from former useModalState) ---

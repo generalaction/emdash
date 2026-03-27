@@ -122,14 +122,14 @@ describe('soundPlayer', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses the existing default chime profile by default', async () => {
+  it('uses the gilfoyle clip by default', async () => {
     const { soundPlayer } = await loadSoundPlayer();
 
     soundPlayer.play('needs_attention');
 
-    const ctx = FakeAudioContext.instances[0];
-    expect(ctx.oscillators).toHaveLength(2);
-    expect(ctx.oscillators.map((osc) => osc.type)).toEqual(['triangle', 'triangle']);
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(FakeAudio.instances[0].src).toBe('gilfoyle-bitcoin-alert.mp3');
+    expect(FakeAudio.instances[0].played).toBe(true);
   });
 
   it('switches to the gilfoyle profile for notification alerts', async () => {
@@ -150,5 +150,16 @@ describe('soundPlayer', () => {
 
     expect(FakeAudio.instances).toHaveLength(1);
     expect(FakeAudio.instances[0].played).toBe(true);
+  });
+
+  it('still supports the classic Emdash profile', async () => {
+    const { soundPlayer } = await loadSoundPlayer();
+
+    soundPlayer.setProfile('default');
+    soundPlayer.play('needs_attention');
+
+    const ctx = FakeAudioContext.instances[0];
+    expect(ctx.oscillators).toHaveLength(2);
+    expect(ctx.oscillators.map((osc) => osc.type)).toEqual(['triangle', 'triangle']);
   });
 });
