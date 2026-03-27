@@ -4,7 +4,10 @@ import { spawnLocalPty } from '../pty/local-pty';
 import { Pty } from '../pty/pty';
 import { buildTerminalEnv } from '../pty/pty-env';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
+import { resolveSpawnParams } from '../pty/spawn-utils';
+import { killTmuxSession, makeTmuxSessionName } from '../pty/tmux-session-name';
 import type { TerminalProvider } from '../terminals/terminal-provider';
+import type { ExecFn } from '../utils/exec';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -15,22 +18,34 @@ export class TaskLifecycleService {
   private readonly taskId: string;
   private readonly taskPath: string;
   private readonly terminals: TerminalProvider;
+  private readonly tmux: boolean;
+  private readonly shellSetup?: string;
+  private readonly exec: ExecFn;
 
   constructor({
     projectId,
     taskId,
     taskPath,
     terminals,
+    tmux = false,
+    shellSetup,
+    exec,
   }: {
     projectId: string;
     taskId: string;
     taskPath: string;
     terminals: TerminalProvider;
+    tmux?: boolean;
+    shellSetup?: string;
+    exec: ExecFn;
   }) {
     this.projectId = projectId;
     this.taskId = taskId;
     this.taskPath = taskPath;
     this.terminals = terminals;
+    this.tmux = tmux;
+    this.shellSetup = shellSetup;
+    this.exec = exec;
   }
 
   async runLifecycleScript(
@@ -59,20 +74,26 @@ export class TaskLifecycleService {
       this.terminals.spawnTerminal(
         { id, projectId: this.projectId, taskId: this.taskId, name: script.type },
         initialSize,
-        {
-          command: userShell,
-          args: ['-c', script.script],
-        }
+        { command: userShell, args: ['-c', script.script] }
       );
       return;
     }
 
     const sessionId = makePtySessionId(this.projectId, this.taskId, id);
+    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+
+    const params = resolveSpawnParams('general', {
+      cwd: this.taskPath,
+      shellSetup: this.shellSetup,
+      tmuxSessionName,
+      command: userShell,
+      args: ['-c', script.script],
+    });
 
     const pty = spawnLocalPty({
       id: sessionId,
-      command: userShell,
-      args: ['-c', script.script],
+      command: params.command,
+      args: params.args,
       cwd: this.taskPath,
       env: buildTerminalEnv(),
       cols: initialSize.cols,
@@ -86,6 +107,9 @@ export class TaskLifecycleService {
       pty.onExit(() => {
         this.sessions.delete(id);
         ptySessionRegistry.unregister(sessionId);
+        if (tmuxSessionName) {
+          killTmuxSession(this.exec, tmuxSessionName);
+        }
         resolve();
       });
     });

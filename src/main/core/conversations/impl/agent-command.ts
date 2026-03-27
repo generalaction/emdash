@@ -19,8 +19,13 @@ export async function buildAgentCommand({
   const cli = providerConfig?.cli;
   const args: string[] = [];
 
-  if (isResuming && providerConfig?.sessionIdFlag) {
-    args.push(providerConfig?.sessionIdFlag, sessionId);
+  if (isResuming && providerConfig?.resumeFlag) {
+    args.push(...providerConfig.resumeFlag.split(' '));
+    if (providerConfig?.sessionIdFlag) {
+      args.push(sessionId);
+    }
+  } else if (providerConfig?.sessionIdFlag) {
+    args.push(providerConfig.sessionIdFlag, sessionId);
   }
 
   if (autoApprove && providerConfig?.autoApproveFlag) {
@@ -29,7 +34,6 @@ export async function buildAgentCommand({
 
   if (!isResuming && initialPrompt && providerConfig?.initialPromptFlag) {
     args.push(providerConfig?.initialPromptFlag, initialPrompt);
-    args.push(initialPrompt);
   }
 
   args.push(...(providerConfig?.defaultArgs ?? []));

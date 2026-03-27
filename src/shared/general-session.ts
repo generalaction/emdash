@@ -6,8 +6,9 @@ export interface GeneralSession {
 export interface GeneralSessionConfig {
   taskId?: string;
   cwd: string;
-  /** Project root — used to resolve .emdash.json shellSetup. */
   projectPath?: string;
-  /** Shell command prepended before the interactive shell: `${shellSetup} && exec $SHELL`. */
   shellSetup?: string;
+  tmuxSessionName?: string;
+  command?: string;
+  args?: string[];
 }

@@ -1,4 +1,5 @@
 import { getProvider } from '@shared/agent-provider-registry';
+import type { AgentSessionConfig } from '@shared/agent-session';
 import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
@@ -10,6 +11,9 @@ import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { buildAgentCommand } from './agent-command';
@@ -22,19 +26,31 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
+  private readonly tmux: boolean;
+  private readonly shellSetup?: string;
+  private readonly exec: ExecFn;
 
   constructor({
     projectId,
     taskPath,
     taskId,
+    tmux = false,
+    shellSetup,
+    exec,
   }: {
     projectId: string;
     taskPath: string;
     taskId: string;
+    tmux?: boolean;
+    shellSetup?: string;
+    exec: ExecFn;
   }) {
     this.projectId = projectId;
     this.taskPath = taskPath;
     this.taskId = taskId;
+    this.tmux = tmux;
+    this.shellSetup = shellSetup;
+    this.exec = exec;
   }
 
   async startSession(
@@ -58,13 +74,30 @@ export class LocalConversationProvider implements ConversationProvider {
       initialPrompt,
     });
 
+    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+
+    const cfg: AgentSessionConfig = {
+      taskId: this.taskId,
+      conversationId: conversation.id,
+      providerId: conversation.providerId,
+      command,
+      args,
+      cwd: this.taskPath,
+      shellSetup: this.shellSetup,
+      tmuxSessionName,
+      autoApprove: conversation.autoApprove ?? false,
+      resume: isResuming,
+    };
+
+    const spawnParams = resolveSpawnParams('agent', cfg);
+
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
     const pty = spawnLocalPty({
       id: sessionId,
-      command,
-      args,
+      command: spawnParams.command,
+      args: spawnParams.args,
       cwd: this.taskPath,
       env: buildAgentEnv({
         hook: port > 0 ? { port, ptyId, token } : undefined,
@@ -98,7 +131,7 @@ export class LocalConversationProvider implements ConversationProvider {
         taskId: conversation.taskId,
         exitCode,
       });
-      if (shouldRespawn) {
+      if (shouldRespawn && !this.tmux) {
         setTimeout(() => {
           this.startSession(conversation, initialSize, isResuming, initialPrompt).catch((e) => {
             log.error('LocalConversationProvider: respawn failed', {
@@ -125,9 +158,22 @@ export class LocalConversationProvider implements ConversationProvider {
     }
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
+    if (this.tmux) {
+      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+    }
   }
 
   async destroyAll(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await this.detachAll();
+    if (this.tmux) {
+      await Promise.all(
+        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
+      );
+    }
+  }
+
+  async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
