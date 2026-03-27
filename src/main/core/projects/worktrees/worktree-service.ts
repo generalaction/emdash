@@ -1,6 +1,5 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import { glob } from 'glob';
+import { FileSystemProvider } from '@main/core/fs/types';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { err, ok, Result } from '@main/lib/result';
@@ -22,18 +21,21 @@ export class WorktreeService {
   private readonly worktreePoolPath: string;
   private readonly repoPath: string;
   private readonly exec: ExecFn;
+  private readonly rootFs: FileSystemProvider;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     worktreePoolPath: string;
     repoPath: string;
     exec: ExecFn;
+    rootFs: FileSystemProvider;
     projectSettings: ProjectSettingsProvider;
   }) {
     this.worktreePoolPath = args.worktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.exec = args.exec;
+    this.rootFs = args.rootFs;
 
     this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath })
       .catch(() => {})
@@ -62,9 +64,9 @@ export class WorktreeService {
       this.worktreePoolPath,
       createStableWorktreeReserveId(sourceBranch)
     );
-    if (fs.existsSync(reservePath)) {
+    if (await this.rootFs.exists(reservePath)) {
       if (await this.isValidWorktree(reservePath)) return;
-      await fs.promises.rm(reservePath, { recursive: true, force: true });
+      await this.rootFs.remove(reservePath, { recursive: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
     const inProgress = this.reserveInProgress.get(sourceBranch);
@@ -81,9 +83,9 @@ export class WorktreeService {
       this.worktreePoolPath,
       createStableWorktreeReserveId(sourceBranch)
     );
-    if (fs.existsSync(reservePath)) {
+    if (await this.rootFs.exists(reservePath)) {
       if (await this.isValidWorktree(reservePath)) return;
-      await fs.promises.rm(reservePath, { recursive: true, force: true });
+      await this.rootFs.remove(reservePath, { recursive: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
     await this.createReserve(sourceBranch);
@@ -131,18 +133,18 @@ export class WorktreeService {
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
-    await fs.promises.mkdir(this.worktreePoolPath, { recursive: true });
+    await this.rootFs.mkdir(this.worktreePoolPath, { recursive: true });
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePath = path.join(this.worktreePoolPath, branchName);
-    if (fs.existsSync(worktreePath)) {
+    if (await this.rootFs.exists(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
-      await fs.promises.rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+      await this.rootFs.remove(worktreePath, { recursive: true }).catch(() => {});
     }
 
     try {
-      const realPoolPath = fs.realpathSync(this.worktreePoolPath);
+      const realPoolPath = await this.rootFs.realPath(this.worktreePoolPath);
       const { stdout } = await this.exec('git', ['worktree', 'list', '--porcelain'], {
         cwd: this.repoPath,
       });
@@ -174,12 +176,12 @@ export class WorktreeService {
     const targetPath = path.join(this.worktreePoolPath, branchName);
 
     // Fast path: worktree already exists on disk.
-    if (fs.existsSync(targetPath)) return ok(targetPath);
+    if (await this.rootFs.exists(targetPath)) return ok(targetPath);
 
     // Ensure the reserve worktree is ready. Use doEnsureReserve (not ensureReserve)
     // because we're already inside enqueueGitOp — calling ensureReserve here would
     // deadlock by trying to re-enqueue into the same serialised queue.
-    if (!fs.existsSync(reservePath) || !(await this.isValidWorktree(reservePath))) {
+    if (!(await this.rootFs.exists(reservePath)) || !(await this.isValidWorktree(reservePath))) {
       try {
         await this.doEnsureReserve(sourceBranch);
       } catch (cause) {
@@ -188,7 +190,7 @@ export class WorktreeService {
     }
 
     try {
-      await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+      await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
       // Move the reserve worktree directory to the task's permanent path.
       await this.exec('git', ['worktree', 'move', reservePath, targetPath], {
         cwd: this.repoPath,
@@ -218,7 +220,7 @@ export class WorktreeService {
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    await fs.promises.rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+    await this.rootFs.remove(worktreePath, { recursive: true }).catch(() => {});
     await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
   }
 
@@ -226,21 +228,18 @@ export class WorktreeService {
     const settings = await this.projectSettings.get();
     const patterns = settings.preservePatterns ?? [];
     for (const pattern of patterns) {
-      // glob the pattern against the main repo
-      const matches = await glob(pattern, {
+      const matches = await this.rootFs.glob(pattern, {
         cwd: this.repoPath,
-        dot: true, // match dotfiles like .env
-        absolute: false,
+        dot: true,
       });
       for (const relPath of matches) {
         const src = path.join(this.repoPath, relPath);
-        const stat = await fs.promises.stat(src).catch(() => null);
+        const stat = await this.rootFs.stat(src).catch(() => null);
         // Skip directories — glob patterns like `.claude/**` may match the dir itself.
-        if (!stat || !stat.isFile()) continue;
+        if (!stat || stat.type !== 'file') continue;
         const dest = path.join(targetPath, relPath);
-        // ensure parent directory exists (e.g. nested paths)
-        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-        await fs.promises.copyFile(src, dest);
+        await this.rootFs.mkdir(path.dirname(dest), { recursive: true });
+        await this.rootFs.copyFile(src, dest);
       }
     }
   }
