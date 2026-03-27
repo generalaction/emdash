@@ -316,10 +316,15 @@ const ChatInterface: React.FC<Props> = ({
       setSetupRunning(event.status === 'running');
     });
 
-    window.electronAPI.lifecycleGetState({ taskId: task.id }).then((res) => {
-      if (cancelled) return;
-      setSetupRunning(res?.state?.setup?.status === 'running');
-    });
+    window.electronAPI
+      .lifecycleGetState({ taskId: task.id })
+      .then((res) => {
+        if (cancelled) return;
+        setSetupRunning(res?.state?.setup?.status === 'running');
+      })
+      .catch((err) => {
+        console.error('Failed to get lifecycle state:', err);
+      });
 
     return () => {
       cancelled = true;
