@@ -78,7 +78,7 @@ export class SshProjectProvider implements ProjectProvider {
 
   constructor(
     private readonly project: SshProject,
-    private readonly rootFs: FileSystemProvider,
+    rootFs: FileSystemProvider,
     private readonly proxy: SshClientProxy,
     options: {
       worktreePoolPath: string;
