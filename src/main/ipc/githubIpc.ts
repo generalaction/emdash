@@ -382,6 +382,35 @@ export function registerGithubIpc() {
   );
 
   ipcMain.handle(
+    'github:getPullRequestDetails',
+    async (
+      _,
+      args: {
+        projectPath: string;
+        prNumber: number;
+      }
+    ) => {
+      const { projectPath, prNumber } = args || ({} as typeof args);
+
+      if (!projectPath || !prNumber) {
+        return { success: false, error: 'Missing required parameters' };
+      }
+
+      try {
+        const pr = await githubService.getPullRequestDetails(projectPath, prNumber);
+        if (!pr) {
+          return { success: false, error: `PR #${prNumber} not found` };
+        }
+        return { success: true, pr };
+      } catch (error) {
+        log.error('Failed to get PR details:', error);
+        const message = error instanceof Error ? error.message : 'Unable to fetch PR details';
+        return { success: false, error: message };
+      }
+    }
+  );
+
+  ipcMain.handle(
     'github:getPullRequestBaseDiff',
     async (
       _,

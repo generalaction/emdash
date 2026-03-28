@@ -424,6 +424,17 @@ declare global {
         };
         error?: string;
       }>;
+      githubGetPullRequestDetails: (args: { projectPath: string; prNumber: number }) => Promise<{
+        success: boolean;
+        pr?: {
+          baseRefName: string;
+          headRefName: string;
+          title: string;
+          number: number;
+          url: string;
+        };
+        error?: string;
+      }>;
       githubLogout: () => Promise<void>;
       linearCheckConnection?: () => Promise<{
         connected: boolean;
