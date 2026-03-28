@@ -13,6 +13,7 @@ import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
+import { getProjectStore } from '@renderer/core/stores/project-selectors';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 
 function getConversationsPaneSize() {
@@ -29,6 +30,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
   taskId: string;
 }) {
   const [providerId, setProviderId] = useState<AgentProviderId>('claude');
+  const projectData = getProjectStore(projectId)?.data;
+  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
 
   const providerIdConversationsCount = useMemo(() => {
@@ -63,7 +66,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
       <FieldGroup>
         <Field>
           <FieldLabel>Agent</FieldLabel>
-          <AgentSelector value={providerId} onChange={setProviderId} />
+          <AgentSelector value={providerId} onChange={setProviderId} connectionId={connectionId} />
         </Field>
       </FieldGroup>
       <DialogFooter>

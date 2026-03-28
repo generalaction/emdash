@@ -30,6 +30,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   onClose,
 }: BaseModalProps & { projectId?: string }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
+  const selectedProjectData = selectedProjectId
+    ? projectManagerStore.projects.get(selectedProjectId)?.data
+    : undefined;
+  const connectionId =
+    selectedProjectData?.type === 'ssh' ? selectedProjectData.connectionId : undefined;
   const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(undefined);
@@ -133,7 +138,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           </Field>
           <Field>
             <FieldLabel>Agent</FieldLabel>
-            <AgentSelector value={providerId} onChange={setProviderId} />
+            <AgentSelector
+              value={providerId}
+              onChange={setProviderId}
+              connectionId={connectionId}
+            />
           </Field>
           <Field orientation="horizontal">
             <Switch

@@ -1,6 +1,8 @@
 import os from 'node:os';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { getLocalExec, getSshExec, type ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { resolveCommandPath, runVersionProbe } from './probe';
@@ -66,8 +68,15 @@ function dependencyStateFromProbeResult(
   };
 }
 
-export class LocalDependencyManager {
+export class DependencyManager {
   private state = new Map<DependencyId, DependencyState>();
+  private readonly exec: ExecFn;
+  private readonly emitEvents: boolean;
+
+  constructor(exec: ExecFn, { emitEvents = true }: { emitEvents?: boolean } = {}) {
+    this.exec = exec;
+    this.emitEvents = emitEvents;
+  }
 
   /**
    * Kick off background probing for all dependencies. Returns immediately;
@@ -117,7 +126,8 @@ export class LocalDependencyManager {
     const probeResult = await runVersionProbe(
       descriptor.commands[0] ?? id,
       resolvedPath,
-      versionArgs
+      versionArgs,
+      this.exec
     );
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
@@ -203,7 +213,7 @@ export class LocalDependencyManager {
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
     for (const command of descriptor.commands) {
-      const path = await resolveCommandPath(command);
+      const path = await resolveCommandPath(command, this.exec);
       if (path) return path;
     }
     return null;
@@ -211,8 +221,23 @@ export class LocalDependencyManager {
 
   private updateState(state: DependencyState): void {
     this.state.set(state.id, state);
-    events.emit(dependencyStatusUpdatedChannel, { id: state.id, state });
+    if (this.emitEvents) {
+      events.emit(dependencyStatusUpdatedChannel, { id: state.id, state });
+    }
   }
 }
 
-export const localDependencyManager = new LocalDependencyManager();
+export const localDependencyManager = new DependencyManager(getLocalExec());
+
+const sshManagers = new Map<string, DependencyManager>();
+
+export async function getDependencyManager(connectionId?: string): Promise<DependencyManager> {
+  if (!connectionId) return localDependencyManager;
+  let mgr = sshManagers.get(connectionId);
+  if (!mgr) {
+    const proxy = await sshConnectionManager.connect(connectionId);
+    mgr = new DependencyManager(getSshExec(proxy), { emitEvents: false });
+    sshManagers.set(connectionId, mgr);
+  }
+  return mgr;
+}
