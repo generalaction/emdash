@@ -74,6 +74,7 @@ describe('ptyManager provider command resolution', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    delete process.env.OPENCODE_CONFIG_DIR;
     providerStatusGetMock.mockReturnValue({
       installed: true,
       path: '/usr/local/bin/codex',
@@ -308,8 +309,57 @@ describe('ptyManager provider command resolution', () => {
     ]);
   });
 
-  it('injects OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {
+  it('defaults local OpenCode PTYs to the Emdash per-pty config dir', async () => {
     const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'opencode-main-task-123',
+      providerId: 'opencode',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBe(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123'
+    );
+    expect(fsMkdirSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins',
+      { recursive: true }
+    );
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      '/tmp/emdash-test/agent-hooks/opencode/opencode-main-task-123/plugins/emdash-notify.js',
+      expect.stringContaining('session.idle')
+    );
+  });
+
+  it('preserves an explicit OPENCODE_CONFIG_DIR for local OpenCode PTYs', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+    process.env.OPENCODE_CONFIG_DIR = '/tmp/user-opencode-config';
+
+    const env: Record<string, string> = {};
+    applyProviderRuntimeEnv(env, {
+      ptyId: 'opencode-main-task-123',
+      providerId: 'opencode',
+    });
+
+    expect(env.OPENCODE_CONFIG_DIR).toBe('/tmp/user-opencode-config');
+    expect(fsMkdirSyncMock).toHaveBeenCalledWith('/tmp/user-opencode-config/plugins', {
+      recursive: true,
+    });
+    expect(fsWriteFileSyncMock).toHaveBeenCalledWith(
+      '/tmp/user-opencode-config/plugins/emdash-notify.js',
+      expect.stringContaining('session.idle')
+    );
+  });
+
+  it('falls back to an Emdash-owned OPENCODE_CONFIG_DIR when plugin install fails', async () => {
+    const { applyProviderRuntimeEnv } = await import('../../main/services/ptyManager');
+    process.env.OPENCODE_CONFIG_DIR = '/tmp/user-opencode-config';
+    fsMkdirSyncMock.mockImplementation((target: string) => {
+      if (target === '/tmp/user-opencode-config/plugins') {
+        throw new Error('EACCES');
+      }
+      return undefined;
+    });
 
     const env: Record<string, string> = {};
     applyProviderRuntimeEnv(env, {

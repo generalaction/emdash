@@ -361,12 +361,11 @@ async function writeRemoteHookConfig(
   ]);
 }
 
-async function writeRemoteOpenCodePlugin(
+async function writeRemoteOpenCodePluginToDir(
   sshArgs: string[],
   sshTarget: string,
-  ptyId: string
-): Promise<string> {
-  const configDir = OpenCodeHookService.getRemoteConfigDir(ptyId);
+  configDir: string
+): Promise<void> {
   const pluginsDir = `${configDir}/plugins`;
   const pluginPath = `${pluginsDir}/${OPEN_CODE_PLUGIN_FILE}`;
   const pluginSource = OpenCodeHookService.getPluginSource();
@@ -376,8 +375,6 @@ async function writeRemoteOpenCodePlugin(
     sshTarget,
     `mkdir -p "${pluginsDir}" && printf '%s\\n' ${quoteShellArg(pluginSource)} > "${pluginPath}"`,
   ]);
-
-  return configDir;
 }
 
 /**
@@ -1211,14 +1208,35 @@ export function registerPtyIpc(): void {
 
           const preProviderCommands: string[] = [];
           if (providerId === 'opencode') {
+            const explicitConfigDir = mergedEnv?.OPENCODE_CONFIG_DIR?.trim();
             try {
-              const remoteConfigDir = await writeRemoteOpenCodePlugin(ssh.args, ssh.target, id);
-              preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${remoteConfigDir}"`);
-            } catch (err: any) {
-              log.warn('ptyIpc:startDirect failed to write remote OpenCode plugin', {
-                id,
-                error: err?.message || String(err),
-              });
+              if (explicitConfigDir) {
+                await writeRemoteOpenCodePluginToDir(ssh.args, ssh.target, explicitConfigDir);
+                preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${explicitConfigDir}"`);
+              } else {
+                const remoteConfigDir = OpenCodeHookService.getRemoteConfigDir(id);
+                await writeRemoteOpenCodePluginToDir(ssh.args, ssh.target, remoteConfigDir);
+                preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${remoteConfigDir}"`);
+              }
+            } catch (installErr: any) {
+              if (explicitConfigDir) {
+                try {
+                  const remoteConfigDir = OpenCodeHookService.getRemoteConfigDir(id);
+                  await writeRemoteOpenCodePluginToDir(ssh.args, ssh.target, remoteConfigDir);
+                  preProviderCommands.push(`export OPENCODE_CONFIG_DIR="${remoteConfigDir}"`);
+                } catch (fallbackErr: any) {
+                  log.warn('ptyIpc:startDirect failed to write remote OpenCode plugin', {
+                    id,
+                    error: fallbackErr?.message || String(fallbackErr),
+                    installError: installErr?.message || String(installErr),
+                  });
+                }
+              } else {
+                log.warn('ptyIpc:startDirect failed to write remote OpenCode plugin', {
+                  id,
+                  error: installErr?.message || String(installErr),
+                });
+              }
             }
           }
 

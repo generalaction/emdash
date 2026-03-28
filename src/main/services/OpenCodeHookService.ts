@@ -99,21 +99,38 @@ export class OpenCodeHookService {
     ].join('\n');
   }
 
-  static writeLocalPlugin(ptyId: string): string {
-    const configDir = OpenCodeHookService.getLocalConfigDir(ptyId);
+  static writePlugin(configDir: string): boolean {
     const pluginsDir = path.join(configDir, 'plugins');
     const pluginPath = path.join(pluginsDir, OPEN_CODE_PLUGIN_FILE);
 
     try {
       fs.mkdirSync(pluginsDir, { recursive: true });
       fs.writeFileSync(pluginPath, OpenCodeHookService.getPluginSource());
+      return true;
     } catch (err) {
-      log.warn('OpenCodeHookService: failed to write local plugin', {
+      log.warn('OpenCodeHookService: failed to write plugin', {
         path: pluginPath,
         error: String(err),
       });
+      return false;
+    }
+  }
+
+  static writeLocalPlugin(ptyId: string): string {
+    const configDir = OpenCodeHookService.getLocalConfigDir(ptyId);
+    OpenCodeHookService.writePlugin(configDir);
+    return configDir;
+  }
+
+  static applyLocalRuntimeEnv(env: Record<string, string>, ptyId: string): void {
+    const explicitConfigDir =
+      env.OPENCODE_CONFIG_DIR?.trim() || process.env.OPENCODE_CONFIG_DIR?.trim();
+
+    if (explicitConfigDir && OpenCodeHookService.writePlugin(explicitConfigDir)) {
+      env.OPENCODE_CONFIG_DIR = explicitConfigDir;
+      return;
     }
 
-    return configDir;
+    env.OPENCODE_CONFIG_DIR = OpenCodeHookService.writeLocalPlugin(ptyId);
   }
 }
