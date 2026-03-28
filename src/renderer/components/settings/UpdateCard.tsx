@@ -4,6 +4,7 @@ import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../../core/ipc';
+import { SettingRow } from './SettingRow';
 
 export function UpdateCard(): JSX.Element {
   const updater = useUpdater();
@@ -31,20 +32,24 @@ export function UpdateCard(): JSX.Element {
     updater.install();
   };
 
+  const versionTitle = (
+    <div className="flex items-center gap-2">
+      Version
+      {appVersion && (
+        <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
+          v{appVersion}
+        </Badge>
+      )}
+    </div>
+  );
+
   // In dev, show simple informational message
   if (isDev) {
     return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-1 flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-foreground">Version</p>
-            {appVersion && (
-              <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
-                v{appVersion}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
+      <SettingRow
+        title={versionTitle}
+        description={
+          <>
             Auto-updates are enabled in production builds.{' '}
             <button
               type="button"
@@ -53,56 +58,51 @@ export function UpdateCard(): JSX.Element {
             >
               View changelog ↗
             </button>
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={handleCheckNow}
-          disabled
-          aria-label="Check for updates (disabled in development)"
-        >
-          <RefreshCw className="h-3 w-3" />
-        </Button>
-      </div>
+          </>
+        }
+        control={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleCheckNow}
+            disabled
+            aria-label="Check for updates (disabled in development)"
+          >
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+        }
+      />
     );
   }
 
   return (
     <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-1 flex-col gap-0.5">
+      <SettingRow
+        title={versionTitle}
+        description={renderStatusMessage()}
+        control={
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-foreground">Version</p>
-            {appVersion && (
-              <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
-                v{appVersion}
-              </Badge>
+            {updater.state.status !== 'downloaded' && updater.state.status !== 'installing' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleCheckNow}
+                disabled={updater.state.status === 'checking'}
+                aria-label="Check for updates"
+              >
+                <RefreshCw
+                  className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
+                />
+              </Button>
             )}
+            {renderAction()}
           </div>
-          {renderStatusMessage()}
-        </div>
-        <div className="flex items-center gap-2">
-          {updater.state.status !== 'downloaded' && updater.state.status !== 'installing' && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleCheckNow}
-              disabled={updater.state.status === 'checking'}
-              aria-label="Check for updates"
-            >
-              <RefreshCw
-                className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
-              />
-            </Button>
-          )}
-          {renderAction()}
-        </div>
-      </div>
+        }
+      />
 
       {updater.state.status === 'downloading' && updater.state.progress && (
         <div className="space-y-2">

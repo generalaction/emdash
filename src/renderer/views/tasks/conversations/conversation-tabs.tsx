@@ -1,7 +1,10 @@
+import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import AgentLogo from '@renderer/components/agent-logo';
 import { Button } from '@renderer/components/ui/button';
+import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { TabBar } from '@renderer/components/ui/tab-bar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { ConversationStore } from '@renderer/core/stores/conversation-manager';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
@@ -45,16 +48,24 @@ export const ConversationsTabs = observer(function ConversationsTabs({
             alt={config.alt}
             isSvg={config.isSvg}
             invertInDark={config.invertInDark}
-            className="h-3 w-3"
+            className="size-4"
           />
         );
       }}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}
       onReorder={(from, to) => conversationMgr.reorderTabs(from, to)}
       addButton={
-        <Button variant="outline" size="xs" className="h-7 px-2.5 shrink-0">
-          Create
-        </Button>
+        <Tooltip>
+          <TooltipTrigger>
+            <button className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground">
+              <Plus className="size-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Create conversation
+            <ShortcutHint settingsKey="newConversation" />
+          </TooltipContent>
+        </Tooltip>
       }
     />
   );

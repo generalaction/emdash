@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ReorderList } from '@renderer/components/reorder-list';
 import { Button } from '@renderer/components/ui/button';
 import { cn } from '@renderer/lib/utils';
+import { Separator } from './separator';
 
 function InlineEditInput({
   initialValue,
@@ -25,7 +26,7 @@ function InlineEditInput({
   return (
     <input
       ref={ref}
-      className="max-w-16 bg-transparent outline-none text-xs"
+      className="max-w-16 bg-transparent outline-none text-sm border border-border p-1 rounded-md"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}
@@ -75,45 +76,49 @@ export const TabBar = observer(function TabBar<TEntity>({
     const isEditing = editingId === id;
 
     return (
-      <button
-        key={id}
-        onClick={() => onSelect(id)}
-        onDoubleClick={() => onRename && setEditingId(id)}
-        className={cn(
-          'group relative flex items-center gap-1.5 rounded-md border border-border h-7 px-2.5 text-xs hover:bg-muted',
-          isActive && 'bg-muted'
-        )}
-      >
-        {renderTabPrefix?.(entity)}
-        {isEditing ? (
-          <InlineEditInput
-            initialValue={label}
-            onConfirm={(newLabel) => {
-              setEditingId(null);
-              const trimmed = newLabel.trim();
-              if (trimmed && trimmed !== label) {
-                onRename?.(id, trimmed);
-              }
-            }}
-            onCancel={() => setEditingId(null)}
-          />
-        ) : (
-          <span className="max-w-24 truncate">{label}</span>
-        )}
-        {!isEditing && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="absolute right-0 bg-muted opacity-0 group-hover:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(id);
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </button>
+      <>
+        <button
+          key={id}
+          onClick={() => onSelect(id)}
+          onDoubleClick={() => onRename && setEditingId(id)}
+          className={cn(
+            'group relative bg-background-1 flex flex-col h-full text-sm hover:bg-muted',
+            isActive && 'bg-background opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+          )}
+        >
+          <div className="flex items-center pl-3 pr-1 h-full">
+            <span className="flex items-center gap-1">
+              {renderTabPrefix?.(entity)}
+              {isEditing ? (
+                <InlineEditInput
+                  initialValue={label}
+                  onConfirm={(newLabel) => {
+                    setEditingId(null);
+                    const trimmed = newLabel.trim();
+                    if (trimmed && trimmed !== label) {
+                      onRename?.(id, trimmed);
+                    }
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <span className="max-w-24 truncate p-1">{label}</span>
+              )}
+            </span>
+            <button
+              disabled={isEditing}
+              className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(id);
+              }}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </button>
+        <Separator orientation="vertical" />
+      </>
     );
   };
 
@@ -128,20 +133,22 @@ export const TabBar = observer(function TabBar<TEntity>({
   };
 
   return (
-    <div className="flex items-center justify-between gap-2 p-2">
+    <div className="flex items-center justify-between h-[41px] border-b border-border bg-background-1">
       {onReorder ? (
         <ReorderList
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex gap-1 overflow-x-auto w-full"
-          itemClassName="list-none"
+          className="flex overflow-x-auto w-full h-full"
+          itemClassName="list-none flex h-full"
           getKey={(item) => getId(item)}
         >
           {renderTab}
         </ReorderList>
       ) : (
-        <div className="flex gap-1 overflow-x-auto">{tabs.map(renderTab)}</div>
+        <div className="flex overflow-x-auto h-full">
+          {tabs.map((entity, index) => renderTab(entity, index))}
+        </div>
       )}
       {addButton ? (
         <div onClick={onAdd} className="shrink-0">

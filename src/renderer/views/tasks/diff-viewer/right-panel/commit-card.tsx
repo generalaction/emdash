@@ -18,16 +18,16 @@ export function CommitCard({ onCommit }: CommitCardProps) {
   };
 
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border  p-2.5">
+    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border bg-background-1  p-2">
       <Input
         placeholder="Commit message"
-        className="w-full"
+        className="w-full bg-background"
         value={commitMessage}
         onChange={(e) => setCommitMessage(e.target.value)}
       />
       <Textarea
         placeholder="Description"
-        className="w-full"
+        className="w-full bg-background"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />

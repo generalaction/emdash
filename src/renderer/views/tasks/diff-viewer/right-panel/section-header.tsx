@@ -25,12 +25,12 @@ export function SectionHeader({
   onToggleCollapsed,
 }: SectionHeaderProps) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
+    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
       <div className="flex items-center gap-2 justify-between w-full">
         <button onClick={onToggleCollapsed}>
-          <span className="text-sm text-muted-foreground flex items-center gap-2">
+          <span className="text-sm text-foreground-muted flex items-center gap-2">
             <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
-            <span className="p-2 text-muted-foreground hover:text-foreground">
+            <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
                 className={cn(
                   'size-4 transition-transform duration-200 ease-in-out',
@@ -65,15 +65,15 @@ export function PullRequestSectionHeader({
   onCreatePr?: () => void;
 }) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 py-2 ">
+    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
       <div className="flex items-center gap-2 justify-between w-full min-w-0">
         <button onClick={onToggleCollapsed} className="min-w-0">
-          <span className="text-sm text-muted-foreground flex items-center gap-2 min-w-0">
+          <span className="text-sm text-foreground-muted flex items-center gap-2 min-w-0">
             <span className="truncate">Pull Requests</span>{' '}
             <Badge variant="secondary" className="shrink-0">
               {count}
             </Badge>
-            <span className="p-2 text-muted-foreground hover:text-foreground">
+            <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
                 className={cn(
                   'size-4 transition-transform duration-200 ease-in-out',

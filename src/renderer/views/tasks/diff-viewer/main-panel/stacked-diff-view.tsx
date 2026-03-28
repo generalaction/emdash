@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GitChange } from '@shared/git';
+import { EmptyState } from '@renderer/components/ui/empty-state';
+import { FileIcon } from '@renderer/core/editor/file-icon';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
@@ -10,6 +12,7 @@ import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
+import { cn } from '@renderer/lib/utils';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
@@ -92,7 +95,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
       },
       [files]
     ),
-    gap: 4,
+    gap: 8,
     overscan: 8,
     onChange: (instance) => {
       const {
@@ -242,18 +245,16 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
 
   if (files.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No {diffType === 'staged' ? 'staged changes' : 'changes'}
-      </div>
+      <EmptyState label="No changes" description="Select or make changes to files to see diffs." />
     );
   }
 
   if (files.length > MAX_STACKED_FILES) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <span>Too many changed files ({files.length}).</span>
-        <span className="text-xs">Select individual files from the sidebar to view diffs.</span>
-      </div>
+      <EmptyState
+        label="Too many changed files"
+        description="Select individual file view mode from the top toolbar to view diffs."
+      />
     );
   }
 
@@ -348,19 +349,27 @@ const StackedFileSection = observer(function StackedFileSection({
     contentHeight != null ? Math.max(contentHeight, MIN_EDITOR_HEIGHT) : MIN_EDITOR_HEIGHT;
 
   return (
-    <div className="border-border border rounded-lg">
-      <div className="flex w-full items-center gap-1.5 px-3 py-2 text-sm hover:bg-muted/50">
+    <div className="border-border border rounded-lg overflow-hidden">
+      <div
+        className={cn(
+          'flex w-full items-center gap-1.5 px-3 py-2 text-sm hover:bg-background-1',
+          expanded && 'border-b border-border'
+        )}
+      >
         <button
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-foreground-muted"
           onClick={() => setExpanded((prev) => !prev)}
         >
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
           )}
-          <span className="font-medium text-foreground">{fileName}</span>
-          {dirPath && <span className="truncate text-muted-foreground">{dirPath}</span>}
+          <span className="flex items-center gap-1.5">
+            <FileIcon filename={fileName} size={12} />
+            <span className="text-foreground">{fileName}</span>
+          </span>
+          {dirPath && <span className="truncate text-foreground-muted text-xs">{dirPath}</span>}
         </button>
         <span className="shrink-0 text-xs">
           <span className="text-green-500">+{file.additions}</span>{' '}
@@ -371,18 +380,18 @@ const StackedFileSection = observer(function StackedFileSection({
       {expanded && (
         <div style={{ height: isBinary || (isLarge && !forceLoad) ? 80 : editorHeight }}>
           {isBinary ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-foreground-passive">
               Binary file
             </div>
           ) : isLoading ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-xs text-foreground-passive">
               Loading…
             </div>
           ) : isLarge && !forceLoad ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-foreground-passive">
               <span>Large diff ({totalDiffLines} lines). Loading may be slow.</span>
               <button
-                className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-muted"
+                className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-background-1"
                 onClick={() => setForceLoad(true)}
               >
                 Load anyway

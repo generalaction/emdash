@@ -3,7 +3,7 @@ import { usePanelRef } from 'react-resizable-panels';
 import type { ChangesViewStore, ExpandedSections } from '@renderer/core/stores/changes-view-store';
 
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px
-export const SECTION_HEADER_HEIGHT = '3rem';
+export const SECTION_HEADER_HEIGHT = '40px';
 
 type usePanelLayoutReturn = {
   expanded: ExpandedSections;

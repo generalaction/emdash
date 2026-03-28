@@ -38,7 +38,15 @@ export function useSettingsTab() {
 }
 
 export function SettingsTitlebar() {
-  return <Titlebar />;
+  return (
+    <Titlebar
+      leftSlot={
+        <div className="flex items-center px-2">
+          <span className="text-sm text-foreground-muted">Settings</span>
+        </div>
+      }
+    />
+  );
 }
 
 export function SettingsMainPanel() {

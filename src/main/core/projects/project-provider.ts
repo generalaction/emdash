@@ -31,6 +31,7 @@ export interface TaskProvider {
   readonly git: GitProvider;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
+  readonly settings: ProjectSettingsProvider;
 }
 
 export interface ProjectProvider {

@@ -70,8 +70,8 @@ const FileTreeRow = observer(function FileTreeRow({
     <div
       style={{ ...style, paddingLeft }}
       className={cn(
-        'flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 hover:bg-muted/50',
-        isSelected && 'bg-muted',
+        'flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 hover:bg-background-1',
+        isSelected && 'bg-background-2 hover:bg-background-2',
         node.isHidden && 'opacity-60'
       )}
       tabIndex={0}

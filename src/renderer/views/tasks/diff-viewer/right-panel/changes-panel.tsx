@@ -98,10 +98,6 @@ export const ChangesPanel = observer(function ChangesPanel() {
   );
 });
 
-// ---------------------------------------------------------------------------
-// Pull requests section
-// ---------------------------------------------------------------------------
-
 function PullRequestsSection({
   collapsed,
   onToggleCollapsed,

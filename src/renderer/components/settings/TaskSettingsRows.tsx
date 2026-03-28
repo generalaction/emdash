@@ -5,6 +5,7 @@ import { agentMeta } from '../../providers/meta';
 import { Switch } from '../ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
+import { SettingRow } from './SettingRow';
 
 const SUPPORTED_AUTO_APPROVE_AGENTS = Object.values(agentMeta)
   .filter((meta) => Boolean(meta.autoApproveFlag))
@@ -12,32 +13,51 @@ const SUPPORTED_AUTO_APPROVE_AGENTS = Object.values(agentMeta)
   .sort((a, b) => a.localeCompare(b))
   .join(', ');
 
+function InfoTooltip({ label, content }: { label: string; content: React.ReactNode }) {
+  return (
+    <TooltipProvider delay={150}>
+      <Tooltip>
+        <TooltipTrigger>
+          <button
+            type="button"
+            className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            aria-label={label}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export const AutoGenerateTaskNamesRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-1 flex-col gap-0.5">
-        <p className="text-sm font-medium text-foreground">Auto-generate task names</p>
-        <p className="text-sm text-muted-foreground">
-          Automatically suggests a task name when creating a new task.
-        </p>
-      </div>
-      <div className="flex items-center gap-1">
-        {taskSettings.isFieldOverridden('autoGenerateName') && (
-          <ResetToDefaultButton
-            defaultLabel="on"
-            onReset={taskSettings.resetAutoGenerateName}
+    <SettingRow
+      title="Auto-generate task names"
+      description="Automatically suggests a task name when creating a new task."
+      control={
+        <>
+          {taskSettings.isFieldOverridden('autoGenerateName') && (
+            <ResetToDefaultButton
+              defaultLabel="on"
+              onReset={taskSettings.resetAutoGenerateName}
+              disabled={taskSettings.loading || taskSettings.saving}
+            />
+          )}
+          <Switch
+            checked={taskSettings.autoGenerateName}
             disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoGenerateName}
           />
-        )}
-        <Switch
-          checked={taskSettings.autoGenerateName}
-          disabled={taskSettings.loading || taskSettings.saving}
-          onCheckedChange={taskSettings.updateAutoGenerateName}
-        />
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 };
 
@@ -45,46 +65,34 @@ export const AutoApproveByDefaultRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-1 flex-col gap-0.5">
+    <SettingRow
+      title={
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium text-foreground">Auto-approve by default</p>
-          <TooltipProvider delay={150}>
-            <Tooltip>
-              <TooltipTrigger>
-                <button
-                  type="button"
-                  className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
-                  aria-label="Show supported agents for auto-approve"
-                >
-                  <Info className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-xs">
-                Supported by: {SUPPORTED_AUTO_APPROVE_AGENTS}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Skips permission prompts for file operations in new tasks.
-        </p>
-      </div>
-      <div className="flex items-center gap-1">
-        {taskSettings.isFieldOverridden('autoApproveByDefault') && (
-          <ResetToDefaultButton
-            defaultLabel="off"
-            onReset={taskSettings.resetAutoApproveByDefault}
-            disabled={taskSettings.loading || taskSettings.saving}
+          Auto-approve by default
+          <InfoTooltip
+            label="Show supported agents for auto-approve"
+            content={`Supported by: ${SUPPORTED_AUTO_APPROVE_AGENTS}`}
           />
-        )}
-        <Switch
-          checked={taskSettings.autoApproveByDefault}
-          disabled={taskSettings.loading || taskSettings.saving}
-          onCheckedChange={taskSettings.updateAutoApproveByDefault}
-        />
-      </div>
-    </div>
+        </div>
+      }
+      description="Skips permission prompts for file operations in new tasks."
+      control={
+        <>
+          {taskSettings.isFieldOverridden('autoApproveByDefault') && (
+            <ResetToDefaultButton
+              defaultLabel="off"
+              onReset={taskSettings.resetAutoApproveByDefault}
+              disabled={taskSettings.loading || taskSettings.saving}
+            />
+          )}
+          <Switch
+            checked={taskSettings.autoApproveByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoApproveByDefault}
+          />
+        </>
+      }
+    />
   );
 };
 
@@ -92,46 +100,33 @@ export const AutoTrustWorktreesRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-1 flex-col gap-0.5">
+    <SettingRow
+      title={
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium text-foreground">Auto-trust worktree directories</p>
-          <TooltipProvider delay={150}>
-            <Tooltip>
-              <TooltipTrigger>
-                <button
-                  type="button"
-                  className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
-                  aria-label="More info about auto-trust worktrees"
-                >
-                  <Info className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-xs">
-                Only applies to Claude Code. Writes trust entries to ~/.claude.json before
-                launching.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Skip the folder trust prompt in Claude Code for new tasks.
-        </p>
-      </div>
-      <div className="flex items-center gap-1">
-        {taskSettings.isFieldOverridden('autoTrustWorktrees') && (
-          <ResetToDefaultButton
-            defaultLabel="on"
-            onReset={taskSettings.resetAutoTrustWorktrees}
-            disabled={taskSettings.loading || taskSettings.saving}
+          Auto-trust worktree directories
+          <InfoTooltip
+            label="More info about auto-trust worktrees"
+            content="Only applies to Claude Code. Writes trust entries to ~/.claude.json before launching."
           />
-        )}
-        <Switch
-          checked={taskSettings.autoTrustWorktrees}
-          disabled={taskSettings.loading || taskSettings.saving}
-          onCheckedChange={taskSettings.updateAutoTrustWorktrees}
-        />
-      </div>
-    </div>
+        </div>
+      }
+      description="Skip the folder trust prompt in Claude Code for new tasks."
+      control={
+        <>
+          {taskSettings.isFieldOverridden('autoTrustWorktrees') && (
+            <ResetToDefaultButton
+              defaultLabel="on"
+              onReset={taskSettings.resetAutoTrustWorktrees}
+              disabled={taskSettings.loading || taskSettings.saving}
+            />
+          )}
+          <Switch
+            checked={taskSettings.autoTrustWorktrees}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoTrustWorktrees}
+          />
+        </>
+      }
+    />
   );
 };

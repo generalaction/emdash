@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { EmptyState } from '@renderer/components/ui/empty-state';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
@@ -26,9 +27,10 @@ export const FileDiffView = observer(function FileDiffView() {
 
   if (!activeFile) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Select a file to view changes
-      </div>
+      <EmptyState
+        label="Select a file to view changes"
+        description="Select a file to view changes"
+      />
     );
   }
 

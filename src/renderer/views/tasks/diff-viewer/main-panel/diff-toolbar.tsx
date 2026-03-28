@@ -1,5 +1,7 @@
 import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Badge } from '@renderer/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { FileIcon } from '@renderer/core/editor/file-icon';
 import type { ActiveFile } from '@renderer/core/stores/diff-view-store';
 import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
@@ -21,57 +23,64 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
   filePath,
   onDiffStyleChange,
 }) => {
-  const activeClass = 'bg-accent text-foreground';
-  const inactiveClass = 'text-muted-foreground hover:text-foreground hover:bg-muted';
-
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
+
+  const diffSourceLabel = useMemo(() => {
+    if (diffSource === 'staged') return 'Staged';
+    if (diffSource === 'disk') return 'Changed';
+    if (diffSource === 'git') return 'Git';
+    return undefined;
+  }, [diffSource]);
+
   return (
-    <div className="flex h-9 items-center gap-2 border-b border-border px-3 justify-between">
+    <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between">
       <div className="flex items-center gap-3">
-        <div className="text-sm text-muted-foreground">{diffSource}</div>
         {viewMode === 'file' && filePath && (
           <div className="text-sm flex items-center gap-2">
             <span className="flex items-center gap-1">
               <FileIcon filename={filename} size={12} />
               {filename}
             </span>
-            <span className="text-muted-foreground">{directory}</span>
+            <span className="text-foreground-muted text-xs">{directory}</span>
           </div>
         )}
+        {diffSourceLabel && <Badge variant="outline">{diffSourceLabel}</Badge>}
       </div>
       <div className="flex items-center gap-2">
-        <div className="flex items-center rounded-md border border-border">
-          <button
-            className={`flex items-center rounded-l-md px-2 py-1 ${viewMode === 'stacked' ? activeClass : inactiveClass}`}
-            onClick={() => onViewModeChange('stacked')}
-            title="Stacked view"
-          >
+        <ToggleGroup
+          size="sm"
+          multiple={false}
+          value={[viewMode]}
+          onValueChange={([value]) => {
+            if (value) {
+              onViewModeChange(value as 'stacked' | 'file');
+            }
+          }}
+        >
+          <ToggleGroupItem value="stacked">
             <Layers className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className={`flex items-center rounded-r-md px-2 py-1 ${viewMode === 'file' ? activeClass : inactiveClass}`}
-            onClick={() => onViewModeChange('file')}
-            title="File view"
-          >
+          </ToggleGroupItem>
+          <ToggleGroupItem value="file">
             <FileText className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="flex items-center rounded-md border border-border">
-          <button
-            className={`flex items-center rounded-l-md px-2 py-1 ${diffStyle === 'unified' ? activeClass : inactiveClass}`}
-            onClick={() => onDiffStyleChange('unified')}
-            title="Unified view"
-          >
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <ToggleGroup
+          size="sm"
+          multiple={false}
+          value={[diffStyle]}
+          onValueChange={([value]) => {
+            if (value) {
+              onDiffStyleChange(value as 'unified' | 'split');
+            }
+          }}
+        >
+          <ToggleGroupItem value="unified">
             <AlignJustify className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className={`flex items-center rounded-r-md px-2 py-1 ${diffStyle === 'split' ? activeClass : inactiveClass}`}
-            onClick={() => onDiffStyleChange('split')}
-            title="Split view"
-          >
+          </ToggleGroupItem>
+          <ToggleGroupItem value="split">
             <Columns2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
     </div>
   );

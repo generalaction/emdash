@@ -1,6 +1,8 @@
-import { Terminal } from 'lucide-react';
+import { Plus, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { TabBar } from '@renderer/components/ui/tab-bar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
 import { TerminalManagerStore, TerminalStore } from '@renderer/core/stores/terminal-manager';
@@ -60,6 +62,19 @@ export const TerminalsTabs = observer(function TerminalsTabs({
           console.error('Failed to create terminal:', error);
         }
       }}
+      addButton={
+        <Tooltip>
+          <TooltipTrigger>
+            <button className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground">
+              <Plus className="size-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Create terminal
+            <ShortcutHint settingsKey="newConversation" />
+          </TooltipContent>
+        </Tooltip>
+      }
       renderTabPrefix={() => <Terminal className="size-3" />}
       onRename={(id, name) => void terminalMgr.renameTerminal(id, name)}
       onReorder={(from, to) => terminalMgr.reorderTabs(from, to)}

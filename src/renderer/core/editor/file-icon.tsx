@@ -89,5 +89,5 @@ export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
     );
   }
 
-  return <File className={className ?? 'size-4 text-muted-foreground'} />;
+  return <File className={className ?? 'size-3.5 text-foreground-passive shrink-0'} />;
 }
