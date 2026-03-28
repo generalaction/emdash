@@ -88,10 +88,13 @@ export function buildTmuxParams(
 }
 
 /**
- * Build a single shell command string for use with `sshClient.exec()`.
- * Combines the binary + args and ensures the cwd is honoured remotely.
+ * Build a single command string for SSH remote execution.
  */
-export function buildSshCommandString(command: string, args: string[], cwd: string): string {
-  const invocation = [command, ...args].join(' ');
-  return `cd ${JSON.stringify(cwd)} && ${invocation}`;
+export function resolveSshCommand(type: SessionType, config: SessionConfig): string {
+  const { command, args, cwd } = resolveSpawnParams(type, config);
+  const shell = process.env.SHELL ?? '/bin/sh';
+
+  const innerCmd = command === shell && args[0] === '-c' ? args[1] : [command, ...args].join(' ');
+
+  return `cd ${JSON.stringify(cwd)} && ${innerCmd}`;
 }

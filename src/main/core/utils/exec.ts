@@ -78,3 +78,23 @@ export function getSshExec(proxy: SshClientProxy): ExecFn {
     });
   };
 }
+
+export function getGitSshExec(
+  proxy: SshClientProxy,
+  getToken: () => Promise<string | null>
+): ExecFn {
+  const baseExec = getSshExec(proxy);
+  return async (command, args = [], options = {}) => {
+    if (command === 'git') {
+      const token = Buffer.from(`x-access-token:${await getToken()}`).toString('base64');
+      if (token) {
+        args = [
+          '-c',
+          `http.https://github.com/.extraHeader=Authorization: Basic ${token}`,
+          ...args,
+        ];
+      }
+    }
+    return baseExec(command, args, options);
+  };
+}

@@ -1,6 +1,7 @@
 import { createRPCController } from '@shared/ipc/rpc';
 import { log } from '@main/lib/logger';
 import { err, ok } from '@main/lib/result';
+import type { SshProjectProvider } from '../projects/impl/ssh-project-provider';
 import { projectManager } from '../projects/project-manager';
 import { ptySessionRegistry } from './pty-session-registry';
 
@@ -73,7 +74,10 @@ export const ptyController = createRPCController({
         return err({ type: 'not_ssh' as const });
       }
 
-      const remotePaths = await provider.uploadFiles(taskId, args.localPaths);
+      const remotePaths = await (provider as SshProjectProvider).uploadFiles(
+        taskId,
+        args.localPaths
+      );
       return ok({ remotePaths });
     } catch (e: unknown) {
       log.error('pty:uploadFiles failed', {

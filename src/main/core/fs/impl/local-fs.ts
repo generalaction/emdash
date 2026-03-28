@@ -2,6 +2,7 @@ import { createReadStream, promises as fs, statSync, type Stats } from 'node:fs'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import parcelWatcher from '@parcel/watcher';
+import { glob } from 'glob';
 import ignore from 'ignore';
 import type { FileWatchEvent } from '@shared/fs';
 import {
@@ -551,7 +552,10 @@ export class LocalFileSystem implements FileSystemProvider {
     };
   }
 
-  async remove(path: string): Promise<{ success: boolean; error?: string }> {
+  async remove(
+    path: string,
+    options?: { recursive?: boolean }
+  ): Promise<{ success: boolean; error?: string }> {
     const fullPath = this.resolvePath(path);
 
     let stat;
@@ -562,7 +566,15 @@ export class LocalFileSystem implements FileSystemProvider {
     }
 
     if (stat.isDirectory()) {
-      return { success: false, error: `Path is a directory: ${path}` };
+      if (!options?.recursive) {
+        return { success: false, error: `Path is a directory: ${path}` };
+      }
+      try {
+        await fs.rm(fullPath, { recursive: true, force: true });
+        return { success: true };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     try {
@@ -736,6 +748,19 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
     await fs.mkdir(this.resolvePath(dirPath), { recursive: options?.recursive ?? false });
+  }
+
+  async realPath(path: string): Promise<string> {
+    return fs.realpath(this.resolvePath(path));
+  }
+
+  async glob(pattern: string, options?: { cwd?: string; dot?: boolean }): Promise<string[]> {
+    const cwd = options?.cwd ? this.resolvePath(options.cwd) : this.projectPath;
+    return glob(pattern, { cwd, dot: options?.dot ?? false, absolute: false });
+  }
+
+  async copyFile(src: string, dest: string): Promise<void> {
+    await fs.copyFile(this.resolvePath(src), this.resolvePath(dest));
   }
 
   watch(

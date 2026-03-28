@@ -1,74 +1,100 @@
+import type { GeneralSessionConfig } from '@shared/general-session';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { Terminal } from '@shared/terminals';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { buildSshCommandString, resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  CreateSessionError,
-  TerminalProvider,
-  TerminalSpawnOptions,
-} from '@main/core/terminals/terminal-provider';
+import { TerminalProvider } from '@main/core/terminals/terminal-provider';
+import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { ok, Result } from '@main/lib/result';
-import type { GeneralSessionConfig } from './general-session';
+
+const DEFAULT_COLS = 80;
+const DEFAULT_ROWS = 24;
 
 export class SshTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
-  /** Terminals explicitly killed by the user — suppresses auto-respawn. */
-  private deletedTerminals = new Set<string>();
-  /** Stored spawn options per terminal ID — used for rehydration on reconnect. */
-  private terminalOpts = new Map<string, TerminalSpawnOptions>();
+  private terminals = new Map<string, Terminal>();
+  private readonly projectId: string;
+  private readonly taskId: string;
+  private readonly taskPath: string;
+  private readonly tmux: boolean;
+  private readonly shellSetup?: string;
+  private readonly exec: ExecFn;
+  private readonly proxy: SshClientProxy;
 
-  constructor(
-    private readonly projectId: string,
-    private readonly taskId: string,
-    private readonly proxy: SshClientProxy
-  ) {}
+  constructor({
+    projectId,
+    taskId,
+    taskPath,
+    tmux = false,
+    shellSetup,
+    exec,
+    proxy,
+  }: {
+    projectId: string;
+    taskId: string;
+    taskPath: string;
+    tmux?: boolean;
+    shellSetup?: string;
+    exec: ExecFn;
+    proxy: SshClientProxy;
+  }) {
+    this.projectId = projectId;
+    this.taskId = taskId;
+    this.taskPath = taskPath;
+    this.tmux = tmux;
+    this.shellSetup = shellSetup;
+    this.exec = exec;
+    this.proxy = proxy;
+  }
 
-  async spawnTerminal(opts: TerminalSpawnOptions): Promise<Result<void, CreateSessionError>> {
-    const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
-
-    // Store opts for rehydration on reconnect.
-    this.terminalOpts.set(opts.terminalId, opts);
+  async spawnTerminal(
+    terminal: Terminal,
+    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    command?: { command: string; args: string[] }
+  ): Promise<void> {
+    this.terminals.set(terminal.id, terminal);
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
 
     const cfg: GeneralSessionConfig = {
-      taskId: opts.taskId,
-      cwd: opts.cwd,
-      shellSetup: opts.shellSetup,
+      taskId: this.taskId,
+      cwd: this.taskPath,
+      shellSetup: this.shellSetup,
+      tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      command: command?.command,
+      args: command?.args,
     };
 
-    const { command, args, cwd } = resolveSpawnParams('general', cfg);
-    const sshCommand = buildSshCommandString(command, args, cwd);
+    const sshCommand = resolveSshCommand('general', cfg);
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
       command: sshCommand,
-      cols: 80,
-      rows: 24,
+      cols: initialSize.cols,
+      rows: initialSize.rows,
     });
 
     if (!result.success) {
-      log.error('SshTerminalProvider: failed to spawn terminal PTY', {
-        terminalId: opts.terminalId,
-        error: result.error,
+      log.error('SshTerminalProvider: failed to open SSH channel', {
+        sessionId,
+        error: result.error.message,
       });
-      return result;
+      return;
     }
-
     const pty = result.data;
 
     pty.onExit(() => {
-      this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
-      if (!this.deletedTerminals.has(opts.terminalId)) {
-        // Skip auto-respawn if the connection is currently down — the
-        // EnvironmentProviderManager will trigger rehydrate() on reconnect.
-        if (!this.proxy.isConnected) return;
+      const shouldRespawn = this.sessions.has(sessionId);
+      this.sessions.delete(sessionId);
+      if (shouldRespawn && !this.tmux) {
         setTimeout(() => {
-          this.spawnTerminal(opts).catch((e) => {
+          this.spawnTerminal(terminal).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
-              terminalId: opts.terminalId,
+              terminalId: terminal.id,
               error: String(e),
             });
           });
@@ -78,7 +104,6 @@ export class SshTerminalProvider implements TerminalProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    return ok();
   }
 
   /**
@@ -87,21 +112,22 @@ export class SshTerminalProvider implements TerminalProvider {
    * already running.
    */
   async rehydrate(): Promise<void> {
-    for (const [terminalId, opts] of this.terminalOpts) {
-      if (this.deletedTerminals.has(terminalId)) continue;
-      const sessionId = makePtySessionId(opts.projectId, opts.taskId, opts.terminalId);
-      if (this.sessions.has(sessionId)) continue;
-      await this.spawnTerminal(opts).catch((e) => {
-        log.error('SshTerminalProvider: rehydrate failed', {
-          terminalId,
-          error: String(e),
+    const terminals = Array.from(this.terminals.values());
+    await Promise.all(
+      terminals.map(async (terminal) => {
+        const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+        if (this.sessions.has(sessionId)) return;
+        await this.spawnTerminal(terminal).catch((e) => {
+          log.error('SshTerminalProvider: rehydrate failed', {
+            terminalId: terminal.id,
+            error: String(e),
+          });
         });
-      });
-    }
+      })
+    );
   }
 
-  killTerminal(terminalId: string): void {
-    this.deletedTerminals.add(terminalId);
+  async killTerminal(terminalId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
@@ -111,10 +137,24 @@ export class SshTerminalProvider implements TerminalProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
-    setTimeout(() => this.deletedTerminals.delete(terminalId), 10_000);
+    this.terminals.delete(terminalId);
+    if (this.tmux) {
+      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+    }
   }
 
-  destroyAll(): void {
+  async destroyAll(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await this.detachAll();
+    if (this.tmux) {
+      await Promise.all(
+        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
+      );
+    }
+    this.terminals.clear();
+  }
+
+  async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();

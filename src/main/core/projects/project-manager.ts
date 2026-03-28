@@ -1,8 +1,12 @@
 import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
+import { LocalFileSystem } from '../fs/impl/local-fs';
+import { SshFileSystem } from '../fs/impl/ssh-fs';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
+import { sshConnectionManager } from '../ssh/ssh-connection-manager';
 import { createLocalProvider } from './impl/local-project-provider';
+import { createSshProvider } from './impl/ssh-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
@@ -126,9 +130,12 @@ class ProjectManager {
 
 async function createProvider(project: LocalProject | SshProject): Promise<ProjectProvider> {
   if (project.type === 'ssh') {
-    throw new Error('SSH projects are not yet supported');
+    const proxy = await sshConnectionManager.connect(project.connectionId);
+    const rootFs = new SshFileSystem(proxy, '/');
+    return createSshProvider(project, rootFs, proxy);
   }
-  return createLocalProvider(project);
+  const rootFs = new LocalFileSystem('/');
+  return createLocalProvider(project, rootFs);
 }
 
 export const projectManager = new ProjectManager();

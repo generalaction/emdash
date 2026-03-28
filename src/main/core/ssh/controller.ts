@@ -187,6 +187,7 @@ export const sshController = createRPCController({
           return;
         }
         sftp.readdir(remotePath, (readdirErr, list) => {
+          sftp.end();
           if (readdirErr) {
             reject(new Error(`readdir error: ${readdirErr.message}`));
             return;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import { useDependencies } from '@renderer/core/dependencies-provider';
+import { useRemoteInstalledAgents } from '@renderer/hooks/useRemoteInstalledAgents';
 import { cn } from '@renderer/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './agent-logo';
@@ -26,6 +27,7 @@ interface AgentSelectorProps {
   onChange: (agent: AgentProviderId) => void;
   disabled?: boolean;
   className?: string;
+  connectionId?: string;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = ({
@@ -33,8 +35,11 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   onChange,
   disabled = false,
   className = '',
+  connectionId,
 }) => {
-  const { installedAgents } = useDependencies();
+  const { installedAgents: localAgents } = useDependencies();
+  const { data: remoteAgents } = useRemoteInstalledAgents(connectionId);
+  const installedAgents = connectionId ? (remoteAgents ?? []) : localAgents;
   const [open, setOpen] = useState(false);
 
   const options: AgentOption[] = installedAgents

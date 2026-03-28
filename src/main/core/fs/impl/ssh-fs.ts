@@ -22,6 +22,16 @@ import {
   WriteResult,
 } from '../types';
 
+const SFTP_STATUS = {
+  NO_SUCH_FILE: 2,
+  PERMISSION_DENIED: 3,
+  FAILURE: 4,
+} as const;
+
+interface SftpError extends Error {
+  code?: number;
+}
+
 /**
  * Allowed image extensions for readImage
  */
@@ -224,6 +234,13 @@ export class SshFileSystem implements FileSystemProvider {
 
           const fileSize = stats.size;
           const readSize = Math.min(fileSize, maxBytes, MAX_READ_SIZE);
+
+          if (readSize === 0) {
+            sftp.close(handle, () => {});
+            resolve({ content: '', truncated: false, totalSize: fileSize });
+            return;
+          }
+
           const buffer = Buffer.alloc(readSize);
 
           sftp.read(handle, buffer, 0, readSize, 0, (readErr, bytesRead) => {
@@ -271,6 +288,17 @@ export class SshFileSystem implements FileSystemProvider {
         }
 
         const buffer = Buffer.from(content, 'utf-8');
+
+        if (buffer.length === 0) {
+          sftp.close(handle, (closeErr) => {
+            if (closeErr) {
+              reject(this.mapSftpError(closeErr, fullPath));
+              return;
+            }
+            resolve({ success: true, bytesWritten: 0 });
+          });
+          return;
+        }
 
         sftp.write(handle, buffer, 0, buffer.length, 0, (writeErr) => {
           sftp.close(handle, (closeErr) => {
@@ -432,6 +460,37 @@ export class SshFileSystem implements FileSystemProvider {
     }
   }
 
+  async realPath(path: string): Promise<string> {
+    const fullPath = this.resolveRemotePath(path);
+    const result = await this.exec(`realpath ${quoteShellArg(fullPath)}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`realpath failed: ${result.stderr}`);
+    }
+    return result.stdout.trim();
+  }
+
+  async glob(pattern: string, options?: { cwd?: string; dot?: boolean }): Promise<string[]> {
+    const cwd = options?.cwd ? this.resolveRemotePath(options.cwd) : this.remotePath;
+    const dotSetup = options?.dot ? 'shopt -s dotglob;' : '';
+    const command = `${dotSetup} shopt -s nullglob; cd ${quoteShellArg(cwd)} && printf '%s\\n' ${pattern}`;
+    try {
+      const result = await this.exec(command);
+      if (result.exitCode !== 0) return [];
+      return result.stdout.trim().split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  async copyFile(src: string, dest: string): Promise<void> {
+    const fullSrc = this.resolveRemotePath(src);
+    const fullDest = this.resolveRemotePath(dest);
+    const result = await this.exec(`cp ${quoteShellArg(fullSrc)} ${quoteShellArg(fullDest)}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to copy file: ${result.stderr}`);
+    }
+  }
+
   /**
    * Get file/directory metadata via SFTP
    */
@@ -443,8 +502,11 @@ export class SshFileSystem implements FileSystemProvider {
       sftp.stat(fullPath, (err, stats) => {
         if (err) {
           // Check if file doesn't exist
-          const anyErr = err as any;
-          if (anyErr?.message?.includes('No such file') || anyErr?.code === 2) {
+          const sftpErr = err as SftpError;
+          if (
+            sftpErr.message?.includes('No such file') ||
+            sftpErr.code === SFTP_STATUS.NO_SUCH_FILE
+          ) {
             resolve(null);
             return;
           }
@@ -559,7 +621,10 @@ export class SshFileSystem implements FileSystemProvider {
    * Remove a file via SFTP
    * For directories, uses SSH exec with rm -rf
    */
-  async remove(path: string): Promise<{ success: boolean; error?: string }> {
+  async remove(
+    path: string,
+    options?: { recursive?: boolean }
+  ): Promise<{ success: boolean; error?: string }> {
     const fullPath = this.resolveRemotePath(path);
 
     try {
@@ -572,7 +637,9 @@ export class SshFileSystem implements FileSystemProvider {
       const sftp = await this.getSftp();
 
       if (entry.type === 'dir') {
-        // For directories, use SSH exec to recursively remove
+        if (!options?.recursive) {
+          return { success: false, error: `Path is a directory: ${path}` };
+        }
         const command = `rm -rf ${quoteShellArg(fullPath)}`;
         const result = await this.exec(command);
 
@@ -643,6 +710,12 @@ export class SshFileSystem implements FileSystemProvider {
               success: false,
               error: `Image too large: ${stats.size} bytes (max ${maxImageSize})`,
             });
+            return;
+          }
+
+          if (stats.size === 0) {
+            sftp.close(handle, () => {});
+            resolve({ success: false, error: 'Image file is empty' });
             return;
           }
 
@@ -801,18 +874,24 @@ export class SshFileSystem implements FileSystemProvider {
     return new Promise((resolve, reject) => {
       sftp.mkdir(dirPath, (err) => {
         if (!err) {
-          // Directory created successfully
           resolve();
           return;
         }
 
-        // Check if directory already exists
-        if (err.message?.includes('already exists') || err.message?.includes('File exists')) {
+        const sftpErr = err as SftpError;
+        const msg = sftpErr.message ?? '';
+        const code = sftpErr.code;
+
+        const isAlreadyExists =
+          msg.includes('already exists') ||
+          msg.includes('File exists') ||
+          (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
+
+        if (isAlreadyExists) {
           resolve();
           return;
         }
 
-        // Try to create parent directory recursively
         const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'));
         if (parentPath && parentPath !== dirPath && parentPath.length >= this.remotePath.length) {
           this.ensureRemoteDir(sftp, parentPath)
@@ -830,12 +909,12 @@ export class SshFileSystem implements FileSystemProvider {
    * Map SFTP error codes to FileSystemError
    */
   private mapSftpError(error: unknown, path?: string): FileSystemError {
-    const anyErr = error as any;
-    const message = typeof anyErr?.message === 'string' ? anyErr.message : String(error);
-    const code = anyErr?.code;
+    const sftpErr = error as SftpError;
+    const message = typeof sftpErr?.message === 'string' ? sftpErr.message : String(error);
+    const code = sftpErr?.code;
 
     // Map common SFTP error codes
-    if (code === 2 || message.includes('No such file')) {
+    if (code === SFTP_STATUS.NO_SUCH_FILE || message.includes('No such file')) {
       return new FileSystemError(
         `File or directory not found: ${path || message}`,
         FileSystemErrorCodes.NOT_FOUND,
@@ -843,7 +922,7 @@ export class SshFileSystem implements FileSystemProvider {
       );
     }
 
-    if (code === 3 || message.includes('Permission denied')) {
+    if (code === SFTP_STATUS.PERMISSION_DENIED || message.includes('Permission denied')) {
       return new FileSystemError(
         `Permission denied: ${path || message}`,
         FileSystemErrorCodes.PERMISSION_DENIED,

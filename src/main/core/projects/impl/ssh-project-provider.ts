@@ -1,20 +1,22 @@
-import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
-import { LocalProject } from '@shared/projects';
+import type { SshProject } from '@shared/projects';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, type Terminal } from '@shared/terminals';
-import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
-import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
+import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
-import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import { getLocalExec } from '@main/core/utils/exec';
+import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
+import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import type {
@@ -23,7 +25,7 @@ import type {
   TaskProvider,
   TeardownTaskError,
 } from '../project-provider';
-import { LocalProjectSettingsProvider } from '../settings/project-settings';
+import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
@@ -40,47 +42,86 @@ function toTeardownError(e: unknown): TeardownTaskError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-export async function createLocalProvider(
-  project: LocalProject,
-  rootFs: FileSystemProvider
-): Promise<LocalProjectProvider> {
-  const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
-    .defaultWorktreeDirectory;
-  const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
-
-  await fs.promises.mkdir(worktreePoolPath, { recursive: true });
-
-  return new LocalProjectProvider(project, rootFs, { worktreePoolPath });
+export async function createSshProvider(
+  project: SshProject,
+  rootFs: FileSystemProvider,
+  proxy: SshClientProxy
+): Promise<SshProjectProvider> {
+  try {
+    // hardcoded to next to project path, TODO: let user configure path
+    const worktreePoolPath = path.join(path.dirname(project.path), 'worktrees', project.name);
+    return new SshProjectProvider(project, rootFs, proxy, {
+      worktreePoolPath: worktreePoolPath,
+    });
+  } catch (error) {
+    log.warn('createSshProvider: SSH connection failed', {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
-export class LocalProjectProvider implements ProjectProvider {
-  readonly type = 'local';
+export class SshProjectProvider implements ProjectProvider {
+  readonly type = 'ssh';
   readonly settings: ProjectSettingsProvider;
   readonly git: GitProvider;
-  readonly fs: FileSystemProvider;
+  readonly fs: SshFileSystem;
 
   private tasks = new Map<string, TaskProvider>();
+  private conversationProviders = new Map<string, SshConversationProvider>();
+  private terminalProviders = new Map<string, SshTerminalProvider>();
   private provisioningTasks = new Map<string, Promise<Result<TaskProvider, ProvisionTaskError>>>();
   private tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
   private bootstrapErrors = new Map<string, ProvisionTaskError>();
   private worktreeService: WorktreeService;
+  private cachedSftp: SFTPWrapper | undefined;
 
   constructor(
-    private readonly project: LocalProject,
-    readonly rootFs: FileSystemProvider,
+    private readonly project: SshProject,
+    rootFs: FileSystemProvider,
+    private readonly proxy: SshClientProxy,
     options: {
       worktreePoolPath: string;
     }
   ) {
-    this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
-    this.fs = new LocalFileSystem(project.path);
-    this.git = new GitService(project.path, getLocalExec(), this.fs);
+    this.fs = new SshFileSystem(this.proxy, project.path);
+    this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
+    const gitExec = getGitSshExec(this.proxy, () => githubAuthService.getToken());
+    this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
       projectSettings: this.settings,
-      exec: getLocalExec(),
+      exec: gitExec,
       rootFs: rootFs,
+    });
+    sshConnectionManager.on('connection-event', this.handleConnectionEvent);
+  }
+
+  private handleConnectionEvent = (evt: SshConnectionEvent): void => {
+    if (evt.type === 'reconnected' && evt.connectionId === this.project.connectionId) {
+      this.rehydrateTerminals().catch((e: unknown) => {
+        log.error('SshProjectProvider: rehydrateTerminals failed after reconnect', {
+          projectId: this.project.id,
+          connectionId: this.project.connectionId,
+          error: String(e),
+        });
+      });
+    }
+  };
+
+  private getSftp(): Promise<SFTPWrapper> {
+    if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
+    return new Promise((resolve, reject) => {
+      this.proxy.client.sftp((err, sftp) => {
+        if (err) return reject(err);
+        this.cachedSftp = sftp;
+        sftp.on('close', () => {
+          this.cachedSftp = undefined;
+        });
+        resolve(sftp);
+      });
     });
   }
 
@@ -89,7 +130,9 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<Result<TaskProvider, ProvisionTaskError>> {
-    if (this.tasks.has(task.id)) return ok(this.tasks.get(task.id)!);
+    const existing = this.tasks.get(task.id);
+    if (existing) return ok(existing);
+
     if (this.provisioningTasks.has(task.id)) return this.provisioningTasks.get(task.id)!;
 
     const promise = withTimeout(
@@ -105,7 +148,7 @@ export class LocalProjectProvider implements ProjectProvider {
         const provisionError = toProvisionError(e);
         this.bootstrapErrors.set(task.id, provisionError);
         this.provisioningTasks.delete(task.id);
-        log.error('LocalProjectProvider: failed to provision task', {
+        log.error('SshProjectProvider: failed to provision task', {
           taskId: task.id,
           error: String(e),
         });
@@ -121,7 +164,7 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<TaskProvider> {
-    log.debug('LocalProjectProvider: doProvisionTask START', {
+    log.debug('SshProjectProvider: doProvisionTask START', {
       taskId: task.id,
     });
 
@@ -147,29 +190,31 @@ export class LocalProjectProvider implements ProjectProvider {
       workDir = this.project.path;
     }
 
-    const taskFs = new LocalFileSystem(workDir);
-    await new HookConfigWriter(taskFs).writeAll();
-
+    const taskFs = new SshFileSystem(this.proxy, workDir);
     const settings = await this.settings.get();
     const tmuxEnabled = settings.tmux ?? false;
     const scripts = settings.scripts;
+    const proxy = this.proxy;
 
-    const exec = getLocalExec();
-    const taskGit = new GitService(workDir, exec, taskFs);
-    const conversationProvider = new LocalConversationProvider({
+    const taskGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
+    const exec = getSshExec(proxy);
+    const taskGit = new GitService(workDir, taskGitExec, taskFs);
+    const conversationProvider = new SshConversationProvider({
       projectId: this.project.id,
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
       exec,
+      proxy,
     });
 
-    const terminalProvider = new LocalTerminalProvider({
+    const terminalProvider = new SshTerminalProvider({
       projectId: this.project.id,
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
       exec,
+      proxy,
     });
 
     const taskEnv: TaskProvider = {
@@ -184,9 +229,6 @@ export class LocalProjectProvider implements ProjectProvider {
     };
 
     if (scripts?.setup) {
-      const userShell =
-        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
       const id = await createScriptTerminalId({
         projectId: this.project.id,
         taskId: task.id,
@@ -196,14 +238,14 @@ export class LocalProjectProvider implements ProjectProvider {
       terminalProvider.spawnTerminal(
         { id, projectId: this.project.id, taskId: task.id, name: '' },
         { cols: 80, rows: 24 },
-        { command: userShell, args: ['-c', scripts.setup] }
+        { command: scripts.setup, args: [] }
       );
     }
 
     Promise.all(
       terminals.map((term) =>
         terminalProvider.spawnTerminal(term).catch((e) => {
-          log.error('LocalEnvironmentProvider: failed to hydrate terminal', {
+          log.error('SshEnvironmentProvider: failed to hydrate terminal', {
             terminalId: term.id,
             error: String(e),
           });
@@ -214,7 +256,7 @@ export class LocalProjectProvider implements ProjectProvider {
     Promise.all(
       conversations.map((conv) =>
         conversationProvider.startSession(conv, undefined, true).catch((e) => {
-          log.error('LocalEnvironmentProvider: failed to hydrate conversation', {
+          log.error('SshEnvironmentProvider: failed to hydrate conversation', {
             conversationId: conv.id,
             error: String(e),
           });
@@ -222,7 +264,9 @@ export class LocalProjectProvider implements ProjectProvider {
       )
     );
 
-    log.debug('LocalProjectProvider: doProvisionTask DONE', {
+    this.terminalProviders.set(task.id, terminalProvider);
+    this.conversationProviders.set(task.id, conversationProvider);
+    log.debug('SshProjectProvider: doProvisionTask DONE', {
       taskId: task.id,
     });
     return taskEnv;
@@ -248,7 +292,7 @@ export class LocalProjectProvider implements ProjectProvider {
     const promise = withTimeout(this.doTeardownTask(task), TASK_TIMEOUT_MS)
       .then(() => ok<void>())
       .catch((e) => {
-        log.error('LocalProjectProvider: failed to teardown task', {
+        log.error('SshProjectProvider: failed to teardown task', {
           taskId,
           error: String(e),
         });
@@ -257,6 +301,8 @@ export class LocalProjectProvider implements ProjectProvider {
       .finally(() => {
         this.tasks.delete(taskId);
         this.tearingDownTasks.delete(taskId);
+        this.conversationProviders.delete(taskId);
+        this.terminalProviders.delete(taskId);
       });
 
     this.tearingDownTasks.set(taskId, promise);
@@ -273,7 +319,7 @@ export class LocalProjectProvider implements ProjectProvider {
       terminals: task.terminals,
       tmux: settings.tmux ?? false,
       shellSetup: settings.shellSetup,
-      exec: getLocalExec(),
+      exec: getSshExec(this.proxy),
     });
 
     const scripts = settings.scripts;
@@ -281,7 +327,7 @@ export class LocalProjectProvider implements ProjectProvider {
     if (scripts?.teardown) {
       taskLifecycleService.runLifecycleScript({
         type: 'teardown',
-        script: scripts?.teardown,
+        script: scripts.teardown,
       });
     }
 
@@ -297,6 +343,8 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
+    sshConnectionManager.off('connection-event', this.handleConnectionEvent);
+
     const settings = await this.settings.get();
 
     if (settings.tmux) {
@@ -306,8 +354,49 @@ export class LocalProjectProvider implements ProjectProvider {
         )
       );
       this.tasks.clear();
+      this.conversationProviders.clear();
+      this.terminalProviders.clear();
     } else {
       await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
     }
+  }
+
+  /**
+   * Re-spawn all terminal sessions for every active task after an SSH reconnect.
+   * Agent sessions are intentionally excluded — they must be restarted manually.
+   */
+  private async rehydrateTerminals(): Promise<void> {
+    await Promise.all(
+      Array.from(this.terminalProviders.values()).map((provider) =>
+        provider.rehydrate().catch((e: unknown) => {
+          log.error('SshEnvironmentProvider: rehydrateTerminals failed for a provider', {
+            error: String(e),
+          });
+        })
+      )
+    );
+  }
+
+  /**
+   * Upload local files into the task's working directory via SFTP and return
+   * their remote paths.
+   */
+  async uploadFiles(taskId: string, localPaths: string[]): Promise<string[]> {
+    const env = this.tasks.get(taskId);
+    if (!env) throw new Error(`No provisioned environment for task: ${taskId}`);
+
+    const sftp = await this.getSftp();
+    const destDir = env.taskPath;
+
+    return Promise.all(
+      localPaths.map(async (localPath) => {
+        const remoteName = `${randomUUID()}-${path.basename(localPath)}`;
+        const remotePath = `${destDir}/${remoteName}`;
+        await new Promise<void>((resolve, reject) => {
+          sftp.fastPut(localPath, remotePath, (e) => (e ? reject(e) : resolve()));
+        });
+        return remotePath;
+      })
+    );
   }
 }

@@ -76,6 +76,8 @@ class ProjectManagerStore {
     }
 
     const projectId = id ?? crypto.randomUUID();
+    const isSsh = projectType.type === 'ssh';
+
     switch (data.mode) {
       case 'pick': {
         runInAction(() => {
@@ -85,11 +87,18 @@ class ProjectManagerStore {
           );
         });
         try {
-          const project = await rpc.projects.createLocalProject({
-            id: projectId,
-            path: data.path,
-            name: data.name,
-          });
+          const project = isSsh
+            ? await rpc.projects.createSshProject({
+                id: projectId,
+                path: data.path,
+                name: data.name,
+                connectionId: projectType.connectionId,
+              })
+            : await rpc.projects.createLocalProject({
+                id: projectId,
+                path: data.path,
+                name: data.name,
+              });
           this._setAndOpenProject(projectId, project);
         } catch (err) {
           this._markError(projectId, err);
@@ -107,14 +116,26 @@ class ProjectManagerStore {
         });
         try {
           const clonePath = `${data.path}/${data.name}`;
-          const cloneResult = await rpc.github.cloneRepository(data.repositoryUrl, clonePath);
+          const connectionId = isSsh ? projectType.connectionId : undefined;
+          const cloneResult = await rpc.github.cloneRepository(
+            data.repositoryUrl,
+            clonePath,
+            connectionId
+          );
           if (!cloneResult.success) throw new Error(cloneResult.error);
           this._updatePhase(projectId, 'registering');
-          const project = await rpc.projects.createLocalProject({
-            id: projectId,
-            path: clonePath,
-            name: data.name,
-          });
+          const project = isSsh
+            ? await rpc.projects.createSshProject({
+                id: projectId,
+                path: clonePath,
+                name: data.name,
+                connectionId: projectType.connectionId,
+              })
+            : await rpc.projects.createLocalProject({
+                id: projectId,
+                path: clonePath,
+                name: data.name,
+              });
           this._setAndOpenProject(projectId, project);
         } catch (err) {
           this._markError(projectId, err);
@@ -131,22 +152,40 @@ class ProjectManagerStore {
           );
         });
         try {
-          const repoResult = await rpc.github.createNewProject({
+          const connectionId = isSsh ? projectType.connectionId : undefined;
+          const repoResult = await rpc.github.createRepository({
             name: data.repositoryName,
             owner: data.repositoryOwner,
             isPrivate: data.repositoryVisibility === 'private',
           });
           if (!repoResult.success || !repoResult.repoUrl) throw new Error(repoResult.error);
+
           this._updatePhase(projectId, 'cloning');
           const clonePath = `${data.path}/${data.name}`;
-          const cloneResult = await rpc.github.cloneRepository(repoResult.repoUrl, clonePath);
+          const cloneUrl = `https://github.com/${repoResult.nameWithOwner}.git`;
+          const cloneResult = await rpc.github.cloneRepository(cloneUrl, clonePath, connectionId);
           if (!cloneResult.success) throw new Error(cloneResult.error);
-          this._updatePhase(projectId, 'registering');
-          const project = await rpc.projects.createLocalProject({
-            id: projectId,
-            path: clonePath,
+
+          const initResult = await rpc.github.initializeProject({
+            targetPath: clonePath,
             name: data.name,
+            connectionId,
           });
+          if (!initResult.success) throw new Error(initResult.error);
+
+          this._updatePhase(projectId, 'registering');
+          const project = isSsh
+            ? await rpc.projects.createSshProject({
+                id: projectId,
+                path: clonePath,
+                name: data.name,
+                connectionId: projectType.connectionId,
+              })
+            : await rpc.projects.createLocalProject({
+                id: projectId,
+                path: clonePath,
+                name: data.name,
+              });
           this._setAndOpenProject(projectId, project);
         } catch (err) {
           this._markError(projectId, err);
