@@ -82,6 +82,9 @@ export function AddProjectModal({
   const newState = useNewMode();
   const cloneState = useCloneMode();
 
+  const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
+  const canCreate = activeMode.isValid && (strategy === 'local' || !!connectionId);
+
   const handleSubmit = async () => {
     try {
       if (strategy === 'local') {
@@ -218,7 +221,7 @@ export function AddProjectModal({
         </AnimatedHeight>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton type="button" onClick={() => void handleSubmit()}>
+        <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canCreate}>
           Create
         </ConfirmButton>
       </DialogFooter>
