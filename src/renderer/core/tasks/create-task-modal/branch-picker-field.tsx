@@ -33,17 +33,18 @@ export function BranchPickerField({
         onValueChange={state.setSelectedBranch}
         trigger={
           <ComboboxTrigger className="flex w-full items-center gap-2 justify-between hover:bg-background-1 data-popup-open:bg-background-1 p-2 outline-none">
-            <div className="flex items-center gap-2">
-              <GitBranch
-                absoluteStrokeWidth
-                strokeWidth={1}
-                className="size-8 shrink-0 text-foreground-passive"
-              />
-              <div className="flex flex-col text-left text-sm gap-0.5">
-                <span className="text-foreground-passive text-xs">{label}</span>
+            <div className="flex flex-col text-left text-sm gap-0.5">
+              <span className="text-foreground-passive text-xs">{label}</span>
+              <span className="flex items-center gap-1">
+                <GitBranch
+                  absoluteStrokeWidth
+                  strokeWidth={2}
+                  className="size-3.5 shrink-0 text-foreground-muted"
+                />
                 <ComboboxValue placeholder="Select a branch" />
-              </div>
+              </span>
             </div>
+
             <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
           </ComboboxTrigger>
         }

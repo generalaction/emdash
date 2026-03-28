@@ -154,7 +154,7 @@ export function AddProjectModal({
       <DialogHeader>
         <DialogTitle>Add Project</DialogTitle>
       </DialogHeader>
-      <DialogContentArea>
+      <DialogContentArea className="gap-4">
         <div className="flex items-center gap-2">
           <ToggleGroup
             className="w-full flex-1"

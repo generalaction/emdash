@@ -17,9 +17,12 @@ import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { mountedProjectData } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
+import { FromPrContent } from './from-pr-content';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -37,9 +40,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
 
+  const projectData = selectedProjectId
+    ? mountedProjectData(projectManagerStore.projects.get(selectedProjectId))
+    : null;
+  const nameWithOwner = projectData?.gitRemote
+    ? (parseGithubNameWithOwner(projectData.gitRemote) ?? undefined)
+    : undefined;
+
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
-  const _fromPR = useFromPullRequestMode();
+  const fromPR = useFromPullRequestMode();
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
@@ -68,13 +78,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       case 'from-pull-request':
-        // TODO: implement from-pull-request creation
+        if (!fromPR.linkedPR) return;
+        void (projectStore as MountedProject).taskManager.createTask({
+          id,
+          projectId: selectedProjectId,
+          name: fromPR.taskName,
+          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName, remote: 'origin' },
+          taskBranch: fromPR.checkoutMode === 'new-branch' ? fromPR.taskName : undefined,
+        });
         break;
     }
 
     onClose();
     navigate('task', { projectId: selectedProjectId, taskId: id });
-  }, [selectedProjectId, selectedStrategy, fromBranch, fromIssue, onClose, navigate]);
+  }, [selectedProjectId, selectedStrategy, fromBranch, fromIssue, fromPR, onClose, navigate]);
 
   return (
     <DialogContent>
@@ -92,7 +109,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea>
+      <DialogContentArea className="gap-4">
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -120,9 +137,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <FromIssueContent state={fromIssue} branches={branches} disabled={isTransitioning} />
           )}
           {selectedStrategy === 'from-pull-request' && (
-            <div className="text-sm text-muted-foreground text-center">
-              From Pull Request — coming soon
-            </div>
+            <FromPrContent
+              state={fromPR}
+              nameWithOwner={nameWithOwner}
+              disabled={isTransitioning}
+            />
           )}
         </AnimatedHeight>
       </DialogContentArea>
