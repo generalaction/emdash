@@ -139,7 +139,9 @@ export class McpService {
         let existing: ServerMap;
         try {
           existing = await readServers(meta);
-        } catch {
+        } catch (err) {
+          log.error(`Failed to read MCP config for ${agentId}:`, err);
+          failures.push(agentId);
           continue;
         }
 
