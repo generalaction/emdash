@@ -33,7 +33,7 @@ const claudeMeta: AgentMcpMeta = {
   configPath: '/home/test/.claude.json',
   serversPath: ['mcpServers'],
   template: { mcpServers: {} },
-  isToml: false,
+  format: 'json',
   adapter: 'passthrough',
 };
 
@@ -42,7 +42,7 @@ const cursorMeta: AgentMcpMeta = {
   configPath: '/home/test/.cursor/mcp.json',
   serversPath: ['mcpServers'],
   template: { mcpServers: {} },
-  isToml: false,
+  format: 'json',
   adapter: 'cursor',
 };
 

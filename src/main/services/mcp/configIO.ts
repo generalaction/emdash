@@ -5,6 +5,21 @@ import * as toml from 'smol-toml';
 import { log } from '../../lib/logger';
 import type { AgentMcpMeta, ServerMap, RawServerEntry } from '@shared/mcp/types';
 
+function parseJsoncConfig(content: string, configPath: string): Record<string, unknown> {
+  const errors: jsoncParser.ParseError[] = [];
+  const parsed = jsoncParser.parse(content, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  });
+  if (errors.length) {
+    throw new Error(`Invalid JSONC in ${configPath}`);
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return {};
+  }
+  return parsed as Record<string, unknown>;
+}
+
 // ── Read ───────────────────────────────────────────────────────────────────
 
 export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
@@ -19,20 +34,16 @@ export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
   if (!content.trim()) return {};
 
   let parsed: Record<string, unknown>;
-  if (meta.isToml) {
+  if (meta.format === 'toml') {
     parsed = toml.parse(content) as Record<string, unknown>;
-  } else if (meta.configPath.endsWith('.jsonc')) {
-    const errors: jsoncParser.ParseError[] = [];
-    parsed = (jsoncParser.parse(content, errors) ?? {}) as Record<string, unknown>;
-    if (errors.length) {
-      log.warn(`JSONC parse errors in ${meta.configPath}:`, errors);
-    }
+  } else if (meta.format === 'jsonc') {
+    parsed = parseJsoncConfig(content, meta.configPath);
   } else {
     try {
       parsed = JSON.parse(content);
-    } catch {
-      log.warn(`Invalid JSON in ${meta.configPath}, returning empty`);
-      return {};
+    } catch (error) {
+      log.warn(`Invalid JSON in ${meta.configPath}:`, error);
+      throw new Error(`Invalid JSON in ${meta.configPath}`);
     }
   }
 
@@ -72,7 +83,7 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
 
-  if (meta.isToml) {
+  if (meta.format === 'toml') {
     existing = existingRaw
       ? (toml.parse(existingRaw) as Record<string, unknown>)
       : { ...meta.template };
@@ -84,11 +95,14 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
     return;
   }
 
-  if (meta.configPath.endsWith('.jsonc') && existingRaw) {
+  if (meta.format === 'jsonc' && existingRaw) {
+    parseJsoncConfig(existingRaw, meta.configPath);
     // Use jsonc-parser modify() to preserve comments
     let modified = existingRaw;
     // First, set the entire servers object at the path
-    const edits = jsoncParser.modify(modified, meta.serversPath, servers, {});
+    const edits = jsoncParser.modify(modified, meta.serversPath, servers, {
+      formattingOptions: { insertSpaces: true, tabSize: 2 },
+    });
     modified = jsoncParser.applyEdits(modified, edits);
     await fs.writeFile(meta.configPath, modified);
     return;
@@ -98,9 +112,9 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
   if (existingRaw) {
     try {
       existing = JSON.parse(existingRaw);
-    } catch {
-      log.warn(`Invalid JSON in ${meta.configPath}, resetting to template`);
-      existing = JSON.parse(JSON.stringify(meta.template));
+    } catch (error) {
+      log.warn(`Invalid JSON in ${meta.configPath}:`, error);
+      throw new Error(`Invalid JSON in ${meta.configPath}`);
     }
   } else {
     existing = JSON.parse(JSON.stringify(meta.template));

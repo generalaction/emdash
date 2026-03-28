@@ -25,5 +25,6 @@ export default defineConfig(({ command }) => ({
   },
   server: {
     port: Number(process.env.EMDASH_DEV_PORT) || 3000,
+    strictPort: true, // Fail if port is taken instead of switching ports
   },
 }));

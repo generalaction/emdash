@@ -22,7 +22,7 @@ function makeMeta(overrides: Partial<AgentMcpMeta> = {}): AgentMcpMeta {
     configPath: '/home/test/.claude.json',
     serversPath: ['mcpServers'],
     template: { mcpServers: {} },
-    isToml: false,
+    format: 'json',
     adapter: 'passthrough',
     ...overrides,
   };
@@ -68,7 +68,7 @@ describe('readServers', () => {
       agentId: 'codex',
       configPath: '/home/test/.codex/config.toml',
       serversPath: ['mcp_servers'],
-      isToml: true,
+      format: 'toml',
       adapter: 'codex',
     });
     mockFs.readFile.mockResolvedValue(
@@ -77,6 +77,25 @@ describe('readServers', () => {
     const result = await readServers(meta);
     expect(result.myserver).toBeDefined();
     expect((result.myserver as any).command).toBe('npx');
+  });
+
+  it('reads OpenCode config as JSONC even with a .json path', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      format: 'jsonc',
+      adapter: 'opencode',
+    });
+    mockFs.readFile.mockResolvedValue(
+      '{\n  // keep my config\n  "theme": "dark",\n  "mcp": {\n    "s1": { "type": "local", "command": ["npx", "-y", "foo"] },\n  },\n}\n'
+    );
+
+    const result = await readServers(meta);
+
+    expect(result.s1).toBeDefined();
+    expect((result.s1 as any).type).toBe('local');
   });
 });
 
@@ -125,5 +144,42 @@ describe('writeServers', () => {
 
     const written = JSON.parse(mockFs.writeFile.mock.calls[0][1] as string);
     expect(written.mcpServers).toEqual({ s1: { command: 'npx' } });
+  });
+
+  it('preserves sibling keys and comments for OpenCode JSONC stored as .json', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      format: 'jsonc',
+      adapter: 'opencode',
+    });
+    mockFs.readFile.mockResolvedValue(
+      '{\n  // keep my config\n  "theme": "dark",\n  "model": "gpt-5",\n  "mcp": {\n    "oldServer": { "type": "local", "command": ["old"] }\n  }\n}\n'
+    );
+    mockFs.mkdir.mockResolvedValue(undefined);
+    mockFs.writeFile.mockResolvedValue(undefined);
+
+    await writeServers(meta, {
+      newServer: { type: 'local', command: ['npx', '-y', 'foo'], enabled: true },
+    });
+
+    const written = mockFs.writeFile.mock.calls[0][1] as string;
+    expect(written).toContain('// keep my config');
+    expect(written).toContain('"theme": "dark"');
+    expect(written).toContain('"model": "gpt-5"');
+    expect(written).toContain('"newServer"');
+    expect(written).not.toContain('"oldServer"');
+  });
+
+  it('throws instead of resetting an invalid existing JSON config', async () => {
+    mockFs.readFile.mockResolvedValue('{ invalid json');
+    mockFs.mkdir.mockResolvedValue(undefined);
+
+    await expect(writeServers(makeMeta(), { s1: { command: 'npx' } })).rejects.toThrow(
+      'Invalid JSON in /home/test/.claude.json'
+    );
+    expect(mockFs.writeFile).not.toHaveBeenCalled();
   });
 });

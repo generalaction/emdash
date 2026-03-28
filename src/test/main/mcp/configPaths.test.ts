@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('os', () => ({
   default: { homedir: () => '/home/testuser' },
@@ -14,7 +14,7 @@ describe('getAgentMcpMeta', () => {
     expect(meta!.configPath).toBe('/home/testuser/.claude.json');
     expect(meta!.serversPath).toEqual(['mcpServers']);
     expect(meta!.adapter).toBe('passthrough');
-    expect(meta!.isToml).toBe(false);
+    expect(meta!.format).toBe('json');
   });
 
   it('returns correct meta for cursor', () => {
@@ -28,7 +28,7 @@ describe('getAgentMcpMeta', () => {
     const meta = getAgentMcpMeta('codex');
     expect(meta).toBeDefined();
     expect(meta!.configPath).toContain('config.toml');
-    expect(meta!.isToml).toBe(true);
+    expect(meta!.format).toBe('toml');
     expect(meta!.adapter).toBe('codex');
   });
 
@@ -59,6 +59,7 @@ describe('getAgentMcpMeta', () => {
     expect(meta).toBeDefined();
     expect(meta!.configPath).toContain('opencode');
     expect(meta!.adapter).toBe('opencode');
+    expect(meta!.format).toBe('jsonc');
   });
 
   it('returns correct meta for copilot', () => {

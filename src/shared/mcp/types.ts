@@ -41,7 +41,7 @@ export interface AgentMcpMeta {
   configPath: string;
   serversPath: string[];
   template: Record<string, unknown>;
-  isToml: boolean;
+  format: 'json' | 'jsonc' | 'toml';
   adapter: AdapterType;
 }
 
