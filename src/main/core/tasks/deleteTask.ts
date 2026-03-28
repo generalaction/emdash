@@ -21,9 +21,11 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
       project.removeTaskWorktree(task.taskBranch).catch((e) => {
         log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
       });
-      project.git.deleteBranch(task.taskBranch).catch((e) => {
-        log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
-      });
+      if (task.taskBranch !== task.sourceBranch) {
+        project.git.deleteBranch(task.taskBranch).catch((e) => {
+          log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
+        });
+      }
     }
   }
 }
