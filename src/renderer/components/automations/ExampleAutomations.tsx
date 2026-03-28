@@ -294,14 +294,19 @@ export const TemplatesDialog: React.FC<{
   );
 };
 
-const ExampleAutomations: React.FC<ExampleAutomationsProps> = ({ onSelect }) => {
+const ExampleAutomations: React.FC<ExampleAutomationsProps> = ({
+  onSelect,
+  showEmptyMessage = true,
+}) => {
   return (
     <div className="py-4">
-      <div className="mb-6 text-center">
-        <p className="text-xs text-muted-foreground/60">
-          No automations yet. Start with a template or create your own.
-        </p>
-      </div>
+      {showEmptyMessage && (
+        <div className="mb-6 text-center">
+          <p className="text-xs text-muted-foreground/60">
+            No automations yet. Start with a template or create your own.
+          </p>
+        </div>
+      )}
 
       <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
         Event Triggers

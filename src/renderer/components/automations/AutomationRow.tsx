@@ -117,7 +117,12 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
         {!isTriggering && isIntegrationDisconnected && requiredIntegration && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="flex items-center gap-1 text-xs text-amber-500">
+              <span
+                tabIndex={0}
+                role="status"
+                aria-label={`${INTEGRATION_LABELS[requiredIntegration]} not connected`}
+                className="flex items-center gap-1 text-xs text-amber-500"
+              >
                 <AlertTriangle className="h-3 w-3" />
                 <span className="hidden sm:inline">
                   {INTEGRATION_LABELS[requiredIntegration]} not connected

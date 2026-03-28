@@ -125,21 +125,23 @@ export class GitLabService {
     limit: number = 10
   ): Promise<{ success: boolean; mrs?: GitLabMRSummary[]; error?: string }> {
     try {
+      const path = projectPath?.trim();
+      const clampedLimit = Math.max(1, Math.min(typeof limit === 'number' ? limit : 10, 100));
       const { siteUrl, token } = await this.requireAuth();
       if (!siteUrl || !token) {
         return { success: false, error: 'GitLab is not configured' };
       }
-      if (!projectPath) {
+      if (!path) {
         return { success: false, error: 'Project path is required' };
       }
-      const { success, id, error } = await this.resolveProjectId(projectPath);
+      const { success, id, error } = await this.resolveProjectId(path);
       if (!success) {
         return { success: false, error };
       }
       if (!id) {
         return { success: false, error: 'Unable to resolve project ID' };
       }
-      const mrs = await this.fetchMergeRequests(id, limit);
+      const mrs = await this.fetchMergeRequests(id, clampedLimit);
       return { success: true, mrs };
     } catch (e: any) {
       return { success: false, error: e?.message };

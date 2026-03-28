@@ -168,7 +168,7 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
       </div>
 
       {/* Actions — visible on hover */}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
         {isWorking && (
           <Button
             variant="ghost"

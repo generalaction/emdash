@@ -86,6 +86,12 @@ function validateCompleteRunArg(args: unknown): asserts args is {
   if (a.status !== 'success' && a.status !== 'failure') {
     throw new Error('Invalid status: expected "success" or "failure"');
   }
+  if (a.taskId !== undefined && typeof a.taskId !== 'string') {
+    throw new Error('Invalid taskId: expected string or undefined');
+  }
+  if (a.error !== undefined && typeof a.error !== 'string') {
+    throw new Error('Invalid error: expected string or undefined');
+  }
 }
 
 // ---------------------------------------------------------------------------
