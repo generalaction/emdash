@@ -20,7 +20,11 @@ import { Task } from '../types/chat';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
 import { activityStore } from '@/lib/activityStore';
 import { rpc } from '@/lib/rpc';
-import { getInstallCommandForProvider } from '@shared/providers/registry';
+import {
+  getInstallCommandForProvider,
+  getProvider,
+  isValidProviderId,
+} from '@shared/providers/registry';
 import { useAutoScrollOnTaskSwitch } from '@/hooks/useAutoScrollOnTaskSwitch';
 import { useTerminalViewportWheelForwarding } from '@/hooks/useTerminalViewportWheelForwarding';
 import { TaskScopeProvider } from './TaskScopeContext';
@@ -1099,12 +1103,31 @@ const ChatInterface: React.FC<Props> = ({
       // Skip multi-agent tasks
       if (task.metadata?.multiAgent?.enabled) return;
 
-      const generated = generateTaskName(message);
-      if (!generated) return;
-
       const existingNames = (project.tasks || []).map((t) => t.name);
-      const uniqueName = ensureUniqueTaskName(generated, existingNames);
-      void onRenameTask(project, task, uniqueName);
+
+      const applySlugName = () => {
+        const generated = generateTaskName(message);
+        if (!generated) return;
+        void onRenameTask(project, task, ensureUniqueTaskName(generated, existingNames));
+      };
+
+      // Try utility model naming first; result arrives via onTaskNameInferred.
+      // Fall back to slug generator if the provider doesn't support utility mode or errors.
+      const providerId = task.agentId;
+      if (providerId && isValidProviderId(providerId) && getProvider(providerId)?.utilityCliArgs) {
+        firstMessageRef.current = message;
+        void window.electronAPI
+          .taskInferName({
+            taskId: task.id,
+            providerId,
+            initialPrompt: message,
+            projectPath: project.path,
+          })
+          .catch(applySlugName);
+        return;
+      }
+
+      applySlugName();
     },
     [project, task, onRenameTask, autoInferTaskNames]
   );
@@ -1117,6 +1140,36 @@ const ChatInterface: React.FC<Props> = ({
     project &&
     onRenameTask
   );
+
+  // Apply utility-model-inferred name when the main process completes background naming.
+  // Deps use stable IDs rather than object refs to avoid re-registering on every render.
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const taskRef = useRef(task);
+  taskRef.current = task;
+  const onRenameTaskRef = useRef(onRenameTask);
+  onRenameTaskRef.current = onRenameTask;
+  const firstMessageRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!shouldCaptureFirstMessage) return;
+    const off = window.electronAPI.onTaskNameInferred(({ taskId, name }) => {
+      const t = taskRef.current;
+      const p = projectRef.current;
+      const rename = onRenameTaskRef.current;
+      if (taskId !== t.id) return;
+      if (!t.metadata?.nameGenerated) return;
+      if (!p || !rename) return;
+
+      // Fall back to slug generator if inference returned null
+      const resolvedName =
+        name ?? (firstMessageRef.current ? generateTaskName(firstMessageRef.current) : null);
+      if (!resolvedName) return;
+
+      const existingNames = (p.tasks || []).map((u) => u.name);
+      void rename(p, t, ensureUniqueTaskName(resolvedName, existingNames));
+    });
+    return off;
+  }, [task.id, shouldCaptureFirstMessage]);
 
   const markActiveReviewPromptSent = useCallback(() => {
     if (!activeConversation || activeConversation.isMain || !activeReviewMetadata) return;

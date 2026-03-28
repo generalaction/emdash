@@ -198,6 +198,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  taskInferName: (args: {
+    taskId: string;
+    providerId: string;
+    initialPrompt: string;
+    projectPath: string;
+  }) => ipcRenderer.invoke('task:inferName', args),
+  onTaskNameInferred: (listener: (data: { taskId: string; name: string | null }) => void) => {
+    const channel = 'task:nameInferred';
+    const wrapped = (_: Electron.IpcRendererEvent, data: { taskId: string; name: string | null }) =>
+      listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   terminalGetTheme: () => ipcRenderer.invoke('terminal:getTheme'),
 
   // Menu events (main → renderer)

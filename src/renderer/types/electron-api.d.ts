@@ -135,6 +135,15 @@ declare global {
         listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
       ) => () => void;
       onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
+      taskInferName: (args: {
+        taskId: string;
+        providerId: string;
+        initialPrompt: string;
+        projectPath: string;
+      }) => Promise<{ accepted: boolean }>;
+      onTaskNameInferred: (
+        listener: (data: { taskId: string; name: string | null }) => void
+      ) => () => void;
       terminalGetTheme: () => Promise<{
         ok: boolean;
         config?: {
@@ -1449,6 +1458,15 @@ export interface ElectronAPI {
     listener: (event: AgentEvent, meta: { appFocused: boolean }) => void
   ) => () => void;
   onNotificationFocusTask: (listener: (taskId: string) => void) => () => void;
+  taskInferName: (args: {
+    taskId: string;
+    providerId: string;
+    initialPrompt: string;
+    projectPath: string;
+  }) => Promise<{ accepted: boolean }>;
+  onTaskNameInferred: (
+    listener: (data: { taskId: string; name: string | null }) => void
+  ) => () => void;
 
   // Worktree management
   worktreeCreate: (args: {
