@@ -181,6 +181,26 @@ describe('McpService', () => {
       ).rejects.toThrow('Failed to write config for: claude');
     });
 
+    it('reports both failed and successful agents when writes partially succeed', async () => {
+      mockGetAllAgentIds.mockReturnValue(['claude', 'opencode']);
+      mockReadServers.mockResolvedValue({});
+      mockWriteServers.mockImplementation((meta) => {
+        if (meta.agentId === 'opencode') {
+          return Promise.reject(new Error('disk full'));
+        }
+        return Promise.resolve(undefined);
+      });
+
+      await expect(
+        service.saveServer({
+          name: 'myServer',
+          transport: 'stdio',
+          command: 'npx',
+          providers: ['claude', 'opencode'],
+        })
+      ).rejects.toThrow('Failed to write config for: opencode. Updated before failure: claude');
+    });
+
     it('rejects empty server name', async () => {
       await expect(
         service.saveServer({

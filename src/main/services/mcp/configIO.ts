@@ -110,6 +110,8 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
 
   if (isJsoncConfig(meta)) {
     if (existingRaw && existingRaw.trim()) {
+      // Validate/parse JSONC before computing edits; return value intentionally ignored
+      // so jsonc-parser.modify/applyEdits can preserve the original comments/formatting.
       parseJsoncConfig(meta, existingRaw);
       const edits = jsoncParser.modify(existingRaw, meta.serversPath, servers, {});
       const modified = jsoncParser.applyEdits(existingRaw, edits);

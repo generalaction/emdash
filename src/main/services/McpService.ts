@@ -141,7 +141,8 @@ export class McpService {
       }
 
       if (writeFailures.length) {
-        throw buildConfigFailureError('write', writeFailures);
+        const successfulWrites = getSuccessfulWriteAgentIds(pendingWrites, writeFailures);
+        throw buildConfigFailureError('write', writeFailures, successfulWrites);
       }
     });
   }
@@ -187,7 +188,8 @@ export class McpService {
       }
 
       if (writeFailures.length) {
-        throw buildConfigFailureError('write', writeFailures);
+        const successfulWrites = getSuccessfulWriteAgentIds(pendingWrites, writeFailures);
+        throw buildConfigFailureError('write', writeFailures, successfulWrites);
       }
     });
   }
@@ -199,8 +201,26 @@ type PendingWrite = {
   servers: ServerMap;
 };
 
-function buildConfigFailureError(action: 'read' | 'write', failures: string[]): Error {
-  return new Error(`Failed to ${action} config for: ${failures.join(', ')}`);
+function getSuccessfulWriteAgentIds(
+  pendingWrites: PendingWrite[],
+  writeFailures: string[]
+): string[] {
+  return pendingWrites
+    .map(({ agentId }) => agentId)
+    .filter((agentId) => !writeFailures.includes(agentId));
+}
+
+function buildConfigFailureError(
+  action: 'read' | 'write',
+  failures: string[],
+  successes: string[] = []
+): Error {
+  const baseMessage = `Failed to ${action} config for: ${failures.join(', ')}`;
+  if (action !== 'write' || successes.length === 0) {
+    return new Error(baseMessage);
+  }
+
+  return new Error(`${baseMessage}. Updated before failure: ${successes.join(', ')}`);
 }
 
 // ── Conversion helpers ─────────────────────────────────────────────────────
