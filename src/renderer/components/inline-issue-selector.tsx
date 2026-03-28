@@ -1,4 +1,4 @@
-import { Check, Loader2, XIcon } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import { cn } from '@renderer/lib/utils';
@@ -9,7 +9,6 @@ import {
   IssueRow,
   ProviderLogo,
 } from './issue-selector';
-import { Button } from './ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import ShortcutHint from './ui/shortcut-hint';
@@ -18,12 +17,14 @@ export interface InlineIssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
   nameWithOwner?: string;
+  disabled?: boolean;
 }
 
 export function InlineIssueSelector({
   value,
   onValueChange,
   nameWithOwner = '',
+  disabled,
 }: InlineIssueSelectorProps) {
   const {
     issues,
@@ -137,7 +138,12 @@ export function InlineIssueSelector({
   }
 
   return (
-    <div className="flex flex-col min-w-0 rounded-md border border-input overflow-hidden">
+    <div
+      className={cn(
+        'flex flex-col min-w-0 rounded-md border border-input overflow-hidden',
+        disabled && 'pointer-events-none'
+      )}
+    >
       {/* Search row */}
       <InputGroup className="rounded-none border-0 border-b border-input shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-input">
         {providerAddon && <InputGroupAddon align="inline-start">{providerAddon}</InputGroupAddon>}

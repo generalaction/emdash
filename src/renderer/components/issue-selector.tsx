@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2, XIcon } from 'lucide-react';
+import { ExternalLink, Loader2 } from 'lucide-react';
 import { forwardRef, useCallback, useRef, useState } from 'react';
 import githubLogo from '@/assets/images/github.png';
 import jiraLogo from '@/assets/images/jira.png';
@@ -234,7 +234,7 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
   );
 }
 
-export function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove: () => void }) {
+export function SelectedIssueValue({ issue }: { issue: Issue }) {
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center justify-between w-full ">
@@ -246,7 +246,6 @@ export function SelectedIssueValue({ issue, onRemove }: { issue: Issue; onRemove
         <Button
           variant="ghost"
           size="icon-xs"
-          className="-mr-1 -mb-1"
           disabled={!issue.url}
           onClick={() => issue.url && rpc.app.openExternal(issue.url)}
         >

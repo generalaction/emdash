@@ -4,7 +4,6 @@ import { CommandPaletteModal } from '@renderer/components/cmdk/CommandPaletteMod
 import { ConfirmActionDialog } from '@renderer/components/confirm-action-dialog';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/github-device-flow-modal';
 import { McpModal } from '@renderer/components/mcp/McpModal';
-import { ProjectSettingsModal } from '@renderer/components/project-settings-modal/project-settings-modal';
 import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';

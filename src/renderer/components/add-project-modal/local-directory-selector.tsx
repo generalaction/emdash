@@ -35,13 +35,13 @@ export function LocalDirectorySelector({
 
   return (
     <button
-      className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-muted/30 transition-colors"
+      className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-background-1 transition-colors"
       onClick={handleOpenFileDialog}
     >
-      <Folder className="size-4 text-muted-foreground" />
+      <Folder className="size-4 text-foreground-muted" />
       <p
         className={cn(
-          'text-sm text-muted-foreground truncate min-w-0 flex-1 w-full text-left',
+          'text-sm text-foreground-passive truncate min-w-0 flex-1 w-full text-left',
           path ? 'text-foreground' : ''
         )}
       >

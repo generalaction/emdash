@@ -39,8 +39,8 @@ export function BranchPickerField({
                 strokeWidth={1}
                 className="size-8 shrink-0 text-foreground-passive"
               />
-              <div className="flex flex-col text-left text-sm">
-                <MicroLabel className="text-foreground-passive text-xs">{label}</MicroLabel>
+              <div className="flex flex-col text-left text-sm gap-0.5">
+                <span className="text-foreground-passive text-xs">{label}</span>
                 <ComboboxValue placeholder="Select a branch" />
               </div>
             </div>

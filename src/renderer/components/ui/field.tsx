@@ -40,7 +40,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="field-group"
       className={cn(
-        'group/field-group @container/field-group flex w-full flex-col gap-6 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4',
+        'group/field-group @container/field-group flex w-full flex-col gap-4 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4',
         className
       )}
       {...props}
@@ -203,6 +203,15 @@ function FieldError({
       {...props}
     >
       {content}
+    </div>
+  );
+}
+
+export function FieldSetHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <FieldLabel className="text-lg text-foreground">{title}</FieldLabel>
+      <FieldDescription className="text-sm text-foreground-muted">{description}</FieldDescription>
     </div>
   );
 }

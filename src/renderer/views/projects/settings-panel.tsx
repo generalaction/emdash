@@ -1,5 +1,5 @@
-import { ProjectSettingsForm } from '@renderer/components/project-settings-modal/project-settings-form';
-import { useProjectSettings } from '@renderer/components/project-settings-modal/use-project-settings';
+import { ProjectSettingsForm } from '@renderer/components/projects/project-settings-form';
+import { useProjectSettings } from '@renderer/components/projects/use-project-settings';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { useParams } from '@renderer/core/view/navigation-provider';
 

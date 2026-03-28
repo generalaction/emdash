@@ -10,9 +10,9 @@ interface FromBranchContentProps {
 
 export function FromBranchContent({ state, branches }: FromBranchContentProps) {
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <BranchPickerField state={state} branches={branches} />
       <TaskNameField state={state} />
-    </>
+    </div>
   );
 }

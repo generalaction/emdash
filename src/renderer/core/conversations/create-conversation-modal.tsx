@@ -5,11 +5,13 @@ import { AgentSelector } from '@renderer/components/agent-selector';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContent,
+  DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
+import { Switch } from '@renderer/components/ui/switch';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
@@ -33,6 +35,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const projectData = getProjectStore(projectId)?.data;
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
+  const [skipPermissions, setSkipPermissions] = useState<boolean>(false);
 
   const providerIdConversationsCount = useMemo(() => {
     if (!conversationMgr) return 0;
@@ -51,24 +54,37 @@ export const CreateConversationModal = observer(function CreateConversationModal
       projectId,
       taskId,
       id,
+      autoApprove: skipPermissions,
       provider: providerId,
       title,
       initialSize: getConversationsPaneSize(),
     });
     onSuccess({ conversationId: id });
-  }, [conversationMgr, providerId, title, onSuccess, projectId, taskId]);
+  }, [conversationMgr, providerId, title, onSuccess, projectId, taskId, skipPermissions]);
 
   return (
     <DialogContent>
       <DialogHeader>
         <DialogTitle>Create Conversation</DialogTitle>
       </DialogHeader>
-      <FieldGroup>
-        <Field>
-          <FieldLabel>Agent</FieldLabel>
-          <AgentSelector value={providerId} onChange={setProviderId} connectionId={connectionId} />
-        </Field>
-      </FieldGroup>
+      <DialogContentArea>
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Agent</FieldLabel>
+            <AgentSelector
+              value={providerId}
+              onChange={setProviderId}
+              connectionId={connectionId}
+            />
+          </Field>
+          <Field>
+            <div className="flex items-center gap-2">
+              <Switch checked={skipPermissions} onCheckedChange={setSkipPermissions} />
+              <FieldLabel>Dangerously skip permissions</FieldLabel>
+            </div>
+          </Field>
+        </FieldGroup>
+      </DialogContentArea>
       <DialogFooter>
         <ConfirmButton onClick={handleCreateConversation}>Create</ConfirmButton>
       </DialogFooter>

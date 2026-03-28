@@ -65,7 +65,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-4 justify-between"
+      className="flex items-center gap-2 p-6 justify-between"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -142,7 +142,11 @@ export function DialogContentArea({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cn('flex flex-col gap-2 w-full min-h-0 p-4', className)}>{children}</div>;
+  return (
+    <div className={cn('flex flex-col gap-2 w-full min-h-0 p-6 pt-0 space-y-4', className)}>
+      {children}
+    </div>
+  );
 }
 
 export {

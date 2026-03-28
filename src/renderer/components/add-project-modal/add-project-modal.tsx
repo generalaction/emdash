@@ -1,15 +1,23 @@
+import { Home, Server } from 'lucide-react';
 import { useState } from 'react';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
+import { AnimatedHeight } from '../ui/animated-height';
 import { ConfirmButton } from '../ui/confirm-button';
-import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  DialogContent,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Field, FieldLabel } from '../ui/field';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
-import { ModeTabs } from './mode-tabs';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 
 export type Strategy = 'local' | 'ssh';
@@ -146,23 +154,48 @@ export function AddProjectModal({
       <DialogHeader>
         <DialogTitle>Add Project</DialogTitle>
       </DialogHeader>
-      <Tabs
-        value={strategy}
-        onValueChange={(v) => setStrategy(v as Strategy)}
-        className="flex flex-col space-y-4"
-      >
-        <TabsList>
-          <TabsTrigger value="local">Local</TabsTrigger>
-          <TabsTrigger value="ssh">SSH</TabsTrigger>
-        </TabsList>
-        <TabsContent value="local" className="flex flex-col gap-4">
-          <ModeTabs mode={mode} onModeChange={setMode}>
-            <PickExistingPanel strategy={'local'} state={pickState} />
-            <CreateNewPanel strategy={'local'} state={newState} />
-            <ClonePanel strategy={'local'} state={cloneState} />
-          </ModeTabs>
-        </TabsContent>
-        <TabsContent value="ssh" className="flex flex-col gap-6">
+      <DialogContentArea>
+        <div className="flex items-center gap-2">
+          <ToggleGroup
+            className="w-full flex-1"
+            value={[mode]}
+            onValueChange={([value]) => {
+              if (value) setMode(value as Mode);
+            }}
+          >
+            <ToggleGroupItem value="pick" className="flex-1">
+              Pick
+            </ToggleGroupItem>
+            <ToggleGroupItem value="new" className="flex-1">
+              New
+            </ToggleGroupItem>
+            <ToggleGroupItem value="clone" className="flex-1">
+              Clone
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Select
+            value={strategy}
+            onValueChange={(value) => {
+              if (value) setStrategy(value as Strategy);
+            }}
+          >
+            <SelectTrigger>
+              <span className="flex items-center gap-2">
+                {strategy === 'local' ? (
+                  <Home className="size-3.5 shrink-0 text-foreground-muted" />
+                ) : (
+                  <Server className="size-3.5 shrink-0 text-foreground-muted" />
+                )}
+                <SelectValue placeholder="Select a strategy" />
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="local">Local</SelectItem>
+              <SelectItem value="ssh">SSH</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {strategy === 'ssh' && (
           <Field>
             <FieldLabel>SSH Connection</FieldLabel>
             <SshConnectionSelector
@@ -171,13 +204,19 @@ export function AddProjectModal({
               onAddConnection={handleAddConnection}
             />
           </Field>
-          <ModeTabs mode={mode} onModeChange={setMode}>
-            <PickExistingPanel strategy={'ssh'} connectionId={connectionId} state={pickState} />
-            <CreateNewPanel strategy={'ssh'} connectionId={connectionId} state={newState} />
-            <ClonePanel strategy={'ssh'} connectionId={connectionId} state={cloneState} />
-          </ModeTabs>
-        </TabsContent>
-      </Tabs>
+        )}
+        <AnimatedHeight>
+          {mode === 'pick' && (
+            <PickExistingPanel strategy={strategy} connectionId={connectionId} state={pickState} />
+          )}
+          {mode === 'new' && (
+            <CreateNewPanel strategy={strategy} connectionId={connectionId} state={newState} />
+          )}
+          {mode === 'clone' && (
+            <ClonePanel strategy={strategy} connectionId={connectionId} state={cloneState} />
+          )}
+        </AnimatedHeight>
+      </DialogContentArea>
       <DialogFooter>
         <ConfirmButton type="button" onClick={() => void handleSubmit()}>
           Create

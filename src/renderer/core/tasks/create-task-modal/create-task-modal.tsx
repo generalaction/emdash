@@ -2,6 +2,7 @@ import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { ProjectSelector } from '@renderer/components/project-selector';
+import { AnimatedHeight } from '@renderer/components/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
@@ -32,6 +33,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 }: BaseModalProps & { projectId?: string; strategy?: CreateTaskStrategy }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
 
@@ -90,7 +92,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="pt-0 space-y-2">
+      <DialogContentArea>
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -110,17 +112,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             From Pull Request
           </ToggleGroupItem>
         </ToggleGroup>
-        {selectedStrategy === 'from-branch' && (
-          <FromBranchContent state={fromBranch} branches={branches} />
-        )}
-        {selectedStrategy === 'from-issue' && (
-          <FromIssueContent state={fromIssue} branches={branches} />
-        )}
-        {selectedStrategy === 'from-pull-request' && (
-          <div className="text-sm text-muted-foreground py-4 text-center">
-            From Pull Request — coming soon
-          </div>
-        )}
+        <AnimatedHeight onAnimatingChange={setIsTransitioning}>
+          {selectedStrategy === 'from-branch' && (
+            <FromBranchContent state={fromBranch} branches={branches} />
+          )}
+          {selectedStrategy === 'from-issue' && (
+            <FromIssueContent state={fromIssue} branches={branches} disabled={isTransitioning} />
+          )}
+          {selectedStrategy === 'from-pull-request' && (
+            <div className="text-sm text-muted-foreground text-center">
+              From Pull Request — coming soon
+            </div>
+          )}
+        </AnimatedHeight>
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!selectedProjectId}>
