@@ -232,10 +232,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
       return;
     }
 
-    setPrLoading(true);
     setPrError(null);
 
     const timer = setTimeout(async () => {
+      setPrLoading(true);
       try {
         const result = await window.electronAPI.githubGetPullRequestDetails({
           projectPath: projectPath!,
