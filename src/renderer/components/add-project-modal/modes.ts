@@ -21,11 +21,14 @@ export function usePickMode() {
     setNameIsTouched(true);
   };
 
+  const isValid = name.trim().length > 0 && path.trim().length > 0;
+
   return {
     path,
     name,
     handlePathChange,
     handleNameChange,
+    isValid,
   };
 }
 
@@ -75,6 +78,12 @@ export function useNewMode() {
     setOwnerIsTouched(true);
   };
 
+  const isValid =
+    name.trim().length > 0 &&
+    repositoryName.trim().length > 0 &&
+    !!repositoryOwner &&
+    path.trim().length > 0;
+
   return {
     name,
     repositoryName,
@@ -87,6 +96,7 @@ export function useNewMode() {
     handleNameChange,
     handleRepositoryNameChange,
     handleOwnerChange,
+    isValid,
   };
 }
 
@@ -106,6 +116,9 @@ export function useCloneMode() {
     setNameIsTouched(true);
   };
 
+  const isValid =
+    name.trim().length > 0 && repositoryUrl.trim().length > 0 && path.trim().length > 0;
+
   return {
     repositoryUrl,
     name,
@@ -113,6 +126,7 @@ export function useCloneMode() {
     setPath,
     handleRepositoryUrlChange,
     handleNameChange,
+    isValid,
   };
 }
 
