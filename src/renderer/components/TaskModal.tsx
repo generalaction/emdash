@@ -161,8 +161,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   const [isCreating, setIsCreating] = useState(false);
 
   // PR mode state
-  type TaskMode = 'branch' | 'pr';
-  const [mode, setMode] = useState<TaskMode>('branch');
+  const [mode, setMode] = useState<'branch' | 'pr'>('branch');
   const [prInput, setPrInput] = useState('');
   const [prDetails, setPrDetails] = useState<{
     baseRefName: string;
@@ -223,7 +222,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
 
   // Fetch PR details on debounced valid input
   useEffect(() => {
-    if (mode !== 'pr') return;
+    if (mode !== 'pr' || !projectPath) return;
 
     const prNumber = parsePrInput(prInput);
     if (!prNumber) {
@@ -238,7 +237,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
       setPrLoading(true);
       try {
         const result = await window.electronAPI.githubGetPullRequestDetails({
-          projectPath: projectPath!,
+          projectPath,
           prNumber,
         });
         if (result.success && result.pr) {
@@ -621,6 +620,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
             <div className="flex gap-1 rounded-md bg-muted p-0.5">
               <button
                 type="button"
+                aria-pressed={mode === 'branch'}
                 className={`flex-1 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
                   mode === 'branch'
                     ? 'bg-background text-foreground shadow-sm'
@@ -632,6 +632,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
               </button>
               <button
                 type="button"
+                aria-pressed={mode === 'pr'}
                 className={`flex-1 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
                   mode === 'pr'
                     ? 'bg-background text-foreground shadow-sm'
