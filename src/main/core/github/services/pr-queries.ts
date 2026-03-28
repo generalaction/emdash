@@ -55,8 +55,8 @@ export const LIST_PRS_QUERY = `
 `;
 
 export const SEARCH_PRS_QUERY = `
-  query searchPullRequests($query: String!, $limit: Int!) {
-    search(query: $query, type: ISSUE, first: $limit) {
+  query searchPullRequests($searchQuery: String!, $limit: Int!) {
+    search(query: $searchQuery, type: ISSUE, first: $limit) {
       issueCount
       nodes {
         ... on PullRequest { ...PrSummaryFields }

@@ -180,7 +180,7 @@ export class PrService {
         const response = await octokit.graphql<{
           search: { nodes: GqlPrNode[] };
         }>(SEARCH_PRS_QUERY, {
-          query: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
+          searchQuery: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
           limit,
         });
         fresh = response.search.nodes.map((n) => this.gqlToUnified(n, nameWithOwner));
@@ -259,7 +259,7 @@ export class PrService {
         const octokit = await this.getOctokit();
         const response = await octokit.graphql<{ search: { nodes: GqlPrNode[] } }>(
           SEARCH_PRS_QUERY,
-          { query: `repo:${nameWithOwner} is:pr head:${taskBranch}`, limit: 25 }
+          { searchQuery: `repo:${nameWithOwner} is:pr head:${taskBranch}`, limit: 25 }
         );
         const fresh = response.search.nodes.map((n) => this.gqlToUnified(n, nameWithOwner));
         const prs = await this.upsertMany(fresh);
