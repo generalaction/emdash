@@ -46,6 +46,7 @@ const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const MAX_TERMINAL_WRITE_CHARS_PER_SLICE = 16_384;
 const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
+const TERMINAL_PROVIDER_ID_ATTRIBUTE = 'data-terminal-provider-id';
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -168,6 +169,9 @@ export class TerminalSessionManager {
 
     this.container = document.createElement('div');
     this.container.className = 'terminal-session-root';
+    if (options.providerId) {
+      this.container.setAttribute(TERMINAL_PROVIDER_ID_ATTRIBUTE, options.providerId);
+    }
     Object.assign(this.container.style, {
       width: '100%',
       height: '100%',
