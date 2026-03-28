@@ -11,6 +11,7 @@ export const projectSettingsSchema = z.object({
       '.env.*.local',
       '.envrc',
       'docker-compose.override.yml',
+      '.emdash.json',
     ]),
   shellSetup: z.string().optional(),
   tmux: z.boolean().optional(),

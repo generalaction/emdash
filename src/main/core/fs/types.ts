@@ -293,7 +293,8 @@ export const DEFAULT_EMDASH_CONFIG = `{
     ".env.local",
     ".env.*.local",
     ".envrc",
-    "docker-compose.override.yml"
+    "docker-compose.override.yml",
+    ".emdash.json"
   ],
   "scripts": {
     "setup": "",
