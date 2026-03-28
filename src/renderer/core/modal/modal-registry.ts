@@ -8,7 +8,6 @@ import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/core/tasks/create-task-modal/create-task-modal';
-import { RenameProjectModal } from '@renderer/views/projects/rename-project-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-viewer/right-panel/pr-section/create-pr-modal';
 import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/views/tasks/rename-task-modal';
@@ -28,7 +27,6 @@ export const modalRegistry = {
   mcpServerModal: McpModal,
   conflictDialog: ConflictDialog,
   createPrModal: CreatePrModal,
-  renameProjectModal: RenameProjectModal,
   renameTaskModal: RenameTaskModal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;

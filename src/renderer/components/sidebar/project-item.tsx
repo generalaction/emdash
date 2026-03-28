@@ -1,11 +1,10 @@
-import { ChevronRight, FolderClosed, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, FolderClosed, Loader2, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
@@ -72,7 +71,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: projectParams } = useParams('project');
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
-  const showRename = useShowModal('renameProjectModal');
   const showConfirm = useShowModal('confirmActionModal');
 
   const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
@@ -96,8 +94,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const forceOpen = sidebarStore.forceOpenIds.has(projectId);
   const isUnregistered = project.state === 'unregistered';
-
-  const handleRename = () => showRename({ projectId, currentName: projectName ?? '' });
 
   const handleDelete = () =>
     showConfirm({
@@ -196,11 +192,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </Collapsible>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={handleRename} disabled={isUnregistered}>
-          <Pencil className="size-4" />
-          Rename
-        </ContextMenuItem>
-        <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={handleDelete} disabled={isUnregistered}>
           <Trash2 className="size-4" />
           Delete
