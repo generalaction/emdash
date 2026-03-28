@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { diffEditorPool } from '@renderer/core/monaco/monaco-diff-pool';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { DiffEditorProvider } from './diff-editor-provider';
 import { DiffToolbar } from './diff-toolbar';
 import { FileDiffView } from './file-diff-view';
 import { StackedDiffView } from './stacked-diff-view';
@@ -28,9 +29,11 @@ export const DiffView = observer(function DiffView() {
         diffStyle={diffStyle}
         onDiffStyleChange={(style) => diffView?.setDiffStyle(style)}
       />
-      <div className="min-h-0 flex-1">
-        {viewMode === 'stacked' ? <StackedDiffView /> : <FileDiffView />}
-      </div>
+      <DiffEditorProvider>
+        <div className="min-h-0 flex-1">
+          {viewMode === 'stacked' ? <StackedDiffView /> : <FileDiffView />}
+        </div>
+      </DiffEditorProvider>
     </div>
   );
 });
