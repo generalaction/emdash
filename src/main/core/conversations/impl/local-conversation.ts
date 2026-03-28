@@ -31,6 +31,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
+  private readonly taskEnvVars: Record<string, string>;
 
   constructor({
     projectId,
@@ -39,6 +40,7 @@ export class LocalConversationProvider implements ConversationProvider {
     tmux = false,
     shellSetup,
     exec,
+    taskEnvVars = {},
   }: {
     projectId: string;
     taskPath: string;
@@ -46,6 +48,7 @@ export class LocalConversationProvider implements ConversationProvider {
     tmux?: boolean;
     shellSetup?: string;
     exec: ExecFn;
+    taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
     this.taskPath = taskPath;
@@ -53,6 +56,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.exec = exec;
+    this.taskEnvVars = taskEnvVars;
   }
 
   async startSession(
@@ -101,9 +105,12 @@ export class LocalConversationProvider implements ConversationProvider {
       command: spawnParams.command,
       args: spawnParams.args,
       cwd: this.taskPath,
-      env: buildAgentEnv({
-        hook: port > 0 ? { port, ptyId, token } : undefined,
-      }),
+      env: {
+        ...buildAgentEnv({
+          hook: port > 0 ? { port, ptyId, token } : undefined,
+        }),
+        ...this.taskEnvVars,
+      },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
 import type { SshProject } from '@shared/projects';
+import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
@@ -192,6 +193,15 @@ export class SshProjectProvider implements ProjectProvider {
 
     const taskFs = new SshFileSystem(this.proxy, workDir);
     const settings = await this.settings.get();
+    const defaultBranch = await this.settings.getDefaultBranch();
+    const taskEnvVars = getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: workDir,
+      projectPath: this.project.path,
+      defaultBranch,
+      portSeed: workDir,
+    });
     const tmuxEnabled = settings.tmux ?? false;
     const scripts = settings.scripts;
     const proxy = this.proxy;
@@ -206,6 +216,7 @@ export class SshProjectProvider implements ProjectProvider {
       tmux: tmuxEnabled,
       exec,
       proxy,
+      taskEnvVars,
     });
 
     const terminalProvider = new SshTerminalProvider({
@@ -215,6 +226,7 @@ export class SshProjectProvider implements ProjectProvider {
       tmux: tmuxEnabled,
       exec,
       proxy,
+      taskEnvVars,
     });
 
     const taskEnv: TaskProvider = {
@@ -222,6 +234,7 @@ export class SshProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskBranch: task.taskBranch,
       sourceBranch: task.sourceBranch,
+      taskEnvVars,
       fs: taskFs,
       git: taskGit,
       conversations: conversationProvider,
@@ -320,6 +333,7 @@ export class SshProjectProvider implements ProjectProvider {
       tmux: settings.tmux ?? false,
       shellSetup: settings.shellSetup,
       exec: getSshExec(this.proxy),
+      taskEnvVars: task.taskEnvVars,
     });
 
     const scripts = settings.scripts;

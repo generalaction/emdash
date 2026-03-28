@@ -24,6 +24,7 @@ export class LocalTerminalProvider implements TerminalProvider {
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
+  private readonly taskEnvVars: Record<string, string>;
 
   constructor({
     projectId,
@@ -32,6 +33,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     tmux = false,
     shellSetup,
     exec,
+    taskEnvVars = {},
   }: {
     projectId: string;
     taskId: string;
@@ -39,6 +41,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     tmux?: boolean;
     shellSetup?: string;
     exec: ExecFn;
+    taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
     this.taskId = taskId;
@@ -46,6 +49,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.exec = exec;
+    this.taskEnvVars = taskEnvVars;
   }
 
   async spawnTerminal(
@@ -70,7 +74,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       command: params.command,
       args: params.args,
       cwd: this.taskPath,
-      env: buildTerminalEnv(),
+      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

@@ -21,6 +21,7 @@ export class TaskLifecycleService {
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
+  private readonly taskEnvVars: Record<string, string>;
 
   constructor({
     projectId,
@@ -30,6 +31,7 @@ export class TaskLifecycleService {
     tmux = false,
     shellSetup,
     exec,
+    taskEnvVars = {},
   }: {
     projectId: string;
     taskId: string;
@@ -38,6 +40,7 @@ export class TaskLifecycleService {
     tmux?: boolean;
     shellSetup?: string;
     exec: ExecFn;
+    taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
     this.taskId = taskId;
@@ -46,6 +49,7 @@ export class TaskLifecycleService {
     this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.exec = exec;
+    this.taskEnvVars = taskEnvVars;
   }
 
   async runLifecycleScript(
@@ -95,7 +99,7 @@ export class TaskLifecycleService {
       command: params.command,
       args: params.args,
       cwd: this.taskPath,
-      env: buildTerminalEnv(),
+      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
