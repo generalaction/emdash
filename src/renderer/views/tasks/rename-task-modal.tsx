@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContent,
+  DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -81,24 +82,26 @@ export const RenameTaskModal = observer(function RenameTaskModal({
       <DialogHeader>
         <DialogTitle>Rename task</DialogTitle>
       </DialogHeader>
-      <FieldGroup>
-        <Field>
-          <FieldLabel>Task name</FieldLabel>
-          <Input
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSubmit();
-            }}
-            maxLength={MAX_TASK_NAME_LENGTH}
-            autoFocus
-          />
-          {validationMessage && !isUnchanged && (
-            <p className="text-xs text-destructive mt-1">{validationMessage}</p>
-          )}
-          {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-        </Field>
-      </FieldGroup>
+      <DialogContentArea className="pt-0">
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Task name</FieldLabel>
+            <Input
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSubmit();
+              }}
+              maxLength={MAX_TASK_NAME_LENGTH}
+              autoFocus
+            />
+            {validationMessage && !isUnchanged && (
+              <p className="text-xs text-destructive mt-1">{validationMessage}</p>
+            )}
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+          </Field>
+        </FieldGroup>
+      </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>
           Cancel

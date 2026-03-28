@@ -1,10 +1,19 @@
+import { Archive, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@renderer/components/ui/context-menu';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { isMountedProject } from '@renderer/core/stores/project';
 import { getProjectStore } from '@renderer/core/stores/project-selectors';
 import { TaskStore } from '@renderer/core/stores/task';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { SidebarMenuButton } from './sidebar-primitives';
+import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   task: TaskStore;
@@ -18,6 +27,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   isActive,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
+  const showRename = useShowModal('renameTaskModal');
+  const showConfirm = useShowModal('confirmActionModal');
 
   const isBootstrapping =
     task.state === 'unregistered' ||
@@ -35,23 +46,81 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     }
   };
 
+  const handleArchive = () => {
+    const project = getProjectStore(projectId);
+    if (project && isMountedProject(project)) {
+      void project.taskManager.archiveTask(taskId);
+    }
+  };
+
+  const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
+
+  const handleDelete = () =>
+    showConfirm({
+      title: 'Delete task',
+      description: `"${taskName}" will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      onSuccess: () => {
+        const project = getProjectStore(projectId);
+        if (project && isMountedProject(project)) {
+          void project.taskManager.deleteTask(taskId);
+        }
+      },
+    });
+
   return (
-    <SidebarMenuButton
-      className="pl-9"
-      onClick={() => {
-        handleProvision();
-        navigate('task', { projectId, taskId });
-      }}
-      isActive={isActive}
-    >
-      <span
-        className={cn(
-          'overflow-hidden whitespace-nowrap transition-colors',
-          isBootstrapping && 'text-foreground/40'
-        )}
-      >
-        {taskName}
-      </span>
-    </SidebarMenuButton>
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <SidebarMenuRow
+          className={cn('group/row flex items-center p-1.5 pl-9')}
+          isActive={isActive}
+        >
+          <button
+            className={cn(
+              'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
+              isBootstrapping && 'text-foreground/40'
+            )}
+            onClick={() => {
+              handleProvision();
+              navigate('task', { projectId, taskId });
+            }}
+          >
+            {taskName}
+          </button>
+          {isBootstrapping ? (
+            <SidebarItemMiniButton type="button" disabled aria-label="Loading">
+              <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
+            </SidebarItemMiniButton>
+          ) : (
+            <SidebarItemMiniButton
+              type="button"
+              className="opacity-0 group-hover/row:opacity-100 transition-opacity duration-150"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleArchive();
+              }}
+              aria-label="Archive task"
+            >
+              <Archive className="h-4 w-4" />
+            </SidebarItemMiniButton>
+          )}
+        </SidebarMenuRow>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={handleRename}>
+          <Pencil className="size-4" />
+          Rename
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleArchive}>
+          <Archive className="size-4" />
+          Archive
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={handleDelete}>
+          <Trash2 className="size-4" />
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
