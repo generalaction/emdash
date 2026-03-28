@@ -26,6 +26,9 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                 <TooltipTrigger>
                   <Toggle
                     pressed={isLeftOpen}
+                    variant="outline"
+                    size="sm"
+                    className="ml-2 size-7"
                     onPressedChange={() => setCollapsed('left', isLeftOpen)}
                   >
                     <PanelLeft className="h-4 w-4" />
@@ -47,7 +50,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   disabled={!RightPanel}
                   pressed={isRightOpen}
                   size="sm"
-                  className="rounded-lg data-pressed:bg-muted size-7 w-7 border border-border data-pressed:text-foreground text-muted-foreground"
+                  variant="outline"
                   onPressedChange={() => setCollapsed('right', isRightOpen)}
                 >
                   <PanelRight className="size-3.5" />

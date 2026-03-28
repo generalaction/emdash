@@ -1,5 +1,7 @@
 import { makeAutoObservable } from 'mobx';
 import type { LocalProject, SshProject } from '@shared/projects';
+import { rpc } from '../ipc';
+import { ProjectViewStore } from './project-view';
 import { TaskManagerStore } from './task-manager';
 
 export type UnregisteredProjectPhase =
@@ -32,27 +34,19 @@ export interface IMountedProject {
   readonly state: 'mounted';
   data: LocalProject | SshProject;
   taskManager: TaskManagerStore;
+  view: ProjectViewStore;
 }
 
 export class ProjectStore {
   state: 'unregistered' | 'unmounted' | 'mounted';
-
-  // Shared identity fields — always accessible regardless of state
   id: string;
   name: string | null;
-
-  // Data present once unmounted or mounted
   data: LocalProject | SshProject | null;
-
-  // Phase and error — relevant for unregistered and unmounted
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
-
-  // Unregistered-specific
   mode: ProjectMode | null;
-
-  // Mounted-only
   taskManager: TaskManagerStore | null = null;
+  view: ProjectViewStore | null = null;
 
   constructor(
     state: ProjectStore['state'],
@@ -71,10 +65,6 @@ export class ProjectStore {
     makeAutoObservable(this);
   }
 
-  // ---------------------------------------------------------------------------
-  // Transition methods — mutate in place, never replace the map entry
-  // ---------------------------------------------------------------------------
-
   transitionToMounted(data: LocalProject | SshProject): void {
     this.taskManager = new TaskManagerStore(data.id);
     this.data = data;
@@ -83,6 +73,7 @@ export class ProjectStore {
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
+    this.view = new ProjectViewStore();
   }
 
   transitionToUnmounted(
@@ -114,26 +105,20 @@ export class ProjectStore {
     this.error = undefined;
   }
 
-  // ---------------------------------------------------------------------------
-  // TODO: implement rename
-  // ---------------------------------------------------------------------------
-
-  async rename(_name: string) {
-    // TODO: implement rpc.projects.renameProject
+  async rename(name: string) {
+    try {
+      await rpc.projects.renameProject({ projectId: this.id, name: name });
+      this.name = name;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Intersection type aliases — narrowed views of ProjectStore per state
-// ---------------------------------------------------------------------------
 
 export type UnregisteredProject = ProjectStore & IUnregisteredProject;
 export type UnmountedProject = ProjectStore & IUnmountedProject;
 export type MountedProject = ProjectStore & IMountedProject;
-
-// ---------------------------------------------------------------------------
-// Type guards
-// ---------------------------------------------------------------------------
 
 export function isUnregisteredProject(p: ProjectStore): p is UnregisteredProject {
   return p.state === 'unregistered';
@@ -146,10 +131,6 @@ export function isUnmountedProject(p: ProjectStore): p is UnmountedProject {
 export function isMountedProject(p: ProjectStore): p is MountedProject {
   return p.state === 'mounted';
 }
-
-// ---------------------------------------------------------------------------
-// Factory functions — used by managers for initial map.set() only
-// ---------------------------------------------------------------------------
 
 export function createUnregisteredProject(
   id: string,

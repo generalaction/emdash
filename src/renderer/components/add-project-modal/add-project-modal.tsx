@@ -34,8 +34,8 @@ export interface CloneModeData extends BaseModeData {
 export type ModeData = BaseModeData | NewModeData | CloneModeData;
 
 export interface AddProjectModalProps extends BaseModalProps<void> {
-  strategy: Strategy;
-  mode: Mode;
+  strategy?: Strategy;
+  mode?: Mode;
   connectionId?: string;
 }
 

@@ -2,6 +2,7 @@ import { formatForDisplay } from '@tanstack/react-hotkeys';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
+import { Kbd, KbdGroup } from './kbd';
 
 interface ShortcutHintProps {
   settingsKey: ShortcutSettingsKey;
@@ -16,8 +17,12 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   if (!display) return null;
 
   return (
-    <span className={`flex items-center gap-1 text-muted-foreground ${className ?? ''}`}>
-      {display}
+    <span className={`flex items-center gap-1 text-xs text-muted-foreground ${className ?? ''}`}>
+      <KbdGroup>
+        {display.split('+').map((key, i) => (
+          <Kbd key={key}>{key.trim()}</Kbd>
+        ))}
+      </KbdGroup>
     </span>
   );
 };

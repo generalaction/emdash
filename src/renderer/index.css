@@ -5,6 +5,8 @@
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant dark-black (&:is(.dark-black *));
+@custom-variant emlight (&:is(.emlight *));
+@custom-variant emdark (&:is(.emdark *));
 
 @theme inline {
   --font-sans:
@@ -19,32 +21,44 @@
   --text-micro: 10px;
   --text-micro--line-height: 1.2;
 
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-hover: hsl(var(--accent-hover));
-  --color-accent-layer: hsl(var(--accent-layer));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-chart-1: hsl(var(--chart-1));
-  --color-chart-2: hsl(var(--chart-2));
-  --color-chart-3: hsl(var(--chart-3));
-  --color-chart-4: hsl(var(--chart-4));
-  --color-chart-5: hsl(var(--chart-5));
+  --color-background: var(--background);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-passive: var(--foreground-passive);
+
+  --color-background-secondary: var(--background-secondary);
+  --color-background-secondary-1: var(--background-secondary-1);
+  --color-background-secondary-2: var(--background-secondary-2);
+  --color-background-secondary-3: var(--background-secondary-3);
+
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-secondary-muted: var(--foreground-secondary-muted);
+  --color-foreground-secondary-passive: var(--foreground-secondary-passive);
+
+  --color-background-tertiary: var(--background-tertiary);
+  --color-background-tertiary-1: var(--background-tertiary-1);
+  --color-background-tertiary-2: var(--background-tertiary-2);
+  --color-background-tertiary-3: var(--background-tertiary-3);
+
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-tertiary-muted: var(--foreground-tertiary-muted);
+  --color-foreground-tertiary-passive: var(--foreground-tertiary-passive);
+
+  --color-background-destructive: var(--background-destructive);
+  --color-foreground-destructive: var(--foreground-destructive);
+
+  --color-border: var(--border);
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+  --color-border-destructive: var(--border-destructive);
+  --color-border-primary: var(--border-primary);
+
+  --color-primary: var(--primary);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -84,36 +98,48 @@
 }
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-hover: 0 0% 92%;
-    --accent-layer: 0 0% 94.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+  .emlight {
+    --background: color(display-p3 0.988 0.988 0.988);
+    --background-1: color(display-p3 0.975 0.975 0.975);
+    --background-2: color(display-p3 0.939 0.939 0.939);
+    --background-3: color(display-p3 0.908 0.908 0.908);
+
+    --foreground: color(display-p3 0.125 0.125 0.125);
+    --foreground-inverse: white;
+    --foreground-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-secondary: color(display-p3 0.939 0.939 0.939);
+    --background-secondary-1: color(display-p3 0.908 0.908 0.908);
+    --background-secondary-2: color(display-p3 0.88 0.88 0.88);
+    --background-secondary-3: color(display-p3 0.849 0.849 0.849);
+
+    --foreground-secondary: color(display-p3 0.125 0.125 0.125);
+    --foreground-secondary-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-secondary-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-tertiary: color(display-p3 0.939 0.939 0.939);
+    --background-tertiary-1: color(display-p3 0.908 0.908 0.908);
+    --background-tertiary-2: color(display-p3 0.88 0.88 0.88);
+    --background-tertiary-3: color(display-p3 0.849 0.849 0.849);
+
+    --foreground-tertiary: color(display-p3 0.125 0.125 0.125);
+    --foreground-tertiary-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-tertiary-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-destructive: color(display-p3 0.995 0.971 0.971);
+    --foreground-destructive: color(display-p3 0.744 0.234 0.222);
+
+    --primary: color(display-p3 0.87 0.409 0.164);
+
+    --border: color(display-p3 0.88 0.88 0.88);
+    --border-1: color(display-p3 0.732 0.732 0.732);
+    --border-2: color(display-p3 0.553 0.553 0.553);
+    --border-destructive: color(display-p3 0.872 0.575 0.572);
+    --border-primary: color(display-p3 0.9 0.45 0.2);
+
+    --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --selection: 217 91% 60%;
-    --selection-foreground: 0 0% 12%;
 
     /* Monaco editor */
     --monaco-bg: #f8fafc;
@@ -128,7 +154,7 @@
     --monaco-unchanged-region-bg: #e2e8f0;
 
     /* xterm terminals */
-    --xterm-bg: #ffffff;
+    --xterm-bg: var(--background);
     --xterm-fg: #1f2937;
     --xterm-cursor: #1e293b;
     --xterm-cursor-accent: #ffffff;
@@ -146,32 +172,32 @@
   }
 
   .dark {
-    --background: 215 28% 17%; /* gray-800: #1f2937 */
-    --foreground: 220 9% 96%; /* gray-100: #f3f4f6 */
-    --card: 215 28% 17%; /* gray-800: #1f2937 */
-    --card-foreground: 220 9% 96%;
-    --popover: 220 24% 21%; /* gray-750: slightly lighter than bg */
-    --popover-foreground: 220 9% 96%;
-    --primary: 220 9% 96%;
-    --primary-foreground: 215 28% 17%;
-    --secondary: 217 23% 27%; /* gray-700: #374151 */
-    --secondary-foreground: 220 9% 96%;
-    --muted: 217 23% 27%; /* gray-700: #374151 */
-    --muted-foreground: 220 9% 70%; /* gray-400: #9ca3af */
-    --accent: 217 23% 27%;
-    --accent-foreground: 220 9% 96%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 217 17% 32%; /* gray-650: between 700 and 600 */
-    --input: 217 17% 32%;
-    --ring: 220 9% 70%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --selection: 217 92% 80%;
-    --selection-foreground: 0 0% 98%;
+    --background: hsl(215 28% 17%); /* gray-800: #1f2937 */
+    --foreground: hsl(220 9% 96%); /* gray-100: #f3f4f6 */
+    --card: hsl(215 28% 17%); /* gray-800: #1f2937 */
+    --card-foreground: hsl(220 9% 96%);
+    --popover: hsl(220 24% 21%); /* gray-750: slightly lighter than bg */
+    --popover-foreground: hsl(220 9% 96%);
+    --primary: hsl(220 9% 96%);
+    --primary-foreground: hsl(215 28% 17%);
+    --secondary: hsl(217 23% 27%); /* gray-700: #374151 */
+    --secondary-foreground: hsl(220 9% 96%);
+    --muted: hsl(217 23% 27%); /* gray-700: #374151 */
+    --muted-foreground: hsl(220 9% 70%); /* gray-400: #9ca3af */
+    --accent: hsl(217 23% 27%);
+    --accent-foreground: hsl(220 9% 96%);
+    --destructive: hsl(0 62.8% 50%);
+    --destructive-foreground: hsl(0 0% 98%);
+    --border: hsl(217 17% 32%); /* gray-650: between 700 and 600 */
+    --input: hsl(217 17% 32%);
+    --ring: hsl(220 9% 70%);
+    --chart-1: hsl(220 70% 50%);
+    --chart-2: hsl(160 60% 45%);
+    --chart-3: hsl(30 80% 55%);
+    --chart-4: hsl(280 65% 60%);
+    --chart-5: hsl(340 75% 55%);
+    --selection: hsl(217 92% 80%);
+    --selection-foreground: hsl(0 0% 98%);
 
     /* Monaco editor */
     --monaco-bg: #1f2937;
@@ -204,32 +230,32 @@
   }
 
   .dark-black {
-    --background: 0 0% 0%; /* pure black #000000 */
-    --foreground: 0 0% 95%; /* near white #f2f2f2 */
-    --card: 0 0% 4%; /* very dark gray #0a0a0a */
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 8%; /* slightly lighter gray #141414 */
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 0 0% 12%; /* dark gray #1f1f1f */
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 15%; /* muted gray #262626 */
-    --muted-foreground: 0 0% 65%; /* lighter muted text #a6a6a6 */
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%; /* border gray #333333 */
-    --input: 0 0% 20%;
-    --ring: 0 0% 60%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --selection: 217 92% 70%;
-    --selection-foreground: 0 0% 95%;
+    --background: hsl(0 0% 0%); /* pure black #000000 */
+    --foreground: hsl(0 0% 95%); /* near white #f2f2f2 */
+    --card: hsl(0 0% 4%); /* very dark gray #0a0a0a */
+    --card-foreground: hsl(0 0% 95%);
+    --popover: hsl(0 0% 8%); /* slightly lighter gray #141414 */
+    --popover-foreground: hsl(0 0% 95%);
+    --primary: hsl(0 0% 95%);
+    --primary-foreground: hsl(0 0% 0%);
+    --secondary: hsl(0 0% 12%); /* dark gray #1f1f1f */
+    --secondary-foreground: hsl(0 0% 95%);
+    --muted: hsl(0 0% 15%); /* muted gray #262626 */
+    --muted-foreground: hsl(0 0% 65%); /* lighter muted text #a6a6a6 */
+    --accent: hsl(0 0% 15%);
+    --accent-foreground: hsl(0 0% 95%);
+    --destructive: hsl(0 62.8% 50%);
+    --destructive-foreground: hsl(0 0% 98%);
+    --border: hsl(0 0% 20%); /* border gray #333333 */
+    --input: hsl(0 0% 20%);
+    --ring: hsl(0 0% 60%);
+    --chart-1: hsl(220 70% 50%);
+    --chart-2: hsl(160 60% 45%);
+    --chart-3: hsl(30 80% 55%);
+    --chart-4: hsl(280 65% 60%);
+    --chart-5: hsl(340 75% 55%);
+    --selection: hsl(217 92% 70%);
+    --selection-foreground: hsl(0 0% 95%);
 
     /* Monaco editor */
     --monaco-bg: #000000;
@@ -280,19 +306,19 @@
   }
 
   ::selection {
-    background-color: hsl(var(--selection) / 0.35);
-    color: hsl(var(--selection-foreground));
+    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+    color: var(--selection-foreground);
   }
 
   ::-moz-selection {
-    background-color: hsl(var(--selection) / 0.35);
-    color: hsl(var(--selection-foreground));
+    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+    color: var(--selection-foreground);
   }
 
   /* Scrollbar styles for light and dark mode */
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: var(--border) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -305,30 +331,30 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-color: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
   }
 
   .dark *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
   }
 
   .dark *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-color: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
   }
 
   .dark-black *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
   }
 
   .dark-black *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.4);
+    background-color: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
   }
 }
 

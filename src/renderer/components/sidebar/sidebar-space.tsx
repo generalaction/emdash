@@ -7,15 +7,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();
   return (
-    <div className="[-webkit-app-region:drag] flex h-10 w-full justify-end bg-accent">
+    <div className="[-webkit-app-region:drag] flex h-10 w-full justify-end px-2">
       <Tooltip>
         <TooltipTrigger>
           <Toggle
-            className="[-webkit-app-region:no-drag]"
+            className="[-webkit-app-region:no-drag] size-7 bg-background-tertiary-3 hover:bg-background-tertiary-3 data-pressed:bg-background-tertiary-2"
+            variant="outline"
+            size="sm"
             pressed={isLeftOpen}
             onPressedChange={() => setCollapsed('left', isLeftOpen)}
           >
-            <PanelLeft className="h-4 w-4" />
+            <PanelLeft />
           </Toggle>
         </TooltipTrigger>
         <TooltipContent>

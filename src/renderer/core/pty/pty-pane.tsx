@@ -107,7 +107,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
           width: '100%',
           height: '100%',
           minHeight: 0,
-          backgroundColor: themeOverride?.background ?? 'var(--xterm-bg)',
+          backgroundColor: themeOverride?.background ?? 'var(--background)',
           boxSizing: 'border-box',
         }}
       >

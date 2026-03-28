@@ -1,26 +1,11 @@
-import { FolderPlus } from 'lucide-react';
 import React from 'react';
-import { Button } from '@renderer/components/ui/button';
-import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { SidebarGroupLabel } from './sidebar-primitives';
+import { MicroLabel } from '../ui/label';
 
 export function ProjectsGroupLabel() {
-  const showAddProjectModal = useShowModal('addProjectModal');
-
   return (
-    <SidebarGroupLabel className="flex items-center justify-between pl-3 pr-1">
-      <span className="cursor-default select-none text-xs font-medium normal-case tracking-normal text-muted-foreground">
-        Projects
-      </span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="text-foreground/30 h-7 w-7"
-        onClick={() => showAddProjectModal({})}
-      >
-        <FolderPlus className="h-4 w-4" />
-      </Button>
-    </SidebarGroupLabel>
+    <div className="flex items-center justify-between pl-3 pr-1">
+      <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
+    </div>
   );
 }
 

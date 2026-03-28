@@ -3,8 +3,8 @@ import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
 import { applyThemeToAll } from '@renderer/core/pty/pty';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
-type Theme = 'light' | 'dark' | 'dark-black' | 'system';
-type EffectiveTheme = 'light' | 'dark' | 'dark-black';
+type Theme = 'light' | 'dark' | 'dark-black' | 'system' | 'emlight' | 'emdark';
+type EffectiveTheme = 'light' | 'dark' | 'dark-black' | 'emlight' | 'emdark';
 
 function getSystemTheme(): EffectiveTheme {
   if (typeof window === 'undefined') return 'light';
@@ -17,12 +17,14 @@ function applyTheme(theme: Theme, systemTheme: EffectiveTheme) {
   const root = document.documentElement;
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
 
-  root.classList.remove('dark', 'dark-black');
+  root.classList.remove('dark', 'dark-black', 'emlight', 'emdark');
 
   if (effectiveTheme === 'dark') {
     root.classList.add('dark');
   } else if (effectiveTheme === 'dark-black') {
     root.classList.add('dark', 'dark-black');
+  } else if (effectiveTheme === 'emlight') {
+    root.classList.add('emlight');
   }
 }
 

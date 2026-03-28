@@ -102,6 +102,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
                   size="xs"
                   onClick={handleDiscardSelection}
                   title="Discard selected files"
+                  className="text-foreground-destructive"
                 >
                   <Undo2 className="size-3" />
                   Discard
@@ -120,11 +121,12 @@ export const UnstagedSection = observer(function UnstagedSection() {
             generalActions={
               <>
                 <Button
-                  variant="ghost"
+                  variant="link"
                   size="xs"
                   disabled={!hasChanges}
                   onClick={handleDiscardAll}
                   title="Discard all changes"
+                  className="text-foreground-destructive"
                 >
                   <Undo2 className="size-3" />
                   Discard all
