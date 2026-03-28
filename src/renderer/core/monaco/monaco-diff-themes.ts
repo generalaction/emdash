@@ -1,9 +1,8 @@
 import { loader } from '@monaco-editor/react';
+import type * as monacoNS from 'monaco-editor';
 import { cssVar } from '@renderer/lib/cssVars';
 
-export async function registerDiffThemes(): Promise<void> {
-  const monacoInstance = await loader.init();
-
+export function defineMonacoDiffThemes(monacoInstance: typeof monacoNS): void {
   monacoInstance.editor.defineTheme('custom-diff-dark', {
     base: 'vs-dark',
     inherit: true,
@@ -49,8 +48,21 @@ export async function registerDiffThemes(): Promise<void> {
   });
 }
 
+export async function registerDiffThemes(): Promise<void> {
+  const monacoInstance = await loader.init();
+  defineMonacoDiffThemes(monacoInstance);
+}
+
 export function getDiffThemeName(effectiveTheme: string): string {
-  if (effectiveTheme === 'dark-black') return 'custom-diff-black';
-  if (effectiveTheme === 'light') return 'custom-diff-light';
-  return 'custom-diff-dark';
+  switch (effectiveTheme) {
+    case 'dark-black':
+      return 'custom-diff-black';
+    case 'light':
+    case 'emlight':
+      return 'custom-diff-light';
+    case 'dark':
+    case 'emdark':
+    default:
+      return 'custom-diff-dark';
+  }
 }

@@ -71,7 +71,7 @@ export const TerminalsTabs = observer(function TerminalsTabs({
           </TooltipTrigger>
           <TooltipContent>
             Create terminal
-            <ShortcutHint settingsKey="newConversation" />
+            <ShortcutHint settingsKey="newTerminal" />
           </TooltipContent>
         </Tooltip>
       }

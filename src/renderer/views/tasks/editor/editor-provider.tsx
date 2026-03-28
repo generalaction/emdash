@@ -10,7 +10,7 @@ import {
   configureMonacoEditor,
 } from '@renderer/core/monaco/monaco-config';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
-import { getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
+import { defineMonacoThemes, getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTheme } from '@renderer/hooks/useTheme';
@@ -110,6 +110,8 @@ export const EditorProvider = observer(function EditorProvider({
   // Theme sync — update editor theme when app theme changes.
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    const m = codeEditorPool.getMonaco();
+    if (m) defineMonacoThemes(m as Parameters<typeof defineMonacoThemes>[0]);
     codeEditorPool.setTheme(getMonacoTheme(effectiveTheme));
   }, [effectiveTheme]);
 

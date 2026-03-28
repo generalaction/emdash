@@ -1,6 +1,6 @@
 import type * as monaco from 'monaco-editor';
 import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/core/monaco/editorConfig';
-import { getDiffThemeName, registerDiffThemes } from './monaco-diff-themes';
+import { defineMonacoDiffThemes, getDiffThemeName, registerDiffThemes } from './monaco-diff-themes';
 import { modelRegistry } from './monaco-model-registry';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from './monaco-pool';
 
@@ -46,6 +46,8 @@ export const diffEditorPool = {
   },
 
   setTheme(effectiveTheme: string): void {
+    const m = diffPool.getMonaco();
+    if (m) defineMonacoDiffThemes(m);
     diffPool.setTheme(getDiffThemeName(effectiveTheme));
   },
 

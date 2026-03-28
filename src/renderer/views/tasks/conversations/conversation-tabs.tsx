@@ -1,7 +1,6 @@
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import AgentLogo from '@renderer/components/agent-logo';
-import { Button } from '@renderer/components/ui/button';
 import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';

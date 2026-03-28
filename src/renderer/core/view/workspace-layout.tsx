@@ -9,7 +9,7 @@ import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { cn } from '@renderer/lib/utils';
 
 const LEFT_PANEL_DEFAULT_SIZE = 20;
-const RIGHT_PANEL_DEFAULT_SIZE = 20;
+const RIGHT_PANEL_DEFAULT_SIZE = 25;
 const LEFT_SIDEBAR_MIN_SIZE = 16;
 const LEFT_SIDEBAR_MAX_SIZE = 30;
 const MAIN_PANEL_MIN_SIZE = 30;

@@ -2,6 +2,7 @@ import { Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { FileIcon } from '@renderer/components/FileExplorer/FileIcons';
+import { Separator } from '@renderer/components/ui/separator';
 import { EditorTab } from '@renderer/core/editor/types';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
@@ -29,7 +30,7 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   }
 
   return (
-    <div className="flex h-8 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/10 overscroll-x-contain">
+    <div className="flex h-[41px] shrink-0 overflow-x-auto border-b border-border bg-background-1">
       {tabs.map((tab) => (
         <FileTab
           key={tab.tabId}
@@ -68,37 +69,42 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
   const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);
 
   return (
-    <div
-      className={cn(
-        'flex h-full cursor-pointer items-center gap-1.5 border-r border-border px-3 hover:bg-accent/50',
-        isActive && 'bg-background'
-      )}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
-    >
-      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-        {showSpinner ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <FileIcon filename={fileName} isDirectory={false} />
-        )}
-      </span>
-      <span className={cn('max-w-[200px] truncate text-xs', tab.isPreview && 'italic')}>
-        {fileName}
-      </span>
-      {tab.isDirty && (
-        <span className="text-gray-500" title="Unsaved changes">
-          ●
-        </span>
-      )}
+    <>
       <button
-        className="ml-1 rounded p-0.5 hover:bg-accent"
-        onClick={onClose}
-        aria-label={`Close ${fileName}`}
+        className={cn(
+          'group relative bg-background-1 flex flex-col h-full text-sm hover:bg-muted',
+          isActive && 'bg-background opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+        )}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
       >
-        <X className="h-3 w-3" />
+        <div className="flex items-center pl-3 pr-1 h-full gap-1.5">
+          <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+            {showSpinner ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FileIcon filename={fileName} isDirectory={false} />
+            )}
+          </span>
+          <span className={cn('max-w-[200px] truncate p-1', tab.isPreview && 'italic')}>
+            {fileName}
+          </span>
+          {tab.isDirty && (
+            <span className="text-foreground-muted" title="Unsaved changes">
+              ●
+            </span>
+          )}
+          <button
+            className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+            onClick={onClose}
+            aria-label={`Close ${fileName}`}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
       </button>
-    </div>
+      <Separator orientation="vertical" />
+    </>
   );
 });
