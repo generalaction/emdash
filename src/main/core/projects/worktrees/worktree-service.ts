@@ -1,8 +1,8 @@
 import path from 'node:path';
+import { err, ok, Result } from '@shared/result';
 import { FileSystemProvider } from '@main/core/fs/types';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { err, ok, Result } from '@main/lib/result';
 import { ProjectSettingsProvider } from '../settings/schema';
 
 export type ServeWorktreeError =

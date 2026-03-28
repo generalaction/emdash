@@ -27,12 +27,15 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
   }
 
   if (taskBranch && !params.checkoutInWorktree) {
-    await project.git.createBranch(
+    const createResult = await project.git.createBranch(
       taskBranch,
       params.sourceBranch.branch,
       !!params.sourceBranch.remote,
       params.sourceBranch.remote || 'origin'
     );
+    if (!createResult.success) {
+      throw new Error(`Failed to create branch '${taskBranch}': ${createResult.error.type}`);
+    }
     if (params.pushBranch) {
       await project.git.publishBranch(taskBranch, params.sourceBranch.remote || 'origin');
     }

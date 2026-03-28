@@ -1,16 +1,22 @@
 import {
   Branch,
   Commit,
+  CommitError,
   CommitFile,
+  CreateBranchError,
   DefaultBranch,
+  DeleteBranchError,
   DiffBase,
   DiffResult,
+  FetchError,
   GitChange,
   GitInfo,
   PullError,
   PushError,
+  RenameBranchError,
+  SoftResetError,
 } from '@shared/git';
-import type { Result } from '@main/lib/result';
+import type { Result } from '@shared/result';
 
 export interface GitProvider {
   getStatus(): Promise<GitChange[]>;
@@ -37,15 +43,15 @@ export interface GitProvider {
   getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;
 
-  commit(message: string): Promise<{ hash: string }>;
-  fetch(): Promise<void>;
+  commit(message: string): Promise<Result<{ hash: string }, CommitError>>;
+  fetch(): Promise<Result<void, FetchError>>;
   push(): Promise<Result<{ output: string }, PushError>>;
   publishBranch(
     branchName: string,
     remote?: string
   ): Promise<Result<{ output: string }, PushError>>;
   pull(): Promise<Result<{ output: string }, PullError>>;
-  softReset(): Promise<{ subject: string; body: string }>;
+  softReset(): Promise<Result<{ subject: string; body: string }, SoftResetError>>;
 
   getBranchStatus(): Promise<{
     branch: string;
@@ -62,9 +68,12 @@ export interface GitProvider {
     from: string,
     syncWithRemote?: boolean,
     remote?: string
-  ): Promise<void>;
-  renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }>;
-  deleteBranch(branch: string, force?: boolean): Promise<void>;
+  ): Promise<Result<void, CreateBranchError>>;
+  renameBranch(
+    oldBranch: string,
+    newBranch: string
+  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>>;
+  deleteBranch(branch: string, force?: boolean): Promise<Result<void, DeleteBranchError>>;
 
   detectInfo(): Promise<GitInfo>;
 }

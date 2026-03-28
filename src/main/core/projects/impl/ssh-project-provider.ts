@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
 import type { SshProject } from '@shared/projects';
+import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, Terminal } from '@shared/terminals';
@@ -19,7 +20,6 @@ import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@main/lib/result';
 import type {
   ProjectProvider,
   ProvisionTaskError,

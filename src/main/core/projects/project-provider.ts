@@ -1,8 +1,8 @@
 import { Conversation } from '@shared/conversations';
+import type { Result } from '@shared/result';
 import { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { Result } from '@main/lib/result';
 import { ConversationProvider } from '../conversations/types';
 import type { GitProvider } from '../git/types';
 import { TerminalProvider } from '../terminals/terminal-provider';

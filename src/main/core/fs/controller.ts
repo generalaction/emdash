@@ -1,8 +1,8 @@
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { createRPCController } from '@shared/ipc/rpc';
+import { err, ok } from '@shared/result';
 import { events } from '@main/lib/events';
-import { err, ok } from '@main/lib/result';
 import { resolveTask } from '../projects/utils';
 import {
   FileSystemErrorCodes,

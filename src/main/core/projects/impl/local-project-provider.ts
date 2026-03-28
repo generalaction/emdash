@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
+import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, type Terminal } from '@shared/terminals';
@@ -17,7 +18,6 @@ import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@main/lib/result';
 import type {
   ProjectProvider,
   ProvisionTaskError,

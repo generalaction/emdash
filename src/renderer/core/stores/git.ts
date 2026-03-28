@@ -1,6 +1,8 @@
-import { action, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { GitChange } from '@shared/git';
+import { err, ok } from '@shared/result';
 import { events, rpc } from '@renderer/core/ipc';
 
 export interface BranchStatus {
@@ -53,8 +55,24 @@ export class GitStore {
       commit: action,
       fetchRemote: action,
       push: action,
+      publishBranch: action,
       pull: action,
+      isBranchPublished: computed,
+      aheadCount: computed,
+      behindCount: computed,
     });
+  }
+
+  get isBranchPublished(): boolean {
+    return this.branchStatus?.upstream !== undefined;
+  }
+
+  get aheadCount(): number {
+    return this.branchStatus?.ahead ?? 0;
+  }
+
+  get behindCount(): number {
+    return this.branchStatus?.behind ?? 0;
   }
 
   async load(): Promise<void> {
@@ -94,55 +112,67 @@ export class GitStore {
       this.branchStatusLoading = true;
       this.branchStatusError = undefined;
     });
-    try {
-      const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+    const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+    if (result.success) {
       runInAction(() => {
-        if (!result.success) {
-          this.branchStatusError = result.error.type;
-          this.branchStatusLoading = false;
-          return;
-        }
         this.branchStatus = result.data;
         this.branchStatusLoading = false;
       });
-    } catch (e) {
+    } else {
       runInAction(() => {
-        this.branchStatusError = e instanceof Error ? e.message : String(e);
+        this.branchStatusError = result.error.type;
         this.branchStatusLoading = false;
       });
     }
   }
 
-  async fetchRemote(): Promise<{ success: boolean; error?: string }> {
-    try {
-      const result = await rpc.git.fetch(this.projectId, this.taskId);
-      if (!result.success) return { success: false, error: result.error?.type };
+  async fetchRemote() {
+    const result = await rpc.git.fetch(this.projectId, this.taskId);
+    if (result.success) {
       await this.loadBranchStatus();
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
+      return ok();
+    } else {
+      toast.error(`Failed to fetch remote changes: ${result.error.type} `);
+      return err(result.error);
     }
   }
 
-  async push(): Promise<{ success: boolean; error?: string }> {
-    try {
-      const result = await rpc.git.push(this.projectId, this.taskId);
-      if (!result.success) return { success: false, error: result.error?.type };
+  async push() {
+    const result = await rpc.git.push(this.projectId, this.taskId);
+    if (result.success) {
       await this.loadBranchStatus();
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
+      return ok();
+    } else {
+      const detail =
+        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      toast.error(`Failed to push: ${detail}`);
+      return err(result.error);
     }
   }
 
-  async pull(): Promise<{ success: boolean; error?: string }> {
-    try {
-      const result = await rpc.git.pull(this.projectId, this.taskId);
-      if (!result.success) return { success: false, error: result.error?.type };
+  async publishBranch() {
+    const branchName = this.branchStatus?.branch;
+    if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
+    const result = await rpc.git.publishBranch(this.projectId, this.taskId, branchName);
+    if (result.success) {
+      await this.loadBranchStatus();
+      return ok();
+    } else {
+      const detail =
+        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      toast.error(`Failed to publish branch: ${detail}`);
+      return err(result.error);
+    }
+  }
+
+  async pull() {
+    const result = await rpc.git.pull(this.projectId, this.taskId);
+    if (result.success) {
       await this.load();
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
+      return ok();
+    } else {
+      toast.error(`Failed to pull changes: ${result.error.type} `);
+      return err(result.error);
     }
   }
 
@@ -207,8 +237,14 @@ export class GitStore {
     await this.load();
   }
 
-  async commit(message: string): Promise<void> {
-    await rpc.git.commit(this.projectId, this.taskId, message);
-    await this.load();
+  async commit(message: string) {
+    const result = await rpc.git.commit(this.projectId, this.taskId, message);
+    if (result.success) {
+      await this.load();
+      return ok();
+    } else {
+      toast.error(`Failed to commit changes: ${result.error.type} `);
+      return err(result.error);
+    }
   }
 }

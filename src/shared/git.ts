@@ -73,8 +73,53 @@ export type DefaultBranch = {
   existsLocally: boolean;
 };
 
-export type PushError = { type: 'rejected'; message: string } | { type: 'error'; message: string };
+export type FetchError =
+  | { type: 'no_remote' }
+  | { type: 'auth_failed'; message: string }
+  | { type: 'network_error'; message: string }
+  | { type: 'remote_not_found'; message: string }
+  | { type: 'error'; message: string };
+
+export type CommitError =
+  | { type: 'empty_message' }
+  | { type: 'nothing_to_commit' }
+  | { type: 'hook_failed'; message: string }
+  | { type: 'error'; message: string };
+
+export type SoftResetError =
+  | { type: 'initial_commit' }
+  | { type: 'already_pushed' }
+  | { type: 'error'; message: string };
+
+export type CreateBranchError =
+  | { type: 'already_exists'; name: string }
+  | { type: 'invalid_base'; from: string }
+  | { type: 'invalid_name'; name: string }
+  | { type: 'error'; message: string };
+
+export type RenameBranchError =
+  | { type: 'already_exists'; name: string }
+  | { type: 'remote_push_failed'; message: string }
+  | { type: 'error'; message: string };
+
+export type DeleteBranchError =
+  | { type: 'unmerged'; branch: string }
+  | { type: 'not_found'; branch: string }
+  | { type: 'is_current'; branch: string }
+  | { type: 'error'; message: string };
+
+export type PushError =
+  | { type: 'rejected'; message: string }
+  | { type: 'auth_failed'; message: string }
+  | { type: 'no_remote'; message?: string }
+  | { type: 'hook_rejected'; message: string }
+  | { type: 'network_error'; message: string }
+  | { type: 'error'; message: string };
 
 export type PullError =
   | { type: 'conflict'; conflictedFiles: string[]; message: string }
+  | { type: 'no_upstream'; message: string }
+  | { type: 'diverged'; message: string }
+  | { type: 'auth_failed'; message: string }
+  | { type: 'network_error'; message: string }
   | { type: 'error'; message: string };

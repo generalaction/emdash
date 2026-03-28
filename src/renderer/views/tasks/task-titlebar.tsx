@@ -1,5 +1,7 @@
 import {
   Archive,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   FileDiff,
   Files,
@@ -8,6 +10,7 @@ import {
   ListTree,
   MessageSquare,
   Pen,
+  RefreshCcw,
   Terminal,
   Trash2,
 } from 'lucide-react';
@@ -15,6 +18,7 @@ import { observer } from 'mobx-react-lite';
 import { IssueSelector } from '@renderer/components/issue-selector';
 import { OpenInMenu } from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { MicroLabel } from '@renderer/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
@@ -32,6 +36,7 @@ import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useTaskViewContext } from './task-view-context';
+import { useGitActions } from './use-git-actions';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -48,7 +53,7 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
     return <PendingTaskTitlebar name={taskDisplayName(taskStore)} />;
   }
 
-  return <ActiveTaskTitlebar taskId={taskId} />;
+  return <ActiveTaskTitlebar taskId={taskId} projectId={projectId} />;
 });
 
 function PendingTaskTitlebar({ name }: { name?: string }) {
@@ -63,14 +68,33 @@ function PendingTaskTitlebar({ name }: { name?: string }) {
   );
 }
 
-const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { taskId: string }) {
-  const { projectId } = useTaskViewContext();
+const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
   const taskStore = getTaskStore(projectId, taskId);
   const taskState = asProvisioned(taskStore)!;
   const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
   useTaskViewShortcuts();
+
+  const {
+    hasUpstream,
+    aheadCount,
+    behindCount,
+    fetch,
+    pull,
+    push,
+    publish,
+    isPublishing,
+    isFetching,
+    isPulling,
+    isPushing,
+  } = useGitActions(projectId, taskId);
 
   return (
     <Titlebar
@@ -113,7 +137,107 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                     <GitBranch className="size-3.5" /> {taskState.data.sourceBranch}
                   </span>
                 </span>
-                <div>Pull | Push | Fetch</div>
+                <div className="flex items-center gap-1 w-full">
+                  {hasUpstream ? (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger className="flex-1">
+                          <Button
+                            className="w-full"
+                            variant="outline"
+                            size="xs"
+                            disabled={isFetching}
+                            onClick={() => fetch()}
+                          >
+                            <RefreshCcw className="size-3" />
+                            {isFetching ? 'Fetching...' : 'Fetch'}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isFetching ? 'Fetching...' : 'Fetch changes'}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger className="flex-1">
+                          <Button
+                            className="w-full"
+                            variant="outline"
+                            disabled={isPulling || behindCount === 0}
+                            size="xs"
+                            onClick={() => pull()}
+                          >
+                            <ArrowDown className="size-3" />
+                            {isPulling ? (
+                              'Pulling...'
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                Pull
+                                <Badge variant="secondary" className="shrink-0">
+                                  {behindCount}
+                                </Badge>
+                              </span>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isPulling
+                            ? 'Pulling...'
+                            : behindCount === 0
+                              ? 'Nothing to pull'
+                              : 'Pull changes'}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger className="flex-1">
+                          <Button
+                            className="w-full"
+                            variant="outline"
+                            disabled={isPushing || aheadCount === 0}
+                            size="xs"
+                            onClick={() => push()}
+                          >
+                            <ArrowUp className="size-3" />
+                            {isPushing ? (
+                              'Pushing...'
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                Push
+                                <Badge variant="secondary" className="shrink-0">
+                                  {aheadCount}
+                                </Badge>
+                              </span>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isPushing
+                            ? 'Pushing...'
+                            : aheadCount === 0
+                              ? 'Nothing to push'
+                              : 'Push changes'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger className="flex-1">
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          disabled={isPublishing}
+                          size="xs"
+                          onClick={() => publish()}
+                        >
+                          <ArrowUp className="size-3" />
+                          {isPublishing ? 'Publishing...' : 'Publish'}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isPublishing ? 'Publishing...' : 'Publish branch'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               </div>
               <IssueSelector
                 value={taskState.data.linkedIssue ?? null}

@@ -1,21 +1,27 @@
 import type {
   Branch,
   Commit,
+  CommitError,
   CommitFile,
+  CreateBranchError,
   DefaultBranch,
+  DeleteBranchError,
   DiffBase,
   DiffLine,
   DiffResult,
+  FetchError,
   GitChange,
   GitInfo,
   LocalBranch,
   PullError,
   PushError,
   RemoteBranch,
+  RenameBranchError,
+  SoftResetError,
 } from '@shared/git';
+import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
-import { err, ok, type Result } from '@main/lib/result';
 import { GitProvider } from '../types';
 import {
   computeBaseRef,
@@ -607,15 +613,66 @@ export class GitService implements GitProvider {
   // Mutations
   // ---------------------------------------------------------------------------
 
-  async commit(message: string): Promise<{ hash: string }> {
-    if (!message || !message.trim()) throw new Error('Commit message cannot be empty');
-    await this.exec('git', ['commit', '-m', message], { cwd: this.path });
-    const { stdout } = await this.exec('git', ['rev-parse', 'HEAD'], { cwd: this.path });
-    return { hash: stdout.trim() };
+  async commit(message: string): Promise<Result<{ hash: string }, CommitError>> {
+    if (!message || !message.trim()) return err({ type: 'empty_message' });
+    try {
+      await this.exec('git', ['commit', '-m', message], { cwd: this.path });
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || '';
+      const stdout = (error as { stdout?: string })?.stdout || '';
+      const output = stderr || stdout || String(error);
+      if (stderr.includes('nothing to commit') || stdout.includes('nothing to commit')) {
+        return err({ type: 'nothing_to_commit' });
+      }
+      return err({ type: 'hook_failed', message: output });
+    }
+    try {
+      const { stdout } = await this.exec('git', ['rev-parse', 'HEAD'], { cwd: this.path });
+      return ok({ hash: stdout.trim() });
+    } catch (error: unknown) {
+      return err({ type: 'error', message: String(error) });
+    }
   }
 
-  async fetch(): Promise<void> {
-    await this.exec('git', ['fetch'], { cwd: this.path });
+  async fetch(): Promise<Result<void, FetchError>> {
+    try {
+      const remotes = await this.exec('git', ['remote'], { cwd: this.path }).catch(() => ({
+        stdout: '',
+      }));
+      if (!remotes.stdout.trim()) return err({ type: 'no_remote' });
+      await this.exec('git', ['fetch'], { cwd: this.path });
+      return ok();
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      if (
+        stderr.includes('Authentication failed') ||
+        stderr.includes('authentication failed') ||
+        stderr.includes('Permission denied') ||
+        stderr.includes('could not read Username')
+      ) {
+        return err({ type: 'auth_failed', message: stderr });
+      }
+      if (
+        stderr.includes('Could not resolve host') ||
+        stderr.includes('could not resolve host') ||
+        stderr.includes('Network is unreachable') ||
+        stderr.includes('Connection refused') ||
+        stderr.includes('Connection timed out') ||
+        stderr.includes('unable to connect')
+      ) {
+        return err({ type: 'network_error', message: stderr });
+      }
+      if (
+        stderr.includes('does not appear to be a git repository') ||
+        stderr.includes('repository not found') ||
+        stderr.includes('Repository not found') ||
+        stderr.includes('not found') ||
+        stderr.includes('ERROR: Repository not found')
+      ) {
+        return err({ type: 'remote_not_found', message: stderr });
+      }
+      return err({ type: 'error', message: stderr });
+    }
   }
 
   async push(): Promise<Result<{ output: string }, PushError>> {
@@ -630,6 +687,10 @@ export class GitService implements GitProvider {
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || '';
       const message = stderr || String(error);
+
+      if (stderr.includes('Everything up-to-date') || message.includes('Everything up-to-date')) {
+        return ok({ output: 'Everything up-to-date' });
+      }
 
       if (
         stderr.includes('has no upstream branch') ||
@@ -662,6 +723,34 @@ export class GitService implements GitProvider {
         return err({ type: 'rejected', message });
       }
 
+      if (
+        stderr.includes('Authentication failed') ||
+        stderr.includes('authentication failed') ||
+        stderr.includes('Permission denied') ||
+        stderr.includes('could not read Username')
+      ) {
+        return err({ type: 'auth_failed', message });
+      }
+
+      if (
+        stderr.includes('Could not resolve host') ||
+        stderr.includes('could not resolve host') ||
+        stderr.includes('Network is unreachable') ||
+        stderr.includes('Connection refused') ||
+        stderr.includes('Connection timed out') ||
+        stderr.includes('unable to connect')
+      ) {
+        return err({ type: 'network_error', message });
+      }
+
+      if (stderr.includes('hook declined') || stderr.includes('pre-receive hook')) {
+        return err({ type: 'hook_rejected', message });
+      }
+
+      if (stderr.includes('No configured push destination') || stderr.includes('no remote')) {
+        return err({ type: 'no_remote', message });
+      }
+
       return err({ type: 'error', message });
     }
   }
@@ -681,9 +770,47 @@ export class GitService implements GitProvider {
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || '';
       const message = stderr || String(error);
+
+      if (stderr.includes('Everything up-to-date') || message.includes('Everything up-to-date')) {
+        return ok({ output: 'Everything up-to-date' });
+      }
+
       if (stderr.includes('[rejected]') || stderr.includes('Updates were rejected')) {
         return err({ type: 'rejected', message });
       }
+
+      if (
+        stderr.includes('Authentication failed') ||
+        stderr.includes('authentication failed') ||
+        stderr.includes('Permission denied') ||
+        stderr.includes('could not read Username')
+      ) {
+        return err({ type: 'auth_failed', message });
+      }
+
+      if (
+        stderr.includes('Could not resolve host') ||
+        stderr.includes('could not resolve host') ||
+        stderr.includes('Network is unreachable') ||
+        stderr.includes('Connection refused') ||
+        stderr.includes('Connection timed out') ||
+        stderr.includes('unable to connect')
+      ) {
+        return err({ type: 'network_error', message });
+      }
+
+      if (stderr.includes('hook declined') || stderr.includes('pre-receive hook')) {
+        return err({ type: 'hook_rejected', message });
+      }
+
+      if (
+        stderr.includes('No configured push destination') ||
+        stderr.includes('no remote') ||
+        stderr.includes('does not appear to be a git repository')
+      ) {
+        return err({ type: 'no_remote', message });
+      }
+
       return err({ type: 'error', message });
     }
   }
@@ -713,32 +840,73 @@ export class GitService implements GitProvider {
         return err({ type: 'conflict', conflictedFiles, message });
       }
 
+      if (
+        stderr.includes('There is no tracking information') ||
+        stderr.includes('no tracking information') ||
+        stderr.includes('has no upstream branch') ||
+        stderr.includes('no upstream configured')
+      ) {
+        return err({ type: 'no_upstream', message });
+      }
+
+      if (
+        stderr.includes('Need to specify how to reconcile') ||
+        stderr.includes('hint: You have divergent branches') ||
+        stderr.includes('fatal: Need to specify how to reconcile')
+      ) {
+        return err({ type: 'diverged', message });
+      }
+
+      if (
+        stderr.includes('Authentication failed') ||
+        stderr.includes('authentication failed') ||
+        stderr.includes('Permission denied') ||
+        stderr.includes('could not read Username')
+      ) {
+        return err({ type: 'auth_failed', message });
+      }
+
+      if (
+        stderr.includes('Could not resolve host') ||
+        stderr.includes('could not resolve host') ||
+        stderr.includes('Network is unreachable') ||
+        stderr.includes('Connection refused') ||
+        stderr.includes('Connection timed out') ||
+        stderr.includes('unable to connect')
+      ) {
+        return err({ type: 'network_error', message });
+      }
+
       return err({ type: 'error', message });
     }
   }
 
-  async softReset(): Promise<{ subject: string; body: string }> {
+  async softReset(): Promise<Result<{ subject: string; body: string }, SoftResetError>> {
     try {
       await this.exec('git', ['rev-parse', '--verify', 'HEAD~1'], { cwd: this.path });
     } catch {
-      throw new Error('Cannot undo the initial commit');
+      return err({ type: 'initial_commit' });
     }
 
     const { commits: log } = await this.getLog({ maxCount: 1 });
     if (log[0]?.isPushed) {
-      throw new Error('Cannot undo a commit that has already been pushed');
+      return err({ type: 'already_pushed' });
     }
 
-    const { stdout: subject } = await this.exec('git', ['log', '-1', '--pretty=format:%s'], {
-      cwd: this.path,
-    });
-    const { stdout: body } = await this.exec('git', ['log', '-1', '--pretty=format:%b'], {
-      cwd: this.path,
-    });
+    try {
+      const { stdout: subject } = await this.exec('git', ['log', '-1', '--pretty=format:%s'], {
+        cwd: this.path,
+      });
+      const { stdout: body } = await this.exec('git', ['log', '-1', '--pretty=format:%b'], {
+        cwd: this.path,
+      });
 
-    await this.exec('git', ['reset', '--soft', 'HEAD~1'], { cwd: this.path });
+      await this.exec('git', ['reset', '--soft', 'HEAD~1'], { cwd: this.path });
 
-    return { subject: subject.trim(), body: body.trim() };
+      return ok({ subject: subject.trim(), body: body.trim() });
+    } catch (error: unknown) {
+      return err({ type: 'error', message: String(error) });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -901,15 +1069,41 @@ export class GitService implements GitProvider {
     from: string,
     syncWithRemote = true,
     remote = 'origin'
-  ): Promise<void> {
+  ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
       await this.exec('git', ['fetch', remote], { cwd: this.path }).catch(() => {});
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
-    await this.exec('git', ['branch', '--no-track', name, base], { cwd: this.path });
+    try {
+      await this.exec('git', ['branch', '--no-track', name, base], { cwd: this.path });
+      return ok();
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      if (stderr.includes('already exists')) {
+        return err({ type: 'already_exists', name });
+      }
+      if (
+        stderr.includes('not a valid object name') ||
+        stderr.includes('Not a valid object name') ||
+        stderr.includes('invalid reference')
+      ) {
+        return err({ type: 'invalid_base', from });
+      }
+      if (
+        stderr.includes('not a valid branch name') ||
+        stderr.includes('invalid branch name') ||
+        stderr.includes("'.' is not a valid branch name")
+      ) {
+        return err({ type: 'invalid_name', name });
+      }
+      return err({ type: 'error', message: stderr });
+    }
   }
 
-  async renameBranch(oldBranch: string, newBranch: string): Promise<{ remotePushed: boolean }> {
+  async renameBranch(
+    oldBranch: string,
+    newBranch: string
+  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>> {
     let remoteName: string | undefined;
     try {
       const { stdout } = await this.exec('git', ['config', '--get', `branch.${oldBranch}.remote`], {
@@ -918,21 +1112,49 @@ export class GitService implements GitProvider {
       remoteName = stdout.trim() || undefined;
     } catch {}
 
-    await this.exec('git', ['branch', '-m', oldBranch, newBranch], { cwd: this.path });
+    try {
+      await this.exec('git', ['branch', '-m', oldBranch, newBranch], { cwd: this.path });
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      if (stderr.includes('already exists')) {
+        return err({ type: 'already_exists', name: newBranch });
+      }
+      return err({ type: 'error', message: stderr });
+    }
 
     if (remoteName) {
       try {
         await this.exec('git', ['push', remoteName, '--delete', oldBranch], { cwd: this.path });
       } catch {}
-      await this.exec('git', ['push', '-u', remoteName, newBranch], { cwd: this.path });
+      try {
+        await this.exec('git', ['push', '-u', remoteName, newBranch], { cwd: this.path });
+      } catch (error: unknown) {
+        const stderr = (error as { stderr?: string })?.stderr || String(error);
+        return err({ type: 'remote_push_failed', message: stderr });
+      }
     }
 
-    return { remotePushed: !!remoteName };
+    return ok({ remotePushed: !!remoteName });
   }
 
-  async deleteBranch(branch: string, force = true): Promise<void> {
+  async deleteBranch(branch: string, force = true): Promise<Result<void, DeleteBranchError>> {
     const flag = force ? '-D' : '-d';
-    await this.exec('git', ['branch', flag, branch], { cwd: this.path });
+    try {
+      await this.exec('git', ['branch', flag, branch], { cwd: this.path });
+      return ok();
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      if (stderr.includes('not fully merged')) {
+        return err({ type: 'unmerged', branch });
+      }
+      if (stderr.includes('not found') || stderr.includes('did not match any branch')) {
+        return err({ type: 'not_found', branch });
+      }
+      if (stderr.includes('checked out') || stderr.includes('is not fully merged')) {
+        return err({ type: 'is_current', branch });
+      }
+      return err({ type: 'error', message: stderr });
+    }
   }
 
   // ---------------------------------------------------------------------------

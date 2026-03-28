@@ -9,6 +9,7 @@ import type {
   PullRequestFile,
   PullRequestStatus,
 } from '@shared/pull-requests';
+import { err, ok } from '@shared/result';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_CHECK_RUNS_QUERY,
@@ -23,7 +24,6 @@ import { resolveTask } from '@main/core/projects/utils';
 import { db } from '@main/db/client';
 import { pullRequests } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { err, ok } from '@main/lib/result';
 
 // ---------------------------------------------------------------------------
 // Public payload types

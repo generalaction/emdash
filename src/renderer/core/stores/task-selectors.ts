@@ -1,3 +1,4 @@
+import { GitStore } from './git';
 import { isMountedProject, isUnmountedProject } from './project';
 import { projectManagerStore } from './project-manager';
 import { isProvisioned, isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
@@ -12,6 +13,11 @@ export function getTaskManagerStore(projectId: string): TaskManagerStore | undef
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskStore(projectId: string, taskId: string): TaskStore | undefined {
   return getTaskManagerStore(projectId)?.tasks.get(taskId);
+}
+
+export function getTaskGitStore(projectId: string, taskId: string): GitStore | undefined {
+  const taskStore = getTaskStore(projectId, taskId);
+  return taskStore && taskStore.git ? taskStore.git : undefined;
 }
 
 export type TaskViewKind =

@@ -1,6 +1,6 @@
 import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
+import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@main/lib/result';
 import { LocalFileSystem } from '../fs/impl/local-fs';
 import { SshFileSystem } from '../fs/impl/ssh-fs';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';

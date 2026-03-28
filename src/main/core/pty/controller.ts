@@ -1,6 +1,6 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { err, ok } from '@main/lib/result';
 import type { SshProjectProvider } from '../projects/impl/ssh-project-provider';
 import { projectManager } from '../projects/project-manager';
 import { ptySessionRegistry } from './pty-session-registry';

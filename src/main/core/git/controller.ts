@@ -1,8 +1,8 @@
 import type { DiffBase } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
+import { err, ok } from '@shared/result';
 import { resolveTask } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
-import { err, ok } from '@main/lib/result';
 
 export const gitController = createRPCController({
   getStatus: async (projectId: string, taskId: string) => {
@@ -186,71 +186,51 @@ export const gitController = createRPCController({
   },
 
   commit: async (projectId: string, taskId: string, message: string) => {
-    try {
-      const env = resolveTask(projectId, taskId);
-      if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.commit(message);
-      return ok({ hash: result.hash });
-    } catch (e) {
-      log.error('gitCtrl.commit failed', { projectId, taskId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    const result = await env.git.commit(message);
+    if (!result.success) return err(result.error);
+    return ok({ hash: result.data.hash });
   },
 
   fetch: async (projectId: string, taskId: string) => {
-    try {
-      const env = resolveTask(projectId, taskId);
-      if (!env) return err({ type: 'not_found' as const });
-      await env.git.fetch();
-      return ok();
-    } catch (e) {
-      log.error('gitCtrl.fetch failed', { projectId, taskId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    const result = await env.git.fetch();
+    if (!result.success) return err(result.error);
+    return ok();
   },
 
   push: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    try {
-      const result = await env.git.push();
-      if (!result.success) {
-        log.error('gitCtrl.push failed', { projectId, taskId, error: result.error });
-        return err({ ...result.error, type: 'git_error' as const });
-      }
-      return ok({ output: result.data.output });
-    } catch (e) {
-      log.error('gitCtrl.push failed', { projectId, taskId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const result = await env.git.push();
+    if (!result.success) return err(result.error);
+    return ok({ output: result.data.output });
+  },
+
+  publishBranch: async (projectId: string, taskId: string, branchName: string) => {
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    const result = await env.git.publishBranch(branchName);
+    if (!result.success) return err(result.error);
+    return ok({ output: result.data.output });
   },
 
   pull: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    try {
-      const result = await env.git.pull();
-      if (!result.success) {
-        log.error('gitCtrl.pull failed', { projectId, taskId, error: result.error });
-        return err({ ...result.error, type: 'git_error' as const });
-      }
-      return ok({ output: result.data.output });
-    } catch (e) {
-      log.error('gitCtrl.pull failed', { projectId, taskId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const result = await env.git.pull();
+    if (!result.success) return err(result.error);
+    return ok({ output: result.data.output });
   },
 
   softReset: async (projectId: string, taskId: string) => {
-    try {
-      const env = resolveTask(projectId, taskId);
-      if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.softReset();
-      return ok({ subject: result.subject, body: result.body });
-    } catch (e) {
-      log.error('gitCtrl.softReset failed', { projectId, taskId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    const result = await env.git.softReset();
+    if (!result.success) return err(result.error);
+    return ok({ subject: result.data.subject, body: result.data.body });
   },
 
   getLog: async (
@@ -355,20 +335,10 @@ export const gitController = createRPCController({
   },
 
   renameBranch: async (projectId: string, taskId: string, oldBranch: string, newBranch: string) => {
-    try {
-      const env = resolveTask(projectId, taskId);
-      if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.renameBranch(oldBranch, newBranch);
-      return ok({ remotePushed: result.remotePushed });
-    } catch (e) {
-      log.error('gitCtrl.renameBranch failed', {
-        projectId,
-        taskId,
-        oldBranch,
-        newBranch,
-        error: e,
-      });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    const result = await env.git.renameBranch(oldBranch, newBranch);
+    if (!result.success) return err(result.error);
+    return ok({ remotePushed: result.data.remotePushed });
   },
 });

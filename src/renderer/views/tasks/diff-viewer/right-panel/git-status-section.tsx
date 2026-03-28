@@ -7,47 +7,113 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@renderer/components/ui/tooltip';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useGitActions } from '@renderer/views/tasks/use-git-actions';
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const git = asProvisioned(getTaskStore(projectId, taskId))?.git;
+  const branchName = getTaskGitStore(projectId, taskId)?.branchStatus?.branch;
 
-  const branchStatus = git?.branchStatus;
-  const hasMatchingUpstream =
-    !!branchStatus?.upstream && branchStatus.upstream.endsWith(`/${branchStatus.branch}`);
-  const isUnpublished = branchStatus !== undefined && branchStatus !== null && !hasMatchingUpstream;
+  const {
+    hasUpstream,
+    aheadCount,
+    behindCount,
+    fetch,
+    pull,
+    push,
+    publish,
+    isPublishing,
+    isFetching,
+    isPulling,
+    isPushing,
+  } = useGitActions(projectId, taskId);
 
   return (
-    <div className="p-2 border-t border-border flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-muted-foreground justify-between">
-        <TooltipProvider>
+    <TooltipProvider>
+      <div className="p-2 border-t border-border flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-muted-foreground justify-between">
           <Tooltip>
             <TooltipTrigger className="flex min-w-0 items-center gap-2">
               <GitBranch className="size-3 shrink-0" />
-              <span className="truncate text-xs text-muted-foreground">{branchStatus?.branch}</span>
+              <span className="truncate text-xs text-muted-foreground">{branchName}</span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{branchStatus?.branch}</TooltipContent>
+            <TooltipContent side="bottom">{branchName}</TooltipContent>
           </Tooltip>
-        </TooltipProvider>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon-xs" onClick={() => git?.fetchRemote()}>
-            <RefreshCcw className="size-3" />
-          </Button>
-          <Button variant="outline" size="icon-xs" onClick={() => git?.pull()}>
-            <ArrowDown className="size-3" />
-          </Button>
-          <Button
-            variant="outline"
-            size={isUnpublished ? 'xs' : 'icon-xs'}
-            onClick={() => git?.push()}
-          >
-            <ArrowUp className="size-3" />
-            {isUnpublished && 'Publish & push'}
-          </Button>
+          <div className="flex items-center gap-1">
+            {hasUpstream ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isFetching}
+                      onClick={() => fetch()}
+                    >
+                      <RefreshCcw className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{isFetching ? 'Fetching...' : 'Fetch changes'}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isPulling || behindCount === 0}
+                      onClick={() => pull()}
+                    >
+                      <ArrowDown className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPulling
+                      ? 'Pulling...'
+                      : behindCount === 0
+                        ? 'Nothing to pull'
+                        : 'Pull changes'}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isPushing || aheadCount === 0}
+                      onClick={() => push()}
+                    >
+                      <ArrowUp className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPushing
+                      ? 'Pushing...'
+                      : aheadCount === 0
+                        ? 'Nothing to push'
+                        : 'Push changes'}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    disabled={isPublishing}
+                    onClick={() => publish()}
+                  >
+                    <ArrowUp className="size-3" />
+                    {isPublishing ? 'Publishing...' : 'Publish'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish branch'}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 });
