@@ -244,14 +244,27 @@ function initializeLocaleEnvironment(): void {
     missingUtf8Keys.push(key);
   }
 
+  if (process.env.LC_ALL && !isUtf8Locale(process.env.LC_ALL.trim())) {
+    delete process.env.LC_ALL;
+  }
+
+  if (process.env.LC_CTYPE && !isUtf8Locale(process.env.LC_CTYPE.trim())) {
+    delete process.env.LC_CTYPE;
+  }
+
+  const hasUtf8Lang = isUtf8Locale(process.env.LANG?.trim());
+  const hasUtf8LcAll = isUtf8Locale(process.env.LC_ALL?.trim());
+  const hasUtf8LcCtype = isUtf8Locale(process.env.LC_CTYPE?.trim());
+
+  if (hasUtf8LcAll || hasUtf8Lang || hasUtf8LcCtype) return;
+
   if (missingUtf8Keys.length === 0) return;
 
   const fallbackLocale = getFallbackUtf8Locale();
   if (!fallbackLocale) return;
 
-  for (const key of missingUtf8Keys) {
-    process.env[key] = fallbackLocale;
-  }
+  process.env.LANG = fallbackLocale;
+  process.env.LC_CTYPE = fallbackLocale;
 }
 
 /**

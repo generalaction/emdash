@@ -117,13 +117,29 @@ export function getLocaleEnv(): Record<string, string> {
     return localeEnv;
   }
 
-  // On non-Windows, ensure every locale var is UTF-8.
-  // Use the existing value if it's UTF-8, otherwise fall back to C.UTF-8.
+  // On non-Windows, preserve explicit UTF-8 locale choices and only fall back
+  // to a minimal UTF-8 locale when no effective UTF-8 locale is available.
   const localeEnv: Record<string, string> = {};
-  for (const key of LOCALE_ENV_VARS) {
-    const value = process.env[key];
-    localeEnv[key] = value && isUtf8Locale(value) ? value : DEFAULT_UTF8_LOCALE;
+  const lang = process.env.LANG;
+  const lcAll = process.env.LC_ALL;
+  const lcCtype = process.env.LC_CTYPE;
+
+  if (lcAll && isUtf8Locale(lcAll)) {
+    localeEnv.LC_ALL = lcAll;
   }
+  if (lang && isUtf8Locale(lang)) {
+    localeEnv.LANG = lang;
+  }
+  if (lcCtype && isUtf8Locale(lcCtype)) {
+    localeEnv.LC_CTYPE = lcCtype;
+  }
+
+  if (localeEnv.LC_ALL || localeEnv.LANG || localeEnv.LC_CTYPE) {
+    return localeEnv;
+  }
+
+  localeEnv.LANG = DEFAULT_UTF8_LOCALE;
+  localeEnv.LC_CTYPE = DEFAULT_UTF8_LOCALE;
   return localeEnv;
 }
 

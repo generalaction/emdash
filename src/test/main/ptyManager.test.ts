@@ -486,7 +486,6 @@ describe('ptyManager provider command resolution', () => {
 
       expect(getLocaleEnv()).toEqual({
         LANG: 'C.UTF-8',
-        LC_ALL: 'C.UTF-8',
         LC_CTYPE: 'C.UTF-8',
       });
     } finally {
@@ -496,7 +495,7 @@ describe('ptyManager provider command resolution', () => {
     }
   });
 
-  it('fills missing locale vars with C.UTF-8 when at least one is UTF-8', async () => {
+  it('preserves UTF-8 LANG without forcing LC_ALL fallback', async () => {
     const originalLang = process.env.LANG;
     const originalLcAll = process.env.LC_ALL;
     const originalLcCtype = process.env.LC_CTYPE;
@@ -510,8 +509,6 @@ describe('ptyManager provider command resolution', () => {
 
       expect(getLocaleEnv()).toEqual({
         LANG: 'en_US.UTF-8',
-        LC_ALL: 'C.UTF-8',
-        LC_CTYPE: 'C.UTF-8',
       });
     } finally {
       process.env.LANG = originalLang;

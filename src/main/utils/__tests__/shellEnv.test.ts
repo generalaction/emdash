@@ -242,7 +242,7 @@ describe('shellEnv', () => {
 
       expect(process.env.LANG).toBe('C.UTF-8');
       expect(process.env.LC_CTYPE).toBe('C.UTF-8');
-      expect(process.env.LC_ALL).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBeUndefined();
     });
 
     it('should fall back to C.UTF-8 when shell exposes only non-UTF-8 locale values', () => {
@@ -262,10 +262,10 @@ describe('shellEnv', () => {
 
       expect(process.env.LANG).toBe('C.UTF-8');
       expect(process.env.LC_CTYPE).toBe('C.UTF-8');
-      expect(process.env.LC_ALL).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBeUndefined();
     });
 
-    it('should fill only missing non-UTF-8 locale vars with C.UTF-8 fallback', () => {
+    it('should drop non-UTF-8 overrides when LANG is already UTF-8', () => {
       process.env.LANG = 'en_US.UTF-8';
       process.env.LC_CTYPE = 'C';
       delete process.env.LC_ALL;
@@ -281,8 +281,8 @@ describe('shellEnv', () => {
       initializeShellEnvironment();
 
       expect(process.env.LANG).toBe('en_US.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
-      expect(process.env.LC_ALL).toBe('C.UTF-8');
+      expect(process.env.LC_CTYPE).toBeUndefined();
+      expect(process.env.LC_ALL).toBeUndefined();
     });
   });
 });
