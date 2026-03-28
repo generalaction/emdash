@@ -157,7 +157,7 @@ describe('normalizeSettings - changelog dismissed versions', () => {
 describe('normalizeSettings - notification sound profile', () => {
   it('defaults to the current sound profile when missing', () => {
     const result = normalizeSettings(makeSettings());
-    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+    expect(result.notifications?.soundProfile).toBe('default');
   });
 
   it('preserves the gilfoyle sound profile when selected', () => {
@@ -189,7 +189,7 @@ describe('normalizeSettings - notification sound profile', () => {
       })
     );
 
-    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+    expect(result.notifications?.soundProfile).toBe('default');
   });
 });
 

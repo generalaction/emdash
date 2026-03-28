@@ -5,7 +5,7 @@ import gilfoyleBitcoinAlertUrl from '../assets/sounds/gilfoyle-bitcoin-alert.mp3
 let audioCtx: AudioContext | null = null;
 let enabled = true;
 let focusMode: 'always' | 'unfocused' = 'always';
-let profile: NotificationSoundProfile = 'gilfoyle';
+let profile: NotificationSoundProfile = 'default';
 let previewAudio: HTMLAudioElement | null = null;
 
 function getContext(): AudioContext {
