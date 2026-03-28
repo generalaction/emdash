@@ -70,7 +70,6 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
-    // Ensure the project is open in the main process before provisioning any task within it.
     await projectManagerStore.mountProject(this.projectId);
 
     const inFlight = this._provisionPromises.get(taskId);
@@ -85,11 +84,11 @@ export class TaskManagerStore {
 
     const promise = rpc.tasks
       .provisionTask(taskId)
-      .then(() => {
+      .then((result) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
-            current.transitionToProvisioned({ ...current.data });
+            current.transitionToProvisioned({ ...current.data }, result?.path ?? '');
             current.activate();
           }
         });

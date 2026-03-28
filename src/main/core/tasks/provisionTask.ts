@@ -6,7 +6,7 @@ import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
 import { mapTaskRowToTask } from './core';
 
-export async function provisionTask(taskId: string): Promise<void> {
+export async function provisionTask(taskId: string) {
   const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!row) throw new Error(`Task not found: ${taskId}`);
 
@@ -31,4 +31,7 @@ export async function provisionTask(taskId: string): Promise<void> {
 
   const result = await project.provisionTask(task, existingConversations, existingTerminals);
   if (!result.success) throw new Error(`Failed to provision task: ${result.error.message}`);
+  return {
+    path: result.data.taskPath,
+  };
 }

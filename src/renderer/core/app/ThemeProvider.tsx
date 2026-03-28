@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
-import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { applyThemeToAll } from '@renderer/core/pty/pty';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
@@ -38,11 +38,11 @@ interface ThemeContextType {
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const { settings, updateSettings } = useAppSettings();
+  const { value: themeValue, update } = useAppSettingsKey('theme');
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => getSystemTheme());
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', 'system');
 
-  const theme: Theme = settings?.theme ?? 'system';
+  const theme: Theme = themeValue ?? 'system';
   const effectiveTheme: EffectiveTheme = theme === 'system' ? systemTheme : theme;
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
-    updateSettings({ key: 'theme', value: newTheme });
+    update(newTheme);
   };
 
   const toggleTheme = () => {

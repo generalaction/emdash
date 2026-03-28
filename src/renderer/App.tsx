@@ -4,7 +4,6 @@ import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AppContextProvider } from './core/app/AppContextProvider';
-import { AppSettingsProvider } from './core/app/AppSettingsProvider';
 import { ThemeProvider } from './core/app/ThemeProvider';
 import { AgentProvider } from './core/conversations/AgentProvider';
 import { DependenciesProvider } from './core/dependencies-provider';
@@ -48,25 +47,23 @@ export function App() {
           <ModalProvider>
             <WorkspaceLayoutContextProvider>
               <AppContextProvider>
-                <AppSettingsProvider>
-                  <TerminalPoolProvider>
-                    <SshConnectionProvider>
-                      <GithubContextProvider>
-                        <IntegrationsProvider>
-                          <WorkspaceViewProvider>
-                            <AgentProvider>
-                              <RightSidebarProvider>
-                                <ThemeProvider>
-                                  <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                                </ThemeProvider>
-                              </RightSidebarProvider>
-                            </AgentProvider>
-                          </WorkspaceViewProvider>
-                        </IntegrationsProvider>
-                      </GithubContextProvider>
-                    </SshConnectionProvider>
-                  </TerminalPoolProvider>
-                </AppSettingsProvider>
+                <TerminalPoolProvider>
+                  <SshConnectionProvider>
+                    <GithubContextProvider>
+                      <IntegrationsProvider>
+                        <WorkspaceViewProvider>
+                          <AgentProvider>
+                            <RightSidebarProvider>
+                              <ThemeProvider>
+                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                              </ThemeProvider>
+                            </RightSidebarProvider>
+                          </AgentProvider>
+                        </WorkspaceViewProvider>
+                      </IntegrationsProvider>
+                    </GithubContextProvider>
+                  </SshConnectionProvider>
+                </TerminalPoolProvider>
               </AppContextProvider>
             </WorkspaceLayoutContextProvider>
           </ModalProvider>

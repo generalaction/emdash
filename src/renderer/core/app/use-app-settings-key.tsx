@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, ReactNode, useCallback, useContext } from 'react';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/core/ipc';
 
@@ -30,7 +29,7 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const { data, isLoading } = useQuery<SettingsMeta<K>>({
     queryKey: ['appSettings', key, 'meta'] as const,
     queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
 
   const updateMutation = useMutation<
@@ -95,74 +94,4 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     reset: resetMutation.mutate,
     resetField: (field: keyof AppSettings[K]) => resetFieldMutation.mutate(field),
   };
-}
-
-// ---------------------------------------------------------------------------
-// Backward-compatible context for consumers using useAppSettings().
-// Uses a single getAll query.
-// ---------------------------------------------------------------------------
-
-type AppSettingsUpdate = {
-  [K in AppSettingsKey]: { key: K; value: Partial<AppSettings[K]> };
-}[AppSettingsKey];
-
-interface AppSettingsContextValue {
-  settings: AppSettings | undefined;
-  isLoading: boolean;
-  isSaving: boolean;
-  updateSettings: (update: AppSettingsUpdate) => void;
-}
-
-const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
-
-export function AppSettingsProvider({ children }: { children: ReactNode }) {
-  const queryClient = useQueryClient();
-
-  const { data: settings, isLoading } = useQuery<AppSettings>({
-    queryKey: ['appSettings', 'all'] as const,
-    queryFn: () => rpc.appSettings.getAll() as Promise<AppSettings>,
-    staleTime: 60_000,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ key, value }: AppSettingsUpdate) => {
-      const current = queryClient.getQueryData<AppSettings>(['appSettings', 'all']);
-      const merged = mergeValue(current?.[key], value);
-      return rpc.appSettings.update(key, merged);
-    },
-    onMutate: ({ key, value }) => {
-      const prev = queryClient.getQueryData(['appSettings', 'all']);
-      queryClient.setQueryData(['appSettings', 'all'], (old: AppSettings | undefined) =>
-        old ? ({ ...old, [key]: mergeValue(old[key as typeof key], value) } as AppSettings) : old
-      );
-      return { prev };
-    },
-    onError: (_err, _update, ctx) => {
-      if (ctx) queryClient.setQueryData(['appSettings', 'all'], ctx.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
-    },
-  });
-
-  const updateSettings = useCallback(
-    (update: AppSettingsUpdate) => updateMutation.mutate(update),
-    [updateMutation]
-  );
-
-  return (
-    <AppSettingsContext.Provider
-      value={{ settings, isLoading, isSaving: updateMutation.isPending, updateSettings }}
-    >
-      {children}
-    </AppSettingsContext.Provider>
-  );
-}
-
-export function useAppSettings() {
-  const context = useContext(AppSettingsContext);
-  if (!context) {
-    throw new Error('useAppSettings must be used within an AppSettingsProvider');
-  }
-  return context;
 }

@@ -8,7 +8,7 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '../core/ipc';
 
 const iconModules = import.meta.glob('../../assets/images/*', {
@@ -30,7 +30,7 @@ export interface UseOpenInAppsResult {
 }
 
 export function useOpenInApps(): UseOpenInAppsResult {
-  const { settings, isLoading: settingsLoading } = useAppSettings();
+  const { value: openIn, isLoading: settingsLoading } = useAppSettingsKey('openIn');
 
   const { data: platform = 'darwin' } = useQuery({
     queryKey: ['app', 'platform'],
@@ -68,12 +68,12 @@ export function useOpenInApps(): UseOpenInAppsResult {
   }, [platform]);
 
   const installedApps = useMemo(() => {
-    const hiddenApps: OpenInAppId[] = settings?.openIn?.hidden ?? [];
+    const hiddenApps: OpenInAppId[] = openIn?.hidden ?? [];
     if (loading) return Object.values(OPEN_IN_APPS);
     return Object.values(OPEN_IN_APPS).filter(
       (app) => availability[app.id] && !hiddenApps.includes(app.id)
     );
-  }, [availability, loading, settings?.openIn?.hidden]);
+  }, [availability, loading, openIn?.hidden]);
 
   return { icons, labels, availability, installedApps, loading };
 }

@@ -1,6 +1,6 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { getEffectiveHotkey, type ShortcutSettingsKey } from '../../hooks/useKeyboardShortcuts';
 import { Kbd, KbdGroup } from './kbd';
 

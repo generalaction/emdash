@@ -1,5 +1,5 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useNavigate, useParams } from '@renderer/core/view/navigation-provider';

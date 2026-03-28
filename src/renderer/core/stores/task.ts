@@ -1,5 +1,6 @@
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
 import { Task } from '@shared/tasks';
+import { rpc } from '../ipc';
 import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
 import { DiffViewStore } from './diff-view-store';
@@ -40,6 +41,7 @@ export interface IUnprovisionedTask {
 export interface IProvisionedTask {
   readonly state: 'provisioned';
   data: Task;
+  path: string;
   terminals: TerminalManagerStore;
   conversations: ConversationManagerStore;
   git: GitStore;
@@ -55,6 +57,7 @@ export interface IProvisionedTask {
 export class TaskStore {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
   data: UnregisteredTaskData | Task;
+  path: string | null = null;
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
 
@@ -82,7 +85,7 @@ export class TaskStore {
     makeAutoObservable(this, { diffView: false });
   }
 
-  transitionToProvisioned(data: Task): void {
+  transitionToProvisioned(data: Task, path: string): void {
     this.terminals = new TerminalManagerStore(data.projectId, data.id);
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.git = new GitStore(data.projectId, data.id);
@@ -94,6 +97,7 @@ export class TaskStore {
     this.editorView = new EditorViewStore(data.projectId, data.id);
     this.data = data;
     this.state = 'provisioned';
+    this.path = path;
     this.phase = null;
     this.errorMessage = undefined;
   }
@@ -152,8 +156,22 @@ export class TaskStore {
     this.rightPanelView = v;
   }
 
-  async rename(_name: string) {
-    // TODO: implement
+  async rename(name: string) {
+    const task = isProvisioned(this) ? this.data : undefined;
+    if (task) {
+      try {
+        await rpc.tasks.renameTask(task.projectId, task.id, name);
+        runInAction(() => {
+          this.data.name = name;
+        });
+      } catch (e) {
+        runInAction(() => {
+          this.data.name = task.name;
+        });
+        console.error(e);
+        throw e;
+      }
+    }
   }
 
   private _disposeSubStores(): void {

@@ -1,21 +1,27 @@
 import React from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
-import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
-import type { Agent } from '../../types';
-import { AgentSelector } from '../agent-selector';
+import type { AppSettings } from '@shared/app-settings';
+import { AgentSelector } from '@renderer/components/agent-selector';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import type { Agent } from '@renderer/types';
 import { SettingRow } from './SettingRow';
 
 const DEFAULT_AGENT: Agent = 'claude';
 
 const DefaultAgentSettingsCard: React.FC = () => {
-  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
+  const {
+    value: defaultAgentValue,
+    update,
+    isLoading: loading,
+    isSaving: saving,
+  } = useAppSettingsKey('defaultAgent');
 
-  const defaultAgent: Agent = isValidProviderId(settings?.defaultAgent)
-    ? (settings!.defaultAgent as Agent)
+  const defaultAgent: Agent = isValidProviderId(defaultAgentValue)
+    ? (defaultAgentValue as Agent)
     : DEFAULT_AGENT;
 
   const handleChange = (agent: Agent) => {
-    updateSettings({ key: 'defaultAgent', value: agent });
+    update(agent as AppSettings['defaultAgent']);
   };
 
   return (

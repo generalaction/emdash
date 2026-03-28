@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import OpenInMenu from '@renderer/components/titlebar/OpenInMenu';
+import { OpenInMenu } from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { Button } from '@renderer/components/ui/button';
 import { MicroLabel } from '@renderer/components/ui/label';
@@ -108,13 +108,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                 <span className="flex items-center gap-2 text-foreground-passive">
                   Created from
                   <span className="flex items-center gap-1 text-foreground-muted">
-                    <GitBranch className="size-3.5" /> {taskStore?.data.sourceBranch} aheadCount
-                    behindCount
+                    <GitBranch className="size-3.5" /> {taskState.data.sourceBranch}
                   </span>
                 </span>
                 <div>Pull | Push | Fetch</div>
               </div>
-              <OpenInMenu path={taskStore?.data.path} />
+              <OpenInMenu path={taskState.path} />
               <div>Linked Issue preview (or link issue action or remove link action)</div>
             </PopoverContent>
           </Popover>

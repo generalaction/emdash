@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAppSettings } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '../../core/ipc';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -37,14 +37,19 @@ const dedupeAndSort = (fonts: string[]) =>
   );
 
 const TerminalSettingsCard: React.FC = () => {
-  const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
+  const {
+    value: terminal,
+    update,
+    isLoading: loading,
+    isSaving: saving,
+  } = useAppSettingsKey('terminal');
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [search, setSearch] = useState<string>('');
   const [installedFonts, setInstalledFonts] = useState<string[] | null>(null);
   const [loadingFonts, setLoadingFonts] = useState<boolean>(false);
 
-  const fontFamily = settings?.terminal?.fontFamily ?? '';
-  const autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+  const fontFamily = terminal?.fontFamily ?? '';
+  const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
 
   const popularOptions = useMemo<FontOption[]>(() => {
     return [
@@ -114,22 +119,22 @@ const TerminalSettingsCard: React.FC = () => {
   const applyFont = useCallback(
     (next: string) => {
       const normalized = next.trim();
-      updateSettings({ key: 'terminal', value: { fontFamily: normalized } });
+      update({ fontFamily: normalized });
       window.dispatchEvent(
         new CustomEvent('terminal-font-changed', { detail: { fontFamily: normalized } })
       );
     },
-    [updateSettings]
+    [update]
   );
 
   const toggleAutoCopy = useCallback(
     (next: boolean) => {
-      updateSettings({ key: 'terminal', value: { autoCopyOnSelection: next } });
+      update({ autoCopyOnSelection: next });
       window.dispatchEvent(
         new CustomEvent('terminal-auto-copy-changed', { detail: { autoCopyOnSelection: next } })
       );
     },
-    [updateSettings]
+    [update]
   );
 
   const selectedPreset = findPreset(fontFamily);

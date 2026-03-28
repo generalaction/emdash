@@ -5,7 +5,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
-import { useAppSettingsKey } from '@renderer/core/app/AppSettingsProvider';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
