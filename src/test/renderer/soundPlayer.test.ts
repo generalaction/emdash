@@ -122,14 +122,15 @@ describe('soundPlayer', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses the gilfoyle clip by default', async () => {
+  it('uses the classic Emdash profile by default', async () => {
     const { soundPlayer } = await loadSoundPlayer();
 
     soundPlayer.play('needs_attention');
 
-    expect(FakeAudio.instances).toHaveLength(1);
-    expect(FakeAudio.instances[0].src).toBe('gilfoyle-bitcoin-alert.mp3');
-    expect(FakeAudio.instances[0].played).toBe(true);
+    const ctx = FakeAudioContext.instances[0];
+    expect(FakeAudio.instances).toHaveLength(0);
+    expect(ctx.oscillators).toHaveLength(2);
+    expect(ctx.oscillators.map((osc) => osc.type)).toEqual(['triangle', 'triangle']);
   });
 
   it('switches to the gilfoyle profile for notification alerts', async () => {

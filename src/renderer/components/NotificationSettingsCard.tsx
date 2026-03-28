@@ -106,7 +106,7 @@ const NotificationSettingsCard: React.FC = () => {
             </p>
           </div>
           <Select
-            value={notifications?.soundProfile ?? 'gilfoyle'}
+            value={notifications?.soundProfile ?? 'default'}
             onValueChange={handleSoundProfileChange}
           >
             <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">

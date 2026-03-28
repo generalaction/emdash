@@ -167,7 +167,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sound: true,
     osNotifications: true,
     soundFocusMode: 'always',
-    soundProfile: 'gilfoyle',
+    soundProfile: 'default',
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
   review: {
