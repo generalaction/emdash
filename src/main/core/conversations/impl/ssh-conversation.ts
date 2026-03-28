@@ -17,9 +17,11 @@ import { buildAgentCommand } from './agent-command';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+const MAX_RESPAWNS = 2;
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
+  private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
@@ -131,8 +133,22 @@ export class SshConversationProvider implements ConversationProvider {
         exitCode,
       });
       if (shouldRespawn && !this.tmux) {
+        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
+        this.respawnCounts.set(sessionId, count);
+
+        if (count > MAX_RESPAWNS && !isResuming) {
+          log.error('SshConversationProvider: respawn limit reached, giving up', {
+            conversationId: conversation.id,
+          });
+          this.respawnCounts.delete(sessionId);
+          return;
+        }
+
+        const resumeNext = isResuming && count <= MAX_RESPAWNS;
+        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
+
         setTimeout(() => {
-          this.startSession(conversation, initialSize, isResuming, initialPrompt).catch((e) => {
+          this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
             log.error('SshConversationProvider: respawn failed', {
               conversationId: conversation.id,
               error: String(e),

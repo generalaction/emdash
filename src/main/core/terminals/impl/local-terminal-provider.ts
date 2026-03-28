@@ -13,9 +13,11 @@ import { TerminalProvider } from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+const MAX_RESPAWNS = 2;
 
 export class LocalTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
+  private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
   private readonly taskId: string;
   private readonly taskPath: string;
@@ -78,6 +80,18 @@ export class LocalTerminalProvider implements TerminalProvider {
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
       if (shouldRespawn && !this.tmux) {
+        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
+        this.respawnCounts.set(sessionId, count);
+
+        if (count > MAX_RESPAWNS) {
+          log.error('LocalTerminalProvider: respawn limit reached, giving up', {
+            terminalId: terminal.id,
+            respawnCount: count,
+          });
+          this.respawnCounts.delete(sessionId);
+          return;
+        }
+
         setTimeout(() => {
           this.spawnTerminal(terminal).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {

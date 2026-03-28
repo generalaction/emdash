@@ -13,9 +13,11 @@ import { log } from '@main/lib/logger';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+const MAX_RESPAWNS = 2;
 
 export class SshTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
+  private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
   private readonly projectId: string;
   private readonly taskId: string;
@@ -91,6 +93,18 @@ export class SshTerminalProvider implements TerminalProvider {
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
       if (shouldRespawn && !this.tmux) {
+        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
+        this.respawnCounts.set(sessionId, count);
+
+        if (count > MAX_RESPAWNS) {
+          log.error('SshTerminalProvider: respawn limit reached, giving up', {
+            terminalId: terminal.id,
+            respawnCount: count,
+          });
+          this.respawnCounts.delete(sessionId);
+          return;
+        }
+
         setTimeout(() => {
           this.spawnTerminal(terminal).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
