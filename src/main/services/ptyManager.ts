@@ -1717,7 +1717,7 @@ function startLifecycleSpawnFallback(options: {
     cwd: cwd || os.homedir(),
     shell: true,
     detached: true,
-    env: { ...process.env, ...(env || {}) },
+    env: { ...process.env, ...getLocaleEnv(), ...(env || {}) },
   });
 
   const dataCallbacks: Array<(data: string) => void> = [];

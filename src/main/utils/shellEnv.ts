@@ -227,32 +227,30 @@ function initializeLocaleEnvironment(): void {
 
   // Single batched shell call for all missing/non-UTF-8 locale vars
   const shellVars = needsLookup.length > 0 ? getShellLocaleVars() : {};
-  let foundUtf8Locale = false;
+  const missingUtf8Keys: string[] = [];
 
   for (const key of LOCALE_ENV_VARS) {
     const currentValue = process.env[key]?.trim();
     if (currentValue && isUtf8Locale(currentValue)) {
-      foundUtf8Locale = true;
       continue;
     }
 
     const shellValue = shellVars[key];
     if (shellValue && isUtf8Locale(shellValue)) {
       process.env[key] = shellValue;
-      foundUtf8Locale = true;
+      continue;
     }
+
+    missingUtf8Keys.push(key);
   }
 
-  if (foundUtf8Locale) return;
+  if (missingUtf8Keys.length === 0) return;
 
   const fallbackLocale = getFallbackUtf8Locale();
   if (!fallbackLocale) return;
 
-  for (const key of LOCALE_ENV_VARS) {
-    const currentValue = process.env[key]?.trim();
-    if (!currentValue || !isUtf8Locale(currentValue)) {
-      process.env[key] = fallbackLocale;
-    }
+  for (const key of missingUtf8Keys) {
+    process.env[key] = fallbackLocale;
   }
 }
 

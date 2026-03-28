@@ -264,5 +264,25 @@ describe('shellEnv', () => {
       expect(process.env.LC_CTYPE).toBe('C.UTF-8');
       expect(process.env.LC_ALL).toBe('C.UTF-8');
     });
+
+    it('should fill only missing non-UTF-8 locale vars with C.UTF-8 fallback', () => {
+      process.env.LANG = 'en_US.UTF-8';
+      process.env.LC_CTYPE = 'C';
+      delete process.env.LC_ALL;
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: '',
+          LC_CTYPE: 'C',
+          LC_ALL: '',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.LANG).toBe('en_US.UTF-8');
+      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LC_ALL).toBe('C.UTF-8');
+    });
   });
 });
