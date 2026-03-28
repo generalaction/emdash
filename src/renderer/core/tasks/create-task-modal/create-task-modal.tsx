@@ -49,7 +49,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
-  const fromPR = useFromPullRequestMode();
+  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch);
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;

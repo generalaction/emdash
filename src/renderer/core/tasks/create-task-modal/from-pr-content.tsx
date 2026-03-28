@@ -1,7 +1,8 @@
-import { GitBranch, GitPullRequest } from 'lucide-react';
+import { GitPullRequest } from 'lucide-react';
 import { useState } from 'react';
 import { InlinePrSelector } from '@renderer/components/inline-pr-selector';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { Field, FieldLabel } from '@renderer/components/ui/field';
+import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group';
 import { TaskNameField } from './task-name-field';
 import { CheckoutMode, FromPullRequestModeState } from './use-from-pull-request-mode';
 
@@ -73,22 +74,19 @@ export function FromPrContent({ state, nameWithOwner, disabled }: FromPrContentP
         </div>
       )}
 
-      <ToggleGroup
-        className="w-full"
-        value={[state.checkoutMode]}
-        onValueChange={([value]) => {
-          if (value) state.setCheckoutMode(value as CheckoutMode);
-        }}
+      <RadioGroup
+        value={state.checkoutMode}
+        onValueChange={(value) => state.setCheckoutMode(value as CheckoutMode)}
       >
-        <ToggleGroupItem className="flex-1 gap-1.5" value="checkout">
-          <GitBranch className="size-3.5" />
-          Checkout branch
-        </ToggleGroupItem>
-        <ToggleGroupItem className="flex-1 gap-1.5" value="new-branch">
-          <GitBranch className="size-3.5" />
-          Create task branch
-        </ToggleGroupItem>
-      </ToggleGroup>
+        <Field orientation="horizontal">
+          <RadioGroupItem value="checkout" />
+          <FieldLabel>Checkout branch for review</FieldLabel>
+        </Field>
+        <Field orientation="horizontal">
+          <RadioGroupItem value="new-branch" />
+          <FieldLabel>Create task branch</FieldLabel>
+        </Field>
+      </RadioGroup>
 
       <TaskNameField state={state} />
     </div>

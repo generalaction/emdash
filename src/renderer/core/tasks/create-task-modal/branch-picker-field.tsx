@@ -7,8 +7,8 @@ import {
 } from '@renderer/components/ui/collapsible';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { Field, FieldLabel } from '@renderer/components/ui/field';
-import { MicroLabel } from '@renderer/components/ui/label';
 import { Switch } from '@renderer/components/ui/switch';
+import { cn } from '@renderer/lib/utils';
 import { BranchSelector } from '@renderer/views/projects/branch-selector';
 import { BranchSelectionState } from './use-branch-selection';
 
@@ -16,17 +16,19 @@ interface BranchPickerFieldProps {
   state: BranchSelectionState;
   branches: Branch[];
   label?: string;
+  className?: string;
 }
 
 export function BranchPickerField({
   state,
   branches,
   label = 'From Branch',
+  className,
 }: BranchPickerFieldProps) {
   const { createBranchAndWorktree, setCreateBranchAndWorktree, pushBranch, setPushBranch } = state;
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <div className={cn('border border-border rounded-md overflow-hidden', className)}>
       <BranchSelector
         branches={branches}
         value={state.selectedBranch}
