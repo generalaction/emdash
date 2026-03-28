@@ -1720,6 +1720,52 @@ export function createUtf8StreamForwarder(emitData: (data: string) => void): {
   };
 }
 
+type LifecycleSpawnFallbackChild = {
+  stdout?: { on: (event: 'data', listener: (buf: Buffer) => void) => void } | null;
+  stderr?: { on: (event: 'data', listener: (buf: Buffer) => void) => void } | null;
+  on: (event: 'error' | 'exit' | 'close', listener: (...args: any[]) => void) => void;
+};
+
+export function attachLifecycleSpawnFallbackHandlers(
+  child: LifecycleSpawnFallbackChild,
+  callbacks: {
+    onData: (data: string) => void;
+    onExit: (exitCode: number | null, signal: string | null) => void;
+    onError: (error: Error) => void;
+  }
+): void {
+  const { onData, onExit, onError } = callbacks;
+  let didExit = false;
+  let exitCode: number | null = null;
+  let exitSignal: string | null = null;
+  const forwarder = createUtf8StreamForwarder(onData);
+
+  child.stdout?.on('data', (buf: Buffer) => {
+    forwarder.pushStdout(buf);
+  });
+  child.stderr?.on('data', (buf: Buffer) => {
+    forwarder.pushStderr(buf);
+  });
+
+  child.on('error', (error: Error) => {
+    forwarder.flush();
+    onError(error);
+  });
+
+  child.on('exit', (code: number | null, signal: string | null) => {
+    didExit = true;
+    exitCode = code;
+    exitSignal = signal ?? null;
+  });
+
+  child.on('close', () => {
+    // Flush only after stdio closes so buffered UTF-8 bytes can complete.
+    forwarder.flush();
+    if (!didExit) return;
+    onExit(exitCode, exitSignal);
+  });
+}
+
 function startLifecycleSpawnFallback(options: {
   id: string;
   command: string;
@@ -1739,25 +1785,16 @@ function startLifecycleSpawnFallback(options: {
   const dataCallbacks: Array<(data: string) => void> = [];
   const exitCallbacks: Array<(exitCode: number | null, signal: string | null) => void> = [];
   const errorCallbacks: Array<(error: Error) => void> = [];
-  const forwarder = createUtf8StreamForwarder((data) => {
-    for (const cb of dataCallbacks) cb(data);
-  });
-
-  child.stdout?.on('data', (buf: Buffer) => {
-    forwarder.pushStdout(buf);
-  });
-  child.stderr?.on('data', (buf: Buffer) => {
-    forwarder.pushStderr(buf);
-  });
-
-  child.on('error', (error: Error) => {
-    forwarder.flush();
-    for (const cb of errorCallbacks) cb(error);
-  });
-
-  child.on('exit', (code, signal) => {
-    forwarder.flush();
-    for (const cb of exitCallbacks) cb(code, signal ?? null);
+  attachLifecycleSpawnFallbackHandlers(child, {
+    onData: (data) => {
+      for (const cb of dataCallbacks) cb(data);
+    },
+    onExit: (code, signal) => {
+      for (const cb of exitCallbacks) cb(code, signal);
+    },
+    onError: (error) => {
+      for (const cb of errorCallbacks) cb(error);
+    },
   });
 
   return {

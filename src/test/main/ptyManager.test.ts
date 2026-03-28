@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const providerStatusGetMock = vi.fn();
@@ -531,6 +532,47 @@ describe('ptyManager provider command resolution', () => {
     forwarder.flush();
 
     expect(received.join('')).toBe('Marko Ranđelović');
+  });
+
+  it('waits for close before flushing UTF-8 fallback output and emitting exit', async () => {
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = stdout;
+    child.stderr = stderr;
+
+    const { attachLifecycleSpawnFallbackHandlers } = await import('../../main/services/ptyManager');
+    const received: string[] = [];
+    const exits: Array<[number | null, string | null]> = [];
+    const errors: Error[] = [];
+    attachLifecycleSpawnFallbackHandlers(child, {
+      onData: (data) => {
+        received.push(data);
+      },
+      onExit: (code, signal) => {
+        exits.push([code, signal]);
+      },
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+
+    stdout.emit('data', Buffer.from('Marko Ran', 'utf8'));
+    stdout.emit('data', Buffer.from([0xc4]));
+    child.emit('exit', 0, null);
+
+    expect(received.join('')).toBe('Marko Ran');
+    expect(exits).toEqual([]);
+    expect(errors).toEqual([]);
+
+    stdout.emit('data', Buffer.from([0x91]));
+    child.emit('close', 0, null);
+
+    expect(received.join('')).toBe('Marko Ranđ');
+    expect(exits).toEqual([[0, null]]);
   });
 });
 
