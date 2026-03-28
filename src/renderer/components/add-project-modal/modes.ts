@@ -36,7 +36,7 @@ export type PickModeState = ReturnType<typeof usePickMode>;
 export type NewModeState = ReturnType<typeof useNewMode>;
 export type CloneModeState = ReturnType<typeof useCloneMode>;
 
-export function useNewMode() {
+export function useNewMode(defaultPath: string) {
   const [name, setName] = useState('');
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
@@ -44,7 +44,8 @@ export function useNewMode() {
     ComboboxSelectOption | undefined
   >(undefined);
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
-  const [path, setPath] = useState('');
+  const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
+  const path = pathOverride ?? defaultPath;
 
   const [ownerIsTouched, setOwnerIsTouched] = useState<boolean>(false);
 
@@ -92,7 +93,7 @@ export function useNewMode() {
     owners,
     setRepositoryVisibility,
     path,
-    setPath,
+    setPath: setPathOverride,
     handleNameChange,
     handleRepositoryNameChange,
     handleOwnerChange,
@@ -100,11 +101,12 @@ export function useNewMode() {
   };
 }
 
-export function useCloneMode() {
+export function useCloneMode(defaultPath: string) {
   const [repositoryUrl, setRepositoryUrl] = useState('');
   const [name, setName] = useState('');
   const [nameIsTouched, setNameIsTouched] = useState<boolean>(false);
-  const [path, setPath] = useState('');
+  const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
+  const path = pathOverride ?? defaultPath;
 
   const handleRepositoryUrlChange = (newRepositoryUrl: string) => {
     setRepositoryUrl(newRepositoryUrl);
@@ -123,7 +125,7 @@ export function useCloneMode() {
     repositoryUrl,
     name,
     path,
-    setPath,
+    setPath: setPathOverride,
     handleRepositoryUrlChange,
     handleNameChange,
     isValid,
