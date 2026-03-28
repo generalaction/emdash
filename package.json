@@ -126,6 +126,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "devicon": "^2.17.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.32.1",
