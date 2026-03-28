@@ -27,6 +27,7 @@ import type { AgentMcpMeta, ServerMap } from '@shared/mcp/types';
 const mockReadServers = vi.mocked(configIO.readServers);
 const mockWriteServers = vi.mocked(configIO.writeServers);
 const mockGetMeta = vi.mocked(configPaths.getAgentMcpMeta);
+const mockGetAllAgentIds = vi.mocked(configPaths.getAllMcpAgentIds);
 
 const claudeMeta: AgentMcpMeta = {
   agentId: 'claude',
@@ -46,15 +47,27 @@ const cursorMeta: AgentMcpMeta = {
   adapter: 'cursor',
 };
 
+const opencodeMeta: AgentMcpMeta = {
+  agentId: 'opencode',
+  configPath: '/home/test/.config/opencode/opencode.json',
+  serversPath: ['mcp'],
+  template: { mcp: {} },
+  isToml: false,
+  isJsonc: true,
+  adapter: 'opencode',
+};
+
 describe('McpService', () => {
   let service: McpService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     service = new McpService();
+    mockGetAllAgentIds.mockReturnValue(['claude', 'cursor']);
     mockGetMeta.mockImplementation((id: string) => {
       if (id === 'claude') return claudeMeta;
       if (id === 'cursor') return cursorMeta;
+      if (id === 'opencode') return opencodeMeta;
       return undefined;
     });
   });
@@ -62,8 +75,8 @@ describe('McpService', () => {
   describe('loadAll', () => {
     it('reads servers from all agents and normalizes to McpServer[]', async () => {
       mockReadServers
-        .mockResolvedValueOnce({ myServer: { command: 'npx', args: ['-y', 'foo'] } }) // claude
-        .mockResolvedValueOnce({}); // cursor
+        .mockResolvedValueOnce({ myServer: { command: 'npx', args: ['-y', 'foo'] } })
+        .mockResolvedValueOnce({});
 
       const result = await service.loadAll();
       expect(result.installed).toHaveLength(1);
@@ -103,7 +116,6 @@ describe('McpService', () => {
         transport: 'stdio',
         command: 'npx',
         args: ['-y', 'foo'],
-
         providers: ['claude'],
       });
 
@@ -119,21 +131,54 @@ describe('McpService', () => {
       );
       mockWriteServers.mockResolvedValue(undefined);
 
-      // Save with only cursor selected — should remove from claude
       await service.saveServer({
         name: 'myServer',
         transport: 'stdio',
         command: 'npx',
         args: [],
-
         providers: ['cursor'],
       });
 
-      // Claude should have myServer removed
       const claudeCall = mockWriteServers.mock.calls.find((c) => c[0] === claudeMeta);
       if (claudeCall) {
         expect((claudeCall[1] as ServerMap).myServer).toBeUndefined();
       }
+    });
+
+    it('fails without writing when opencode read fails during a multi-provider save', async () => {
+      mockGetAllAgentIds.mockReturnValue(['claude', 'cursor', 'opencode']);
+      mockReadServers.mockImplementation((meta) => {
+        if (meta.agentId === 'opencode') {
+          return Promise.reject(new Error('unsafe parse'));
+        }
+        return Promise.resolve({ keep: { command: 'y' } });
+      });
+      mockWriteServers.mockResolvedValue(undefined);
+
+      await expect(
+        service.saveServer({
+          name: 'myServer',
+          transport: 'stdio',
+          command: 'npx',
+          providers: ['claude', 'opencode'],
+        })
+      ).rejects.toThrow('Failed to read config for: opencode');
+      expect(mockWriteServers).not.toHaveBeenCalled();
+    });
+
+    it('reports write failures separately from read failures', async () => {
+      mockGetAllAgentIds.mockReturnValue(['claude']);
+      mockReadServers.mockResolvedValue({});
+      mockWriteServers.mockRejectedValue(new Error('disk full'));
+
+      await expect(
+        service.saveServer({
+          name: 'myServer',
+          transport: 'stdio',
+          command: 'npx',
+          providers: ['claude'],
+        })
+      ).rejects.toThrow('Failed to write config for: claude');
     });
 
     it('rejects empty server name', async () => {
@@ -173,6 +218,25 @@ describe('McpService', () => {
         expect(servers.toRemove).toBeUndefined();
         expect(servers.keep).toBeDefined();
       }
+    });
+
+    it('fails without writing when opencode read fails during a multi-provider remove', async () => {
+      mockGetAllAgentIds.mockReturnValue(['claude', 'cursor', 'opencode']);
+      mockReadServers.mockImplementation((meta) => {
+        if (meta.agentId === 'opencode') {
+          return Promise.reject(new Error('unsafe parse'));
+        }
+        if (meta.agentId === 'claude') {
+          return Promise.resolve({ toRemove: { command: 'npx' }, keep: { command: 'y' } });
+        }
+        return Promise.resolve({ keep: { command: 'y' } });
+      });
+      mockWriteServers.mockResolvedValue(undefined);
+
+      await expect(service.removeServer('toRemove')).rejects.toThrow(
+        'Failed to read config for: opencode'
+      );
+      expect(mockWriteServers).not.toHaveBeenCalled();
     });
   });
 });
