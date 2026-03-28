@@ -51,7 +51,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
-          sourceBranch: fromBranch.selectedBranch?.branch ?? '',
+          sourceBranch: { branch: fromBranch.selectedBranch?.branch ?? '', remote: 'origin' },
           taskBranch: fromBranch.createBranchAndWorktree ? fromBranch.taskName : undefined,
           pushBranch: fromBranch.createBranchAndWorktree ? fromBranch.pushBranch : undefined,
         });
@@ -61,7 +61,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
-          sourceBranch: fromIssue.selectedBranch?.branch ?? '',
+          sourceBranch: { branch: fromIssue.selectedBranch?.branch ?? '', remote: 'origin' },
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
         break;
