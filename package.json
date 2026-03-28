@@ -46,6 +46,9 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.10.0",
     "@types/pidusage": "^2.0.5",
     "@types/react": "^18.2.45",
@@ -64,6 +67,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "husky": "^9.1.7",
+    "jsdom": "^29.0.1",
     "lint-staged": "^16.3.0",
     "postcss": "^8.4.32",
     "prettier": "3.6.2",
