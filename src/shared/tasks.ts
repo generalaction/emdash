@@ -42,6 +42,8 @@ export type CreateTaskParams = {
   sourceBranch: { branch: string; remote: string };
   /** If available, create a new git branch before the worktree */
   taskBranch?: string;
+  /** If true, checkout the source branch in a worktree without creating a new branch */
+  checkoutInWorktree?: boolean;
   /** The issue to link to the task */
   linkedIssue?: Issue;
   /** If true, push the task branch to the remote immediately after creation */

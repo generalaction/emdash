@@ -175,6 +175,12 @@ export class SshProjectProvider implements ProjectProvider {
       const existing = await this.worktreeService.getWorktree(task.taskBranch);
       if (existing) {
         workDir = existing;
+      } else if (task.taskBranch === task.sourceBranch) {
+        const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
+        if (!result.success) {
+          throw new Error(`Failed to set up worktree for branch "${task.taskBranch}"`);
+        }
+        workDir = result.data;
       } else {
         const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
         if (!result.success) {
@@ -239,6 +245,7 @@ export class SshProjectProvider implements ProjectProvider {
       git: taskGit,
       conversations: conversationProvider,
       terminals: terminalProvider,
+      settings: this.settings,
     };
 
     if (scripts?.setup) {

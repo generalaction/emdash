@@ -120,7 +120,7 @@ export class WorktreeService {
       });
     } catch (e: unknown) {
       const stderr = (e as { stderr?: string })?.stderr ?? '';
-      const match = /already checked out at '(.+)'/.exec(stderr);
+      const match = /already (?:checked out|used by worktree) at '(.+)'/.exec(stderr);
       if (match?.[1]) {
         // Case 3: branch is checked out at old/different path — move it to where we expect it
         await this.exec('git', ['worktree', 'move', match[1], worktreePath], {
@@ -211,6 +211,42 @@ export class WorktreeService {
     if (sourceBranch === defaultBranch) {
       this.ensureReserve(sourceBranch).catch(() => {});
     }
+
+    return ok(targetPath);
+  }
+
+  async checkoutExistingBranch(branchName: string): Promise<Result<string, ServeWorktreeError>> {
+    await this.ensureWorktreePoolDirExists();
+    return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName));
+  }
+
+  private async doCheckoutExistingBranch(
+    branchName: string
+  ): Promise<Result<string, ServeWorktreeError>> {
+    const targetPath = path.join(this.worktreePoolPath, branchName);
+
+    if (await this.rootFs.exists(targetPath)) {
+      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+      await this.rootFs.remove(targetPath, { recursive: true });
+      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+    }
+
+    try {
+      await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
+      await this.exec('git', ['fetch', 'origin'], { cwd: this.repoPath }).catch(() => {});
+      await this.exec('git', ['worktree', 'add', targetPath, branchName], {
+        cwd: this.repoPath,
+      });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause });
+    }
+
+    await this.copyPreservedFiles(targetPath).catch((e) => {
+      log.warn('WorktreeService: failed to copy preserved files', {
+        targetPath,
+        error: String(e),
+      });
+    });
 
     return ok(targetPath);
   }

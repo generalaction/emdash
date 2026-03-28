@@ -85,6 +85,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           name: fromPR.taskName,
           sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName, remote: 'origin' },
           taskBranch: fromPR.checkoutMode === 'new-branch' ? fromPR.taskName : undefined,
+          checkoutInWorktree: fromPR.checkoutMode === 'checkout',
         });
         break;
     }

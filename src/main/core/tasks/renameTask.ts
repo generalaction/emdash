@@ -19,11 +19,13 @@ export async function renameTask(
   let newBranch: string | null = null;
 
   if (oldBranch) {
-    const suffix = Math.random().toString(36).slice(2, 7);
-    const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
-    newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
+    if (oldBranch !== row.sourceBranch) {
+      const suffix = Math.random().toString(36).slice(2, 7);
+      const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+      newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
 
-    await project.git.renameBranch(oldBranch, newBranch);
+      await project.git.renameBranch(oldBranch, newBranch);
+    }
   }
 
   await db

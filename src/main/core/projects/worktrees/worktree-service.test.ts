@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { getLocalExec, type ExecFn } from '@main/core/utils/exec';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { WorktreeService } from './worktree-service';
@@ -80,6 +81,7 @@ describe('WorktreeService', () => {
       worktreePoolPath: poolDir,
       repoPath: repoDir,
       exec,
+      rootFs: new LocalFileSystem('/'),
       projectSettings: makeSettings(),
       ...overrides,
     });
@@ -370,6 +372,76 @@ describe('WorktreeService', () => {
       expect(result.success).toBe(false);
       if (result.success) throw new Error('expected failure');
       expect(result.error.type).toBe('reserve-failed');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // checkoutExistingBranch
+  // -------------------------------------------------------------------------
+
+  describe('checkoutExistingBranch', () => {
+    it('creates a worktree for an existing local branch', async () => {
+      await exec('git', ['branch', 'feature/review-me'], { cwd: repoDir });
+      const svc = makeService();
+      const result = await svc.checkoutExistingBranch('feature/review-me');
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(path.join(poolDir, 'feature', 'review-me'));
+      expect(fs.existsSync(result.data)).toBe(true);
+
+      // Verify the worktree is on the correct branch
+      const { stdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: result.data,
+      });
+      expect(stdout.trim()).toBe('feature/review-me');
+    });
+
+    it('returns existing path when worktree already exists (idempotent)', async () => {
+      await exec('git', ['branch', 'feature/already-exists'], { cwd: repoDir });
+      const svc = makeService();
+      const first = await svc.checkoutExistingBranch('feature/already-exists');
+      const second = await svc.checkoutExistingBranch('feature/already-exists');
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      if (!first.success || !second.success) throw new Error('expected success');
+      expect(first.data).toBe(second.data);
+    });
+
+    it('copies preserved files into the worktree', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env'), 'SECRET=abc');
+      await exec('git', ['branch', 'feature/env-test'], { cwd: repoDir });
+
+      const svc = makeService({ projectSettings: makeSettings(['.env']) });
+      const result = await svc.checkoutExistingBranch('feature/env-test');
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
+    });
+
+    it('recovers from a stale directory that is not a valid worktree', async () => {
+      await exec('git', ['branch', 'feature/stale-dir'], { cwd: repoDir });
+      const svc = makeService();
+
+      // Create a stale directory where the worktree should go
+      const stalePath = path.join(poolDir, 'feature', 'stale-dir');
+      await fs.promises.mkdir(stalePath, { recursive: true });
+
+      const result = await svc.checkoutExistingBranch('feature/stale-dir');
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(fs.existsSync(result.data)).toBe(true);
+    });
+
+    it('returns worktree-setup-failed when branch does not exist', async () => {
+      const svc = makeService();
+      const result = await svc.checkoutExistingBranch('nonexistent-branch');
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('worktree-setup-failed');
     });
   });
 
