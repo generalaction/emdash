@@ -531,7 +531,7 @@ export class TerminalSessionManager {
         if (!this.disposed) {
           this.restoreViewportPosition();
           if (shouldRestoreFocus) {
-            this.terminal.focus();
+            this.focus();
           }
         }
       });
@@ -619,12 +619,39 @@ export class TerminalSessionManager {
     } catch {}
   }
 
+  /** True when the user is focused on a text input we should not steal from. */
+  private isTextInputFocused(): boolean {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    // The terminal's own hidden textarea doesn't count
+    if (el === this.terminal.textarea) return false;
+    const tag = (el as HTMLElement).tagName;
+    if (tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable) return true;
+    if (tag === 'INPUT') {
+      const t = (el as HTMLInputElement).type?.toLowerCase();
+      return (
+        !t ||
+        t === 'text' ||
+        t === 'password' ||
+        t === 'email' ||
+        t === 'search' ||
+        t === 'url' ||
+        t === 'tel' ||
+        t === 'number'
+      );
+    }
+    return false;
+  }
+
   focus() {
     // Don't steal focus from open dialogs (e.g. New Task modal).
     // On Linux/Wayland the terminal's hidden textarea can retain focus
     // after a dialog opens, causing keystrokes to go to the PTY instead
     // of dialog inputs.
     if (document.activeElement?.closest('[role="dialog"]')) return;
+
+    // Don't steal focus from text inputs the user is actively typing in (#1467).
+    if (this.isTextInputFocused()) return;
 
     this.terminal.focus();
   }
