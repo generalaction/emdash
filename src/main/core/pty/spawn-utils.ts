@@ -90,11 +90,23 @@ export function buildTmuxParams(
 /**
  * Build a single command string for SSH remote execution.
  */
-export function resolveSshCommand(type: SessionType, config: SessionConfig): string {
+export function resolveSshCommand(
+  type: SessionType,
+  config: SessionConfig,
+  envVars?: Record<string, string>
+): string {
   const { command, args, cwd } = resolveSpawnParams(type, config);
   const shell = process.env.SHELL ?? '/bin/sh';
 
   const innerCmd = command === shell && args[0] === '-c' ? args[1] : [command, ...args].join(' ');
+  const envPrefix = envVars ? buildSshEnvPrefix(envVars) : '';
 
-  return `cd ${JSON.stringify(cwd)} && ${innerCmd}`;
+  return `cd ${JSON.stringify(cwd)} && ${envPrefix}${innerCmd}`;
+}
+
+export function buildSshEnvPrefix(vars: Record<string, string>): string {
+  const entries = Object.entries(vars);
+  if (entries.length === 0) return '';
+  const exports = entries.map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`).join('; ');
+  return exports + '; ';
 }

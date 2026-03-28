@@ -23,6 +23,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
+  private readonly taskEnvVars: Record<string, string>;
   private readonly tmux: boolean = false;
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
@@ -32,6 +33,7 @@ export class SshConversationProvider implements ConversationProvider {
     projectId,
     taskPath,
     taskId,
+    taskEnvVars = {},
     tmux = false,
     shellSetup,
     exec,
@@ -40,6 +42,7 @@ export class SshConversationProvider implements ConversationProvider {
     projectId: string;
     taskPath: string;
     taskId: string;
+    taskEnvVars?: Record<string, string>;
     tmux?: boolean;
     shellSetup?: string;
     exec: ExecFn;
@@ -48,6 +51,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.projectId = projectId;
     this.taskPath = taskPath;
     this.taskId = taskId;
+    this.taskEnvVars = taskEnvVars;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.exec = exec;
@@ -91,7 +95,7 @@ export class SshConversationProvider implements ConversationProvider {
       resume: isResuming,
     };
 
-    const sshCommand = resolveSshCommand('agent', cfg);
+    const sshCommand = resolveSshCommand('agent', cfg, this.taskEnvVars);
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,

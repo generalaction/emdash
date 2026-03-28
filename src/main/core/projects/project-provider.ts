@@ -27,6 +27,7 @@ export interface TaskProvider {
   readonly taskPath: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: string;
+  readonly taskEnvVars: Record<string, string>;
   readonly fs: FileSystemProvider;
   readonly git: GitProvider;
   readonly conversations: ConversationProvider;

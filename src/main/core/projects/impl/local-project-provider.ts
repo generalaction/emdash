@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
+import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { createScriptTerminalId, type Terminal } from '@shared/terminals';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
@@ -151,6 +152,15 @@ export class LocalProjectProvider implements ProjectProvider {
     await new HookConfigWriter(taskFs).writeAll();
 
     const settings = await this.settings.get();
+    const defaultBranch = await this.settings.getDefaultBranch();
+    const taskEnvVars = getTaskEnvVars({
+      taskId: task.id,
+      taskName: task.name,
+      taskPath: workDir,
+      projectPath: this.project.path,
+      defaultBranch,
+      portSeed: workDir,
+    });
     const tmuxEnabled = settings.tmux ?? false;
     const scripts = settings.scripts;
 
@@ -162,6 +172,7 @@ export class LocalProjectProvider implements ProjectProvider {
       taskId: task.id,
       tmux: tmuxEnabled,
       exec,
+      taskEnvVars,
     });
 
     const terminalProvider = new LocalTerminalProvider({
@@ -170,6 +181,7 @@ export class LocalProjectProvider implements ProjectProvider {
       taskPath: workDir,
       tmux: tmuxEnabled,
       exec,
+      taskEnvVars,
     });
 
     const taskEnv: TaskProvider = {
@@ -177,6 +189,7 @@ export class LocalProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskBranch: task.taskBranch,
       sourceBranch: task.sourceBranch,
+      taskEnvVars,
       fs: taskFs,
       git: taskGit,
       conversations: conversationProvider,
@@ -274,6 +287,7 @@ export class LocalProjectProvider implements ProjectProvider {
       tmux: settings.tmux ?? false,
       shellSetup: settings.shellSetup,
       exec: getLocalExec(),
+      taskEnvVars: task.taskEnvVars,
     });
 
     const scripts = settings.scripts;

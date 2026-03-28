@@ -20,6 +20,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly projectId: string;
   private readonly taskId: string;
   private readonly taskPath: string;
+  private readonly taskEnvVars: Record<string, string>;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
@@ -29,6 +30,7 @@ export class SshTerminalProvider implements TerminalProvider {
     projectId,
     taskId,
     taskPath,
+    taskEnvVars = {},
     tmux = false,
     shellSetup,
     exec,
@@ -37,6 +39,7 @@ export class SshTerminalProvider implements TerminalProvider {
     projectId: string;
     taskId: string;
     taskPath: string;
+    taskEnvVars?: Record<string, string>;
     tmux?: boolean;
     shellSetup?: string;
     exec: ExecFn;
@@ -45,6 +48,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.projectId = projectId;
     this.taskId = taskId;
     this.taskPath = taskPath;
+    this.taskEnvVars = taskEnvVars;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.exec = exec;
@@ -68,7 +72,7 @@ export class SshTerminalProvider implements TerminalProvider {
       args: command?.args,
     };
 
-    const sshCommand = resolveSshCommand('general', cfg);
+    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars);
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
