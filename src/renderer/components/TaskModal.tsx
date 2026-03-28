@@ -31,9 +31,11 @@ import {
 } from '../lib/taskNames';
 import BranchSelect, { pickDefaultBranch } from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
-import type { Project } from '../types/app';
+import type { Project, Task } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
+import { parsePrInput } from '../lib/parsePrInput';
+import { useToast } from '../hooks/use-toast';
 import { rpc } from '@/lib/rpc';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
@@ -143,7 +145,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     isLoadingBranches,
     refreshBranches,
   } = useProjectManagementContext();
-  const { linkedGithubIssueMap } = useTaskManagementContext();
+  const { linkedGithubIssueMap, handleOpenExternalTask } = useTaskManagementContext();
 
   const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const project = initialProject ?? selectedProject;
@@ -157,6 +159,24 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   const [touched, setTouched] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+
+  // PR mode state
+  type TaskMode = 'branch' | 'pr';
+  const [mode, setMode] = useState<TaskMode>('branch');
+  const [prInput, setPrInput] = useState('');
+  const [prDetails, setPrDetails] = useState<{
+    baseRefName: string;
+    headRefName: string;
+    title: string;
+    number: number;
+    url: string;
+  } | null>(null);
+  const [prLoading, setPrLoading] = useState(false);
+  const [prError, setPrError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  // Determine if PR mode is available (GitHub must be connected)
+  const isGithubConnected = project?.githubInfo?.connected === true;
 
   // Advanced settings state
   const [initialPrompt, setInitialPrompt] = useState('');
@@ -200,6 +220,47 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
       }
     })();
   }, [projectPath, workspaceProviderEnabled]);
+
+  // Fetch PR details on debounced valid input
+  useEffect(() => {
+    if (mode !== 'pr') return;
+
+    const prNumber = parsePrInput(prInput);
+    if (!prNumber) {
+      setPrDetails(null);
+      setPrError(null);
+      return;
+    }
+
+    setPrLoading(true);
+    setPrError(null);
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await window.electronAPI.githubGetPullRequestDetails({
+          projectPath: projectPath!,
+          prNumber,
+        });
+        if (result.success && result.pr) {
+          setPrDetails(result.pr);
+          setPrError(null);
+        } else {
+          setPrDetails(null);
+          setPrError(result.error || `PR #${prNumber} not found`);
+        }
+      } catch (err) {
+        setPrDetails(null);
+        setPrError(err instanceof Error ? err.message : 'Failed to fetch PR details');
+      } finally {
+        setPrLoading(false);
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      setPrLoading(false);
+    };
+  }, [mode, prInput, projectPath]);
 
   // Branch selection state - sync with defaultBranch unless user manually changed it
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
@@ -465,10 +526,76 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     }
   };
 
-  const handleOpenAutoFocus = useCallback((event: Event) => {
-    event.preventDefault();
-    taskNameInputRef.current?.focus({ preventScroll: true });
-  }, []);
+  const handlePrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!prDetails || !project) return;
+
+    setIsCreating(true);
+    try {
+      const result = await window.electronAPI.githubCreatePullRequestWorktree({
+        projectPath: project.path,
+        projectId: project.id,
+        prNumber: prDetails.number,
+        prTitle: prDetails.title,
+      });
+
+      if (result.success && result.task) {
+        const task: Task = {
+          id: result.task.id,
+          projectId: result.task.projectId,
+          name: result.task.name,
+          branch: result.task.branch,
+          path: result.task.path,
+          status: result.task.status as Task['status'],
+          agentId: result.task.agentId,
+          useWorktree: true,
+          metadata: result.task.metadata,
+        };
+        handleOpenExternalTask(task);
+        onClose();
+      } else if (result.success && result.worktree) {
+        const task: Task = {
+          id: result.worktree.id || crypto.randomUUID(),
+          projectId: project.id,
+          name: result.taskName || `PR #${prDetails.number}`,
+          branch: result.branchName || '',
+          path: result.worktree.path || '',
+          status: 'active',
+          useWorktree: true,
+          metadata: { prNumber: prDetails.number, prTitle: prDetails.title },
+        };
+        handleOpenExternalTask(task);
+        onClose();
+      } else {
+        toast({
+          title: 'Failed to create review task',
+          description: result.error || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Failed to create review task',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleOpenAutoFocus = useCallback(
+    (event: Event) => {
+      event.preventDefault();
+      // In PR mode, the autoFocus on the PR input handles focus.
+      // In branch mode, focus the task name input.
+      if (mode !== 'pr') {
+        taskNameInputRef.current?.focus({ preventScroll: true });
+      }
+    },
+    [mode]
+  );
 
   return (
     <DialogContent
@@ -488,103 +615,175 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
         </DialogDescription>
         <div className="space-y-1 pt-1">
           <p className="text-sm font-medium text-foreground">{projectName}</p>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">from</span>
-            {branchOptions.length > 0 ? (
-              <BranchSelect
-                value={selectedBranch}
-                onValueChange={handleBranchChange}
-                options={branchOptions}
-                isLoading={isLoadingBranches}
-                variant="ghost"
-              />
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
-              </span>
-            )}
-          </div>
+
+          {/* Mode toggle — only show "From PR" when GitHub is connected */}
+          {isGithubConnected && (
+            <div className="flex gap-1 rounded-md bg-muted p-0.5">
+              <button
+                type="button"
+                className={`flex-1 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === 'branch'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setMode('branch')}
+              >
+                New branch
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === 'pr'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setMode('pr')}
+              >
+                From PR
+              </button>
+            </div>
+          )}
+
+          {mode === 'branch' && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">from</span>
+              {branchOptions.length > 0 ? (
+                <BranchSelect
+                  value={selectedBranch}
+                  onValueChange={handleBranchChange}
+                  options={branchOptions}
+                  isLoading={isLoadingBranches}
+                  variant="ghost"
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {isLoadingBranches ? 'Loading...' : selectedBranch || defaultBranch}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+      <form
+        onSubmit={mode === 'pr' ? handlePrSubmit : handleSubmit}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-          <div>
-            <Label htmlFor="task-name" className="mb-2 block">
-              Task name (optional)
-            </Label>
-            <SlugInput
-              ref={taskNameInputRef}
-              id="task-name"
-              value={taskName}
-              onChange={handleNameChange}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => {
-                setTouched(true);
-                setIsFocused(false);
-              }}
-              placeholder="refactor-api-routes"
-              maxLength={MAX_TASK_NAME_LENGTH}
-              className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
-              aria-invalid={touched && !!error && !isFocused}
-            />
-          </div>
+          {mode === 'pr' ? (
+            /* -- PR mode input -- */
+            <div>
+              <Label htmlFor="pr-input" className="mb-2 block">
+                Pull request number or URL
+              </Label>
+              <input
+                id="pr-input"
+                type="text"
+                value={prInput}
+                onChange={(e) => setPrInput(e.target.value)}
+                placeholder="1603 or https://github.com/org/repo/pull/1603"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                autoFocus
+              />
+              {prLoading && (
+                <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Spinner size="sm" />
+                  Looking up PR...
+                </p>
+              )}
+              {prError && <p className="mt-2 text-xs text-destructive">{prError}</p>}
+              {prDetails && !prLoading && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">PR #{prDetails.number}:</span>{' '}
+                  {prDetails.title}
+                </p>
+              )}
+            </div>
+          ) : (
+            /* -- Normal branch mode input -- */
+            <div>
+              <Label htmlFor="task-name" className="mb-2 block">
+                Task name (optional)
+              </Label>
+              <SlugInput
+                ref={taskNameInputRef}
+                id="task-name"
+                value={taskName}
+                onChange={handleNameChange}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => {
+                  setTouched(true);
+                  setIsFocused(false);
+                }}
+                placeholder="refactor-api-routes"
+                maxLength={MAX_TASK_NAME_LENGTH}
+                className={`w-full ${touched && error && !isFocused ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive' : ''}`}
+                aria-invalid={touched && !!error && !isFocused}
+              />
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             <Label className="shrink-0">Agent</Label>
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
 
-          <TaskAdvancedSettings
-            isOpen={true}
-            projectPath={projectPath}
-            useWorktree={useWorktree}
-            onUseWorktreeChange={setUseWorktree}
-            useRemoteWorkspace={useRemoteWorkspace}
-            onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
-            hasWorkspaceProvider={!!workspaceProviderConfig}
-            autoApprove={autoApprove}
-            onAutoApproveChange={setAutoApprove}
-            hasAutoApproveSupport={hasAutoApproveSupport}
-            initialPrompt={initialPrompt}
-            onInitialPromptChange={setInitialPrompt}
-            hasInitialPromptSupport={hasInitialPromptSupport}
-            selectedLinearIssue={selectedLinearIssue}
-            onLinearIssueChange={setSelectedLinearIssue}
-            isLinearConnected={integrations.isLinearConnected}
-            onLinearConnect={integrations.handleLinearConnect}
-            selectedGithubIssue={selectedGithubIssue}
-            onGithubIssueChange={setSelectedGithubIssue}
-            linkedGithubIssueMap={linkedGithubIssueMap}
-            isGithubConnected={integrations.isGithubConnected}
-            onGithubConnect={integrations.handleGithubConnect}
-            githubLoading={integrations.githubLoading}
-            githubInstalled={integrations.githubInstalled}
-            selectedJiraIssue={selectedJiraIssue}
-            onJiraIssueChange={setSelectedJiraIssue}
-            isJiraConnected={integrations.isJiraConnected}
-            onJiraConnect={integrations.handleJiraConnect}
-            selectedGitlabIssue={selectedGitlabIssue}
-            onGitlabIssueChange={setSelectedGitlabIssue}
-            isGitlabConnected={integrations.isGitlabConnected}
-            onGitlabConnect={integrations.handleGitlabConnect}
-            selectedPlainThread={selectedPlainThread}
-            onPlainThreadChange={setSelectedPlainThread}
-            isPlainConnected={integrations.isPlainConnected}
-            onPlainConnect={integrations.handlePlainConnect}
-            selectedForgejoIssue={selectedForgejoIssue}
-            onForgejoIssueChange={setSelectedForgejoIssue}
-            isForgejoConnected={integrations.isForgejoConnected}
-            onForgejoConnect={integrations.handleForgejoConnect}
-          />
+          {mode === 'branch' && (
+            <TaskAdvancedSettings
+              isOpen={true}
+              projectPath={projectPath}
+              useWorktree={useWorktree}
+              onUseWorktreeChange={setUseWorktree}
+              useRemoteWorkspace={useRemoteWorkspace}
+              onUseRemoteWorkspaceChange={setUseRemoteWorkspace}
+              hasWorkspaceProvider={!!workspaceProviderConfig}
+              autoApprove={autoApprove}
+              onAutoApproveChange={setAutoApprove}
+              hasAutoApproveSupport={hasAutoApproveSupport}
+              initialPrompt={initialPrompt}
+              onInitialPromptChange={setInitialPrompt}
+              hasInitialPromptSupport={hasInitialPromptSupport}
+              selectedLinearIssue={selectedLinearIssue}
+              onLinearIssueChange={setSelectedLinearIssue}
+              isLinearConnected={integrations.isLinearConnected}
+              onLinearConnect={integrations.handleLinearConnect}
+              selectedGithubIssue={selectedGithubIssue}
+              onGithubIssueChange={setSelectedGithubIssue}
+              linkedGithubIssueMap={linkedGithubIssueMap}
+              isGithubConnected={integrations.isGithubConnected}
+              onGithubConnect={integrations.handleGithubConnect}
+              githubLoading={integrations.githubLoading}
+              githubInstalled={integrations.githubInstalled}
+              selectedJiraIssue={selectedJiraIssue}
+              onJiraIssueChange={setSelectedJiraIssue}
+              isJiraConnected={integrations.isJiraConnected}
+              onJiraConnect={integrations.handleJiraConnect}
+              selectedGitlabIssue={selectedGitlabIssue}
+              onGitlabIssueChange={setSelectedGitlabIssue}
+              isGitlabConnected={integrations.isGitlabConnected}
+              onGitlabConnect={integrations.handleGitlabConnect}
+              selectedPlainThread={selectedPlainThread}
+              onPlainThreadChange={setSelectedPlainThread}
+              isPlainConnected={integrations.isPlainConnected}
+              onPlainConnect={integrations.handlePlainConnect}
+              selectedForgejoIssue={selectedForgejoIssue}
+              onForgejoIssueChange={setSelectedForgejoIssue}
+              isForgejoConnected={integrations.isForgejoConnected}
+              onForgejoConnect={integrations.handleForgejoConnect}
+            />
+          )}
         </div>
 
         <DialogFooter className="shrink-0 px-6 py-4">
-          <Button type="submit" disabled={!!error || isCreating} aria-busy={isCreating}>
+          <Button
+            type="submit"
+            disabled={mode === 'pr' ? !prDetails || prLoading || isCreating : !!error || isCreating}
+            aria-busy={isCreating}
+          >
             {isCreating ? (
               <>
                 <Spinner size="sm" className="mr-2" />
-                Creating…
+                Creating...
               </>
             ) : (
               'Create'
