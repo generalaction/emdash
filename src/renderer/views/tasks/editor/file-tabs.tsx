@@ -2,6 +2,7 @@ import { Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { FileIcon } from '@renderer/components/FileExplorer/FileIcons';
+import { ReorderList } from '@renderer/components/reorder-list';
 import { Separator } from '@renderer/components/ui/separator';
 import { EditorTab } from '@renderer/core/editor/types';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
@@ -16,6 +17,7 @@ interface FileTabsProps {
   onTabClick: (tabId: string) => void;
   onTabClose: (tabId: string) => void;
   onPinTab: (tabId: string) => void;
+  onReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
 export const FileTabs: React.FC<FileTabsProps> = ({
@@ -24,26 +26,52 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   onTabClick,
   onTabClose,
   onPinTab,
+  onReorder,
 }) => {
   if (tabs.length === 0) {
     return null;
   }
 
+  const handleReorder = (newTabs: RichTab[]) => {
+    for (let toIdx = 0; toIdx < newTabs.length; toIdx++) {
+      const fromIdx = tabs.findIndex((t) => t.tabId === newTabs[toIdx].tabId);
+      if (fromIdx !== toIdx) {
+        onReorder?.(fromIdx, toIdx);
+        break;
+      }
+    }
+  };
+
+  const renderTab = (tab: RichTab) => (
+    <FileTab
+      key={tab.tabId}
+      tab={tab}
+      isActive={tab.tabId === activeTabId}
+      onClick={() => onTabClick(tab.tabId)}
+      onDoubleClick={() => onPinTab(tab.tabId)}
+      onClose={(e) => {
+        e.stopPropagation();
+        onTabClose(tab.tabId);
+      }}
+    />
+  );
+
   return (
-    <div className="flex h-[41px] shrink-0 overflow-x-auto border-b border-border bg-background-1">
-      {tabs.map((tab) => (
-        <FileTab
-          key={tab.tabId}
-          tab={tab}
-          isActive={tab.tabId === activeTabId}
-          onClick={() => onTabClick(tab.tabId)}
-          onDoubleClick={() => onPinTab(tab.tabId)}
-          onClose={(e) => {
-            e.stopPropagation();
-            onTabClose(tab.tabId);
-          }}
-        />
-      ))}
+    <div className="flex h-[41px] shrink-0 border-b border-border bg-background-1">
+      {onReorder ? (
+        <ReorderList
+          items={tabs}
+          onReorder={handleReorder}
+          axis="x"
+          className="flex overflow-x-auto w-full h-full"
+          itemClassName="list-none flex h-full"
+          getKey={(item) => item.tabId}
+        >
+          {renderTab}
+        </ReorderList>
+      ) : (
+        <div className="flex overflow-x-auto h-full">{tabs.map(renderTab)}</div>
+      )}
     </div>
   );
 };

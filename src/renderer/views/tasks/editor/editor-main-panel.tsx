@@ -48,6 +48,7 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
         onTabClick={(tabId) => editorView.setActiveTab(tabId)}
         onTabClose={(tabId) => editorView.removeTab(tabId)}
         onPinTab={(tabId) => editorView.pinTab(tabId)}
+        onReorder={(from, to) => editorView.reorderTabs(from, to)}
       />
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {/* Stable Monaco host — always in DOM, shown/hidden by CSS only. Never re-parented. */}

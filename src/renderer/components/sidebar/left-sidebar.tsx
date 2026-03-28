@@ -75,9 +75,9 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               aria-label="Add Project"
               className="w-full justify-between"
             >
-              <span className="flex items-center gap-2">
-                <FolderPlus className="h-5 w-5 sm:h-4 sm:w-4" />
-                Add Project
+              <span className="flex items-center gap-2 min-w-0 w-full">
+                <FolderPlus className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate min-w-0">Add Project</span>
               </span>
               <ShortcutHint settingsKey="newProject" />
             </SidebarMenuButton>

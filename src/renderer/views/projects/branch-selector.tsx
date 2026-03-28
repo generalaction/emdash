@@ -1,6 +1,7 @@
 import { GitBranch } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Branch } from '@shared/git';
+import { Badge } from '@renderer/components/ui/badge';
 import {
   Combobox,
   ComboboxContent,
@@ -10,7 +11,7 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from '@renderer/components/ui/combobox';
-import { cn } from '@renderer/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 
 interface BranchSelectorProps {
   branches: Branch[];
@@ -28,6 +29,7 @@ export function BranchSelector({
   trigger,
 }: BranchSelectorProps) {
   const [tab, setTab] = useState<'local' | 'remote'>(remoteOnly ? 'remote' : 'local');
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const localCount = useMemo(() => branches.filter((b) => b.type === 'local').length, [branches]);
   const remoteCount = useMemo(() => branches.filter((b) => b.type === 'remote').length, [branches]);
@@ -58,35 +60,44 @@ export function BranchSelector({
         </ComboboxTrigger>
       )}
       <ComboboxContent className="min-w-(--anchor-width) pb-1">
-        <div className="flex  p-1">
-          <button
-            className={cn(
-              'px-3 py-1 text-sm font-normal rounded-md disabled:opacity-50',
-              tab === 'local' && 'bg-muted font-medium '
-            )}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setTab('local');
-            }}
+        <ToggleGroup
+          value={[tab]}
+          onValueChange={([value]) => {
+            if (value) {
+              setTab(value as 'local' | 'remote');
+              inputRef.current?.focus();
+            }
+          }}
+          className="w-full border-0 border-b border-border rounded-b-none"
+        >
+          <ToggleGroupItem
+            value="local"
+            className="group flex-1 flex items-center gap-1"
             disabled={remoteOnly || localCount === 0}
           >
-            Local ({localCount})
-          </button>
-          <button
-            className={cn(
-              'px-3 py-1 text-sm font-normal rounded-md disabled:opacity-50',
-              tab === 'remote' && 'bg-muted font-medium '
-            )}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setTab('remote');
-            }}
+            Local
+            <Badge
+              variant="secondary"
+              className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+            >
+              {localCount}
+            </Badge>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="remote"
+            className="group flex-1 flex items-center gap-1"
             disabled={remoteOnly || remoteCount === 0}
           >
-            Remote ({remoteCount})
-          </button>
-        </div>
-        <ComboboxInput showTrigger={false} placeholder="Search branches" />
+            Remote
+            <Badge
+              variant="secondary"
+              className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+            >
+              {remoteCount}
+            </Badge>
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <ComboboxInput showTrigger={false} placeholder="Search branches" inputRef={inputRef} />
         <ComboboxList>
           {(item) => <ComboboxItem value={item}>{item.label}</ComboboxItem>}
         </ComboboxList>
