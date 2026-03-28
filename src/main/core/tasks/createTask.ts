@@ -11,18 +11,22 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
 
-  const taskBranch = params.taskBranch
-    ? branchPrefix
+  let taskBranch: string | undefined;
+
+  if (params.checkoutInWorktree) {
+    taskBranch = params.sourceBranch.branch;
+  } else if (params.taskBranch) {
+    taskBranch = branchPrefix
       ? `${branchPrefix}/${params.taskBranch}-${suffix}`
-      : `${params.taskBranch}-${suffix}`
-    : undefined;
+      : `${params.taskBranch}-${suffix}`;
+  }
 
   const project = projectManager.getProject(params.projectId);
   if (!project) {
     throw new Error('Project not found');
   }
 
-  if (taskBranch) {
+  if (taskBranch && !params.checkoutInWorktree) {
     await project.git.createBranch(
       taskBranch,
       params.sourceBranch.branch,
