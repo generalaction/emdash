@@ -15,6 +15,15 @@ const agentEventGetTokenMock = vi.fn(() => '');
 const nodePtySpawnMock = vi.fn();
 const childProcessSpawnMock = vi.fn();
 
+function restoreEnvVar(key: 'LANG' | 'LC_ALL' | 'LC_CTYPE', value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
     get: providerStatusGetMock,
@@ -467,9 +476,9 @@ describe('ptyManager provider command resolution', () => {
         LC_CTYPE: 'sr_RS.UTF-8',
       });
     } finally {
-      process.env.LANG = originalLang;
-      process.env.LC_ALL = originalLcAll;
-      process.env.LC_CTYPE = originalLcCtype;
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
     }
   });
 
@@ -490,9 +499,9 @@ describe('ptyManager provider command resolution', () => {
         LC_CTYPE: 'C.UTF-8',
       });
     } finally {
-      process.env.LANG = originalLang;
-      process.env.LC_ALL = originalLcAll;
-      process.env.LC_CTYPE = originalLcCtype;
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
     }
   });
 
@@ -512,10 +521,33 @@ describe('ptyManager provider command resolution', () => {
         LANG: 'en_US.UTF-8',
       });
     } finally {
-      process.env.LANG = originalLang;
-      process.env.LC_ALL = originalLcAll;
-      process.env.LC_CTYPE = originalLcCtype;
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
     }
+  });
+
+  it('strips inherited non-UTF-8 locale vars when composing PTY env', async () => {
+    const { mergeEnvWithNormalizedLocale } = await import('../../main/services/ptyManager');
+
+    expect(
+      mergeEnvWithNormalizedLocale(
+        {
+          LANG: 'en_US.UTF-8',
+          LC_ALL: 'C',
+          LC_CTYPE: 'C',
+          PATH: '/usr/bin',
+        },
+        {
+          LC_ALL: 'POSIX',
+          CUSTOM_FLAG: '1',
+        }
+      )
+    ).toEqual({
+      LANG: 'en_US.UTF-8',
+      PATH: '/usr/bin',
+      CUSTOM_FLAG: '1',
+    });
   });
 
   it('decodes split UTF-8 chunks correctly in the lifecycle fallback forwarder', async () => {

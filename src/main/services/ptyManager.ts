@@ -105,11 +105,11 @@ type PtyRecord = {
 const ptys = new Map<string, PtyRecord>();
 const MIN_PTY_COLS = 2;
 const MIN_PTY_ROWS = 1;
-export function getLocaleEnv(): Record<string, string> {
+export function getLocaleEnv(sourceEnv: NodeJS.ProcessEnv = process.env): Record<string, string> {
   if (process.platform === 'win32') {
     const localeEnv: Record<string, string> = {};
     for (const key of LOCALE_ENV_VARS) {
-      const value = process.env[key];
+      const value = sourceEnv[key];
       if (value && isUtf8Locale(value)) {
         localeEnv[key] = value;
       }
@@ -120,9 +120,9 @@ export function getLocaleEnv(): Record<string, string> {
   // On non-Windows, preserve explicit UTF-8 locale choices and only fall back
   // to a minimal UTF-8 locale when no effective UTF-8 locale is available.
   const localeEnv: Record<string, string> = {};
-  const lang = process.env.LANG;
-  const lcAll = process.env.LC_ALL;
-  const lcCtype = process.env.LC_CTYPE;
+  const lang = sourceEnv.LANG;
+  const lcAll = sourceEnv.LC_ALL;
+  const lcCtype = sourceEnv.LC_CTYPE;
 
   if (lcAll && isUtf8Locale(lcAll)) {
     localeEnv.LC_ALL = lcAll;
@@ -141,6 +141,27 @@ export function getLocaleEnv(): Record<string, string> {
   localeEnv.LANG = DEFAULT_UTF8_LOCALE;
   localeEnv.LC_CTYPE = DEFAULT_UTF8_LOCALE;
   return localeEnv;
+}
+
+export function mergeEnvWithNormalizedLocale(
+  ...envs: Array<NodeJS.ProcessEnv | undefined>
+): Record<string, string> {
+  const mergedEnv: NodeJS.ProcessEnv = {};
+
+  for (const env of envs) {
+    if (!env) continue;
+    Object.assign(mergedEnv, env);
+  }
+
+  const localeEnv = getLocaleEnv(mergedEnv);
+  for (const key of LOCALE_ENV_VARS) {
+    delete mergedEnv[key];
+  }
+
+  return {
+    ...mergedEnv,
+    ...localeEnv,
+  } as Record<string, string>;
 }
 
 function applyAgentEventHookEnv(env: Record<string, string>, ptyId: string): void {
@@ -1362,7 +1383,7 @@ export async function startPty(options: {
   // tools create clean user environments.
   //
   // See: https://github.com/generalaction/emdash/issues/485
-  const useEnv: Record<string, string> = {
+  const useEnv = mergeEnvWithNormalizedLocale({
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     TERM_PROGRAM: 'emdash',
@@ -1370,13 +1391,12 @@ export async function startPty(options: {
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
-    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
-  };
+  });
 
   applyAgentEventHookEnv(useEnv, id);
 
@@ -1779,7 +1799,7 @@ function startLifecycleSpawnFallback(options: {
     cwd: cwd || os.homedir(),
     shell: true,
     detached: true,
-    env: { ...process.env, ...getLocaleEnv(), ...(env || {}) },
+    env: mergeEnvWithNormalizedLocale(process.env, env),
   });
 
   const dataCallbacks: Array<(data: string) => void> = [];
@@ -1842,7 +1862,7 @@ export function startLifecyclePty(options: {
   const { id, command, cwd, env } = options;
   const defaultShell = getDefaultShell();
 
-  const useEnv: Record<string, string> = {
+  const useEnv = mergeEnvWithNormalizedLocale({
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     TERM_PROGRAM: 'emdash',
@@ -1850,13 +1870,12 @@ export function startLifecyclePty(options: {
     USER: process.env.USER || os.userInfo().username,
     SHELL: process.env.SHELL || defaultShell,
     ...(process.platform === 'win32' ? getWindowsEssentialEnv() : {}),
-    ...getLocaleEnv(),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...(process.env.DISPLAY && { DISPLAY: process.env.DISPLAY }),
     ...getDisplayEnv(),
     ...(process.env.SSH_AUTH_SOCK && { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK }),
     ...(env || {}),
-  };
+  });
 
   const proc = pty.spawn(defaultShell, ['-ilc', command], {
     name: 'xterm-256color',
