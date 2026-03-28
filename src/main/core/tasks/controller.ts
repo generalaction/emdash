@@ -9,6 +9,7 @@ import { provisionTask } from './provisionTask';
 import { renameTask } from './renameTask';
 import { restoreTask } from './restoreTask';
 import { teardownTask } from './teardownTask';
+import { updateLinkedIssue } from './updateLinkedIssue';
 
 export const taskController = createRPCController({
   createTask,
@@ -21,4 +22,5 @@ export const taskController = createRPCController({
   teardownTask,
   getBootstrapStatus,
   getTaskSettings,
+  updateLinkedIssue,
 });

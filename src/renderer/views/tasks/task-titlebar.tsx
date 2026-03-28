@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { IssueSelector } from '@renderer/components/issue-selector';
 import { OpenInMenu } from '@renderer/components/titlebar/OpenInMenu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { Button } from '@renderer/components/ui/button';
@@ -80,7 +81,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
               {taskDisplayName(taskStore)}
               <ChevronDown className="size-3.5 shrink-0" />
             </PopoverTrigger>
-            <PopoverContent align="start">
+            <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
               <div className="flex flex-col gap-1 w-full">
                 <div className="flex items-center gap-1 justify-between w-full">
                   <MicroLabel className="text-foreground-passive items-center flex">
@@ -100,6 +101,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                 </div>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
+              <OpenInMenu path={taskState.path} />
               <div className="flex flex-col gap-1 border border-border rounded-md p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
@@ -113,8 +115,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({ taskId }: { ta
                 </span>
                 <div>Pull | Push | Fetch</div>
               </div>
-              <OpenInMenu path={taskState.path} />
-              <div>Linked Issue preview (or link issue action or remove link action)</div>
+              <IssueSelector
+                value={taskState.data.linkedIssue ?? null}
+                onValueChange={(issue) => {
+                  taskState.updateLinkedIssue(issue ?? undefined);
+                }}
+                nameWithOwner={''}
+              />
             </PopoverContent>
           </Popover>
         </div>

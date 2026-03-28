@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { Task } from '@shared/tasks';
+import { Issue, Task } from '@shared/tasks';
 import { rpc } from '../ipc';
 import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
@@ -51,6 +51,7 @@ export interface IProvisionedTask {
   view: MainPanelView;
   rightPanelView: RightPanelView;
   editorView: EditorViewStore;
+  updateLinkedIssue: (issue?: Issue) => Promise<void>;
 }
 
 // Single mutable TaskStore class
@@ -167,6 +168,28 @@ export class TaskStore {
       } catch (e) {
         runInAction(() => {
           this.data.name = task.name;
+        });
+        console.error(e);
+        throw e;
+      }
+    }
+  }
+
+  async updateLinkedIssue(issue?: Issue) {
+    const task = isProvisioned(this) ? this.data : undefined;
+    if (task) {
+      try {
+        await rpc.tasks.updateLinkedIssue(task.id, issue);
+        runInAction(() => {
+          if (isProvisioned(this)) {
+            this.data.linkedIssue = issue;
+          }
+        });
+      } catch (e) {
+        runInAction(() => {
+          if (isProvisioned(this)) {
+            this.data.linkedIssue = task.linkedIssue;
+          }
         });
         console.error(e);
         throw e;

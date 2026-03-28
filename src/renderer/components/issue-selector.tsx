@@ -190,14 +190,12 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
               >
                 <ComboboxValue
                   placeholder={
-                    <div className="text-muted-foreground justify-center w-full text-md text-center flex items-center gap-1 h-[76px]">
-                      Click to select an issue
+                    <div className="text-foreground-passive justify-center w-full text-sm text-center flex items-center gap-1 h-6">
+                      Click to link an issue
                     </div>
                   }
                 >
-                  {value ? (
-                    <SelectedIssueValue issue={value} onRemove={() => onValueChange(null)} />
-                  ) : null}
+                  {value ? <SelectedIssueValue issue={value} /> : null}
                 </ComboboxValue>
               </button>
             }
@@ -210,7 +208,7 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
             <ComboboxInput
               leftAddon={leftAddon}
               inputRef={inputRef}
-              showClear={false}
+              showClear={!!value}
               showTrigger={false}
               placeholder={`Search ${issueProvider ?? 'issues'}…`}
               disabled={!hasAnyIntegration}

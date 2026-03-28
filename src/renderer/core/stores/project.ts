@@ -35,6 +35,7 @@ export interface IMountedProject {
   data: LocalProject | SshProject;
   taskManager: TaskManagerStore;
   view: ProjectViewStore;
+  rename: (name: string) => Promise<void>;
 }
 
 export class ProjectStore {
