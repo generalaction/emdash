@@ -57,6 +57,13 @@ export type ProviderDefinition = {
   autoStartCommand?: string;
   icon?: string;
   terminalOnly?: boolean;
+  /**
+   * CLI args to invoke this provider in non-interactive mode for background
+   * utility tasks (e.g. task naming). When present, the provider will be
+   * spawned with these args for lightweight work instead of a full session.
+   * e.g. ['-p', '--model', 'haiku', '--tools', '']
+   */
+  utilityCliArgs?: string[];
 };
 
 export const PROVIDERS: ProviderDefinition[] = [
@@ -89,6 +96,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     planActivateCommand: '/plan',
     icon: 'claude.png',
     terminalOnly: true,
+    utilityCliArgs: ['-p', '--model', 'haiku', '--tools', '', '--no-session-persistence'],
   },
   {
     id: 'cursor',
@@ -116,6 +124,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gemini.png',
     terminalOnly: true,
+    utilityCliArgs: ['--model', 'gemini-2.5-flash', '--prompt'],
   },
   {
     id: 'qwen',
