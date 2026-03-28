@@ -110,6 +110,7 @@ export class ProjectStore {
     try {
       await rpc.projects.renameProject({ projectId: this.id, name: name });
       this.name = name;
+      if (this.data) this.data.name = name;
     } catch (e) {
       console.error(e);
       throw e;
