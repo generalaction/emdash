@@ -5,7 +5,6 @@ import { getProjectBootstrapStatus } from './operations/getProjectBootstrapStatu
 import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
 import { getProjectSettings } from './operations/getProjectSettings';
 import { openProject } from './operations/openProject';
-import { renameProject } from './operations/renameProject';
 import { updateProjectSettings } from './operations/updateProjectSettings';
 
 export const projectController = createRPCController({
@@ -13,7 +12,6 @@ export const projectController = createRPCController({
   createSshProject,
   getProjects,
   deleteProject,
-  renameProject,
   getLocalProjectByPath,
   getSshProjectByPath,
   getProjectSettings,

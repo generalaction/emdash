@@ -14,8 +14,11 @@ export function useFromBranchMode(
   const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
   const taskName = useTaskName();
 
+  const isValid = taskName.taskName.trim().length > 0;
+
   return {
     ...branchSelection,
     ...taskName,
+    isValid,
   };
 }

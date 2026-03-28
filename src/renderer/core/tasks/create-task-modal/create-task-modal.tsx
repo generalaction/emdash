@@ -51,6 +51,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch);
 
+  const activeMode = {
+    'from-branch': fromBranch,
+    'from-issue': fromIssue,
+    'from-pull-request': fromPR,
+  }[selectedStrategy];
+  const canCreate = !!selectedProjectId && activeMode.isValid;
+
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
@@ -147,7 +154,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </AnimatedHeight>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!selectedProjectId}>
+        <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
           Create
         </ConfirmButton>
       </DialogFooter>

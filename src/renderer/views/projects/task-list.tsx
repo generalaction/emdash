@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/components/ui/dropdown-menu';
 import { EmptyState } from '@renderer/components/ui/empty-state';
+import { RelativeTime } from '@renderer/components/ui/relative-time';
 import { SearchInput } from '@renderer/components/ui/search-input';
 import { Separator } from '@renderer/components/ui/separator';
 import ShortcutHint from '@renderer/components/ui/shortcut-hint';
@@ -70,13 +71,14 @@ const TaskRow = observer(function TaskRow({
       }}
       className="group flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-background-1"
     >
-      <Checkbox
-        onClick={(e) => e.stopPropagation()}
-        checked={isSelected}
-        onCheckedChange={onToggleSelect}
-        aria-label="Select task"
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label="Select task" />
+      </div>
       <span className="flex-1 min-w-0 text-left text-sm truncate">{task.data.name}</span>
+      <RelativeTime
+        value={task.data.createdAt}
+        className="shrink-0 text-xs text-muted-foreground"
+      />
       {isTransitioning && <Spinner size="sm" className="size-3 shrink-0 text-muted-foreground" />}
       <DropdownMenu>
         <DropdownMenuTrigger

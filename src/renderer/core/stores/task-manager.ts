@@ -200,7 +200,22 @@ export class TaskManagerStore {
     }
   }
 
-  async deleteTask(_taskId: string): Promise<void> {
-    // should teardown task and delete from db
+  async deleteTask(taskId: string): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+
+    runInAction(() => {
+      this.tasks.delete(taskId);
+    });
+
+    try {
+      task.dispose();
+      await rpc.tasks.deleteTask(this.projectId, taskId);
+    } catch (e) {
+      runInAction(() => {
+        this.tasks.set(taskId, task);
+      });
+      throw e;
+    }
   }
 }

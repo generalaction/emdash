@@ -4,7 +4,13 @@ import React, { useRef, useState } from 'react';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { Button } from '../ui/button';
 import { ConfirmButton } from '../ui/confirm-button';
-import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  DialogContent,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '../ui/field';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -104,171 +110,172 @@ export const McpModal: React.FC<McpModalProps> = ({
         </DialogTitle>
       </DialogHeader>
 
-      {isCatalog && mode.entry.description && (
-        <p className="text-xs text-muted-foreground">{mode.entry.description}</p>
-      )}
-
-      <FieldGroup>
-        {/* Name */}
-        <form.Field name="name">
-          {(field) => (
-            <Field>
-              <FieldLabel>Server Name</FieldLabel>
-              <Input
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                disabled={isCatalog || isEdit}
-                placeholder="my-server"
-              />
-            </Field>
-          )}
-        </form.Field>
-
-        {/* Transport */}
-        {!isCatalog && (
-          <form.Field name="transport">
+      <DialogContentArea>
+        {isCatalog && mode.entry.description && (
+          <p className="text-xs text-muted-foreground">{mode.entry.description}</p>
+        )}
+        <FieldGroup>
+          {/* Name */}
+          <form.Field name="name">
             {(field) => (
               <Field>
-                <FieldLabel>Transport</FieldLabel>
-                <Select
+                <FieldLabel>Server Name</FieldLabel>
+                <Input
                   value={field.state.value}
-                  onValueChange={(v) => {
-                    const next = v as 'stdio' | 'http';
-                    field.handleChange(next);
-                    if (next === 'http') {
-                      form.setFieldValue('selectedProviders', (prev) => {
-                        const filtered = new Set(prev);
-                        for (const id of prev) {
-                          const prov = providers.find((p) => p.id === id);
-                          if (prov && !prov.supportsHttp) filtered.delete(id);
-                        }
-                        return filtered;
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stdio">stdio</SelectItem>
-                    <SelectItem value="http">http</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  disabled={isCatalog || isEdit}
+                  placeholder="my-server"
+                />
               </Field>
             )}
           </form.Field>
-        )}
 
-        {/* Transport-specific fields */}
-        <form.Subscribe selector={(state) => state.values.transport}>
-          {(transport) => (
-            <>
-              {transport === 'stdio' && (
-                <>
-                  <form.Field name="command">
+          {/* Transport */}
+          {!isCatalog && (
+            <form.Field name="transport">
+              {(field) => (
+                <Field>
+                  <FieldLabel>Transport</FieldLabel>
+                  <Select
+                    value={field.state.value}
+                    onValueChange={(v) => {
+                      const next = v as 'stdio' | 'http';
+                      field.handleChange(next);
+                      if (next === 'http') {
+                        form.setFieldValue('selectedProviders', (prev) => {
+                          const filtered = new Set(prev);
+                          for (const id of prev) {
+                            const prov = providers.find((p) => p.id === id);
+                            if (prov && !prov.supportsHttp) filtered.delete(id);
+                          }
+                          return filtered;
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stdio">stdio</SelectItem>
+                      <SelectItem value="http">http</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </form.Field>
+          )}
+
+          {/* Transport-specific fields */}
+          <form.Subscribe selector={(state) => state.values.transport}>
+            {(transport) => (
+              <>
+                {transport === 'stdio' && (
+                  <>
+                    <form.Field name="command">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel>Command</FieldLabel>
+                          <Input
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            disabled={isCatalog}
+                            placeholder="npx"
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="args">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel>Arguments (one per line)</FieldLabel>
+                          <textarea
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            disabled={isCatalog}
+                            placeholder={'-y\nmy-mcp-server'}
+                            rows={3}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                  </>
+                )}
+
+                {transport === 'http' && (
+                  <form.Field name="url">
                     {(field) => (
                       <Field>
-                        <FieldLabel>Command</FieldLabel>
+                        <FieldLabel>URL</FieldLabel>
                         <Input
                           value={field.state.value}
                           onChange={(e) => field.handleChange(e.target.value)}
                           disabled={isCatalog}
-                          placeholder="npx"
+                          placeholder="https://mcp.example.com"
                         />
                       </Field>
                     )}
                   </form.Field>
-                  <form.Field name="args">
-                    {(field) => (
-                      <Field>
-                        <FieldLabel>Arguments (one per line)</FieldLabel>
-                        <textarea
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          disabled={isCatalog}
-                          placeholder={'-y\nmy-mcp-server'}
-                          rows={3}
-                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </Field>
-                    )}
-                  </form.Field>
-                </>
-              )}
+                )}
+              </>
+            )}
+          </form.Subscribe>
 
-              {transport === 'http' && (
-                <form.Field name="url">
+          {/* Env vars — both transports */}
+          <form.Field name="envEntries">
+            {(field) => (
+              <KeyValueSection
+                label="Environment Variables"
+                entries={field.state.value}
+                onChange={(entries) => field.handleChange(entries)}
+                addLabel="+ Add env var"
+                makeId={makeId}
+                credentialKeys={credentialKeys}
+              />
+            )}
+          </form.Field>
+
+          {/* Headers — http only */}
+          <form.Subscribe selector={(state) => state.values.transport}>
+            {(transport) =>
+              transport === 'http' && (
+                <form.Field name="headerEntries">
                   {(field) => (
-                    <Field>
-                      <FieldLabel>URL</FieldLabel>
-                      <Input
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        disabled={isCatalog}
-                        placeholder="https://mcp.example.com"
-                      />
-                    </Field>
+                    <KeyValueSection
+                      label="Headers"
+                      entries={field.state.value}
+                      onChange={(entries) => field.handleChange(entries)}
+                      addLabel="+ Add header"
+                      makeId={makeId}
+                      credentialKeys={credentialKeys}
+                    />
                   )}
                 </form.Field>
-              )}
-            </>
-          )}
-        </form.Subscribe>
+              )
+            }
+          </form.Subscribe>
 
-        {/* Env vars — both transports */}
-        <form.Field name="envEntries">
-          {(field) => (
-            <KeyValueSection
-              label="Environment Variables"
-              entries={field.state.value}
-              onChange={(entries) => field.handleChange(entries)}
-              addLabel="+ Add env var"
-              makeId={makeId}
-              credentialKeys={credentialKeys}
-            />
-          )}
-        </form.Field>
-
-        {/* Headers — http only */}
-        <form.Subscribe selector={(state) => state.values.transport}>
-          {(transport) =>
-            transport === 'http' && (
-              <form.Field name="headerEntries">
-                {(field) => (
-                  <KeyValueSection
-                    label="Headers"
-                    entries={field.state.value}
-                    onChange={(entries) => field.handleChange(entries)}
-                    addLabel="+ Add header"
-                    makeId={makeId}
-                    credentialKeys={credentialKeys}
-                  />
-                )}
-              </form.Field>
-            )
-          }
-        </form.Subscribe>
-
-        {/* Providers */}
-        <form.Subscribe selector={(state) => state.values}>
-          {(values) => (
-            <ProviderSelect
-              providers={providers}
-              selectedProviders={values.selectedProviders}
-              transport={values.transport}
-              onToggle={(id) => {
-                form.setFieldValue('selectedProviders', (prev) => {
-                  const next = new Set(prev);
-                  if (next.has(id)) next.delete(id);
-                  else next.add(id);
-                  return next;
-                });
-              }}
-            />
-          )}
-        </form.Subscribe>
-      </FieldGroup>
+          {/* Providers */}
+          <form.Subscribe selector={(state) => state.values}>
+            {(values) => (
+              <ProviderSelect
+                providers={providers}
+                selectedProviders={values.selectedProviders}
+                transport={values.transport}
+                onToggle={(id) => {
+                  form.setFieldValue('selectedProviders', (prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  });
+                }}
+              />
+            )}
+          </form.Subscribe>
+        </FieldGroup>
+      </DialogContentArea>
 
       {/* Actions */}
       <DialogFooter className="gap-2 sm:gap-2">

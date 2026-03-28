@@ -1,6 +1,5 @@
 import { makeAutoObservable } from 'mobx';
 import type { LocalProject, SshProject } from '@shared/projects';
-import { rpc } from '../ipc';
 import { ProjectViewStore } from './project-view';
 import { TaskManagerStore } from './task-manager';
 
@@ -35,7 +34,6 @@ export interface IMountedProject {
   data: LocalProject | SshProject;
   taskManager: TaskManagerStore;
   view: ProjectViewStore;
-  rename: (name: string) => Promise<void>;
 }
 
 export class ProjectStore {
@@ -104,16 +102,6 @@ export class ProjectStore {
     this.phase = phase;
     this.mode = mode;
     this.error = undefined;
-  }
-
-  async rename(name: string) {
-    try {
-      await rpc.projects.renameProject({ projectId: this.id, name: name });
-      this.name = name;
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
   }
 }
 

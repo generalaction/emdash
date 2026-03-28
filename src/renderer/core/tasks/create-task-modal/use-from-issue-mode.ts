@@ -17,10 +17,13 @@ export function useFromIssueMode(
   const taskName = useTaskName();
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
 
+  const isValid = taskName.taskName.trim().length > 0 && linkedIssue !== null;
+
   return {
     ...branchSelection,
     ...taskName,
     linkedIssue,
     setLinkedIssue,
+    isValid,
   };
 }

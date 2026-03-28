@@ -17,5 +17,15 @@ export function useFromPullRequestMode(
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
 
-  return { ...taskName, linkedPR, setLinkedPR, checkoutMode, setCheckoutMode, branchSelection };
+  const isValid = taskName.taskName.trim().length > 0 && linkedPR !== null;
+
+  return {
+    ...taskName,
+    linkedPR,
+    setLinkedPR,
+    checkoutMode,
+    setCheckoutMode,
+    branchSelection,
+    isValid,
+  };
 }

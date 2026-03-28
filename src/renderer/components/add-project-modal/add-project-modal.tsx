@@ -1,5 +1,6 @@
 import { Home, Server } from 'lucide-react';
 import { useState } from 'react';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
@@ -78,9 +79,16 @@ export function AddProjectModal({
     });
   };
 
+  const { value: localProjectSettings } = useAppSettingsKey('localProject');
+  const defaultPath =
+    strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
+
   const pickState = usePickMode();
-  const newState = useNewMode();
-  const cloneState = useCloneMode();
+  const newState = useNewMode(defaultPath);
+  const cloneState = useCloneMode(defaultPath);
+
+  const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
+  const canCreate = activeMode.isValid && (strategy === 'local' || !!connectionId);
 
   const handleSubmit = async () => {
     try {
@@ -218,7 +226,7 @@ export function AddProjectModal({
         </AnimatedHeight>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton type="button" onClick={() => void handleSubmit()}>
+        <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canCreate}>
           Create
         </ConfirmButton>
       </DialogFooter>
