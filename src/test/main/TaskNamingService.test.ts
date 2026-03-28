@@ -73,7 +73,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('fix-login-bug'));
 
-    await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp/project');
+    await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp/project');
 
     expect(spawnMock).toHaveBeenCalledWith(
       'test-cli',
@@ -86,7 +86,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('fix-login-bug\n'));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBe('fix-login-bug');
   });
 
@@ -94,7 +94,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('fix-login-bug\nsome explanation text'));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBe('fix-login-bug');
   });
 
@@ -102,7 +102,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('Fix Login Bug'));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBe('fix-login-bug');
   });
 
@@ -110,7 +110,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('---fix-login---'));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBe('fix-login');
   });
 
@@ -120,7 +120,7 @@ describe('inferTaskNameFromProvider', () => {
       makeChild('a-very-long-branch-name-that-exceeds-the-maximum-allowed-length')
     );
 
-    const result = await inferTaskNameFromProvider('claude', 'do something', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'do something', '/tmp');
     expect(result).not.toBeNull();
     expect(result!.length).toBeLessThanOrEqual(40);
   });
@@ -129,7 +129,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('ab'));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBeNull();
   });
 
@@ -137,7 +137,7 @@ describe('inferTaskNameFromProvider', () => {
     resolveProviderCommandConfigMock.mockReturnValue(RESOLVED_WITH_UTILITY);
     spawnMock.mockReturnValue(makeChild('fix-login-bug', 1));
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBeNull();
   });
 
@@ -150,7 +150,7 @@ describe('inferTaskNameFromProvider', () => {
     setTimeout(() => child.emit('error', new Error('ENOENT')), 0);
     spawnMock.mockReturnValue(child);
 
-    const result = await inferTaskNameFromProvider('claude', 'fix the login bug', '/tmp');
+    const result = await inferTaskNameFromProvider('test-provider', 'fix the login bug', '/tmp');
     expect(result).toBeNull();
   });
 });
