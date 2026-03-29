@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogContentArea,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -241,7 +242,7 @@ const IntegrationsCard: React.FC = () => {
                 </DialogDescription>
               </DialogHeader>
               <Separator />
-              <div className="space-y-4">
+              <DialogContentArea className="pt-6">
                 <Input
                   type="password"
                   value={linearInput}
@@ -261,7 +262,7 @@ const IntegrationsCard: React.FC = () => {
                     {linearError}
                   </p>
                 )}
-              </div>
+              </DialogContentArea>
               <DialogFooter>
                 <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel
@@ -288,7 +289,7 @@ const IntegrationsCard: React.FC = () => {
                 </DialogDescription>
               </DialogHeader>
               <Separator />
-              <div className="space-y-4">
+              <DialogContentArea className="pt-6">
                 <JiraSetupForm
                   site={jiraSite}
                   email={jiraEmail}
@@ -305,7 +306,7 @@ const IntegrationsCard: React.FC = () => {
                   hideHeader
                   hideFooter
                 />
-              </div>
+              </DialogContentArea>
               <DialogFooter>
                 <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel
