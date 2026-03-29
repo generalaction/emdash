@@ -3,9 +3,17 @@ import React, { useCallback, useEffect, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import { AlertDialogContent } from '../ui/alert-dialog';
 import { Button } from '../ui/button';
 import { ConfirmButton } from '../ui/confirm-button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { MarkdownRenderer } from '../ui/markdown-renderer';
 import { Separator } from '../ui/separator';
 
@@ -96,44 +104,46 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           <div className="flex items-center gap-3">
             <ModalSkillIcon skill={skill} />
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base">{skill.displayName}</DialogTitle>
+              <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
+                {skill.displayName}
+              </DialogTitle>
+              {skill.source !== 'local' && (
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <img
+                    src={
+                      skill.source === 'openai'
+                        ? 'https://github.com/openai.png'
+                        : 'https://github.com/anthropics.png'
+                    }
+                    alt=""
+                    className="h-4 w-4 rounded-sm"
+                  />
+                  <span>
+                    From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </DialogHeader>
+        <DialogContentArea>
+          {skill.defaultPrompt && (
+            <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2">
+              <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
+              <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                {skill.defaultPrompt}
+              </pre>
+            </div>
+          )}
 
-        {skill.source !== 'local' && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <img
-              src={
-                skill.source === 'openai'
-                  ? 'https://github.com/openai.png'
-                  : 'https://github.com/anthropics.png'
-              }
-              alt=""
-              className="h-5 w-5 rounded-sm"
+          {body && (
+            <MarkdownRenderer
+              content={body}
+              variant="compact"
+              className="max-h-60 overflow-y-auto rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
             />
-            <span>From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library</span>
-          </div>
-        )}
-
-        <Separator />
-
-        {skill.defaultPrompt && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
-            <pre className="whitespace-pre-wrap break-words rounded-md bg-muted/40 px-3 py-2 text-xs text-foreground">
-              {skill.defaultPrompt}
-            </pre>
-          </div>
-        )}
-
-        {body && (
-          <MarkdownRenderer
-            content={body}
-            variant="compact"
-            className="max-h-60 overflow-y-auto rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
-          />
-        )}
+          )}
+        </DialogContentArea>
 
         <DialogFooter className="gap-2 sm:gap-2">
           {skill.installed && (
