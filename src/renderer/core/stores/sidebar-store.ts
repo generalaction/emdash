@@ -1,12 +1,15 @@
 import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { MountedProject, ProjectStore, UnmountedProject, UnregisteredProject } from './project';
 import { projectManagerStore } from './project-manager';
+import type { TaskStore } from './task';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
+const TASK_ORDER_BY_PROJECT_KEY = 'sidebarTaskOrderByProject';
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 
 class SidebarStore {
   projectOrder: string[] = [];
+  taskOrderByProject: Record<string, string[]> = {};
   forceOpenIds = observable.set<string>();
   pinnedTaskIds: string[] = [];
 
@@ -23,13 +26,18 @@ class SidebarStore {
       if (stored) this.pinnedTaskIds = JSON.parse(stored) as string[];
     } catch {}
 
+    try {
+      const stored = localStorage.getItem(TASK_ORDER_BY_PROJECT_KEY);
+      if (stored) this.taskOrderByProject = JSON.parse(stored) as Record<string, string[]>;
+    } catch {}
+
     // Auto-expand a project when its task count goes from 0 to >0.
     const prevTaskCounts = new Map<string, number>();
     reaction(
       () => {
         const counts: [string, number][] = [];
         for (const [id, project] of projectManagerStore.projects) {
-          if (project.state === 'mounted') {
+          if (project.state === 'mounted' && project.taskManager) {
             counts.push([id, project.taskManager.tasks.size]);
           }
         }
@@ -77,6 +85,31 @@ class SidebarStore {
     this.projectOrder = ids;
     try {
       localStorage.setItem(PROJECT_ORDER_KEY, JSON.stringify(ids));
+    } catch {}
+  }
+
+  mergeTaskOrder(projectId: string, tasks: TaskStore[]): TaskStore[] {
+    const stored = this.taskOrderByProject[projectId] ?? [];
+    const byId = new Map(tasks.map((t) => [t.data.id, t] as const));
+    const seen = new Set<string>();
+    const result: TaskStore[] = [];
+    for (const id of stored) {
+      const t = byId.get(id);
+      if (t) {
+        result.push(t);
+        seen.add(id);
+      }
+    }
+    for (const t of tasks) {
+      if (!seen.has(t.data.id)) result.push(t);
+    }
+    return result;
+  }
+
+  setTaskOrder(projectId: string, orderedIds: string[]): void {
+    this.taskOrderByProject = { ...this.taskOrderByProject, [projectId]: orderedIds };
+    try {
+      localStorage.setItem(TASK_ORDER_BY_PROJECT_KEY, JSON.stringify(this.taskOrderByProject));
     } catch {}
   }
 

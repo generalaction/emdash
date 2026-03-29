@@ -1,6 +1,7 @@
 import { ChevronRight, FolderClosed, Loader2, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
+import ReorderList from '@renderer/components/reorder-list';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -47,17 +48,31 @@ const TaskList = observer(function TaskList({
     (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
   );
 
+  const orderedTasks = sidebarStore.mergeTaskOrder(projectId, tasks);
+
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      {tasks.map((task) => (
+    <ReorderList
+      as="div"
+      axis="y"
+      items={orderedTasks}
+      onReorder={(newOrder) =>
+        sidebarStore.setTaskOrder(
+          projectId,
+          newOrder.map((t) => t.data.id)
+        )
+      }
+      className="m-0 flex min-w-0 list-none flex-col gap-0.5 p-0"
+      itemClassName="relative list-none min-w-0 cursor-pointer"
+      getKey={(task) => task.data.id}
+    >
+      {(task) => (
         <SidebarTaskItem
-          key={task.data.id}
           task={task}
           projectId={projectId}
           isActive={currentTaskId === task.data.id}
         />
-      ))}
-    </div>
+      )}
+    </ReorderList>
   );
 });
 
