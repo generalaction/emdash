@@ -6,11 +6,23 @@ import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { prService } from '@main/core/pull-requests/pr-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getGitSshExec, getLocalExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+
+function triggerPrSync(projectId: string, gitRemote?: string): void {
+  if (!gitRemote) return;
+  const nameWithOwner = parseNameWithOwner(gitRemote);
+  if (!nameWithOwner) return;
+  prService.syncPullRequests(projectId, nameWithOwner).catch((e) => {
+    log.warn('Background PR sync failed on project creation:', e);
+  });
+}
 
 export type CreateLocalProjectParams = {
   id?: string;
@@ -57,6 +69,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   };
 
   await projectManager.openProject(project);
+  triggerPrSync(project.id, project.gitRemote);
 
   return project;
 }
@@ -107,6 +120,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   };
 
   await projectManager.openProject(project);
+  triggerPrSync(project.id, project.gitRemote);
 
   return project;
 }

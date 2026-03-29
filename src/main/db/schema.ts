@@ -108,6 +108,9 @@ export const pullRequests = sqliteTable(
     title: text('title').notNull(),
     status: text('status').notNull().default('open'),
     author: text('author'),
+    authorLogin: text('author_login'),
+    authorDisplayName: text('author_display_name'),
+    authorAvatarUrl: text('author_avatar_url'),
     isDraft: integer('is_draft'),
     metadata: text('metadata'),
     createdAt: text('created_at')
@@ -123,6 +126,53 @@ export const pullRequests = sqliteTable(
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
     nameWithOwnerIdx: index('idx_pull_requests_name_with_owner').on(table.nameWithOwner),
+    authorLoginIdx: index('idx_pull_requests_author_login').on(table.authorLogin),
+  })
+);
+
+export const pullRequestLabels = sqliteTable(
+  'pull_request_labels',
+  {
+    pullRequestId: text('pull_request_id')
+      .notNull()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.pullRequestId, table.name] }),
+    nameIdx: index('idx_prl_name').on(table.name),
+  })
+);
+
+export const pullRequestAssignees = sqliteTable(
+  'pull_request_assignees',
+  {
+    pullRequestId: text('pull_request_id')
+      .notNull()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    login: text('login').notNull(),
+    avatarUrl: text('avatar_url'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.pullRequestId, table.login] }),
+    loginIdx: index('idx_pra_login').on(table.login),
+  })
+);
+
+export const projectPullRequests = sqliteTable(
+  'project_pull_requests',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    pullRequestUrl: text('pull_request_url')
+      .notNull()
+      .references(() => pullRequests.url, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.pullRequestUrl] }),
+    projectIdIdx: index('idx_project_pull_requests_project_id').on(table.projectId),
   })
 );
 

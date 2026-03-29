@@ -1,13 +1,18 @@
 import type { Octokit } from '@octokit/rest';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type {
   CheckRunBucket,
   GitHubReviewer,
+  ListPrOptions,
   PrCheckRun,
   PrCommentsResult,
+  PrFilterOptions,
+  PrFilters,
+  PrSortField,
   PullRequest,
   PullRequestFile,
   PullRequestStatus,
+  User,
 } from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
@@ -22,8 +27,16 @@ import { parseNameWithOwner, splitRepo } from '@main/core/github/services/utils'
 import { projectManager } from '@main/core/projects/project-manager';
 import { resolveTask } from '@main/core/projects/utils';
 import { db } from '@main/db/client';
-import { pullRequests } from '@main/db/schema';
+import { KV } from '@main/db/kv';
+import {
+  projectPullRequests,
+  pullRequestAssignees,
+  pullRequestLabels,
+  pullRequests,
+} from '@main/db/schema';
 import { log } from '@main/lib/logger';
+
+const PR_SYNC_MAX_AGE_MONTHS = 4;
 
 export type TaskPrsPayload = {
   prs: PullRequest[];
@@ -31,10 +44,7 @@ export type TaskPrsPayload = {
   taskBranch: string | null;
 };
 
-export type ListPrOptions = {
-  limit?: number;
-  searchQuery?: string;
-};
+type PrKvSchema = Record<string, string>;
 
 interface GqlPrNode {
   number: number;
@@ -53,7 +63,7 @@ interface GqlPrNode {
   changedFiles: number;
   mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
   mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
-  author: { login: string } | null;
+  author: { login: string; avatarUrl: string } | null;
   headRepository: { nameWithOwner: string; url: string; owner: { login: string } } | null;
   labels: { nodes: Array<{ name: string; color: string }> };
   assignees: { nodes: Array<{ login: string; avatarUrl: string }> };
@@ -148,11 +158,15 @@ function mapStatusContextBucket(state: string): CheckRunBucket {
 // ---------------------------------------------------------------------------
 
 export class PrService {
+  private readonly kv = new KV<PrKvSchema>('pr');
+  private readonly syncInFlight = new Map<string, Promise<void>>();
+
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
   // ── DB-cached reads ──────────────────────────────────────────────────────
 
   async listPullRequests(
+    projectId: string,
     nameWithOwner: string,
     options: ListPrOptions = {},
     invalidate = false
@@ -181,10 +195,20 @@ export class PrService {
         );
       }
 
-      return this.upsertMany(fresh);
+      return this.upsertMany(projectId, fresh);
     }
 
-    return this.fromDb(nameWithOwner);
+    const lastFetchedAt = await this.kv.get(`${projectId}:${nameWithOwner}:lastFetchedAt`);
+    if (!lastFetchedAt) {
+      await this.deduplicatedSync(projectId, nameWithOwner);
+    }
+
+    return this.fromDb(
+      nameWithOwner,
+      options.filters,
+      { limit: options.limit ?? 50, offset: options.offset ?? 0 },
+      options.sort
+    );
   }
 
   async getPullRequest(
@@ -200,7 +224,7 @@ export class PrService {
       }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
       const node = response.repository.pullRequest;
       if (!node) return null;
-      return this.upsert(this.gqlToUnified(node, nameWithOwner));
+      return this.upsertSingle(this.gqlToUnified(node, nameWithOwner));
     }
 
     const rows = await db
@@ -209,7 +233,6 @@ export class PrService {
       .where(eq(pullRequests.nameWithOwner, nameWithOwner))
       .limit(1);
 
-    // Try to find by number in the metadata JSON — fall back to null
     for (const row of rows) {
       const pr = this.dbRowToUnified(row);
       if (pr.metadata.number === prNumber) return pr;
@@ -250,7 +273,7 @@ export class PrService {
           { searchQuery: `repo:${nameWithOwner} is:pr head:${taskBranch}`, limit: 25 }
         );
         const fresh = response.search.nodes.map((n) => this.gqlToUnified(n, nameWithOwner));
-        const prs = await this.upsertMany(fresh);
+        const prs = await this.upsertMany(projectId, fresh);
         return ok<TaskPrsPayload>({ prs, nameWithOwner, taskBranch });
       }
 
@@ -266,6 +289,50 @@ export class PrService {
         taskBranch: env2?.taskBranch ?? null,
       });
     }
+  }
+
+  async getFilterOptions(nameWithOwner: string): Promise<PrFilterOptions> {
+    const [authorRows, labelRows, assigneeRows] = await Promise.all([
+      db
+        .selectDistinct({
+          authorLogin: pullRequests.authorLogin,
+          authorDisplayName: pullRequests.authorDisplayName,
+          authorAvatarUrl: pullRequests.authorAvatarUrl,
+        })
+        .from(pullRequests)
+        .where(
+          and(eq(pullRequests.nameWithOwner, nameWithOwner), isNotNull(pullRequests.authorLogin))
+        ),
+      db
+        .selectDistinct({ name: pullRequestLabels.name, color: pullRequestLabels.color })
+        .from(pullRequestLabels)
+        .innerJoin(pullRequests, eq(pullRequests.id, pullRequestLabels.pullRequestId))
+        .where(eq(pullRequests.nameWithOwner, nameWithOwner)),
+      db
+        .selectDistinct({
+          login: pullRequestAssignees.login,
+          avatarUrl: pullRequestAssignees.avatarUrl,
+        })
+        .from(pullRequestAssignees)
+        .innerJoin(pullRequests, eq(pullRequests.id, pullRequestAssignees.pullRequestId))
+        .where(eq(pullRequests.nameWithOwner, nameWithOwner)),
+    ]);
+
+    return {
+      authors: authorRows
+        .filter((r) => r.authorLogin != null)
+        .map((r) => ({
+          userName: r.authorLogin!,
+          displayName: r.authorDisplayName ?? r.authorLogin!,
+          avatarUrl: r.authorAvatarUrl ?? undefined,
+        })),
+      labels: labelRows.map((r) => ({ name: r.name, color: r.color ?? undefined })),
+      assignees: assigneeRows.map((r) => ({
+        userName: r.login,
+        displayName: r.login,
+        avatarUrl: r.avatarUrl ?? undefined,
+      })),
+    };
   }
 
   // ── Mutations (always refresh cache after write) ─────────────────────────
@@ -440,10 +507,15 @@ export class PrService {
 
   // ── Project bootstrap sync ───────────────────────────────────────────────
 
-  async syncPullRequests(nameWithOwner: string): Promise<void> {
+  async syncPullRequests(projectId: string, nameWithOwner: string): Promise<void> {
     const sinceUpdatedAt = await this.getLatestUpdatedAt(nameWithOwner);
     const { owner, repo } = splitRepo(nameWithOwner);
     const octokit = await this.getOctokit();
+
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
+    const cutoffISO = cutoff.toISOString();
+
     const toUpsert: PullRequest[] = [];
     let cursor: string | undefined;
 
@@ -460,6 +532,10 @@ export class PrService {
       const { nodes, pageInfo } = response.repository.pullRequests;
       let reachedCursor = false;
       for (const node of nodes) {
+        if (node.updatedAt < cutoffISO) {
+          reachedCursor = true;
+          break;
+        }
         if (sinceUpdatedAt && node.updatedAt <= sinceUpdatedAt) {
           reachedCursor = true;
           break;
@@ -472,14 +548,30 @@ export class PrService {
     }
 
     if (toUpsert.length > 0) {
-      await this.upsertMany(toUpsert);
+      await this.upsertMany(projectId, toUpsert);
     }
+
+    await this.kv.set(`${projectId}:${nameWithOwner}:lastFetchedAt`, new Date().toISOString());
+  }
+
+  // ── Private: dedup sync guard ────────────────────────────────────────────
+
+  private deduplicatedSync(projectId: string, nameWithOwner: string): Promise<void> {
+    const key = `${projectId}:${nameWithOwner}`;
+    const existing = this.syncInFlight.get(key);
+    if (existing) return existing;
+    const promise = this.syncPullRequests(projectId, nameWithOwner).finally(() => {
+      this.syncInFlight.delete(key);
+    });
+    this.syncInFlight.set(key, promise);
+    return promise;
   }
 
   // ── Private: DB helpers ──────────────────────────────────────────────────
 
-  private async upsert(pr: PullRequest): Promise<PullRequest> {
+  private async upsertSingle(pr: PullRequest, projectId?: string): Promise<PullRequest> {
     const serialized = this.serialize(pr);
+
     const [row] = await db
       .insert(pullRequests)
       .values({ id: pr.url, ...serialized, fetchedAt: sql`CURRENT_TIMESTAMP` })
@@ -488,19 +580,104 @@ export class PrService {
         set: { ...serialized, fetchedAt: sql`CURRENT_TIMESTAMP` },
       })
       .returning();
+
+    await db.delete(pullRequestLabels).where(eq(pullRequestLabels.pullRequestId, pr.id));
+    if (pr.metadata.labels.length > 0) {
+      await db.insert(pullRequestLabels).values(
+        pr.metadata.labels.map((l) => ({
+          pullRequestId: pr.id,
+          name: l.name,
+          color: l.color ?? null,
+        }))
+      );
+    }
+
+    await db.delete(pullRequestAssignees).where(eq(pullRequestAssignees.pullRequestId, pr.id));
+    if (pr.metadata.assignees.length > 0) {
+      await db.insert(pullRequestAssignees).values(
+        pr.metadata.assignees.map((a) => ({
+          pullRequestId: pr.id,
+          login: a.login,
+          avatarUrl: a.avatarUrl ?? null,
+        }))
+      );
+    }
+
+    if (projectId) {
+      await db
+        .insert(projectPullRequests)
+        .values({ projectId, pullRequestUrl: pr.url })
+        .onConflictDoNothing();
+    }
+
     return this.dbRowToUnified(row);
   }
 
-  private async upsertMany(prs: PullRequest[]): Promise<PullRequest[]> {
-    return Promise.all(prs.map((pr) => this.upsert(pr)));
+  private async upsertMany(projectId: string, prs: PullRequest[]): Promise<PullRequest[]> {
+    const CHUNK = 10;
+    const results: PullRequest[] = [];
+    for (let i = 0; i < prs.length; i += CHUNK) {
+      const chunk = await Promise.all(
+        prs.slice(i, i + CHUNK).map((pr) => this.upsertSingle(pr, projectId))
+      );
+      results.push(...chunk);
+    }
+    return results;
   }
 
-  private async fromDb(nameWithOwner: string): Promise<PullRequest[]> {
-    const rows = await db
+  private async fromDb(
+    nameWithOwner: string,
+    filters?: PrFilters,
+    pagination?: { limit: number; offset: number },
+    sort?: PrSortField
+  ): Promise<PullRequest[]> {
+    const conditions = [eq(pullRequests.nameWithOwner, nameWithOwner)];
+
+    if (filters?.status && filters.status !== 'all') {
+      if (filters.status === 'not-open') {
+        conditions.push(inArray(pullRequests.status, ['closed', 'merged']));
+      } else {
+        conditions.push(eq(pullRequests.status, filters.status));
+      }
+    }
+
+    if (filters?.authorLogins && filters.authorLogins.length > 0) {
+      conditions.push(inArray(pullRequests.authorLogin, filters.authorLogins));
+    }
+
+    if (filters?.labelNames && filters.labelNames.length > 0) {
+      const labelSubquery = db
+        .select({ id: pullRequestLabels.pullRequestId })
+        .from(pullRequestLabels)
+        .where(inArray(pullRequestLabels.name, filters.labelNames));
+      conditions.push(inArray(pullRequests.id, labelSubquery));
+    }
+
+    if (filters?.assigneeLogins && filters.assigneeLogins.length > 0) {
+      const assigneeSubquery = db
+        .select({ id: pullRequestAssignees.pullRequestId })
+        .from(pullRequestAssignees)
+        .where(inArray(pullRequestAssignees.login, filters.assigneeLogins));
+      conditions.push(inArray(pullRequests.id, assigneeSubquery));
+    }
+
+    const orderClause =
+      sort === 'oldest'
+        ? asc(pullRequests.createdAt)
+        : sort === 'recently-updated'
+          ? desc(pullRequests.updatedAt)
+          : desc(pullRequests.createdAt);
+
+    const query = db
       .select()
       .from(pullRequests)
-      .where(eq(pullRequests.nameWithOwner, nameWithOwner))
-      .orderBy(desc(pullRequests.updatedAt));
+      .where(and(...conditions))
+      .orderBy(orderClause);
+
+    const rows = pagination
+      ? await query.limit(pagination.limit).offset(pagination.offset)
+      : await query;
+
     return rows.map((r) => this.dbRowToUnified(r));
   }
 
@@ -530,6 +707,14 @@ export class PrService {
       if (login) reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
     }
 
+    const author: User | null = node.author
+      ? {
+          userName: node.author.login,
+          displayName: node.author.login,
+          avatarUrl: node.author.avatarUrl || undefined,
+        }
+      : null;
+
     return {
       id: node.url,
       identifier: `#${node.number}`,
@@ -538,7 +723,13 @@ export class PrService {
       url: node.url,
       title: node.title,
       status,
-      author: node.author ? { userName: node.author.login, displayName: node.author.login } : null,
+      author,
+      labels: node.labels.nodes.map((l) => ({ name: l.name, color: l.color })),
+      assignees: node.assignees.nodes.map((a) => ({
+        userName: a.login,
+        displayName: a.login,
+        avatarUrl: a.avatarUrl,
+      })),
       isDraft: node.isDraft,
       createdAt: node.createdAt,
       updatedAt: node.updatedAt,
@@ -572,6 +763,9 @@ export class PrService {
       title: pr.title,
       status: pr.status,
       author: JSON.stringify(pr.author),
+      authorLogin: pr.author?.userName ?? null,
+      authorDisplayName: pr.author?.displayName ?? null,
+      authorAvatarUrl: pr.author?.avatarUrl ?? null,
       isDraft: Number(pr.isDraft),
       metadata: JSON.stringify(pr.metadata),
       createdAt: pr.createdAt,
@@ -583,6 +777,17 @@ export class PrService {
     const metadata = JSON.parse(row.metadata ?? '{}') as PullRequest['metadata'];
     const identifier =
       row.provider === 'github' && 'number' in metadata ? `#${metadata.number}` : row.url;
+
+    const author: PullRequest['author'] = row.authorLogin
+      ? {
+          userName: row.authorLogin,
+          displayName: row.authorDisplayName ?? row.authorLogin,
+          avatarUrl: row.authorAvatarUrl ?? undefined,
+        }
+      : row.author
+        ? (JSON.parse(row.author) as PullRequest['author'])
+        : null;
+
     return {
       id: row.id,
       identifier,
@@ -591,7 +796,14 @@ export class PrService {
       url: row.url,
       title: row.title,
       status: row.status as PullRequest['status'],
-      author: row.author ? JSON.parse(row.author) : null,
+      author,
+      labels: metadata.labels?.map((l) => ({ name: l.name, color: l.color })) ?? [],
+      assignees:
+        metadata.assignees?.map((a) => ({
+          userName: a.login,
+          displayName: a.login,
+          avatarUrl: a.avatarUrl,
+        })) ?? [],
       isDraft: Boolean(row.isDraft),
       metadata,
       createdAt: row.createdAt,

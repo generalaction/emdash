@@ -1,18 +1,37 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import type { ListPrOptions } from '@shared/pull-requests';
 import { log } from '@main/lib/logger';
 import { prService } from './pr-service';
 
 export const pullRequestController = createRPCController({
   // ── DB-cached reads ────────────────────────────────────────────────────
-  listPullRequests: async (nameWithOwner: string) => {
+  listPullRequests: async (
+    projectId: string,
+    nameWithOwner: string,
+    options?: ListPrOptions,
+    invalidate = false
+  ) => {
     try {
-      const prs = await prService.listPullRequests(nameWithOwner);
+      const prs = await prService.listPullRequests(projectId, nameWithOwner, options, invalidate);
       return { success: true, prs, totalCount: prs.length };
     } catch (error) {
       log.error('Failed to list pull requests:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unable to list pull requests',
+      };
+    }
+  },
+
+  getFilterOptions: async (nameWithOwner: string) => {
+    try {
+      const options = await prService.getFilterOptions(nameWithOwner);
+      return { success: true, ...options };
+    } catch (error) {
+      log.error('Failed to get PR filter options:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unable to get filter options',
       };
     }
   },
@@ -128,9 +147,9 @@ export const pullRequestController = createRPCController({
   },
 
   // ── Bootstrap sync ─────────────────────────────────────────────────────
-  syncPullRequests: async (nameWithOwner: string) => {
+  syncPullRequests: async (projectId: string, nameWithOwner: string) => {
     try {
-      await prService.syncPullRequests(nameWithOwner);
+      await prService.syncPullRequests(projectId, nameWithOwner);
       return { success: true };
     } catch (error) {
       log.error('Failed to sync pull requests:', error);

@@ -9,6 +9,7 @@ import ShortcutHint from './ui/shortcut-hint';
 export interface InlinePrSelectorProps {
   value: PullRequest | null;
   onValueChange: (pr: PullRequest | null) => void;
+  projectId?: string;
   nameWithOwner?: string;
   disabled?: boolean;
 }
@@ -43,10 +44,11 @@ function PrRow({ pr }: { pr: PullRequest }) {
 export function InlinePrSelector({
   value,
   onValueChange,
+  projectId,
   nameWithOwner = '',
   disabled,
 }: InlinePrSelectorProps) {
-  const { prs } = usePullRequests(nameWithOwner || undefined);
+  const { prs } = usePullRequests(projectId, nameWithOwner || undefined);
 
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);

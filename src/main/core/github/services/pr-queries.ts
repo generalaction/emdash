@@ -16,7 +16,7 @@ export const PR_SUMMARY_FRAGMENT = `
     changedFiles
     mergeable
     mergeStateStatus
-    author { login }
+    author { login avatarUrl }
     headRepository {
       nameWithOwner
       url

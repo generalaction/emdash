@@ -1,5 +1,28 @@
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
+export type PrFilters = {
+  status?: PullRequestStatus | 'all' | 'not-open';
+  authorLogins?: string[];
+  labelNames?: string[];
+  assigneeLogins?: string[];
+};
+
+export type PrFilterOptions = {
+  authors: User[];
+  labels: Label[];
+  assignees: User[];
+};
+
+export type PrSortField = 'newest' | 'oldest' | 'recently-updated';
+
+export type ListPrOptions = {
+  limit?: number;
+  offset?: number;
+  searchQuery?: string;
+  filters?: PrFilters;
+  sort?: PrSortField;
+};
+
 export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;

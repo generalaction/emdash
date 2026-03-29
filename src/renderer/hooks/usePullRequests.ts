@@ -1,41 +1,70 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import type {
+  ListPrOptions,
+  PrFilterOptions,
+  PrFilters,
+  PrSortField,
+  PullRequest,
+} from '@shared/pull-requests';
 import { rpc } from '../core/ipc';
 
+const PAGE_SIZE = 50;
+
 export interface UsePullRequestsOptions {
-  limit?: number;
+  filters?: PrFilters;
+  sort?: PrSortField;
   enabled?: boolean;
 }
 
-export function usePullRequests(nameWithOwner?: string, options: UsePullRequestsOptions = {}) {
-  const { limit, enabled = true } = options;
+export function usePullRequests(
+  projectId?: string,
+  nameWithOwner?: string,
+  options: UsePullRequestsOptions = {}
+) {
+  const { filters, sort, enabled = true } = options;
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: ['pull-requests', nameWithOwner],
-    queryFn: async () => {
-      const response = await rpc.pullRequests.listPullRequests(nameWithOwner!);
+  const query = useInfiniteQuery({
+    queryKey: ['pull-requests', projectId, nameWithOwner, filters, sort],
+    queryFn: async ({ pageParam }: { pageParam: number }) => {
+      const listOptions: ListPrOptions = {
+        limit: PAGE_SIZE,
+        offset: pageParam,
+        filters,
+        sort,
+      };
+      const response = await rpc.pullRequests.listPullRequests(
+        projectId!,
+        nameWithOwner!,
+        listOptions
+      );
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load pull requests');
       }
       const prs = (response.prs ?? []) as PullRequest[];
-      return limit ? prs.slice(0, limit) : prs;
+      return { prs, nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined };
     },
-    enabled: !!nameWithOwner && enabled,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
+    enabled: !!projectId && !!nameWithOwner && enabled,
     staleTime: 30_000,
   });
 
-  // Refresh = sync from GitHub then invalidate query to re-read from DB
+  const prs = query.data?.pages.flatMap((p) => p.prs) ?? [];
+
   const refresh = useCallback(async () => {
-    if (!nameWithOwner) return;
-    await rpc.pullRequests.syncPullRequests(nameWithOwner);
-    queryClient.invalidateQueries({ queryKey: ['pull-requests', nameWithOwner] });
-  }, [queryClient, nameWithOwner]);
+    if (!projectId || !nameWithOwner) return;
+    await rpc.pullRequests.syncPullRequests(projectId, nameWithOwner);
+    await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, nameWithOwner] });
+  }, [queryClient, projectId, nameWithOwner]);
 
   return {
-    prs: query.data ?? [],
+    prs,
     loading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
     error: query.error
       ? query.error instanceof Error
         ? query.error.message
@@ -44,3 +73,25 @@ export function usePullRequests(nameWithOwner?: string, options: UsePullRequests
     refresh,
   };
 }
+
+export function useFilterOptions(projectId?: string, nameWithOwner?: string) {
+  return useQuery<PrFilterOptions>({
+    queryKey: ['pr-filter-options', nameWithOwner],
+    queryFn: async () => {
+      const response = await rpc.pullRequests.getFilterOptions(nameWithOwner!);
+      if (!response?.success) {
+        throw new Error(response?.error || 'Failed to load filter options');
+      }
+      const { authors, labels, assignees } = response as {
+        authors: PrFilterOptions['authors'];
+        labels: PrFilterOptions['labels'];
+        assignees: PrFilterOptions['assignees'];
+      };
+      return { authors, labels, assignees };
+    },
+    enabled: !!nameWithOwner,
+    staleTime: 60_000,
+  });
+}
+
+export type { PrFilters, PrSortField } from '@shared/pull-requests';

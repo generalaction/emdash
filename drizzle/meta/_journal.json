@@ -15,6 +15,13 @@
       "when": 1774764754597,
       "tag": "0001_abandoned_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774773660645,
+      "tag": "0002_brief_drax",
+      "breakpoints": true
     }
   ]
 }
