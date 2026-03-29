@@ -10,7 +10,14 @@ import * as os from 'os';
 import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from './locale';
 
 function getFallbackUtf8Locale(): string | undefined {
-  return process.platform === 'win32' ? undefined : DEFAULT_UTF8_LOCALE;
+  if (process.platform === 'win32') return undefined;
+
+  // `C.UTF-8` is a good generic fallback on Linux, but can crash AppKit on
+  // newer macOS builds when native menus initialize locale-dependent text
+  // direction. Keep macOS on a concrete UTF-8 locale instead.
+  if (process.platform === 'darwin') return 'en_US.UTF-8';
+
+  return DEFAULT_UTF8_LOCALE;
 }
 
 /**

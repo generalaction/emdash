@@ -21,6 +21,7 @@ const mockedReaddirSync = vi.mocked(readdirSync);
 
 describe('shellEnv', () => {
   const originalEnv = process.env;
+  const fallbackUtf8Locale = process.platform === 'darwin' ? 'en_US.UTF-8' : 'C.UTF-8';
   const shellLookup = (values: Partial<Record<string, string>>) => (command: string) => {
     // Batched locale call: returns values separated by ---
     if (command.includes('echo "---"')) {
@@ -225,7 +226,7 @@ describe('shellEnv', () => {
       expect(process.env.LC_ALL).toBe('en_US.UTF-8');
     });
 
-    it('should fall back to C.UTF-8 when shell exposes no locale values', () => {
+    it('should fall back to platform UTF-8 locale when shell exposes no locale values', () => {
       delete process.env.LANG;
       delete process.env.LC_CTYPE;
       delete process.env.LC_ALL;
@@ -240,12 +241,12 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      expect(process.env.LANG).toBe('C.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LANG).toBe(fallbackUtf8Locale);
+      expect(process.env.LC_CTYPE).toBe(fallbackUtf8Locale);
       expect(process.env.LC_ALL).toBeUndefined();
     });
 
-    it('should fall back to C.UTF-8 when shell exposes only non-UTF-8 locale values', () => {
+    it('should fall back to platform UTF-8 locale when shell exposes only non-UTF-8 locale values', () => {
       process.env.LANG = 'C';
       process.env.LC_CTYPE = 'C';
       process.env.LC_ALL = 'C';
@@ -260,8 +261,8 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      expect(process.env.LANG).toBe('C.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
+      expect(process.env.LANG).toBe(fallbackUtf8Locale);
+      expect(process.env.LC_CTYPE).toBe(fallbackUtf8Locale);
       expect(process.env.LC_ALL).toBeUndefined();
     });
 
