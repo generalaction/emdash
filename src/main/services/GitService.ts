@@ -154,50 +154,70 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
       return [];
     }
 
-    let statusOutput = '';
-    try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['status', '--porcelain=v2', '-z', '--untracked-files=all'],
-        {
-          cwd: taskPath,
-          maxBuffer: MAX_DIFF_OUTPUT_BYTES,
-        }
-      );
-      statusOutput = stdout;
-    } catch {
-      // Fallback for older git versions that do not support porcelain v2.
-      const { stdout } = await execFileAsync(
-        'git',
-        ['status', '--porcelain', '--untracked-files=all'],
-        {
-          cwd: taskPath,
-          maxBuffer: MAX_DIFF_OUTPUT_BYTES,
-        }
-      );
-      statusOutput = stdout;
-    }
+    // Run git commands in parallel with flags tuned for performance:
+    //   --no-optional-locks: avoid blocking on concurrent git processes
+    //   --no-ahead-behind:   skip commit-graph walk for tracking info
+    const statusPromise = (async () => {
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          [
+            '--no-optional-locks',
+            'status',
+            '--porcelain=v2',
+            '-z',
+            '--no-ahead-behind',
+            '--untracked-files=all',
+          ],
+          {
+            cwd: taskPath,
+            maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+          }
+        );
+        return stdout;
+      } catch {
+        // Fallback for older git versions that do not support porcelain v2.
+        const { stdout } = await execFileAsync(
+          'git',
+          ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
+          {
+            cwd: taskPath,
+            maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+          }
+        );
+        return stdout;
+      }
+    })();
+
+    const stagedPromise = execFileAsync(
+      'git',
+      ['--no-optional-locks', 'diff', '--numstat', '--cached'],
+      {
+        cwd: taskPath,
+        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+      }
+    ).catch(() => ({
+      stdout: '',
+      stderr: '',
+    }));
+
+    const unstagedPromise = execFileAsync('git', ['--no-optional-locks', 'diff', '--numstat'], {
+      cwd: taskPath,
+      maxBuffer: MAX_DIFF_OUTPUT_BYTES,
+    }).catch(() => ({
+      stdout: '',
+      stderr: '',
+    }));
+
+    const [statusOutput, stagedResult, unstagedResult] = await Promise.all([
+      statusPromise,
+      stagedPromise,
+      unstagedPromise,
+    ]);
 
     if (!statusOutput.trim()) return [];
 
     const entries = parseGitStatusOutput(statusOutput);
-
-    const [stagedResult, unstagedResult] = await Promise.all([
-      execFileAsync('git', ['diff', '--numstat', '--cached'], {
-        cwd: taskPath,
-        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
-      }).catch(() => ({
-        stdout: '',
-        stderr: '',
-      })),
-      execFileAsync('git', ['diff', '--numstat'], {
-        cwd: taskPath,
-        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
-      }).catch(() => ({
-        stdout: '',
-        stderr: '',
-      })),
-    ]);
 
     const stagedMap = parseNumstatOutput(stagedResult.stdout);
     const unstagedMap = parseNumstatOutput(unstagedResult.stdout);
