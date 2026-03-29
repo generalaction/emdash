@@ -1,17 +1,22 @@
-import { CornerDownLeft, Paperclip, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import React, { useCallback, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { CornerDownLeft, Paperclip } from 'lucide-react';
+import React, { useCallback } from 'react';
+import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useAttachments } from '../hooks/use-attachments';
 import { useFeedbackSubmit } from '../hooks/use-feedback-submit';
 import { Button } from './ui/button';
+import {
+  DialogContent,
+  DialogContentArea,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 
-interface FeedbackModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+type FeedbackModalArgs = {
   githubUser?: {
     login?: string;
     name?: string;
@@ -19,12 +24,11 @@ interface FeedbackModalProps {
     email?: string;
   } | null;
   blurb?: string;
-}
+};
 
-const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser, blurb }) => {
-  const shouldReduceMotion = useReducedMotion();
-  const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+type Props = BaseModalProps<void> & FeedbackModalArgs;
 
+export function FeedbackModal({ onSuccess, githubUser, blurb }: Props) {
   const {
     attachments,
     fileInputRef,
@@ -45,35 +49,15 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     submitting,
     errorMessage,
     clearError,
-    reset: resetForm,
     handleSubmit,
     canSubmit,
   } = useFeedbackSubmit({
     githubUser,
     onSuccess: () => {
       resetAttachments();
-      onClose();
+      onSuccess();
     },
   });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      resetForm();
-      resetAttachments();
-    }
-  }, [isOpen, resetForm, resetAttachments]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -90,174 +74,134 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     }
   };
 
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Feedback"
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          initial={shouldReduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0 }}
-          transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.12, ease: 'easeOut' }}
-          onClick={onClose}
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <div className="flex flex-col gap-0.5">
+          <DialogTitle>Feedback</DialogTitle>
+          {blurb ? <DialogDescription className="text-xs">{blurb}</DialogDescription> : null}
+        </div>
+      </DialogHeader>
+      <DialogContentArea>
+        <form
+          id="feedback-form"
+          className="space-y-4"
+          onSubmit={handleFormSubmit}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
         >
-          <motion.div
-            onClick={(event) => event.stopPropagation()}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 8, scale: 0.995 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={
-              shouldReduceMotion
-                ? { opacity: 1, y: 0, scale: 1 }
-                : { opacity: 0, y: 6, scale: 0.995 }
-            }
-            transition={
-              shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
-            }
-            className="w-full max-w-lg transform-gpu rounded-xl border border-border bg-white shadow-2xl outline-none will-change-transform dark:bg-background"
-          >
-            <div className="flex items-start justify-between px-6 pb-2 pt-6">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold text-foreground">Feedback</h2>
-                {blurb ? <p className="max-w-md text-xs text-muted-foreground">{blurb}</p> : null}
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label="Close feedback"
-                onClick={onClose}
-                size="icon"
-                className="text-muted-foreground hover:bg-background/80"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+          <div className="space-y-1.5">
+            <label htmlFor="feedback-details" className="sr-only">
+              Feedback details
+            </label>
+            <Textarea
+              id="feedback-details"
+              autoFocus
+              rows={5}
+              placeholder="What do you like? How can we improve?"
+              className="resize-none"
+              value={feedbackDetails}
+              onChange={(event) => {
+                setFeedbackDetails(event.target.value);
+                if (errorMessage) clearError();
+              }}
+              onKeyDown={handleMetaEnter}
+              onPaste={handlePaste}
+            />
+          </div>
 
-            <form
-              className="space-y-4 px-6 pb-6"
-              onSubmit={handleFormSubmit}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-            >
-              <div className="space-y-1.5">
-                <label htmlFor="feedback-details" className="sr-only">
-                  Feedback details
-                </label>
-                <Textarea
-                  id="feedback-details"
-                  rows={5}
-                  placeholder="What do you like? How can we improve?"
-                  className="resize-none"
-                  value={feedbackDetails}
-                  onChange={(event) => {
-                    setFeedbackDetails(event.target.value);
-                    if (errorMessage) clearError();
-                  }}
-                  onKeyDown={handleMetaEnter}
-                  onPaste={handlePaste}
-                />
-              </div>
+          <div className="space-y-1.5">
+            <label htmlFor="feedback-contact" className="sr-only">
+              Contact email
+            </label>
+            <Input
+              id="feedback-contact"
+              type="text"
+              placeholder="productive@example.com (optional)"
+              value={contactEmail}
+              onChange={(event) => {
+                setContactEmail(event.target.value);
+                if (errorMessage) clearError();
+              }}
+              onKeyDown={handleMetaEnter}
+            />
+          </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="feedback-contact" className="sr-only">
-                  Contact email
-                </label>
-                <Input
-                  id="feedback-contact"
-                  type="text"
-                  placeholder="productive@example.com (optional)"
-                  value={contactEmail}
-                  onChange={(event) => {
-                    setContactEmail(event.target.value);
-                    if (errorMessage) clearError();
-                  }}
-                  onKeyDown={handleMetaEnter}
-                />
-              </div>
+          <div className="space-y-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              multiple
+              onChange={handleFileInputChange}
+              disabled={submitting}
+            />
+            {attachments.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {attachments.map((file, index) => (
+                  <li
+                    key={`${file.name}-${index}`}
+                    className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground"
+                  >
+                    <span className="truncate">{file.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeAttachment(index)}
+                      disabled={submitting}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
-              <div className="space-y-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  multiple
-                  onChange={handleFileInputChange}
-                  disabled={submitting}
-                />
-                {attachments.length > 0 ? (
-                  <ul className="space-y-1 text-sm">
-                    {attachments.map((file, index) => (
-                      <li
-                        key={`${file.name}-${index}`}
-                        className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground"
-                      >
-                        <span className="truncate">{file.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeAttachment(index)}
-                          disabled={submitting}
-                          className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-
-              {errorMessage ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {errorMessage}
-                </p>
-              ) : null}
-
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={openFilePicker}
-                  className="gap-2"
-                  disabled={submitting}
-                >
-                  <Paperclip className="h-4 w-4" aria-hidden="true" />
-                  <span>Attach image</span>
-                </Button>
-                <Button
-                  type="submit"
-                  ref={submitButtonRef}
-                  className="gap-2 px-4"
-                  disabled={!canSubmit}
-                  aria-busy={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <Spinner size="sm" />
-                      <span>Sending...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Send Feedback</span>
-                      <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
-                        <span>&#8984;</span>
-                        <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body
+          {errorMessage ? (
+            <p className="text-sm text-destructive" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+        </form>
+      </DialogContentArea>
+      <DialogFooter className="sm:justify-between">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={openFilePicker}
+          className="gap-2"
+          disabled={submitting}
+        >
+          <Paperclip className="h-4 w-4" aria-hidden="true" />
+          <span>Attach image</span>
+        </Button>
+        <Button
+          type="submit"
+          form="feedback-form"
+          className="gap-2 px-4"
+          disabled={!canSubmit}
+          aria-busy={submitting}
+        >
+          {submitting ? (
+            <>
+              <Spinner size="sm" />
+              <span>Sending...</span>
+            </>
+          ) : (
+            <>
+              <span>Send Feedback</span>
+              <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
+                <span>&#8984;</span>
+                <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </>
+          )}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
-};
-
-export default FeedbackModal;
+}

@@ -1,6 +1,6 @@
-import { FolderPlus, MessageSquarePlus, Plug, Puzzle, Settings } from 'lucide-react';
+import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useState } from 'react';
+import React from 'react';
 import ReorderList from '@renderer/components/reorder-list';
 import { useAppContext } from '@renderer/core/app/AppContextProvider';
 import { useGithubContext } from '@renderer/core/github-context-provider';
@@ -11,8 +11,7 @@ import {
   useNavigate,
   useWorkspaceSlots,
 } from '@renderer/core/view/navigation-provider';
-import FeedbackModal from '../feedback-modal';
-import { Separator } from '../ui/separator';
+import { MicroLabel } from '../ui/label';
 import ShortcutHint from '../ui/shortcut-hint';
 import { SidebarProjectItem } from './project-item';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -22,7 +21,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarItemMiniButton,
   SidebarMenu,
   SidebarMenuButton,
 } from './sidebar-primitives';
@@ -33,11 +31,11 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { currentView } = useWorkspaceSlots();
   const { appVersion } = useAppContext();
   const { user: githubUser } = useGithubContext();
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const orderedProjects = sidebarStore.orderedProjects;
 
   const showAddProjectModal = useShowModal('addProjectModal');
+  const showFeedbackModal = useShowModal('feedbackModal');
 
   return (
     <div className="flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted">
@@ -119,28 +117,22 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               </span>
               <ShortcutHint settingsKey="settings" />
             </SidebarMenuButton>
-            <Separator className="my-1" />
-            <div className="flex items-center justify-between px-3 py-2">
-              <SidebarItemMiniButton
-                onClick={() => setFeedbackOpen(true)}
-                aria-label="Send feedback"
-              >
-                <MessageSquarePlus className="h-4 w-4" />
-              </SidebarItemMiniButton>
-              {appVersion ? (
-                <span className="rounded-md bg-background-tertiary-2 px-1.5 py-0.5 text-[11px] font-medium text-foreground-tertiary-muted">
-                  v{appVersion}
-                </span>
-              ) : null}
-            </div>
           </SidebarMenu>
         </SidebarFooter>
+        <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
+          <button
+            className="flex items-center min-w-0 w-full gap-2 text-sm text-foreground-muted hover:text-foreground px-3 py-1.5 rounded-md hover:bg-background-tertiary-1"
+            onClick={() => showFeedbackModal({ githubUser })}
+          >
+            <MessageSquareShare className="size-4 shrink-0" />
+            <span className="truncate">Give feedback</span>
+          </button>
+
+          {appVersion ? (
+            <MicroLabel className="lowercase text-foreground-passive">v{appVersion}</MicroLabel>
+          ) : null}
+        </div>
       </SidebarContainer>
-      <FeedbackModal
-        isOpen={feedbackOpen}
-        onClose={() => setFeedbackOpen(false)}
-        githubUser={githubUser}
-      />
     </div>
   );
 });

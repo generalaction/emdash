@@ -1,8 +1,7 @@
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { ReorderList } from '@renderer/components/reorder-list';
-import { Button } from '@renderer/components/ui/button';
 import { cn } from '@renderer/lib/utils';
 import { Separator } from './separator';
 
@@ -46,12 +45,12 @@ export interface TabBarProps<TEntity> {
   getId: (entity: TEntity) => string;
   getLabel: (entity: TEntity) => string;
   onSelect: (id: string) => void;
-  onRemove: (id: string) => void;
-  onAdd: () => void;
+  onRemove?: (id: string) => void;
   renderTabPrefix?: (entity: TEntity) => React.ReactNode;
   onRename?: (id: string, newName: string) => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
-  addButton?: React.ReactNode;
+  /** Rendered in the right-side area. Caller is responsible for all buttons and their click handlers. */
+  actions?: React.ReactNode;
 }
 
 export const TabBar = observer(function TabBar<TEntity>({
@@ -61,11 +60,10 @@ export const TabBar = observer(function TabBar<TEntity>({
   getLabel,
   onSelect,
   onRemove,
-  onAdd,
   renderTabPrefix,
   onRename,
   onReorder,
-  addButton,
+  actions,
 }: TabBarProps<TEntity>) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -86,7 +84,7 @@ export const TabBar = observer(function TabBar<TEntity>({
             isActive && 'bg-background opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
           )}
         >
-          <div className="flex items-center pl-3 pr-1 h-full">
+          <div className={cn('flex items-center pl-3 pr-1 h-full', !onRemove && 'pr-3')}>
             <span className="flex items-center gap-1">
               {renderTabPrefix?.(entity)}
               {isEditing ? (
@@ -105,16 +103,18 @@ export const TabBar = observer(function TabBar<TEntity>({
                 <span className="max-w-24 truncate p-1">{label}</span>
               )}
             </span>
-            <button
-              disabled={isEditing}
-              className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(id);
-              }}
-            >
-              <X className="size-4" />
-            </button>
+            {onRemove && (
+              <button
+                disabled={isEditing}
+                className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(id);
+                }}
+              >
+                <X className="size-4" />
+              </button>
+            )}
           </div>
         </button>
         <Separator orientation="vertical" />
@@ -146,25 +146,9 @@ export const TabBar = observer(function TabBar<TEntity>({
           {renderTab}
         </ReorderList>
       ) : (
-        <div className="flex overflow-x-auto h-full">
-          {tabs.map((entity, index) => renderTab(entity, index))}
-        </div>
+        <div className="flex overflow-x-auto h-full">{tabs.map((entity) => renderTab(entity))}</div>
       )}
-      {addButton ? (
-        <div onClick={onAdd} className="shrink-0">
-          {addButton}
-        </div>
-      ) : (
-        <Button
-          variant="outline"
-          className="size-7 shrink-0"
-          size="icon-xs"
-          onClick={onAdd}
-          title="New tab"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      )}
+      {actions && <div className="shrink-0">{actions}</div>}
     </div>
   );
 }) as <TEntity>(props: TabBarProps<TEntity>) => React.ReactElement;

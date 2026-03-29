@@ -31,13 +31,6 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       onRemove={(id) => {
         conversationMgr.removeTab(id);
       }}
-      onAdd={() =>
-        showCreateConversationModal({
-          projectId,
-          taskId,
-          onSuccess: ({ conversationId }) => conversationMgr.setActiveTab(conversationId),
-        })
-      }
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
         if (!config?.logo) return null;
@@ -53,10 +46,19 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       }}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}
       onReorder={(from, to) => conversationMgr.reorderTabs(from, to)}
-      addButton={
+      actions={
         <Tooltip>
           <TooltipTrigger>
-            <button className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground">
+            <button
+              className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground"
+              onClick={() =>
+                showCreateConversationModal({
+                  projectId,
+                  taskId,
+                  onSuccess: ({ conversationId }) => conversationMgr.setActiveTab(conversationId),
+                })
+              }
+            >
               <Plus className="size-4" />
             </button>
           </TooltipTrigger>

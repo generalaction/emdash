@@ -2,6 +2,7 @@ import { AddProjectModal } from '@renderer/components/add-project-modal/add-proj
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CommandPaletteModal } from '@renderer/components/cmdk/CommandPaletteModal';
 import { ConfirmActionDialog } from '@renderer/components/confirm-action-dialog';
+import { FeedbackModal } from '@renderer/components/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/components/github-device-flow-modal';
 import { McpModal } from '@renderer/components/mcp/McpModal';
 import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
@@ -24,6 +25,7 @@ export const modalRegistry = {
   commandPaletteModal: CommandPaletteModal,
   confirmActionModal: ConfirmActionDialog,
   createConversationModal: CreateConversationModal,
+  feedbackModal: FeedbackModal,
   mcpServerModal: McpModal,
   conflictDialog: ConflictDialog,
   createPrModal: CreatePrModal,

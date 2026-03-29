@@ -93,7 +93,7 @@ export class TaskStore {
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.git = new GitStore(data.projectId, data.id);
     this.files = new FilesStore(data.projectId, data.id);
-    this.lifecycleScripts = new LifecycleScriptsStore();
+    this.lifecycleScripts = new LifecycleScriptsStore(data.projectId, data.id);
     this.diffView = new DiffViewStore(this.git);
     this.view = 'agents';
     this.rightPanelView = 'changes';
