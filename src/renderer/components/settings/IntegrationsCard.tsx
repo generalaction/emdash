@@ -241,8 +241,7 @@ const IntegrationsCard: React.FC = () => {
                   Enter your Linear API key to connect your workspace.
                 </DialogDescription>
               </DialogHeader>
-              <Separator />
-              <DialogContentArea className="pt-6">
+              <DialogContentArea>
                 <Input
                   type="password"
                   value={linearInput}
@@ -288,8 +287,7 @@ const IntegrationsCard: React.FC = () => {
                   Enter your Jira site URL, email, and API token to connect.
                 </DialogDescription>
               </DialogHeader>
-              <Separator />
-              <DialogContentArea className="pt-6">
+              <DialogContentArea>
                 <JiraSetupForm
                   site={jiraSite}
                   email={jiraEmail}

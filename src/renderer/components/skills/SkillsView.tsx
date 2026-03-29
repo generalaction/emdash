@@ -236,8 +236,8 @@ const SkillsView: React.FC = () => {
               Create a new skill module in ~/.agentskills/
             </DialogDescription>
           </DialogHeader>
-          <Separator />
-          <DialogContentArea className="pt-6">
+
+          <DialogContentArea>
             <form onSubmit={handleCreateSkill} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="skill-name" className="text-xs">
