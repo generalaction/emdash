@@ -452,8 +452,9 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
                               <span className="flex items-center gap-2">
                                 {t.label}
                                 {!connected && (
-                                  <span className="text-[10px] text-amber-500">
-                                    (not connected)
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                    <span className="h-1 w-1 rounded-full bg-amber-500" />
+                                    Setup required
                                   </span>
                                 )}
                               </span>
@@ -466,7 +467,7 @@ const AutomationInlineCreate: React.FC<AutomationInlineCreateProps> = ({
                   {/* Connection warning */}
                   {!integrationStatuses[TRIGGER_INTEGRATION_MAP[triggerType]] && (
                     <p className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-[10px] text-amber-600 dark:text-amber-400">
-                      {INTEGRATION_LABELS[TRIGGER_INTEGRATION_MAP[triggerType]]} is not connected.
+                      {INTEGRATION_LABELS[TRIGGER_INTEGRATION_MAP[triggerType]]} needs to be set up.
                       Connect it in Settings → Integrations for this trigger to work.
                     </p>
                   )}

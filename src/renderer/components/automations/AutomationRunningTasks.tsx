@@ -18,7 +18,6 @@ import { agentConfig } from '../../lib/agentConfig';
 import { useTaskStatus } from '../../hooks/useTaskStatus';
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useProjectManagementContext } from '../../contexts/ProjectManagementProvider';
-import { TERMINAL_PROVIDER_IDS } from '../../constants/agents';
 import { makePtyId } from '@shared/ptyId';
 import { formatRelativeTime } from './utils';
 import type { Task, TaskMetadata } from '../../types/chat';
@@ -117,16 +116,14 @@ const AutomationTaskRow: React.FC<{ task: Task; project: Project }> = ({ task, p
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleStop = useCallback(() => {
-    // Kill all provider PTYs for this task
-    for (const providerId of TERMINAL_PROVIDER_IDS) {
-      const ptyId = makePtyId(providerId as ProviderId, 'main', task.id);
-      try {
-        window.electronAPI.ptyKill(ptyId);
-      } catch {
-        // ignore
-      }
+    if (!task.agentId) return;
+    const ptyId = makePtyId(task.agentId as ProviderId, 'main', task.id);
+    try {
+      window.electronAPI.ptyKill(ptyId);
+    } catch {
+      // ignore
     }
-  }, [task.id]);
+  }, [task.id, task.agentId]);
 
   const handleDelete = useCallback(() => {
     void handleDeleteTask(project, task);

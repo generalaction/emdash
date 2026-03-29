@@ -12,7 +12,7 @@ import {
   Bug,
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Spinner } from '../ui/spinner';
 import AgentLogo from '../AgentLogo';
 import { agentConfig } from '../../lib/agentConfig';
@@ -80,197 +80,193 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
       : (project?.name ?? automation.projectName ?? 'Unknown');
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div
-        className={`group flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 transition-all hover:bg-muted/40 ${
-          !isActive && !isTriggering ? 'opacity-45' : ''
-        }`}
-      >
-        {/* Agent icon */}
-        {agent?.logo ? (
-          <AgentLogo
-            logo={agent.logo}
-            alt={agent.name}
-            isSvg={agent.isSvg}
-            invertInDark={agent.invertInDark}
-            className="h-5 w-5 shrink-0 rounded-sm"
-          />
-        ) : (
-          <span className="w-5 shrink-0 text-center text-[10px] font-semibold text-muted-foreground">
-            {automation.agentId.slice(0, 2).toUpperCase()}
-          </span>
-        )}
+    <div
+      className={`group flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 transition-all hover:bg-muted/40 ${
+        !isActive && !isTriggering ? 'opacity-45' : ''
+      }`}
+    >
+      {/* Agent icon */}
+      {agent?.logo ? (
+        <AgentLogo
+          logo={agent.logo}
+          alt={agent.name}
+          isSvg={agent.isSvg}
+          invertInDark={agent.invertInDark}
+          className="h-5 w-5 shrink-0 rounded-sm"
+        />
+      ) : (
+        <span className="w-5 shrink-0 text-center text-[10px] font-semibold text-muted-foreground">
+          {automation.agentId.slice(0, 2).toUpperCase()}
+        </span>
+      )}
 
-        {/* Name + project */}
-        <div className="min-w-0 flex-1">
-          <span className="truncate text-sm font-semibold text-foreground">{automation.name}</span>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{projectLabel}</p>
-        </div>
-
-        {/* Running indicator */}
-        {isTriggering && (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Spinner size="sm" className="h-3 w-3" />
-            <span className="hidden sm:inline">{getPhaseLabel(runState.phase)}</span>
-          </span>
-        )}
-
-        {/* Integration disconnected warning */}
-        {!isTriggering && isIntegrationDisconnected && requiredIntegration && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                tabIndex={0}
-                role="status"
-                aria-label={`${INTEGRATION_LABELS[requiredIntegration]} not connected`}
-                className="flex items-center gap-1 text-xs text-amber-500"
-              >
-                <AlertTriangle className="h-3 w-3" />
-                <span className="hidden sm:inline">
-                  {INTEGRATION_LABELS[requiredIntegration]} not connected
-                </span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Connect {INTEGRATION_LABELS[requiredIntegration]} in Settings → Integrations
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Schedule / trigger info */}
-        {!isTriggering &&
-          automation.mode === 'trigger' &&
-          automation.triggerType &&
-          !isIntegrationDisconnected && (
-            <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
-              {getTriggerIcon(automation.triggerType)}
-              {formatTriggerLabel(automation.triggerType)}
-            </span>
-          )}
-        {!isTriggering && automation.mode !== 'trigger' && (
-          <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
-            <Clock className="h-3 w-3" />
-            {formatScheduleLabel(automation.schedule)}
-          </span>
-        )}
-
-        {/* Next run / last run */}
-        {!isTriggering && automation.nextRunAt && isActive && automation.mode !== 'trigger' && (
-          <span className="hidden text-xs text-muted-foreground/40 lg:inline">
-            next {formatRelativeTime(automation.nextRunAt)}
-          </span>
-        )}
-
-        {/* Run count link */}
-        {automation.runCount > 0 && !isTriggering && (
-          <button
-            type="button"
-            className="hidden text-xs text-muted-foreground/30 transition-colors hover:text-foreground/60 sm:inline"
-            aria-label={`View ${automation.runCount} run${automation.runCount !== 1 ? 's' : ''} for ${automation.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewLogs(automation);
-            }}
-          >
-            {automation.runCount} run{automation.runCount !== 1 ? 's' : ''}
-          </button>
-        )}
-
-        {/* Status label */}
-        {!isTriggering && (
-          <span
-            className={`text-xs font-medium ${
-              isActive ? 'text-emerald-500/70' : 'text-muted-foreground/40'
-            }`}
-          >
-            {isActive ? 'Active' : 'Paused'}
-          </span>
-        )}
-
-        {/* Actions — visible on hover */}
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!canRunNow) return;
-                    onTriggerNow(automation.id);
-                  }}
-                  aria-label="Run now"
-                  className="h-7 w-7 text-muted-foreground"
-                  disabled={!canRunNow}
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {automation.mode === 'trigger'
-                ? 'Run now is unavailable for event-triggered automations'
-                : 'Run now'}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle(automation.id);
-                }}
-                aria-label={isActive ? 'Pause' : 'Resume'}
-                className="h-7 w-7 text-muted-foreground"
-                disabled={isTriggering}
-              >
-                {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{isActive ? 'Pause' : 'Resume'}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(automation);
-                }}
-                aria-label="Edit"
-                className="h-7 w-7 text-muted-foreground"
-                disabled={isTriggering}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Edit</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(automation.id);
-                }}
-                aria-label="Delete"
-                className="h-7 w-7 text-destructive/60"
-                disabled={isTriggering}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Delete</TooltipContent>
-          </Tooltip>
-        </div>
+      {/* Name + project */}
+      <div className="min-w-0 flex-1">
+        <span className="truncate text-sm font-semibold text-foreground">{automation.name}</span>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{projectLabel}</p>
       </div>
-    </TooltipProvider>
+
+      {/* Running indicator */}
+      {isTriggering && (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner size="sm" className="h-3 w-3" />
+          <span className="hidden sm:inline">{getPhaseLabel(runState.phase)}</span>
+        </span>
+      )}
+
+      {/* Integration disconnected warning */}
+      {!isTriggering && isIntegrationDisconnected && requiredIntegration && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              tabIndex={0}
+              role="status"
+              aria-label={`${INTEGRATION_LABELS[requiredIntegration]} setup required`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <span className="hidden sm:inline">Setup required</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            Connect {INTEGRATION_LABELS[requiredIntegration]} in Settings → Integrations
+          </TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Schedule / trigger info */}
+      {!isTriggering &&
+        automation.mode === 'trigger' &&
+        automation.triggerType &&
+        !isIntegrationDisconnected && (
+          <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
+            {getTriggerIcon(automation.triggerType)}
+            {formatTriggerLabel(automation.triggerType)}
+          </span>
+        )}
+      {!isTriggering && automation.mode !== 'trigger' && (
+        <span className="hidden items-center gap-1 text-xs text-muted-foreground/40 sm:flex">
+          <Clock className="h-3 w-3" />
+          {formatScheduleLabel(automation.schedule)}
+        </span>
+      )}
+
+      {/* Next run / last run */}
+      {!isTriggering && automation.nextRunAt && isActive && automation.mode !== 'trigger' && (
+        <span className="hidden text-xs text-muted-foreground/40 lg:inline">
+          next {formatRelativeTime(automation.nextRunAt)}
+        </span>
+      )}
+
+      {/* Run count link */}
+      {automation.runCount > 0 && !isTriggering && (
+        <button
+          type="button"
+          className="hidden text-xs text-muted-foreground/30 transition-colors hover:text-foreground/60 sm:inline"
+          aria-label={`View ${automation.runCount} run${automation.runCount !== 1 ? 's' : ''} for ${automation.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewLogs(automation);
+          }}
+        >
+          {automation.runCount} run{automation.runCount !== 1 ? 's' : ''}
+        </button>
+      )}
+
+      {/* Status label */}
+      {!isTriggering && (
+        <span
+          className={`text-xs font-medium ${
+            isActive ? 'text-emerald-500/70' : 'text-muted-foreground/40'
+          }`}
+        >
+          {isActive ? 'Active' : 'Paused'}
+        </span>
+      )}
+
+      {/* Actions — visible on hover */}
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!canRunNow) return;
+                  onTriggerNow(automation.id);
+                }}
+                aria-label="Run now"
+                className="h-7 w-7 text-muted-foreground"
+                disabled={!canRunNow}
+              >
+                <Zap className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {automation.mode === 'trigger'
+              ? 'Run now is unavailable for event-triggered automations'
+              : 'Run now'}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(automation.id);
+              }}
+              aria-label={isActive ? 'Pause' : 'Resume'}
+              className="h-7 w-7 text-muted-foreground"
+              disabled={isTriggering}
+            >
+              {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{isActive ? 'Pause' : 'Resume'}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(automation);
+              }}
+              aria-label="Edit"
+              className="h-7 w-7 text-muted-foreground"
+              disabled={isTriggering}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Edit</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(automation.id);
+              }}
+              aria-label="Delete"
+              className="h-7 w-7 text-destructive/60"
+              disabled={isTriggering}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Delete</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
   );
 };
 
