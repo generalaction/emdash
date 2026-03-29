@@ -12,6 +12,10 @@
 - MCP server configs are read, adapted, merged, and written across supported agent ecosystems
 - provider-specific config formats are handled through adapters in `src/main/services/mcp/`
 - the renderer MCP UI manages installed servers and catalog entries
+- save/remove operations use a 2-phase flow:
+  - read phase is atomic, any read/parse failure aborts before writes begin
+  - write phase is best-effort, provider writes continue and failures are reported after all attempts
+- when a write phase partially succeeds, the thrown error reports both failed agents and any configs that were updated before the failure
 
 ## Important Constraint
 

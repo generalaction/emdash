@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as jsoncParser from 'jsonc-parser';
 import type { AgentMcpMeta } from '@shared/mcp/types';
 
 vi.mock('fs/promises', () => ({
@@ -78,6 +79,57 @@ describe('readServers', () => {
     expect(result.myserver).toBeDefined();
     expect((result.myserver as any).command).toBe('npx');
   });
+
+  it('reads jsonc-capable opencode json files with comments and trailing commas', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      adapter: 'opencode',
+      isJsonc: true,
+    });
+    mockFs.readFile.mockResolvedValue(`{
+  // keep comment
+  "theme": "dark",
+  "mcp": {
+    "s1": {
+      "type": "local",
+      "command": ["npx", "-y", "foo"],
+    },
+  },
+}`);
+
+    const result = await readServers(meta);
+
+    expect(result).toEqual({
+      s1: {
+        type: 'local',
+        command: ['npx', '-y', 'foo'],
+      },
+    });
+  });
+
+  it('throws when jsonc-capable opencode config cannot be parsed safely', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      adapter: 'opencode',
+      isJsonc: true,
+    });
+    mockFs.readFile.mockResolvedValue(`{
+  "theme": "dark",
+  "mcp": {
+    "s1": {
+      "type": "local",
+      "command": ["npx"]
+    }
+`);
+
+    await expect(readServers(meta)).rejects.toThrow(/Failed to safely parse JSONC config/);
+  });
 });
 
 describe('writeServers', () => {
@@ -125,5 +177,82 @@ describe('writeServers', () => {
 
     const written = JSON.parse(mockFs.writeFile.mock.calls[0][1] as string);
     expect(written.mcpServers).toEqual({ s1: { command: 'npx' } });
+  });
+
+  it('keeps malformed plain json fallback behavior unchanged', async () => {
+    mockFs.readFile.mockResolvedValue('{ invalid json }');
+    mockFs.mkdir.mockResolvedValue(undefined);
+    mockFs.writeFile.mockResolvedValue(undefined);
+
+    await writeServers(makeMeta(), { s1: { command: 'npx' } });
+
+    const written = JSON.parse(mockFs.writeFile.mock.calls[0][1] as string);
+    expect(written).toEqual({ mcpServers: { s1: { command: 'npx' } } });
+  });
+
+  it('preserves sibling keys and comments when updating jsonc-capable opencode json files', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      adapter: 'opencode',
+      isJsonc: true,
+    });
+    mockFs.readFile.mockResolvedValue(`{
+  // keep comment
+  "theme": "dark",
+  "plugin": ["acme-plugin"],
+  "mcp": {
+    "oldServer": {
+      "type": "local",
+      "command": ["old"],
+    },
+  },
+}`);
+    mockFs.mkdir.mockResolvedValue(undefined);
+    mockFs.writeFile.mockResolvedValue(undefined);
+
+    await writeServers(meta, {
+      newServer: { type: 'remote', url: 'https://example.com/mcp' },
+    });
+
+    const written = mockFs.writeFile.mock.calls[0][1] as string;
+    expect(written).toContain('// keep comment');
+
+    const parsed = jsoncParser.parse(written) as Record<string, any>;
+    expect(parsed.theme).toBe('dark');
+    expect(parsed.plugin).toEqual(['acme-plugin']);
+    expect(parsed.mcp).toEqual({
+      newServer: { type: 'remote', url: 'https://example.com/mcp' },
+    });
+  });
+
+  it('throws instead of resetting jsonc-capable opencode config when parsing is unsafe', async () => {
+    const meta = makeMeta({
+      agentId: 'opencode',
+      configPath: '/home/test/.config/opencode/opencode.json',
+      serversPath: ['mcp'],
+      template: { mcp: {} },
+      adapter: 'opencode',
+      isJsonc: true,
+    });
+    mockFs.readFile.mockResolvedValue(`{
+  "theme": "dark",
+  "mcp": {
+    "oldServer": {
+      "type": "local",
+      "command": ["old"]
+    }
+`);
+    mockFs.mkdir.mockResolvedValue(undefined);
+    mockFs.writeFile.mockResolvedValue(undefined);
+
+    await expect(
+      writeServers(meta, {
+        newServer: { type: 'remote', url: 'https://example.com/mcp' },
+      })
+    ).rejects.toThrow(/Failed to safely parse JSONC config/);
+    expect(mockFs.writeFile).not.toHaveBeenCalled();
   });
 });

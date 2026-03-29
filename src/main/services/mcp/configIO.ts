@@ -5,6 +5,34 @@ import * as toml from 'smol-toml';
 import { log } from '../../lib/logger';
 import type { AgentMcpMeta, ServerMap, RawServerEntry } from '@shared/mcp/types';
 
+function isJsoncConfig(meta: AgentMcpMeta): boolean {
+  return meta.isJsonc === true || meta.configPath.endsWith('.jsonc');
+}
+
+function cloneTemplate(template: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(template)) as Record<string, unknown>;
+}
+
+const JSONC_PARSE_OPTIONS: jsoncParser.ParseOptions = {
+  allowTrailingComma: true,
+  disallowComments: false,
+};
+
+function parseJsoncConfig(meta: AgentMcpMeta, content: string): Record<string, unknown> {
+  const errors: jsoncParser.ParseError[] = [];
+  const parsed = jsoncParser.parse(content, errors, JSONC_PARSE_OPTIONS);
+
+  if (errors.length > 0 || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    const details =
+      errors.length > 0
+        ? errors.map((error) => jsoncParser.printParseErrorCode(error.error)).join(', ')
+        : 'root value must be an object';
+    throw new Error(`Failed to safely parse JSONC config at ${meta.configPath}: ${details}`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
 // ── Read ───────────────────────────────────────────────────────────────────
 
 export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
@@ -21,12 +49,8 @@ export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
   let parsed: Record<string, unknown>;
   if (meta.isToml) {
     parsed = toml.parse(content) as Record<string, unknown>;
-  } else if (meta.configPath.endsWith('.jsonc')) {
-    const errors: jsoncParser.ParseError[] = [];
-    parsed = (jsoncParser.parse(content, errors) ?? {}) as Record<string, unknown>;
-    if (errors.length) {
-      log.warn(`JSONC parse errors in ${meta.configPath}:`, errors);
-    }
+  } else if (isJsoncConfig(meta)) {
+    parsed = parseJsoncConfig(meta, content);
   } else {
     try {
       parsed = JSON.parse(content);
@@ -75,7 +99,7 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
   if (meta.isToml) {
     existing = existingRaw
       ? (toml.parse(existingRaw) as Record<string, unknown>)
-      : { ...meta.template };
+      : cloneTemplate(meta.template);
     setAtPath(existing, meta.serversPath, servers);
     await fs.writeFile(
       meta.configPath,
@@ -84,13 +108,20 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
     return;
   }
 
-  if (meta.configPath.endsWith('.jsonc') && existingRaw) {
-    // Use jsonc-parser modify() to preserve comments
-    let modified = existingRaw;
-    // First, set the entire servers object at the path
-    const edits = jsoncParser.modify(modified, meta.serversPath, servers, {});
-    modified = jsoncParser.applyEdits(modified, edits);
-    await fs.writeFile(meta.configPath, modified);
+  if (isJsoncConfig(meta)) {
+    if (existingRaw && existingRaw.trim()) {
+      // Validate/parse JSONC before computing edits; return value intentionally ignored
+      // so jsonc-parser.modify/applyEdits can preserve the original comments/formatting.
+      parseJsoncConfig(meta, existingRaw);
+      const edits = jsoncParser.modify(existingRaw, meta.serversPath, servers, {});
+      const modified = jsoncParser.applyEdits(existingRaw, edits);
+      await fs.writeFile(meta.configPath, modified);
+      return;
+    }
+
+    existing = cloneTemplate(meta.template);
+    setAtPath(existing, meta.serversPath, servers);
+    await fs.writeFile(meta.configPath, JSON.stringify(existing, null, 2));
     return;
   }
 
@@ -100,10 +131,10 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
       existing = JSON.parse(existingRaw);
     } catch {
       log.warn(`Invalid JSON in ${meta.configPath}, resetting to template`);
-      existing = JSON.parse(JSON.stringify(meta.template));
+      existing = cloneTemplate(meta.template);
     }
   } else {
-    existing = JSON.parse(JSON.stringify(meta.template));
+    existing = cloneTemplate(meta.template);
   }
   setAtPath(existing, meta.serversPath, servers);
   await fs.writeFile(meta.configPath, JSON.stringify(existing, null, 2));
