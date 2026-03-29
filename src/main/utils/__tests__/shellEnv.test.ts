@@ -21,7 +21,12 @@ const mockedReaddirSync = vi.mocked(readdirSync);
 
 describe('shellEnv', () => {
   const originalEnv = process.env;
-  const fallbackUtf8Locale = process.platform === 'darwin' ? 'en_US.UTF-8' : 'C.UTF-8';
+  const fallbackUtf8Locale =
+    process.platform === 'darwin'
+      ? 'en_US.UTF-8'
+      : process.platform === 'win32'
+        ? undefined
+        : 'C.UTF-8';
   const shellLookup = (values: Partial<Record<string, string>>) => (command: string) => {
     // Batched locale call: returns values separated by ---
     if (command.includes('echo "---"')) {
