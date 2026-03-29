@@ -1,5 +1,6 @@
 import { projectManager } from '@main/core/projects/project-manager';
 import { projectSettingsSchema, type ProjectSettings } from '@main/core/projects/settings/schema';
+import { log } from '@main/lib/logger';
 
 export async function getTaskSettings(projectId: string, taskId: string): Promise<ProjectSettings> {
   const project = projectManager.getProject(projectId);
@@ -16,6 +17,11 @@ export async function getTaskSettings(projectId: string, taskId: string): Promis
     return project.settings.get();
   }
 
-  const { content } = await task.fs.read('.emdash.json');
-  return projectSettingsSchema.parse(JSON.parse(content));
+  try {
+    const { content } = await task.fs.read('.emdash.json');
+    return projectSettingsSchema.parse(JSON.parse(content));
+  } catch (err) {
+    log.warn('Failed to parse task .emdash.json, falling back to project settings', err);
+    return project.settings.get();
+  }
 }
