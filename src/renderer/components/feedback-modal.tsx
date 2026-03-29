@@ -1,15 +1,13 @@
 import { CornerDownLeft, Paperclip, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useToast } from '../hooks/use-toast';
+import { useAttachments } from '../hooks/use-attachments';
+import { useFeedbackSubmit } from '../hooks/use-feedback-submit';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
-
-const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -26,206 +24,71 @@ interface FeedbackModalProps {
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser, blurb }) => {
   const shouldReduceMotion = useReducedMotion();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [feedbackDetails, setFeedbackDetails] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const { toast } = useToast();
+
+  const {
+    attachments,
+    fileInputRef,
+    removeAttachment,
+    openFilePicker,
+    handleFileInputChange,
+    handlePaste,
+    handleDrop,
+    handleDragOver,
+    reset: resetAttachments,
+  } = useAttachments();
+
+  const {
+    feedbackDetails,
+    setFeedbackDetails,
+    contactEmail,
+    setContactEmail,
+    submitting,
+    errorMessage,
+    clearError,
+    reset: resetForm,
+    handleSubmit,
+    canSubmit,
+  } = useFeedbackSubmit({
+    githubUser,
+    onSuccess: () => {
+      resetAttachments();
+      onClose();
+    },
+  });
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
+    if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen) {
-      setFeedbackDetails('');
-      setContactEmail('');
-      setSubmitting(false);
-      setErrorMessage(null);
-      setAttachments([]);
+      resetForm();
+      resetAttachments();
     }
-  }, [isOpen]);
-
-  const handleSubmit = useCallback(async () => {
-    if (!feedbackDetails.trim() || submitting) {
-      if (!feedbackDetails.trim()) {
-        setErrorMessage('Please enter some feedback before sending.');
-      }
-      return;
-    }
-
-    if (!DISCORD_WEBHOOK_URL) {
-      setErrorMessage('Feedback webhook is not configured.');
-      return;
-    }
-
-    setSubmitting(true);
-    setErrorMessage(null);
-
-    const trimmedFeedback = feedbackDetails.trim();
-    const trimmedContact = contactEmail.trim();
-
-    const metadataLines: string[] = [];
-    if (trimmedContact) {
-      metadataLines.push(`Contact: ${trimmedContact}`);
-    }
-
-    const githubLogin = githubUser?.login?.trim();
-    const githubName = githubUser?.name?.trim();
-    if (githubLogin || githubName) {
-      const summaryParts: string[] = [];
-      if (githubName && githubLogin) {
-        summaryParts.push(`${githubName} (@${githubLogin})`);
-      } else if (githubName) {
-        summaryParts.push(githubName);
-      } else if (githubLogin) {
-        summaryParts.push(`@${githubLogin}`);
-      }
-      metadataLines.push(`GitHub: ${summaryParts.join(' ')}`);
-    }
-
-    const content = [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
-
-    try {
-      let response: Response;
-
-      if (attachments.length > 0) {
-        const formData = new FormData();
-        formData.append('content', content);
-        attachments.forEach((file, index) => {
-          formData.append(`file${index}`, file);
-        });
-        response = await fetch(DISCORD_WEBHOOK_URL, {
-          method: 'POST',
-          body: formData,
-        });
-      } else {
-        response = await fetch(DISCORD_WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        });
-      }
-
-      if (!response.ok) {
-        throw new Error(`Discord webhook returned ${response.status}`);
-      }
-
-      setFeedbackDetails('');
-      setContactEmail('');
-      setAttachments([]);
-      onClose();
-      toast({ title: 'Feedback sent', description: 'Thanks for your feedback!' });
-    } catch (error) {
-      console.error('Failed to submit feedback:', error);
-      setErrorMessage('Unable to send feedback. Please try again.');
-      toast({
-        title: 'Failed to send feedback',
-        description: 'Please try again.',
-        variant: 'destructive' as any,
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }, [attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting]);
+  }, [isOpen, resetForm, resetAttachments]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      await handleSubmit();
+      await handleSubmit(attachments);
     },
-    [handleSubmit]
+    [handleSubmit, attachments]
   );
 
   const handleMetaEnter = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'enter') {
       event.preventDefault();
-      void handleSubmit();
+      void handleSubmit(attachments);
     }
   };
-
-  const handleAttachmentClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length) {
-      setAttachments((prev) => [...prev, ...files]);
-      if (errorMessage) {
-        setErrorMessage(null);
-      }
-    }
-    event.target.value = '';
-  };
-
-  const handleRemoveAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = event.clipboardData?.items;
-    if (!items) return;
-
-    const imageFiles: File[] = [];
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          imageFiles.push(file);
-        }
-      }
-    }
-
-    if (imageFiles.length > 0) {
-      setAttachments((prev) => [...prev, ...imageFiles]);
-      if (errorMessage) {
-        setErrorMessage(null);
-      }
-    }
-  };
-
-  const handleDrop = (event: React.DragEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const files = Array.from(event.dataTransfer?.files ?? []);
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-
-    if (imageFiles.length > 0) {
-      setAttachments((prev) => [...prev, ...imageFiles]);
-      if (errorMessage) {
-        setErrorMessage(null);
-      }
-    }
-  };
-
-  const handleDragOver = (event: React.DragEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  if (typeof document === 'undefined') {
-    return null;
-  }
 
   return createPortal(
     <AnimatePresence>
@@ -253,7 +116,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
             transition={
               shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="w-full max-w-lg transform-gpu rounded-xl border border-border bg-white shadow-2xl outline-none will-change-transform dark:border-border dark:bg-background"
+            className="w-full max-w-lg transform-gpu rounded-xl border border-border bg-white shadow-2xl outline-none will-change-transform dark:bg-background"
           >
             <div className="flex items-start justify-between px-6 pb-2 pt-6">
               <div className="flex flex-col gap-1">
@@ -290,9 +153,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                   value={feedbackDetails}
                   onChange={(event) => {
                     setFeedbackDetails(event.target.value);
-                    if (errorMessage) {
-                      setErrorMessage(null);
-                    }
+                    if (errorMessage) clearError();
                   }}
                   onKeyDown={handleMetaEnter}
                   onPaste={handlePaste}
@@ -310,9 +171,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                   value={contactEmail}
                   onChange={(event) => {
                     setContactEmail(event.target.value);
-                    if (errorMessage) {
-                      setErrorMessage(null);
-                    }
+                    if (errorMessage) clearError();
                   }}
                   onKeyDown={handleMetaEnter}
                 />
@@ -325,7 +184,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                   accept="image/*"
                   className="hidden"
                   multiple
-                  onChange={handleAttachmentChange}
+                  onChange={handleFileInputChange}
                   disabled={submitting}
                 />
                 {attachments.length > 0 ? (
@@ -333,14 +192,14 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                     {attachments.map((file, index) => (
                       <li
                         key={`${file.name}-${index}`}
-                        className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground dark:border-border dark:text-foreground"
+                        className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground"
                       >
                         <span className="truncate">{file.name}</span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveAttachment(index)}
+                          onClick={() => removeAttachment(index)}
                           disabled={submitting}
                           className="text-xs text-muted-foreground hover:text-foreground"
                         >
@@ -362,7 +221,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleAttachmentClick}
+                  onClick={openFilePicker}
                   className="gap-2"
                   disabled={submitting}
                 >
@@ -373,19 +232,19 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
                   type="submit"
                   ref={submitButtonRef}
                   className="gap-2 px-4"
-                  disabled={submitting || !feedbackDetails.trim()}
+                  disabled={!canSubmit}
                   aria-busy={submitting}
                 >
                   {submitting ? (
                     <>
                       <Spinner size="sm" />
-                      <span>Sending…</span>
+                      <span>Sending...</span>
                     </>
                   ) : (
                     <>
                       <span>Send Feedback</span>
                       <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
-                        <span>⌘</span>
+                        <span>&#8984;</span>
                         <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
                       </span>
                     </>
