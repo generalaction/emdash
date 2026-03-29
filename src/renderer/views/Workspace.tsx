@@ -26,6 +26,7 @@ import { KeyboardSettingsProvider } from '@/contexts/KeyboardSettingsContext';
 import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
@@ -78,6 +79,7 @@ const BrowserAwareShortcuts: React.FC<
 };
 
 export function Workspace() {
+  const automationsEnabled = useFeatureFlag('automations');
   useTheme(); // Initialize theme on app startup
   const { showModal } = useModalContext();
 
@@ -276,7 +278,7 @@ export function Workspace() {
   useAutoPrRefresh(taskMgmt.activeTask?.path);
 
   // Listen for automation triggers from the main process (scheduled + manual)
-  useAutomationTrigger();
+  useAutomationTrigger(automationsEnabled);
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;

@@ -20,7 +20,7 @@ import { isValidProviderId } from '@shared/providers/registry';
  * sends a hint event. This hook drains the queue when ready, avoiding
  * lost triggers from startup races or React mount timing.
  */
-export function useAutomationTrigger(): void {
+export function useAutomationTrigger(enabled = true): void {
   const { projects, isInitialLoadComplete } = useProjectManagementContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -211,6 +211,7 @@ export function useAutomationTrigger(): void {
   }, [runAutomationInBackground]);
 
   useEffect(() => {
+    if (!enabled) return;
     // Don't drain triggers until projects are loaded — otherwise we'll get
     // "Project not found" errors because the projects array is still empty.
     // The triggers stay safely queued in the main process until we're ready.
@@ -232,5 +233,5 @@ export function useAutomationTrigger(): void {
       }
       ptyExitUnsubs.current.clear();
     };
-  }, [drainTriggers, isInitialLoadComplete]);
+  }, [drainTriggers, enabled, isInitialLoadComplete]);
 }

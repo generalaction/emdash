@@ -26,6 +26,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   settingsPageInitialTab,
   handleCloseSettingsPage,
 }) => {
+  const automationsEnabled = useFeatureFlag('automations');
   const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo();
@@ -95,7 +96,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     return <McpPage />;
   }
 
-  if (showAutomationsView) {
+  if (showAutomationsView && automationsEnabled) {
     return <AutomationsView />;
   }
 

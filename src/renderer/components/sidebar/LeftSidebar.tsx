@@ -37,6 +37,7 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useFeatureFlag } from '../../hooks/useFeatureFlag';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import { useChangelogNotification } from '@/hooks/useChangelogNotification';
 import { useModalContext } from '@/contexts/ModalProvider';
@@ -97,6 +98,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onOpenAccountSettings,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
+  const automationsEnabled = useFeatureFlag('automations');
   const { showModal } = useModalContext();
   const {
     projects,
@@ -259,7 +261,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
-            {onGoToAutomations && (
+            {automationsEnabled && onGoToAutomations && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild

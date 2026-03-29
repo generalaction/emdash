@@ -16,6 +16,7 @@ import { useModalContext } from '../contexts/ModalProvider';
 import { useAppContext } from '../contexts/AppContextProvider';
 import { useGithubContext } from '../contexts/GithubContextProvider';
 import { useToast } from './use-toast';
+import { useFeatureFlag } from './useFeatureFlag';
 
 // ---------------------------------------------------------------------------
 // Shared helper — build a Project object from a local git path.
@@ -78,6 +79,7 @@ async function buildProjectFromGitPath(
 }
 
 export const useProjectManagement = () => {
+  const automationsEnabled = useFeatureFlag('automations');
   const { platform } = useAppContext();
   const {
     authenticated: isAuthenticated,
@@ -272,6 +274,7 @@ export const useProjectManagement = () => {
   };
 
   const handleGoToAutomations = () => {
+    if (!automationsEnabled) return;
     void import('../lib/telemetryClient').then(({ captureTelemetry }) => {
       captureTelemetry('automations_view_opened');
     });
@@ -285,6 +288,13 @@ export const useProjectManagement = () => {
     setShowKanban(false);
     saveActiveIds(null, null);
   };
+
+  useEffect(() => {
+    if (automationsEnabled || !showAutomationsView) return;
+    setShowAutomationsView(false);
+    setShowHomeView(true);
+    saveActiveIds(null, null);
+  }, [automationsEnabled, showAutomationsView]);
 
   const handleSelectProject = (project: Project) => {
     activateProjectView(project);
