@@ -5,6 +5,7 @@ import { Button } from '@renderer/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogContentArea,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -236,65 +237,67 @@ const SkillsView: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <Separator />
-          <form onSubmit={handleCreateSkill} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="skill-name" className="text-xs">
-                Name
-              </Label>
-              <Input
-                id="skill-name"
-                placeholder="my-skill"
-                value={newName}
-                onChange={(e) => {
-                  setNewName(e.target.value);
-                  setCreateError(null);
-                }}
-                className="text-sm"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Lowercase letters, numbers, and hyphens
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="skill-desc" className="text-xs">
-                Description
-              </Label>
-              <Input
-                id="skill-desc"
-                placeholder="What does this skill do?"
-                value={newDescription}
-                onChange={(e) => {
-                  setNewDescription(e.target.value);
-                  setCreateError(null);
-                }}
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="skill-content" className="text-xs">
-                Instructions
-              </Label>
-              <Textarea
-                id="skill-content"
-                placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."
-                value={newContent}
-                onChange={(e) => {
-                  setNewContent(e.target.value);
-                  setCreateError(null);
-                }}
-                className="min-h-[200px] font-mono text-sm"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Define what this skill does and how agents should use it
-              </p>
-            </div>
-            {createError && <p className="text-xs text-destructive">{createError}</p>}
-            <DialogFooter>
-              <Button type="submit" size="sm" disabled={isCreating}>
-                {isCreating ? 'Creating...' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </form>
+          <DialogContentArea className="pt-6">
+            <form onSubmit={handleCreateSkill} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="skill-name" className="text-xs">
+                  Name
+                </Label>
+                <Input
+                  id="skill-name"
+                  placeholder="my-skill"
+                  value={newName}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    setCreateError(null);
+                  }}
+                  className="text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Lowercase letters, numbers, and hyphens
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skill-desc" className="text-xs">
+                  Description
+                </Label>
+                <Input
+                  id="skill-desc"
+                  placeholder="What does this skill do?"
+                  value={newDescription}
+                  onChange={(e) => {
+                    setNewDescription(e.target.value);
+                    setCreateError(null);
+                  }}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skill-content" className="text-xs">
+                  Instructions
+                </Label>
+                <Textarea
+                  id="skill-content"
+                  placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."
+                  value={newContent}
+                  onChange={(e) => {
+                    setNewContent(e.target.value);
+                    setCreateError(null);
+                  }}
+                  className="min-h-[200px] font-mono text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Define what this skill does and how agents should use it
+                </p>
+              </div>
+              {createError && <p className="text-xs text-destructive">{createError}</p>}
+            </form>
+          </DialogContentArea>
+          <DialogFooter>
+            <Button type="submit" size="sm" disabled={isCreating}>
+              {isCreating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
