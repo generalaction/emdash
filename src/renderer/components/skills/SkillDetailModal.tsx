@@ -126,9 +126,10 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </div>
           </div>
         </DialogHeader>
-        <DialogContentArea>
+        <Separator />
+        <DialogContentArea className="pt-6">
           {skill.defaultPrompt && (
-            <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2">
+            <div className="space-y-1 rounded-md bg-muted/40 px-3 pb-2">
               <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
               <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
                 {skill.defaultPrompt}
