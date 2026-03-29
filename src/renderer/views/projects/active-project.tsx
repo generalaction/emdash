@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { PullRequestList } from '@renderer/components/projects/pr-list';
+import { PullRequestView } from '@renderer/components/projects/pr-view';
 import { isMountedProject } from '@renderer/core/stores/project';
 import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
 import { useParams } from '@renderer/core/view/navigation-provider';
@@ -20,7 +20,7 @@ export const ActiveProject = observer(function ActiveProject() {
   return (
     <>
       {activeView === 'tasks' && <TaskList />}
-      {activeView === 'pull-request' && <PullRequestList />}
+      {activeView === 'pull-request' && <PullRequestView />}
       {activeView === 'settings' && <SettingsPanel />}
       {(activeView === 'repository' || activeView === 'commits') && (
         <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">

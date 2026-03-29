@@ -106,6 +106,7 @@ export const pullRequests = sqliteTable(
     nameWithOwner: text('name_with_owner').notNull().default(''),
     url: text('url').notNull(),
     title: text('title').notNull(),
+    identifier: text('identifier'),
     status: text('status').notNull().default('open'),
     author: text('author'),
     authorLogin: text('author_login'),

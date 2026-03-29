@@ -1,5 +1,5 @@
 import type { Octokit } from '@octokit/rest';
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, like, or, sql } from 'drizzle-orm';
 import type {
   CheckRunBucket,
   GitHubReviewer,
@@ -207,7 +207,8 @@ export class PrService {
       nameWithOwner,
       options.filters,
       { limit: options.limit ?? 50, offset: options.offset ?? 0 },
-      options.sort
+      options.sort,
+      options.searchQuery
     );
   }
 
@@ -629,7 +630,8 @@ export class PrService {
     nameWithOwner: string,
     filters?: PrFilters,
     pagination?: { limit: number; offset: number },
-    sort?: PrSortField
+    sort?: PrSortField,
+    searchQuery?: string
   ): Promise<PullRequest[]> {
     const conditions = [eq(pullRequests.nameWithOwner, nameWithOwner)];
 
@@ -659,6 +661,13 @@ export class PrService {
         .from(pullRequestAssignees)
         .where(inArray(pullRequestAssignees.login, filters.assigneeLogins));
       conditions.push(inArray(pullRequests.id, assigneeSubquery));
+    }
+
+    if (searchQuery?.trim()) {
+      const pattern = `%${searchQuery.trim()}%`;
+      conditions.push(
+        or(like(pullRequests.title, pattern), like(pullRequests.identifier, pattern))!
+      );
     }
 
     const orderClause =
@@ -761,6 +770,7 @@ export class PrService {
       nameWithOwner: pr.nameWithOwner,
       url: pr.url,
       title: pr.title,
+      identifier: pr.identifier,
       status: pr.status,
       author: JSON.stringify(pr.author),
       authorLogin: pr.author?.userName ?? null,

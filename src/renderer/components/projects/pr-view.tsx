@@ -1,0 +1,354 @@
+import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { motion } from 'motion/react';
+import { useState } from 'react';
+import type { PrSortField } from '@shared/pull-requests';
+import { Button } from '@renderer/components/ui/button';
+import { Input } from '@renderer/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/components/ui/select';
+import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
+import { useParams } from '@renderer/core/view/navigation-provider';
+import {
+  usePrViewState,
+  type LabelItem,
+  type StatusFilter,
+  type UserItem,
+} from '@renderer/hooks/usePrViewState';
+import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
+import { SearchInput } from '../ui/search-input';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { PrVirtualList } from './pr-virtual-list';
+
+const SORT_OPTIONS: { value: PrSortField; label: string }[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'recently-updated', label: 'Recently Updated' },
+];
+
+function FilterButton({
+  label,
+  active,
+  disabled,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        disabled={disabled}
+        className={
+          'flex items-center text-sm gap-1 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed ' +
+          (active ? 'text-foreground font-medium' : 'text-foreground-muted')
+        }
+      >
+        {label}
+        <ChevronDownIcon className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-2 gap-0">
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UserFilterPopover({
+  label,
+  items,
+  selected,
+  onChange,
+}: {
+  label: string;
+  items: UserItem[];
+  selected: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <FilterButton label={label} active={selected !== null} disabled={items.length === 0}>
+      <Input
+        className="mb-1 h-7 text-xs"
+        placeholder={`Search ${label.toLowerCase()}…`}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        autoFocus
+      />
+      <ul className="max-h-52 overflow-y-auto">
+        {filtered.map((item) => (
+          <li key={item.value}>
+            <button
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+              onClick={() => onChange(selected === item.value ? null : item.value)}
+            >
+              {item.avatarUrl ? (
+                <img
+                  src={item.avatarUrl}
+                  alt={item.label}
+                  className="size-4 shrink-0 rounded-full"
+                />
+              ) : (
+                <span className="size-4 shrink-0 rounded-full bg-muted-foreground/20" />
+              )}
+              <span className="flex-1 truncate text-left">{item.label}</span>
+              {selected === item.value && (
+                <CheckIcon className="size-3.5 shrink-0 text-foreground" />
+              )}
+            </button>
+          </li>
+        ))}
+        {filtered.length === 0 && (
+          <li className="px-2 py-3 text-xs text-center text-muted-foreground">No results</li>
+        )}
+      </ul>
+    </FilterButton>
+  );
+}
+
+function LabelFilterPopover({
+  items,
+  selected,
+  onChange,
+}: {
+  items: LabelItem[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()));
+
+  const toggle = (value: string) =>
+    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+
+  return (
+    <FilterButton label="Label" active={selected.length > 0} disabled={items.length === 0}>
+      <Input
+        className="mb-1 h-7 text-xs"
+        placeholder="Search labels…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        autoFocus
+      />
+      <ul className="max-h-52 overflow-y-auto">
+        {filtered.map((item) => (
+          <li key={item.value}>
+            <button
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+              onClick={() => toggle(item.value)}
+            >
+              {item.color ? (
+                <span
+                  className="size-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: `#${item.color}` }}
+                />
+              ) : (
+                <span className="size-3 shrink-0 rounded-full bg-muted-foreground/20" />
+              )}
+              <span className="flex-1 truncate text-left">{item.label}</span>
+              {selected.includes(item.value) && (
+                <CheckIcon className="size-3.5 shrink-0 text-foreground" />
+              )}
+            </button>
+          </li>
+        ))}
+        {filtered.length === 0 && (
+          <li className="px-2 py-3 text-xs text-center text-muted-foreground">No results</li>
+        )}
+      </ul>
+    </FilterButton>
+  );
+}
+
+function FilterPill({
+  avatarUrl,
+  color,
+  label,
+  onRemove,
+}: {
+  avatarUrl?: string;
+  color?: string;
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs">
+      {avatarUrl && <img src={avatarUrl} alt={label} className="size-3.5 rounded-full" />}
+      {color && (
+        <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: `#${color}` }} />
+      )}
+      {label}
+      <button
+        className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+      >
+        <X className="size-2.5" />
+      </button>
+    </span>
+  );
+}
+
+export const PullRequestView = observer(function PullRequestView() {
+  const {
+    params: { projectId },
+  } = useParams('project');
+  const project = mountedProjectData(getProjectStore(projectId));
+  const nameWithOwner = project?.gitRemote ? parseGithubNameWithOwner(project.gitRemote) : null;
+
+  const {
+    statusFilter,
+    sortFilter,
+    query,
+    setQuery,
+    syncing,
+    selectedAuthorLogin,
+    setSelectedAuthorLogin,
+    selectedLabelNames,
+    setSelectedLabelNames,
+    selectedAssigneeLogin,
+    setSelectedAssigneeLogin,
+    handleStatusChange,
+    handleSortChange,
+    handleRefresh,
+    removeLabel,
+    prs,
+    loading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    authorItems,
+    assigneeItems,
+    labelItems,
+    selectedAuthorItem,
+    selectedAssigneeItem,
+    selectedLabelItems,
+    hasPills,
+  } = usePrViewState(projectId, nameWithOwner);
+
+  return (
+    <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+      {/* ── Header controls ── */}
+      <div className="flex flex-col gap-4 border-b border-border pb-2">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between">
+          <ToggleGroup
+            value={[statusFilter]}
+            onValueChange={(values) => {
+              const next = values.find((v) => v !== statusFilter) ?? statusFilter;
+              handleStatusChange(next as StatusFilter);
+            }}
+          >
+            <ToggleGroupItem value="open">Open</ToggleGroupItem>
+            <ToggleGroupItem value="not-open">Closed</ToggleGroupItem>
+          </ToggleGroup>
+
+          <div className="flex items-center gap-2">
+            <SearchInput
+              placeholder="Search by title, branch, or number..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <Button variant="outline" size="icon-sm" onClick={handleRefresh} disabled={syncing}>
+              <motion.div
+                animate={syncing ? { rotate: 360 } : {}}
+                transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
+              >
+                <RefreshCw className="size-3.5" />
+              </motion.div>
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Sort + filter row ── */}
+        <div className="flex gap-2 flex-wrap flex-col">
+          <div className="flex items-center gap-2 flex-wrap justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-foreground-passive">Sort</span>
+              <Select value={sortFilter} onValueChange={handleSortChange}>
+                <SelectTrigger
+                  size="sm"
+                  className="w-auto border-none p-0 gap-1 text-foreground-muted hover:text-foreground"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-foreground-passive">Filter by</span>
+              <UserFilterPopover
+                label="Author"
+                items={authorItems}
+                selected={selectedAuthorLogin}
+                onChange={setSelectedAuthorLogin}
+              />
+              <LabelFilterPopover
+                items={labelItems}
+                selected={selectedLabelNames}
+                onChange={setSelectedLabelNames}
+              />
+              <UserFilterPopover
+                label="Assignee"
+                items={assigneeItems}
+                selected={selectedAssigneeLogin}
+                onChange={setSelectedAssigneeLogin}
+              />
+            </div>
+          </div>
+
+          {/* ── Active filter pills ── */}
+          {hasPills && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {selectedAuthorItem && (
+                <FilterPill
+                  label={selectedAuthorItem.label}
+                  avatarUrl={selectedAuthorItem.avatarUrl}
+                  onRemove={() => setSelectedAuthorLogin(null)}
+                />
+              )}
+              {selectedLabelItems.map((l) => (
+                <FilterPill
+                  key={l.value}
+                  label={l.label}
+                  color={l.color}
+                  onRemove={() => removeLabel(l.value)}
+                />
+              ))}
+              {selectedAssigneeItem && (
+                <FilterPill
+                  label={selectedAssigneeItem.label}
+                  avatarUrl={selectedAssigneeItem.avatarUrl}
+                  onRemove={() => setSelectedAssigneeLogin(null)}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <PrVirtualList
+        prs={prs}
+        loading={loading}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
+      />
+    </div>
+  );
+});

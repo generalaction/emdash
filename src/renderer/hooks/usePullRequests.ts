@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 export interface UsePullRequestsOptions {
   filters?: PrFilters;
   sort?: PrSortField;
+  searchQuery?: string;
   enabled?: boolean;
 }
 
@@ -22,17 +23,18 @@ export function usePullRequests(
   nameWithOwner?: string,
   options: UsePullRequestsOptions = {}
 ) {
-  const { filters, sort, enabled = true } = options;
+  const { filters, sort, searchQuery, enabled = true } = options;
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
-    queryKey: ['pull-requests', projectId, nameWithOwner, filters, sort],
+    queryKey: ['pull-requests', projectId, nameWithOwner, filters, sort, searchQuery],
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       const listOptions: ListPrOptions = {
         limit: PAGE_SIZE,
         offset: pageParam,
         filters,
         sort,
+        searchQuery,
       };
       const response = await rpc.pullRequests.listPullRequests(
         projectId!,
