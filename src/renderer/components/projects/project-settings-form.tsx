@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { Button } from '@renderer/components/ui/button';
@@ -89,10 +89,14 @@ export function ProjectSettingsForm({
   const { branches } = useBranches(projectId);
   const { remotes } = useRemotes(projectId);
 
-  const [form, setForm] = useState<FormState>(() => settingsToForm(initial));
-  const [original] = useState<FormState>(() => settingsToForm(initial));
+  const baseline = useMemo(() => settingsToForm(initial), [initial]);
+  const [form, setForm] = useState<FormState>(baseline);
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(original);
+  useEffect(() => {
+    setForm(baseline);
+  }, [baseline]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -261,7 +265,7 @@ export function ProjectSettingsForm({
         </FieldGroup>
       </div>
       <div className="flex justify-end gap-2 pt-5 pb-10">
-        <Button variant="outline" onClick={() => setForm(original)} disabled={!isDirty || isSaving}>
+        <Button variant="outline" onClick={() => setForm(baseline)} disabled={!isDirty || isSaving}>
           Cancel
         </Button>
         <ConfirmButton onClick={() => void handleSave()} disabled={!isDirty || isSaving}>
