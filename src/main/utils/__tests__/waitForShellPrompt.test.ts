@@ -112,6 +112,38 @@ describe('waitForShellPrompt', () => {
     expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
   });
 
+  it('detects a prompt split across chunks', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    pty.emit('user@host:~');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('$ ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects a fish prompt after greeting output arrives in earlier chunks', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    pty.emit('Welcome to fish, the friendly interactive shell\r\n');
+    pty.emit('Type help for instructions on how to use fish\r\n');
+    pty.emit('user@remote ~/worktrees/1597-fish-prompt');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
   it('does not match a bare prompt character with no preceding context', () => {
     const pty = createMockPty();
     waitForShellPrompt({
